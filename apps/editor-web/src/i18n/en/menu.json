@@ -1,0 +1,308 @@
+{
+  "file": {
+    "label": "File",
+    "tooltip": "Open the file menu"
+  },
+  "newFile": {
+    "label": "New File",
+    "tooltip": "Create a new file",
+    "shortcut": "Ctrl+N"
+  },
+  "openFile": {
+    "label": "Open File",
+    "tooltip": "Open an existing file",
+    "shortcut": "Ctrl+O"
+  },
+  "saveFile": {
+    "label": "Save File",
+    "tooltip": "Save the current file",
+    "shortcut": "Ctrl+S"
+  },
+  "saveAs": {
+    "label": "Save As",
+    "tooltip": "Save the current file with a new name"
+  },
+  "importFile": {
+    "label": "Import File",
+    "tooltip": "Import a file into the project"
+  },
+  "exportFile": {
+    "label": "Export",
+    "tooltip": "Export the current file"
+  },
+  "exportFile_png": {
+    "label": "Export as PNG",
+    "tooltip": "Export the file as a PNG image"
+  },
+  "exportFile_pdf": {
+    "label": "Export as PDF",
+    "tooltip": "Export the file as a PDF document"
+  },
+  "exportFile_csv": {
+    "label": "Export as CSV",
+    "tooltip": "Export the file as a CSV file"
+  },
+  "print": {
+    "label": "Print",
+    "tooltip": "Print the current file"
+  },
+  "closeFile": {
+    "label": "Close File",
+    "tooltip": "Close the current file"
+  },
+  "edit": {
+    "label": "Edit",
+    "tooltip": "Open the edit menu"
+  },
+  "undo": {
+    "label": "Undo",
+    "tooltip": "Undo the last action",
+    "shortcut": "Ctrl+Z"
+  },
+  "redo": {
+    "label": "Redo",
+    "tooltip": "Redo the last undone action",
+    "shortcut": "Ctrl+Y"
+  },
+  "cut": {
+    "label": "Cut",
+    "tooltip": "Cut the selected content",
+    "shortcut": "Ctrl+X"
+  },
+  "copy": {
+    "label": "Copy",
+    "tooltip": "Copy the selected content",
+    "shortcut": "Ctrl+C"
+  },
+  "paste": {
+    "label": "Paste",
+    "tooltip": "Paste the copied content",
+    "shortcut": "Ctrl+V"
+  },
+  "delete": {
+    "label": "Delete",
+    "tooltip": "Delete the selected content",
+    "shortcut": "Del"
+  },
+  "duplicate": {
+    "label": "Duplicate",
+    "tooltip": "Duplicate the selected content",
+    "shortcut": "Ctrl+D"
+  },
+  "selectAll": {
+    "label": "Select All",
+    "tooltip": "Select all content",
+    "shortcut": "Ctrl+A"
+  },
+  "findReplace": {
+    "label": "Find & Replace",
+    "tooltip": "Find and replace text",
+    "shortcut": "Ctrl+F"
+  },
+  "view": {
+    "label": "View",
+    "tooltip": "Open the view menu"
+  },
+  "zoomIn": {
+    "label": "Zoom In",
+    "tooltip": "Zoom in on the document",
+    "shortcut": "Ctrl++"
+  },
+  "zoomOut": {
+    "label": "Zoom Out",
+    "tooltip": "Zoom out of the document",
+    "shortcut": "Ctrl+-"
+  },
+  "fitToScreen": {
+    "label": "Fit to Screen",
+    "tooltip": "Fit the content to the screen"
+  },
+  "toggleGrid": {
+    "label": "Toggle Grid",
+    "tooltip": "Show or hide the grid"
+  },
+  "toggleGuides": {
+    "label": "Toggle Guides",
+    "tooltip": "Show or hide the guides"
+  },
+  "fullscreenMode": {
+    "label": "Fullscreen Mode",
+    "tooltip": "Switch to fullscreen mode",
+    "shortcut": "F11"
+  },
+  "shape": {
+    "label": "Shape",
+    "tooltip": "Open the shape menu"
+  },
+  "addNode": {
+    "label": "Add Node",
+    "tooltip": "Add a new node to the diagram"
+  },
+  "deleteNode": {
+    "label": "Delete Node",
+    "tooltip": "Delete the selected node"
+  },
+  "moveNode": {
+    "label": "Move Node",
+    "tooltip": "Move the selected node"
+  },
+  "resizeNode": {
+    "label": "Resize Node",
+    "tooltip": "Resize the selected node"
+  },
+  "rotateNode": {
+    "label": "Rotate Node",
+    "tooltip": "Rotate the selected node"
+  },
+  "changeNodeColor": {
+    "label": "Change Node Color",
+    "tooltip": "Change the color of the selected node"
+  },
+  "changeNodeBorder": {
+    "label": "Change Node Border",
+    "tooltip": "Change the border of the selected node"
+  },
+  "changeNodeText": {
+    "label": "Change Node Text",
+    "tooltip": "Edit the text of the selected node"
+  },
+  "groupNodes": {
+    "label": "Group Nodes",
+    "tooltip": "Group selected nodes together"
+  },
+  "ungroupNodes": {
+    "label": "Ungroup Nodes",
+    "tooltip": "Ungroup the selected nodes"
+  },
+  "lockNode": {
+    "label": "Lock Node",
+    "tooltip": "Lock the selected node"
+  },
+  "unlockNode": {
+    "label": "Unlock Node",
+    "tooltip": "Unlock the selected node"
+  },
+  "connection": {
+    "label": "Connection",
+    "tooltip": "Open the connection menu"
+  },
+  "addEdge": {
+    "label": "Add Edge",
+    "tooltip": "Add an edge between nodes"
+  },
+  "deleteEdge": {
+    "label": "Delete Edge",
+    "tooltip": "Delete the selected edge"
+  },
+  "changeEdgeStyle": {
+    "label": "Change Edge Style",
+    "tooltip": "Change the style of the selected edge"
+  },
+  "changeEdgeColor": {
+    "label": "Change Edge Color",
+    "tooltip": "Change the color of the selected edge"
+  },
+  "changeEdgeLabel": {
+    "label": "Change Edge Label",
+    "tooltip": "Change the label of the selected edge"
+  },
+  "reverseEdge": {
+    "label": "Reverse Edge",
+    "tooltip": "Reverse the direction of the selected edge"
+  },
+  "text": {
+    "label": "Text",
+    "tooltip": "Open the text menu"
+  },
+  "addText": {
+    "label": "Add Text",
+    "tooltip": "Add text to the document"
+  },
+  "editText": {
+    "label": "Edit Text",
+    "tooltip": "Edit the selected text"
+  },
+  "changeFont": {
+    "label": "Change Font",
+    "tooltip": "Change the font of the selected text"
+  },
+  "changeFontSize": {
+    "label": "Change Font Size",
+    "tooltip": "Change the font size of the selected text"
+  },
+  "changeFontColor": {
+    "label": "Change Font Color",
+    "tooltip": "Change the font color of the selected text"
+  },
+  "boldText": {
+    "label": "Bold Text",
+    "tooltip": "Make the selected text bold",
+    "shortcut": "Ctrl+B"
+  },
+  "italicText": {
+    "label": "Italic Text",
+    "tooltip": "Make the selected text italic",
+    "shortcut": "Ctrl+I"
+  },
+  "underlineText": {
+    "label": "Underline Text",
+    "tooltip": "Underline the selected text",
+    "shortcut": "Ctrl+U"
+  },
+  "alignText": {
+    "label": "Align Text",
+    "tooltip": "Align the selected text"
+  },
+  "layer": {
+    "label": "Layer",
+    "tooltip": "Open the layer menu"
+  },
+  "sendToBack": {
+    "label": "Send to Back",
+    "tooltip": "Send the selected layer to the back"
+  },
+  "bringToFront": {
+    "label": "Bring to Front",
+    "tooltip": "Bring the selected layer to the front"
+  },
+  "sendBackward": {
+    "label": "Send Backward",
+    "tooltip": "Send the selected layer one step backward"
+  },
+  "bringForward": {
+    "label": "Bring Forward",
+    "tooltip": "Bring the selected layer one step forward"
+  },
+  "duplicateLayer": {
+    "label": "Duplicate Layer",
+    "tooltip": "Duplicate the selected layer"
+  },
+  "deleteLayer": {
+    "label": "Delete Layer",
+    "tooltip": "Delete the selected layer"
+  },
+  "toggleLayerVisibility": {
+    "label": "Toggle Layer Visibility",
+    "tooltip": "Show or hide the selected layer"
+  },
+  "collaboration": {
+    "label": "Collaboration",
+    "tooltip": "Open the collaboration menu"
+  },
+  "addComment": {
+    "label": "Add Comment",
+    "tooltip": "Add a comment to the document"
+  },
+  "editComment": {
+    "label": "Edit Comment",
+    "tooltip": "Edit the selected comment"
+  },
+  "deleteComment": {
+    "label": "Delete Comment",
+    "tooltip": "Delete the selected comment"
+  },
+  "shareDocument": {
+    "label": "Share Document",
+    "tooltip": "Share the document with others"
+  }
+}
