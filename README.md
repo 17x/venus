@@ -15,6 +15,9 @@ Venus is a vector application leveraging a monorepo architecture to support mult
   ```sh
    git clone https://github.com/17x/venus.git
    cd venus
+   
+   brew install flatbuffers
+   flatc --ts --gen-name-strings schema.fbs
   ```
 
 ## License
