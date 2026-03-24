@@ -1,0 +1,308 @@
+{
+  "file": {
+    "label": "文件",
+    "tooltip": "打开文件菜单"
+  },
+  "newFile": {
+    "label": "新建文件",
+    "tooltip": "创建新文件",
+    "shortcut": "Ctrl+N"
+  },
+  "openFile": {
+    "label": "打开文件",
+    "tooltip": "打开现有文件",
+    "shortcut": "Ctrl+O"
+  },
+  "saveFile": {
+    "label": "保存文件",
+    "tooltip": "保存当前文件",
+    "shortcut": "Ctrl+S"
+  },
+  "saveAs": {
+    "label": "另存为",
+    "tooltip": "以新名称保存当前文件"
+  },
+  "importFile": {
+    "label": "导入文件",
+    "tooltip": "将文件导入到项目中"
+  },
+  "exportFile": {
+    "label": "导出",
+    "tooltip": "导出当前文件"
+  },
+  "exportFile_png": {
+    "label": "导出为PNG",
+    "tooltip": "将文件导出为PNG图像"
+  },
+  "exportFile_pdf": {
+    "label": "导出为PDF",
+    "tooltip": "将文件导出为PDF文档"
+  },
+  "exportFile_csv": {
+    "label": "导出为CSV",
+    "tooltip": "将文件导出为CSV文件"
+  },
+  "print": {
+    "label": "打印",
+    "tooltip": "打印当前文件"
+  },
+  "closeFile": {
+    "label": "关闭文件",
+    "tooltip": "关闭当前文件"
+  },
+  "edit": {
+    "label": "编辑",
+    "tooltip": "打开编辑菜单"
+  },
+  "undo": {
+    "label": "撤销",
+    "tooltip": "撤销上一步操作",
+    "shortcut": "Ctrl+Z"
+  },
+  "redo": {
+    "label": "重做",
+    "tooltip": "重做上一次撤销的操作",
+    "shortcut": "Ctrl+Y"
+  },
+  "cut": {
+    "label": "剪切",
+    "tooltip": "剪切选定的内容",
+    "shortcut": "Ctrl+X"
+  },
+  "copy": {
+    "label": "复制",
+    "tooltip": "复制选定的内容",
+    "shortcut": "Ctrl+C"
+  },
+  "paste": {
+    "label": "粘贴",
+    "tooltip": "粘贴复制的内容",
+    "shortcut": "Ctrl+V"
+  },
+  "delete": {
+    "label": "删除",
+    "tooltip": "删除选定的内容",
+    "shortcut": "Del"
+  },
+  "duplicate": {
+    "label": "复制",
+    "tooltip": "复制选定的内容",
+    "shortcut": "Ctrl+D"
+  },
+  "selectAll": {
+    "label": "全选",
+    "tooltip": "选择所有内容",
+    "shortcut": "Ctrl+A"
+  },
+  "findReplace": {
+    "label": "查找和替换",
+    "tooltip": "查找和替换文本",
+    "shortcut": "Ctrl+F"
+  },
+  "view": {
+    "label": "视图",
+    "tooltip": "打开视图菜单"
+  },
+  "zoomIn": {
+    "label": "放大",
+    "tooltip": "放大文档",
+    "shortcut": "Ctrl++"
+  },
+  "zoomOut": {
+    "label": "缩小",
+    "tooltip": "缩小文档",
+    "shortcut": "Ctrl+-"
+  },
+  "fitToScreen": {
+    "label": "适应屏幕",
+    "tooltip": "使内容适应屏幕"
+  },
+  "toggleGrid": {
+    "label": "切换网格",
+    "tooltip": "显示或隐藏网格"
+  },
+  "toggleGuides": {
+    "label": "切换参考线",
+    "tooltip": "显示或隐藏参考线"
+  },
+  "fullscreenMode": {
+    "label": "全屏模式",
+    "tooltip": "切换到全屏模式",
+    "shortcut": "F11"
+  },
+  "shape": {
+    "label": "形状",
+    "tooltip": "打开形状菜单"
+  },
+  "addNode": {
+    "label": "添加节点",
+    "tooltip": "向图表添加新节点"
+  },
+  "deleteNode": {
+    "label": "删除节点",
+    "tooltip": "删除选定的节点"
+  },
+  "moveNode": {
+    "label": "移动节点",
+    "tooltip": "移动选定的节点"
+  },
+  "resizeNode": {
+    "label": "调整节点大小",
+    "tooltip": "调整选定节点的大小"
+  },
+  "rotateNode": {
+    "label": "旋转节点",
+    "tooltip": "旋转选定的节点"
+  },
+  "changeNodeColor": {
+    "label": "更改节点颜色",
+    "tooltip": "更改选定节点的颜色"
+  },
+  "changeNodeBorder": {
+    "label": "更改节点边框",
+    "tooltip": "更改选定节点的边框"
+  },
+  "changeNodeText": {
+    "label": "更改节点文本",
+    "tooltip": "编辑选定节点的文本"
+  },
+  "groupNodes": {
+    "label": "组合节点",
+    "tooltip": "将选定的节点组合在一起"
+  },
+  "ungroupNodes": {
+    "label": "取消组合节点",
+    "tooltip": "取消组合选定的节点"
+  },
+  "lockNode": {
+    "label": "锁定节点",
+    "tooltip": "锁定选定的节点"
+  },
+  "unlockNode": {
+    "label": "解锁节点",
+    "tooltip": "解锁选定的节点"
+  },
+  "connection": {
+    "label": "连接",
+    "tooltip": "打开连接菜单"
+  },
+  "addEdge": {
+    "label": "添加边",
+    "tooltip": "在节点之间添加边"
+  },
+  "deleteEdge": {
+    "label": "删除边",
+    "tooltip": "删除选定的边"
+  },
+  "changeEdgeStyle": {
+    "label": "更改边样式",
+    "tooltip": "更改选定边的样式"
+  },
+  "changeEdgeColor": {
+    "label": "更改边颜色",
+    "tooltip": "更改选定边的颜色"
+  },
+  "changeEdgeLabel": {
+    "label": "更改边标签",
+    "tooltip": "更改选定边的标签"
+  },
+  "reverseEdge": {
+    "label": "反转边",
+    "tooltip": "反转选定边的方向"
+  },
+  "text": {
+    "label": "文本",
+    "tooltip": "打开文本菜单"
+  },
+  "addText": {
+    "label": "添加文本",
+    "tooltip": "向文档添加文本"
+  },
+  "editText": {
+    "label": "编辑文本",
+    "tooltip": "编辑选定的文本"
+  },
+  "changeFont": {
+    "label": "更改字体",
+    "tooltip": "更改选定文本的字体"
+  },
+  "changeFontSize": {
+    "label": "更改字体大小",
+    "tooltip": "更改选定文本的字体大小"
+  },
+  "changeFontColor": {
+    "label": "更改字体颜色",
+    "tooltip": "更改选定文本的字体颜色"
+  },
+  "boldText": {
+    "label": "粗体文本",
+    "tooltip": "将选定的文本设置为粗体",
+    "shortcut": "Ctrl+B"
+  },
+  "italicText": {
+    "label": "斜体文本",
+    "tooltip": "将选定的文本设置为斜体",
+    "shortcut": "Ctrl+I"
+  },
+  "underlineText": {
+    "label": "下划线文本",
+    "tooltip": "为选定的文本添加下划线",
+    "shortcut": "Ctrl+U"
+  },
+  "alignText": {
+    "label": "对齐文本",
+    "tooltip": "对齐选定的文本"
+  },
+  "layer": {
+    "label": "图层",
+    "tooltip": "打开图层菜单"
+  },
+  "sendToBack": {
+    "label": "置于底层",
+    "tooltip": "将选定的图层置于底层"
+  },
+  "bringToFront": {
+    "label": "置于顶层",
+    "tooltip": "将选定的图层置于顶层"
+  },
+  "sendBackward": {
+    "label": "下移一层",
+    "tooltip": "将选定的图层下移一层"
+  },
+  "bringForward": {
+    "label": "上移一层",
+    "tooltip": "将选定的图层上移一层"
+  },
+  "duplicateLayer": {
+    "label": "复制图层",
+    "tooltip": "复制选定的图层"
+  },
+  "deleteLayer": {
+    "label": "删除图层",
+    "tooltip": "删除选定的图层"
+  },
+  "toggleLayerVisibility": {
+    "label": "切换图层可见性",
+    "tooltip": "显示或隐藏选定的图层"
+  },
+  "collaboration": {
+    "label": "协作",
+    "tooltip": "打开协作菜单"
+  },
+  "addComment": {
+    "label": "添加评论",
+    "tooltip": "向文档添加评论"
+  },
+  "editComment": {
+    "label": "编辑评论",
+    "tooltip": "编辑选定的评论"
+  },
+  "deleteComment": {
+    "label": "删除评论",
+    "tooltip": "删除选定的评论"
+  },
+  "shareDocument": {
+    "label": "分享文档",
+    "tooltip": "与他人分享文档"
+  }
+}

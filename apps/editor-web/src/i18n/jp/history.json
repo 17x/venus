@@ -1,0 +1,52 @@
+{
+  "history": {
+    "history-init": {
+      "label": "初期化",
+      "tooltip": "ファイルを初期化する"
+    },
+    "history-add": {
+      "label": "追加",
+      "tooltip": "ファイルにモジュールを追加する"
+    },
+    "history-delete": {
+      "label": "削除",
+      "tooltip": "ファイルからモジュールを削除する"
+    },
+    "history-paste": {
+      "label": "貼り付け",
+      "tooltip": "ファイルにモジュールを貼り付ける"
+    },
+    "history-duplicate": {
+      "label": "複製",
+      "tooltip": "選択したモジュールを複製する"
+    },
+    "history-modify": {
+      "label": "修正",
+      "tooltip": "モジュールのプロパティを修正する"
+    },
+    "history-move": {
+      "label": "移動",
+      "tooltip": "モジュールを移動する"
+    },
+    "history-reorder": {
+      "label": "並べ替え",
+      "tooltip": "モジュールを並べ替える"
+    },
+    "history-select": {
+      "label": "選択",
+      "tooltip": "モジュールを選択する"
+    },
+    "history-group": {
+      "label": "グループ化",
+      "tooltip": "モジュールをグループ化する"
+    },
+    "history-ungroup": {
+      "label": "グループ化解除",
+      "tooltip": "モジュールのグループ化を解除する"
+    },
+    "history-composite": {
+      "label": "複合操作",
+      "tooltip": "複合操作"
+    }
+  }
+}

@@ -1,0 +1,308 @@
+{
+  "file": {
+    "label": "ファイル",
+    "tooltip": "ファイルメニューを開く"
+  },
+  "newFile": {
+    "label": "新規ファイル",
+    "tooltip": "新規ファイルを作成",
+    "shortcut": "Ctrl+N"
+  },
+  "openFile": {
+    "label": "ファイルを開く",
+    "tooltip": "既存のファイルを開く",
+    "shortcut": "Ctrl+O"
+  },
+  "saveFile": {
+    "label": "ファイルを保存",
+    "tooltip": "現在のファイルを保存",
+    "shortcut": "Ctrl+S"
+  },
+  "saveAs": {
+    "label": "名前を付けて保存",
+    "tooltip": "現在のファイルに新しい名前を付けて保存"
+  },
+  "importFile": {
+    "label": "ファイルをインポート",
+    "tooltip": "プロジェクトにファイルをインポート"
+  },
+  "exportFile": {
+    "label": "エクスポート",
+    "tooltip": "現在のファイルをエクスポート"
+  },
+  "exportFile_png": {
+    "label": "PNGとしてエクスポート",
+    "tooltip": "ファイルをPNG画像としてエクスポート"
+  },
+  "exportFile_pdf": {
+    "label": "PDFとしてエクスポート",
+    "tooltip": "ファイルをPDFドキュメントとしてエクスポート"
+  },
+  "exportFile_csv": {
+    "label": "CSVとしてエクスポート",
+    "tooltip": "ファイルをCSVファイルとしてエクスポート"
+  },
+  "print": {
+    "label": "印刷",
+    "tooltip": "現在のファイルを印刷"
+  },
+  "closeFile": {
+    "label": "ファイルを閉じる",
+    "tooltip": "現在のファイルを閉じる"
+  },
+  "edit": {
+    "label": "編集",
+    "tooltip": "編集メニューを開く"
+  },
+  "undo": {
+    "label": "元に戻す",
+    "tooltip": "最後のアクションを元に戻す",
+    "shortcut": "Ctrl+Z"
+  },
+  "redo": {
+    "label": "やり直し",
+    "tooltip": "最後に元に戻したアクションをやり直す",
+    "shortcut": "Ctrl+Y"
+  },
+  "cut": {
+    "label": "切り取り",
+    "tooltip": "選択したコンテンツを切り取り",
+    "shortcut": "Ctrl+X"
+  },
+  "copy": {
+    "label": "コピー",
+    "tooltip": "選択したコンテンツをコピー",
+    "shortcut": "Ctrl+C"
+  },
+  "paste": {
+    "label": "貼り付け",
+    "tooltip": "コピーしたコンテンツを貼り付け",
+    "shortcut": "Ctrl+V"
+  },
+  "delete": {
+    "label": "削除",
+    "tooltip": "選択したコンテンツを削除",
+    "shortcut": "Del"
+  },
+  "duplicate": {
+    "label": "複製",
+    "tooltip": "選択したコンテンツを複製",
+    "shortcut": "Ctrl+D"
+  },
+  "selectAll": {
+    "label": "すべて選択",
+    "tooltip": "すべてのコンテンツを選択",
+    "shortcut": "Ctrl+A"
+  },
+  "findReplace": {
+    "label": "検索と置換",
+    "tooltip": "テキストを検索して置換",
+    "shortcut": "Ctrl+F"
+  },
+  "view": {
+    "label": "表示",
+    "tooltip": "表示メニューを開く"
+  },
+  "zoomIn": {
+    "label": "拡大",
+    "tooltip": "ドキュメントを拡大",
+    "shortcut": "Ctrl++"
+  },
+  "zoomOut": {
+    "label": "縮小",
+    "tooltip": "ドキュメントを縮小",
+    "shortcut": "Ctrl+-"
+  },
+  "fitToScreen": {
+    "label": "画面に合わせる",
+    "tooltip": "コンテンツを画面に合わせる"
+  },
+  "toggleGrid": {
+    "label": "グリッドの切り替え",
+    "tooltip": "グリッドを表示または非表示"
+  },
+  "toggleGuides": {
+    "label": "ガイドの切り替え",
+    "tooltip": "ガイドを表示または非表示"
+  },
+  "fullscreenMode": {
+    "label": "全画面モード",
+    "tooltip": "全画面モードに切り替え",
+    "shortcut": "F11"
+  },
+  "shape": {
+    "label": "図形",
+    "tooltip": "図形メニューを開く"
+  },
+  "addNode": {
+    "label": "ノードを追加",
+    "tooltip": "ダイアグラムに新しいノードを追加"
+  },
+  "deleteNode": {
+    "label": "ノードを削除",
+    "tooltip": "選択したノードを削除"
+  },
+  "moveNode": {
+    "label": "ノードを移動",
+    "tooltip": "選択したノードを移動"
+  },
+  "resizeNode": {
+    "label": "ノードのサイズを変更",
+    "tooltip": "選択したノードのサイズを変更"
+  },
+  "rotateNode": {
+    "label": "ノードを回転",
+    "tooltip": "選択したノードを回転"
+  },
+  "changeNodeColor": {
+    "label": "ノードの色を変更",
+    "tooltip": "選択したノードの色を変更"
+  },
+  "changeNodeBorder": {
+    "label": "ノードの境界線を変更",
+    "tooltip": "選択したノードの境界線を変更"
+  },
+  "changeNodeText": {
+    "label": "ノードのテキストを変更",
+    "tooltip": "選択したノードのテキストを編集"
+  },
+  "groupNodes": {
+    "label": "ノードをグループ化",
+    "tooltip": "選択したノードをグループ化"
+  },
+  "ungroupNodes": {
+    "label": "ノードのグループ化を解除",
+    "tooltip": "選択したノードのグループ化を解除"
+  },
+  "lockNode": {
+    "label": "ノードをロック",
+    "tooltip": "選択したノードをロック"
+  },
+  "unlockNode": {
+    "label": "ノードのロックを解除",
+    "tooltip": "選択したノードのロックを解除"
+  },
+  "connection": {
+    "label": "接続",
+    "tooltip": "接続メニューを開く"
+  },
+  "addEdge": {
+    "label": "エッジを追加",
+    "tooltip": "ノード間にエッジを追加"
+  },
+  "deleteEdge": {
+    "label": "エッジを削除",
+    "tooltip": "選択したエッジを削除"
+  },
+  "changeEdgeStyle": {
+    "label": "エッジのスタイルを変更",
+    "tooltip": "選択したエッジのスタイルを変更"
+  },
+  "changeEdgeColor": {
+    "label": "エッジの色を変更",
+    "tooltip": "選択したエッジの色を変更"
+  },
+  "changeEdgeLabel": {
+    "label": "エッジのラベルを変更",
+    "tooltip": "選択したエッジのラベルを変更"
+  },
+  "reverseEdge": {
+    "label": "エッジの方向を反転",
+    "tooltip": "選択したエッジの方向を反転"
+  },
+  "text": {
+    "label": "テキスト",
+    "tooltip": "テキストメニューを開く"
+  },
+  "addText": {
+    "label": "テキストを追加",
+    "tooltip": "ドキュメントにテキストを追加"
+  },
+  "editText": {
+    "label": "テキストを編集",
+    "tooltip": "選択したテキストを編集"
+  },
+  "changeFont": {
+    "label": "フォントを変更",
+    "tooltip": "選択したテキストのフォントを変更"
+  },
+  "changeFontSize": {
+    "label": "フォントサイズを変更",
+    "tooltip": "選択したテキストのフォントサイズを変更"
+  },
+  "changeFontColor": {
+    "label": "フォントの色を変更",
+    "tooltip": "選択したテキストのフォントの色を変更"
+  },
+  "boldText": {
+    "label": "テキストを太字にする",
+    "tooltip": "選択したテキストを太字にする",
+    "shortcut": "Ctrl+B"
+  },
+  "italicText": {
+    "label": "テキストを斜体にする",
+    "tooltip": "選択したテキストを斜体にする",
+    "shortcut": "Ctrl+I"
+  },
+  "underlineText": {
+    "label": "テキストに下線を引く",
+    "tooltip": "選択したテキストに下線を引く",
+    "shortcut": "Ctrl+U"
+  },
+  "alignText": {
+    "label": "テキストを配置",
+    "tooltip": "選択したテキストを配置"
+  },
+  "layer": {
+    "label": "レイヤー",
+    "tooltip": "レイヤーメニューを開く"
+  },
+  "sendToBack": {
+    "label": "最背面へ移動",
+    "tooltip": "選択したレイヤーを最背面へ移動"
+  },
+  "bringToFront": {
+    "label": "最前面へ移動",
+    "tooltip": "選択したレイヤーを最前面へ移動"
+  },
+  "sendBackward": {
+    "label": "背面へ移動",
+    "tooltip": "選択したレイヤーを1つ背面へ移動"
+  },
+  "bringForward": {
+    "label": "前面へ移動",
+    "tooltip": "選択したレイヤーを1つ前面へ移動"
+  },
+  "duplicateLayer": {
+    "label": "レイヤーを複製",
+    "tooltip": "選択したレイヤーを複製"
+  },
+  "deleteLayer": {
+    "label": "レイヤーを削除",
+    "tooltip": "選択したレイヤーを削除"
+  },
+  "toggleLayerVisibility": {
+    "label": "レイヤーの表示/非表示を切り替え",
+    "tooltip": "選択したレイヤーの表示/非表示を切り替え"
+  },
+  "collaboration": {
+    "label": "コラボレーション",
+    "tooltip": "コラボレーションメニューを開く"
+  },
+  "addComment": {
+    "label": "コメントを追加",
+    "tooltip": "ドキュメントにコメントを追加"
+  },
+  "editComment": {
+    "label": "コメントを編集",
+    "tooltip": "選択したコメントを編集"
+  },
+  "deleteComment": {
+    "label": "コメントを削除",
+    "tooltip": "選択したコメントを削除"
+  },
+  "shareDocument": {
+    "label": "ドキュメントを共有",
+    "tooltip": "ドキュメントを他のユーザーと共有"
+  }
+}

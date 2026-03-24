@@ -1,0 +1,52 @@
+{
+  "history": {
+    "history-init": {
+      "label": "初始化",
+      "tooltip": "初始化文件"
+    },
+    "history-add": {
+      "label": "添加",
+      "tooltip": "向文件添加模块"
+    },
+    "history-delete": {
+      "label": "删除",
+      "tooltip": "从文件中删除模块"
+    },
+    "history-paste": {
+      "label": "粘贴",
+      "tooltip": "将模块粘贴到文件中"
+    },
+    "history-duplicate": {
+      "label": "复制",
+      "tooltip": "复制选定的模块"
+    },
+    "history-modify": {
+      "label": "修改",
+      "tooltip": "修改模块的属性"
+    },
+    "history-move": {
+      "label": "移动",
+      "tooltip": "移动模块"
+    },
+    "history-reorder": {
+      "label": "重新排序",
+      "tooltip": "重新排序模块"
+    },
+    "history-select": {
+      "label": "选择",
+      "tooltip": "选择模块"
+    },
+    "history-group": {
+      "label": "组合",
+      "tooltip": "组合模块"
+    },
+    "history-ungroup": {
+      "label": "取消组合",
+      "tooltip": "取消模块组合"
+    },
+    "history-composite": {
+      "label": "复合操作",
+      "tooltip": "复合操作"
+    }
+  }
+}

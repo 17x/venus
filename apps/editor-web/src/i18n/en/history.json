@@ -1,0 +1,52 @@
+{
+  "history": {
+    "history-init": {
+      "label": "Init",
+      "tooltip": "Initialize the file"
+    },
+    "history-add": {
+      "label": "Add",
+      "tooltip": "Add elements to the file"
+    },
+    "history-delete": {
+      "label": "Delete",
+      "tooltip": "Delete elements from the file"
+    },
+    "history-paste": {
+      "label": "Paste",
+      "tooltip": "Paste elements into the file"
+    },
+    "history-duplicate": {
+      "label": "Duplicate",
+      "tooltip": "Duplicate selected elements"
+    },
+    "history-modify": {
+      "label": "Modify",
+      "tooltip": "Modify the properties of elements"
+    },
+    "history-move": {
+      "label": "Move",
+      "tooltip": "Move elements"
+    },
+    "history-reorder": {
+      "label": "Reorder",
+      "tooltip": "Reorder elements"
+    },
+    "history-select": {
+      "label": "Select",
+      "tooltip": "Select elements"
+    },
+    "history-group": {
+      "label": "Group",
+      "tooltip": "Group elements"
+    },
+    "history-ungroup": {
+      "label": "Ungroup",
+      "tooltip": "Ungroup elements"
+    },
+    "history-composite": {
+      "label": "Composite",
+      "tooltip": "Composite operation"
+    }
+  }
+}
