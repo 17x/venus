@@ -8,5 +8,9 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "MIT",
+  "dependencies": {
+    "canvaskit-wasm": "^0.41.0",
+    "flatbuffers": "^25.9.23"
+  }
 }
