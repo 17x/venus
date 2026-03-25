@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/editor-core/tsconfig.json" },
+    { "path": "./packages/ui/tsconfig.json" },
+    { "path": "./packages/shared-memory/tsconfig.json" },
+    { "path": "./packages/editor-worker/tsconfig.json" },
+    { "path": "./packages/renderer-skia/tsconfig.json" },
+    { "path": "./packages/editor-ui/tsconfig.json" },
+    { "path": "./apps/editor-web/tsconfig.app.json" },
+    { "path": "./apps/editor-web/tsconfig.node.json" }
+  ]
+}

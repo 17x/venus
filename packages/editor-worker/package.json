@@ -1,0 +1,13 @@
+{
+  "name": "@venus/editor-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@venus/editor-core": "workspace:*",
+    "@venus/shared-memory": "workspace:*"
+  }
+}

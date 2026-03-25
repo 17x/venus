@@ -1,0 +1,14 @@
+{
+  "name": "@venus/renderer-skia",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "@venus/editor-core": "workspace:*",
+    "@venus/shared-memory": "workspace:*",
+    "react": "^19.2.4"
+  }
+}

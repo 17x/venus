@@ -1,22 +1,21 @@
-import './components/comp.css'
-import './i18n/config.ts'
-// import LiteUIProvider from '@lite-u/ui/LiteUIProvider'
-import {Col, LiteUIProvider, Row} from '@lite-u/ui'
-import LanguageSwitcher from './components/language/languageSwitcher.tsx'
-import AppBody from './appBody.tsx'
-import MenuBar from './components/header/menu/Menu.tsx'
+import { EditorFrame } from '@venus/editor-ui'
+import { useEditorRuntime } from './hooks/useEditorRuntime.ts'
 
 function App() {
-  return <LiteUIProvider>
-    <Col fw fh className={'select-none'}>
-      {/*header*/}
-      <Row jc>
-        <MenuBar/>
-        <LanguageSwitcher/>
-      </Row>
-      <AppBody/>
-    </Col>
-  </LiteUIProvider>
+  const runtime = useEditorRuntime()
+
+  return (
+    <EditorFrame
+      document={runtime.document}
+      shapes={runtime.shapes}
+      stats={runtime.stats}
+      runtimeReady={runtime.ready}
+      sabSupported={runtime.sabSupported}
+      onPointerMove={(pointer) => runtime.postPointer('pointermove', pointer)}
+      onPointerDown={(pointer) => runtime.postPointer('pointerdown', pointer)}
+      onPointerLeave={runtime.clearHover}
+    />
+  )
 }
 
 export default App

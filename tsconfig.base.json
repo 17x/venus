@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@venus/editor-core": ["packages/editor-core/src/index.ts"],
+      "@venus/editor-ui": ["packages/editor-ui/src/index.tsx"],
+      "@venus/editor-worker": ["packages/editor-worker/src/index.ts"],
+      "@venus/renderer-skia": ["packages/renderer-skia/src/index.tsx"],
+      "@venus/shared-memory": ["packages/shared-memory/src/index.ts"],
+      "@venus/ui": ["packages/ui/src/index.ts"],
+      "react": ["apps/editor-web/node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["apps/editor-web/node_modules/@types/react/jsx-runtime.d.ts"]
+    }
+  }
+}
