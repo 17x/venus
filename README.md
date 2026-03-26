@@ -1,29 +1,70 @@
-# venus
+# Venus
 
-Venus is a vector application leveraging a monorepo architecture to support multiple clients such as web and desktop apps. The monorepo promotes code reuse and easier maintenance by centralizing shared logic, components, and utilities.
+Venus is a vector editor monorepo built with TypeScript, React, Web Workers, and shared workspace packages.
 
-## Features
+## Monorepo
 
-- 🗂 **Monorepo Organization:** All packages and applications are managed together for unified workflows.
-- 🧩 **Reusable Libraries:** Centralized, shareable code for vector operations, UI components, utilities, and more.
-- 💻 **Multi-Platform Ready:** Supports seamless development for both web and desktop (Electron or other frameworks).
-- ⚡ **Modern Tooling:** Compatible with contemporary build tools and developer environments for efficient iteration.
+This repository uses `pnpm` workspaces.
 
-## Getting Started
+- `apps/*`: runnable applications (for example `apps/editor-web`)
+- `packages/*`: shared libraries used by apps and other packages
+- `docs/*`: project docs
 
-1. **Clone the repository:**
-  ```sh
-   git clone https://github.com/17x/venus.git
-   cd venus
-   
-   brew install flatbuffers
-   flatc --ts --gen-name-strings schema.fbs
-  ```
+Current active package flow for the editor stack:
+
+- `@venus/editor-core`
+- `@venus/shared-memory`
+- `@venus/editor-worker`
+- `@venus/renderer-skia`
+- `@venus/ui`
+- `@venus/editor-ui`
+
+## Requirements
+
+- Node.js 20+ recommended
+- `pnpm` 8.x
+
+## Install
+
+```sh
+pnpm install
+```
+
+## Development
+
+Run from repository root:
+
+```sh
+pnpm dev
+```
+
+This starts the web editor app in `apps/editor-web`.
+
+## Scripts
+
+From repository root:
+
+```sh
+pnpm dev
+pnpm build
+pnpm typecheck
+pnpm lint
+```
+
+Or run directly in the web app:
+
+```sh
+cd apps/editor-web
+pnpm dev
+pnpm build
+```
+
+## Notes
+
+- TypeScript uses project references (`tsconfig.json` + per-package `tsconfig`s).
+- ESLint rules are managed from the root `eslint.config.js`.
+- For architecture details, see `docs/cn/architecture.md`.
 
 ## License
 
-This project is licensed under the MIT License – see the [LICENSE](./LICENSE) file for details.
-
-
----
-
+MIT. See [LICENSE](./LICENSE).
