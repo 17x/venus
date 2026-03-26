@@ -1,17 +1,21 @@
 {
   "name": "venus",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "Venus vector editor monorepo",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "pnpm --filter @venus/editor-web dev",
+    "build": "pnpm --filter @venus/editor-web build",
+    "lint": "eslint .",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "echo \"No tests configured yet\""
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@lite-u/ui": "^0.1.25",
     "canvaskit-wasm": "^0.41.0",
     "flatbuffers": "^25.9.23"
-  }
+  },
+  "packageManager": "pnpm@8.7.4"
 }
