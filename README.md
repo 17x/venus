@@ -6,7 +6,7 @@ Venus is a vector editor monorepo built with TypeScript, React, Web Workers, and
 
 This repository uses `pnpm` workspaces.
 
-- `apps/*`: runnable applications (for example `apps/editor-web`)
+- `apps/*`: runnable applications (for example `apps/vector-editor-web`)
 - `packages/*`: shared libraries used by apps and other packages
 - `docs/*`: project docs
 
@@ -38,7 +38,7 @@ Run from repository root:
 pnpm dev
 ```
 
-This starts the web editor app in `apps/editor-web`.
+This starts the vector editor web app in `apps/vector-editor-web`.
 
 ## Scripts
 
@@ -54,7 +54,7 @@ pnpm lint
 Or run directly in the web app:
 
 ```sh
-cd apps/editor-web
+cd apps/vector-editor-web
 pnpm dev
 pnpm build
 ```

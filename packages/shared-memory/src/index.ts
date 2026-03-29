@@ -33,7 +33,9 @@ export interface SceneStats {
   selectedIndex: number
 }
 
+// meta[Int32]: [version, shapeCount, hoveredIndex, selectedIndex, pointerX, pointerY]
 const META_LENGTH = 6
+// geometry[Float32]: [x, y, width, height] per shape
 const GEOMETRY_STRIDE = 4
 
 const enum MetaIndex {
@@ -64,6 +66,15 @@ const KIND_TO_TYPE: Record<number, ShapeType> = {
   4: 'text',
 }
 
+/**
+ * Computes how many bytes are required for a scene buffer with a fixed shape capacity.
+ *
+ * Buffer segments:
+ * 1) meta (Int32Array)
+ * 2) geometry (Float32Array)
+ * 3) kind (Uint8Array)
+ * 4) flags (Uint8Array)
+ */
 export function getSceneMemoryByteLength(capacity: number) {
   return (
     META_LENGTH * Int32Array.BYTES_PER_ELEMENT +
@@ -73,11 +84,22 @@ export function getSceneMemoryByteLength(capacity: number) {
   )
 }
 
+/**
+ * Allocates a SharedArrayBuffer sized for the requested scene capacity.
+ * The caller should immediately attach typed-array views via `attachSceneMemory`.
+ */
 export function createSceneMemory(capacity: number) {
   return new SharedArrayBuffer(getSceneMemoryByteLength(capacity))
 }
 
+/**
+ * Attaches typed-array views to a SharedArrayBuffer using the canonical layout.
+ *
+ * This does not allocate or copy data; it only creates views, so multiple threads
+ * can safely reference the same backing memory.
+ */
 export function attachSceneMemory(buffer: SharedArrayBuffer, capacity: number): SceneMemory {
+  // Memory layout is contiguous so worker/renderer can share fixed typed-array views.
   let offset = 0
 
   const meta = new Int32Array(buffer, offset, META_LENGTH)
@@ -101,7 +123,20 @@ export function attachSceneMemory(buffer: SharedArrayBuffer, capacity: number): 
   }
 }
 
+/**
+ * Writes initial document shape geometry and type information into shared memory.
+ *
+ * Side effects:
+ * - Resets hover/selection indices to -1
+ * - Clears per-shape flags
+ * - Updates shape count
+ * - Increments version (signals a semantic scene change)
+ *
+ * Note:
+ * - If document shape count exceeds capacity, extra shapes are dropped.
+ */
 export function writeDocumentToScene(scene: SceneMemory, document: EditorDocument) {
+  // Scene memory is capacity-bounded; extra shapes are intentionally ignored.
   const count = Math.min(document.shapes.length, scene.capacity)
   scene.meta[MetaIndex.ShapeCount] = count
   scene.meta[MetaIndex.HoveredIndex] = -1
@@ -121,15 +156,40 @@ export function writeDocumentToScene(scene: SceneMemory, document: EditorDocumen
   incrementVersion(scene)
 }
 
+/**
+ * Writes pointer coordinates into meta storage for worker-side diagnostics/logic.
+ * Coordinates are rounded because meta uses Int32 slots.
+ */
 export function updatePointer(scene: SceneMemory, pointer: PointerState) {
+  // Pointer coordinates are rounded to keep meta storage in Int32.
   scene.meta[MetaIndex.PointerX] = Math.round(pointer.x)
   scene.meta[MetaIndex.PointerY] = Math.round(pointer.y)
 }
 
+/**
+ * Clears currently hovered shape state.
+ *
+ * Returns:
+ * - `true` if hover state actually changed
+ * - `false` if scene was already in "no hovered shape" state
+ */
 export function clearHoveredShape(scene: SceneMemory) {
   return setHoveredShape(scene, -1)
 }
 
+/**
+ * Sets hovered shape index and updates hover bit-flags.
+ *
+ * Behavior:
+ * - Removes Hovered flag from previous hovered index (if any)
+ * - Applies Hovered flag to next index (if >= 0)
+ * - Updates meta hovered index
+ * - Increments version only when a real change occurs
+ *
+ * Returns:
+ * - `true` when state changed
+ * - `false` when next index equals current hovered index
+ */
 export function setHoveredShape(scene: SceneMemory, nextIndex: number) {
   const currentIndex = scene.meta[MetaIndex.HoveredIndex]
   if (currentIndex === nextIndex) {
@@ -149,6 +209,15 @@ export function setHoveredShape(scene: SceneMemory, nextIndex: number) {
   return true
 }
 
+/**
+ * Sets selected shape index and updates selection bit-flags.
+ *
+ * Behavior mirrors `setHoveredShape` but for selection state.
+ *
+ * Returns:
+ * - `true` when selected index changed
+ * - `false` when selected index remained the same
+ */
 export function setSelectedShape(scene: SceneMemory, nextIndex: number) {
   const currentIndex = scene.meta[MetaIndex.SelectedIndex]
   if (currentIndex === nextIndex) {
@@ -168,7 +237,20 @@ export function setSelectedShape(scene: SceneMemory, nextIndex: number) {
   return true
 }
 
+/**
+ * Performs hit-testing against shapes stored in shared memory.
+ *
+ * Strategy:
+ * - Scan from end to start to prefer visually top-most shapes
+ * - First do AABB (bounding-box) test
+ * - For ellipse types, apply an additional normalized ellipse test
+ *
+ * Returns:
+ * - shape index when hit
+ * - -1 when nothing is hit
+ */
 export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
+  // Iterate from the end to approximate top-most hit when draw order matches index order.
   const count = scene.meta[MetaIndex.ShapeCount]
 
   for (let index = count - 1; index >= 0; index -= 1) {
@@ -209,6 +291,10 @@ export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
   return -1
 }
 
+/**
+ * Reads compact scene-level reactive stats from shared memory.
+ * Useful for fast UI synchronization without materializing full shape snapshots.
+ */
 export function readSceneStats(scene: SceneMemory): SceneStats {
   return {
     version: scene.meta[MetaIndex.Version],
@@ -218,7 +304,15 @@ export function readSceneStats(scene: SceneMemory): SceneStats {
   }
 }
 
+/**
+ * Materializes render-friendly shape snapshots by combining:
+ * - mutable shared geometry/flags (SAB)
+ * - stable identity/type/name (document model)
+ *
+ * Returns a new array every call; caller can diff by `SceneStats.version`.
+ */
 export function readSceneSnapshot(scene: SceneMemory, document: EditorDocument): SceneShapeSnapshot[] {
+  // Snapshot joins shared mutable state with stable shape identity/name from document model.
   const count = scene.meta[MetaIndex.ShapeCount]
   const shapes: SceneShapeSnapshot[] = []
 
@@ -243,6 +337,11 @@ export function readSceneSnapshot(scene: SceneMemory, document: EditorDocument):
   return shapes
 }
 
+/**
+ * Bumps scene version whenever semantic shared state changes.
+ * Version is used as a cheap invalidation token for UI/render loops.
+ */
 function incrementVersion(scene: SceneMemory) {
+  // Increment on semantic state changes so UI/render loops can react cheaply.
   scene.meta[MetaIndex.Version] += 1
 }

@@ -9,10 +9,10 @@ export default tseslint.config(
   },
   {
     files: [
-      'apps/editor-web/src/App.tsx',
-      'apps/editor-web/src/main.tsx',
-      'apps/editor-web/src/editor.worker.ts',
-      'apps/editor-web/src/hooks/useEditorRuntime.ts',
+      'apps/vector-editor-web/src/App.tsx',
+      'apps/vector-editor-web/src/main.tsx',
+      'apps/vector-editor-web/src/editor.worker.ts',
+      'apps/vector-editor-web/src/hooks/useEditorRuntime.ts',
       'packages/editor-core/src/**/*.{ts,tsx}',
       'packages/editor-ui/src/**/*.{ts,tsx}',
       'packages/editor-worker/src/**/*.{ts,tsx}',

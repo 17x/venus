@@ -10,8 +10,11 @@
     "outDir": "./dist/types"
   },
   "references": [
+    { "path": "../canvas-base/tsconfig.json" },
+    { "path": "../collaboration/tsconfig.json" },
     { "path": "../editor-core/tsconfig.json" },
-    { "path": "../renderer-skia/tsconfig.json" },
+    { "path": "../editor-worker/tsconfig.json" },
+    { "path": "../history/tsconfig.json" },
     { "path": "../shared-memory/tsconfig.json" },
     { "path": "../ui/tsconfig.json" }
   ],

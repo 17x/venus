@@ -1,0 +1,22 @@
+include "../../../base/schemas/v1/schema.fbs";
+
+namespace Venus.Mindmap;
+
+enum BranchDirection : byte {
+  Auto,
+  Left,
+  Right
+}
+
+table MindmapMetadata {
+  root_topic_id: string;
+  default_branch_direction: BranchDirection = Auto;
+}
+
+table MindmapSnapshot {
+  version: uint32;
+  core: Venus.Core.DocumentSnapshot;
+  metadata: MindmapMetadata;
+}
+
+root_type MindmapSnapshot;

@@ -7,8 +7,10 @@
     ".": "./src/index.tsx"
   },
   "dependencies": {
+    "@venus/canvas-base": "workspace:*",
     "@venus/editor-core": "workspace:*",
     "@venus/shared-memory": "workspace:*",
+    "canvaskit-wasm": "^0.41.0",
     "react": "^19.2.4"
   }
 }

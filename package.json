@@ -4,8 +4,8 @@
   "private": true,
   "description": "Venus vector editor monorepo",
   "scripts": {
-    "dev": "pnpm --filter @venus/editor-web dev",
-    "build": "pnpm --filter @venus/editor-web build",
+    "dev": "pnpm --filter @venus/vector-editor-web dev",
+    "build": "pnpm --filter @venus/vector-editor-web build",
     "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.json",
     "test": "echo \"No tests configured yet\""
@@ -15,7 +15,8 @@
   "license": "MIT",
   "dependencies": {
     "canvaskit-wasm": "^0.41.0",
-    "flatbuffers": "^25.9.23"
+    "flatbuffers": "^25.9.23",
+    "rbush": "^4.0.1"
   },
   "packageManager": "pnpm@8.7.4"
 }
