@@ -7,7 +7,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@venus/collaboration": "workspace:*",
     "@venus/editor-core": "workspace:*",
-    "@venus/shared-memory": "workspace:*"
+    "@venus/history": "workspace:*",
+    "@venus/shared-memory": "workspace:*",
+    "@venus/spatial-index": "workspace:*"
   }
 }

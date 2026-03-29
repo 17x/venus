@@ -16,7 +16,7 @@
 
 ### 1. 输入层
 
-- 所在位置：`apps/editor-web`
+- 所在位置：`apps/vector-editor-web`
 - 职责：捕获鼠标、手势、快捷键、滚轮、拖拽
 - 产出：标准化输入事件，例如 `pointermove`、`pointerdown`、`zoom`、`pan`
 
@@ -88,7 +88,7 @@
 
 ```text
 apps/
-  editor-web/
+  vector-editor-web/
   editor-desktop/
 
 packages/

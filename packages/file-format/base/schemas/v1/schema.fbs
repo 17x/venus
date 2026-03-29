@@ -1,0 +1,136 @@
+namespace Venus.Core;
+
+// Node + Feature baseline protocol
+
+struct Mat3 {
+  m00: float; m01: float; m02: float;
+  m10: float; m11: float; m12: float;
+  m20: float; m21: float; m22: float;
+}
+
+struct ColorRGBA {
+  r: uint8; g: uint8; b: uint8; a: uint8;
+}
+
+enum NodeType : byte {
+  Frame,
+  Group,
+  Shape,
+  Text,
+  Image,
+  Vector
+}
+
+enum LayoutMode : byte { None, Horizontal, Vertical }
+enum AxisSizing : byte { Fixed, Auto }
+enum SizeMode : byte { Fixed, Hug, Fill }
+enum AlignItems : byte { Start, Center, End, Stretch }
+enum JustifyContent : byte { Start, Center, End, SpaceBetween }
+enum ConstraintHorizontal : byte { Left, Right, Center, Stretch }
+enum ConstraintVertical : byte { Top, Bottom, Center, Stretch }
+enum PathCommandType : byte { MoveTo, LineTo, CurveTo, Close }
+enum ImageScaleMode : byte { Fill, Fit, Crop, Tile }
+
+table FillFeature {
+  color: ColorRGBA;
+  opacity: float = 1.0;
+}
+
+table StrokeFeature {
+  color: ColorRGBA;
+  width: float = 1.0;
+}
+
+table LayoutFeature {
+  layout_mode: LayoutMode = None;
+  primary_axis_sizing: AxisSizing = Fixed;
+  counter_axis_sizing: AxisSizing = Fixed;
+  gap: float = 0.0;
+  padding_top: float = 0.0;
+  padding_right: float = 0.0;
+  padding_bottom: float = 0.0;
+  padding_left: float = 0.0;
+  align_items: AlignItems = Start;
+  justify_content: JustifyContent = Start;
+  width_mode: SizeMode = Fixed;
+  height_mode: SizeMode = Fixed;
+}
+
+table ConstraintFeature {
+  horizontal: ConstraintHorizontal = Left;
+  vertical: ConstraintVertical = Top;
+}
+
+table TextRun {
+  start: int32;
+  end: int32;
+  font_size: float;
+  font_family: string;
+  font_weight: int16;
+  color: ColorRGBA;
+  letter_spacing: float;
+  line_height: float;
+}
+
+table TextFeature {
+  text: string;
+  runs: [TextRun];
+}
+
+table PathCommand {
+  type: PathCommandType;
+  points: [float];
+}
+
+table Path {
+  commands: [PathCommand];
+}
+
+table VectorFeature {
+  paths: [Path];
+}
+
+table ImageFeature {
+  image_id: string;
+  scale_mode: ImageScaleMode = Fill;
+}
+
+table Shadow {
+  offset_x: float;
+  offset_y: float;
+  blur: float;
+  spread: float;
+  color: ColorRGBA;
+}
+
+table EffectFeature {
+  shadows: [Shadow];
+  blur: float = 0.0;
+  opacity: float = 1.0;
+}
+
+union Feature {
+  FillFeature,
+  StrokeFeature,
+  LayoutFeature,
+  ConstraintFeature,
+  TextFeature,
+  VectorFeature,
+  ImageFeature,
+  EffectFeature
+}
+
+table Node {
+  id: string;
+  type: NodeType;
+  transform: Mat3;
+  children: [Node];
+  features: [Feature];
+}
+
+table DocumentSnapshot {
+  version: uint32;
+  root_nodes: [Node];
+}
+
+root_type DocumentSnapshot;

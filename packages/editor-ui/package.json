@@ -7,8 +7,11 @@
     ".": "./src/index.tsx"
   },
   "dependencies": {
+    "@venus/canvas-base": "workspace:*",
+    "@venus/collaboration": "workspace:*",
     "@venus/editor-core": "workspace:*",
-    "@venus/renderer-skia": "workspace:*",
+    "@venus/editor-worker": "workspace:*",
+    "@venus/history": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",
     "react": "^19.2.4"
