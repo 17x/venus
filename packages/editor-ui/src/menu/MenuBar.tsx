@@ -26,8 +26,8 @@ export function MenuBar({ items, translate, onAction }: MenuBarProps) {
   }, [])
 
   return (
-    <div className="h-8 text-sm select-none border-gray-200 box-border">
-      <div ref={rootRef} className="pl-2 h-full inline-flex">
+    <div data-role={'menubar'} className="h-8 text-sm select-none border-gray-200 box-border">
+      <div ref={rootRef} className="bg-blue-300 pl-2 h-full inline-flex">
         {items.map((menu) => (
           <div key={menu.id} className="relative h-full">
             <div
