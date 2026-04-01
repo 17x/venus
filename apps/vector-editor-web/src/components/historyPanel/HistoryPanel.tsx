@@ -38,7 +38,10 @@ export const HistoryPanel: FC<{
               historyArray.map((historyNode, index) => {
                   const isCurr = historyNode.id === historyStatus.id
                   const prefixI18NKey = 'history.' + historyNode.data.type
-                  const {label, tooltip} = t(prefixI18NKey, {returnObjects: true}) as I18nHistoryDataItem
+                  const translated = t(prefixI18NKey, {returnObjects: true}) as I18nHistoryDataItem | string
+                  const fallbackLabel = 'label' in historyNode ? String(historyNode.label) : historyNode.data.type
+                  const label = typeof translated === 'string' ? fallbackLabel : (translated.label || fallbackLabel)
+                  const tooltip = typeof translated === 'string' ? fallbackLabel : (translated.tooltip || fallbackLabel)
 
                   return <MenuItem xs
                                    ref={isCurr ? targetRef : null}

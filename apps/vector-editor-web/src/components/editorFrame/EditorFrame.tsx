@@ -12,6 +12,7 @@ import {StatusBar} from '../statusBar/StatusBar.tsx'
 import {Print} from '../print/print.tsx'
 import {Col, Con, Drop, Row} from '@lite-u/ui'
 import useEditorRuntime from '../../hooks/useEditorRuntime.ts'
+import {CanvasViewport} from '@venus/canvas-base'
 
 const EditorFrame = () => {
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -33,7 +34,6 @@ const EditorFrame = () => {
     setShowPrint,
     workspaceState,
     contextRootRef,
-    containerRef,
     worldPointRef,
     editorRef,
     executeAction,
@@ -43,6 +43,7 @@ const EditorFrame = () => {
     setCurrentTool,
     pickHistory,
     openDroppedFile,
+    canvas,
   } = runtime
 
   return <div className={'w-full h-full flex flex-col select-none'}>
@@ -77,10 +78,30 @@ const EditorFrame = () => {
             <Toolbar tool={workspaceState.currentTool} setTool={setCurrentTool}/>
             <Col fw fh ovh rela flex={1}>
               <FileReceiver executeAction={executeAction}>
-                <div ref={containerRef}
-                     editor-container={'true'}
-                     className={'relative overflow-hidden flex w-full h-full'}
-                ></div>
+                <div
+                  className={'relative overflow-hidden flex w-full h-full'}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    setShowContextMenu(true)
+                    canvas.onContextMenu({
+                      x: event.clientX,
+                      y: event.clientY,
+                    })
+                  }}
+                >
+                  <CanvasViewport
+                    document={canvas.document}
+                    renderer={canvas.Renderer}
+                    shapes={canvas.shapes}
+                    viewport={canvas.viewport}
+                    onPointerMove={canvas.onPointerMove}
+                    onPointerDown={canvas.onPointerDown}
+                    onPointerLeave={canvas.onPointerLeave}
+                    onViewportPan={canvas.onViewportPan}
+                    onViewportResize={canvas.onViewportResize}
+                    onViewportZoom={canvas.onViewportZoom}
+                  />
+                </div>
               </FileReceiver>
 
               <StatusBar executeAction={executeAction}

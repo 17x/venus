@@ -1,9 +1,8 @@
 import {FC, RefObject, useEffect, useRef, useState} from 'react'
-import {Editor} from '@lite-u/editor'
 
 export const Print: FC<{
   onClose: VoidFunction,
-  editorRef: RefObject<Editor | null>
+  editorRef: RefObject<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>
 }> = ({
         onClose,
         editorRef,
@@ -30,7 +29,7 @@ export const Print: FC<{
     // destCanvas!.height = rect.height * dpr
 
     destCtx!.setTransform(dpr, 0, 0, dpr, 0, 0)
-    editorRef.current.printOut(destCtx)
+    editorRef.current.printOut?.(destCtx)
 
     const close: EventListenerOrEventListenerObject = (e) => {
       onClose()
