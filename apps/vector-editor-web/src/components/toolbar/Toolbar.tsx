@@ -1,6 +1,6 @@
 import type { ToolId } from '@venus/editor-core'
 import type { EditorRuntimeCommand } from '@venus/editor-worker'
-import { Tooltip, TooltipLabel } from '@venus/ui'
+import { Tooltip } from '@lite-u/ui'
 
 interface ToolbarProps {
   activeTool: ToolId
@@ -26,7 +26,7 @@ const TOOLBAR_ITEMS: Array<{
  *
  * Why:
  * - This keeps product-specific tool presentation inside the app.
- * - `editor-ui` stays reusable by accepting the left rail as a slot.
+ * - The editor shell stays local to this app for now.
  *
  * Not:
  * - command execution
@@ -44,8 +44,9 @@ const Toolbar = ({ activeTool, onCommand }: ToolbarProps) => {
 
           return (
             <Tooltip
+              placement={'r'}
               key={item.id}
-              content={<TooltipLabel label={item.label} shortcut={item.shortcut} />}
+              title={item.label}
             >
               <button
                 type="button"

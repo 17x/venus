@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useCanvasRuntime } from '@venus/canvas-base'
-import { createStarterDocument } from '@venus/editor-core'
+import { createStarterDocument } from '../fixtures/createStarterDocument.ts'
 
 // The starter app keeps a small fixed scene budget while the shared-memory
 // layout is still evolving. App variants can raise or replace this later.

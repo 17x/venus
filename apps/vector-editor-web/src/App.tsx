@@ -1,10 +1,10 @@
 import { SkiaRenderer } from '@venus/renderer-skia'
-import { EditorFrame } from '@venus/editor-ui'
 import { useState } from 'react'
 import Header from './components/header/Header.tsx'
 import { EditorSidebar } from './components/rightSidebar/EditorSidebar.tsx'
 import { StatusBar } from './components/statusBar/StatusBar.tsx'
 import Toolbar from './components/toolbar/Toolbar.tsx'
+import { EditorFrame } from './editor/EditorFrame.tsx'
 import { useEditorRuntime } from './hooks/useEditorRuntime.ts'
 
 function App() {

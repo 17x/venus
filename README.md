@@ -17,7 +17,6 @@ Current active package flow for the editor stack:
 - `@venus/editor-worker`
 - `@venus/renderer-skia`
 - `@venus/ui`
-- `@venus/editor-ui`
 
 ## Requirements
 

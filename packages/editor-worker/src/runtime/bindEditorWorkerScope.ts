@@ -3,13 +3,13 @@
 import {
   createCollaborationManager,
   type CollaborationOperation,
-} from '@venus/collaboration'
+} from '../collaboration.ts'
 import type { EditorDocument, ShapeRecord } from '@venus/editor-core'
 import {
   createHistoryManager,
   type HistoryEntry,
   type HistoryPatch,
-} from '@venus/history'
+} from '../history.ts'
 import {
   attachSceneMemory,
   clearHoveredShape,

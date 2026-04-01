@@ -1,1 +1,1 @@
-export { EditorMenuItemView as default } from '@venus/editor-ui'
+export { MenuItemView as default } from './MenuItemView.tsx'

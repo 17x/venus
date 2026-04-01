@@ -8,19 +8,20 @@
   },
   "references": [
     { "path": "../../packages/canvas-base/tsconfig.json" },
-    { "path": "../../packages/collaboration/tsconfig.json" },
     { "path": "../../packages/editor-core/tsconfig.json" },
     { "path": "../../packages/ui/tsconfig.json" },
-    { "path": "../../packages/history/tsconfig.json" },
     { "path": "../../packages/shared-memory/tsconfig.json" },
     { "path": "../../packages/editor-worker/tsconfig.json" },
-    { "path": "../../packages/renderer-skia/tsconfig.json" },
-    { "path": "../../packages/editor-ui/tsconfig.json" }
+    { "path": "../../packages/renderer-skia/tsconfig.json" }
   ],
   "include": [
     "src/App.tsx",
+    "src/components/header/menu/MenuBar.tsx",
     "src/components/header/Header.tsx",
     "src/components/header/menu/Menu.tsx",
+    "src/components/header/menu/MenuItem.tsx",
+    "src/components/header/menu/MenuItemView.tsx",
+    "src/components/header/menu/model/types.ts",
     "src/components/header/shortcutBar/Icons/LayerIcons.tsx",
     "src/components/header/shortcutBar/ShortcutBar.tsx",
     "src/components/historyPanel/HistoryPanel.tsx",
@@ -30,7 +31,10 @@
     "src/components/statusBar/StatusBar.tsx",
     "src/components/toolbar/Toolbar.tsx",
     "src/config/menu/menu.web.ts",
+    "src/constants/tools.ts",
+    "src/editor/EditorFrame.tsx",
     "src/editor.worker.ts",
+    "src/fixtures/createStarterDocument.ts",
     "src/hooks/useEditorRuntime.ts",
     "src/main.tsx",
     "src/vite-env.d.ts"

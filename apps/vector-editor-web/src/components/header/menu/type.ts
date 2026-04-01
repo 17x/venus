@@ -1,1 +1,1 @@
-export type { EditorMenuItem as MenuItemType } from '@venus/editor-ui'
+export type { EditorMenuItem as MenuItemType } from './model/types.ts'

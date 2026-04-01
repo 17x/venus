@@ -1,6 +1,6 @@
-import type { CollaborationOperation, CollaborationState } from '@venus/collaboration'
 import type { EditorDocument, ShapeRecord, ToolId } from '@venus/editor-core'
-import type { HistorySummary } from '@venus/history'
+import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
+import type { HistorySummary } from './history.ts'
 import type { PointerState } from '@venus/shared-memory'
 
 /**

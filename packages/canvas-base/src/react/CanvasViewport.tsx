@@ -23,7 +23,7 @@ interface CanvasViewportProps {
  * Shared viewport entry for all canvas renderers.
  *
  * Why:
- * - `editor-ui` should not know which concrete renderer package is in use.
+ * - app UI should not know which concrete renderer package is in use.
  * - apps can choose a renderer or omit one entirely during bring-up.
  */
 export function CanvasViewport({

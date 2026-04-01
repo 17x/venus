@@ -84,7 +84,7 @@
 - Worker 解决高频命中检测和复杂计算
 - Skia / WebGL 解决大规模图形绘制性能
 
-## 推荐目录树
+## 目标目录树
 
 ```text
 apps/
@@ -92,18 +92,45 @@ apps/
   editor-desktop/
 
 packages/
+  canvas-base/
   editor-core/
-  editor-ui/
   editor-worker/
-  shared-memory/
-  renderer-skia/
-  renderer-webgl/
-  geometry/
-  spatial-index/
-  history/
-  collaboration/
   file-format/
+  renderer-skia/
+
+  ui/
+    base/
+    editor/
 ```
+
+说明：
+
+- `canvas-base`：负责运行时生命周期、viewport、worker 桥接、共享场景快照订阅
+- `editor-core`：只保留文档模型、领域类型、稳定协议，不承载产品默认值
+- `editor-worker`：负责命令执行、命中检测、patch 生成、协作与索引维护
+- `file-format`：负责持久化格式、导入导出、版本迁移
+- `renderer-skia`：Skia / CanvasKit 渲染适配器
+- `ui/base`：按钮、面板、tooltip、布局等基础组件
+- `ui/editor`：编辑器壳层、菜单、面板骨架、viewport 组合层
+
+不再作为长期顶层 package 目标的模块：
+
+- `collaboration`：并入 `editor-worker`
+- `history`：并入 `editor-worker`
+- `spatial-index`：若没有第二实现，优先并入 `editor-worker`
+- `shared-memory`：优先并入 `canvas-base`
+
+仅作为规划占位、尚未形成稳定边界的目录，建议移除或下沉到文档中管理：
+
+- `core`
+- `document-model`
+- `geometry`
+- `input`
+- `math`
+- `render-pipeline`
+- `renderer-canvas`
+- `shared`
+- `text`
 
 ## 当前最小可运行骨架
 
@@ -118,10 +145,67 @@ packages/
 
 `pointer event -> worker hit test -> update SAB -> stage redraw`
 
-## 下一步建议
+## 迁移顺序
 
-1. 在 `shared-memory` 中扩展颜色、transform、zIndex、visibility 等字段
-2. 在 `editor-worker` 中引入空间索引
-3. 新增 `renderer-webgl` 或让 `renderer-skia` 接入 CanvasKit
-4. 把 history patch 从 UI 层完全移到 Worker
-5. 为加载与保存增加 FlatBuffers schema
+### 第一阶段：先收拢边界
+
+1. 将 `packages/collaboration` 合并到 `packages/editor-worker`
+2. 将 `packages/history` 合并到 `packages/editor-worker`
+3. 若确认不会替换实现，将 `packages/spatial-index` 合并到 `packages/editor-worker`
+4. 将 `packages/shared-memory` 合并到 `packages/canvas-base`
+
+目标：
+
+- 减少横向 package 跳转
+- 让 worker 相关状态和算法回到同一处维护
+- 让共享内存布局回到 runtime 基础设施层
+
+### 第二阶段：重组 UI 分层
+
+1. 将 `packages/ui` 重命名或迁移为 `packages/ui/base`
+2. 先将 vector editor 专属 UI 收回 `apps/vector-editor-web`
+3. 只有在出现第二个消费者时，再考虑抽出 `packages/ui/editor`
+
+应当移回 app 的内容包括：
+
+- `createStarterDocument` 一类 starter/demo 默认值
+- vector editor 专属 toolbar、panel 组合
+- demo 型的插入矩形、默认侧栏内容
+
+目标：
+
+- `ui/base` 只承载基础组件
+- `ui/editor` 只承载编辑器壳层
+- app 层负责具体产品行为
+
+### 第三阶段：收紧领域边界
+
+1. 让 `editor-core` 只保留文档模型、领域类型、稳定 contract
+2. 将工具注册、产品快捷键、产品默认面板配置移出 `editor-core`
+3. 为 `file-format` 补足 schema、迁移策略、格式边界
+
+目标：
+
+- `editor-core` 不再混入产品装配逻辑
+- 多编辑器产品可以共享领域层，但各自保留 UI 和工具配置
+
+### 第四阶段：删除占位目录
+
+移除当前没有稳定代码和 package 定义的占位目录，避免误导后续拆分：
+
+- `core`
+- `document-model`
+- `geometry`
+- `input`
+- `math`
+- `render-pipeline`
+- `renderer-canvas`
+- `shared`
+- `text`
+
+## 近期实现建议
+
+1. 在 `canvas-base` 中继续扩展场景快照字段，例如颜色、transform、zIndex、visibility
+2. 在 `editor-worker` 中继续沉淀命中检测、patch 生成、索引维护
+3. 让 `renderer-skia` 继续承担渲染后端适配职责，后续按需要补 `renderer-webgl`
+4. 为加载与保存补充 `file-format` schema 与迁移链路

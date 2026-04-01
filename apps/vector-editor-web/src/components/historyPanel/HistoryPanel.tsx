@@ -1,5 +1,4 @@
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
-import type { HistorySummary } from '@venus/history'
+import type { EditorRuntimeCommand, HistorySummary } from '@venus/editor-worker'
 
 interface HistoryPanelProps {
   history: HistorySummary

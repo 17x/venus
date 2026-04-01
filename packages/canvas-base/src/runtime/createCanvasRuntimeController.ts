@@ -1,7 +1,11 @@
-import type { CollaborationOperation, CollaborationState } from '@venus/collaboration'
 import type { EditorDocument } from '@venus/editor-core'
-import type { EditorRuntimeCommand, SceneUpdateMessage } from '@venus/editor-worker'
-import type { HistorySummary } from '@venus/history'
+import type {
+  CollaborationOperation,
+  CollaborationState,
+  EditorRuntimeCommand,
+  HistorySummary,
+  SceneUpdateMessage,
+} from '@venus/editor-worker'
 import {
   attachSceneMemory,
   createSceneMemory,

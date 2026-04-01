@@ -1,7 +1,9 @@
-import type { CollaborationState } from '@venus/collaboration'
 import type { EditorDocument } from '@venus/editor-core'
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
-import type { HistorySummary } from '@venus/history'
+import type {
+  CollaborationState,
+  EditorRuntimeCommand,
+  HistorySummary,
+} from '@venus/editor-worker'
 import type { SceneShapeSnapshot, SceneStats } from '@venus/shared-memory'
 import { HistoryPanel } from '../historyPanel/HistoryPanel.tsx'
 import { LayerPanel } from '../layerPanel/LayerPanel.tsx'

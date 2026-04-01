@@ -1,6 +1,5 @@
 @import "tailwindcss";
 /* Explicitly register sources from your packages */
-@source '../../../packages/editor-ui/src/**/*.{js,ts,jsx,tsx}';
 
 :root {
   color: #111827;

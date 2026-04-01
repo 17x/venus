@@ -1,6 +1,6 @@
-import { EditorMenuBar } from '@venus/editor-ui'
 import type { EditorRuntimeCommand } from '@venus/editor-worker'
 import { WEB_EDITOR_MENU_TREE } from '../../../config/menu/menu.web.ts'
+import { MenuBar as EditorMenuBar } from './MenuBar.tsx'
 
 const MENU_COMMANDS: Record<string, EditorRuntimeCommand> = {
   delete: { type: 'selection.delete' },

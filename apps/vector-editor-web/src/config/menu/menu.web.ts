@@ -1,4 +1,4 @@
-import type { EditorMenuItem } from '@venus/editor-ui'
+import type { EditorMenuItem } from '../../components/header/menu/model/types.ts'
 
 const fileMenu: EditorMenuItem = {
   id: 'file',

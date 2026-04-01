@@ -9,11 +9,8 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: '@venus/canvas-base', replacement: fileURLToPath(new URL('../../packages/canvas-base/src/index.ts', import.meta.url)) },
-      { find: '@venus/collaboration', replacement: fileURLToPath(new URL('../../packages/collaboration/src/index.ts', import.meta.url)) },
       { find: '@venus/editor-core', replacement: fileURLToPath(new URL('../../packages/editor-core/src/index.ts', import.meta.url)) },
-      { find: '@venus/editor-ui', replacement: fileURLToPath(new URL('../../packages/editor-ui/src/index.tsx', import.meta.url)) },
       { find: '@venus/editor-worker', replacement: fileURLToPath(new URL('../../packages/editor-worker/src/index.ts', import.meta.url)) },
-      { find: '@venus/history', replacement: fileURLToPath(new URL('../../packages/history/src/index.ts', import.meta.url)) },
       { find: '@venus/renderer-skia', replacement: fileURLToPath(new URL('../../packages/renderer-skia/src/index.tsx', import.meta.url)) },
       { find: '@venus/shared-memory', replacement: fileURLToPath(new URL('../../packages/shared-memory/src/index.ts', import.meta.url)) },
       { find: '@venus/spatial-index', replacement: fileURLToPath(new URL('../../packages/spatial-index/src/index.ts', import.meta.url)) },

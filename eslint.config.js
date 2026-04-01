@@ -14,7 +14,6 @@ export default tseslint.config(
       'apps/vector-editor-web/src/editor.worker.ts',
       'apps/vector-editor-web/src/hooks/useEditorRuntime.ts',
       'packages/editor-core/src/**/*.{ts,tsx}',
-      'packages/editor-ui/src/**/*.{ts,tsx}',
       'packages/editor-worker/src/**/*.{ts,tsx}',
       'packages/renderer-skia/src/**/*.{ts,tsx}',
       'packages/shared-memory/src/**/*.{ts,tsx}',

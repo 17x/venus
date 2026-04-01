@@ -10,13 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lite-u/ui": "^0.1.25",
     "@tailwindcss/vite": "^4.0.10",
     "@venus/canvas-base": "workspace:*",
-    "@venus/collaboration": "workspace:*",
     "@venus/editor-core": "workspace:*",
-    "@venus/editor-ui": "workspace:*",
     "@venus/editor-worker": "workspace:*",
-    "@venus/history": "workspace:*",
     "@venus/renderer-skia": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",

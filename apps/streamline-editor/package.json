@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@venus/editor-core": "workspace:*",
-    "@venus/editor-ui": "workspace:*",
     "@venus/editor-worker": "workspace:*",
     "@venus/renderer-skia": "workspace:*",
     "@venus/shared-memory": "workspace:*",
