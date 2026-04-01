@@ -1,4 +1,4 @@
-import {VisionEventType} from '../../../editor/engine/actions/type'
+import type {VisionEventType} from '@lite-u/editor/types'
 
 export interface MenuItemType {
   id: string

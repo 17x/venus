@@ -1,15 +1,15 @@
-import {FC, memo, useEffect, useRef, useState} from 'react'
-import Editor from '../../editor/engine/editor.ts'
+import {FC, RefObject, useEffect, useRef, useState} from 'react'
+import {Editor} from '@lite-u/editor'
 
 export const Print: FC<{
   onClose: VoidFunction,
-  editorRef: { current: Editor | null }
+  editorRef: RefObject<Editor | null>
 }> = ({
         onClose,
         editorRef,
       }) => {
   const printPreviewCanvas = useRef<HTMLCanvasElement>(null)
-  const [dpr, setDpr] = useState(2)
+  const [dpr] = useState(2)
 
   useEffect(() => {
     createPreview()
@@ -24,6 +24,7 @@ export const Print: FC<{
     // const rect = frame.getBoundingRect()
     const destCanvas = printPreviewCanvas.current
     const destCtx = destCanvas!.getContext('2d')
+    if (!destCtx) return
 
     // destCanvas!.width = rect.width * dpr
     // destCanvas!.height = rect.height * dpr
@@ -57,10 +58,10 @@ export const Print: FC<{
           <button type={'button'} className={'border cursor-pointer'}
                   onClick={() => {
                     const printWindow = window.open('', '', 'width=600,height=600')
+                    if (!printWindow) return
                     const canvas = document.createElement('canvas')
                     const ctx = canvas.getContext('2d')
 
-                    canvas.style.size = 'a4'
                     canvas.width = printPreviewCanvas.current!.width
                     canvas.height = printPreviewCanvas.current!.height
                     ctx!.drawImage(printPreviewCanvas.current!, 0, 0)

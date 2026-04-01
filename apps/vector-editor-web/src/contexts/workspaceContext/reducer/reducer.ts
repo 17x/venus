@@ -1,7 +1,20 @@
+import {ToolName} from '@venus/editor-core'
+import {Point} from '@venus/editor-core'
+import {ElementProps, UID} from '@lite-u/editor/types'
+
+interface HistoryNodeLike {
+  id: number
+  prev: HistoryNodeLike | null
+  next: HistoryNodeLike | null
+  data: {
+    type: string
+  }
+}
+
 export interface WorkSpaceStateType {
   id: UID
   focused: boolean
-  historyArray: HistoryNode[]
+  historyArray: HistoryNodeLike[]
   historyStatus: {
     id: number
     hasPrev: boolean
@@ -51,13 +64,12 @@ export type WorkspaceAction =
   { type: 'SET_ID'; payload: UID }
   | { type: 'SET_HISTORY_STATUS'; payload: { id: number; hasPrev: boolean; hasNext: boolean } }
   | { type: 'SET_FOCUSED'; payload: boolean }
-  | { type: 'SET_HISTORY_ARRAY'; payload: HistoryNode[] }
+  | { type: 'SET_HISTORY_ARRAY'; payload: HistoryNodeLike[] }
   | { type: 'SET_NEED_SAVE'; payload: boolean }
   | { type: 'SET_SELECTED_ELEMENTS'; payload: UID[] }
   | { type: 'SET_SELECTED_PROPS'; payload: ElementProps | null }
   | { type: 'SET_LAST_SAVED_HISTORY_ID'; payload: number }
   | { type: 'SET_COPIED_ITEMS'; payload: ElementProps[] }
-  | { type: 'SET_VIEWPORT'; payload: ViewportInfo | null }
   | { type: 'SET_WORLD_POINT'; payload: Point }
   | { type: 'SET_WORLD_SCALE'; payload: number }
   | { type: 'SET_CURRENT_TOOL'; payload: ToolName }
@@ -113,11 +125,6 @@ export const WorkspaceReducer = (state: WorkSpaceStateType, action: WorkspaceAct
       return {
         ...state,
         copiedItems: action.payload,
-      }
-    case 'SET_VIEWPORT':
-      return {
-        ...state,
-        viewport: action.payload,
       }
     case 'SET_WORLD_POINT':
       return {

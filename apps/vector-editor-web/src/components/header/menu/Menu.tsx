@@ -2,8 +2,9 @@ import React, {useEffect, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import MenuItem from './MenuItem.tsx'
 import MenuData from './menuData.ts'
+import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
 
-const MenuBar: React.FC = ({editorAction: EditorExecutor}) => {
+const MenuBar: React.FC<{ executeAction: EditorExecutor }> = ({executeAction}) => {
   const [open, setOpen] = useState<boolean>(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const {t} = useTranslation()
@@ -58,9 +59,7 @@ const MenuBar: React.FC = ({editorAction: EditorExecutor}) => {
                 <div className={'absolute z-20 bg-white border border-gray-200'}>
                   {
                     menu.children?.map((child) => {
-                      return <MenuItem key={child.id} menu={child} onClick={() => {
-                        // console.log(child)
-                      }}/>
+                      return <MenuItem key={child.id} menu={child} executeAction={executeAction}/>
                     })
                   }</div>
             }

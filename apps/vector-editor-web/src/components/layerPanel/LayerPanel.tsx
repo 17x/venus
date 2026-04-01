@@ -1,20 +1,20 @@
-import {useContext, useEffect, useRef, useState} from 'react'
-import WorkspaceContext from '../../contexts/workspaceContext/WorkspaceContext.tsx'
+import {useEffect, useRef, useState} from 'react'
 import {Con, Panel} from '@lite-u/ui'
-import {EditorExecutor} from '../workspace/Workspace.tsx'
+import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import {UID} from '@lite-u/editor/types'
 
 interface LayerPanelProps {
   executeAction: EditorExecutor
+  elements: { id: string, name: string, show: boolean }[]
+  selectedElements: UID[]
 }
 
 const ITEM_HEIGHT = 28
-export const LayerPanel = ({executeAction}: LayerPanelProps) => {
+export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPanelProps) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [indexRange, setIndexRange] = useState([0, 10])
-  const {state: {elements, selectedElements}} = useContext(WorkspaceContext)
-  // console.log(selectedElements)
   useEffect(() => {
     /*  const closestOne = selected[selected.length - 1]
 
@@ -24,7 +24,7 @@ export const LayerPanel = ({executeAction}: LayerPanelProps) => {
         scrollRef.current?.scrollTo(0, idx * ITEM_HEIGHT)
         console.log(idx * ITEM_HEIGHT)
       }*/
-  }, [])
+  }, [elements, selectedElements])
 
   const handleScroll = () => {
     if (!scrollRef.current) return

@@ -1,19 +1,24 @@
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from './Icons/LayerIcons.tsx'
-import {Fragment, ReactNode, useContext} from 'react'
-import WorkspaceContext from '../../../contexts/workspaceContext/WorkspaceContext.tsx'
+import {Fragment, ReactNode} from 'react'
 import {NamedIcon} from '../../lib/icon/icon.tsx'
 import {t} from 'i18next'
 import {I18nHistoryDataItem} from '../../../i18n/type'
-// import {MenuItemType} from '../menu/type'
-import {useFile} from '../../../contexts/fileContext/FileContext.tsx'
-import {EditorExecutor} from '../../workspace/Workspace.tsx'
+import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
+import {UID} from '@lite-u/editor/types'
 
 const IconSize = 20
-// const IconColor = 'text-black'
 
-const ShortcutBar: React.FC<{ editorAction: EditorExecutor }> = ({editorAction}) => {
-  const {saveFile} = useFile()
-  const {state: {needSave, historyStatus, selectedElements}} = useContext(WorkspaceContext)
+const ShortcutBar: React.FC<{
+  executeAction: EditorExecutor
+  saveFile: VoidFunction
+  needSave: boolean
+  historyStatus: {
+    id: number
+    hasPrev: boolean
+    hasNext: boolean
+  }
+  selectedElements: UID[]
+}> = ({executeAction, saveFile, needSave, historyStatus, selectedElements}) => {
   const hasselectedElements = selectedElements.length > 0
 
   const actions = [
@@ -99,8 +104,9 @@ const ShortcutBar: React.FC<{ editorAction: EditorExecutor }> = ({editorAction})
                         saveFile()
                         return
                       }
-                      if (item.editorActionCode || item.action) {
-                        editorAction(item.editorActionCode || item.action)
+                      const action = item.editorActionCode || item.action
+                      if (action) {
+                        executeAction(action)
                       }
                     }}
                     className={'relative ml-1 rounded-sm mr-1 flex items-center cursor-pointer justify-center w-6 h-6   hover:bg-gray-200  hover:opacity-100  disabled:hover:bg-transparent disabled:text-gray-200 disabled:cursor-default'}>

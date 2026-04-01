@@ -1,13 +1,17 @@
-import {useContext, useEffect, useMemo, useRef} from 'react'
-import {EditorExecutor} from '../components/workspace/Workspace.tsx'
+import {useEffect, useMemo, useRef} from 'react'
+import {ToolName} from '@venus/editor-core'
 import SHORTCUTS_DATA, {ActionItemType} from '../constants/actions.ts'
 import Shortcut from '../lib/shortcut/shortcut.ts'
 import matchObject from '../utilities/find.ts'
 import deepClone from '../utilities/deepClone.ts'
-import WorkspaceContext from '../contexts/workspaceContext/WorkspaceContext.tsx'
+import {EditorExecutor} from './useEditorRuntime.ts'
 
-const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?: MouseEvent) => void) => {
-  const {state: {currentTool, focused}, dispatch} = useContext(WorkspaceContext)
+const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?: MouseEvent) => void, options: {
+  currentTool: ToolName
+  focused: boolean
+  setCurrentTool: (toolName: ToolName) => void
+}) => {
+  const {currentTool, focused, setCurrentTool} = options
   const lastToolRef = useRef<string>(null)
   const data = useMemo(() => {
     let arr = matchObject(deepClone(SHORTCUTS_DATA), (item) => !!item.shortcut) as ActionItemType[]
@@ -23,7 +27,6 @@ const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?:
         if (!focused) return
 
         if (id === 'toggleTool' && lastToolRef.current !== currentTool) {
-          console.log('currentTool',currentTool)
           if (currentTool !== 'panning') {
             lastToolRef.current = currentTool
           }
@@ -43,9 +46,8 @@ const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?:
 
         if (c.editorAction) {
           executeAction(c.editorAction, c.editorActionData)
-          // console.log(c.editorAction)
           if (c.editorAction === 'switch-tool') {
-            dispatch({type: 'SET_CURRENT_TOOL', payload: c.editorActionData})
+            setCurrentTool(c.editorActionData as ToolName | undefined as ToolName)
           }
         }
 
@@ -70,7 +72,7 @@ const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?:
       // pluginRef.current?.destroy()
       // pluginRef.current = null
     }
-  }, [focused])
+  }, [currentTool, data, executeAction, focused, handleZoom, setCurrentTool])
 }
 
 export default useShortcut

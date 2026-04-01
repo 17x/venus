@@ -1,13 +1,14 @@
-import {useContext, useEffect, useRef} from 'react'
-import WorkspaceContext from '../../contexts/workspaceContext/WorkspaceContext.tsx'
+import {FC, useEffect, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
 import {I18nHistoryDataItem} from '../../i18n/type'
 import {Col, Con, MenuItem, Panel} from '@lite-u/ui'
+import {WorkSpaceStateType} from '../../contexts/workspaceContext/reducer/reducer.ts'
 
 export const HistoryPanel: FC<{
-  pickHistory: () => void
-}> = ({pickHistory}) => {
-  const {state: {historyArray, historyStatus}} = useContext(WorkspaceContext)
+  historyArray: WorkSpaceStateType['historyArray']
+  historyStatus: WorkSpaceStateType['historyStatus']
+  pickHistory: (historyNode: WorkSpaceStateType['historyArray'][number]) => void
+}> = ({historyArray, historyStatus, pickHistory}) => {
   const {t} = useTranslation()
   const targetRef = useRef<HTMLDivElement>(null)
 

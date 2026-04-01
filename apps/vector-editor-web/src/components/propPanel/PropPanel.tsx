@@ -1,12 +1,15 @@
-import {useContext, useEffect, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {ProtectedInput} from './protectedInput.tsx'
 import {Con, Panel} from '@lite-u/ui'
-import EditorContext from '../../contexts/EditorContext/EditorContext.tsx'
-import {ElementProps} from '@lite-u/editor/types'
+import type {ElementProps} from '@lite-u/editor/types'
+import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 
-interface PropPanelProps {props?: ElementProps}
+interface PropPanelProps {
+  props?: ElementProps
+  executeAction: EditorExecutor
+}
 
-const PropPanel = ({props}: PropPanelProps) => {
+const PropPanel = ({props, executeAction}: PropPanelProps) => {
   const [localProps, setLocalProps] = useState(props)
 
   useEffect(() => {
@@ -20,7 +23,7 @@ const PropPanel = ({props}: PropPanelProps) => {
            }}>
       <Con p={10} fh
            className={'scrollbar-custom overflow-x-hidden overflow-y-auto  border  border-gray-200 select-none'}>
-        {localProps && <ShapePropsPanel props={localProps}/>}
+        {localProps && <ShapePropsPanel props={localProps} executeAction={executeAction}/>}
       </Con>
     </Panel>
   </Con>
@@ -28,10 +31,19 @@ const PropPanel = ({props}: PropPanelProps) => {
 
 export default PropPanel
 
-const ShapePropsPanel = ({props}: { props: ElementProps }) => {
-  const {executeAction} = useContext(EditorContext)
+const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeAction: EditorExecutor }) => {
+  const fill = {
+    enabled: props.fill?.enabled ?? true,
+    color: props.fill?.color ?? '#000000',
+  }
+  const stroke = {
+    enabled: props.stroke?.enabled ?? true,
+    color: props.stroke?.color ?? '#000000',
+    weight: props.stroke?.weight ?? 1,
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const keyName = e.target.name as keyof ElementProps
+    const keyName = e.target.name as Extract<keyof ElementProps, string>
     let newValue: string | number = e.target.value
 
     // @ts-ignore
@@ -61,7 +73,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="number"
           name="x"
-          value={props.x}
+          value={props.x ?? props.cx ?? 0}
           onChange={handleChange}
           className="w-16  py-1 text-black rounded"
         />
@@ -71,7 +83,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="number"
           name="y"
-          value={props.y}
+          value={props.y ?? props.cy ?? 0}
           onChange={handleChange}
           className="w-16  py-1 text-black rounded"
         />
@@ -83,7 +95,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
                   <ProtectedInput
                       type="number"
                       name="r1"
-                      value={props.r1}
+                      value={props.r1 ?? 0}
                       onChange={handleChange}
                       className="w-16  py-1 text-black rounded"
                   />
@@ -93,7 +105,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
                   <ProtectedInput
                       type="number"
                       name="r2"
-                      value={props.r2}
+                      value={props.r2 ?? 0}
                       onChange={handleChange}
                       className="w-16  py-1 text-black rounded"
                   />
@@ -105,7 +117,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="number"
           name="width"
-          value={props.width}
+          value={props.width ?? 0}
           onChange={handleChange}
           className="w-16  py-1 text-black rounded"
         />
@@ -115,7 +127,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="number"
           name="height"
-          value={props.height}
+          value={props.height ?? 0}
           onChange={handleChange}
           className="w-16  py-1 text-black rounded"
         />
@@ -125,7 +137,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="number"
           name="rotation"
-          value={props.rotation}
+          value={props.rotation ?? 0}
           onChange={handleChange}
           className="w-16  py-1 text-black rounded"
         />
@@ -139,7 +151,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="checkbox"
           name="enableFill"
-          checked={props.fill.enabled}
+          checked={fill.enabled}
           onChange={(e) => {
             // console.log(e.target.checked)
             executeAction('element-modify', [{
@@ -157,7 +169,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="color"
           name="fillColor"
-          value={props.fill.color}
+          value={fill.color}
           // onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             // console.log(e)
@@ -177,7 +189,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="checkbox"
           name="enableLine"
-          defaultChecked={props.stroke.enabled}
+          defaultChecked={stroke.enabled}
           onChange={(e) => {
             executeAction('element-modify', [{
               id: props.id,
@@ -194,7 +206,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="color"
           name="lineColor"
-          value={props.stroke.color}
+          value={stroke.color}
           onChange={(e) => {
             executeAction('element-modify', [{
               id: props.id,
@@ -212,12 +224,12 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
           type="number"
           name="lineWidth"
           step={0.25}
-          value={props.stroke.weight}
+          value={stroke.weight}
           onChange={(e)=>{
             executeAction('element-modify', [{
               id: props.id,
               props: {
-                stroke: {weight: e.target.value},
+                stroke: {weight: Number(e.target.value)},
               },
             }])
           }}
@@ -243,7 +255,7 @@ const ShapePropsPanel = ({props}: { props: ElementProps }) => {
         <ProtectedInput
           type="number"
           name="opacity"
-          value={props.opacity}
+          value={props.opacity ?? 1}
           onChange={handleChange}
           className="w-16  py-1 text-black rounded"
         />

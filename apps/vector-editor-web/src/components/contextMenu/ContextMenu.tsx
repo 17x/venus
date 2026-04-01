@@ -1,55 +1,29 @@
-import {FC, useContext, useEffect, useMemo, useState} from 'react'
+import {FC, useEffect, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import {I18nHistoryDataItem} from '../../i18n/type'
-import WorkspaceContext from '../../contexts/workspaceContext/WorkspaceContext.tsx'
 import {LuChevronRight} from 'react-icons/lu'
 import {MenuItemType} from '../header/menu/type'
-import deepClone from '../../utilities/deepClone.ts'
-import {EDIT} from '../../constants/actions.ts'
-import {EditorExecutor} from '../workspace/Workspace.tsx'
+import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import {ElementProps, UID} from '@lite-u/editor/types'
+import {Point} from '@venus/editor-core'
 
 export interface ContextMenuProps {
   position: Point
-  // onAction: (action: string) => void
   onClose: () => void
   executeAction: EditorExecutor
+  selectedElements: UID[]
+  copiedItems: ElementProps[]
+  historyStatus: {
+    id: number
+    hasPrev: boolean
+    hasNext: boolean
+  }
 }
 
-export const ContextMenu: FC<ContextMenuProps> = ({position,executeAction, onClose}) => {
+export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onClose, selectedElements, copiedItems, historyStatus}) => {
   const {t} = useTranslation()
-  const {state: {selectedElements, copiedItems, historyStatus}} = useContext(WorkspaceContext)
   const [menuItems, setMenuItems] = useState<MenuItemType[]>([])
   const groupClass = 'absolute bg-white shadow-lg rounded-md border border-gray-200 py-1 z-50'
-  const ITEMS = useMemo(() => {
-    let arr = deepClone(EDIT.children)
-    const noSelectedElement = selectedElements.length === 0
-
-    arr.forEach(item => {
-      switch (item.id) {
-        case 'copy':
-          item.disabled = noSelectedElement
-          break
-        case 'paste':
-          item.disabled = copiedItems.length === 0
-          break
-        case 'duplicate':
-          item.disabled = noSelectedElement
-          break
-        case 'delete':
-          item.disabled = noSelectedElement
-          item.divide = true
-          break
-        case 'undo':
-          item.disabled = !historyStatus.hasPrev
-          break
-        case 'redo':
-          item.disabled = !historyStatus.hasNext
-          break
-      }
-    })
-
-    return arr
-  }, [selectedElements, historyStatus, copiedItems])
   useEffect(() => {
     const noSelectedElement = selectedElements.length === 0
     const ITEMS: MenuItemType[] = [
@@ -167,4 +141,3 @@ export const ContextMenu: FC<ContextMenuProps> = ({position,executeAction, onClo
     </div>
   )
 }
-

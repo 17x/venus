@@ -15,30 +15,9 @@
     { "path": "../../packages/renderer-skia/tsconfig.json" }
   ],
   "include": [
-    "src/App.tsx",
-    "src/assets/svg/icons.tsx",
-    "src/components/header/menu/MenuBar.tsx",
-    "src/components/header/Header.tsx",
-    "src/components/header/menu/Menu.tsx",
-    "src/components/header/menu/MenuItem.tsx",
-    "src/components/header/menu/MenuItemView.tsx",
-    "src/components/header/menu/model/types.ts",
-    "src/components/header/shortcutBar/Icons/LayerIcons.tsx",
-    "src/components/header/shortcutBar/ShortcutBar.tsx",
-    "src/components/historyPanel/HistoryPanel.tsx",
-    "src/components/layerPanel/LayerPanel.tsx",
-    "src/components/propPanel/PropPanel.tsx",
-    "src/components/rightSidebar/EditorSidebar.tsx",
-    "src/components/statusBar/StatusBar.tsx",
-    "src/components/toolbar/Toolbar.tsx",
-    "src/config/menu/menu.web.ts",
-    "src/constants/tools.ts",
-    "src/editor/EditorFrame.tsx",
-    "src/editor.worker.ts",
-    "src/fixtures/createStarterDocument.ts",
-    "src/hooks/useEditorRuntime.ts",
-    "src/main.tsx",
-    "src/vite-env.d.ts"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
   ],
   "exclude": [
     "node_modules"

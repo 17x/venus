@@ -1,29 +1,25 @@
 import JSZip from 'jszip'
-import {VisionFileType, VisionWorkspace} from '../appContext/AppContext.tsx'
+import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
 
-const saveFileHelper = (file: VisionFileType, workspaces: VisionWorkspace[]) => {
+const saveFileHelper = (file: VisionFileType, exportedData?: Partial<VisionFileType>) => {
   const zip = new JSZip()
   const assetsFolder = zip!.folder('assets')
-
-  const newWorkspace = workspaces.map(ws => {
-    return {
-      ...ws,
-      assets: ws.assets!.map(asset => {
-        assetsFolder!.file(asset.id, asset.file)
-
-        return {
-          id: asset.id,
-          name: asset.name,
-          type: asset.type,
-          mimeType: asset.mimeType,
-        }
-      }),
-    }
-  })
-
+  const assets = exportedData?.assets ?? file.assets ?? []
   const fileJson = {
     ...file,
-    workspace: newWorkspace,
+    ...exportedData,
+    assets: assets.map(asset => {
+      if (asset.file) {
+        assetsFolder!.file(asset.id, asset.file)
+      }
+
+      return {
+        id: asset.id,
+        name: asset.name,
+        type: asset.type,
+        mimeType: asset.mimeType,
+      }
+    }),
   }
 
   zip.file('file.json', JSON.stringify(fileJson))

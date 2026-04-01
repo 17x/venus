@@ -1,35 +1,30 @@
 // useEditorInstance.ts
-import {RefObject, useContext, useEffect, useRef, useState} from 'react'
-import {useUI} from '../contexts/UIContext/UIContext.tsx'
-import WorkspaceContext from '../contexts/workspaceContext/WorkspaceContext.tsx'
+import {Dispatch, RefObject, useEffect, useRef} from 'react'
 import {Editor} from '@lite-u/editor'
-import {ElementInstance, ElementProps} from '@lite-u/editor/types'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'
+import {VisionFileType} from './useEditorRuntime.ts'
+import {WorkSpaceStateType, WorkspaceAction} from '../contexts/workspaceContext/reducer/reducer.ts'
 
-// import FileContext from '../contexts/fileContext/FileContext.tsx'
-
-function useEditor(ref: RefObject<HTMLDivElement | null>, worldPointRef: RefObject<PointRef | null>, workspace, page, showContextMenu: (p: {
+function useEditor(ref: RefObject<HTMLDivElement | null>, worldPointRef: RefObject<PointRef | null>, file: VisionFileType | null, state: WorkSpaceStateType, dispatch: Dispatch<WorkspaceAction>, showContextMenu: (p: {
   x: number,
   y: number
-}) => void) {
-  const {dpr} = useUI()
-  const [sortedElements, setSortedElements] = useState<ElementInstance[]>([])
-  const {state, dispatch} = useContext(WorkspaceContext)
+}) => void, onEditorReady?: (editor: Editor | null) => void) {
+  const dpr = window.devicePixelRatio || 2
   const lastSavedHistoryId = useRef(0)
   const currentHistoryId = useRef(0)
   const needSaveLocal = useRef(false)
   const editorRef = useRef<Editor | null>(null)
 
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current || !file) return
     const container = ref.current
     const editor = new Editor({
       container,
-      elements: workspace.elements,
-      assets: workspace.assets,
+      elements: file.elements,
+      assets: file.assets || [],
       config: {
         dpr,
-        page,
+        page: file.config.page,
       },
       events: {
         onInitialized: () => {
@@ -39,7 +34,20 @@ function useEditor(ref: RefObject<HTMLDivElement | null>, worldPointRef: RefObje
           dispatch({type: 'SET_WORLD_SCALE', payload: scale})
         },
         onHistoryUpdated: (historyTree) => {
-          dispatch({type: 'SET_HISTORY_ARRAY', payload: historyTree!.toArray()})
+          if (!historyTree) {
+            dispatch({type: 'SET_HISTORY_ARRAY', payload: []})
+            return
+          }
+
+          dispatch({
+            type: 'SET_HISTORY_ARRAY',
+            payload: historyTree.toArray().map((node) => ({
+              id: node.id,
+              prev: node.prev ? {id: node.prev.id, prev: null, next: null, data: {type: node.prev.data?.type || ''}} : null,
+              next: node.next ? {id: node.next.id, prev: null, next: null, data: {type: node.next.data?.type || ''}} : null,
+              data: {type: node.data?.type || ''},
+            })),
+          })
 
           if (historyTree.current) {
             const newHistoryStatus = {
@@ -61,9 +69,6 @@ function useEditor(ref: RefObject<HTMLDivElement | null>, worldPointRef: RefObje
             name: item.type,
             show: item.show,
           }))
-          // setSortedElements(arr)
-
-          // console.log(arr)
           dispatch({
             type: 'SET_ELEMENTS',
             payload: arr,
@@ -92,15 +97,18 @@ function useEditor(ref: RefObject<HTMLDivElement | null>, worldPointRef: RefObje
           dispatch({type: 'SET_COPIED_ITEMS', payload: items})
         },
         onSwitchTool: (toolName) => {
-          dispatch({type: 'SET_CURRENT_TOOL', payload: toolName})
+          dispatch({type: 'SET_CURRENT_TOOL', payload: toolName as WorkSpaceStateType['currentTool']})
         },
       },
     })
 
     editorRef.current = editor
-    console.log(editorRef.current)
-    return () => editor.destroy()
-  }, [ref, workspace])
+    onEditorReady?.(editor)
+    return () => {
+      onEditorReady?.(null)
+      editor.destroy()
+    }
+  }, [ref, file, onEditorReady])
 
   return editorRef
 }

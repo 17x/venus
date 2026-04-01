@@ -1,13 +1,12 @@
 import {Con, Drop, useNotification} from '@lite-u/ui'
 import readImageHelper from '../utilities/readImageHelper.ts'
-import {FC, ReactNode, useContext, useState} from 'react'
-import WorkspaceContext from '../contexts/workspaceContext/WorkspaceContext.tsx'
+import {FC, ReactNode, useState} from 'react'
 import {useTranslation} from 'react-i18next'
+import {EditorExecutor} from '../hooks/useEditorRuntime.ts'
 
-const FileReceiver: FC<{ children: ReactNode }> = ({children}) => {
+const FileReceiver: FC<{ children: ReactNode, executeAction: EditorExecutor }> = ({children, executeAction}) => {
   const [showDropNotice, setShowDropNotice] = useState(false)
   const [dropNoticeColor, setDropNoticeColor] = useState('green')
-  const {executeAction} = useContext(WorkspaceContext)
   const {add} = useNotification()
   const {t} = useTranslation()
 

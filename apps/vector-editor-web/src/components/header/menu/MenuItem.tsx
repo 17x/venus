@@ -1,19 +1,20 @@
-import React, {useContext, useState} from 'react'
+import React, {useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import WorkspaceContext from '../../../contexts/workspaceContext/WorkspaceContext.tsx'
 import {LuChevronRight} from 'react-icons/lu'
-import {useFile} from '../../../contexts/fileContext/FileContext.tsx'
-/*
+import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
+import {MenuItemType} from './type'
+
 interface MenuItemProps {
-  menu: NestedActions
-}*/
+  menu: MenuItemType
+  executeAction: EditorExecutor
+}
 
 const MenuItem: React.FC<MenuItemProps> = ({
                                              menu,
+                                             executeAction,
                                            }) => {
   const {t} = useTranslation()
   const [subOpen, setSubOpen] = useState<boolean>(false)
-  const {executeAction} = useFile()
 
   const handleClick = () => {
     // console.log(menu)
@@ -46,7 +47,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
       hasChildren && subOpen &&
         <div className={'absolute bg-white z-30 left-full top-0 w-auto border border-gray-200 box-border'}>
           {
-            menu.children!.map((subItem) => <MenuItem menu={subItem} key={subItem.id}/>)
+            menu.children!.map((subItem) => <MenuItem menu={subItem} executeAction={executeAction} key={subItem.id}/>)
           }
         </div>
     }

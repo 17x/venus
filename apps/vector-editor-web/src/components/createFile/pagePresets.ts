@@ -1,5 +1,4 @@
-import {Unit,nid} from '@lite-u/editor'
-import {UnitType} from '@lite-u/editor/types'
+import {Unit, UnitType} from '@venus/editor-core'
 
 export interface PagePreset {
   name: string
@@ -72,4 +71,3 @@ export const PAGE_PRESETS: PagePreset[] = [
     height: 841,
   },
 ]
-

@@ -1,9 +1,6 @@
-import {RefObject, useContext, useEffect} from 'react'
-import WorkspaceContext from '../contexts/workspaceContext/WorkspaceContext.tsx'
+import {RefObject, useEffect} from 'react'
 
-const useFocus = (ref: RefObject<HTMLElement | null>) => {
-  const {state: {focused}, dispatch} = useContext(WorkspaceContext)
-
+const useFocus = (ref: RefObject<HTMLElement | null>, focused: boolean, onFocusedChange: (focused: boolean) => void) => {
   useEffect(() => {
     if (!ref.current) return
 
@@ -11,12 +8,12 @@ const useFocus = (ref: RefObject<HTMLElement | null>) => {
 
     const handleFocus = () => {
       if (!focused) {
-        dispatch({type: 'SET_FOCUSED', payload: true})
+        onFocusedChange(true)
       }
     }
 
     const handleMouseOut = () => {
-      dispatch({type: 'SET_FOCUSED', payload: false})
+      onFocusedChange(false)
     }
 
     element.addEventListener('mousemove', handleFocus)
@@ -28,7 +25,7 @@ const useFocus = (ref: RefObject<HTMLElement | null>) => {
       element.removeEventListener('mouseenter', handleFocus)
       element.removeEventListener('mouseleave', handleMouseOut)
     }
-  }, [ref, focused])
+  }, [ref, focused, onFocusedChange])
 
 }
 export default useFocus

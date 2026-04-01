@@ -8,6 +8,9 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   resolve: {
     alias: [
+      { find: 'i18next', replacement: fileURLToPath(new URL('./src/shims/i18next.js', import.meta.url)) },
+      { find: '@lite-u/editor', replacement: fileURLToPath(new URL('../../packages/editor_old/index.ts', import.meta.url)) },
+      { find: '@lite-u/editor/types', replacement: fileURLToPath(new URL('../../packages/editor_old/type.ts', import.meta.url)) },
       { find: '@venus/canvas-base', replacement: fileURLToPath(new URL('../../packages/canvas-base/src/index.ts', import.meta.url)) },
       { find: '@venus/editor-core', replacement: fileURLToPath(new URL('../../packages/editor-core/src/index.ts', import.meta.url)) },
       { find: '@venus/editor-worker', replacement: fileURLToPath(new URL('../../packages/editor-worker/src/index.ts', import.meta.url)) },
@@ -15,6 +18,7 @@ export default defineConfig({
       { find: '@venus/shared-memory', replacement: fileURLToPath(new URL('../../packages/shared-memory/src/index.ts', import.meta.url)) },
       { find: '@venus/spatial-index', replacement: fileURLToPath(new URL('../../packages/spatial-index/src/index.ts', import.meta.url)) },
       { find: '@venus/ui', replacement: fileURLToPath(new URL('../../packages/ui/src/index.ts', import.meta.url)) },
+      { find: '~', replacement: fileURLToPath(new URL('../../packages/editor_old', import.meta.url)) },
       { find: 'react/compiler-runtime', replacement: fileURLToPath(new URL('./node_modules/react/compiler-runtime.js', import.meta.url)) },
       { find: 'react/jsx-runtime', replacement: fileURLToPath(new URL('./node_modules/react/jsx-runtime.js', import.meta.url)) },
       { find: 'react-dom/client', replacement: fileURLToPath(new URL('./node_modules/react-dom/client.js', import.meta.url)) },
