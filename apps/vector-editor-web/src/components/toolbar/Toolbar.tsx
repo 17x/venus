@@ -1,69 +1,89 @@
-import type { ToolId } from '@venus/editor-core'
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
-import { Tooltip } from '@lite-u/ui'
+import React, {useContext} from 'react'
+import {Col, Con, IconButton, Tooltip} from '@lite-u/ui'
+import {ToolName} from '@lite-u/editor/types'
+import {LuCircle, LuHand, LuPencilLine, LuRectangleHorizontal, LuZoomIn} from 'react-icons/lu'
+import {lineSeg, mousePointer} from '../../assets/svg/icons.tsx'
+import WorkspaceContext from '../../contexts/workspaceContext/WorkspaceContext.tsx'
 
-interface ToolbarProps {
-  activeTool: ToolId
-  onCommand: (command: EditorRuntimeCommand) => void
-}
+const toolList = [
+  {
+    name: 'Selector',
+    icon: mousePointer(false),
+    toolName: 'selector',
+  },
+  {
+    name: 'Direct Selector',
+    icon: mousePointer(),
+    toolName: 'dselector',
+  },
+  {
+    name: 'Line Segment',
+    icon: lineSeg(),
+    toolName: 'lineSegment',
+  },
+  {
+    name: 'Rectangle',
+    icon: <LuRectangleHorizontal/>,
+    toolName: 'rectangle',
+  },
+  {
+    name: 'Circle',
+    icon: <LuCircle/>,
+    toolName: 'ellipse',
+  },
+  {
+    name: 'Text',
+    icon: 'T',
+    toolName: 'text',
+  },
+  {
+    name: 'Pencil',
+    icon: <LuPencilLine/>,
+    toolName: 'pencil',
+  },
+  {
+    name: 'Hand',
+    icon: <LuHand/>,
+    toolName: 'panning',
+  },
+  {
+    name: 'Zoom',
+    icon: <LuZoomIn/>,
+    toolName: 'zoomIn',
+  },
+] as const
 
-const TOOLBAR_ITEMS: Array<{
-  id: ToolId
-  label: string
-  shortcut: string
-  glyph: string
-}> = [
-  { id: 'select', label: 'Select', shortcut: 'V', glyph: '↖' },
-  { id: 'frame', label: 'Frame', shortcut: 'F', glyph: '▣' },
-  { id: 'rectangle', label: 'Rectangle', shortcut: 'R', glyph: '▭' },
-  { id: 'ellipse', label: 'Ellipse', shortcut: 'O', glyph: '◯' },
-  { id: 'pen', label: 'Pen', shortcut: 'P', glyph: '✎' },
-  { id: 'text', label: 'Text', shortcut: 'T', glyph: 'T' },
-]
+const Toolbar: React.FC<{ tool: ToolName, setTool: (t: ToolName) => void }> = ({tool, setTool}) => {
+  // const {executeAction} = useContext(FileContext)
+  const {dispatch} = useContext(WorkspaceContext)
 
-/**
- * App-owned left toolbar for the vector editor web shell.
- *
- * Why:
- * - This keeps product-specific tool presentation inside the app.
- * - The editor shell stays local to this app for now.
- *
- * Not:
- * - command execution
- * - worker coordination
- * - runtime state ownership
- */
-const Toolbar = ({ activeTool, onCommand }: ToolbarProps) => {
-  return (
-    <aside className="app-toolbar" aria-label="Vector tools">
-      <span className="brand-mark app-toolbar-brand">V</span>
+  return <Col fh center flex={0} w={50} style={{
+    borderRight: '1px solid #e4e4e4',
+  }}>
+    {
+      toolList.map(({toolName, name, icon}) => {
+        const active = toolName === tool
+        return <Tooltip placement={'r'} title={name} key={name}>
+          <Con p={2} w={40} h={40}>
+            <IconButton xs style={{
+              width: '100%',
+              height: '100%',
+              color: active ? 'white' : 'black',
+              borderRadius: 3,
+              backgroundColor: active ? '#aaa' : 'white',
+              fontSize: 18,
+              outline: 'none',
+            }}
+                        onClick={() => {
+                          dispatch({type: 'SET_CURRENT_TOOL', payload: toolName})
+                          setTool(toolName)
+                        }}>{icon}</IconButton>
+          </Con>
+        </Tooltip>
 
-      <nav className="app-toolbar-list">
-        {TOOLBAR_ITEMS.map((item) => {
-          const active = item.id === activeTool
-
-          return (
-            <Tooltip
-              placement={'r'}
-              key={item.id}
-              title={item.label}
-            >
-              <button
-                type="button"
-                className={active ? 'app-toolbar-button active' : 'app-toolbar-button'}
-                onClick={() => onCommand({ type: 'tool.select', tool: item.id })}
-                aria-label={`${item.label} (${item.shortcut})`}
-              >
-                <span className="app-toolbar-glyph" aria-hidden="true">
-                  {item.glyph}
-                </span>
-              </button>
-            </Tooltip>
-          )
-        })}
-      </nav>
-    </aside>
-  )
+      })
+    }
+  </Col>
 }
 
 export default Toolbar

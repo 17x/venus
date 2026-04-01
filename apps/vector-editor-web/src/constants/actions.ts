@@ -1,10 +1,10 @@
-// import {VisionEventType} from '@lite-u/editor/types'
+import {VisionEventType} from '@lite-u/editor/types'
 
 export interface ActionItemType {
   id: string
   // action?: VisionEventType,
   shortcut: string
-  // editorAction?: VisionEventType,
+  editorAction?: VisionEventType,
   editorActionData?: string
   disabled?: boolean
   icon?: string

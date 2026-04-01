@@ -1,59 +1,63 @@
-import type { EditorRuntimeCommand, HistorySummary } from '@venus/editor-worker'
+import {useContext, useEffect, useRef} from 'react'
+import WorkspaceContext from '../../contexts/workspaceContext/WorkspaceContext.tsx'
+import {useTranslation} from 'react-i18next'
+import {I18nHistoryDataItem} from '../../i18n/type'
+import {Col, Con, MenuItem, Panel} from '@lite-u/ui'
 
-interface HistoryPanelProps {
-  history: HistorySummary
-  onCommand: (command: EditorRuntimeCommand) => void
-}
+export const HistoryPanel: FC<{
+  pickHistory: () => void
+}> = ({pickHistory}) => {
+  const {state: {historyArray, historyStatus}} = useContext(WorkspaceContext)
+  const {t} = useTranslation()
+  const targetRef = useRef<HTMLDivElement>(null)
 
-/**
- * Read-only history panel for the new runtime.
- *
- * The legacy app supported history-pick. We keep that out for now because the
- * new worker currently exposes linear undo/redo but not cursor jumping yet.
- */
-export function HistoryPanel({ history, onCommand }: HistoryPanelProps) {
-  const entries = history.entries.slice().reverse()
+  useEffect(() => {
+    if (targetRef.current) {
 
-  return (
-    <section className="panel-card vision-panel">
-      <div className="vision-panel-header">
-        <p className="eyebrow">History</p>
-        <div className="vision-inline-actions">
-          <button
-            type="button"
-            className="status-action"
-            disabled={!history.canUndo}
-            onClick={() => onCommand({ type: 'history.undo' })}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            className="status-action"
-            disabled={!history.canRedo}
-            onClick={() => onCommand({ type: 'history.redo' })}
-          >
-            Redo
-          </button>
-        </div>
-      </div>
+      return () => {
 
-      <div className="vision-panel-scroll">
-        {entries.map((entry, reversedIndex) => {
-          const index = history.entries.length - reversedIndex - 1
-          const isCurrent = index === history.cursor
+      }
+    }
+  }, [historyArray, historyStatus])
 
-          return (
-            <div
-              key={`${entry.source}-${entry.id}-${index}`}
-              className={isCurrent ? 'vision-list-item active passive' : 'vision-list-item passive'}
-            >
-              <span>{entry.label}</span>
-              <small>{entry.source}</small>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
+  return <Con fh ovh p={10} h={'33.33%'}>
+    <Panel xs head={'History'}
+           headStyle={{
+             backgroundColor: '#1f4273',
+           }}
+           contentStyle={{
+             overflow: 'hidden',
+           }}>
+      <Con fh ovh>
+        <Con fh className={'border border-gray-400 overflow-x-hidden scrollbar-custom overflow-y-auto'}>
+          <Col fh p={10} minH={40} className={'bg-gray-100'} style={{
+            // boxShadow: 'inset 0 0 3px 1px #000',
+          }}>
+            {
+              historyArray.map((historyNode, index) => {
+                  const isCurr = historyNode.id === historyStatus.id
+                  const prefixI18NKey = 'history.' + historyNode.data.type
+                  const {label, tooltip} = t(prefixI18NKey, {returnObjects: true}) as I18nHistoryDataItem
+
+                  return <MenuItem xs
+                                   ref={isCurr ? targetRef : null}
+                                   title={tooltip}
+                                   key={index}
+                                   onClick={() => {
+                                     if (isCurr) return
+                                     // console.log(historyNode.id)
+                                     pickHistory(historyNode)
+                                     // applyHistoryNode(historyNode)
+                                   }}
+                                   style={{
+                                     width: '100%',
+                                     backgroundColor: isCurr ? 'gray' : 'white',
+                                   }}>{label}</MenuItem>
+                },
+              )
+            }
+          </Col>
+        </Con></Con>
+    </Panel>
+  </Con>
 }

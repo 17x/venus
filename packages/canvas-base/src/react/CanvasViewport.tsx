@@ -163,11 +163,6 @@ export function CanvasViewport({
   if (Renderer) {
     return (
       <section className="stage-shell">
-        <div className="stage-meta">
-          <span>Renderer</span>
-          <strong>Canvas runtime viewport</strong>
-        </div>
-
         <div
           ref={viewportRef}
           className="stage-viewport"

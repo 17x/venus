@@ -16,6 +16,7 @@
   ],
   "include": [
     "src/App.tsx",
+    "src/assets/svg/icons.tsx",
     "src/components/header/menu/MenuBar.tsx",
     "src/components/header/Header.tsx",
     "src/components/header/menu/Menu.tsx",
