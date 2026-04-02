@@ -4,14 +4,14 @@ import {I18nHistoryDataItem} from '../../i18n/type'
 import {LuChevronRight} from 'react-icons/lu'
 import {MenuItemType} from '../header/menu/type'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
-import {ElementProps, UID} from '@lite-u/editor/types'
-import {Point} from '@venus/editor-core'
+import {ElementProps} from '@lite-u/editor/types'
+import {Point} from '@venus/document-core'
 
 export interface ContextMenuProps {
   position: Point
   onClose: () => void
   executeAction: EditorExecutor
-  selectedElements: UID[]
+  selectedIds: string[]
   copiedItems: ElementProps[]
   historyStatus: {
     id: number
@@ -20,12 +20,12 @@ export interface ContextMenuProps {
   }
 }
 
-export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onClose, selectedElements, copiedItems, historyStatus}) => {
+export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onClose, selectedIds, copiedItems, historyStatus}) => {
   const {t} = useTranslation()
   const [menuItems, setMenuItems] = useState<MenuItemType[]>([])
   const groupClass = 'absolute bg-white shadow-lg rounded-md border border-gray-200 py-1 z-50'
   useEffect(() => {
-    const noSelectedElement = selectedElements.length === 0
+    const noSelectedElement = selectedIds.length === 0
     const ITEMS: MenuItemType[] = [
       {id: 'copy', editorActionCode: 'element-copy', disabled: noSelectedElement},
       {id: 'paste', editorActionCode: 'element-paste', disabled: copiedItems.length === 0},
@@ -34,7 +34,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onCl
       {id: 'undo', editorActionCode: 'history-undo', disabled: !historyStatus.hasPrev},
       {id: 'redo', editorActionCode: 'history-redo', disabled: !historyStatus.hasNext},
       // {id: 'ungroup', disabled: noSelectedElement},
-      // {id: 'group', disabled: selectedElements.size < 2},
+      // {id: 'group', disabled: selectedIds.length < 2},
       /* {
          id: 'layer',
          disabled: noSelectedElement,
@@ -46,7 +46,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onCl
          ],
        },*/
     ]
-    // console.log(selectedElements)
+    // console.log(selectedIds)
     setMenuItems(ITEMS)
 
     const remove = () => {
@@ -58,7 +58,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onCl
     return () => {
       window.removeEventListener('click', remove)
     }
-  }, [selectedElements, position, copiedItems])
+  }, [selectedIds, position, copiedItems])
 
   // console.log(9)
   const handleContextAction = (item: MenuItemType) => {

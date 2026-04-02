@@ -1,3 +1,5 @@
+import type {BezierPoint, Point} from './geometry.ts'
+
 export {convertUnit} from './converter.ts'
 export type {BezierPoint, BoundingRect, Point, Rect} from './geometry.ts'
 export {
@@ -6,6 +8,7 @@ export {
   generateBoundingRectFromRotatedRect,
   generateBoundingRectFromTwoPoints,
   getBoundingRectFromBezierPoints,
+  convertDrawPointsToBezierPoints,
   isInsideRotatedRect,
   isPointNear,
   nearestPointOnCurve,
@@ -17,9 +20,9 @@ export {nid} from './nid.ts'
 export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
 export {Unit, type UnitType} from './unit.ts'
 
-export type ShapeType = 'frame' | 'rectangle' | 'ellipse' | 'text'
+export type ShapeType = 'frame' | 'rectangle' | 'ellipse' | 'lineSegment' | 'path' | 'text'
 
-export interface ShapeRecord {
+export interface DocumentNode {
   id: string
   type: ShapeType
   name: string
@@ -27,6 +30,10 @@ export interface ShapeRecord {
   y: number
   width: number
   height: number
+  // Absolute world-space points used by polyline/path shapes.
+  points?: Point[]
+  // Bezier curve points used by pen/pencil-authored path shapes.
+  bezierPoints?: BezierPoint[]
 }
 
 export interface EditorDocument {
@@ -34,5 +41,5 @@ export interface EditorDocument {
   name: string
   width: number
   height: number
-  shapes: ShapeRecord[]
+  shapes: DocumentNode[]
 }

@@ -1,4 +1,4 @@
-import {nid} from '@venus/editor-core'
+import {nid} from '@venus/document-core'
 import {VisionEditorAssetType} from '@lite-u/editor/types'
 
 const readImageHelper = (file: File): Promise<VisionEditorAssetType> => {

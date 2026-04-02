@@ -29,6 +29,12 @@ export type HistoryPatch =
       nextHeight: number
     }
   | {
+      type: 'reorder-shape'
+      shapeId: string
+      fromIndex: number
+      toIndex: number
+    }
+  | {
       type: 'insert-shape'
       index: number
       shape: {
@@ -39,6 +45,12 @@ export type HistoryPatch =
         y: number
         width: number
         height: number
+        points?: Array<{x: number; y: number}>
+        bezierPoints?: Array<{
+          anchor: {x: number; y: number}
+          cp1?: {x: number; y: number} | null
+          cp2?: {x: number; y: number} | null
+        }>
       }
     }
   | {
@@ -52,6 +64,12 @@ export type HistoryPatch =
         y: number
         width: number
         height: number
+        points?: Array<{x: number; y: number}>
+        bezierPoints?: Array<{
+          anchor: {x: number; y: number}
+          cp1?: {x: number; y: number} | null
+          cp2?: {x: number; y: number} | null
+        }>
       }
     }
 

@@ -1,178 +1,152 @@
-import {useCallback, useMemo, useRef, useState} from 'react'
+import {useCallback, useRef, useState} from 'react'
 import {useNotification} from '@lite-u/ui'
-import type {ToolId, ToolName} from '@venus/editor-core'
+import {nid, type ToolName} from '@venus/document-core'
 import {useCanvasRuntime} from '@venus/canvas-base'
 import {SkiaRenderer} from '@venus/renderer-skia'
-import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
+import type {ElementProps} from '@lite-u/editor/types'
+import {useTranslation} from 'react-i18next'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'
-import {WorkSpaceStateType} from '../contexts/workspaceContext/reducer/reducer.ts'
-import {MOCK_FILE} from '../contexts/appContext/mockFile.ts'
 import useFocus from './useFocus.tsx'
 import useShortcut from './useShortcut.tsx'
-import saveFileHelper from '../contexts/fileContext/saveFileHelper.ts'
-import readFileHelper from '../contexts/fileContext/readFileHelper.ts'
-import {useTranslation} from 'react-i18next'
 import ZOOM_LEVELS from '../constants/zoomLevels.ts'
-import {createEditorDocumentFromFile, createFileElementsFromDocument} from '../adapters/fileDocument.ts'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
-import type {EditorRuntimeCommand, HistorySummary} from '@venus/editor-worker'
+import {createDocumentNodeFromElement} from '../adapters/fileDocument.ts'
+import readFileHelper from '../contexts/fileContext/readFileHelper.ts'
+import {
+  applyMatrixToPoint,
+  cloneElementProps,
+  mapToolNameToToolId,
+  offsetElementPosition,
+} from './editorRuntimeHelpers.ts'
+import {deriveEditorUIState} from './deriveEditorUIState.ts'
+import {useEditorDocument} from './useEditorDocument.ts'
+import {usePenTool} from './usePenTool.ts'
+import type {
+  EditorDocumentState,
+  EditorExecutor,
+  EditorRuntimeCommands,
+  EditorRuntimeRefs,
+  EditorRuntimeState,
+  VisionFileType,
+  VisionFileAsset,
+} from './useEditorRuntime.types.ts'
 
-export interface VisionFileAsset {
-  id: string
-  name: string
-  type: string
-  mimeType: string
-  file?: File
-  imageRef?: unknown
-}
-
-export interface VisionFilePageSet {
-  unit: string
-  width: number
-  height: number
-  dpi: number
-}
-
-export interface VisionFileType {
-  id: string
-  name: string
-  version: string
-  createdAt: number
-  updatedAt: number
-  config: {
-    page: VisionFilePageSet
-    editor?: {}
-  }
-  elements: ElementProps[]
-  assets?: VisionFileAsset[]
-}
-
-export type EditorExecutor = (type: VisionEventType, data?: VisionEventData) => void
+export type {
+  EditorDocumentState,
+  EditorExecutor,
+  EditorRuntimeCommands,
+  EditorRuntimeRefs,
+  EditorRuntimeState,
+  EditorUIState,
+  HistoryNodeLike,
+  VisionFileAsset,
+  VisionFilePageSet,
+  VisionFileType,
+} from './useEditorRuntime.types.ts'
 
 const SCENE_CAPACITY = 256
 
-function mapToolNameToToolId(toolName: ToolName): ToolId {
-  switch (toolName) {
-    case 'rectangle':
-      return 'rectangle'
-    case 'ellipse':
-      return 'ellipse'
-    case 'text':
-      return 'text'
-    case 'pencil':
-    case 'path':
-      return 'pen'
-    default:
-      return 'select'
-  }
-}
-
-function buildSelectedProps(shape: SceneShapeSnapshot | null): ElementProps | null {
-  if (!shape) {
-    return null
-  }
-
-  return {
-    id: shape.id,
-    type: shape.type,
-    name: shape.name,
-    x: shape.x,
-    y: shape.y,
-    width: shape.width,
-    height: shape.height,
-    rotation: 0,
-    opacity: 1,
-    fill: {
-      enabled: shape.type !== 'text',
-      color: '#ffffff',
-    },
-    stroke: {
-      enabled: true,
-      color: '#000000',
-      weight: 1,
-    },
-  }
-}
-
-function buildHistoryArray(history: HistorySummary): WorkSpaceStateType['historyArray'] {
-  return history.entries.map((entry, index, array) => ({
-    id: index,
-    prev: index > 0 ? {
-      id: index - 1,
-      prev: null,
-      next: null,
-      data: {type: array[index - 1].label},
-      label: array[index - 1].label,
-    } : null,
-    next: index < array.length - 1 ? {
-      id: index + 1,
-      prev: null,
-      next: null,
-      data: {type: array[index + 1].label},
-      label: array[index + 1].label,
-    } : null,
-    data: {type: entry.label},
-    label: entry.label,
-  }))
-}
-
-export const useEditorRuntime = (options?: {
-  onContextMenu?: (position: { x: number, y: number }) => void
+const useEditorRuntime = (options?: {
+  onContextMenu?: (position: {x: number; y: number}) => void
 }) => {
   const onContextMenu = options?.onContextMenu
-  const [file, setFile] = useState<VisionFileType | null>(MOCK_FILE)
-  const [creating, setCreating] = useState(false)
+  const {
+    file,
+    document,
+    hasFile,
+    creating,
+    showCreateFile,
+    openFile,
+    closeFile,
+    createFile,
+    startCreateFile,
+    handleCreating,
+    saveFile,
+  } = useEditorDocument()
   const [showPrint, setShowPrint] = useState(false)
   const [focused, setFocused] = useState(false)
   const [currentTool, setCurrentToolState] = useState<ToolName>('selector')
+  const [clipboard, setClipboard] = useState<ElementProps[]>([])
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
-  const activeFile = file ?? MOCK_FILE
-  const document = useMemo(() => createEditorDocumentFromFile(activeFile), [activeFile])
-  const runtimeOptions = useMemo(() => ({
+  const runtimeOptions = {
     capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
     createWorker: () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
     document,
-  }), [document])
+  }
   const canvasRuntime = useCanvasRuntime(runtimeOptions)
   const {add} = useNotification()
   const {t} = useTranslation()
-  const hasFile = !!file
-  const showCreateFile = !hasFile || creating
+  const selectedShape = canvasRuntime.stats.selectedIndex >= 0
+    ? canvasRuntime.shapes[canvasRuntime.stats.selectedIndex] ?? null
+    : null
+  const selectedNode = selectedShape
+    ? canvasRuntime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
+    : null
+  const selectedShapeId = selectedShape?.id ?? null
 
-  const openFile = useCallback((nextFile: VisionFileType) => {
-    setFile(nextFile)
-    setCreating(false)
-  }, [])
-
-  const closeFile = useCallback(() => {
-    setFile(null)
-    setCreating(false)
-  }, [])
-
-  const createFile = useCallback((nextFile: VisionFileType) => {
-    setFile(nextFile)
-    setCreating(false)
-  }, [])
-
-  const startCreateFile = useCallback(() => {
-    setCreating(true)
-  }, [])
-
-  const handleCreating = useCallback((value: boolean) => {
-    setCreating(value)
-  }, [])
-
-  const saveFile = useCallback(() => {
-    if (!file) return
-    saveFileHelper(file, {
-      elements: createFileElementsFromDocument(canvasRuntime.document),
-    })
-  }, [canvasRuntime.document, file])
-
-  const handleCommand = useCallback((command: EditorRuntimeCommand) => {
+  const handleCommand = useCallback((command: import('@venus/editor-worker').EditorRuntimeCommand) => {
     canvasRuntime.dispatchCommand(command)
+  }, [canvasRuntime])
+
+  const insertElement = useCallback((element: ElementProps) => {
+    handleCommand({
+      type: 'shape.insert',
+      shape: createDocumentNodeFromElement(element),
+    })
+  }, [handleCommand])
+
+  const penTool = usePenTool({
+    currentTool,
+    insertElement,
+  })
+
+  const reorderSelectedShape = useCallback((direction: 'up' | 'down' | 'top' | 'bottom') => {
+    if (!selectedShapeId) {
+      return
+    }
+
+    const index = canvasRuntime.document.shapes.findIndex((shape) => shape.id === selectedShapeId)
+    if (index <= 0) {
+      return
+    }
+
+    const maxIndex = Math.max(1, canvasRuntime.document.shapes.length - 1)
+    let nextIndex = index
+
+    if (direction === 'up') {
+      nextIndex = Math.min(maxIndex, index + 1)
+    } else if (direction === 'down') {
+      nextIndex = Math.max(1, index - 1)
+    } else if (direction === 'top') {
+      nextIndex = maxIndex
+    } else if (direction === 'bottom') {
+      nextIndex = 1
+    }
+
+    if (nextIndex === index) {
+      return
+    }
+
+    handleCommand({
+      type: 'shape.reorder',
+      shapeId: selectedShapeId,
+      toIndex: nextIndex,
+    })
+  }, [canvasRuntime.document.shapes, handleCommand, selectedShapeId])
+
+  const handleZoom = useCallback((zoomIn: boolean, point?: {x: number; y: number}) => {
+    const filtered = ZOOM_LEVELS.filter((zoomLevel) => typeof zoomLevel.value === 'number')
+    const currentScale = canvasRuntime.viewport.scale
+    const nextScale = zoomIn
+      ? [...filtered].reverse().find((zoomLevel) => zoomLevel.value > currentScale)
+      : filtered.find((zoomLevel) => zoomLevel.value < currentScale)
+
+    if (!nextScale) {
+      return
+    }
+
+    canvasRuntime.zoomViewport(nextScale.value, point)
   }, [canvasRuntime])
 
   const executeAction = useCallback<EditorExecutor>((type, data) => {
@@ -192,7 +166,7 @@ export const useEditorRuntime = (options?: {
     }
 
     if (type === 'saveFile') {
-      saveFile()
+      saveFile(canvasRuntime.document)
       return
     }
 
@@ -211,6 +185,185 @@ export const useEditorRuntime = (options?: {
       return
     }
 
+    if (type === 'element-copy') {
+      if (selectedNode && selectedNode.type !== 'frame') {
+        setClipboard([{
+          ...cloneElementProps({
+            id: selectedNode.id,
+            type: selectedNode.type,
+            name: selectedNode.name,
+            x: selectedNode.x,
+            y: selectedNode.y,
+            width: selectedNode.width,
+            height: selectedNode.height,
+            points: selectedNode.points?.map((point) => ({...point})),
+            bezierPoints: selectedNode.bezierPoints?.map((point) => ({
+              anchor: {...point.anchor},
+              cp1: point.cp1 ? {...point.cp1} : point.cp1,
+              cp2: point.cp2 ? {...point.cp2} : point.cp2,
+            })),
+          }),
+        }])
+      }
+      return
+    }
+
+    if (type === 'element-cut') {
+      if (selectedNode && selectedNode.type !== 'frame') {
+        setClipboard([cloneElementProps({
+          id: selectedNode.id,
+          type: selectedNode.type,
+          name: selectedNode.name,
+          x: selectedNode.x,
+          y: selectedNode.y,
+          width: selectedNode.width,
+          height: selectedNode.height,
+          points: selectedNode.points?.map((point) => ({...point})),
+          bezierPoints: selectedNode.bezierPoints?.map((point) => ({
+            anchor: {...point.anchor},
+            cp1: point.cp1 ? {...point.cp1} : point.cp1,
+            cp2: point.cp2 ? {...point.cp2} : point.cp2,
+          })),
+        })])
+        handleCommand({type: 'selection.delete'})
+      }
+      return
+    }
+
+    if (type === 'element-duplicate') {
+      if (!selectedNode || selectedNode.type === 'frame') {
+        return
+      }
+
+      insertElement({
+        ...offsetElementPosition({
+          id: selectedNode.id,
+          type: selectedNode.type,
+          name: selectedNode.name,
+          x: selectedNode.x,
+          y: selectedNode.y,
+          width: selectedNode.width,
+          height: selectedNode.height,
+          points: selectedNode.points?.map((point) => ({...point})),
+          bezierPoints: selectedNode.bezierPoints?.map((point) => ({
+            anchor: {...point.anchor},
+            cp1: point.cp1 ? {...point.cp1} : point.cp1,
+            cp2: point.cp2 ? {...point.cp2} : point.cp2,
+          })),
+        }, selectedNode.x + 24, selectedNode.y + 24),
+        id: nid(),
+        name: `${selectedNode.name ?? selectedNode.type} Copy`,
+      })
+      return
+    }
+
+    if (type === 'element-paste') {
+      if (clipboard.length === 0) {
+        return
+      }
+
+      const position = data && typeof data === 'object' && 'x' in data && 'y' in data
+        ? data as {x: number; y: number}
+        : null
+
+      clipboard.forEach((item, index) => {
+        const offset = 24 * (index + 1)
+        insertElement({
+          ...offsetElementPosition(
+            item,
+            position ? position.x + offset : (item.x ?? 0) + offset,
+            position ? position.y + offset : (item.y ?? 0) + offset,
+          ),
+          id: nid(),
+          name: `${item.name ?? item.type} Copy`,
+        })
+      })
+      return
+    }
+
+    if (type === 'selection-all') {
+      const target = [...canvasRuntime.document.shapes].reverse().find((shape) => shape.type !== 'frame')
+      handleCommand({
+        type: 'selection.set',
+        shapeId: target?.id ?? null,
+      })
+      return
+    }
+
+    if (type === 'element-layer') {
+      reorderSelectedShape(String(data ?? 'up') as 'up' | 'down' | 'top' | 'bottom')
+      return
+    }
+
+    if (type === 'bringForward') {
+      reorderSelectedShape('up')
+      return
+    }
+
+    if (type === 'sendBackward') {
+      reorderSelectedShape('down')
+      return
+    }
+
+    if (type === 'bringToFront') {
+      reorderSelectedShape('top')
+      return
+    }
+
+    if (type === 'sendToBack') {
+      reorderSelectedShape('bottom')
+      return
+    }
+
+    if (type === 'element-move-up' || type === 'element-move-right' || type === 'element-move-down' || type === 'element-move-left') {
+      if (!selectedShape || selectedShape.type === 'frame') {
+        return
+      }
+
+      const delta = {
+        x: type === 'element-move-right' ? 1 : type === 'element-move-left' ? -1 : 0,
+        y: type === 'element-move-down' ? 1 : type === 'element-move-up' ? -1 : 0,
+      }
+
+      handleCommand({
+        type: 'shape.move',
+        shapeId: selectedShape.id,
+        x: selectedShape.x + delta.x,
+        y: selectedShape.y + delta.y,
+      })
+      return
+    }
+
+    if (type === 'drop-image' && data && typeof data === 'object' && 'position' in data) {
+      const position = data.position as {x: number; y: number}
+      const asset = Array.isArray((data as {assets?: VisionFileAsset[]}).assets)
+        ? (data as {assets?: VisionFileAsset[]}).assets?.[0]
+        : null
+      const imageRef = asset?.imageRef as {naturalWidth?: number; naturalHeight?: number} | undefined
+
+      insertElement({
+        id: nid(),
+        type: 'rectangle',
+        name: asset?.name ?? 'Image',
+        x: position.x,
+        y: position.y,
+        width: imageRef?.naturalWidth ?? 160,
+        height: imageRef?.naturalHeight ?? 120,
+        rotation: 0,
+        opacity: 1,
+        fill: {
+          enabled: true,
+          color: '#fce7f3',
+        },
+        stroke: {
+          enabled: true,
+          color: '#db2777',
+          weight: 1,
+        },
+      })
+      return
+    }
+
     if (type === 'world-shift' && data && typeof data === 'object' && 'x' in data && 'y' in data) {
       canvasRuntime.panViewport(Number(data.x), Number(data.y))
       return
@@ -223,9 +376,8 @@ export const useEditorRuntime = (options?: {
       }
 
       if (data && typeof data === 'object' && 'zoomFactor' in data) {
-        const zoomFactor = Number(data.zoomFactor)
-        const point = data && typeof data === 'object' && 'physicalPoint' in data ? data.physicalPoint as {x: number; y: number} | undefined : undefined
-        canvasRuntime.zoomViewport(zoomFactor, point)
+        const point = 'physicalPoint' in data ? data.physicalPoint as {x: number; y: number} | undefined : undefined
+        canvasRuntime.zoomViewport(Number(data.zoomFactor), point)
       }
       return
     }
@@ -250,10 +402,7 @@ export const useEditorRuntime = (options?: {
     }
 
     if (type === 'element-modify' && Array.isArray(data) && data[0]) {
-      const patch = data[0] as {
-        id: string
-        props?: Partial<ElementProps>
-      }
+      const patch = data[0] as {id: string; props?: Partial<ElementProps>}
       const shape = canvasRuntime.document.shapes.find((item) => item.id === patch.id)
 
       if (!shape || !patch.props) {
@@ -282,25 +431,19 @@ export const useEditorRuntime = (options?: {
           height: nextHeight,
         })
       }
-      return
     }
-  }, [canvasRuntime, closeFile, handleCommand, saveFile, startCreateFile])
-
-  const handleZoom = useCallback((zoomIn: boolean, point?: { x: number, y: number }) => {
-    const filtered = ZOOM_LEVELS.filter(z => typeof z.value === 'number')
-    const currentScale = canvasRuntime.viewport.scale
-    let nextScale = null
-
-    if (zoomIn) {
-      nextScale = filtered.reverse().find(z => z.value > currentScale)
-    } else {
-      nextScale = filtered.find(z => z.value < currentScale)
-    }
-
-    if (!nextScale) return
-
-    canvasRuntime.zoomViewport(nextScale.value, point)
-  }, [canvasRuntime])
+  }, [
+    canvasRuntime,
+    clipboard,
+    closeFile,
+    handleCommand,
+    insertElement,
+    reorderSelectedShape,
+    saveFile,
+    selectedNode,
+    selectedShape,
+    startCreateFile,
+  ])
 
   const setCurrentTool = useCallback((toolName: ToolName) => {
     executeAction('switch-tool', toolName)
@@ -326,15 +469,14 @@ export const useEditorRuntime = (options?: {
 
   const openDroppedFile = useCallback(async (droppedFile: File) => {
     try {
-      const nextFile = await readFileHelper(droppedFile)
-      openFile(nextFile)
+      openFile(await readFileHelper(droppedFile))
     } catch {
       add(t('misc.fileResolveFailed'), 'info')
     }
   }, [add, openFile, t])
 
-  useFocus(contextRootRef, focused, (focused) => {
-    setFocused(focused)
+  useFocus(contextRootRef, focused, (nextFocused) => {
+    setFocused(nextFocused)
   })
   useShortcut(executeAction, handleZoom, {
     currentTool,
@@ -342,82 +484,110 @@ export const useEditorRuntime = (options?: {
     setCurrentTool,
   })
 
-  const selectedShape = canvasRuntime.stats.selectedIndex >= 0
-    ? canvasRuntime.shapes[canvasRuntime.stats.selectedIndex] ?? null
-    : null
-  const workspaceState: WorkSpaceStateType = {
-    id: activeFile.id,
-    focused,
-    historyArray: buildHistoryArray(canvasRuntime.history),
-    historyStatus: {
-      id: canvasRuntime.history.cursor,
-      hasPrev: canvasRuntime.history.canUndo,
-      hasNext: canvasRuntime.history.canRedo,
-    },
-    worldPoint: {x: 0, y: 0},
-    worldScale: canvasRuntime.viewport.scale,
-    needSave: canvasRuntime.history.entries.length > 0,
-    selectedElements: selectedShape ? [selectedShape.id] : [],
-    selectedProps: buildSelectedProps(selectedShape),
-    currentTool,
-    lastSavedHistoryId: -1,
-    copiedItems: [],
-    elements: canvasRuntime.shapes.map((shape) => ({
-      id: shape.id,
-      name: shape.name,
-      show: true,
-    })),
-  }
-
-  return {
-    file,
-    hasFile,
-    creating,
+  const uiState = deriveEditorUIState({
+    canvasRuntime,
+    clipboard,
+    selectedNode,
+    selectedShapeId,
     showCreateFile,
     showPrint,
-    setShowPrint,
-    workspaceState,
-    contextRootRef,
-    worldPointRef,
-    editorRef,
-    executeAction,
-    saveFile,
-    createFile,
-    handleCreating,
-    startCreateFile,
-    setCurrentTool,
-    pickHistory,
-    openDroppedFile,
+  })
+
+  const documentState: EditorDocumentState = {
+    document: canvasRuntime.document,
+    file,
+    hasFile,
+  }
+
+  const runtimeState: EditorRuntimeState = {
     canvas: {
       Renderer: SkiaRenderer,
       document: canvasRuntime.document,
       shapes: canvasRuntime.shapes,
       viewport: canvasRuntime.viewport,
       ready: canvasRuntime.ready,
-      onPointerMove: (point: {x: number; y: number}) => {
+      onPointerMove: (point) => {
         worldPointRef.current?.set(point)
+        if (penTool.handlePointerMove(point)) {
+          return
+        }
         canvasRuntime.postPointer('pointermove', point)
       },
-      onPointerDown: (point: {x: number; y: number}) => {
+      onPointerDown: (point) => {
         if (currentTool === 'zoomIn' || currentTool === 'zoomOut') {
           handleZoom(currentTool === 'zoomIn', point)
           return
         }
 
+        if (penTool.handlePointerDown(point)) {
+          return
+        }
+
         canvasRuntime.postPointer('pointerdown', point)
       },
+      onPointerUp: penTool.handlePointerUp,
       onPointerLeave: () => {
+        penTool.clearDraft()
         canvasRuntime.clearHover()
       },
       onViewportPan: canvasRuntime.panViewport,
       onViewportResize: canvasRuntime.resizeViewport,
-      onViewportZoom: (nextScale: number, anchor?: {x: number; y: number}) => {
+      onViewportZoom: (nextScale, anchor) => {
         canvasRuntime.zoomViewport(nextScale, anchor)
       },
-      onContextMenu: (position: {x: number; y: number}) => {
-        onContextMenu?.(position)
+      onContextMenu: (position) => {
+        onContextMenu?.(applyMatrixToPoint(canvasRuntime.viewport.inverseMatrix, position))
       },
     },
+    currentTool,
+    focused,
+    history: canvasRuntime.history,
+    selectedShape,
+    viewportScale: canvasRuntime.viewport.scale,
+  }
+
+  const commands: EditorRuntimeCommands = {
+    executeAction,
+    saveFile: () => saveFile(canvasRuntime.document),
+    createFile,
+    handleCreating,
+    startCreateFile,
+    setCurrentTool,
+    pickHistory,
+    openDroppedFile,
+    setShowPrint,
+  }
+
+  const refs: EditorRuntimeRefs = {
+    contextRootRef,
+    worldPointRef,
+    editorRef,
+  }
+
+  return {
+    documentState,
+    runtimeState,
+    uiState,
+    commands,
+    refs,
+    file,
+    hasFile,
+    creating,
+    showCreateFile,
+    showPrint,
+    setShowPrint,
+    contextRootRef,
+    worldPointRef,
+    editorRef,
+    executeAction,
+    saveFile: commands.saveFile,
+    createFile,
+    handleCreating,
+    startCreateFile,
+    setCurrentTool,
+    pickHistory,
+    openDroppedFile,
+    canvas: runtimeState.canvas,
   }
 }
 

@@ -1,4 +1,4 @@
-export type ToolId = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'pen' | 'text'
+export type ToolId = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'lineSegment' | 'pen' | 'text'
 
 export type ToolName =
   | 'selector'

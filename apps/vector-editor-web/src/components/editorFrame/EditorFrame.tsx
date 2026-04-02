@@ -27,15 +27,28 @@ const EditorFrame = () => {
   })
 
   const {
-    file,
-    hasFile,
+    documentState,
+    runtimeState,
+    uiState,
+    commands,
+    refs,
+  } = runtime
+  const {file, hasFile} = documentState
+  const {canvas, currentTool, focused} = runtimeState
+  const {
+    copiedItems,
+    hasUnsavedChanges,
+    historyItems,
+    historyStatus,
+    layerItems,
+    selectedIds,
+    selectedProps,
     showCreateFile,
     showPrint,
+    viewportScale,
+  } = uiState
+  const {
     setShowPrint,
-    workspaceState,
-    contextRootRef,
-    worldPointRef,
-    editorRef,
     executeAction,
     saveFile,
     createFile,
@@ -43,8 +56,8 @@ const EditorFrame = () => {
     setCurrentTool,
     pickHistory,
     openDroppedFile,
-    canvas,
-  } = runtime
+  } = commands
+  const {contextRootRef, worldPointRef, editorRef} = refs
 
   return <div className={'w-full h-full flex flex-col select-none'}>
     <div className={'flex justify-between items-center border-b border-gray-200 bg-white'}>
@@ -67,15 +80,17 @@ const EditorFrame = () => {
                        setShowDropNotice(false)
                        openDroppedFile(event.dataTransfer.files[0])
                      }}>
-        <Col fw fh stretch ref={contextRootRef} data-focused={workspaceState.focused} autoFocus={true}
+        <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
              tabIndex={0}
              className={'outline-0 bg-white'}>
           <Header executeAction={executeAction}
                   saveFile={saveFile}
-                  workspaceState={workspaceState}/>
+                  needSave={hasUnsavedChanges}
+                  historyStatus={historyStatus}
+                  selectedIds={selectedIds}/>
 
           <Row ovh fh>
-            <Toolbar tool={workspaceState.currentTool} setTool={setCurrentTool}/>
+            <Toolbar tool={currentTool} setTool={setCurrentTool}/>
             <Col fw fh ovh rela flex={1}>
               <FileReceiver executeAction={executeAction}>
                 <div
@@ -96,6 +111,7 @@ const EditorFrame = () => {
                     viewport={canvas.viewport}
                     onPointerMove={canvas.onPointerMove}
                     onPointerDown={canvas.onPointerDown}
+                    onPointerUp={canvas.onPointerUp}
                     onPointerLeave={canvas.onPointerLeave}
                     onViewportPan={canvas.onViewportPan}
                     onViewportResize={canvas.onViewportResize}
@@ -105,27 +121,27 @@ const EditorFrame = () => {
               </FileReceiver>
 
               <StatusBar executeAction={executeAction}
-                         worldScale={workspaceState.worldScale}
+                         worldScale={viewportScale}
                          ref={worldPointRef}/>
 
               {showContextMenu &&
                 <ContextMenu position={contextMenuPosition}
                              executeAction={executeAction}
-                             selectedElements={workspaceState.selectedElements}
-                             copiedItems={workspaceState.copiedItems}
-                             historyStatus={workspaceState.historyStatus}
+                             selectedIds={selectedIds}
+                             copiedItems={copiedItems}
+                             historyStatus={historyStatus}
                              onClose={() => {
                                setShowContextMenu(false)
                              }}/>}
             </Col>
 
             <Col fh stretch flex={'none'} w={260} style={{borderLeft: '1px solid #dfdfdf'}}>
-              <PropPanel props={workspaceState.selectedProps!} executeAction={executeAction}/>
+              <PropPanel props={selectedProps!} executeAction={executeAction}/>
               <LayerPanel executeAction={executeAction}
-                          elements={workspaceState.elements}
-                          selectedElements={workspaceState.selectedElements}/>
-              <HistoryPanel historyArray={workspaceState.historyArray}
-                            historyStatus={workspaceState.historyStatus}
+                          layerItems={layerItems}
+                          selectedIds={selectedIds}/>
+              <HistoryPanel historyItems={historyItems}
+                            historyStatus={historyStatus}
                             pickHistory={pickHistory}/>
             </Col>
           </Row>

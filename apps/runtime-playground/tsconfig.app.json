@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+  },
+  "references": [
+    { "path": "../../packages/canvas-base/tsconfig.json" },
+    { "path": "../../packages/document-core/tsconfig.json" },
+    { "path": "../../packages/editor-dev/tsconfig.json" },
+    { "path": "../../packages/shared-memory/tsconfig.json" },
+    { "path": "../../packages/editor-worker/tsconfig.json" },
+    { "path": "../../packages/renderer-skia/tsconfig.json" }
+  ],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef} from 'react'
-import {ToolName} from '@venus/editor-core'
+import {ToolName} from '@venus/document-core'
 import SHORTCUTS_DATA, {ActionItemType} from '../constants/actions.ts'
 import Shortcut from '../lib/shortcut/shortcut.ts'
 import matchObject from '../utilities/find.ts'

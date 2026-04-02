@@ -3,6 +3,7 @@ import CanvasKitInit from 'canvaskit-wasm/full'
 import type { Canvas, CanvasKit, Surface } from 'canvaskit-wasm'
 import canvaskitWasmUrl from 'canvaskit-wasm/bin/full/canvaskit.wasm?url'
 import type { CanvasRendererProps } from '@venus/canvas-base'
+import {cubicBezier} from '@venus/document-core'
 
 /**
  * Development trace helper for the Skia renderer adapter.
@@ -17,7 +18,7 @@ function debugSkia(message: string, details?: unknown) {
  * Scope of this first implementation:
  * - initialize Skia/CanvasKit WASM
  * - render the page background
- * - render rectangle-like shapes
+ * - render basic frame/rectangle/ellipse/line/text shapes
  * - preserve existing pointer bridge semantics
  *
  * The goal is to move rendering onto Skia without changing the surrounding
@@ -138,6 +139,17 @@ function drawScene(
       return
     }
 
+    if (shape.type === 'lineSegment') {
+      drawLineSegment(canvasKit, skCanvas, shape)
+      return
+    }
+
+    if (shape.type === 'path') {
+      const source = document.shapes.find((item) => item.id === shape.id)
+      drawPathShape(canvasKit, skCanvas, shape, source?.bezierPoints, source?.points)
+      return
+    }
+
     if (shape.type === 'text') {
       drawText(canvasKit, skCanvas, shape)
     }
@@ -241,6 +253,78 @@ function drawText(
   skCanvas.drawText(shape.name, shape.x + 10, shape.y + 28, textPaint, font)
   font.delete()
   textPaint.delete()
+}
+
+function drawLineSegment(
+  canvasKit: CanvasKit,
+  skCanvas: Canvas,
+  shape: CanvasRendererProps['shapes'][number],
+) {
+  const stroke = new canvasKit.Paint()
+  stroke.setAntiAlias(true)
+  stroke.setStyle(canvasKit.PaintStyle.Stroke)
+  stroke.setStrokeWidth(shape.isSelected ? 4 : 2)
+  stroke.setColor(resolveStrokeColor(canvasKit, shape))
+  skCanvas.drawLine(shape.x, shape.y, shape.x + shape.width, shape.y + shape.height, stroke)
+  stroke.delete()
+}
+
+function drawPathShape(
+  canvasKit: CanvasKit,
+  skCanvas: Canvas,
+  shape: CanvasRendererProps['shapes'][number],
+  bezierPoints?: Array<{
+    anchor: {x: number; y: number}
+    cp1?: {x: number; y: number} | null
+    cp2?: {x: number; y: number} | null
+  }>,
+  points?: Array<{x: number; y: number}>,
+) {
+  if ((!bezierPoints || bezierPoints.length < 2) && (!points || points.length < 2)) {
+    return
+  }
+
+  const stroke = new canvasKit.Paint()
+  stroke.setAntiAlias(true)
+  stroke.setStyle(canvasKit.PaintStyle.Stroke)
+  stroke.setStrokeWidth(shape.isSelected ? 4 : 2)
+  stroke.setColor(resolveStrokeColor(canvasKit, shape))
+
+  if (bezierPoints && bezierPoints.length >= 2) {
+    for (let index = 1; index < bezierPoints.length; index += 1) {
+      const previous = bezierPoints[index - 1]
+      const current = bezierPoints[index]
+      const p0 = previous.anchor
+      const p1 = previous.cp2 ?? previous.anchor
+      const p2 = current.cp1 ?? current.anchor
+      const p3 = current.anchor
+      let previousSample = p0
+
+      for (let step = 1; step <= 20; step += 1) {
+        const sample = cubicBezier(step / 20, p0, p1, p2, p3)
+        skCanvas.drawLine(
+          previousSample.x,
+          previousSample.y,
+          sample.x,
+          sample.y,
+          stroke,
+        )
+        previousSample = sample
+      }
+    }
+  } else if (points) {
+    for (let index = 1; index < points.length; index += 1) {
+      skCanvas.drawLine(
+        points[index - 1].x,
+        points[index - 1].y,
+        points[index].x,
+        points[index].y,
+        stroke,
+      )
+    }
+  }
+
+  stroke.delete()
 }
 
 function resolveStrokeColor(

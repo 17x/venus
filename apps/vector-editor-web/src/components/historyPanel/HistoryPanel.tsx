@@ -2,13 +2,26 @@ import {FC, useEffect, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
 import {I18nHistoryDataItem} from '../../i18n/type'
 import {Col, Con, MenuItem, Panel} from '@lite-u/ui'
-import {WorkSpaceStateType} from '../../contexts/workspaceContext/reducer/reducer.ts'
+
+interface HistoryItem {
+  id: number
+  data?: {
+    type: string
+  }
+  label?: string
+}
+
+interface HistoryStatus {
+  id: number
+  hasPrev: boolean
+  hasNext: boolean
+}
 
 export const HistoryPanel: FC<{
-  historyArray: WorkSpaceStateType['historyArray']
-  historyStatus: WorkSpaceStateType['historyStatus']
-  pickHistory: (historyNode: WorkSpaceStateType['historyArray'][number]) => void
-}> = ({historyArray, historyStatus, pickHistory}) => {
+  historyItems: HistoryItem[]
+  historyStatus: HistoryStatus
+  pickHistory: (historyNode: HistoryItem) => void
+}> = ({historyItems, historyStatus, pickHistory}) => {
   const {t} = useTranslation()
   const targetRef = useRef<HTMLDivElement>(null)
 
@@ -19,7 +32,7 @@ export const HistoryPanel: FC<{
 
       }
     }
-  }, [historyArray, historyStatus])
+  }, [historyItems, historyStatus])
 
   return <Con fh ovh p={10} h={'33.33%'}>
     <Panel xs head={'History'}
@@ -35,11 +48,12 @@ export const HistoryPanel: FC<{
             // boxShadow: 'inset 0 0 3px 1px #000',
           }}>
             {
-              historyArray.map((historyNode, index) => {
+              historyItems.map((historyNode, index) => {
                   const isCurr = historyNode.id === historyStatus.id
-                  const prefixI18NKey = 'history.' + historyNode.data.type
+                  const historyType = historyNode.data?.type ?? 'unknown'
+                  const prefixI18NKey = 'history.' + historyType
                   const translated = t(prefixI18NKey, {returnObjects: true}) as I18nHistoryDataItem | string
-                  const fallbackLabel = 'label' in historyNode ? String(historyNode.label) : historyNode.data.type
+                  const fallbackLabel = historyNode.label ?? historyType
                   const label = typeof translated === 'string' ? fallbackLabel : (translated.label || fallbackLabel)
                   const tooltip = typeof translated === 'string' ? fallbackLabel : (translated.tooltip || fallbackLabel)
 

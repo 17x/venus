@@ -11,7 +11,7 @@
   },
   "references": [
     { "path": "../canvas-base/tsconfig.json" },
-    { "path": "../editor-core/tsconfig.json" },
+    { "path": "../document-core/tsconfig.json" },
     { "path": "../shared-memory/tsconfig.json" }
   ],
   "include": ["src"]

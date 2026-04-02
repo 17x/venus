@@ -284,3 +284,79 @@ export function getBoundingRectFromBezierPoints(points: BezierPoint[]): Bounding
     cy: top + (bottom - top) / 2,
   }
 }
+
+export function convertDrawPointsToBezierPoints(points: Point[], tension = 0.3): {
+  points: BezierPoint[]
+  closed: boolean
+} {
+  const filtered: Point[] = []
+  const offsetThreshold = 2
+  const closeThreshold = 20
+
+  for (let index = 0; index < points.length; index += 1) {
+    if (index === 0) {
+      filtered.push(points[index])
+      continue
+    }
+
+    const previous = filtered[filtered.length - 1]
+    const dx = points[index].x - previous.x
+    const dy = points[index].y - previous.y
+
+    if (Math.hypot(dx, dy) >= offsetThreshold) {
+      filtered.push(points[index])
+    }
+  }
+
+  const closed =
+    filtered.length > 2 &&
+    Math.hypot(
+      filtered[0].x - filtered[filtered.length - 1].x,
+      filtered[0].y - filtered[filtered.length - 1].y,
+    ) < closeThreshold
+
+  const bezierPoints: BezierPoint[] = []
+
+  for (let index = 0; index < filtered.length; index += 1) {
+    const previous =
+      filtered[index - 1] ?? (closed ? filtered[filtered.length - 2] : filtered[index])
+    const current = filtered[index]
+    const next =
+      filtered[index + 1] ?? (closed ? filtered[(index + 1) % filtered.length] : filtered[index])
+    const dx = (next.x - previous.x) * tension
+    const dy = (next.y - previous.y) * tension
+
+    let cp1: Point | null = null
+    let cp2: Point | null = null
+
+    if (index !== 0 || closed) {
+      cp1 = {
+        x: current.x - dx,
+        y: current.y - dy,
+      }
+    }
+
+    if (index !== filtered.length - 1 || closed) {
+      cp2 = cp1
+        ? {
+            x: current.x * 2 - cp1.x,
+            y: current.y * 2 - cp1.y,
+          }
+        : {
+            x: current.x + dx,
+            y: current.y + dy,
+          }
+    }
+
+    bezierPoints.push({
+      anchor: {...current},
+      cp1,
+      cp2,
+    })
+  }
+
+  return {
+    points: bezierPoints,
+    closed,
+  }
+}

@@ -9,6 +9,6 @@
     "rootDir": "./src",
     "outDir": "./dist/types"
   },
-  "references": [{ "path": "../editor-core/tsconfig.json" }],
+  "references": [{ "path": "../document-core/tsconfig.json" }],
   "include": ["src"]
 }

@@ -1,5 +1,5 @@
 import {RefObject, useEffect, useRef} from 'react'
-import {ToolName} from '@venus/editor-core'
+import {ToolName} from '@venus/document-core'
 import Zoom from '../lib/zoom/zoom.ts'
 import {EditorExecutor} from './useEditorRuntime.ts'
 

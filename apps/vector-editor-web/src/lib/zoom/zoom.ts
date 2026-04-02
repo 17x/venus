@@ -70,7 +70,9 @@ class Zoom {
     // let mouse = false
     // console.log('event ',event)
     // console.log(deltaX, deltaY)
-    event.preventDefault()
+    if (event.cancelable) {
+      event.preventDefault()
+    }
     event.stopPropagation()
 
     if (modifier) {

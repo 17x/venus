@@ -4,7 +4,13 @@ import {
   createCollaborationManager,
   type CollaborationOperation,
 } from '../collaboration.ts'
-import type { EditorDocument, ShapeRecord } from '@venus/editor-core'
+import {
+  getBoundingRectFromBezierPoints,
+  nearestPointOnCurve,
+  type BezierPoint,
+  type DocumentNode,
+  type EditorDocument,
+} from '@venus/document-core'
 import {
   createHistoryManager,
   type HistoryEntry,
@@ -36,7 +42,7 @@ function debugWorker(message: string, details?: unknown) {
 }
 
 type WorkerSpatialIndex = ReturnType<
-  typeof createSpatialIndex<{ index: number; type: ShapeRecord['type'] }>
+  typeof createSpatialIndex<{ index: number; type: DocumentNode['type'] }>
 >
 
 /**
@@ -55,7 +61,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let documentState: EditorDocument | null = null
   // The worker owns the coarse spatial index because hit-testing belongs to
   // execution/data flow, not the UI shell or app layer.
-  const spatialIndex = createSpatialIndex<{ index: number; type: ShapeRecord['type'] }>()
+  const spatialIndex = createSpatialIndex<{ index: number; type: DocumentNode['type'] }>()
   const history = createHistoryManager([
     {
       id: 'init',
@@ -146,6 +152,77 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
       postScene(scope, 'scene-update', scene, documentState, history, collaboration)
     }
   })
+}
+
+function clonePoints(points?: Array<{x: number; y: number}>) {
+  return points?.map((point) => ({...point}))
+}
+
+function cloneBezierPoints(points?: BezierPoint[]) {
+  return points?.map((point) => ({
+    anchor: {...point.anchor},
+    cp1: point.cp1 ? {...point.cp1} : point.cp1,
+    cp2: point.cp2 ? {...point.cp2} : point.cp2,
+  }))
+}
+
+function asPoint(value: unknown) {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    typeof (value as {x?: unknown}).x !== 'number' ||
+    typeof (value as {y?: unknown}).y !== 'number'
+  ) {
+    return null
+  }
+
+  return {
+    x: Number((value as {x: number}).x),
+    y: Number((value as {y: number}).y),
+  }
+}
+
+function asBezierPoint(value: unknown): BezierPoint | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const record = value as Record<string, unknown>
+  const anchor = asPoint(record.anchor)
+  if (!anchor) {
+    return null
+  }
+
+  return {
+    anchor,
+    cp1: asPoint(record.cp1),
+    cp2: asPoint(record.cp2),
+  }
+}
+
+function getPathBounds(points: Array<{x: number; y: number}>) {
+  const minX = Math.min(...points.map((point) => point.x))
+  const minY = Math.min(...points.map((point) => point.y))
+  const maxX = Math.max(...points.map((point) => point.x))
+  const maxY = Math.max(...points.map((point) => point.y))
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
+}
+
+function getBezierPathBounds(points: BezierPoint[]) {
+  const bounds = getBoundingRectFromBezierPoints(points)
+
+  return {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+  }
 }
 
 function postScene(
@@ -252,10 +329,38 @@ function createLocalHistoryEntry(
 ): Omit<HistoryEntry, 'source'> {
   if (command.type === 'selection.delete') {
     const selectedIndex = readSceneStats(scene).selectedIndex
+    const selectedShape = selectedIndex >= 0 ? document.shapes[selectedIndex] : null
+
+    if (!selectedShape || selectedIndex <= 0) {
+      return {
+        id: 'selection.delete',
+        label: 'Clear Selection',
+        forward: [
+          {
+            type: 'set-selected-index',
+            prev: selectedIndex,
+            next: -1,
+          },
+        ],
+        backward: [
+          {
+            type: 'set-selected-index',
+            prev: -1,
+            next: selectedIndex,
+          },
+        ],
+      }
+    }
+
     return {
       id: 'selection.delete',
       label: 'Delete Selection',
       forward: [
+        {
+          type: 'remove-shape',
+          index: selectedIndex,
+          shape: selectedShape,
+        },
         {
           type: 'set-selected-index',
           prev: selectedIndex,
@@ -263,6 +368,11 @@ function createLocalHistoryEntry(
         },
       ],
       backward: [
+        {
+          type: 'insert-shape',
+          index: selectedIndex,
+          shape: selectedShape,
+        },
         {
           type: 'set-selected-index',
           prev: -1,
@@ -331,6 +441,39 @@ function createLocalHistoryEntry(
           prevHeight: command.height,
           nextWidth: shape.width,
           nextHeight: shape.height,
+        },
+      ],
+    }
+  }
+
+  if (command.type === 'shape.reorder') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) {
+      return createLogOnlyEntry(command.type, 'Reorder Missing Shape')
+    }
+
+    const fromIndex = document.shapes.findIndex((item) => item.id === shape.id)
+    if (fromIndex < 0 || fromIndex === command.toIndex) {
+      return createLogOnlyEntry(command.type, 'Reorder Shape')
+    }
+
+    return {
+      id: `shape.reorder.${shape.id}`,
+      label: `Reorder ${shape.name}`,
+      forward: [
+        {
+          type: 'reorder-shape',
+          shapeId: shape.id,
+          fromIndex,
+          toIndex: command.toIndex,
+        },
+      ],
+      backward: [
+        {
+          type: 'reorder-shape',
+          shapeId: shape.id,
+          fromIndex: command.toIndex,
+          toIndex: fromIndex,
         },
       ],
     }
@@ -493,7 +636,7 @@ function createRemotePatches(
   }
 
   if (operation.type === 'shape.insert') {
-    const shape = asShapeRecord(operation.payload?.shape)
+    const shape = asDocumentNode(operation.payload?.shape)
     const index = asNumber(operation.payload?.index) ?? document.shapes.length
 
     if (!shape) {
@@ -522,6 +665,25 @@ function createRemotePatches(
         type: 'remove-shape',
         index: document.shapes.findIndex((item) => item.id === shape.id),
         shape,
+      },
+    ]
+  }
+
+  if (operation.type === 'shape.reorder') {
+    const shapeId = asString(operation.payload?.shapeId)
+    const toIndex = asNumber(operation.payload?.toIndex)
+    const shape = shapeId ? findShapeById(document, shapeId) : null
+
+    if (!shape || toIndex === null) {
+      return []
+    }
+
+    return [
+      {
+        type: 'reorder-shape',
+        shapeId: shape.id,
+        fromIndex: document.shapes.findIndex((item) => item.id === shape.id),
+        toIndex,
       },
     ]
   }
@@ -559,6 +721,36 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
 
       shape.x = patch.nextX
       shape.y = patch.nextY
+      if (shape.type === 'path' && shape.points) {
+        const deltaX = patch.nextX - patch.prevX
+        const deltaY = patch.nextY - patch.prevY
+        shape.points = shape.points.map((point) => ({
+          x: point.x + deltaX,
+          y: point.y + deltaY,
+        }))
+      }
+      if (shape.type === 'path' && shape.bezierPoints) {
+        const deltaX = patch.nextX - patch.prevX
+        const deltaY = patch.nextY - patch.prevY
+        shape.bezierPoints = shape.bezierPoints.map((point) => ({
+          anchor: {
+            x: point.anchor.x + deltaX,
+            y: point.anchor.y + deltaY,
+          },
+          cp1: point.cp1
+            ? {
+                x: point.cp1.x + deltaX,
+                y: point.cp1.y + deltaY,
+              }
+            : point.cp1,
+          cp2: point.cp2
+            ? {
+                x: point.cp2.x + deltaX,
+                y: point.cp2.y + deltaY,
+              }
+            : point.cp2,
+        }))
+      }
       shouldRewriteScene = true
       return
     }
@@ -567,6 +759,37 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
       const shape = findShapeById(document, patch.shapeId)
       if (!shape) {
         return
+      }
+
+      if (shape.type === 'path' && shape.points && shape.points.length > 0) {
+        const scaleX = patch.prevWidth === 0 ? 1 : patch.nextWidth / patch.prevWidth
+        const scaleY = patch.prevHeight === 0 ? 1 : patch.nextHeight / patch.prevHeight
+        shape.points = shape.points.map((point) => ({
+          x: shape.x + (point.x - shape.x) * scaleX,
+          y: shape.y + (point.y - shape.y) * scaleY,
+        }))
+      }
+      if (shape.type === 'path' && shape.bezierPoints && shape.bezierPoints.length > 0) {
+        const scaleX = patch.prevWidth === 0 ? 1 : patch.nextWidth / patch.prevWidth
+        const scaleY = patch.prevHeight === 0 ? 1 : patch.nextHeight / patch.prevHeight
+        shape.bezierPoints = shape.bezierPoints.map((point) => ({
+          anchor: {
+            x: shape.x + (point.anchor.x - shape.x) * scaleX,
+            y: shape.y + (point.anchor.y - shape.y) * scaleY,
+          },
+          cp1: point.cp1
+            ? {
+                x: shape.x + (point.cp1.x - shape.x) * scaleX,
+                y: shape.y + (point.cp1.y - shape.y) * scaleY,
+              }
+            : point.cp1,
+          cp2: point.cp2
+            ? {
+                x: shape.x + (point.cp2.x - shape.x) * scaleX,
+                y: shape.y + (point.cp2.y - shape.y) * scaleY,
+              }
+            : point.cp2,
+        }))
       }
 
       shape.width = patch.nextWidth
@@ -578,8 +801,23 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
     if (patch.type === 'insert-shape') {
       document.shapes.splice(patch.index, 0, {
         ...patch.shape,
-        type: patch.shape.type as ShapeRecord['type'],
+        type: patch.shape.type as DocumentNode['type'],
+        points: clonePoints(patch.shape.points),
+        bezierPoints: cloneBezierPoints(patch.shape.bezierPoints),
       })
+      shouldRewriteScene = true
+      return
+    }
+
+    if (patch.type === 'reorder-shape') {
+      const currentIndex = document.shapes.findIndex((item) => item.id === patch.shapeId)
+      if (currentIndex < 0) {
+        return
+      }
+
+      const [shape] = document.shapes.splice(currentIndex, 1)
+      const boundedIndex = Math.max(0, Math.min(patch.toIndex, document.shapes.length))
+      document.shapes.splice(boundedIndex, 0, shape)
       shouldRewriteScene = true
       return
     }
@@ -629,7 +867,7 @@ function rebuildSpatialIndex(
 /**
  * Two-stage hit test:
  * 1. R-tree gives candidate indices by bounding box
- * 2. worker performs exact shape filtering (ellipse vs rectangle/frame)
+ * 2. worker performs exact shape filtering (ellipse / line segment / rect)
  *
  * If the index returns nothing useful, we gracefully fall back to `-1`.
  */
@@ -677,16 +915,129 @@ function hitTestDocument(
       }
     }
 
+    if (shape.type === 'lineSegment') {
+      const lineHit = isPointNearLineSegment(pointer, {
+        x1: shape.x,
+        y1: shape.y,
+        x2: shape.x + shape.width,
+        y2: shape.y + shape.height,
+      })
+
+      if (!lineHit) {
+        continue
+      }
+    }
+
+    if (shape.type === 'path' && shape.points && shape.points.length >= 2) {
+      const lineHit = isPointNearPolyline(pointer, shape.points)
+
+      if (!lineHit) {
+        continue
+      }
+    }
+
+    if (shape.type === 'path' && shape.bezierPoints && shape.bezierPoints.length >= 2) {
+      const curveHit = isPointNearBezierPath(pointer, shape.bezierPoints)
+
+      if (!curveHit) {
+        continue
+      }
+    }
+
     return candidate.meta.index
   }
 
   return -1
 }
 
+function isPointNearLineSegment(
+  pointer: {x: number; y: number},
+  line: {x1: number; y1: number; x2: number; y2: number},
+  tolerance = 6,
+) {
+  const dx = line.x2 - line.x1
+  const dy = line.y2 - line.y1
+  const lengthSquared = dx * dx + dy * dy
+
+  if (lengthSquared === 0) {
+    const distanceSquared =
+      (pointer.x - line.x1) * (pointer.x - line.x1) +
+      (pointer.y - line.y1) * (pointer.y - line.y1)
+    return distanceSquared <= tolerance * tolerance
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((pointer.x - line.x1) * dx + (pointer.y - line.y1) * dy) / lengthSquared,
+    ),
+  )
+  const nearestX = line.x1 + t * dx
+  const nearestY = line.y1 + t * dy
+  const distanceSquared =
+    (pointer.x - nearestX) * (pointer.x - nearestX) +
+    (pointer.y - nearestY) * (pointer.y - nearestY)
+
+  return distanceSquared <= tolerance * tolerance
+}
+
+function isPointNearPolyline(
+  pointer: {x: number; y: number},
+  points: Array<{x: number; y: number}>,
+  tolerance = 6,
+) {
+  for (let index = 1; index < points.length; index += 1) {
+    if (
+      isPointNearLineSegment(pointer, {
+        x1: points[index - 1].x,
+        y1: points[index - 1].y,
+        x2: points[index].x,
+        y2: points[index].y,
+      }, tolerance)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isPointNearBezierPath(
+  pointer: {x: number; y: number},
+  points: BezierPoint[],
+  tolerance = 6,
+) {
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1]
+    const current = points[index]
+    const nearest = nearestPointOnCurve(
+      previous.anchor,
+      previous.cp2 ?? null,
+      current.cp1 ?? null,
+      current.anchor,
+      pointer,
+      32,
+    )
+    const dx = nearest.x - pointer.x
+    const dy = nearest.y - pointer.y
+
+    if (dx * dx + dy * dy <= tolerance * tolerance) {
+      return true
+    }
+  }
+
+  return false
+}
+
 function cloneDocument(document: EditorDocument): EditorDocument {
   return {
     ...document,
-    shapes: document.shapes.map((shape) => ({ ...shape })),
+    shapes: document.shapes.map((shape) => ({
+      ...shape,
+      points: clonePoints(shape.points),
+      bezierPoints: cloneBezierPoints(shape.bezierPoints),
+    })),
   }
 }
 
@@ -715,6 +1066,13 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     }
   }
 
+  if (command.type === 'shape.reorder') {
+    return {
+      shapeId: command.shapeId,
+      toIndex: command.toIndex,
+    }
+  }
+
   if (command.type === 'shape.insert') {
     return {
       shape: command.shape,
@@ -739,7 +1097,7 @@ function asNumber(value: unknown) {
   return typeof value === 'number' ? value : null
 }
 
-function asShapeRecord(value: unknown): ShapeRecord | null {
+function asDocumentNode(value: unknown): DocumentNode | null {
   if (!value || typeof value !== 'object') {
     return null
   }
@@ -757,13 +1115,40 @@ function asShapeRecord(value: unknown): ShapeRecord | null {
     return null
   }
 
+  const points = Array.isArray(record.points)
+    ? record.points
+        .map((point) =>
+          point && typeof point === 'object' &&
+          typeof (point as {x?: unknown}).x === 'number' &&
+          typeof (point as {y?: unknown}).y === 'number'
+            ? {
+                x: Number((point as {x: number}).x),
+                y: Number((point as {y: number}).y),
+              }
+            : null,
+        )
+        .filter((point): point is {x: number; y: number} => point !== null)
+    : undefined
+  const bezierPoints = Array.isArray(record.bezierPoints)
+    ? record.bezierPoints
+        .map((point) => asBezierPoint(point))
+        .filter((point): point is BezierPoint => point !== null)
+    : undefined
+  const nextBounds = type === 'path' && points && points.length > 0
+    ? getPathBounds(points)
+    : type === 'path' && bezierPoints && bezierPoints.length > 0
+      ? getBezierPathBounds(bezierPoints)
+      : null
+
   return {
     id,
-    type: type as ShapeRecord['type'],
+    type: type as DocumentNode['type'],
     name,
-    x,
-    y,
-    width,
-    height,
+    x: nextBounds?.x ?? x,
+    y: nextBounds?.y ?? y,
+    width: nextBounds?.width ?? width,
+    height: nextBounds?.height ?? height,
+    points,
+    bezierPoints,
   }
 }

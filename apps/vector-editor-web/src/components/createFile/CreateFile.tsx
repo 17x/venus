@@ -1,5 +1,5 @@
 import {FC, FormEvent, useRef, useState} from 'react'
-import {convertUnit, UnitType} from '@venus/editor-core'
+import {convertUnit, UnitType} from '@venus/document-core'
 import uid from '../../utilities/Uid.ts'
 import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
 import {Button, Con, Flex, Input, MenuItem, Modal, P, Panel, Select, SelectItem, Title} from '@lite-u/ui'

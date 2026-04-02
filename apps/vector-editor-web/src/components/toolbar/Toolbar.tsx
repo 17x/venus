@@ -1,6 +1,6 @@
 import React from 'react'
 import {Col, Con, IconButton, Tooltip} from '@lite-u/ui'
-import {ToolName} from '@venus/editor-core'
+import {ToolName} from '@venus/document-core'
 import {LuCircle, LuHand, LuPencilLine, LuRectangleHorizontal, LuZoomIn} from 'react-icons/lu'
 import {lineSeg, mousePointer} from '../../assets/svg/icons.tsx'
 

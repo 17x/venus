@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { EditorDocument } from '@venus/editor-core'
+import type { EditorDocument } from '@venus/document-core'
 import type { PointerState, SceneShapeSnapshot } from '@venus/shared-memory'
 import type { CanvasRenderer } from '../renderer/types.ts'
 import { applyMatrixToPoint } from '../viewport/matrix.ts'
@@ -43,6 +43,8 @@ export function CanvasViewport({
   const panOriginRef = React.useRef<{ x: number; y: number } | null>(null)
 
   React.useEffect(() => {
+    // Resize is resolved here so apps do not need to wire DOM measurement into
+    // runtime state manually.
     if (!viewportRef.current || !onViewportResize || typeof ResizeObserver === 'undefined') {
       return
     }
@@ -69,12 +71,14 @@ export function CanvasViewport({
     // can zoom the whole page. We explicitly consume them on the canvas region
     // so only the editor viewport responds.
     const handleNativeWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
+      if ((event.ctrlKey || event.metaKey) && event.cancelable) {
         event.preventDefault()
       }
     }
     const preventGesture = (event: Event) => {
-      event.preventDefault()
+      if (event.cancelable) {
+        event.preventDefault()
+      }
     }
 
     node.addEventListener('wheel', handleNativeWheel, { passive: false })
@@ -98,6 +102,8 @@ export function CanvasViewport({
       return
     }
 
+    // Pointer events originate in screen space and must be converted into
+    // world space before hit testing can happen in the worker.
     const rect = event.currentTarget.getBoundingClientRect()
     handler(
       applyMatrixToPoint(viewport.inverseMatrix, {
@@ -109,12 +115,16 @@ export function CanvasViewport({
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (event.ctrlKey || event.metaKey) {
-      event.preventDefault()
+      if (event.cancelable) {
+        event.preventDefault()
+      }
       if (!onViewportZoom) {
         return
       }
 
       const rect = event.currentTarget.getBoundingClientRect()
+      // Zoom uses the pointer location as the anchor so content grows/shrinks
+      // around the user's focus point instead of the top-left corner.
       const delta = event.deltaY < 0 ? 1.08 : 1 / 1.08
       onViewportZoom(viewport.scale * delta, {
         x: event.clientX - rect.left,
@@ -127,11 +137,15 @@ export function CanvasViewport({
       return
     }
 
-    event.preventDefault()
+    if (event.cancelable) {
+      event.preventDefault()
+    }
     onViewportPan(-event.deltaX, -event.deltaY)
   }
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    // Middle mouse or Alt+drag enters viewport-pan mode without involving the
+    // worker because it only changes presentation state.
     if (event.button === 1 || event.altKey) {
       panOriginRef.current = { x: event.clientX, y: event.clientY }
       event.currentTarget.setPointerCapture(event.pointerId)
@@ -183,6 +197,8 @@ export function CanvasViewport({
 
   return (
     <section className="stage-shell">
+      {/* Fallback path used while bring-up is in progress or when an app wants
+          to inspect runtime data before attaching a concrete renderer. */}
       <div className="stage-meta">
         <span>Renderer</span>
         <strong>No renderer selected</strong>

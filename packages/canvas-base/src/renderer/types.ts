@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import type { EditorDocument } from '@venus/editor-core'
+import type { EditorDocument } from '@venus/document-core'
 import type { SceneShapeSnapshot } from '@venus/shared-memory'
 import type { CanvasViewportState } from '../viewport/types.ts'
 
@@ -16,4 +16,7 @@ export interface CanvasRendererProps {
   viewport: CanvasViewportState
 }
 
+/**
+ * Renderer components are pure views over scene snapshot data.
+ */
 export type CanvasRenderer = ComponentType<CanvasRendererProps>

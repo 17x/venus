@@ -1,4 +1,4 @@
-import {Unit, UnitType} from '@venus/editor-core'
+import {Unit, UnitType} from '@venus/document-core'
 
 export interface PagePreset {
   name: string

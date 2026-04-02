@@ -93,7 +93,7 @@ apps/
 
 packages/
   canvas-base/
-  editor-core/
+  document-core/
   editor-worker/
   file-format/
   renderer-skia/
@@ -106,7 +106,7 @@ packages/
 说明：
 
 - `canvas-base`：负责运行时生命周期、viewport、worker 桥接、共享场景快照订阅
-- `editor-core`：只保留文档模型、领域类型、稳定协议，不承载产品默认值
+- `document-core`：只保留文档模型、领域类型、稳定协议，不承载产品默认值
 - `editor-worker`：负责命令执行、命中检测、patch 生成、协作与索引维护
 - `file-format`：负责持久化格式、导入导出、版本迁移
 - `renderer-skia`：Skia / CanvasKit 渲染适配器
@@ -180,13 +180,13 @@ packages/
 
 ### 第三阶段：收紧领域边界
 
-1. 让 `editor-core` 只保留文档模型、领域类型、稳定 contract
-2. 将工具注册、产品快捷键、产品默认面板配置移出 `editor-core`
+1. 让 `document-core` 只保留文档模型、领域类型、稳定 contract
+2. 将工具注册、产品快捷键、产品默认面板配置移出 `document-core`
 3. 为 `file-format` 补足 schema、迁移策略、格式边界
 
 目标：
 
-- `editor-core` 不再混入产品装配逻辑
+- `document-core` 不再混入产品装配逻辑
 - 多编辑器产品可以共享领域层，但各自保留 UI 和工具配置
 
 ### 第四阶段：删除占位目录

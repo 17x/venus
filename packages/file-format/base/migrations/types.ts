@@ -228,5 +228,85 @@ export interface RuntimeSceneV4 {
   nodes: RuntimeNodeV4[]
 }
 
-export type RuntimeSceneLatest = RuntimeSceneV4
-export type RuntimeSceneAny = RuntimeSceneV1 | RuntimeSceneV2 | RuntimeSceneV3 | RuntimeSceneV4
+export type RuntimeNodeTypeV5 = RuntimeNodeTypeV4
+
+export type RuntimeFeatureKindV5 =
+  | RuntimeFeatureKindV4
+  | 'METADATA'
+  | 'MINDMAP_BRANCH'
+  | 'CONNECTOR'
+
+export type RuntimeEditorProductV5 =
+  | 'UNKNOWN'
+  | 'VECTOR'
+  | 'MINDMAP'
+  | 'FLOWCHART'
+  | 'WHITEBOARD'
+
+export interface RuntimeKeyValueV5 {
+  key: string
+  value: string
+}
+
+export interface RuntimeMetadataFeatureV5 {
+  kind: 'METADATA'
+  entries: RuntimeKeyValueV5[]
+}
+
+export interface RuntimeMindmapBranchFeatureV5 {
+  kind: 'MINDMAP_BRANCH'
+  side: 'AUTO' | 'LEFT' | 'RIGHT'
+  collapsed: boolean
+  orderHint: number
+}
+
+export interface RuntimeConnectorFeatureV5 {
+  kind: 'CONNECTOR'
+  sourceNodeId: string
+  targetNodeId: string
+  sourceAnchor: { x: number; y: number }
+  targetAnchor: { x: number; y: number }
+  connectorType: 'STRAIGHT' | 'ORTHOGONAL' | 'CURVED'
+}
+
+export type RuntimeNodeFeatureV5 =
+  | RuntimeNodeFeatureV4
+  | RuntimeMetadataFeatureV5
+  | RuntimeMindmapBranchFeatureV5
+  | RuntimeConnectorFeatureV5
+
+export interface RuntimeFeatureEntryV5 {
+  id: string
+  role: string
+  feature: RuntimeNodeFeatureV5
+}
+
+export interface RuntimeNodeV5 {
+  id: string
+  type: RuntimeNodeTypeV5
+  transform: RuntimeMatrix3x3
+  children: RuntimeNodeV5[]
+  features: RuntimeNodeFeatureV4[]
+  name: string
+  parentId: string | null
+  featureEntries: RuntimeFeatureEntryV5[]
+  nodeKind: string
+  isVisible: boolean
+  isLocked: boolean
+}
+
+export interface RuntimeSceneV5 {
+  version: 5
+  canvasWidth: number
+  canvasHeight: number
+  gradients: unknown[]
+  rootElements: unknown[]
+  documentId: string
+  nodes: RuntimeNodeV5[]
+  product: RuntimeEditorProductV5
+  editorKey: string
+  metadata: RuntimeKeyValueV5[]
+}
+
+export type RuntimeSceneLatest = RuntimeSceneV5
+export type RuntimeSceneAny = RuntimeSceneV1 | RuntimeSceneV2 | RuntimeSceneV3 | RuntimeSceneV4 | RuntimeSceneV5

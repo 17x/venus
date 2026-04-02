@@ -7,6 +7,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@venus/editor-core": "workspace:*"
+    "@venus/document-core": "workspace:*"
   }
 }

@@ -1,1 +1,1 @@
-type WorkspaceAction = 'saveFile'
+type FileAction = 'saveFile'

@@ -10,7 +10,7 @@
     "outDir": "./dist/types"
   },
   "references": [
-    { "path": "../editor-core/tsconfig.json" },
+    { "path": "../document-core/tsconfig.json" },
     { "path": "../editor-worker/tsconfig.json" },
     { "path": "../shared-memory/tsconfig.json" }
   ],

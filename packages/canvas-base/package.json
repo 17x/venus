@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@venus/editor-core": "workspace:*",
+    "@venus/document-core": "workspace:*",
     "@venus/editor-worker": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "react": "^19.2.4"

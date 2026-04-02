@@ -1,16 +1,15 @@
 import {useEffect, useRef, useState} from 'react'
 import {Con, Panel} from '@lite-u/ui'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
-import {UID} from '@lite-u/editor/types'
 
 interface LayerPanelProps {
   executeAction: EditorExecutor
-  elements: { id: string, name: string, show: boolean }[]
-  selectedElements: UID[]
+  layerItems: { id: string, name: string, show: boolean }[]
+  selectedIds: string[]
 }
 
 const ITEM_HEIGHT = 28
-export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPanelProps) => {
+export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelProps) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -24,7 +23,7 @@ export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPan
         scrollRef.current?.scrollTo(0, idx * ITEM_HEIGHT)
         console.log(idx * ITEM_HEIGHT)
       }*/
-  }, [elements, selectedElements])
+  }, [layerItems, selectedIds])
 
   const handleScroll = () => {
     if (!scrollRef.current) return
@@ -35,9 +34,9 @@ export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPan
 
     // console.log(newScrollTop)
     if (scrollUp) {
-      if (indexRange[0] >= elements.length - 1) return
+      if (indexRange[0] >= layerItems.length - 1) return
     } else {
-      if (indexRange[1] >= elements.length - 1) return
+      if (indexRange[1] >= layerItems.length - 1) return
 
     }
 
@@ -48,13 +47,13 @@ export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPan
   const arr = []
 
   for (let i = indexRange[0]; i < indexRange[1]; i++) {
-    const item = elements[i]
+    const item = layerItems[i]
 
     if (item) {
       arr.push(
-        <div ref={selectedElements?.includes(item.id) ? targetRef : null}
+        <div ref={selectedIds?.includes(item.id) ? targetRef : null}
              style={{height: ITEM_HEIGHT}}
-             className={selectedElements?.includes(item.id) ? 'bg-gray-400 text-white' : ''}
+             className={selectedIds?.includes(item.id) ? 'bg-gray-400 text-white' : ''}
              onClick={() => {
                executeAction('selection-modify', {mode: 'replace', idSet: new Set([item.id])})
              }}
@@ -69,7 +68,7 @@ export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPan
 
   return <Con p={10} h={'33.33%'}>
     <Panel head={'Layer'}
-           xs
+          xs
            contentStyle={{
              overflow: 'hidden',
            }}>
@@ -78,7 +77,7 @@ export const LayerPanel = ({executeAction, elements, selectedElements}: LayerPan
              onScroll={handleScroll}
              className={'relative scrollbar-custom overflow-x-hidden overflow-y-auto p-2 border h-30 border-gray-200 select-none'}>
           <div className={'absolute z-10 w-full top-0 left-0'} style={{
-            height: elements.length * ITEM_HEIGHT,
+            height: layerItems.length * ITEM_HEIGHT,
           }}></div>
           <div className={'z-20 w-full sticky top-0 left-0'}>{arr}</div>
         </div>

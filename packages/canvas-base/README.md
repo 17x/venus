@@ -199,7 +199,7 @@ To keep `canvas-base` maintainable over time:
   Owns the binary scene layout and typed-array helpers.
 - `@venus/editor-worker`
   Owns worker-side message handling and command execution.
-- `@venus/editor-core`
+- `@venus/document-core`
   Owns the current document model used by the starter editor.
 - app UI shell
   Owns product-specific React editor composition unless a shared UI layer emerges later.
@@ -207,7 +207,7 @@ To keep `canvas-base` maintainable over time:
 ## Current Limitation
 
 Right now `canvas-base` is typed against the current `EditorDocument` from
-`@venus/editor-core`.
+`@venus/document-core`.
 
 That is a practical first step, not the final abstraction boundary.
 

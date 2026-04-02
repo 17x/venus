@@ -4,7 +4,6 @@ import {NamedIcon} from '../../lib/icon/icon.tsx'
 import {t} from 'i18next'
 import {I18nHistoryDataItem} from '../../../i18n/type'
 import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
-import {UID} from '@lite-u/editor/types'
 
 const IconSize = 20
 
@@ -17,9 +16,9 @@ const ShortcutBar: React.FC<{
     hasPrev: boolean
     hasNext: boolean
   }
-  selectedElements: UID[]
-}> = ({executeAction, saveFile, needSave, historyStatus, selectedElements}) => {
-  const hasselectedElements = selectedElements.length > 0
+  selectedIds: string[]
+}> = ({executeAction, saveFile, needSave, historyStatus, selectedIds}) => {
+  const hasSelection = selectedIds.length > 0
 
   const actions = [
     {id: 'save', action: 'saveFile', icon: 'save', disabled: !needSave, divide: true},
@@ -29,7 +28,7 @@ const ShortcutBar: React.FC<{
       id: 'delete',
       editorActionCode: 'element-delete',
       icon: 'trash',
-      disabled: !hasselectedElements,
+      disabled: !hasSelection,
       divide: true,
     },
     // {id: 'add', icon: 'cross', disabled: false, divide: true},
@@ -38,28 +37,28 @@ const ShortcutBar: React.FC<{
       editorActionCode: 'element-layer',
       editorActionData: 'up',
       icon: 'layers',
-      disabled: !hasselectedElements,
+      disabled: !hasSelection,
     },
     {
       id: 'layerDown',
       editorActionCode: 'element-layer',
       editorActionData: 'down',
       icon: 'layers',
-      disabled: !hasselectedElements,
+      disabled: !hasSelection,
     },
     {
       id: 'layerTop',
       editorActionCode: 'element-layer',
       editorActionData: 'top',
       icon: 'layers',
-      disabled: !hasselectedElements,
+      disabled: !hasSelection,
     },
     {
       id: 'layerBottom',
       editorActionCode: 'element-layer',
       editorActionData: 'bottom',
       icon: 'layers',
-      disabled: !hasselectedElements,
+      disabled: !hasSelection,
       divide: true,
     },
     /*{id: 'group', icon: 'group', disabled: true},

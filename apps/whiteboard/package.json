@@ -1,0 +1,19 @@
+{
+  "name": "@venus/whiteboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"Scaffold only. Hook this app to your runtime/dev server.\"",
+    "build": "echo \"Scaffold only. Add app build pipeline.\"",
+    "lint": "echo \"Scaffold only. Lint from monorepo root.\""
+  },
+  "dependencies": {
+    "@venus/document-core": "workspace:*",
+    "@venus/editor-product": "workspace:*",
+    "@venus/editor-worker": "workspace:*",
+    "@venus/renderer-skia": "workspace:*",
+    "@venus/shared-memory": "workspace:*",
+    "@venus/ui": "workspace:*"
+  }
+}

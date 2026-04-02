@@ -27,4 +27,4 @@ Shared FlatBuffers snapshot protocol based on Node + Feature composition.
 
 - v1-v2 still contain older `rootElements` compatibility data.
 - v3+ moves toward a unified `Node + Features` runtime structure.
-- v4 is the current target for production migration and validation.
+- v5 is the current target for production migration and validation.

@@ -1,4 +1,4 @@
-import type { EditorDocument, ShapeType } from '@venus/editor-core'
+import type { EditorDocument, ShapeType } from '@venus/document-core'
 
 export interface PointerState {
   x: number
@@ -57,6 +57,8 @@ const TYPE_TO_KIND: Record<ShapeType, number> = {
   rectangle: 2,
   ellipse: 3,
   text: 4,
+  lineSegment: 5,
+  path: 6,
 }
 
 const KIND_TO_TYPE: Record<number, ShapeType> = {
@@ -64,6 +66,8 @@ const KIND_TO_TYPE: Record<number, ShapeType> = {
   2: 'rectangle',
   3: 'ellipse',
   4: 'text',
+  5: 'lineSegment',
+  6: 'path',
 }
 
 /**
@@ -244,6 +248,7 @@ export function setSelectedShape(scene: SceneMemory, nextIndex: number) {
  * - Scan from end to start to prefer visually top-most shapes
  * - First do AABB (bounding-box) test
  * - For ellipse types, apply an additional normalized ellipse test
+ * - For line/path types, apply segment-distance checks
  *
  * Returns:
  * - shape index when hit
@@ -281,6 +286,32 @@ export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
         ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
 
       if (normalized > 1) {
+        continue
+      }
+    }
+
+    if (type === 'lineSegment') {
+      const lineHit = isPointNearLineSegment(pointer, {
+        x1: x,
+        y1: y,
+        x2: x + width,
+        y2: y + height,
+      })
+
+      if (!lineHit) {
+        continue
+      }
+    }
+
+    if (type === 'path') {
+      const lineHit = isPointNearLineSegment(pointer, {
+        x1: x,
+        y1: y,
+        x2: x + width,
+        y2: y + height,
+      })
+
+      if (!lineHit) {
         continue
       }
     }
@@ -344,4 +375,36 @@ export function readSceneSnapshot(scene: SceneMemory, document: EditorDocument):
 function incrementVersion(scene: SceneMemory) {
   // Increment on semantic state changes so UI/render loops can react cheaply.
   scene.meta[MetaIndex.Version] += 1
+}
+
+function isPointNearLineSegment(
+  pointer: PointerState,
+  line: {x1: number; y1: number; x2: number; y2: number},
+  tolerance = 6,
+) {
+  const dx = line.x2 - line.x1
+  const dy = line.y2 - line.y1
+  const lengthSquared = dx * dx + dy * dy
+
+  if (lengthSquared === 0) {
+    const distanceSquared =
+      (pointer.x - line.x1) * (pointer.x - line.x1) +
+      (pointer.y - line.y1) * (pointer.y - line.y1)
+    return distanceSquared <= tolerance * tolerance
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((pointer.x - line.x1) * dx + (pointer.y - line.y1) * dy) / lengthSquared,
+    ),
+  )
+  const nearestX = line.x1 + t * dx
+  const nearestY = line.y1 + t * dy
+  const distanceSquared =
+    (pointer.x - nearestX) * (pointer.x - nearestX) +
+    (pointer.y - nearestY) * (pointer.y - nearestY)
+
+  return distanceSquared <= tolerance * tolerance
 }
