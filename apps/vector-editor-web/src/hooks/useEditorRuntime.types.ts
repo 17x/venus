@@ -61,6 +61,7 @@ export interface EditorRuntimeState {
     Renderer: typeof SkiaRenderer
     document: ReturnType<typeof createEditorDocumentFromFile>
     shapes: SceneShapeSnapshot[]
+    stats: ReturnType<typeof useCanvasRuntime>['stats']
     viewport: ReturnType<typeof useCanvasRuntime>['viewport']
     ready: boolean
     onPointerMove: (point: {x: number; y: number}) => void

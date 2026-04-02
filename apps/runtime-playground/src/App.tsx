@@ -1,12 +1,13 @@
 import * as React from 'react'
 import {CanvasViewport, useCanvasRuntime} from '@venus/canvas-base'
 import {nid} from '@venus/document-core'
-import {SkiaRenderer} from '@venus/renderer-skia'
+import {SkiaRenderer, useSkiaRenderDiagnostics} from '@venus/renderer-skia'
 import type {EditorRuntimeCommand} from '@venus/editor-worker'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
+import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
 
-const SCENE_CAPACITY = 512
+const STRESS_SHAPE_COUNT = 100_000
 
 function createRandomRectangle() {
   return {
@@ -21,10 +22,17 @@ function createRandomRectangle() {
 }
 
 function App() {
+  const [documentMode, setDocumentMode] = React.useState<'demo' | 'stress'>('demo')
+  const [stressRevision, setStressRevision] = React.useState(0)
+  const stressDocument = React.useMemo(
+    () => createStressDocument(STRESS_SHAPE_COUNT),
+    [stressRevision],
+  )
+  const activeDocument = documentMode === 'stress' ? stressDocument : MOCK_DOCUMENT
   const runtime = useCanvasRuntime({
-    capacity: SCENE_CAPACITY,
+    capacity: activeDocument.shapes.length + 16,
     createWorker: () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
-    document: MOCK_DOCUMENT,
+    document: activeDocument,
   })
 
   const selectedShape = runtime.stats.selectedIndex >= 0
@@ -71,6 +79,15 @@ function App() {
         <div className="panel-block">
           <span className="panel-label">Commands</span>
           <div className="panel-actions">
+            <button onClick={() => setDocumentMode('demo')}>Demo Scene</button>
+            <button
+              onClick={() => {
+                setStressRevision((current) => current + 1)
+                setDocumentMode('stress')
+              }}
+            >
+              100k Scene
+            </button>
             <button onClick={() => dispatch({type: 'viewport.fit'})}>Fit</button>
             <button onClick={() => dispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
             <button onClick={() => dispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
@@ -92,6 +109,8 @@ function App() {
             <li>canRedo: {String(runtime.history.canRedo)}</li>
           </ul>
         </div>
+
+        <RendererDiagnosticsPanel />
       </aside>
 
       <section className="playground-stage">
@@ -99,6 +118,7 @@ function App() {
           document={runtime.document}
           renderer={SkiaRenderer}
           shapes={runtime.shapes}
+          stats={runtime.stats}
           viewport={runtime.viewport}
           onPointerMove={(pointer) => runtime.postPointer('pointermove', pointer)}
           onPointerDown={(pointer) => runtime.postPointer('pointerdown', pointer)}
@@ -109,6 +129,25 @@ function App() {
         />
       </section>
     </main>
+  )
+}
+
+function RendererDiagnosticsPanel() {
+  const renderDiagnostics = useSkiaRenderDiagnostics()
+
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Renderer Cache</span>
+      <ul className="panel-list">
+        <li>tiles: {renderDiagnostics.tileCount}</li>
+        <li>visible: {renderDiagnostics.visibleShapeCount}</li>
+        <li>static: {renderDiagnostics.staticShapeCount}</li>
+        <li>overlay: {renderDiagnostics.overlayShapeCount}</li>
+        <li>cacheHits: {renderDiagnostics.cacheHits}</li>
+        <li>cacheMisses: {renderDiagnostics.cacheMisses}</li>
+        <li>rebuilt: {renderDiagnostics.rebuiltTiles}</li>
+      </ul>
+    </div>
   )
 }
 

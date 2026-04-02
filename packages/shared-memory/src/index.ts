@@ -157,7 +157,106 @@ export function writeDocumentToScene(scene: SceneMemory, document: EditorDocumen
     scene.flags[index] = 0
   }
 
-  incrementVersion(scene)
+  incrementSceneVersion(scene)
+}
+
+/**
+ * Updates a single shape slot in shared memory without touching the rest of the scene.
+ */
+export function writeShapeToScene(
+  scene: SceneMemory,
+  index: number,
+  shape: EditorDocument['shapes'][number],
+) {
+  if (index < 0 || index >= scene.capacity) {
+    return
+  }
+
+  const geometryOffset = index * GEOMETRY_STRIDE
+  scene.geometry[geometryOffset] = shape.x
+  scene.geometry[geometryOffset + 1] = shape.y
+  scene.geometry[geometryOffset + 2] = shape.width
+  scene.geometry[geometryOffset + 3] = shape.height
+  scene.kind[index] = TYPE_TO_KIND[shape.type]
+}
+
+/**
+ * Inserts one shape slot and shifts trailing shared-memory records to the right.
+ */
+export function insertShapeIntoScene(
+  scene: SceneMemory,
+  index: number,
+  shape: EditorDocument['shapes'][number],
+) {
+  const count = scene.meta[MetaIndex.ShapeCount]
+  if (count >= scene.capacity) {
+    return
+  }
+
+  const boundedIndex = Math.max(0, Math.min(index, count))
+
+  for (let current = count; current > boundedIndex; current -= 1) {
+    copySceneShape(scene, current - 1, current)
+  }
+
+  writeShapeToScene(scene, boundedIndex, shape)
+  scene.flags[boundedIndex] = 0
+  scene.meta[MetaIndex.ShapeCount] = count + 1
+  shiftTrackedIndices(scene, boundedIndex, 1)
+  incrementSceneVersion(scene)
+}
+
+/**
+ * Removes one shape slot and compacts trailing shared-memory records to the left.
+ */
+export function removeShapeFromScene(scene: SceneMemory, index: number) {
+  const count = scene.meta[MetaIndex.ShapeCount]
+  if (index < 0 || index >= count) {
+    return
+  }
+
+  for (let current = index; current < count - 1; current += 1) {
+    copySceneShape(scene, current + 1, current)
+  }
+
+  clearSceneShape(scene, count - 1)
+  scene.meta[MetaIndex.ShapeCount] = count - 1
+  shiftTrackedIndices(scene, index, -1)
+  incrementSceneVersion(scene)
+}
+
+/**
+ * Reorders one shape slot in shared memory while preserving hover/selection identity.
+ */
+export function reorderShapeInScene(scene: SceneMemory, fromIndex: number, toIndex: number) {
+  const count = scene.meta[MetaIndex.ShapeCount]
+  if (fromIndex < 0 || fromIndex >= count) {
+    return
+  }
+
+  const boundedIndex = Math.max(0, Math.min(toIndex, count - 1))
+  if (fromIndex === boundedIndex) {
+    return
+  }
+
+  const snapshot = readSceneShape(scene, fromIndex)
+  if (!snapshot) {
+    return
+  }
+
+  if (fromIndex < boundedIndex) {
+    for (let current = fromIndex; current < boundedIndex; current += 1) {
+      copySceneShape(scene, current + 1, current)
+    }
+  } else {
+    for (let current = fromIndex; current > boundedIndex; current -= 1) {
+      copySceneShape(scene, current - 1, current)
+    }
+  }
+
+  writeSceneShape(scene, boundedIndex, snapshot)
+  remapTrackedIndices(scene, fromIndex, boundedIndex)
+  incrementSceneVersion(scene)
 }
 
 /**
@@ -209,7 +308,7 @@ export function setHoveredShape(scene: SceneMemory, nextIndex: number) {
   }
 
   scene.meta[MetaIndex.HoveredIndex] = nextIndex
-  incrementVersion(scene)
+  incrementSceneVersion(scene)
   return true
 }
 
@@ -237,7 +336,7 @@ export function setSelectedShape(scene: SceneMemory, nextIndex: number) {
   }
 
   scene.meta[MetaIndex.SelectedIndex] = nextIndex
-  incrementVersion(scene)
+  incrementSceneVersion(scene)
   return true
 }
 
@@ -372,9 +471,111 @@ export function readSceneSnapshot(scene: SceneMemory, document: EditorDocument):
  * Bumps scene version whenever semantic shared state changes.
  * Version is used as a cheap invalidation token for UI/render loops.
  */
-function incrementVersion(scene: SceneMemory) {
+export function incrementSceneVersion(scene: SceneMemory) {
   // Increment on semantic state changes so UI/render loops can react cheaply.
   scene.meta[MetaIndex.Version] += 1
+}
+
+function copySceneShape(scene: SceneMemory, fromIndex: number, toIndex: number) {
+  const fromOffset = fromIndex * GEOMETRY_STRIDE
+  const toOffset = toIndex * GEOMETRY_STRIDE
+
+  scene.geometry[toOffset] = scene.geometry[fromOffset]
+  scene.geometry[toOffset + 1] = scene.geometry[fromOffset + 1]
+  scene.geometry[toOffset + 2] = scene.geometry[fromOffset + 2]
+  scene.geometry[toOffset + 3] = scene.geometry[fromOffset + 3]
+  scene.kind[toIndex] = scene.kind[fromIndex]
+  scene.flags[toIndex] = scene.flags[fromIndex]
+}
+
+function clearSceneShape(scene: SceneMemory, index: number) {
+  const offset = index * GEOMETRY_STRIDE
+  scene.geometry[offset] = 0
+  scene.geometry[offset + 1] = 0
+  scene.geometry[offset + 2] = 0
+  scene.geometry[offset + 3] = 0
+  scene.kind[index] = 0
+  scene.flags[index] = 0
+}
+
+function readSceneShape(scene: SceneMemory, index: number) {
+  if (index < 0 || index >= scene.meta[MetaIndex.ShapeCount]) {
+    return null
+  }
+
+  const offset = index * GEOMETRY_STRIDE
+  return {
+    x: scene.geometry[offset],
+    y: scene.geometry[offset + 1],
+    width: scene.geometry[offset + 2],
+    height: scene.geometry[offset + 3],
+    kind: scene.kind[index],
+    flags: scene.flags[index],
+  }
+}
+
+function writeSceneShape(
+  scene: SceneMemory,
+  index: number,
+  snapshot: {x: number; y: number; width: number; height: number; kind: number; flags: number},
+) {
+  const offset = index * GEOMETRY_STRIDE
+  scene.geometry[offset] = snapshot.x
+  scene.geometry[offset + 1] = snapshot.y
+  scene.geometry[offset + 2] = snapshot.width
+  scene.geometry[offset + 3] = snapshot.height
+  scene.kind[index] = snapshot.kind
+  scene.flags[index] = snapshot.flags
+}
+
+function shiftTrackedIndices(scene: SceneMemory, startIndex: number, delta: 1 | -1) {
+  if (delta === 1) {
+    if (scene.meta[MetaIndex.HoveredIndex] >= startIndex) {
+      scene.meta[MetaIndex.HoveredIndex] += 1
+    }
+
+    if (scene.meta[MetaIndex.SelectedIndex] >= startIndex) {
+      scene.meta[MetaIndex.SelectedIndex] += 1
+    }
+    return
+  }
+
+  if (scene.meta[MetaIndex.HoveredIndex] === startIndex) {
+    scene.meta[MetaIndex.HoveredIndex] = -1
+  } else if (scene.meta[MetaIndex.HoveredIndex] > startIndex) {
+    scene.meta[MetaIndex.HoveredIndex] -= 1
+  }
+
+  if (scene.meta[MetaIndex.SelectedIndex] === startIndex) {
+    scene.meta[MetaIndex.SelectedIndex] = -1
+  } else if (scene.meta[MetaIndex.SelectedIndex] > startIndex) {
+    scene.meta[MetaIndex.SelectedIndex] -= 1
+  }
+}
+
+function remapTrackedIndices(scene: SceneMemory, fromIndex: number, toIndex: number) {
+  scene.meta[MetaIndex.HoveredIndex] = remapIndex(scene.meta[MetaIndex.HoveredIndex], fromIndex, toIndex)
+  scene.meta[MetaIndex.SelectedIndex] = remapIndex(scene.meta[MetaIndex.SelectedIndex], fromIndex, toIndex)
+}
+
+function remapIndex(current: number, fromIndex: number, toIndex: number) {
+  if (current < 0) {
+    return current
+  }
+
+  if (current === fromIndex) {
+    return toIndex
+  }
+
+  if (fromIndex < toIndex && current > fromIndex && current <= toIndex) {
+    return current - 1
+  }
+
+  if (fromIndex > toIndex && current >= toIndex && current < fromIndex) {
+    return current + 1
+  }
+
+  return current
 }
 
 function isPointNearLineSegment(

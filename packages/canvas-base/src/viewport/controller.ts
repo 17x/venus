@@ -3,8 +3,8 @@ import {createViewportMatrix, invertViewportMatrix, type Point2D} from './matrix
 import type {CanvasViewportState} from './types.ts'
 
 const DEFAULT_VIEWPORT_OFFSET = 48
-const MIN_VIEWPORT_SCALE = 0.1
-const MAX_VIEWPORT_SCALE = 8
+const MIN_VIEWPORT_SCALE = 0.02
+const MAX_VIEWPORT_SCALE = 32
 
 /**
  * Initial viewport used before the canvas element reports its measured size.

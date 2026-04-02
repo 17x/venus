@@ -190,15 +190,23 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
     // The worker owns scene mutation. canvas-base rebuilds a render-friendly
     // snapshot from SAB + worker metadata after every update.
-    snapshot.document = event.data.document as TDocument
+    const nextStats = readSceneStats(scene)
     snapshot.history = event.data.history
     snapshot.collaboration = event.data.collaboration
-    snapshot.stats = readSceneStats(scene)
-    snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
+
+    if (event.data.updateKind === 'full' && event.data.document) {
+      snapshot.document = event.data.document as TDocument
+      snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
+    } else {
+      snapshot.shapes = patchSnapshotFlags(snapshot.shapes, snapshot.stats, nextStats)
+    }
+
+    snapshot.stats = nextStats
     debugRuntime(`worker -> ${event.data.type}`, {
-      shapeCount: snapshot.stats.shapeCount,
+      shapeCount: nextStats.shapeCount,
       historyEntries: snapshot.history.entries.length,
       lastOperationId: snapshot.collaboration.lastOperationId,
+      updateKind: event.data.updateKind,
     })
     notify()
   }
@@ -273,4 +281,43 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     },
     zoomViewport,
   }
+}
+
+function patchSnapshotFlags(
+  shapes: SceneShapeSnapshot[],
+  previousStats: SceneStats,
+  nextStats: SceneStats,
+) {
+  if (shapes.length !== nextStats.shapeCount) {
+    return shapes
+  }
+
+  const changedIndices = new Set(
+    [
+      previousStats.hoveredIndex,
+      previousStats.selectedIndex,
+      nextStats.hoveredIndex,
+      nextStats.selectedIndex,
+    ].filter((index) => index >= 0 && index < shapes.length),
+  )
+
+  if (changedIndices.size === 0) {
+    return shapes
+  }
+
+  const nextShapes = shapes.slice()
+  changedIndices.forEach((index) => {
+    const shape = shapes[index]
+    if (!shape) {
+      return
+    }
+
+    nextShapes[index] = {
+      ...shape,
+      isHovered: index === nextStats.hoveredIndex,
+      isSelected: index === nextStats.selectedIndex,
+    }
+  })
+
+  return nextShapes
 }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { EditorDocument } from '@venus/document-core'
-import type { PointerState, SceneShapeSnapshot } from '@venus/shared-memory'
+import type { PointerState, SceneShapeSnapshot, SceneStats } from '@venus/shared-memory'
 import type { CanvasRenderer } from '../renderer/types.ts'
 import { applyMatrixToPoint } from '../viewport/matrix.ts'
 import type { CanvasViewportState } from '../viewport/types.ts'
@@ -9,6 +9,7 @@ interface CanvasViewportProps {
   document: EditorDocument
   renderer?: CanvasRenderer
   shapes: SceneShapeSnapshot[]
+  stats: SceneStats
   viewport: CanvasViewportState
   onPointerMove?: (pointer: PointerState) => void
   onPointerDown?: (pointer: PointerState) => void
@@ -30,6 +31,7 @@ export function CanvasViewport({
   document,
   renderer: Renderer,
   shapes,
+  stats,
   viewport,
   onPointerMove,
   onPointerDown,
@@ -39,8 +41,47 @@ export function CanvasViewport({
   onViewportResize,
   onViewportZoom,
 }: CanvasViewportProps) {
+  const [renderQuality, setRenderQuality] = React.useState<'full' | 'interactive'>('full')
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
+  const previewLayerRef = React.useRef<HTMLDivElement | null>(null)
   const panOriginRef = React.useRef<{ x: number; y: number } | null>(null)
+  const previewPanOffsetRef = React.useRef({ x: 0, y: 0 })
+  const wheelZoomRef = React.useRef<{ factor: number; anchor: { x: number; y: number } | null }>({
+    factor: 1,
+    anchor: null,
+  })
+  const wheelCommitTimeoutRef = React.useRef<number | null>(null)
+  const zoomSettleTimeoutRef = React.useRef<number | null>(null)
+  const latestPointerClientRef = React.useRef<{ x: number; y: number } | null>(null)
+  const frameStateRef = React.useRef<{ wheel: number | null; pointer: number | null }>({
+    wheel: null,
+    pointer: null,
+  })
+  const pendingViewportSyncRef = React.useRef(false)
+  const viewportStateRef = React.useRef(viewport)
+  const onViewportPanRef = React.useRef(onViewportPan)
+  const onViewportZoomRef = React.useRef(onViewportZoom)
+  const onPointerMoveRef = React.useRef(onPointerMove)
+
+  viewportStateRef.current = viewport
+  onViewportPanRef.current = onViewportPan
+  onViewportZoomRef.current = onViewportZoom
+  onPointerMoveRef.current = onPointerMove
+
+  React.useEffect(() => {
+    if (!pendingViewportSyncRef.current) {
+      return
+    }
+
+    pendingViewportSyncRef.current = false
+    previewPanOffsetRef.current = { x: 0, y: 0 }
+    applyPreviewTransform(
+      previewLayerRef.current,
+      previewPanOffsetRef.current,
+      { factor: 1, anchor: null },
+      resolvePanOverscan(viewport),
+    )
+  }, [viewport.matrix[2], viewport.matrix[5], viewport.scale])
 
   React.useEffect(() => {
     // Resize is resolved here so apps do not need to wire DOM measurement into
@@ -71,14 +112,89 @@ export function CanvasViewport({
     // can zoom the whole page. We explicitly consume them on the canvas region
     // so only the editor viewport responds.
     const handleNativeWheel = (event: WheelEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.cancelable) {
-        event.preventDefault()
+      if (event.ctrlKey || event.metaKey) {
+        if (event.cancelable) {
+          event.preventDefault()
+        }
+
+        const handleZoom = onViewportZoomRef.current
+        if (!handleZoom) {
+          return
+        }
+
+        const rect = node.getBoundingClientRect()
+        const delta = event.deltaY < 0 ? 1.08 : 1 / 1.08
+        setRenderQuality((current) => (current === 'interactive' ? current : 'interactive'))
+        wheelZoomRef.current.factor *= delta
+        wheelZoomRef.current.anchor = {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        }
+
+        if (zoomSettleTimeoutRef.current !== null) {
+          window.clearTimeout(zoomSettleTimeoutRef.current)
+        }
+        zoomSettleTimeoutRef.current = window.setTimeout(() => {
+          zoomSettleTimeoutRef.current = null
+          setRenderQuality('full')
+        }, 120)
+
+        if (frameStateRef.current.wheel === null) {
+          frameStateRef.current.wheel = requestAnimationFrame(() => {
+            frameStateRef.current.wheel = null
+            const zoomFactor = wheelZoomRef.current.factor
+            const anchor = wheelZoomRef.current.anchor
+            wheelZoomRef.current.factor = 1
+            wheelZoomRef.current.anchor = null
+
+            if (!anchor) {
+              return
+            }
+
+            handleZoom(viewportStateRef.current.scale * zoomFactor, anchor)
+          })
+        }
+
+        return
       }
-    }
-    const preventGesture = (event: Event) => {
+
+      const handlePan = onViewportPanRef.current
+      if (!handlePan) {
+        return
+      }
+
       if (event.cancelable) {
         event.preventDefault()
       }
+      previewPanOffsetRef.current = {
+        x: previewPanOffsetRef.current.x - event.deltaX,
+        y: previewPanOffsetRef.current.y - event.deltaY,
+      }
+      applyPreviewTransform(
+        previewLayerRef.current,
+        previewPanOffsetRef.current,
+        { factor: 1, anchor: null },
+        resolvePanOverscan(viewportStateRef.current),
+      )
+
+      if (wheelCommitTimeoutRef.current !== null) {
+        window.clearTimeout(wheelCommitTimeoutRef.current)
+      }
+
+      wheelCommitTimeoutRef.current = window.setTimeout(() => {
+        wheelCommitTimeoutRef.current = null
+        const nextDelta = previewPanOffsetRef.current
+        if (nextDelta.x === 0 && nextDelta.y === 0) {
+          return
+        }
+
+        pendingViewportSyncRef.current = true
+        handlePan(nextDelta.x, nextDelta.y)
+      }, 48)
+    }
+    const preventGesture = (event: Event) => {
+      event.preventDefault()
+      event.stopPropagation()
     }
 
     node.addEventListener('wheel', handleNativeWheel, { passive: false })
@@ -87,6 +203,19 @@ export function CanvasViewport({
     node.addEventListener('gestureend', preventGesture as EventListener, { passive: false })
 
     return () => {
+      if (frameStateRef.current.wheel !== null) {
+        cancelAnimationFrame(frameStateRef.current.wheel)
+        frameStateRef.current.wheel = null
+      }
+      if (wheelCommitTimeoutRef.current !== null) {
+        window.clearTimeout(wheelCommitTimeoutRef.current)
+        wheelCommitTimeoutRef.current = null
+      }
+      if (zoomSettleTimeoutRef.current !== null) {
+        window.clearTimeout(zoomSettleTimeoutRef.current)
+        zoomSettleTimeoutRef.current = null
+      }
+
       node.removeEventListener('wheel', handleNativeWheel)
       node.removeEventListener('gesturestart', preventGesture as EventListener)
       node.removeEventListener('gesturechange', preventGesture as EventListener)
@@ -113,36 +242,6 @@ export function CanvasViewport({
     )
   }
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (event.ctrlKey || event.metaKey) {
-      if (event.cancelable) {
-        event.preventDefault()
-      }
-      if (!onViewportZoom) {
-        return
-      }
-
-      const rect = event.currentTarget.getBoundingClientRect()
-      // Zoom uses the pointer location as the anchor so content grows/shrinks
-      // around the user's focus point instead of the top-left corner.
-      const delta = event.deltaY < 0 ? 1.08 : 1 / 1.08
-      onViewportZoom(viewport.scale * delta, {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      })
-      return
-    }
-
-    if (!onViewportPan) {
-      return
-    }
-
-    if (event.cancelable) {
-      event.preventDefault()
-    }
-    onViewportPan(-event.deltaX, -event.deltaY)
-  }
-
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Middle mouse or Alt+drag enters viewport-pan mode without involving the
     // worker because it only changes presentation state.
@@ -156,23 +255,118 @@ export function CanvasViewport({
   }
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (panOriginRef.current && onViewportPan) {
+    if (panOriginRef.current && onViewportPanRef.current) {
       const deltaX = event.clientX - panOriginRef.current.x
       const deltaY = event.clientY - panOriginRef.current.y
       panOriginRef.current = { x: event.clientX, y: event.clientY }
-      onViewportPan(deltaX, deltaY)
+      previewPanOffsetRef.current = {
+        x: previewPanOffsetRef.current.x + deltaX,
+        y: previewPanOffsetRef.current.y + deltaY,
+      }
+      applyPreviewTransform(
+        previewLayerRef.current,
+        previewPanOffsetRef.current,
+        { factor: 1, anchor: null },
+        resolvePanOverscan(viewportStateRef.current),
+      )
       return
     }
 
-    resolvePointer(event, onPointerMove)
+    latestPointerClientRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    }
+
+    if (frameStateRef.current.pointer === null) {
+      frameStateRef.current.pointer = requestAnimationFrame(() => {
+        frameStateRef.current.pointer = null
+        const latestPointer = latestPointerClientRef.current
+        const node = viewportRef.current
+        const handleMove = onPointerMoveRef.current
+
+        if (!latestPointer || !node || !handleMove) {
+          return
+        }
+
+        const rect = node.getBoundingClientRect()
+        handleMove(
+          applyMatrixToPoint(viewportStateRef.current.inverseMatrix, {
+            x: latestPointer.x - rect.left,
+            y: latestPointer.y - rect.top,
+          }),
+        )
+      })
+    }
   }
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     if (panOriginRef.current) {
       panOriginRef.current = null
       event.currentTarget.releasePointerCapture(event.pointerId)
+      const nextDelta = previewPanOffsetRef.current
+      if (nextDelta.x !== 0 || nextDelta.y !== 0) {
+        pendingViewportSyncRef.current = true
+        onViewportPanRef.current?.(nextDelta.x, nextDelta.y)
+      }
     }
   }
+
+  const rendererNode = React.useMemo(() => {
+    if (!Renderer) {
+      return null
+    }
+
+    const panOverscan = resolvePanOverscan(viewport)
+
+    const renderViewport = {
+      ...viewport,
+      matrix: [
+        viewport.matrix[0],
+        viewport.matrix[1],
+        viewport.matrix[2] + panOverscan,
+        viewport.matrix[3],
+        viewport.matrix[4],
+        viewport.matrix[5] + panOverscan,
+        viewport.matrix[6],
+        viewport.matrix[7],
+        viewport.matrix[8],
+      ] as typeof viewport.matrix,
+      viewportWidth: viewport.viewportWidth + panOverscan * 2,
+      viewportHeight: viewport.viewportHeight + panOverscan * 2,
+    }
+
+    return (
+      <div
+        ref={previewLayerRef}
+        style={{
+          width: `calc(100% + ${panOverscan * 2}px)`,
+          height: `calc(100% + ${panOverscan * 2}px)`,
+          marginLeft: -panOverscan,
+          marginTop: -panOverscan,
+          transform: 'translate(0px, 0px)',
+        }}
+      >
+        <Renderer
+          document={document}
+          shapes={shapes}
+          stats={stats}
+          viewport={renderViewport}
+          renderQuality={renderQuality}
+        />
+      </div>
+    )
+  }, [Renderer, document, renderQuality, shapes, stats, viewport])
+
+  React.useEffect(() => {
+    return () => {
+      if (frameStateRef.current.pointer !== null) {
+        cancelAnimationFrame(frameStateRef.current.pointer)
+      }
+      if (frameStateRef.current.wheel !== null) {
+        cancelAnimationFrame(frameStateRef.current.wheel)
+      }
+    }
+  }, [])
 
   if (Renderer) {
     return (
@@ -180,7 +374,10 @@ export function CanvasViewport({
         <div
           ref={viewportRef}
           className="stage-viewport"
-          onWheel={handleWheel}
+          style={{
+            touchAction: 'none',
+            overscrollBehavior: 'none',
+          }}
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
           onPointerUp={(event) => {
@@ -189,7 +386,7 @@ export function CanvasViewport({
           }}
           onPointerLeave={onPointerLeave}
         >
-          <Renderer document={document} shapes={shapes} viewport={viewport} />
+          {rendererNode}
         </div>
       </section>
     )
@@ -207,7 +404,10 @@ export function CanvasViewport({
       <div
         ref={viewportRef}
         className="stage-viewport"
-        onWheel={handleWheel}
+        style={{
+          touchAction: 'none',
+          overscrollBehavior: 'none',
+        }}
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
         onPointerUp={(event) => {
@@ -236,4 +436,39 @@ export function CanvasViewport({
       </div>
     </section>
   )
+}
+
+function resolvePanOverscan(viewport: CanvasViewportState) {
+  const scaleFactor = viewport.scale < 0.25 ? 2 : viewport.scale < 0.5 ? 1.5 : 1
+  const baseOverscan = 192 * scaleFactor
+
+  return Math.max(192, Math.min(640, Math.ceil(baseOverscan)))
+}
+
+function applyPreviewTransform(
+  node: HTMLDivElement | null,
+  panOffset: {x: number; y: number},
+  zoomPreview: {
+    factor: number
+    anchor: {x: number; y: number} | null
+  },
+  overscan: number,
+) {
+  if (!node) {
+    return
+  }
+
+  const anchorX = (zoomPreview.anchor?.x ?? 0) + overscan
+  const anchorY = (zoomPreview.anchor?.y ?? 0) + overscan
+  const scale = zoomPreview.factor
+
+  node.style.transform =
+    `translate(${panOffset.x}px, ${panOffset.y}px) ` +
+    `translate(${anchorX}px, ${anchorY}px) ` +
+    `scale(${scale}) ` +
+    `translate(${-anchorX}px, ${-anchorY}px)`
+  node.style.willChange =
+    panOffset.x !== 0 || panOffset.y !== 0 || scale !== 1
+      ? 'transform'
+      : ''
 }

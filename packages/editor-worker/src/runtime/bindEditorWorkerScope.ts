@@ -19,10 +19,15 @@ import {
 import {
   attachSceneMemory,
   clearHoveredShape,
+  incrementSceneVersion,
+  insertShapeIntoScene,
   readSceneStats,
+  removeShapeFromScene,
+  reorderShapeInScene,
   setHoveredShape,
   setSelectedShape,
   updatePointer,
+  writeShapeToScene,
   writeDocumentToScene,
   type SceneMemory,
 } from '@venus/shared-memory'
@@ -42,7 +47,7 @@ function debugWorker(message: string, details?: unknown) {
 }
 
 type WorkerSpatialIndex = ReturnType<
-  typeof createSpatialIndex<{ index: number; type: DocumentNode['type'] }>
+  typeof createSpatialIndex<{ shapeId: string; type: DocumentNode['type']; order: number }>
 >
 
 /**
@@ -61,7 +66,11 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let documentState: EditorDocument | null = null
   // The worker owns the coarse spatial index because hit-testing belongs to
   // execution/data flow, not the UI shell or app layer.
-  const spatialIndex = createSpatialIndex<{ index: number; type: DocumentNode['type'] }>()
+  const spatialIndex = createSpatialIndex<{
+    shapeId: string
+    type: DocumentNode['type']
+    order: number
+  }>()
   const history = createHistoryManager([
     {
       id: 'init',
@@ -92,7 +101,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
         forward: [],
         backward: [],
       })
-      postScene(scope, 'scene-ready', scene, documentState, history, collaboration)
+      postScene(scope, 'scene-ready', 'full', scene, documentState, history, collaboration)
       return
     }
 
@@ -103,7 +112,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     if (message.type === 'pointerleave') {
       const changed = clearHoveredShape(scene)
       if (changed) {
-        postScene(scope, 'scene-update', scene, documentState, history, collaboration)
+        postScene(scope, 'scene-update', 'flags', scene, documentState, history, collaboration)
       }
       return
     }
@@ -117,7 +126,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
         history,
         collaboration,
       )
-      postScene(scope, 'scene-update', scene, documentState, history, collaboration)
+      postScene(scope, 'scene-update', 'full', scene, documentState, history, collaboration)
       return
     }
 
@@ -130,7 +139,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
         history,
         collaboration,
       )
-      postScene(scope, 'scene-update', scene, documentState, history, collaboration)
+      postScene(scope, 'scene-update', 'full', scene, documentState, history, collaboration)
       return
     }
 
@@ -140,7 +149,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     if (message.type === 'pointermove') {
       const changed = setHoveredShape(scene, targetIndex)
       if (changed) {
-        postScene(scope, 'scene-update', scene, documentState, history, collaboration)
+        postScene(scope, 'scene-update', 'flags', scene, documentState, history, collaboration)
       }
       return
     }
@@ -149,7 +158,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     const selectionChanged = setSelectedShape(scene, targetIndex)
 
     if (hoverChanged || selectionChanged) {
-      postScene(scope, 'scene-update', scene, documentState, history, collaboration)
+      postScene(scope, 'scene-update', 'flags', scene, documentState, history, collaboration)
     }
   })
 }
@@ -228,6 +237,7 @@ function getBezierPathBounds(points: BezierPoint[]) {
 function postScene(
   scope: DedicatedWorkerGlobalScope,
   type: SceneUpdateMessage['type'],
+  updateKind: SceneUpdateMessage['updateKind'],
   scene: SceneMemory,
   document: EditorDocument,
   history: ReturnType<typeof createHistoryManager>,
@@ -235,7 +245,8 @@ function postScene(
 ) {
   scope.postMessage({
     type,
-    document,
+    updateKind,
+    document: updateKind === 'full' ? document : undefined,
     stats: readSceneStats(scene),
     history: history.getSummary(),
     collaboration: collaboration.getState(),
@@ -272,7 +283,7 @@ function handleLocalCommand(
   if (command.type === 'history.undo') {
     const transition = history.undo()
     if (transition.appliedEntry) {
-      applyPatches(scene, document, transition.appliedEntry.backward)
+      applyPatches(scene, document, spatialIndex, transition.appliedEntry.backward)
     }
     return
   }
@@ -280,15 +291,14 @@ function handleLocalCommand(
   if (command.type === 'history.redo') {
     const transition = history.redo()
     if (transition.appliedEntry) {
-      applyPatches(scene, document, transition.appliedEntry.forward)
+      applyPatches(scene, document, spatialIndex, transition.appliedEntry.forward)
     }
     return
   }
 
   const entry = createLocalHistoryEntry(command, scene, document)
   history.pushLocalEntry(entry)
-  applyPatches(scene, document, entry.forward)
-  rebuildSpatialIndex(spatialIndex, document)
+  applyPatches(scene, document, spatialIndex, entry.forward)
 
   const operation = createLocalOperation(command, collaboration.getState().actorId)
   collaboration.recordLocalOperation(operation)
@@ -311,8 +321,7 @@ function handleRemoteOperation(
   collaboration.receiveRemoteOperation(operation)
 
   const patches = createRemotePatches(operation, scene, document)
-  applyPatches(scene, document, patches)
-  rebuildSpatialIndex(spatialIndex, document)
+  applyPatches(scene, document, spatialIndex, patches)
 
   history.pushRemoteEntry({
     id: operation.id,
@@ -702,9 +711,13 @@ function createRemotePatches(
  * Keeping all patch application here helps local and remote changes converge on
  * the same scene mutation path.
  */
-function applyPatches(scene: SceneMemory, document: EditorDocument, patches: HistoryPatch[]) {
+function applyPatches(
+  scene: SceneMemory,
+  document: EditorDocument,
+  spatialIndex: WorkerSpatialIndex,
+  patches: HistoryPatch[],
+) {
   debugWorker('apply patches', patches)
-  let shouldRewriteScene = false
   const selectionPatches: HistoryPatch[] = []
 
   patches.forEach((patch) => {
@@ -751,7 +764,10 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
             : point.cp2,
         }))
       }
-      shouldRewriteScene = true
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      writeShapeToScene(scene, index, shape)
+      incrementSceneVersion(scene)
+      updateSpatialShape(spatialIndex, document, shape.id)
       return
     }
 
@@ -794,7 +810,10 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
 
       shape.width = patch.nextWidth
       shape.height = patch.nextHeight
-      shouldRewriteScene = true
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      writeShapeToScene(scene, index, shape)
+      incrementSceneVersion(scene)
+      updateSpatialShape(spatialIndex, document, shape.id)
       return
     }
 
@@ -805,7 +824,8 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
         points: clonePoints(patch.shape.points),
         bezierPoints: cloneBezierPoints(patch.shape.bezierPoints),
       })
-      shouldRewriteScene = true
+      insertShapeIntoScene(scene, patch.index, document.shapes[patch.index])
+      syncSpatialRange(spatialIndex, document, patch.index)
       return
     }
 
@@ -818,19 +838,23 @@ function applyPatches(scene: SceneMemory, document: EditorDocument, patches: His
       const [shape] = document.shapes.splice(currentIndex, 1)
       const boundedIndex = Math.max(0, Math.min(patch.toIndex, document.shapes.length))
       document.shapes.splice(boundedIndex, 0, shape)
-      shouldRewriteScene = true
+      reorderShapeInScene(scene, currentIndex, boundedIndex)
+      syncSpatialRange(
+        spatialIndex,
+        document,
+        Math.min(currentIndex, boundedIndex),
+        Math.max(currentIndex, boundedIndex),
+      )
       return
     }
 
     if (patch.type === 'remove-shape') {
+      spatialIndex.remove(patch.shape.id)
       document.shapes.splice(patch.index, 1)
-      shouldRewriteScene = true
+      removeShapeFromScene(scene, patch.index)
+      syncSpatialRange(spatialIndex, document, patch.index)
     }
   })
-
-  if (shouldRewriteScene) {
-    writeDocumentToScene(scene, document)
-  }
 
   selectionPatches.forEach((patch) => {
     if (patch.type === 'set-selected-index') {
@@ -850,18 +874,54 @@ function rebuildSpatialIndex(
   document: EditorDocument,
 ) {
   spatialIndex.load(
-    document.shapes.map((shape, index) => ({
-      id: shape.id,
-      minX: shape.x,
-      minY: shape.y,
-      maxX: shape.x + shape.width,
-      maxY: shape.y + shape.height,
-      meta: {
-        index,
-        type: shape.type,
-      },
-    })),
+    document.shapes.map((shape, order) => createSpatialItem(shape, order)),
   )
+}
+
+function createSpatialItem(shape: DocumentNode, order: number) {
+  return {
+    id: shape.id,
+    minX: shape.x,
+    minY: shape.y,
+    maxX: shape.x + shape.width,
+    maxY: shape.y + shape.height,
+    meta: {
+      shapeId: shape.id,
+      type: shape.type,
+      order,
+    },
+  }
+}
+
+function updateSpatialShape(
+  spatialIndex: WorkerSpatialIndex,
+  document: EditorDocument,
+  shapeId: string,
+) {
+  const index = document.shapes.findIndex((shape) => shape.id === shapeId)
+  if (index < 0) {
+    return
+  }
+
+  spatialIndex.update(createSpatialItem(document.shapes[index], index))
+}
+
+function syncSpatialRange(
+  spatialIndex: WorkerSpatialIndex,
+  document: EditorDocument,
+  startIndex: number,
+  endIndex = document.shapes.length - 1,
+) {
+  const boundedStart = Math.max(0, startIndex)
+  const boundedEnd = Math.min(endIndex, document.shapes.length - 1)
+
+  if (boundedEnd < boundedStart) {
+    return
+  }
+
+  for (let index = boundedStart; index <= boundedEnd; index += 1) {
+    spatialIndex.update(createSpatialItem(document.shapes[index], index))
+  }
 }
 
 /**
@@ -883,10 +943,10 @@ function hitTestDocument(
     maxY: pointer.y,
   })
 
-  const sortedCandidates = [...candidates].sort((left, right) => right.meta.index - left.meta.index)
+  const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
 
   for (const candidate of sortedCandidates) {
-    const shape = document.shapes[candidate.meta.index]
+    const shape = findShapeById(document, candidate.meta.shapeId)
     if (!shape) {
       continue
     }
@@ -944,7 +1004,7 @@ function hitTestDocument(
       }
     }
 
-    return candidate.meta.index
+    return document.shapes.findIndex((item) => item.id === shape.id)
   }
 
   return -1

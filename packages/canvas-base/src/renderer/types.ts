@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { EditorDocument } from '@venus/document-core'
-import type { SceneShapeSnapshot } from '@venus/shared-memory'
+import type { SceneShapeSnapshot, SceneStats } from '@venus/shared-memory'
 import type { CanvasViewportState } from '../viewport/types.ts'
 
 /**
@@ -13,7 +13,11 @@ import type { CanvasViewportState } from '../viewport/types.ts'
 export interface CanvasRendererProps {
   document: EditorDocument
   shapes: SceneShapeSnapshot[]
+  stats: SceneStats
   viewport: CanvasViewportState
+  // Render quality lets the viewport trade detail for responsiveness during
+  // high-frequency interactions like wheel zoom.
+  renderQuality?: 'full' | 'interactive'
 }
 
 /**

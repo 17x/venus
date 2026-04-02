@@ -26,7 +26,6 @@ import type {
   EditorRuntimeCommands,
   EditorRuntimeRefs,
   EditorRuntimeState,
-  VisionFileType,
   VisionFileAsset,
 } from './useEditorRuntime.types.ts'
 
@@ -504,6 +503,7 @@ const useEditorRuntime = (options?: {
       Renderer: SkiaRenderer,
       document: canvasRuntime.document,
       shapes: canvasRuntime.shapes,
+      stats: canvasRuntime.stats,
       viewport: canvasRuntime.viewport,
       ready: canvasRuntime.ready,
       onPointerMove: (point) => {

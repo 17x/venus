@@ -108,6 +108,7 @@ const EditorFrame = () => {
                     document={canvas.document}
                     renderer={canvas.Renderer}
                     shapes={canvas.shapes}
+                    stats={canvas.stats}
                     viewport={canvas.viewport}
                     onPointerMove={canvas.onPointerMove}
                     onPointerDown={canvas.onPointerDown}

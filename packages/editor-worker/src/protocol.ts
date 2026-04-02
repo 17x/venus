@@ -63,7 +63,8 @@ export type EditorRuntimeCommand =
 
 export interface SceneUpdateMessage {
   type: 'scene-ready' | 'scene-update'
-  document: EditorDocument
+  updateKind: 'full' | 'flags'
+  document?: EditorDocument
   stats: {
     version: number
     shapeCount: number
