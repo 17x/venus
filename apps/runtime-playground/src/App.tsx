@@ -3,6 +3,10 @@ import {CanvasViewport, useCanvasRuntime} from '@venus/canvas-base'
 import {nid} from '@venus/document-core'
 import {SkiaRenderer, useSkiaRenderDiagnostics} from '@venus/renderer-skia'
 import type {EditorRuntimeCommand} from '@venus/editor-worker'
+import type {HistorySummary} from '@venus/editor-worker'
+import type {EditorDocument} from '@venus/document-core'
+import type {SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
+import type {CanvasViewportState} from '@venus/canvas-base'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
 import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
@@ -29,11 +33,19 @@ function App() {
     [stressRevision],
   )
   const activeDocument = documentMode === 'stress' ? stressDocument : MOCK_DOCUMENT
-  const runtime = useCanvasRuntime({
-    capacity: activeDocument.shapes.length + 16,
-    createWorker: () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
-    document: activeDocument,
-  })
+  const createWorker = React.useCallback(
+    () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
+    [],
+  )
+  const runtimeOptions = React.useMemo(
+    () => ({
+      capacity: activeDocument.shapes.length + 16,
+      createWorker,
+      document: activeDocument,
+    }),
+    [activeDocument, createWorker],
+  )
+  const runtime = useCanvasRuntime(runtimeOptions)
 
   const selectedShape = runtime.stats.selectedIndex >= 0
     ? runtime.shapes[runtime.stats.selectedIndex] ?? null
@@ -41,96 +53,252 @@ function App() {
 
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
     runtime.dispatchCommand(command)
-  }, [runtime])
+  }, [runtime.dispatchCommand])
+  const handleLoadDemo = React.useCallback(() => {
+    setDocumentMode('demo')
+  }, [])
+  const handleLoadStress = React.useCallback(() => {
+    setStressRevision((current) => current + 1)
+    setDocumentMode('stress')
+  }, [])
+  const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
+    runtime.postPointer('pointermove', pointer)
+  }, [runtime.postPointer])
+  const handlePointerDown = React.useCallback((pointer: { x: number; y: number }) => {
+    runtime.postPointer('pointerdown', pointer)
+  }, [runtime.postPointer])
 
   const selectedLabel = selectedShape ? `${selectedShape.name} (${selectedShape.type})` : 'None'
 
   return (
     <main className="playground-shell">
-      <aside className="playground-panel">
-        <div className="panel-block">
-          <span className="panel-label">Runtime</span>
-          <strong className="panel-title">Worker + SAB + Skia</strong>
-          <p className="panel-copy">
-            Validate the shared runtime loop without product UI.
-          </p>
-        </div>
+      <PlaygroundSidebar
+        document={runtime.document}
+        stats={runtime.stats}
+        history={runtime.history}
+        ready={runtime.ready}
+        sabSupported={runtime.sabSupported}
+        scaleLabel={runtime.viewport.scale.toFixed(2)}
+        selectedLabel={selectedLabel}
+        onLoadDemo={handleLoadDemo}
+        onLoadStress={handleLoadStress}
+        onDispatch={dispatch}
+      />
 
-        <div className="panel-block">
-          <span className="panel-label">Document</span>
-          <ul className="panel-list">
-            <li>{runtime.document.name}</li>
-            <li>{runtime.document.shapes.length} nodes</li>
-            <li>{runtime.stats.shapeCount} snapshot shapes</li>
-            <li>version {runtime.stats.version}</li>
-          </ul>
-        </div>
-
-        <div className="panel-block">
-          <span className="panel-label">Viewport</span>
-          <ul className="panel-list">
-            <li>ready: {String(runtime.ready)}</li>
-            <li>SAB: {String(runtime.sabSupported)}</li>
-            <li>scale: {runtime.viewport.scale.toFixed(2)}</li>
-            <li>selected: {selectedLabel}</li>
-          </ul>
-        </div>
-
-        <div className="panel-block">
-          <span className="panel-label">Commands</span>
-          <div className="panel-actions">
-            <button onClick={() => setDocumentMode('demo')}>Demo Scene</button>
-            <button
-              onClick={() => {
-                setStressRevision((current) => current + 1)
-                setDocumentMode('stress')
-              }}
-            >
-              100k Scene
-            </button>
-            <button onClick={() => dispatch({type: 'viewport.fit'})}>Fit</button>
-            <button onClick={() => dispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
-            <button onClick={() => dispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
-            <button onClick={() => dispatch({type: 'shape.insert', shape: createRandomRectangle()})}>
-              Insert Rect
-            </button>
-            <button onClick={() => dispatch({type: 'history.undo'})}>Undo</button>
-            <button onClick={() => dispatch({type: 'history.redo'})}>Redo</button>
-            <button onClick={() => dispatch({type: 'selection.delete'})}>Delete Selected</button>
-          </div>
-        </div>
-
-        <div className="panel-block">
-          <span className="panel-label">History</span>
-          <ul className="panel-list">
-            <li>entries: {runtime.history.entries.length}</li>
-            <li>cursor: {runtime.history.cursor}</li>
-            <li>canUndo: {String(runtime.history.canUndo)}</li>
-            <li>canRedo: {String(runtime.history.canRedo)}</li>
-          </ul>
-        </div>
-
-        <RendererDiagnosticsPanel />
-      </aside>
-
-      <section className="playground-stage">
-        <CanvasViewport
-          document={runtime.document}
-          renderer={SkiaRenderer}
-          shapes={runtime.shapes}
-          stats={runtime.stats}
-          viewport={runtime.viewport}
-          onPointerMove={(pointer) => runtime.postPointer('pointermove', pointer)}
-          onPointerDown={(pointer) => runtime.postPointer('pointerdown', pointer)}
-          onPointerLeave={runtime.clearHover}
-          onViewportPan={runtime.panViewport}
-          onViewportResize={runtime.resizeViewport}
-          onViewportZoom={runtime.zoomViewport}
-        />
-      </section>
+      <PlaygroundStage
+        document={runtime.document}
+        shapes={runtime.shapes}
+        stats={runtime.stats}
+        viewport={runtime.viewport}
+        onPointerMove={handlePointerMove}
+        onPointerDown={handlePointerDown}
+        onPointerLeave={runtime.clearHover}
+        onViewportPan={runtime.panViewport}
+        onViewportResize={runtime.resizeViewport}
+        onViewportZoom={runtime.zoomViewport}
+      />
     </main>
   )
 }
+
+const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
+  document,
+  stats,
+  history,
+  ready,
+  sabSupported,
+  scaleLabel,
+  selectedLabel,
+  onLoadDemo,
+  onLoadStress,
+  onDispatch,
+}: {
+  document: EditorDocument
+  stats: SceneStats
+  history: HistorySummary
+  ready: boolean
+  sabSupported: boolean
+  scaleLabel: string
+  selectedLabel: string
+  onLoadDemo: () => void
+  onLoadStress: () => void
+  onDispatch: (command: EditorRuntimeCommand) => void
+}) {
+  return (
+    <aside className="playground-panel">
+      <RuntimeIntroBlock />
+      <DocumentBlock
+        documentName={document.name}
+        documentShapeCount={document.shapes.length}
+        snapshotShapeCount={stats.shapeCount}
+        version={stats.version}
+      />
+      <ViewportBlock
+        ready={ready}
+        sabSupported={sabSupported}
+        scaleLabel={scaleLabel}
+        selectedLabel={selectedLabel}
+      />
+      <CommandsBlock
+        onLoadDemo={onLoadDemo}
+        onLoadStress={onLoadStress}
+        onDispatch={onDispatch}
+      />
+      <HistoryBlock history={history} />
+
+      <RendererDiagnosticsPanel />
+    </aside>
+  )
+})
+
+const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock() {
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Runtime</span>
+      <strong className="panel-title">Worker + SAB + Skia</strong>
+      <p className="panel-copy">
+        Validate the shared runtime loop without product UI.
+      </p>
+    </div>
+  )
+})
+
+const DocumentBlock = React.memo(function DocumentBlock({
+  documentName,
+  documentShapeCount,
+  snapshotShapeCount,
+  version,
+}: {
+  documentName: string
+  documentShapeCount: number
+  snapshotShapeCount: number
+  version: number
+}) {
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Document</span>
+      <ul className="panel-list">
+        <li>{documentName}</li>
+        <li>{documentShapeCount} nodes</li>
+        <li>{snapshotShapeCount} snapshot shapes</li>
+        <li>version {version}</li>
+      </ul>
+    </div>
+  )
+})
+
+const ViewportBlock = React.memo(function ViewportBlock({
+  ready,
+  sabSupported,
+  scaleLabel,
+  selectedLabel,
+}: {
+  ready: boolean
+  sabSupported: boolean
+  scaleLabel: string
+  selectedLabel: string
+}) {
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Viewport</span>
+      <ul className="panel-list">
+        <li>ready: {String(ready)}</li>
+        <li>SAB: {String(sabSupported)}</li>
+        <li>scale: {scaleLabel}</li>
+        <li>selected: {selectedLabel}</li>
+      </ul>
+    </div>
+  )
+})
+
+const CommandsBlock = React.memo(function CommandsBlock({
+  onLoadDemo,
+  onLoadStress,
+  onDispatch,
+}: {
+  onLoadDemo: () => void
+  onLoadStress: () => void
+  onDispatch: (command: EditorRuntimeCommand) => void
+}) {
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Commands</span>
+      <div className="panel-actions">
+        <button onClick={onLoadDemo}>Demo Scene</button>
+        <button onClick={onLoadStress}>100k Scene</button>
+        <button onClick={() => onDispatch({type: 'viewport.fit'})}>Fit</button>
+        <button onClick={() => onDispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
+        <button onClick={() => onDispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
+        <button onClick={() => onDispatch({type: 'shape.insert', shape: createRandomRectangle()})}>
+          Insert Rect
+        </button>
+        <button onClick={() => onDispatch({type: 'history.undo'})}>Undo</button>
+        <button onClick={() => onDispatch({type: 'history.redo'})}>Redo</button>
+        <button onClick={() => onDispatch({type: 'selection.delete'})}>Delete Selected</button>
+      </div>
+    </div>
+  )
+})
+
+const HistoryBlock = React.memo(function HistoryBlock({
+  history,
+}: {
+  history: HistorySummary
+}) {
+  return (
+    <div className="panel-block">
+      <span className="panel-label">History</span>
+      <ul className="panel-list">
+        <li>entries: {history.entries.length}</li>
+        <li>cursor: {history.cursor}</li>
+        <li>canUndo: {String(history.canUndo)}</li>
+        <li>canRedo: {String(history.canRedo)}</li>
+      </ul>
+    </div>
+  )
+})
+
+const PlaygroundStage = React.memo(function PlaygroundStage({
+  document,
+  shapes,
+  stats,
+  viewport,
+  onPointerMove,
+  onPointerDown,
+  onPointerLeave,
+  onViewportPan,
+  onViewportResize,
+  onViewportZoom,
+}: {
+  document: EditorDocument
+  shapes: SceneShapeSnapshot[]
+  stats: SceneStats
+  viewport: CanvasViewportState
+  onPointerMove: (pointer: { x: number; y: number }) => void
+  onPointerDown: (pointer: { x: number; y: number }) => void
+  onPointerLeave: VoidFunction
+  onViewportPan: (deltaX: number, deltaY: number) => void
+  onViewportResize: (width: number, height: number) => void
+  onViewportZoom: (nextScale: number, anchor?: { x: number; y: number }) => void
+}) {
+  return (
+    <section className="playground-stage">
+      <CanvasViewport
+        document={document}
+        renderer={SkiaRenderer}
+        shapes={shapes}
+        stats={stats}
+        viewport={viewport}
+        onPointerMove={onPointerMove}
+        onPointerDown={onPointerDown}
+        onPointerLeave={onPointerLeave}
+        onViewportPan={onViewportPan}
+        onViewportResize={onViewportResize}
+        onViewportZoom={onViewportZoom}
+      />
+    </section>
+  )
+})
 
 function RendererDiagnosticsPanel() {
   const renderDiagnostics = useSkiaRenderDiagnostics()

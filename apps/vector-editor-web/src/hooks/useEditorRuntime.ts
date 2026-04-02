@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from 'react'
+import {useCallback, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@lite-u/ui'
 import {nid, type ToolName} from '@venus/document-core'
 import {useCanvasRuntime} from '@venus/canvas-base'
@@ -68,11 +68,17 @@ const useEditorRuntime = (options?: {
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
-  const runtimeOptions = {
+  const createWorker = useCallback(
+    () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
+    [],
+  )
+  // Keep runtime boot options referentially stable so viewport updates do not
+  // accidentally recreate the controller layer.
+  const runtimeOptions = useMemo(() => ({
     capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
-    createWorker: () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
+    createWorker,
     document,
-  }
+  }), [createWorker, document])
   const canvasRuntime = useCanvasRuntime(runtimeOptions)
   const {add} = useNotification()
   const {t} = useTranslation()

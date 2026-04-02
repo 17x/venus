@@ -123,7 +123,13 @@ export function CanvasViewport({
         }
 
         const rect = node.getBoundingClientRect()
-        const delta = event.deltaY < 0 ? 1.08 : 1 / 1.08
+        const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 0.06
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? 0.12
+            : 0.02
+        const normalizedDelta = Math.max(-160, Math.min(160, event.deltaY))
+        const delta = Math.exp(-normalizedDelta * deltaScale)
         setRenderQuality((current) => (current === 'interactive' ? current : 'interactive'))
         wheelZoomRef.current.factor *= delta
         wheelZoomRef.current.anchor = {
@@ -361,9 +367,6 @@ export function CanvasViewport({
     return () => {
       if (frameStateRef.current.pointer !== null) {
         cancelAnimationFrame(frameStateRef.current.pointer)
-      }
-      if (frameStateRef.current.wheel !== null) {
-        cancelAnimationFrame(frameStateRef.current.wheel)
       }
     }
   }, [])

@@ -15,9 +15,14 @@ import {
 export function useCanvasRuntime<TDocument extends EditorDocument>(
   options: CanvasRuntimeControllerOptions<TDocument>,
 ) {
+  const {capacity, createWorker, document} = options
   const controller = React.useMemo(
-    () => createCanvasRuntimeController(options),
-    [options],
+    () => createCanvasRuntimeController({
+      capacity,
+      createWorker,
+      document,
+    }),
+    [capacity, createWorker, document],
   )
   const [snapshot, setSnapshot] = React.useState<CanvasRuntimeSnapshot<TDocument>>(
     controller.getSnapshot(),
