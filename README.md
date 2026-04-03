@@ -12,12 +12,11 @@ This repository uses `pnpm` workspaces.
 
 Current active package flow for the editor stack:
 
-- `@venus/editor-core`
+- `@venus/document-core`
 - `@venus/shared-memory`
 - `@venus/editor-worker`
 - `@venus/renderer-skia`
 - `@venus/ui`
-- `@venus/editor-ui`
 
 ## Requirements
 

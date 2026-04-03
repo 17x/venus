@@ -1,86 +1,265 @@
-import type { SceneShapeSnapshot } from '@venus/shared-memory'
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
+import {useEffect, useState} from 'react'
+import {ProtectedInput} from './protectedInput.tsx'
+import {Con, Panel} from '@lite-u/ui'
+import type {ElementProps} from '@lite-u/editor/types'
+import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 
 interface PropPanelProps {
-  onCommand: (command: EditorRuntimeCommand) => void
-  selectedShape: SceneShapeSnapshot | null
+  props?: ElementProps
+  executeAction: EditorExecutor
 }
 
-/**
- * Simplified property panel that recreates the old right-panel editing flow
- * against the new shape command vocabulary.
- */
-export default function PropPanel({ onCommand, selectedShape }: PropPanelProps) {
-  if (!selectedShape) {
-    return (
-      <section className="panel-card vision-panel">
-        <div className="vision-panel-header">
-          <p className="eyebrow">Properties</p>
-        </div>
-        <div className="vision-empty-state">Select a shape to edit its frame.</div>
-      </section>
-    )
+const PropPanel = ({props, executeAction}: PropPanelProps) => {
+  const [localProps, setLocalProps] = useState(props)
+
+  useEffect(() => {
+    setLocalProps(props)
+  }, [props])
+
+  return <Con p={10} h={'33.33%'}>
+    <Panel xs head={'Properties'}
+           contentStyle={{
+             overflow: 'hidden',
+           }}>
+      <Con p={10} fh
+           className={'scrollbar-custom overflow-x-hidden overflow-y-auto  border  border-gray-200 select-none'}>
+        {localProps && <ShapePropsPanel props={localProps} executeAction={executeAction}/>}
+      </Con>
+    </Panel>
+  </Con>
+}
+
+export default PropPanel
+
+const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeAction: EditorExecutor }) => {
+  const fill = {
+    enabled: props.fill?.enabled ?? true,
+    color: props.fill?.color ?? '#000000',
+  }
+  const stroke = {
+    enabled: props.stroke?.enabled ?? true,
+    color: props.stroke?.color ?? '#000000',
+    weight: props.stroke?.weight ?? 1,
   }
 
-  const commitMove = (key: 'x' | 'y', value: number) => {
-    onCommand({
-      type: 'shape.move',
-      shapeId: selectedShape.id,
-      x: key === 'x' ? value : selectedShape.x,
-      y: key === 'y' ? value : selectedShape.y,
-    })
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const keyName = e.target.name as Extract<keyof ElementProps, string>
+    let newValue: string | number = e.target.value
+
+    // @ts-ignore
+    if (['x', 'y', 'width', 'height', 'rotation'].includes(keyName)) {
+      newValue = Number(newValue)
+    } else if (['x', 'y', 'width', 'height', 'rotation'].includes(keyName)) {
+      newValue = Number(newValue)
+    }
+
+    // console.log(keyName,newValue)
+    executeAction('element-modify', [{
+      id: props.id,
+      props: {
+        [keyName]: newValue,
+      },
+    }])
+
+    e.preventDefault()
+    e.stopPropagation()
   }
 
-  const commitResize = (key: 'width' | 'height', value: number) => {
-    onCommand({
-      type: 'shape.resize',
-      shapeId: selectedShape.id,
-      width: key === 'width' ? value : selectedShape.width,
-      height: key === 'height' ? value : selectedShape.height,
-    })
-  }
-
-  return (
-    <section className="panel-card vision-panel">
-      <div className="vision-panel-header">
-        <p className="eyebrow">Properties</p>
-        <strong>{selectedShape.name}</strong>
+  return <div className="z-30 text-sm">
+    {/* Shape Properties Group */}
+    <div className="mb-1 ">
+      <div className=" w-full h-full flex justify-between items-center">
+        <span className={''}>X:</span>
+        <ProtectedInput
+          type="number"
+          name="x"
+          value={props.x ?? props.cx ?? 0}
+          onChange={handleChange}
+          className="w-16  py-1 text-black rounded"
+        />
       </div>
-
-      <div className="vision-prop-grid">
-        <label className="vision-prop-field">
-          <span>X</span>
-          <input
-            type="number"
-            value={Math.round(selectedShape.x)}
-            onChange={(event) => commitMove('x', Number(event.target.value))}
-          />
-        </label>
-        <label className="vision-prop-field">
-          <span>Y</span>
-          <input
-            type="number"
-            value={Math.round(selectedShape.y)}
-            onChange={(event) => commitMove('y', Number(event.target.value))}
-          />
-        </label>
-        <label className="vision-prop-field">
-          <span>W</span>
-          <input
-            type="number"
-            value={Math.round(selectedShape.width)}
-            onChange={(event) => commitResize('width', Number(event.target.value))}
-          />
-        </label>
-        <label className="vision-prop-field">
-          <span>H</span>
-          <input
-            type="number"
-            value={Math.round(selectedShape.height)}
-            onChange={(event) => commitResize('height', Number(event.target.value))}
-          />
-        </label>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span className={''}>Y:</span>
+        <ProtectedInput
+          type="number"
+          name="y"
+          value={props.y ?? props.cy ?? 0}
+          onChange={handleChange}
+          className="w-16  py-1 text-black rounded"
+        />
       </div>
-    </section>
-  )
+      {
+        props.type === 'ellipse' && <>
+              <div className=" w-full h-full flex justify-between items-center">
+                  <span className={''}>r1:</span>
+                  <ProtectedInput
+                      type="number"
+                      name="r1"
+                      value={props.r1 ?? 0}
+                      onChange={handleChange}
+                      className="w-16  py-1 text-black rounded"
+                  />
+              </div>
+              <div className=" w-full h-full flex justify-between items-center">
+                  <span>r2:</span>
+                  <ProtectedInput
+                      type="number"
+                      name="r2"
+                      value={props.r2 ?? 0}
+                      onChange={handleChange}
+                      className="w-16  py-1 text-black rounded"
+                  />
+              </div>
+          </>
+      }
+      <div className=" w-full h-full flex justify-between items-center">
+        <span className={''}>Width:</span>
+        <ProtectedInput
+          type="number"
+          name="width"
+          value={props.width ?? 0}
+          onChange={handleChange}
+          className="w-16  py-1 text-black rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Height:</span>
+        <ProtectedInput
+          type="number"
+          name="height"
+          value={props.height ?? 0}
+          onChange={handleChange}
+          className="w-16  py-1 text-black rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Rotation:</span>
+        <ProtectedInput
+          type="number"
+          name="rotation"
+          value={props.rotation ?? 0}
+          onChange={handleChange}
+          className="w-16  py-1 text-black rounded"
+        />
+      </div>
+    </div>
+
+    {/* Fill and Line Properties Group */}
+    <div className="mb-1">
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Enable Fill</span>
+        <ProtectedInput
+          type="checkbox"
+          name="enableFill"
+          checked={fill.enabled}
+          onChange={(e) => {
+            // console.log(e.target.checked)
+            executeAction('element-modify', [{
+              id: props.id,
+              props: {
+                fill: {enabled: e.target.checked},
+              },
+            }])
+          }}
+          className="ml-2"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Fill Color:</span>
+        <ProtectedInput
+          type="color"
+          name="fillColor"
+          value={fill.color}
+          // onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            // console.log(e)
+            executeAction('element-modify', [{
+              id: props.id,
+              props: {
+                fill: {color: e.target.value},
+              },
+            }])
+          }}
+          // onChange={handleChange}
+          className="w-10 h-10 p-1 rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Enable Line</span>
+        <ProtectedInput
+          type="checkbox"
+          name="enableLine"
+          defaultChecked={stroke.enabled}
+          onChange={(e) => {
+            executeAction('element-modify', [{
+              id: props.id,
+              props: {
+                stroke: {enabled: e.target.checked},
+              },
+            }])
+          }}
+          className="ml-2"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Line Color:</span>
+        <ProtectedInput
+          type="color"
+          name="lineColor"
+          value={stroke.color}
+          onChange={(e) => {
+            executeAction('element-modify', [{
+              id: props.id,
+              props: {
+                stroke: {color: e.target.value},
+              },
+            }])
+          }}
+          className="w-10 h-10 p-1 rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span className={''}>Line Width:</span>
+        <ProtectedInput
+          type="number"
+          name="lineWidth"
+          step={0.25}
+          value={stroke.weight}
+          onChange={(e)=>{
+            executeAction('element-modify', [{
+              id: props.id,
+              props: {
+                stroke: {weight: Number(e.target.value)},
+              },
+            }])
+          }}
+          className="w-16  py-1 text-black rounded"
+        />
+      </div>
+    </div>
+
+    {/* Appearance Group */}
+    <div className="mb-1">
+      {/*<div className=" w-full h-full flex justify-between items-center">
+        <span>Shadow</span>
+        <ProtectedInput
+          type="checkbox"
+          name="shadow"
+          defaultChecked={props.shadow}
+          onChange={handleChange}
+          className="ml-2"
+        />
+      </div>*/}
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Opacity:</span>
+        <ProtectedInput
+          type="number"
+          name="opacity"
+          value={props.opacity ?? 1}
+          onChange={handleChange}
+          className="w-16  py-1 text-black rounded"
+        />
+      </div>
+    </div>
+  </div>
 }

@@ -1,3 +1,9 @@
+/**
+ * Minimal 3x3 affine matrix representation used by canvas-base viewport math.
+ *
+ * The runtime currently only needs uniform scale + translation, but keeping the
+ * shape as Mat3 makes forward/inverse transforms explicit and easy to reuse.
+ */
 export type Mat3 = [
   number,
   number,
@@ -10,11 +16,17 @@ export type Mat3 = [
   number,
 ]
 
+/**
+ * Basic 2D point in screen or world space depending on call site.
+ */
 export interface Point2D {
   x: number
   y: number
 }
 
+/**
+ * Build a viewport matrix from scale and translation offsets.
+ */
 export function createViewportMatrix(
   scale: number,
   offsetX: number,
@@ -27,6 +39,10 @@ export function createViewportMatrix(
   ]
 }
 
+/**
+ * Invert the viewport matrix so pointer events can be projected from screen
+ * space back into document/world space.
+ */
 export function invertViewportMatrix(matrix: Mat3): Mat3 {
   const [a, c, tx, b, d, ty] = matrix
   const determinant = a * d - b * c
@@ -54,6 +70,9 @@ export function invertViewportMatrix(matrix: Mat3): Mat3 {
   ]
 }
 
+/**
+ * Apply a 2D affine matrix to a point.
+ */
 export function applyMatrixToPoint(matrix: Mat3, point: Point2D): Point2D {
   return {
     x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],

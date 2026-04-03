@@ -36,7 +36,7 @@ Today it provides two public entry points:
 
 Those belong in other packages:
 
-- `@venus/editor-ui`: shared editor-facing React UI
+- app UI shell or future shared UI layer: menus, panels, shell layout
 - `@venus/editor-worker`: worker-side compute and command handling
 - `@venus/renderer-*`: rendering adapters
 - `@venus/file-format/*`: snapshot protocol and migrations
@@ -134,7 +134,7 @@ Returned state includes:
 ```ts
 import { useMemo } from 'react'
 import { useCanvasRuntime } from '@venus/canvas-base'
-import { createStarterDocument } from '@venus/editor-core'
+import { createStarterDocument } from '../../apps/vector-editor-web/src/fixtures/createStarterDocument.ts'
 
 const SCENE_CAPACITY = 256
 
@@ -163,7 +163,7 @@ When another app builds on `canvas-base`, prefer this split:
 
 - `canvas-base`: runtime lifecycle and event bridge
 - app package or app root: document creation, worker entry, extensions
-- `editor-ui` or app UI package: menus, panels, shell layout
+- app UI package: menus, panels, shell layout
 
 A good rule:
 
@@ -199,15 +199,15 @@ To keep `canvas-base` maintainable over time:
   Owns the binary scene layout and typed-array helpers.
 - `@venus/editor-worker`
   Owns worker-side message handling and command execution.
-- `@venus/editor-core`
+- `@venus/document-core`
   Owns the current document model used by the starter editor.
-- `@venus/editor-ui`
-  Owns shared React editor shell and reusable UI composition.
+- app UI shell
+  Owns product-specific React editor composition unless a shared UI layer emerges later.
 
 ## Current Limitation
 
 Right now `canvas-base` is typed against the current `EditorDocument` from
-`@venus/editor-core`.
+`@venus/document-core`.
 
 That is a practical first step, not the final abstraction boundary.
 

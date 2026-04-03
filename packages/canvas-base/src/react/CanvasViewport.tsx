@@ -1,14 +1,21 @@
 import * as React from 'react'
-import type { EditorDocument } from '@venus/editor-core'
-import type { PointerState, SceneShapeSnapshot } from '@venus/shared-memory'
+import type { EditorDocument } from '@venus/document-core'
+import type { PointerState, SceneShapeSnapshot, SceneStats } from '@venus/shared-memory'
 import type { CanvasRenderer } from '../renderer/types.ts'
-import { applyMatrixToPoint } from '../viewport/matrix.ts'
+import {
+  applyViewportPreviewTransform,
+  resolveViewportPreviewOverscan,
+} from '../viewport/preview.ts'
 import type { CanvasViewportState } from '../viewport/types.ts'
+import { bindViewportGestures } from '../gesture/index.ts'
+
+const SLOW_VIEWPORT_RENDER_MS = 8
 
 interface CanvasViewportProps {
   document: EditorDocument
   renderer?: CanvasRenderer
   shapes: SceneShapeSnapshot[]
+  stats: SceneStats
   viewport: CanvasViewportState
   onPointerMove?: (pointer: PointerState) => void
   onPointerDown?: (pointer: PointerState) => void
@@ -23,13 +30,14 @@ interface CanvasViewportProps {
  * Shared viewport entry for all canvas renderers.
  *
  * Why:
- * - `editor-ui` should not know which concrete renderer package is in use.
+ * - app UI should not know which concrete renderer package is in use.
  * - apps can choose a renderer or omit one entirely during bring-up.
  */
 export function CanvasViewport({
   document,
   renderer: Renderer,
   shapes,
+  stats,
   viewport,
   onPointerMove,
   onPointerDown,
@@ -39,10 +47,48 @@ export function CanvasViewport({
   onViewportResize,
   onViewportZoom,
 }: CanvasViewportProps) {
+  const renderStart = performance.now()
+  const [renderQuality, setRenderQuality] = React.useState<'full' | 'interactive'>('full')
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
-  const panOriginRef = React.useRef<{ x: number; y: number } | null>(null)
+  const previewLayerRef = React.useRef<HTMLDivElement | null>(null)
+  const previewPanOffsetRef = React.useRef({ x: 0, y: 0 })
+  const pendingViewportSyncRef = React.useRef(false)
+  const viewportStateRef = React.useRef(viewport)
+  const onViewportPanRef = React.useRef(onViewportPan)
+  const onViewportZoomRef = React.useRef(onViewportZoom)
+  const onPointerMoveRef = React.useRef(onPointerMove)
+  const onPointerDownRef = React.useRef(onPointerDown)
+  const onPointerUpRef = React.useRef(onPointerUp)
+  const onPointerLeaveRef = React.useRef(onPointerLeave)
+
+  viewportStateRef.current = viewport
+  onViewportPanRef.current = onViewportPan
+  onViewportZoomRef.current = onViewportZoom
+  onPointerMoveRef.current = onPointerMove
+  onPointerDownRef.current = onPointerDown
+  onPointerUpRef.current = onPointerUp
+  onPointerLeaveRef.current = onPointerLeave
 
   React.useEffect(() => {
+    if (!pendingViewportSyncRef.current) {
+      return
+    }
+
+    pendingViewportSyncRef.current = false
+    previewPanOffsetRef.current = { x: 0, y: 0 }
+    applyViewportPreviewTransform(
+      previewLayerRef.current,
+      {
+        panOffset: previewPanOffsetRef.current,
+        zoom: { factor: 1, anchor: null },
+      },
+      resolveViewportPreviewOverscan(viewport),
+    )
+  }, [viewport.matrix[2], viewport.matrix[5], viewport.scale])
+
+  React.useEffect(() => {
+    // Resize is resolved here so apps do not need to wire DOM measurement into
+    // runtime state manually.
     if (!viewportRef.current || !onViewportResize || typeof ResizeObserver === 'undefined') {
       return
     }
@@ -65,122 +111,113 @@ export function CanvasViewport({
       return
     }
 
-    // Some browsers surface trackpad pinch as native wheel/gesture events that
-    // can zoom the whole page. We explicitly consume them on the canvas region
-    // so only the editor viewport responds.
-    const handleNativeWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-      }
-    }
-    const preventGesture = (event: Event) => {
-      event.preventDefault()
-    }
-
-    node.addEventListener('wheel', handleNativeWheel, { passive: false })
-    node.addEventListener('gesturestart', preventGesture as EventListener, { passive: false })
-    node.addEventListener('gesturechange', preventGesture as EventListener, { passive: false })
-    node.addEventListener('gestureend', preventGesture as EventListener, { passive: false })
-
-    return () => {
-      node.removeEventListener('wheel', handleNativeWheel)
-      node.removeEventListener('gesturestart', preventGesture as EventListener)
-      node.removeEventListener('gesturechange', preventGesture as EventListener)
-      node.removeEventListener('gestureend', preventGesture as EventListener)
-    }
+    return bindViewportGestures({
+      element: node,
+      getViewportState: () => viewportStateRef.current,
+      onPointerMove: (pointer) => {
+        onPointerMoveRef.current?.(pointer)
+      },
+      onPointerDown: (pointer) => {
+        onPointerDownRef.current?.(pointer)
+      },
+      onPointerUp: () => {
+        onPointerUpRef.current?.()
+      },
+      onPointerLeave: () => {
+        onPointerLeaveRef.current?.()
+      },
+      onZoomingChange: (active) => {
+        setRenderQuality(active ? 'interactive' : 'full')
+      },
+      onZoomCommit: (nextScale, anchor) => {
+        onViewportZoomRef.current?.(nextScale, anchor)
+      },
+      onPanPreview: (deltaX, deltaY) => {
+        previewPanOffsetRef.current = { x: deltaX, y: deltaY }
+        applyViewportPreviewTransform(
+          previewLayerRef.current,
+          {
+            panOffset: previewPanOffsetRef.current,
+            zoom: { factor: 1, anchor: null },
+          },
+          resolveViewportPreviewOverscan(viewportStateRef.current),
+        )
+      },
+      onPanCommit: (deltaX, deltaY) => {
+        pendingViewportSyncRef.current = true
+        onViewportPanRef.current?.(deltaX, deltaY)
+      },
+    })
   }, [])
 
-  const resolvePointer = (
-    event: React.PointerEvent<HTMLDivElement>,
-    handler?: (pointer: PointerState) => void,
-  ) => {
-    if (!handler) {
-      return
+  const rendererNode = React.useMemo(() => {
+    if (!Renderer) {
+      return null
     }
 
-    const rect = event.currentTarget.getBoundingClientRect()
-    handler(
-      applyMatrixToPoint(viewport.inverseMatrix, {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      }),
+    const panOverscan = resolveViewportPreviewOverscan(viewport)
+
+    const renderViewport = {
+      ...viewport,
+      matrix: [
+        viewport.matrix[0],
+        viewport.matrix[1],
+        viewport.matrix[2] + panOverscan,
+        viewport.matrix[3],
+        viewport.matrix[4],
+        viewport.matrix[5] + panOverscan,
+        viewport.matrix[6],
+        viewport.matrix[7],
+        viewport.matrix[8],
+      ] as typeof viewport.matrix,
+      viewportWidth: viewport.viewportWidth + panOverscan * 2,
+      viewportHeight: viewport.viewportHeight + panOverscan * 2,
+    }
+
+    return (
+      <div
+        ref={previewLayerRef}
+        style={{
+          width: `calc(100% + ${panOverscan * 2}px)`,
+          height: `calc(100% + ${panOverscan * 2}px)`,
+          marginLeft: -panOverscan,
+          marginTop: -panOverscan,
+          transform: 'translate(0px, 0px)',
+        }}
+      >
+        <Renderer
+          document={document}
+          shapes={shapes}
+          stats={stats}
+          viewport={renderViewport}
+          renderQuality={renderQuality}
+        />
+      </div>
     )
-  }
+  }, [Renderer, document, renderQuality, shapes, stats, viewport])
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault()
-      if (!onViewportZoom) {
-        return
-      }
-
-      const rect = event.currentTarget.getBoundingClientRect()
-      const delta = event.deltaY < 0 ? 1.08 : 1 / 1.08
-      onViewportZoom(viewport.scale * delta, {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      })
-      return
-    }
-
-    if (!onViewportPan) {
-      return
-    }
-
-    event.preventDefault()
-    onViewportPan(-event.deltaX, -event.deltaY)
-  }
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button === 1 || event.altKey) {
-      panOriginRef.current = { x: event.clientX, y: event.clientY }
-      event.currentTarget.setPointerCapture(event.pointerId)
-      return
-    }
-
-    resolvePointer(event, onPointerDown)
-  }
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (panOriginRef.current && onViewportPan) {
-      const deltaX = event.clientX - panOriginRef.current.x
-      const deltaY = event.clientY - panOriginRef.current.y
-      panOriginRef.current = { x: event.clientX, y: event.clientY }
-      onViewportPan(deltaX, deltaY)
-      return
-    }
-
-    resolvePointer(event, onPointerMove)
-  }
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (panOriginRef.current) {
-      panOriginRef.current = null
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
+  const renderMs = performance.now() - renderStart
+  if (renderMs >= SLOW_VIEWPORT_RENDER_MS) {
+    console.debug('CANVAS-BASE slow viewport render', {
+      renderMs: Number(renderMs.toFixed(2)),
+      shapeCount: stats.shapeCount,
+      scale: Number(viewport.scale.toFixed(3)),
+      renderQuality,
+    })
   }
 
   if (Renderer) {
     return (
       <section className="stage-shell">
-        <div className="stage-meta">
-          <span>Renderer</span>
-          <strong>Canvas runtime viewport</strong>
-        </div>
-
         <div
           ref={viewportRef}
           className="stage-viewport"
-          onWheel={handleWheel}
-          onPointerMove={handlePointerMove}
-          onPointerDown={handlePointerDown}
-          onPointerUp={(event) => {
-            handlePointerUp(event)
-            onPointerUp?.()
+          style={{
+            touchAction: 'none',
+            overscrollBehavior: 'none',
           }}
-          onPointerLeave={onPointerLeave}
         >
-          <Renderer document={document} shapes={shapes} viewport={viewport} />
+          {rendererNode}
         </div>
       </section>
     )
@@ -188,6 +225,8 @@ export function CanvasViewport({
 
   return (
     <section className="stage-shell">
+      {/* Fallback path used while bring-up is in progress or when an app wants
+          to inspect runtime data before attaching a concrete renderer. */}
       <div className="stage-meta">
         <span>Renderer</span>
         <strong>No renderer selected</strong>
@@ -196,14 +235,10 @@ export function CanvasViewport({
       <div
         ref={viewportRef}
         className="stage-viewport"
-        onWheel={handleWheel}
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerDown}
-        onPointerUp={(event) => {
-          handlePointerUp(event)
-          onPointerUp?.()
+        style={{
+          touchAction: 'none',
+          overscrollBehavior: 'none',
         }}
-        onPointerLeave={onPointerLeave}
       >
         <div
           className="stage-transform stage-fallback-canvas"
@@ -216,9 +251,6 @@ export function CanvasViewport({
             color: 'rgba(15, 23, 42, 0.6)',
             fontWeight: 600,
           }}
-          onPointerMove={(event) => resolvePointer(event, onPointerMove)}
-          onPointerDown={(event) => resolvePointer(event, onPointerDown)}
-          onPointerLeave={onPointerLeave}
         >
           <span>{shapes.length} shapes loaded, but no renderer is attached.</span>
         </div>

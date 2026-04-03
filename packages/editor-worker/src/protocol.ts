@@ -1,6 +1,6 @@
-import type { CollaborationOperation, CollaborationState } from '@venus/collaboration'
-import type { EditorDocument, ShapeRecord, ToolId } from '@venus/editor-core'
-import type { HistorySummary } from '@venus/history'
+import type { DocumentNode, EditorDocument, ToolId } from '@venus/document-core'
+import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
+import type { HistorySummary } from './history.ts'
 import type { PointerState } from '@venus/shared-memory'
 
 /**
@@ -57,12 +57,14 @@ export type EditorRuntimeCommand =
   | { type: 'tool.select'; tool: ToolId }
   | { type: 'shape.move'; shapeId: string; x: number; y: number }
   | { type: 'shape.resize'; shapeId: string; width: number; height: number }
-  | { type: 'shape.insert'; shape: ShapeRecord; index?: number }
+  | { type: 'shape.reorder'; shapeId: string; toIndex: number }
+  | { type: 'shape.insert'; shape: DocumentNode; index?: number }
   | { type: 'shape.remove'; shapeId: string }
 
 export interface SceneUpdateMessage {
   type: 'scene-ready' | 'scene-update'
-  document: EditorDocument
+  updateKind: 'full' | 'flags'
+  document?: EditorDocument
   stats: {
     version: number
     shapeCount: number

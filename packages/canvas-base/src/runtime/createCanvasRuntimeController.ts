@@ -1,7 +1,11 @@
-import type { CollaborationOperation, CollaborationState } from '@venus/collaboration'
-import type { EditorDocument } from '@venus/editor-core'
-import type { EditorRuntimeCommand, SceneUpdateMessage } from '@venus/editor-worker'
-import type { HistorySummary } from '@venus/history'
+import type { EditorDocument } from '@venus/document-core'
+import type {
+  CollaborationOperation,
+  CollaborationState,
+  EditorRuntimeCommand,
+  HistorySummary,
+  SceneUpdateMessage,
+} from '@venus/editor-worker'
 import {
   attachSceneMemory,
   createSceneMemory,
@@ -12,13 +16,24 @@ import {
   type SceneShapeSnapshot,
   type SceneStats,
 } from '@venus/shared-memory'
+import type {Point2D} from '../viewport/matrix.ts'
 import {
-  createViewportMatrix,
-  invertViewportMatrix,
-  type Point2D,
-} from '../viewport/matrix.ts'
-import type { CanvasViewportState } from '../viewport/types.ts'
+  DEFAULT_VIEWPORT,
+  fitViewportToDocument,
+  panViewportState,
+  resizeViewportState,
+  zoomViewportState,
+} from '../viewport/controller.ts'
+import type {CanvasViewportState} from '../viewport/types.ts'
 
+/**
+ * Snapshot shape consumed by app shells.
+ *
+ * It merges:
+ * - source document state
+ * - worker-produced scene stats/history/collaboration state
+ * - local viewport state owned by canvas-base
+ */
 export interface CanvasRuntimeSnapshot<TDocument extends EditorDocument> {
   collaboration: CollaborationState
   document: TDocument
@@ -30,12 +45,25 @@ export interface CanvasRuntimeSnapshot<TDocument extends EditorDocument> {
   viewport: CanvasViewportState
 }
 
+/**
+ * Minimal boot contract needed to create a runtime instance.
+ *
+ * Apps provide the initial document and a worker factory; canvas-base owns the
+ * lifecycle, viewport, and snapshot subscription model on top of that.
+ */
 export interface CanvasRuntimeControllerOptions<TDocument extends EditorDocument> {
   capacity: number
   createWorker: () => Worker
   document: TDocument
 }
 
+/**
+ * Imperative runtime surface used by React hooks and tests.
+ *
+ * The controller intentionally hides worker message details so app code only
+ * deals with higher-level actions such as pointer dispatch, commands, and
+ * viewport operations.
+ */
 export interface CanvasRuntimeController<TDocument extends EditorDocument> {
   clearHover: () => void
   destroy: () => void
@@ -66,75 +94,14 @@ const DEFAULT_HISTORY_STATE: HistorySummary = {
   canRedo: false,
 }
 
+const SLOW_MESSAGE_HANDLER_MS = 16
+
 /**
  * Development-only trace helper for following the runtime bridge without
  * sprinkling raw `console.log` calls throughout the code.
  */
 function debugRuntime(message: string, details?: unknown) {
   console.debug('CANVAS-BASE', message, details)
-}
-
-const DEFAULT_VIEWPORT: CanvasViewportState = {
-  inverseMatrix: [
-    1, 0, -48,
-    0, 1, -48,
-    0, 0, 1,
-  ],
-  matrix: [
-    1, 0, 48,
-    0, 1, 48,
-    0, 0, 1,
-  ],
-  offsetX: 48,
-  offsetY: 48,
-  scale: 1,
-  viewportWidth: 0,
-  viewportHeight: 0,
-}
-
-function clampScale(scale: number) {
-  return Math.min(8, Math.max(0.1, scale))
-}
-
-function resolveViewportState(
-  viewport: Pick<CanvasViewportState, 'offsetX' | 'offsetY' | 'scale' | 'viewportWidth' | 'viewportHeight'>,
-): CanvasViewportState {
-  const matrix = createViewportMatrix(viewport.scale, viewport.offsetX, viewport.offsetY)
-
-  return {
-    ...viewport,
-    matrix,
-    inverseMatrix: invertViewportMatrix(matrix),
-  }
-}
-
-function fitViewportToDocument(
-  document: EditorDocument,
-  viewport: CanvasViewportState,
-): CanvasViewportState {
-  const { viewportWidth, viewportHeight } = viewport
-
-  if (viewportWidth <= 0 || viewportHeight <= 0) {
-    return viewport
-  }
-
-  const horizontalPadding = Math.max(32, viewportWidth * 0.08)
-  const verticalPadding = Math.max(32, viewportHeight * 0.08)
-  const availableWidth = Math.max(1, viewportWidth - horizontalPadding * 2)
-  const availableHeight = Math.max(1, viewportHeight - verticalPadding * 2)
-  const scale = clampScale(
-    Math.min(availableWidth / document.width, availableHeight / document.height),
-  )
-
-  return {
-    ...resolveViewportState({
-      viewportWidth,
-      viewportHeight,
-      scale,
-      offsetX: (viewportWidth - document.width * scale) / 2,
-      offsetY: (viewportHeight - document.height * scale) / 2,
-    }),
-  }
 }
 
 export function createCanvasRuntimeController<TDocument extends EditorDocument>({
@@ -152,6 +119,8 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     typeof crossOriginIsolated !== 'undefined' &&
     crossOriginIsolated
 
+  // `snapshot` is the single mutable runtime record. React hooks subscribe to
+  // controller updates and receive shallow-copied views of this object.
   const snapshot: CanvasRuntimeSnapshot<TDocument> = {
     collaboration: DEFAULT_COLLABORATION_STATE,
     document,
@@ -176,6 +145,8 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     listeners.forEach((listener) => listener())
   }
 
+  // Viewport updates stay local to canvas-base and do not round-trip through
+  // the worker because they only affect presentation, not document truth.
   const updateViewport = (updater: (viewport: CanvasViewportState) => CanvasViewportState) => {
     snapshot.viewport = updater(snapshot.viewport)
     notify()
@@ -186,13 +157,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const panViewport = (deltaX: number, deltaY: number) => {
-    updateViewport((viewport) => resolveViewportState({
-      offsetX: viewport.offsetX + deltaX,
-      offsetY: viewport.offsetY + deltaY,
-      scale: viewport.scale,
-      viewportWidth: viewport.viewportWidth,
-      viewportHeight: viewport.viewportHeight,
-    }))
+    updateViewport((viewport) => panViewportState(viewport, deltaX, deltaY))
   }
 
   const resizeViewport = (width: number, height: number) => {
@@ -205,53 +170,31 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
     const hadViewport = snapshot.viewport.viewportWidth > 0 && snapshot.viewport.viewportHeight > 0
 
-    updateViewport((viewport) => resolveViewportState({
-      offsetX: viewport.offsetX,
-      offsetY: viewport.offsetY,
-      scale: viewport.scale,
-      viewportWidth: width,
-      viewportHeight: height,
-    }))
-
     if (!hadViewport) {
-      fitViewport()
+      // First measured viewport previously triggered two notifications:
+      // 1) resize viewport
+      // 2) fit viewport
+      // Collapse both into one state transition to avoid an extra full redraw.
+      updateViewport((viewport) =>
+        fitViewportToDocument(
+          snapshot.document,
+          resizeViewportState(viewport, width, height),
+        ),
+      )
+      return
     }
+
+    updateViewport((viewport) => resizeViewportState(viewport, width, height))
   }
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
-    updateViewport((viewport) => {
-      const scale = clampScale(nextScale)
-
-      if (!anchor || viewport.scale === scale) {
-        return resolveViewportState({
-          offsetX: viewport.offsetX,
-          offsetY: viewport.offsetY,
-          scale,
-          viewportWidth: viewport.viewportWidth,
-          viewportHeight: viewport.viewportHeight,
-        })
-      }
-
-      const worldX =
-        viewport.inverseMatrix[0] * anchor.x +
-        viewport.inverseMatrix[1] * anchor.y +
-        viewport.inverseMatrix[2]
-      const worldY =
-        viewport.inverseMatrix[3] * anchor.x +
-        viewport.inverseMatrix[4] * anchor.y +
-        viewport.inverseMatrix[5]
-
-      return resolveViewportState({
-        scale,
-        offsetX: anchor.x - worldX * scale,
-        offsetY: anchor.y - worldY * scale,
-        viewportWidth: viewport.viewportWidth,
-        viewportHeight: viewport.viewportHeight,
-      })
-    })
+    updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
   }
 
   const handleWorkerMessage = (event: MessageEvent<SceneUpdateMessage>) => {
+    const handlerStart = performance.now()
+    let snapshotReadMs = 0
+
     if (event.data.type === 'scene-ready') {
       snapshot.ready = true
     }
@@ -260,16 +203,37 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       return
     }
 
-    snapshot.document = event.data.document as TDocument
+    // The worker owns scene mutation. canvas-base rebuilds a render-friendly
+    // snapshot from SAB + worker metadata after every update.
+    const nextStats = readSceneStats(scene)
     snapshot.history = event.data.history
     snapshot.collaboration = event.data.collaboration
-    snapshot.stats = readSceneStats(scene)
-    snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
+
+    if (event.data.updateKind === 'full' && event.data.document) {
+      snapshot.document = event.data.document as TDocument
+      const snapshotReadStart = performance.now()
+      snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
+      snapshotReadMs = performance.now() - snapshotReadStart
+    } else {
+      snapshot.shapes = patchSnapshotFlags(snapshot.shapes, snapshot.stats, nextStats)
+    }
+
+    snapshot.stats = nextStats
     debugRuntime(`worker -> ${event.data.type}`, {
-      shapeCount: snapshot.stats.shapeCount,
+      shapeCount: nextStats.shapeCount,
       historyEntries: snapshot.history.entries.length,
       lastOperationId: snapshot.collaboration.lastOperationId,
+      updateKind: event.data.updateKind,
     })
+    const totalHandlerMs = performance.now() - handlerStart
+    if (totalHandlerMs >= SLOW_MESSAGE_HANDLER_MS) {
+      debugRuntime('slow message handler', {
+        totalMs: Number(totalHandlerMs.toFixed(2)),
+        snapshotReadMs: Number(snapshotReadMs.toFixed(2)),
+        updateKind: event.data.updateKind,
+        shapeCount: nextStats.shapeCount,
+      })
+    }
     notify()
   }
 
@@ -278,6 +242,8 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       return
     }
 
+    // SAB memory is created on the main thread, then attached on both sides so
+    // worker writes and renderer reads stay zero-copy.
     const buffer = createSceneMemory(capacity)
     scene = attachSceneMemory(buffer, capacity)
     worker = createWorker()
@@ -341,4 +307,43 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     },
     zoomViewport,
   }
+}
+
+function patchSnapshotFlags(
+  shapes: SceneShapeSnapshot[],
+  previousStats: SceneStats,
+  nextStats: SceneStats,
+) {
+  if (shapes.length !== nextStats.shapeCount) {
+    return shapes
+  }
+
+  const changedIndices = new Set(
+    [
+      previousStats.hoveredIndex,
+      previousStats.selectedIndex,
+      nextStats.hoveredIndex,
+      nextStats.selectedIndex,
+    ].filter((index) => index >= 0 && index < shapes.length),
+  )
+
+  if (changedIndices.size === 0) {
+    return shapes
+  }
+
+  const nextShapes = shapes.slice()
+  changedIndices.forEach((index) => {
+    const shape = shapes[index]
+    if (!shape) {
+      return
+    }
+
+    nextShapes[index] = {
+      ...shape,
+      isHovered: index === nextStats.hoveredIndex,
+      isSelected: index === nextStats.selectedIndex,
+    }
+  })
+
+  return nextShapes
 }

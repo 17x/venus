@@ -1,40 +1,87 @@
-import type { EditorDocument } from '@venus/editor-core'
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
-import type { SceneShapeSnapshot } from '@venus/shared-memory'
+import {useEffect, useRef, useState} from 'react'
+import {Con, Panel} from '@lite-u/ui'
+import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 
 interface LayerPanelProps {
-  document: EditorDocument
-  onCommand: (command: EditorRuntimeCommand) => void
-  shapes: SceneShapeSnapshot[]
+  executeAction: EditorExecutor
+  layerItems: { id: string, name: string, show: boolean }[]
+  selectedIds: string[]
 }
 
-/**
- * Lightweight layer list that mirrors the old Vision panel behavior:
- * show document objects and let the user pick selection from the sidebar.
- */
-export function LayerPanel({ document, onCommand, shapes }: LayerPanelProps) {
-  const orderedShapes = [...shapes].reverse()
+const ITEM_HEIGHT = 28
+export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const targetRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [indexRange, setIndexRange] = useState([0, 10])
+  useEffect(() => {
+    /*  const closestOne = selected[selected.length - 1]
 
-  return (
-    <section className="panel-card vision-panel">
-      <div className="vision-panel-header">
-        <p className="eyebrow">Layer</p>
-        <strong>{document.shapes.length}</strong>
-      </div>
+      if (closestOne) {
+        const idx = elements.findIndex(x => x.id === closestOne)
 
-      <div className="vision-panel-scroll">
-        {orderedShapes.map((shape) => (
-          <button
-            key={shape.id}
-            type="button"
-            className={shape.isSelected ? 'vision-list-item active' : 'vision-list-item'}
-            onClick={() => onCommand({ type: 'selection.set', shapeId: shape.id })}
-          >
-            <span>{shape.name}</span>
-            <small>{shape.type}</small>
-          </button>
-        ))}
-      </div>
-    </section>
-  )
+        scrollRef.current?.scrollTo(0, idx * ITEM_HEIGHT)
+        console.log(idx * ITEM_HEIGHT)
+      }*/
+  }, [layerItems, selectedIds])
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return
+    const newScrollTop = scrollRef.current.scrollTop
+    const scrollUp = newScrollTop < scrollTop
+    const startIndex = Math.round(newScrollTop / ITEM_HEIGHT)
+    const endIndex = startIndex + 10
+
+    // console.log(newScrollTop)
+    if (scrollUp) {
+      if (indexRange[0] >= layerItems.length - 1) return
+    } else {
+      if (indexRange[1] >= layerItems.length - 1) return
+
+    }
+
+    setScrollTop(newScrollTop)
+    setIndexRange([startIndex, endIndex])
+  }
+
+  const arr = []
+
+  for (let i = indexRange[0]; i < indexRange[1]; i++) {
+    const item = layerItems[i]
+
+    if (item) {
+      arr.push(
+        <div ref={selectedIds?.includes(item.id) ? targetRef : null}
+             style={{height: ITEM_HEIGHT}}
+             className={selectedIds?.includes(item.id) ? 'bg-gray-400 text-white' : ''}
+             onClick={() => {
+               executeAction('selection-modify', {mode: 'replace', idSet: new Set([item.id])})
+             }}
+             id={`layer-element-${item.id}`}
+             key={item.id}>
+          {/*{item.id.match(/\d+$/)[0]}*/}
+          {item.name}
+        </div>,
+      )
+    }
+  }
+
+  return <Con p={10} h={'33.33%'}>
+    <Panel head={'Layer'}
+          xs
+           contentStyle={{
+             overflow: 'hidden',
+           }}>
+      <Con rela ovh>
+        <div ref={scrollRef}
+             onScroll={handleScroll}
+             className={'relative scrollbar-custom overflow-x-hidden overflow-y-auto p-2 border h-30 border-gray-200 select-none'}>
+          <div className={'absolute z-10 w-full top-0 left-0'} style={{
+            height: layerItems.length * ITEM_HEIGHT,
+          }}></div>
+          <div className={'z-20 w-full sticky top-0 left-0'}>{arr}</div>
+        </div>
+      </Con>
+    </Panel>
+  </Con>
 }

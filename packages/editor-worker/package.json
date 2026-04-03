@@ -7,9 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@venus/collaboration": "workspace:*",
-    "@venus/editor-core": "workspace:*",
-    "@venus/history": "workspace:*",
+    "@venus/document-core": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/spatial-index": "workspace:*"
   }

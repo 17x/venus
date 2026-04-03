@@ -18,5 +18,12 @@
     "flatbuffers": "^25.9.23",
     "rbush": "^4.0.1"
   },
+  "pnpm": {
+    "overrides": {
+      "vite": "8.0.2",
+      "rolldown": "1.0.0-rc.11",
+      "@rolldown/pluginutils": "1.0.0-rc.11"
+    }
+  },
   "packageManager": "pnpm@8.7.4"
 }

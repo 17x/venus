@@ -11,9 +11,7 @@
     "outDir": "./dist/types"
   },
   "references": [
-    { "path": "../collaboration/tsconfig.json" },
-    { "path": "../editor-core/tsconfig.json" },
-    { "path": "../history/tsconfig.json" },
+    { "path": "../document-core/tsconfig.json" },
     { "path": "../shared-memory/tsconfig.json" },
     { "path": "../spatial-index/tsconfig.json" }
   ],

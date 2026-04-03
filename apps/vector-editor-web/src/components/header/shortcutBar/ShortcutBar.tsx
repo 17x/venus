@@ -1,110 +1,121 @@
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
+import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from './Icons/LayerIcons.tsx'
+import {Fragment, ReactNode} from 'react'
+import {NamedIcon} from '../../lib/icon/icon.tsx'
+import {t} from 'i18next'
+import {I18nHistoryDataItem} from '../../../i18n/type'
+import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
 
-import { LayerDown, LayerToBottom, LayerToTop, LayerUp } from './Icons/LayerIcons.tsx'
+const IconSize = 20
 
-interface ShortcutBarProps {
-  canRedo: boolean
-  canUndo: boolean
-  hasSelection: boolean
-  onCommand: (command: EditorRuntimeCommand) => void
-  onInsertRectangle: VoidFunction
-}
+const ShortcutBar: React.FC<{
+  executeAction: EditorExecutor
+  saveFile: VoidFunction
+  needSave: boolean
+  historyStatus: {
+    id: number
+    hasPrev: boolean
+    hasNext: boolean
+  }
+  selectedIds: string[]
+}> = ({executeAction, saveFile, needSave, historyStatus, selectedIds}) => {
+  const hasSelection = selectedIds.length > 0
 
-/**
- * Product-level shortcut strip modeled after the legacy Vision shell.
- *
- * It stays intentionally simple: the strip mirrors the old affordances, while
- * the real execution path still goes through the new command bus.
- */
-export default function ShortcutBar({
-  canRedo,
-  canUndo,
-  hasSelection,
-  onCommand,
-  onInsertRectangle,
-}: ShortcutBarProps) {
   const actions = [
-    {
-      id: 'insert',
-      label: 'Insert',
-      disabled: false,
-      onClick: onInsertRectangle,
-    },
-    {
-      id: 'undo',
-      label: 'Undo',
-      disabled: !canUndo,
-      onClick: () => onCommand({ type: 'history.undo' }),
-    },
-    {
-      id: 'redo',
-      label: 'Redo',
-      disabled: !canRedo,
-      onClick: () => onCommand({ type: 'history.redo' }),
-    },
+    {id: 'save', action: 'saveFile', icon: 'save', disabled: !needSave, divide: true},
+    {id: 'undo', editorActionCode: 'history-undo', icon: 'undo', disabled: !historyStatus.hasPrev},
+    {id: 'redo', editorActionCode: 'history-redo', icon: 'redo', disabled: !historyStatus.hasNext, divide: true},
     {
       id: 'delete',
-      label: 'Delete',
+      editorActionCode: 'element-delete',
+      icon: 'trash',
       disabled: !hasSelection,
-      onClick: () => onCommand({ type: 'selection.delete' }),
+      divide: true,
+    },
+    // {id: 'add', icon: 'cross', disabled: false, divide: true},
+    {
+      id: 'layerUp',
+      editorActionCode: 'element-layer',
+      editorActionData: 'up',
+      icon: 'layers',
+      disabled: !hasSelection,
     },
     {
-      id: 'fit',
-      label: 'Fit',
-      disabled: false,
-      onClick: () => onCommand({ type: 'viewport.fit' }),
+      id: 'layerDown',
+      editorActionCode: 'element-layer',
+      editorActionData: 'down',
+      icon: 'layers',
+      disabled: !hasSelection,
     },
+    {
+      id: 'layerTop',
+      editorActionCode: 'element-layer',
+      editorActionData: 'top',
+      icon: 'layers',
+      disabled: !hasSelection,
+    },
+    {
+      id: 'layerBottom',
+      editorActionCode: 'element-layer',
+      editorActionData: 'bottom',
+      icon: 'layers',
+      disabled: !hasSelection,
+      divide: true,
+    },
+    /*{id: 'group', icon: 'group', disabled: true},
+    {id: 'ungroup', icon: 'ungroup', disabled: true, divide: true},
+    {id: 'lock', icon: 'lock', disabled: false},
+    {id: 'unlock', icon: 'unlock', disabled: true},*/
   ]
 
-  return (
-    <div className="vision-shortcut-bar">
-      {actions.map((action) => (
-        <button
-          key={action.id}
-          type="button"
-          className="vision-shortcut-button"
-          disabled={action.disabled}
-          onClick={action.onClick}
-          title={action.label}
-          aria-label={action.label}
-        >
-          <span className="vision-shortcut-icon" aria-hidden="true">
-            {resolveShortcutIcon(action.id)}
-          </span>
-        </button>
-      ))}
+  return <div className={'border-b border-gray-200 box-border'}>
+    <div className={'h-10 inline-flex pl-4 items-center'}>
+      {
+        Object.values(actions).map((item) => {
+          const {id, icon, disabled, divide} = item
+          let Icon: ReactNode
 
-      <div className="vision-shortcut-divider" />
+          switch (id) {
+            case 'layerUp':
+              Icon = <LayerUp size={IconSize}/>
+              break
+            case 'layerDown':
+              Icon = <LayerDown size={IconSize}/>
+              break
+            case 'layerTop':
+              Icon = <LayerToTop size={IconSize}/>
+              break
+            case 'layerBottom':
+              Icon = <LayerToBottom size={IconSize}/>
+              break
+            default:
+              Icon = <NamedIcon size={IconSize} iconName={icon!}/>
+              break
+          }
 
-      <button type="button" className="vision-shortcut-button" disabled title="Layer up">
-        <LayerUp size={18} />
-      </button>
-      <button type="button" className="vision-shortcut-button" disabled title="Layer down">
-        <LayerDown size={18} />
-      </button>
-      <button type="button" className="vision-shortcut-button" disabled title="Layer to front">
-        <LayerToTop size={18} />
-      </button>
-      <button type="button" className="vision-shortcut-button" disabled title="Layer to back">
-        <LayerToBottom size={18} />
-      </button>
+          const {tooltip} = t(id, {returnObjects: true}) as I18nHistoryDataItem
+
+          return <Fragment key={id}>
+            <button type={'button'}
+                    disabled={disabled}
+                    title={tooltip}
+                    onClick={() => {
+                      if (item.action === 'saveFile') {
+                        saveFile()
+                        return
+                      }
+                      const action = item.editorActionCode || item.action
+                      if (action) {
+                        executeAction(action)
+                      }
+                    }}
+                    className={'relative ml-1 rounded-sm mr-1 flex items-center cursor-pointer justify-center w-6 h-6   hover:bg-gray-200  hover:opacity-100  disabled:hover:bg-transparent disabled:text-gray-200 disabled:cursor-default'}>
+              {Icon}
+            </button>
+            {divide && <div className={'w-[1px] h-4 bg-gray-400 mx-2'}></div>}
+          </Fragment>
+        })
+      }
     </div>
-  )
+  </div>
 }
-
-function resolveShortcutIcon(actionId: string) {
-  switch (actionId) {
-    case 'insert':
-      return '+'
-    case 'undo':
-      return '↶'
-    case 'redo':
-      return '↷'
-    case 'delete':
-      return '⌫'
-    case 'fit':
-      return '⤢'
-    default:
-      return '•'
-  }
-}
+export default ShortcutBar

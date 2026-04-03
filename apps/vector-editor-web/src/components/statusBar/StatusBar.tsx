@@ -1,76 +1,40 @@
-import type { EditorRuntimeCommand } from '@venus/editor-worker'
+import ZoomSelect from './ZoomSelect.tsx'
+import {FC, Ref, useImperativeHandle, useState} from 'react'
+import {Row} from '@lite-u/ui'
+import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 
-interface StatusBarProps {
-  onCommand: (command: EditorRuntimeCommand) => void
-  onViewportFit: VoidFunction
-  onViewportZoom: (nextScale: number) => void
-  scale: number
-  worldPoint: { x: number; y: number }
+export interface PointRef {
+  set: (point: { x: number, y: number }) => void
 }
 
-/**
- * App-level status bar inspired by the legacy Vision shell.
- *
- * Why:
- * - keep viewport controls near coordinate readout
- * - let the product shell own the exact UI while runtime stays generic
- */
-export function StatusBar({
-  onCommand,
-  onViewportFit,
-  onViewportZoom,
-  scale,
-  worldPoint,
-}: StatusBarProps) {
-  const zoomPercent = Math.round(scale * 100)
+type PointRefType = Ref<PointRef>
 
-  return (
-    <footer className="editor-status-bar">
-      <div className="editor-status-cluster">
-        <button
-          type="button"
-          className="status-action"
-          onClick={() => onCommand({ type: 'viewport.zoomOut' })}
-          aria-label="Zoom out"
-        >
-          -
-        </button>
+export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExecutor, worldScale: number }> = ({
+                                                                                                     ref,
+                                                                                                     executeAction,
+                                                                                                     worldScale,
+                                                                                                   }) => {
+  const [worldPoint, setWorldPoint] = useState({x: 0, y: 0})
 
-        <label className="zoom-control status-zoom-control">
-          <span>Zoom</span>
-          <input
-            type="range"
-            min="10"
-            max="800"
-            step="5"
-            value={zoomPercent}
-            onChange={(event) => onViewportZoom(Number(event.target.value) / 100)}
-          />
-          <strong>{zoomPercent}%</strong>
-        </label>
+  useImperativeHandle(ref, () => {
+    return {
+      set(point: { x: number, y: number }) {
+        setWorldPoint(point)
+      },
+    }
+  }, [])
 
-        <button
-          type="button"
-          className="status-action"
-          onClick={onViewportFit}
-          aria-label="Fit canvas"
-        >
-          Fit
-        </button>
-
-        <button
-          type="button"
-          className="status-action"
-          onClick={() => onCommand({ type: 'viewport.zoomIn' })}
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-      </div>
-
-      <div className="editor-status-coordinates">
-        {`dx:${worldPoint.x.toFixed(2)} dy:${worldPoint.y.toFixed(2)}`}
-      </div>
-    </footer>
-  )
+  return <Row between center fw h={30} style={{borderTop: '1px solid #dfdfdf'}}>
+    <ZoomSelect scale={worldScale} onChange={(newScale) => {
+      if (newScale === 'fit') {
+        executeAction('world-zoom', 'fit')
+      } else {
+        executeAction('world-zoom', {
+          zoomTo: true,
+          zoomFactor: newScale,
+        })
+      }
+    }}/>
+    <div className={'text-xs line-clamp-1'}>{`dx:${worldPoint.x.toFixed(2)} dy:${worldPoint.y.toFixed(2)}`}</div>
+  </Row>
 }

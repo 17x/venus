@@ -1,18 +1,15 @@
 import {FC, FormEvent, useRef, useState} from 'react'
+import {convertUnit, UnitType} from '@venus/document-core'
 import uid from '../../utilities/Uid.ts'
-import {useApp, VisionFileType} from '../../contexts/appContext/AppContext.tsx'
+import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
 import {Button, Con, Flex, Input, MenuItem, Modal, P, Panel, Select, SelectItem, Title} from '@lite-u/ui'
 import {PAGE_PRESETS} from './pagePresets.ts'
 import {useTranslation} from 'react-i18next'
-import {UnitType} from '@lite-u/editor/types'
-import {convertUnit} from '@editor'
 import {VISION_VERSION} from '../../constants/version.ts'
-import {nid} from '@editor'
 
-const CreateFile: FC<{ bg: string, onBgClick?: VoidFunction }> = ({bg = '#00000066', onBgClick}) => {
+const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, onBgClick?: VoidFunction }> = ({bg = '#00000066', createFile, onBgClick}) => {
   const formRef = useRef<HTMLFormElement>(null)
   const {t} = useTranslation()
-  const {createFile, handleCreating} = useApp()
   const [currentPageSet, setCurrentPageSet] = useState({...PAGE_PRESETS[0]})
   const [dpi, setDpi] = useState(72)
   const [error, setError] = useState('')
@@ -44,17 +41,11 @@ const CreateFile: FC<{ bg: string, onBgClick?: VoidFunction }> = ({bg = '#000000
           ...currentPageSet,
         },
       },
-      workspace: [
-        {
-          id: nid(),
-          name: 'workspace-1',
-          elements: [],
-        },
-      ],
+      elements: [],
+      assets: [],
     }
 
     createFile(newFile)
-    handleCreating(false)
   }
 
   const handleChange = (key: string, value: number | string) => {
@@ -159,19 +150,23 @@ const CreateFile: FC<{ bg: string, onBgClick?: VoidFunction }> = ({bg = '#000000
                            type={'number'}/>
 
                     <P style={{marginTop: 10}}>Unit</P>
-                    <Select defaultValue={currentPageSet.unit}
-                            onChange={(v) => {
+                    <Select selectValue={currentPageSet.unit}
+                            onSelectChange={(v) => {
                               handleNewUnit(v as UnitType)
-                            }}>
+                            }}
+                            placeholderResolver={(value) => String(value)}>
                       <SelectItem value={'px'}><MenuItem>px</MenuItem></SelectItem>
                       <SelectItem value={'mm'}><MenuItem>mm</MenuItem></SelectItem>
                       <SelectItem value={'cm'}><MenuItem>cm</MenuItem></SelectItem>
+                      <SelectItem value={'inches'}><MenuItem>inches</MenuItem></SelectItem>
                     </Select>
 
                     <P style={{marginTop: 10}}>DPI</P>
-                    <Select defaultValue={dpi} onChange={(newDpi) => {
-                      setDpi(newDpi as number)
-                    }}>
+                    <Select selectValue={dpi}
+                            onSelectChange={(newDpi) => {
+                              setDpi(newDpi as number)
+                            }}
+                            placeholderResolver={(value) => String(value)}>
                       <SelectItem value={300}><MenuItem>300</MenuItem></SelectItem>
                       <SelectItem value={96}><MenuItem>96</MenuItem></SelectItem>
                       <SelectItem value={72}><MenuItem>72</MenuItem></SelectItem>

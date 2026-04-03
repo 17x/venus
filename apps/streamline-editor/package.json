@@ -9,8 +9,8 @@
     "lint": "echo \"Scaffold only. Lint from monorepo root.\""
   },
   "dependencies": {
-    "@venus/editor-core": "workspace:*",
-    "@venus/editor-ui": "workspace:*",
+    "@venus/document-core": "workspace:*",
+    "@venus/editor-product": "workspace:*",
     "@venus/editor-worker": "workspace:*",
     "@venus/renderer-skia": "workspace:*",
     "@venus/shared-memory": "workspace:*",

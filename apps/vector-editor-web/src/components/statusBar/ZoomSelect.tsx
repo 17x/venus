@@ -51,9 +51,13 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
   // console.log(scale)
   return <Row w={20} h={30} ml={5} js center rela>
     <Select s
-            defaultValue={scale}
+            selectValue={scale}
             onSelectChange={v => {
               onChange(v as number | 'fit')
+            }}
+            placeholderResolver={(value) => {
+              if (value === 'fit') return 'Fit'
+              return fixNumber(Number(value))
             }}>
       {
         ZOOM_LEVELS.map(({label, value}) => <SelectItem key={value} value={value}>{label}</SelectItem>)
