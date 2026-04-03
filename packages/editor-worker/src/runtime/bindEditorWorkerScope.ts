@@ -101,7 +101,10 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
         forward: [],
         backward: [],
       })
-      postScene(scope, 'scene-ready', 'full', scene, documentState, history, collaboration)
+      // The main thread already bootstraps from the initial document passed to
+      // the controller, so init does not need to force an extra full snapshot
+      // rebuild on the first worker message.
+      postScene(scope, 'scene-ready', 'flags', scene, documentState, history, collaboration)
       return
     }
 

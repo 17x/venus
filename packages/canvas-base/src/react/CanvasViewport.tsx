@@ -9,6 +9,8 @@ import {
 import type { CanvasViewportState } from '../viewport/types.ts'
 import { bindViewportGestures } from '../gesture/index.ts'
 
+const SLOW_VIEWPORT_RENDER_MS = 8
+
 interface CanvasViewportProps {
   document: EditorDocument
   renderer?: CanvasRenderer
@@ -45,6 +47,7 @@ export function CanvasViewport({
   onViewportResize,
   onViewportZoom,
 }: CanvasViewportProps) {
+  const renderStart = performance.now()
   const [renderQuality, setRenderQuality] = React.useState<'full' | 'interactive'>('full')
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const previewLayerRef = React.useRef<HTMLDivElement | null>(null)
@@ -192,6 +195,16 @@ export function CanvasViewport({
       </div>
     )
   }, [Renderer, document, renderQuality, shapes, stats, viewport])
+
+  const renderMs = performance.now() - renderStart
+  if (renderMs >= SLOW_VIEWPORT_RENDER_MS) {
+    console.debug('CANVAS-BASE slow viewport render', {
+      renderMs: Number(renderMs.toFixed(2)),
+      shapeCount: stats.shapeCount,
+      scale: Number(viewport.scale.toFixed(3)),
+      renderQuality,
+    })
+  }
 
   if (Renderer) {
     return (

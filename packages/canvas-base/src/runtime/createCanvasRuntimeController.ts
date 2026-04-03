@@ -94,6 +94,8 @@ const DEFAULT_HISTORY_STATE: HistorySummary = {
   canRedo: false,
 }
 
+const SLOW_MESSAGE_HANDLER_MS = 16
+
 /**
  * Development-only trace helper for following the runtime bridge without
  * sprinkling raw `console.log` calls throughout the code.
@@ -168,11 +170,21 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
     const hadViewport = snapshot.viewport.viewportWidth > 0 && snapshot.viewport.viewportHeight > 0
 
-    updateViewport((viewport) => resizeViewportState(viewport, width, height))
-
     if (!hadViewport) {
-      fitViewport()
+      // First measured viewport previously triggered two notifications:
+      // 1) resize viewport
+      // 2) fit viewport
+      // Collapse both into one state transition to avoid an extra full redraw.
+      updateViewport((viewport) =>
+        fitViewportToDocument(
+          snapshot.document,
+          resizeViewportState(viewport, width, height),
+        ),
+      )
+      return
     }
+
+    updateViewport((viewport) => resizeViewportState(viewport, width, height))
   }
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
@@ -180,6 +192,9 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const handleWorkerMessage = (event: MessageEvent<SceneUpdateMessage>) => {
+    const handlerStart = performance.now()
+    let snapshotReadMs = 0
+
     if (event.data.type === 'scene-ready') {
       snapshot.ready = true
     }
@@ -196,7 +211,9 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
     if (event.data.updateKind === 'full' && event.data.document) {
       snapshot.document = event.data.document as TDocument
+      const snapshotReadStart = performance.now()
       snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
+      snapshotReadMs = performance.now() - snapshotReadStart
     } else {
       snapshot.shapes = patchSnapshotFlags(snapshot.shapes, snapshot.stats, nextStats)
     }
@@ -208,6 +225,15 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       lastOperationId: snapshot.collaboration.lastOperationId,
       updateKind: event.data.updateKind,
     })
+    const totalHandlerMs = performance.now() - handlerStart
+    if (totalHandlerMs >= SLOW_MESSAGE_HANDLER_MS) {
+      debugRuntime('slow message handler', {
+        totalMs: Number(totalHandlerMs.toFixed(2)),
+        snapshotReadMs: Number(snapshotReadMs.toFixed(2)),
+        updateKind: event.data.updateKind,
+        shapeCount: nextStats.shapeCount,
+      })
+    }
     notify()
   }
 

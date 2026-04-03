@@ -6,6 +6,8 @@ import {
   type CanvasRuntimeSnapshot,
 } from '../runtime/createCanvasRuntimeController.ts'
 
+const SLOW_SNAPSHOT_APPLY_MS = 8
+
 /**
  * React adapter for the imperative runtime controller.
  *
@@ -32,7 +34,19 @@ export function useCanvasRuntime<TDocument extends EditorDocument>(
     // Controller lifecycle is tied to the hook instance.
     controller.start()
     const unsubscribe = controller.subscribe(() => {
-      setSnapshot({ ...controller.getSnapshot() })
+      const applyStart = performance.now()
+      const nextSnapshot = { ...controller.getSnapshot() }
+      const applyMs = performance.now() - applyStart
+
+      if (applyMs >= SLOW_SNAPSHOT_APPLY_MS) {
+        console.debug('CANVAS-BASE slow snapshot apply', {
+          applyMs: Number(applyMs.toFixed(2)),
+          shapeCount: nextSnapshot.stats.shapeCount,
+          version: nextSnapshot.stats.version,
+        })
+      }
+
+      setSnapshot(nextSnapshot)
     })
 
     setSnapshot({ ...controller.getSnapshot() })

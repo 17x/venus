@@ -12,6 +12,9 @@ import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
 
 const STRESS_SHAPE_COUNT = 100_000
+const LARGE_STRESS_SHAPE_COUNT = 50_000
+const MEDIUM_STRESS_SHAPE_COUNT = 10_000
+const EXTREME_STRESS_SHAPE_COUNT = 1_000_000
 
 function createRandomRectangle() {
   return {
@@ -26,13 +29,37 @@ function createRandomRectangle() {
 }
 
 function App() {
-  const [documentMode, setDocumentMode] = React.useState<'demo' | 'stress'>('demo')
+  const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress'>('demo')
+  const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
+  const [largeStressRevision, setLargeStressRevision] = React.useState(0)
   const [stressRevision, setStressRevision] = React.useState(0)
+  const [extremeStressRevision, setExtremeStressRevision] = React.useState(0)
+  const mediumStressDocument = React.useMemo(
+    () => createStressDocument(MEDIUM_STRESS_SHAPE_COUNT),
+    [mediumStressRevision],
+  )
+  const largeStressDocument = React.useMemo(
+    () => createStressDocument(LARGE_STRESS_SHAPE_COUNT),
+    [largeStressRevision],
+  )
   const stressDocument = React.useMemo(
     () => createStressDocument(STRESS_SHAPE_COUNT),
     [stressRevision],
   )
-  const activeDocument = documentMode === 'stress' ? stressDocument : MOCK_DOCUMENT
+  const extremeStressDocument = React.useMemo(
+    () => createStressDocument(EXTREME_STRESS_SHAPE_COUNT),
+    [extremeStressRevision],
+  )
+  const activeDocument =
+    documentMode === 'extreme-stress'
+      ? extremeStressDocument
+      : documentMode === 'stress'
+      ? stressDocument
+      : documentMode === 'large-stress'
+        ? largeStressDocument
+      : documentMode === 'medium-stress'
+        ? mediumStressDocument
+        : MOCK_DOCUMENT
   const createWorker = React.useCallback(
     () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
@@ -61,6 +88,18 @@ function App() {
     setStressRevision((current) => current + 1)
     setDocumentMode('stress')
   }, [])
+  const handleLoadExtremeStress = React.useCallback(() => {
+    setExtremeStressRevision((current) => current + 1)
+    setDocumentMode('extreme-stress')
+  }, [])
+  const handleLoadMediumStress = React.useCallback(() => {
+    setMediumStressRevision((current) => current + 1)
+    setDocumentMode('medium-stress')
+  }, [])
+  const handleLoadLargeStress = React.useCallback(() => {
+    setLargeStressRevision((current) => current + 1)
+    setDocumentMode('large-stress')
+  }, [])
   const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
     runtime.postPointer('pointermove', pointer)
   }, [runtime.postPointer])
@@ -81,7 +120,10 @@ function App() {
         scaleLabel={runtime.viewport.scale.toFixed(2)}
         selectedLabel={selectedLabel}
         onLoadDemo={handleLoadDemo}
+        onLoadMediumStress={handleLoadMediumStress}
+        onLoadLargeStress={handleLoadLargeStress}
         onLoadStress={handleLoadStress}
+        onLoadExtremeStress={handleLoadExtremeStress}
         onDispatch={dispatch}
       />
 
@@ -110,7 +152,10 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   scaleLabel,
   selectedLabel,
   onLoadDemo,
+  onLoadMediumStress,
+  onLoadLargeStress,
   onLoadStress,
+  onLoadExtremeStress,
   onDispatch,
 }: {
   document: EditorDocument
@@ -121,7 +166,10 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   scaleLabel: string
   selectedLabel: string
   onLoadDemo: () => void
+  onLoadMediumStress: () => void
+  onLoadLargeStress: () => void
   onLoadStress: () => void
+  onLoadExtremeStress: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
   return (
@@ -141,7 +189,10 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
       />
       <CommandsBlock
         onLoadDemo={onLoadDemo}
+        onLoadMediumStress={onLoadMediumStress}
+        onLoadLargeStress={onLoadLargeStress}
         onLoadStress={onLoadStress}
+        onLoadExtremeStress={onLoadExtremeStress}
         onDispatch={onDispatch}
       />
       <HistoryBlock history={history} />
@@ -213,11 +264,17 @@ const ViewportBlock = React.memo(function ViewportBlock({
 
 const CommandsBlock = React.memo(function CommandsBlock({
   onLoadDemo,
+  onLoadMediumStress,
+  onLoadLargeStress,
   onLoadStress,
+  onLoadExtremeStress,
   onDispatch,
 }: {
   onLoadDemo: () => void
+  onLoadMediumStress: () => void
+  onLoadLargeStress: () => void
   onLoadStress: () => void
+  onLoadExtremeStress: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
   return (
@@ -225,7 +282,10 @@ const CommandsBlock = React.memo(function CommandsBlock({
       <span className="panel-label">Commands</span>
       <div className="panel-actions">
         <button onClick={onLoadDemo}>Demo Scene</button>
+        <button onClick={onLoadMediumStress}>10k Scene</button>
+        <button onClick={onLoadLargeStress}>50k Scene</button>
         <button onClick={onLoadStress}>100k Scene</button>
+        <button onClick={onLoadExtremeStress}>1000k Scene</button>
         <button onClick={() => onDispatch({type: 'viewport.fit'})}>Fit</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
@@ -314,6 +374,8 @@ function RendererDiagnosticsPanel() {
         <li>cacheHits: {renderDiagnostics.cacheHits}</li>
         <li>cacheMisses: {renderDiagnostics.cacheMisses}</li>
         <li>rebuilt: {renderDiagnostics.rebuiltTiles}</li>
+        <li>drawMs: {renderDiagnostics.drawMs.toFixed(1)}ms</li>
+        <li>recordMs: {renderDiagnostics.recordMs.toFixed(1)}ms</li>
       </ul>
     </div>
   )

@@ -40,9 +40,14 @@ export interface SkiaRenderDiagnostics {
   cacheHits: number
   cacheMisses: number
   rebuiltTiles: number
+  drawMs: number
+  recordMs: number
 }
 
 const TILE_WORLD_SIZE = 1024
+const SLOW_DRAW_THRESHOLD_MS = 12
+const SLOW_RECORD_THRESHOLD_MS = 6
+const PREWARM_SCENE_THRESHOLD = 20_000
 
 const EMPTY_DIAGNOSTICS: SkiaRenderDiagnostics = {
   tileCount: 0,
@@ -52,6 +57,8 @@ const EMPTY_DIAGNOSTICS: SkiaRenderDiagnostics = {
   cacheHits: 0,
   cacheMisses: 0,
   rebuiltTiles: 0,
+  drawMs: 0,
+  recordMs: 0,
 }
 
 let currentDiagnostics = EMPTY_DIAGNOSTICS
@@ -110,6 +117,7 @@ export function SkiaRenderer({
   const surfaceRef = React.useRef<Surface | null>(null)
   const tileCacheRef = React.useRef<Map<string, TileCacheEntry>>(new Map())
   const prewarmKeyRef = React.useRef<string | null>(null)
+  const lastDrawKeyRef = React.useRef<string | null>(null)
   const sceneRevisionRef = React.useRef(0)
   const sceneIndex = React.useMemo(() => {
     sceneRevisionRef.current += 1
@@ -156,7 +164,7 @@ export function SkiaRenderer({
         height: viewport.viewportHeight,
         backend: surfaceRef.current ? 'gpu-or-sw' : 'unavailable',
       })
-      drawScene(
+      drawSceneOnce(
         canvasKitRef.current,
         surfaceRef.current,
         document,
@@ -166,6 +174,7 @@ export function SkiaRenderer({
         renderQuality,
         sceneIndex,
         tileCacheRef.current,
+        lastDrawKeyRef,
       )
     }
 
@@ -187,7 +196,7 @@ export function SkiaRenderer({
       return
     }
 
-    drawScene(
+      drawSceneOnce(
       canvasKitRef.current,
       surfaceRef.current,
       document,
@@ -197,11 +206,17 @@ export function SkiaRenderer({
       renderQuality,
       sceneIndex,
       tileCacheRef.current,
+      lastDrawKeyRef,
     )
   }, [document, renderQuality, sceneIndex, shapes, stats, viewport])
 
   React.useEffect(() => {
-    if (!canvasKitRef.current || !surfaceRef.current || renderQuality !== 'full') {
+    if (
+      !canvasKitRef.current ||
+      !surfaceRef.current ||
+      renderQuality !== 'full' ||
+      stats.shapeCount < PREWARM_SCENE_THRESHOLD
+    ) {
       return
     }
 
@@ -226,7 +241,7 @@ export function SkiaRenderer({
 
     const idleHandle = schedulePrewarm(run)
     return () => cancelScheduledPrewarm(idleHandle)
-  }, [renderQuality, sceneIndex, viewport])
+  }, [renderQuality, sceneIndex, stats.shapeCount, viewport])
 
   return (
     <canvas
@@ -273,6 +288,10 @@ function drawScene(
   const showTextContent = resolveShowTextContent(viewport.scale, renderQuality)
   const overlayShapes = resolveOverlayShapes(shapes, stats, visibleBounds)
   const visibleTiles = getVisibleTiles(visibleBounds)
+  const needsBootstrapPrewarm =
+    renderQuality === 'full' &&
+    stats.shapeCount >= PREWARM_SCENE_THRESHOLD &&
+    tileCache.size === 0
   const diagnostics = {
     tileCount: visibleTiles.length,
     visibleShapeCount: overlayShapes.length,
@@ -281,7 +300,10 @@ function drawScene(
     cacheHits: 0,
     cacheMisses: 0,
     rebuiltTiles: 0,
+    drawMs: 0,
+    recordMs: 0,
   }
+  const drawStart = performance.now()
 
   skCanvas.clear(canvasKit.Color(243, 244, 246, 1))
   skCanvas.save()
@@ -290,6 +312,17 @@ function drawScene(
   skCanvas.scale(viewport.matrix[0], viewport.matrix[4])
 
   drawPage(canvasKit, skCanvas, document.width, document.height)
+  if (needsBootstrapPrewarm) {
+    // Warm a wider ring on the first draw after scene replacement so the first
+    // pan does not need to record edge tiles on the critical path.
+    prewarmVisibleTileBuffer(
+      canvasKit,
+      sceneIndex,
+      viewport,
+      tileCache,
+      2,
+    )
+  }
   drawVisibleTiles(
     canvasKit,
     skCanvas,
@@ -301,10 +334,67 @@ function drawScene(
     diagnostics,
   )
   drawOverlayShapes(canvasKit, skCanvas, sceneIndex, overlayShapes, pathSampleCount)
+  diagnostics.drawMs = performance.now() - drawStart
+  if (
+    diagnostics.drawMs >= SLOW_DRAW_THRESHOLD_MS ||
+    diagnostics.recordMs >= SLOW_RECORD_THRESHOLD_MS
+  ) {
+    debugSkia('slow frame', {
+      drawMs: Number(diagnostics.drawMs.toFixed(2)),
+      recordMs: Number(diagnostics.recordMs.toFixed(2)),
+      tileCount: diagnostics.tileCount,
+      cacheMisses: diagnostics.cacheMisses,
+      rebuiltTiles: diagnostics.rebuiltTiles,
+      renderQuality,
+    })
+  }
   publishDiagnostics(diagnostics)
 
   skCanvas.restore()
   surface.flush()
+}
+
+function drawSceneOnce(
+  canvasKit: CanvasKit,
+  surface: Surface | null,
+  document: CanvasRendererProps['document'],
+  shapes: CanvasRendererProps['shapes'],
+  stats: CanvasRendererProps['stats'],
+  viewport: CanvasRendererProps['viewport'],
+  renderQuality: NonNullable<CanvasRendererProps['renderQuality']>,
+  sceneIndex: RenderSceneIndex,
+  tileCache: Map<string, TileCacheEntry>,
+  lastDrawKeyRef: React.MutableRefObject<string | null>,
+) {
+  const drawKey = [
+    sceneIndex.revision,
+    stats.version,
+    stats.hoveredIndex,
+    stats.selectedIndex,
+    renderQuality,
+    viewport.scale.toFixed(4),
+    Math.round(viewport.matrix[2]),
+    Math.round(viewport.matrix[5]),
+    viewport.viewportWidth,
+    viewport.viewportHeight,
+  ].join(':')
+
+  if (lastDrawKeyRef.current === drawKey) {
+    return
+  }
+
+  lastDrawKeyRef.current = drawKey
+  drawScene(
+    canvasKit,
+    surface,
+    document,
+    shapes,
+    stats,
+    viewport,
+    renderQuality,
+    sceneIndex,
+    tileCache,
+  )
 }
 
 function resolveOverlayShapes(
@@ -375,6 +465,7 @@ function drawVisibleTiles(
           tileShapes,
           pathSampleCount,
           showTextContent,
+          diagnostics,
         ),
         signature,
       })
@@ -396,9 +487,10 @@ function prewarmVisibleTileBuffer(
   sceneIndex: RenderSceneIndex,
   viewport: CanvasRendererProps['viewport'],
   tileCache: Map<string, TileCacheEntry>,
+  marginTiles = 1,
 ) {
   const visibleBounds = getVisibleWorldBounds(viewport)
-  const bufferedTiles = getBufferedTiles(visibleBounds, 1)
+  const bufferedTiles = getBufferedTiles(visibleBounds, marginTiles)
   const pathSampleCount = resolvePathSampleCount(viewport.scale, 'full')
   const showTextContent = resolveShowTextContent(viewport.scale, 'full')
 
@@ -423,6 +515,7 @@ function prewarmVisibleTileBuffer(
         tileShapes,
         pathSampleCount,
         showTextContent,
+        undefined,
       ),
       signature,
     })
@@ -436,7 +529,9 @@ function recordTilePicture(
   shapes: CanvasRendererProps['shapes'],
   pathSampleCount: number,
   showTextContent: boolean,
+  diagnostics?: SkiaRenderDiagnostics,
 ) {
+  const recordStart = performance.now()
   const recorder = new canvasKit.PictureRecorder()
   const tileCanvas = recorder.beginRecording(
     canvasKit.XYWHRect(tile.left, tile.top, tile.right - tile.left, tile.bottom - tile.top),
@@ -454,6 +549,9 @@ function recordTilePicture(
 
   const picture = recorder.finishRecordingAsPicture()
   recorder.delete()
+  if (diagnostics) {
+    diagnostics.recordMs += performance.now() - recordStart
+  }
   return picture
 }
 
