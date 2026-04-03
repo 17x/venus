@@ -44,6 +44,8 @@ export const DEFAULT_ZOOM_SESSION: ZoomSessionState = {
   source: null,
 }
 
+const ZOOM_SOURCE_LOCK_MS = 140
+
 export function detectZoomInputSource(
   input: Pick<ZoomWheelInput, 'deltaMode' | 'deltaX' | 'deltaY'>,
 ): ZoomInputSource {
@@ -62,7 +64,7 @@ export function detectZoomInputSource(
     return 'trackpad'
   }
 
-  if (absY > 0 && absY < 12) {
+  if (absY > 0 && absY <= 4) {
     return 'trackpad'
   }
 
@@ -94,9 +96,14 @@ export function accumulateZoomSession(
     timeStamp?: number
   },
 ): ZoomSessionState {
+  const nextFactor =
+    update.source === 'mouse'
+      ? update.factor
+      : session.factor * update.factor
+
   return {
     active: true,
-    factor: session.factor * update.factor,
+    factor: nextFactor,
     anchor: update.anchor,
     lastEventAt: update.timeStamp ?? Date.now(),
     source: update.source,
@@ -121,8 +128,9 @@ export function handleZoomWheel(
   session: ZoomSessionState,
   input: ZoomWheelInput,
 ): ZoomWheelResult {
-  const normalized = normalizeZoomDelta(input)
-  const factor = Math.exp(-normalized.delta)
+  const source = resolveZoomSource(session, input)
+  const normalized = normalizeZoomDeltaWithSource(input, source)
+  const factor = resolveZoomFactor(normalized)
   const nextSession = accumulateZoomSession(session, {
     anchor: normalized.anchor,
     factor,
@@ -139,26 +147,81 @@ export function handleZoomWheel(
   }
 }
 
+function normalizeZoomDeltaWithSource(
+  input: ZoomWheelInput,
+  source: ZoomInputSource,
+): NormalizedZoomDelta {
+  const normalizedDelta = Math.max(-160, Math.min(160, input.deltaY))
+  const deltaScale = resolveZoomDeltaScale(input.deltaMode, source)
+
+  return {
+    anchor: {
+      x: input.clientX,
+      y: input.clientY,
+    },
+    delta: normalizedDelta * deltaScale,
+    source,
+    timeStamp: input.timeStamp,
+  }
+}
+
+function resolveZoomSource(
+  session: ZoomSessionState,
+  input: ZoomWheelInput,
+): ZoomInputSource {
+  const detected = detectZoomInputSource(input)
+  const currentTime = input.timeStamp ?? Date.now()
+
+  if (
+    session.active &&
+    session.source &&
+    currentTime - session.lastEventAt <= ZOOM_SOURCE_LOCK_MS
+  ) {
+    return session.source
+  }
+
+  return detected
+}
+
 function resolveZoomDeltaScale(deltaMode: number, source: ZoomInputSource) {
   if (source === 'mouse') {
     if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-      return 0.03
+      return 0.008
     }
 
     if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
-      return 0.018
+      return 0.004
     }
 
-    return 0.008
+    return 0.0015
   }
 
   if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-    return 0.08
+    return 0.05
   }
 
   if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
-    return 0.04
+    return 0.022
   }
 
-  return 0.02
+  return 0.012
+}
+
+function resolveZoomFactor(normalized: NormalizedZoomDelta) {
+  if (normalized.source === 'mouse') {
+    if (normalized.delta > 0) {
+      return 0.992
+    }
+
+    if (normalized.delta < 0) {
+      return 1.008
+    }
+
+    return 1
+  }
+
+  const clampedDelta = Math.max(-0.18, Math.min(0.18, normalized.delta))
+  const softenedDelta = clampedDelta * 0.8
+
+  return Math.exp(-softenedDelta)
 }

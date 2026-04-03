@@ -2,7 +2,6 @@ import * as React from 'react'
 import type { EditorDocument } from '@venus/document-core'
 import type { PointerState, SceneShapeSnapshot, SceneStats } from '@venus/shared-memory'
 import type { CanvasRenderer } from '../renderer/types.ts'
-import { applyMatrixToPoint } from '../viewport/matrix.ts'
 import {
   applyViewportPreviewTransform,
   resolveViewportPreviewOverscan,
@@ -49,22 +48,23 @@ export function CanvasViewport({
   const [renderQuality, setRenderQuality] = React.useState<'full' | 'interactive'>('full')
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const previewLayerRef = React.useRef<HTMLDivElement | null>(null)
-  const panOriginRef = React.useRef<{ x: number; y: number } | null>(null)
   const previewPanOffsetRef = React.useRef({ x: 0, y: 0 })
-  const latestPointerClientRef = React.useRef<{ x: number; y: number } | null>(null)
-  const frameStateRef = React.useRef<{ pointer: number | null }>({
-    pointer: null,
-  })
   const pendingViewportSyncRef = React.useRef(false)
   const viewportStateRef = React.useRef(viewport)
   const onViewportPanRef = React.useRef(onViewportPan)
   const onViewportZoomRef = React.useRef(onViewportZoom)
   const onPointerMoveRef = React.useRef(onPointerMove)
+  const onPointerDownRef = React.useRef(onPointerDown)
+  const onPointerUpRef = React.useRef(onPointerUp)
+  const onPointerLeaveRef = React.useRef(onPointerLeave)
 
   viewportStateRef.current = viewport
   onViewportPanRef.current = onViewportPan
   onViewportZoomRef.current = onViewportZoom
   onPointerMoveRef.current = onPointerMove
+  onPointerDownRef.current = onPointerDown
+  onPointerUpRef.current = onPointerUp
+  onPointerLeaveRef.current = onPointerLeave
 
   React.useEffect(() => {
     if (!pendingViewportSyncRef.current) {
@@ -111,6 +111,18 @@ export function CanvasViewport({
     return bindViewportGestures({
       element: node,
       getViewportState: () => viewportStateRef.current,
+      onPointerMove: (pointer) => {
+        onPointerMoveRef.current?.(pointer)
+      },
+      onPointerDown: (pointer) => {
+        onPointerDownRef.current?.(pointer)
+      },
+      onPointerUp: () => {
+        onPointerUpRef.current?.()
+      },
+      onPointerLeave: () => {
+        onPointerLeaveRef.current?.()
+      },
       onZoomingChange: (active) => {
         setRenderQuality(active ? 'interactive' : 'full')
       },
@@ -134,96 +146,6 @@ export function CanvasViewport({
       },
     })
   }, [])
-
-  const resolvePointer = (
-    event: React.PointerEvent<HTMLDivElement>,
-    handler?: (pointer: PointerState) => void,
-  ) => {
-    if (!handler) {
-      return
-    }
-
-    // Pointer events originate in screen space and must be converted into
-    // world space before hit testing can happen in the worker.
-    const rect = event.currentTarget.getBoundingClientRect()
-    handler(
-      applyMatrixToPoint(viewport.inverseMatrix, {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      }),
-    )
-  }
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    // Middle mouse or Alt+drag enters viewport-pan mode without involving the
-    // worker because it only changes presentation state.
-    if (event.button === 1 || event.altKey) {
-      panOriginRef.current = { x: event.clientX, y: event.clientY }
-      event.currentTarget.setPointerCapture(event.pointerId)
-      return
-    }
-
-    resolvePointer(event, onPointerDown)
-  }
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (panOriginRef.current && onViewportPanRef.current) {
-      const deltaX = event.clientX - panOriginRef.current.x
-      const deltaY = event.clientY - panOriginRef.current.y
-      panOriginRef.current = { x: event.clientX, y: event.clientY }
-      previewPanOffsetRef.current = {
-        x: previewPanOffsetRef.current.x + deltaX,
-        y: previewPanOffsetRef.current.y + deltaY,
-      }
-      applyViewportPreviewTransform(
-        previewLayerRef.current,
-        {
-          panOffset: previewPanOffsetRef.current,
-          zoom: { factor: 1, anchor: null },
-        },
-        resolveViewportPreviewOverscan(viewportStateRef.current),
-      )
-      return
-    }
-
-    latestPointerClientRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    }
-
-    if (frameStateRef.current.pointer === null) {
-      frameStateRef.current.pointer = requestAnimationFrame(() => {
-        frameStateRef.current.pointer = null
-        const latestPointer = latestPointerClientRef.current
-        const node = viewportRef.current
-        const handleMove = onPointerMoveRef.current
-
-        if (!latestPointer || !node || !handleMove) {
-          return
-        }
-
-        const rect = node.getBoundingClientRect()
-        handleMove(
-          applyMatrixToPoint(viewportStateRef.current.inverseMatrix, {
-            x: latestPointer.x - rect.left,
-            y: latestPointer.y - rect.top,
-          }),
-        )
-      })
-    }
-  }
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (panOriginRef.current) {
-      panOriginRef.current = null
-      event.currentTarget.releasePointerCapture(event.pointerId)
-      const nextDelta = previewPanOffsetRef.current
-      if (nextDelta.x !== 0 || nextDelta.y !== 0) {
-        pendingViewportSyncRef.current = true
-        onViewportPanRef.current?.(nextDelta.x, nextDelta.y)
-      }
-    }
-  }
 
   const rendererNode = React.useMemo(() => {
     if (!Renderer) {
@@ -271,14 +193,6 @@ export function CanvasViewport({
     )
   }, [Renderer, document, renderQuality, shapes, stats, viewport])
 
-  React.useEffect(() => {
-    return () => {
-      if (frameStateRef.current.pointer !== null) {
-        cancelAnimationFrame(frameStateRef.current.pointer)
-      }
-    }
-  }, [])
-
   if (Renderer) {
     return (
       <section className="stage-shell">
@@ -289,13 +203,6 @@ export function CanvasViewport({
             touchAction: 'none',
             overscrollBehavior: 'none',
           }}
-          onPointerMove={handlePointerMove}
-          onPointerDown={handlePointerDown}
-          onPointerUp={(event) => {
-            handlePointerUp(event)
-            onPointerUp?.()
-          }}
-          onPointerLeave={onPointerLeave}
         >
           {rendererNode}
         </div>
@@ -319,13 +226,6 @@ export function CanvasViewport({
           touchAction: 'none',
           overscrollBehavior: 'none',
         }}
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerDown}
-        onPointerUp={(event) => {
-          handlePointerUp(event)
-          onPointerUp?.()
-        }}
-        onPointerLeave={onPointerLeave}
       >
         <div
           className="stage-transform stage-fallback-canvas"
@@ -338,9 +238,6 @@ export function CanvasViewport({
             color: 'rgba(15, 23, 42, 0.6)',
             fontWeight: 600,
           }}
-          onPointerMove={(event) => resolvePointer(event, onPointerMove)}
-          onPointerDown={(event) => resolvePointer(event, onPointerDown)}
-          onPointerLeave={onPointerLeave}
         >
           <span>{shapes.length} shapes loaded, but no renderer is attached.</span>
         </div>
