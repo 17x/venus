@@ -16,6 +16,19 @@ export { CanvasViewport } from './react/CanvasViewport.tsx'
 export { useCanvasRuntime } from './react/useCanvasRuntime.ts'
 export type { CanvasRenderer, CanvasRendererProps } from './renderer/types.ts'
 export type { CanvasViewportState } from './viewport/types.ts'
+export type { ViewportGestureBindingOptions } from './gesture/index.ts'
+export { bindViewportGestures } from './gesture/index.ts'
+export type {
+  ZoomInputSource,
+  ZoomWheelResult,
+  ZoomSessionState,
+  ZoomWheelInput,
+} from './zoom/index.ts'
+export {
+  DEFAULT_ZOOM_SESSION,
+  handleZoomWheel,
+  resetZoomSession,
+} from './zoom/index.ts'
 export {
   DEFAULT_VIEWPORT,
   clampViewportScale,

@@ -109,6 +109,7 @@ export function SkiaRenderer({
   const canvasKitRef = React.useRef<CanvasKit | null>(null)
   const surfaceRef = React.useRef<Surface | null>(null)
   const tileCacheRef = React.useRef<Map<string, TileCacheEntry>>(new Map())
+  const prewarmKeyRef = React.useRef<string | null>(null)
   const sceneRevisionRef = React.useRef(0)
   const sceneIndex = React.useMemo(() => {
     sceneRevisionRef.current += 1
@@ -198,6 +199,34 @@ export function SkiaRenderer({
       tileCacheRef.current,
     )
   }, [document, renderQuality, sceneIndex, shapes, stats, viewport])
+
+  React.useEffect(() => {
+    if (!canvasKitRef.current || !surfaceRef.current || renderQuality !== 'full') {
+      return
+    }
+
+    const prewarmKey = `${sceneIndex.revision}:${viewport.scale.toFixed(3)}:${Math.round(viewport.matrix[2])}:${Math.round(viewport.matrix[5])}:${viewport.viewportWidth}:${viewport.viewportHeight}`
+    if (prewarmKeyRef.current === prewarmKey) {
+      return
+    }
+    prewarmKeyRef.current = prewarmKey
+
+    const run = () => {
+      if (!canvasKitRef.current) {
+        return
+      }
+
+      prewarmVisibleTileBuffer(
+        canvasKitRef.current,
+        sceneIndex,
+        viewport,
+        tileCacheRef.current,
+      )
+    }
+
+    const idleHandle = schedulePrewarm(run)
+    return () => cancelScheduledPrewarm(idleHandle)
+  }, [renderQuality, sceneIndex, viewport])
 
   return (
     <canvas
@@ -360,6 +389,44 @@ function drawVisibleTiles(
 
   diagnostics.staticShapeCount = visibleShapeIds.size
   diagnostics.visibleShapeCount = diagnostics.staticShapeCount + diagnostics.overlayShapeCount
+}
+
+function prewarmVisibleTileBuffer(
+  canvasKit: CanvasKit,
+  sceneIndex: RenderSceneIndex,
+  viewport: CanvasRendererProps['viewport'],
+  tileCache: Map<string, TileCacheEntry>,
+) {
+  const visibleBounds = getVisibleWorldBounds(viewport)
+  const bufferedTiles = getBufferedTiles(visibleBounds, 1)
+  const pathSampleCount = resolvePathSampleCount(viewport.scale, 'full')
+  const showTextContent = resolveShowTextContent(viewport.scale, 'full')
+
+  bufferedTiles.forEach((tile) => {
+    const signature = createTileSignature(sceneIndex.revision, tile.key, pathSampleCount, showTextContent)
+    const cached = tileCache.get(tile.key)
+    if (cached && cached.signature === signature) {
+      return
+    }
+
+    const tileShapes = sceneIndex.tileShapeMap.get(tile.key) ?? []
+    if (tileShapes.length === 0) {
+      return
+    }
+
+    cached?.picture.delete()
+    tileCache.set(tile.key, {
+      picture: recordTilePicture(
+        canvasKit,
+        sceneIndex,
+        tile,
+        tileShapes,
+        pathSampleCount,
+        showTextContent,
+      ),
+      signature,
+    })
+  })
 }
 
 function recordTilePicture(
@@ -784,14 +851,18 @@ function resolveShowTextContent(
 }
 
 function getVisibleTiles(bounds: VisibleWorldBounds) {
+  return getBufferedTiles(bounds, 0)
+}
+
+function getBufferedTiles(bounds: VisibleWorldBounds, marginTiles: number) {
   const startColumn = Math.floor(bounds.left / TILE_WORLD_SIZE)
   const endColumn = Math.floor(bounds.right / TILE_WORLD_SIZE)
   const startRow = Math.floor(bounds.top / TILE_WORLD_SIZE)
   const endRow = Math.floor(bounds.bottom / TILE_WORLD_SIZE)
   const tiles: TileBounds[] = []
 
-  for (let row = startRow; row <= endRow; row += 1) {
-    for (let column = startColumn; column <= endColumn; column += 1) {
+  for (let row = startRow - marginTiles; row <= endRow + marginTiles; row += 1) {
+    for (let column = startColumn - marginTiles; column <= endColumn + marginTiles; column += 1) {
       const left = column * TILE_WORLD_SIZE
       const top = row * TILE_WORLD_SIZE
 
@@ -806,6 +877,37 @@ function getVisibleTiles(bounds: VisibleWorldBounds) {
   }
 
   return tiles
+}
+
+function schedulePrewarm(callback: VoidFunction) {
+  const runtimeWindow = globalThis as typeof globalThis & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+    cancelIdleCallback?: (id: number) => void
+    setTimeout: typeof setTimeout
+    clearTimeout: typeof clearTimeout
+  }
+
+  if (typeof runtimeWindow.requestIdleCallback === 'function') {
+    const idleId = runtimeWindow.requestIdleCallback(() => callback(), {timeout: 120})
+    return {kind: 'idle' as const, id: idleId}
+  }
+
+  const timeoutId = runtimeWindow.setTimeout(callback, 16)
+  return {kind: 'timeout' as const, id: timeoutId}
+}
+
+function cancelScheduledPrewarm(handle: {kind: 'idle' | 'timeout'; id: number}) {
+  const runtimeWindow = globalThis as typeof globalThis & {
+    cancelIdleCallback?: (id: number) => void
+    clearTimeout: typeof clearTimeout
+  }
+
+  if (handle.kind === 'idle' && typeof runtimeWindow.cancelIdleCallback === 'function') {
+    runtimeWindow.cancelIdleCallback(handle.id)
+    return
+  }
+
+  runtimeWindow.clearTimeout(handle.id)
 }
 
 function buildRenderSceneIndex(

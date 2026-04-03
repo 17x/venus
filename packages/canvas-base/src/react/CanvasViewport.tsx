@@ -3,7 +3,12 @@ import type { EditorDocument } from '@venus/document-core'
 import type { PointerState, SceneShapeSnapshot, SceneStats } from '@venus/shared-memory'
 import type { CanvasRenderer } from '../renderer/types.ts'
 import { applyMatrixToPoint } from '../viewport/matrix.ts'
+import {
+  applyViewportPreviewTransform,
+  resolveViewportPreviewOverscan,
+} from '../viewport/preview.ts'
 import type { CanvasViewportState } from '../viewport/types.ts'
+import { bindViewportGestures } from '../gesture/index.ts'
 
 interface CanvasViewportProps {
   document: EditorDocument
@@ -46,15 +51,8 @@ export function CanvasViewport({
   const previewLayerRef = React.useRef<HTMLDivElement | null>(null)
   const panOriginRef = React.useRef<{ x: number; y: number } | null>(null)
   const previewPanOffsetRef = React.useRef({ x: 0, y: 0 })
-  const wheelZoomRef = React.useRef<{ factor: number; anchor: { x: number; y: number } | null }>({
-    factor: 1,
-    anchor: null,
-  })
-  const wheelCommitTimeoutRef = React.useRef<number | null>(null)
-  const zoomSettleTimeoutRef = React.useRef<number | null>(null)
   const latestPointerClientRef = React.useRef<{ x: number; y: number } | null>(null)
-  const frameStateRef = React.useRef<{ wheel: number | null; pointer: number | null }>({
-    wheel: null,
+  const frameStateRef = React.useRef<{ pointer: number | null }>({
     pointer: null,
   })
   const pendingViewportSyncRef = React.useRef(false)
@@ -75,11 +73,13 @@ export function CanvasViewport({
 
     pendingViewportSyncRef.current = false
     previewPanOffsetRef.current = { x: 0, y: 0 }
-    applyPreviewTransform(
+    applyViewportPreviewTransform(
       previewLayerRef.current,
-      previewPanOffsetRef.current,
-      { factor: 1, anchor: null },
-      resolvePanOverscan(viewport),
+      {
+        panOffset: previewPanOffsetRef.current,
+        zoom: { factor: 1, anchor: null },
+      },
+      resolveViewportPreviewOverscan(viewport),
     )
   }, [viewport.matrix[2], viewport.matrix[5], viewport.scale])
 
@@ -108,125 +108,31 @@ export function CanvasViewport({
       return
     }
 
-    // Some browsers surface trackpad pinch as native wheel/gesture events that
-    // can zoom the whole page. We explicitly consume them on the canvas region
-    // so only the editor viewport responds.
-    const handleNativeWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        if (event.cancelable) {
-          event.preventDefault()
-        }
-
-        const handleZoom = onViewportZoomRef.current
-        if (!handleZoom) {
-          return
-        }
-
-        const rect = node.getBoundingClientRect()
-        const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-          ? 0.06
-          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-            ? 0.12
-            : 0.02
-        const normalizedDelta = Math.max(-160, Math.min(160, event.deltaY))
-        const delta = Math.exp(-normalizedDelta * deltaScale)
-        setRenderQuality((current) => (current === 'interactive' ? current : 'interactive'))
-        wheelZoomRef.current.factor *= delta
-        wheelZoomRef.current.anchor = {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
-        }
-
-        if (zoomSettleTimeoutRef.current !== null) {
-          window.clearTimeout(zoomSettleTimeoutRef.current)
-        }
-        zoomSettleTimeoutRef.current = window.setTimeout(() => {
-          zoomSettleTimeoutRef.current = null
-          setRenderQuality('full')
-        }, 120)
-
-        if (frameStateRef.current.wheel === null) {
-          frameStateRef.current.wheel = requestAnimationFrame(() => {
-            frameStateRef.current.wheel = null
-            const zoomFactor = wheelZoomRef.current.factor
-            const anchor = wheelZoomRef.current.anchor
-            wheelZoomRef.current.factor = 1
-            wheelZoomRef.current.anchor = null
-
-            if (!anchor) {
-              return
-            }
-
-            handleZoom(viewportStateRef.current.scale * zoomFactor, anchor)
-          })
-        }
-
-        return
-      }
-
-      const handlePan = onViewportPanRef.current
-      if (!handlePan) {
-        return
-      }
-
-      if (event.cancelable) {
-        event.preventDefault()
-      }
-      previewPanOffsetRef.current = {
-        x: previewPanOffsetRef.current.x - event.deltaX,
-        y: previewPanOffsetRef.current.y - event.deltaY,
-      }
-      applyPreviewTransform(
-        previewLayerRef.current,
-        previewPanOffsetRef.current,
-        { factor: 1, anchor: null },
-        resolvePanOverscan(viewportStateRef.current),
-      )
-
-      if (wheelCommitTimeoutRef.current !== null) {
-        window.clearTimeout(wheelCommitTimeoutRef.current)
-      }
-
-      wheelCommitTimeoutRef.current = window.setTimeout(() => {
-        wheelCommitTimeoutRef.current = null
-        const nextDelta = previewPanOffsetRef.current
-        if (nextDelta.x === 0 && nextDelta.y === 0) {
-          return
-        }
-
+    return bindViewportGestures({
+      element: node,
+      getViewportState: () => viewportStateRef.current,
+      onZoomingChange: (active) => {
+        setRenderQuality(active ? 'interactive' : 'full')
+      },
+      onZoomCommit: (nextScale, anchor) => {
+        onViewportZoomRef.current?.(nextScale, anchor)
+      },
+      onPanPreview: (deltaX, deltaY) => {
+        previewPanOffsetRef.current = { x: deltaX, y: deltaY }
+        applyViewportPreviewTransform(
+          previewLayerRef.current,
+          {
+            panOffset: previewPanOffsetRef.current,
+            zoom: { factor: 1, anchor: null },
+          },
+          resolveViewportPreviewOverscan(viewportStateRef.current),
+        )
+      },
+      onPanCommit: (deltaX, deltaY) => {
         pendingViewportSyncRef.current = true
-        handlePan(nextDelta.x, nextDelta.y)
-      }, 48)
-    }
-    const preventGesture = (event: Event) => {
-      event.preventDefault()
-      event.stopPropagation()
-    }
-
-    node.addEventListener('wheel', handleNativeWheel, { passive: false })
-    node.addEventListener('gesturestart', preventGesture as EventListener, { passive: false })
-    node.addEventListener('gesturechange', preventGesture as EventListener, { passive: false })
-    node.addEventListener('gestureend', preventGesture as EventListener, { passive: false })
-
-    return () => {
-      if (frameStateRef.current.wheel !== null) {
-        cancelAnimationFrame(frameStateRef.current.wheel)
-        frameStateRef.current.wheel = null
-      }
-      if (wheelCommitTimeoutRef.current !== null) {
-        window.clearTimeout(wheelCommitTimeoutRef.current)
-        wheelCommitTimeoutRef.current = null
-      }
-      if (zoomSettleTimeoutRef.current !== null) {
-        window.clearTimeout(zoomSettleTimeoutRef.current)
-        zoomSettleTimeoutRef.current = null
-      }
-
-      node.removeEventListener('wheel', handleNativeWheel)
-      node.removeEventListener('gesturestart', preventGesture as EventListener)
-      node.removeEventListener('gesturechange', preventGesture as EventListener)
-      node.removeEventListener('gestureend', preventGesture as EventListener)
-    }
+        onViewportPanRef.current?.(deltaX, deltaY)
+      },
+    })
   }, [])
 
   const resolvePointer = (
@@ -269,11 +175,13 @@ export function CanvasViewport({
         x: previewPanOffsetRef.current.x + deltaX,
         y: previewPanOffsetRef.current.y + deltaY,
       }
-      applyPreviewTransform(
+      applyViewportPreviewTransform(
         previewLayerRef.current,
-        previewPanOffsetRef.current,
-        { factor: 1, anchor: null },
-        resolvePanOverscan(viewportStateRef.current),
+        {
+          panOffset: previewPanOffsetRef.current,
+          zoom: { factor: 1, anchor: null },
+        },
+        resolveViewportPreviewOverscan(viewportStateRef.current),
       )
       return
     }
@@ -322,7 +230,7 @@ export function CanvasViewport({
       return null
     }
 
-    const panOverscan = resolvePanOverscan(viewport)
+    const panOverscan = resolveViewportPreviewOverscan(viewport)
 
     const renderViewport = {
       ...viewport,
@@ -439,39 +347,4 @@ export function CanvasViewport({
       </div>
     </section>
   )
-}
-
-function resolvePanOverscan(viewport: CanvasViewportState) {
-  const scaleFactor = viewport.scale < 0.25 ? 2 : viewport.scale < 0.5 ? 1.5 : 1
-  const baseOverscan = 192 * scaleFactor
-
-  return Math.max(192, Math.min(640, Math.ceil(baseOverscan)))
-}
-
-function applyPreviewTransform(
-  node: HTMLDivElement | null,
-  panOffset: {x: number; y: number},
-  zoomPreview: {
-    factor: number
-    anchor: {x: number; y: number} | null
-  },
-  overscan: number,
-) {
-  if (!node) {
-    return
-  }
-
-  const anchorX = (zoomPreview.anchor?.x ?? 0) + overscan
-  const anchorY = (zoomPreview.anchor?.y ?? 0) + overscan
-  const scale = zoomPreview.factor
-
-  node.style.transform =
-    `translate(${panOffset.x}px, ${panOffset.y}px) ` +
-    `translate(${anchorX}px, ${anchorY}px) ` +
-    `scale(${scale}) ` +
-    `translate(${-anchorX}px, ${-anchorY}px)`
-  node.style.willChange =
-    panOffset.x !== 0 || panOffset.y !== 0 || scale !== 1
-      ? 'transform'
-      : ''
 }
