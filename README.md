@@ -1,26 +1,25 @@
 # Venus
 
-Venus is a vector editor monorepo built with TypeScript, React, Web Workers, and shared workspace packages.
+Venus is a composable canvas runtime monorepo for building multi-editor products (vector, flowchart, mindmap, whiteboard).
+The current active stack focuses on `vector-editor-web` and `runtime-playground`.
 
-## Monorepo
+## Workspace Layout
 
-This repository uses `pnpm` workspaces.
-
-- `apps/*`: runnable applications (for example `apps/vector-editor-web`)
-- `packages/*`: shared libraries used by apps and other packages
-- `docs/*`: project docs
-
-Current active package flow for the editor stack:
-
-- `@venus/document-core`
-- `@venus/shared-memory`
-- `@venus/editor-worker`
-- `@venus/renderer-skia`
-- `@venus/ui`
+- `apps/*`: runnable apps
+  - `apps/vector-editor-web`: product-facing vector editor shell
+  - `apps/runtime-playground`: runtime and rendering stress playground
+- `packages/*`: shared editor infrastructure
+  - `@venus/document-core`: document model and core types
+  - `@venus/canvas-base`: runtime controller, viewport, gesture bridge
+  - `@venus/editor-worker`: command execution and scene mutation in worker
+  - `@venus/shared-memory`: SAB layout and scene snapshot helpers
+  - `@venus/renderer-skia`: Skia renderer with tile cache and diagnostics
+  - `@venus/file-format`: schema and runtime format adapters
+- `docs/*`: architecture and design docs
 
 ## Requirements
 
-- Node.js 20+ recommended
+- Node.js 20+
 - `pnpm` 8.x
 
 ## Install
@@ -29,19 +28,19 @@ Current active package flow for the editor stack:
 pnpm install
 ```
 
-## Development
+## Quick Start
 
-Run from repository root:
+From repo root:
 
 ```sh
 pnpm dev
 ```
 
-This starts the vector editor web app in `apps/vector-editor-web`.
+This runs `@venus/vector-editor-web`.
 
-## Scripts
+## Useful Commands
 
-From repository root:
+From repo root:
 
 ```sh
 pnpm dev
@@ -50,20 +49,32 @@ pnpm typecheck
 pnpm lint
 ```
 
-Or run directly in the web app:
+Run playground directly:
 
 ```sh
-cd apps/vector-editor-web
-pnpm dev
-pnpm build
+pnpm --dir apps/runtime-playground dev
 ```
+
+Run vector app directly:
+
+```sh
+pnpm --dir apps/vector-editor-web dev
+```
+
+## Runtime Data Flow
+
+`vector-editor-web` / `runtime-playground` -> `canvas-base` -> `editor-worker` + `shared-memory` -> `renderer-skia`
+
+- UI and product actions stay in app layer.
+- Worker owns scene mutation and command execution.
+- Renderer consumes snapshot + viewport and draws with Skia.
 
 ## Notes
 
-- TypeScript uses project references (`tsconfig.json` + per-package `tsconfig`s).
-- ESLint rules are managed from the root `eslint.config.js`.
-- For architecture details, see `docs/cn/architecture.md`.
+- TypeScript project references are enabled via root `tsconfig.json`.
+- Vite is pinned through `pnpm.overrides` in root `package.json`.
+- Architecture doc: [docs/cn/architecture.md](/Users/yahone/projects/venus/docs/cn/architecture.md)
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+MIT. See [LICENSE](/Users/yahone/projects/venus/LICENSE).

@@ -2,210 +2,122 @@
 
 ## 总览
 
-当前仓库采用 React + TypeScript + Worker + SharedArrayBuffer 的分层模型，先把高频交互链路跑通，再逐步接入 WebGL / Skia / FlatBuffers。
+当前 Venus 采用“UI 壳层 + 运行时基础设施 + Worker 计算 + SAB 热数据 + Skia 渲染”的分层架构，重点先保证大场景下的可用性能与边界清晰。
 
-核心原则：
+当前主链路已经跑通：
 
-- 主线程只负责 UI、事件采集、状态展示
-- Worker 负责命中检测、历史、索引、解析等重计算任务
-- SharedArrayBuffer 负责运行时热数据共享
-- FlatBuffers 负责网络和存储层的二进制传输
-- 渲染层直接消费共享内存，避免重复对象拷贝
+`apps/vector-editor-web` / `apps/runtime-playground` -> `@venus/canvas-base` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/renderer-skia`
 
-## 分层设计
+## 设计原则
 
-### 1. 输入层
+- React 负责产品 UI 与编排，不承载高频运行时状态
+- Worker 负责命令执行、命中检测、历史与索引
+- SharedArrayBuffer 作为运行时热数据通道
+- 渲染层直接消费快照与 viewport
+- 文件格式与运行时模型解耦，便于多编辑器演进
 
-- 所在位置：`apps/vector-editor-web`
-- 职责：捕获鼠标、手势、快捷键、滚轮、拖拽
-- 产出：标准化输入事件，例如 `pointermove`、`pointerdown`、`zoom`、`pan`
+## 包职责
 
-### 2. 数据层
+### `@venus/document-core`
 
-- 所在位置：`packages/shared-memory`
-- 职责：定义 SharedArrayBuffer 布局
-- 内容：图元几何数据、状态位、版本号、选中索引、hover 索引
-- 特点：适合高频读写和批量扫描
+- 文档模型与基础类型
+- 几何工具、单位、工具类型等通用能力
 
-### 3. 计算层
+### `@venus/canvas-base`
 
-- 所在位置：`packages/editor-worker`
-- 职责：
-  - 粗筛与精滤命中检测
-  - 空间索引查询
-  - 复杂几何运算
-  - 历史记录 patch 生成
-  - 文件解析与二进制转换
-  - 协作 diff 合并
+- 运行时 controller（启动、订阅、命令桥接）
+- viewport 状态与矩阵变换
+- gesture 输入绑定（wheel / gesture / pointer）
+- React 适配层（`useCanvasRuntime`、`CanvasViewport`）
 
-### 4. 渲染层
+### `@venus/editor-worker`
 
-- 所在位置：`packages/renderer-skia`、后续 `packages/renderer-webgl`
-- 当前阶段：React 中的可视化占位 Stage
-- 未来目标：
-  - OffscreenCanvas + WebGL 做高频绘制
-  - CanvasKit / Skia 负责复杂路径、文字、布尔运算相关渲染
+- Worker 协议处理
+- 命令执行（insert / move / resize / reorder / delete 等）
+- 命中检测
+- 历史状态
+- 协作状态占位
 
-### 5. 持久化与同步层
+### `@venus/shared-memory`
 
-- 服务器：二进制文档、协作状态、资源文件
-- IndexedDB：本地缓存、离线快照
-- FlatBuffers：网络和存储层的二进制协议
+- SAB 内存布局
+- 几何、类型、标记位读写
+- 统计信息读写（version / hovered / selected 等）
+
+### `@venus/renderer-skia`
+
+- CanvasKit 初始化与 surface 管理
+- 可见区域裁剪与 tile 渲染
+- tile cache / 预热
+- 交互态 LOD
+- 渲染诊断与慢帧日志
+
+### `@venus/file-format`
+
+- schema 与迁移
+- 运行时场景解析适配（JSON -> runtime scene -> editor document）
+
+## 应用层角色
+
+### `apps/vector-editor-web`
+
+- 产品 UI（菜单、工具栏、面板）
+- `useEditorRuntime` 作为 app 编排入口
+- 文件导入导出与业务动作映射
+
+### `apps/runtime-playground`
+
+- 运行时验证与压力测试
+- 提供 `10k / 50k / 100k / 1000k` 场景按钮
+- 展示 renderer cache 与耗时指标
 
 ## 数据流
 
-### 交互链路
+### 命令流
 
-1. 主线程捕获 pointer 坐标
-2. 主线程把输入发给 Worker
-3. Worker 在 SAB 中做粗筛和精滤
-4. Worker 更新 hover / selected 状态位
-5. 渲染层直接读取 SAB，刷新界面
+1. UI 触发动作（toolbar/menu/shortcut）
+2. `canvas-base` 发送 command 给 worker
+3. worker 修改文档与 SAB
+4. 主线程接收 scene 更新并通知订阅者
+5. renderer 按最新快照绘制
 
-### 加载链路
+### 指针流
 
-1. 服务器或 IndexedDB 返回 FlatBuffers Buffer
-2. Worker 解析二进制数据
-3. Worker 构建图元表、空间索引、渲染缓存
-4. Worker 写入 SharedArrayBuffer
-5. 渲染层读取最新共享数据
+1. `CanvasViewport` 捕获 pointer
+2. `gesture` 模块做输入编排
+3. pointer 事件发给 worker 命中检测
+4. worker 更新 hover/selection 标记
+5. renderer 仅重绘必要状态
 
-### 编辑链路
+### 缩放/平移流
 
-1. 主线程发送命令，如“移动图元”“修改颜色”
-2. Worker 修改 SAB 中对应字段
-3. Worker 记录 history patch
-4. 渲染层按最新版本号重绘
+1. wheel / gesture 输入进入 `gesture` 模块
+2. `zoom` 模块区分 mouse 与 touchpad
+3. viewport 状态更新
+4. renderer 根据 viewport 计算可见 tile 并绘制
 
-## 为什么拆成这样
+## 当前性能策略
 
-- FlatBuffers 解决传输和解析开销
-- SharedArrayBuffer 解决主线程和 Worker 间的热数据共享
-- Worker 解决高频命中检测和复杂计算
-- Skia / WebGL 解决大规模图形绘制性能
+- 空间索引：worker 命中检测使用 spatial index
+- Scene 更新：支持 `full` 与 `flags` 更新路径
+- 渲染分块：tile-based cache + overlay 分层
+- 预热策略：仅大场景启用预热，减少空场景初始化开销
+- 诊断日志：
+  - `CANVAS-BASE slow message handler`
+  - `CANVAS-BASE slow snapshot apply`
+  - `CANVAS-BASE slow viewport render`
+  - `[renderer-skia] slow frame`
 
-## 目标目录树
+## 当前已知瓶颈
 
-```text
-apps/
-  vector-editor-web/
-  editor-desktop/
+- 超大场景下首帧或首交互可能出现慢帧
+- 低缩放大可视区域时，tile 数量可能快速增大
+- React 壳层订阅与 renderer 重绘仍需继续切分
 
-packages/
-  canvas-base/
-  document-core/
-  editor-worker/
-  file-format/
-  renderer-skia/
+## 下一步方向
 
-  ui/
-    base/
-    editor/
-```
+1. 继续减少初始化阶段重复绘制触发
+2. 进一步收敛 `CanvasViewport`（保持 React adapter 职责）
+3. 细化 zoom/pan 设备策略（mouse 与 touchpad 分治）
+4. 逐步推进 `document-core` 向通用 `Node + Features` 语义演进
 
-说明：
-
-- `canvas-base`：负责运行时生命周期、viewport、worker 桥接、共享场景快照订阅
-- `document-core`：只保留文档模型、领域类型、稳定协议，不承载产品默认值
-- `editor-worker`：负责命令执行、命中检测、patch 生成、协作与索引维护
-- `file-format`：负责持久化格式、导入导出、版本迁移
-- `renderer-skia`：Skia / CanvasKit 渲染适配器
-- `ui/base`：按钮、面板、tooltip、布局等基础组件
-- `ui/editor`：编辑器壳层、菜单、面板骨架、viewport 组合层
-
-不再作为长期顶层 package 目标的模块：
-
-- `collaboration`：并入 `editor-worker`
-- `history`：并入 `editor-worker`
-- `spatial-index`：若没有第二实现，优先并入 `editor-worker`
-- `shared-memory`：优先并入 `canvas-base`
-
-仅作为规划占位、尚未形成稳定边界的目录，建议移除或下沉到文档中管理：
-
-- `core`
-- `document-model`
-- `geometry`
-- `input`
-- `math`
-- `render-pipeline`
-- `renderer-canvas`
-- `shared`
-- `text`
-
-## 当前最小可运行骨架
-
-当前仓库已经实现了一条最小闭环：
-
-- `React` 负责界面
-- `Worker` 负责命中检测
-- `SharedArrayBuffer` 负责共享图元状态
-- `renderer-skia` 负责展示共享内存中的形状状态
-
-这条链路的目标不是“功能完整”，而是先验证：
-
-`pointer event -> worker hit test -> update SAB -> stage redraw`
-
-## 迁移顺序
-
-### 第一阶段：先收拢边界
-
-1. 将 `packages/collaboration` 合并到 `packages/editor-worker`
-2. 将 `packages/history` 合并到 `packages/editor-worker`
-3. 若确认不会替换实现，将 `packages/spatial-index` 合并到 `packages/editor-worker`
-4. 将 `packages/shared-memory` 合并到 `packages/canvas-base`
-
-目标：
-
-- 减少横向 package 跳转
-- 让 worker 相关状态和算法回到同一处维护
-- 让共享内存布局回到 runtime 基础设施层
-
-### 第二阶段：重组 UI 分层
-
-1. 将 `packages/ui` 重命名或迁移为 `packages/ui/base`
-2. 先将 vector editor 专属 UI 收回 `apps/vector-editor-web`
-3. 只有在出现第二个消费者时，再考虑抽出 `packages/ui/editor`
-
-应当移回 app 的内容包括：
-
-- `createStarterDocument` 一类 starter/demo 默认值
-- vector editor 专属 toolbar、panel 组合
-- demo 型的插入矩形、默认侧栏内容
-
-目标：
-
-- `ui/base` 只承载基础组件
-- `ui/editor` 只承载编辑器壳层
-- app 层负责具体产品行为
-
-### 第三阶段：收紧领域边界
-
-1. 让 `document-core` 只保留文档模型、领域类型、稳定 contract
-2. 将工具注册、产品快捷键、产品默认面板配置移出 `document-core`
-3. 为 `file-format` 补足 schema、迁移策略、格式边界
-
-目标：
-
-- `document-core` 不再混入产品装配逻辑
-- 多编辑器产品可以共享领域层，但各自保留 UI 和工具配置
-
-### 第四阶段：删除占位目录
-
-移除当前没有稳定代码和 package 定义的占位目录，避免误导后续拆分：
-
-- `core`
-- `document-model`
-- `geometry`
-- `input`
-- `math`
-- `render-pipeline`
-- `renderer-canvas`
-- `shared`
-- `text`
-
-## 近期实现建议
-
-1. 在 `canvas-base` 中继续扩展场景快照字段，例如颜色、transform、zIndex、visibility
-2. 在 `editor-worker` 中继续沉淀命中检测、patch 生成、索引维护
-3. 让 `renderer-skia` 继续承担渲染后端适配职责，后续按需要补 `renderer-webgl`
-4. 为加载与保存补充 `file-format` schema 与迁移链路

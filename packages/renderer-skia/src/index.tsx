@@ -49,6 +49,8 @@ const SLOW_DRAW_THRESHOLD_MS = 12
 const SLOW_RECORD_THRESHOLD_MS = 6
 const PREWARM_SCENE_THRESHOLD = 20_000
 
+let sharedCanvasKitPromise: Promise<CanvasKit> | null = null
+
 const EMPTY_DIAGNOSTICS: SkiaRenderDiagnostics = {
   tileCount: 0,
   visibleShapeCount: 0,
@@ -69,6 +71,17 @@ const diagnosticsListeners = new Set<VoidFunction>()
  */
 function debugSkia(message: string, details?: unknown) {
   console.debug('[renderer-skia]', message, details)
+}
+
+function getSharedCanvasKit() {
+  if (!sharedCanvasKitPromise) {
+    debugSkia('init canvaskit')
+    sharedCanvasKitPromise = CanvasKitInit({
+      locateFile: (file) => (file.endsWith('.wasm') ? canvaskitWasmUrl : file),
+    })
+  }
+
+  return sharedCanvasKitPromise
 }
 
 function publishDiagnostics(nextDiagnostics: SkiaRenderDiagnostics) {
@@ -140,10 +153,7 @@ export function SkiaRenderer({
       }
 
       if (!canvasKitRef.current) {
-        debugSkia('init canvaskit')
-        canvasKitRef.current = await CanvasKitInit({
-          locateFile: (file) => (file.endsWith('.wasm') ? canvaskitWasmUrl : file),
-        })
+        canvasKitRef.current = await getSharedCanvasKit()
       }
 
       if (cancelled || !canvasRef.current || !canvasKitRef.current) {
@@ -235,6 +245,7 @@ export function SkiaRenderer({
         canvasKitRef.current,
         sceneIndex,
         viewport,
+        document,
         tileCacheRef.current,
       )
     }
@@ -284,10 +295,15 @@ function drawScene(
   const skCanvas = surface.getCanvas()
   const dpr = window.devicePixelRatio || 1
   const visibleBounds = getVisibleWorldBounds(viewport)
+  const visibleDocumentBounds = clampBoundsToDocument(
+    visibleBounds,
+    document.width,
+    document.height,
+  )
   const pathSampleCount = resolvePathSampleCount(viewport.scale, renderQuality)
   const showTextContent = resolveShowTextContent(viewport.scale, renderQuality)
   const overlayShapes = resolveOverlayShapes(shapes, stats, visibleBounds)
-  const visibleTiles = getVisibleTiles(visibleBounds)
+  const visibleTiles = visibleDocumentBounds ? getVisibleTiles(visibleDocumentBounds) : []
   const needsBootstrapPrewarm =
     renderQuality === 'full' &&
     stats.shapeCount >= PREWARM_SCENE_THRESHOLD &&
@@ -319,6 +335,7 @@ function drawScene(
       canvasKit,
       sceneIndex,
       viewport,
+      document,
       tileCache,
       2,
     )
@@ -486,11 +503,20 @@ function prewarmVisibleTileBuffer(
   canvasKit: CanvasKit,
   sceneIndex: RenderSceneIndex,
   viewport: CanvasRendererProps['viewport'],
+  document: CanvasRendererProps['document'],
   tileCache: Map<string, TileCacheEntry>,
   marginTiles = 1,
 ) {
   const visibleBounds = getVisibleWorldBounds(viewport)
-  const bufferedTiles = getBufferedTiles(visibleBounds, marginTiles)
+  const visibleDocumentBounds = clampBoundsToDocument(
+    visibleBounds,
+    document.width,
+    document.height,
+  )
+  if (!visibleDocumentBounds) {
+    return
+  }
+  const bufferedTiles = getBufferedTiles(visibleDocumentBounds, marginTiles)
   const pathSampleCount = resolvePathSampleCount(viewport.scale, 'full')
   const showTextContent = resolveShowTextContent(viewport.scale, 'full')
 
@@ -950,6 +976,23 @@ function resolveShowTextContent(
 
 function getVisibleTiles(bounds: VisibleWorldBounds) {
   return getBufferedTiles(bounds, 0)
+}
+
+function clampBoundsToDocument(
+  bounds: VisibleWorldBounds,
+  documentWidth: number,
+  documentHeight: number,
+) {
+  const left = Math.max(0, bounds.left)
+  const top = Math.max(0, bounds.top)
+  const right = Math.min(documentWidth, bounds.right)
+  const bottom = Math.min(documentHeight, bounds.bottom)
+
+  if (right <= left || bottom <= top) {
+    return null
+  }
+
+  return {left, top, right, bottom}
 }
 
 function getBufferedTiles(bounds: VisibleWorldBounds, marginTiles: number) {
