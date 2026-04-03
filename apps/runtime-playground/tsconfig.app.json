@@ -12,6 +12,7 @@
     { "path": "../../packages/editor-dev/tsconfig.json" },
     { "path": "../../packages/shared-memory/tsconfig.json" },
     { "path": "../../packages/editor-worker/tsconfig.json" },
+    { "path": "../../packages/renderer-canvas/tsconfig.json" },
     { "path": "../../packages/renderer-skia/tsconfig.json" }
   ],
   "include": [

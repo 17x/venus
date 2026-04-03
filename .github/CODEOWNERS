@@ -1,0 +1,31 @@
+# Default owner
+* @17x @lucasischow
+
+# Apps
+/apps/flowchart/ @17x @lucasischow
+/apps/mindmap-editor/ @17x @lucasischow
+/apps/runtime-playground/ @17x @lucasischow
+/apps/streamline-editor/ @17x @lucasischow
+/apps/vector-editor-web/ @17x @lucasischow
+/apps/whiteboard/ @17x @lucasischow
+
+# Core packages
+/packages/canvas-base/ @17x @lucasischow
+/packages/document-core/ @17x @lucasischow
+/packages/editor-dev/ @17x @lucasischow
+/packages/editor-product/ @17x @lucasischow
+/packages/editor-worker/ @17x @lucasischow
+/packages/file-format/ @17x @lucasischow
+/packages/history/ @17x @lucasischow
+/packages/renderer-canvas/ @17x @lucasischow
+/packages/renderer-skia/ @17x @lucasischow
+/packages/shared-memory/ @17x @lucasischow
+/packages/spatial-index/ @17x @lucasischow
+/packages/ui/ @17x @lucasischow
+
+# Legacy/archived
+/packages/editor_old/ @17x @lucasischow
+
+# Docs and tooling
+/docs/ @17x @lucasischow
+/tooling/ @17x @lucasischow

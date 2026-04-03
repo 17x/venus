@@ -12,8 +12,15 @@ export {
   type CanvasRuntimeControllerOptions,
   type CanvasRuntimeSnapshot,
 } from './runtime/createCanvasRuntimeController.ts'
+export {
+  createCanvasViewerController,
+  type CanvasViewerController,
+  type CanvasViewerControllerOptions,
+  type CanvasViewerSnapshot,
+} from './runtime/createCanvasViewerController.ts'
 export { CanvasViewport } from './react/CanvasViewport.tsx'
 export { useCanvasRuntime } from './react/useCanvasRuntime.ts'
+export { useCanvasViewer } from './react/useCanvasViewer.ts'
 export type { CanvasRenderer, CanvasRendererProps } from './renderer/types.ts'
 export type { CanvasViewportState } from './viewport/types.ts'
 export type { ViewportGestureBindingOptions } from './gesture/index.ts'

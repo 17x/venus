@@ -2,11 +2,12 @@ import * as React from 'react'
 import {CanvasViewport, useCanvasRuntime} from '@venus/canvas-base'
 import {nid} from '@venus/document-core'
 import {SkiaRenderer, useSkiaRenderDiagnostics} from '@venus/renderer-skia'
+import {Canvas2DRenderer, useCanvas2DRenderDiagnostics} from '@venus/renderer-canvas'
 import type {EditorRuntimeCommand} from '@venus/editor-worker'
 import type {HistorySummary} from '@venus/editor-worker'
 import type {EditorDocument} from '@venus/document-core'
 import type {SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
-import type {CanvasViewportState} from '@venus/canvas-base'
+import type {CanvasRenderer, CanvasViewportState} from '@venus/canvas-base'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
 import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
@@ -30,6 +31,7 @@ function createRandomRectangle() {
 
 function App() {
   const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress'>('demo')
+  const [rendererBackend, setRendererBackend] = React.useState<'skia' | 'canvas2d'>('skia')
   const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
   const [largeStressRevision, setLargeStressRevision] = React.useState(0)
   const [stressRevision, setStressRevision] = React.useState(0)
@@ -112,6 +114,7 @@ function App() {
   return (
     <main className="playground-shell">
       <PlaygroundSidebar
+        rendererBackend={rendererBackend}
         document={runtime.document}
         stats={runtime.stats}
         history={runtime.history}
@@ -124,10 +127,13 @@ function App() {
         onLoadLargeStress={handleLoadLargeStress}
         onLoadStress={handleLoadStress}
         onLoadExtremeStress={handleLoadExtremeStress}
+        onUseSkiaRenderer={() => setRendererBackend('skia')}
+        onUseCanvas2DRenderer={() => setRendererBackend('canvas2d')}
         onDispatch={dispatch}
       />
 
       <PlaygroundStage
+        rendererBackend={rendererBackend}
         document={runtime.document}
         shapes={runtime.shapes}
         stats={runtime.stats}
@@ -144,6 +150,7 @@ function App() {
 }
 
 const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
+  rendererBackend,
   document,
   stats,
   history,
@@ -156,8 +163,11 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadLargeStress,
   onLoadStress,
   onLoadExtremeStress,
+  onUseSkiaRenderer,
+  onUseCanvas2DRenderer,
   onDispatch,
 }: {
+  rendererBackend: 'skia' | 'canvas2d'
   document: EditorDocument
   stats: SceneStats
   history: HistorySummary
@@ -170,11 +180,13 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadLargeStress: () => void
   onLoadStress: () => void
   onLoadExtremeStress: () => void
+  onUseSkiaRenderer: () => void
+  onUseCanvas2DRenderer: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
   return (
     <aside className="playground-panel">
-      <RuntimeIntroBlock />
+      <RuntimeIntroBlock rendererBackend={rendererBackend} />
       <DocumentBlock
         documentName={document.name}
         documentShapeCount={document.shapes.length}
@@ -193,20 +205,28 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
         onLoadLargeStress={onLoadLargeStress}
         onLoadStress={onLoadStress}
         onLoadExtremeStress={onLoadExtremeStress}
+        onUseSkiaRenderer={onUseSkiaRenderer}
+        onUseCanvas2DRenderer={onUseCanvas2DRenderer}
         onDispatch={onDispatch}
       />
       <HistoryBlock history={history} />
 
-      <RendererDiagnosticsPanel />
+      <RendererDiagnosticsPanel rendererBackend={rendererBackend} />
     </aside>
   )
 })
 
-const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock() {
+const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock({
+  rendererBackend,
+}: {
+  rendererBackend: 'skia' | 'canvas2d'
+}) {
   return (
     <div className="panel-block">
       <span className="panel-label">Runtime</span>
-      <strong className="panel-title">Worker + SAB + Skia</strong>
+      <strong className="panel-title">
+        Worker + SAB + {rendererBackend === 'skia' ? 'Skia' : 'Canvas2D'}
+      </strong>
       <p className="panel-copy">
         Validate the shared runtime loop without product UI.
       </p>
@@ -268,6 +288,8 @@ const CommandsBlock = React.memo(function CommandsBlock({
   onLoadLargeStress,
   onLoadStress,
   onLoadExtremeStress,
+  onUseSkiaRenderer,
+  onUseCanvas2DRenderer,
   onDispatch,
 }: {
   onLoadDemo: () => void
@@ -275,6 +297,8 @@ const CommandsBlock = React.memo(function CommandsBlock({
   onLoadLargeStress: () => void
   onLoadStress: () => void
   onLoadExtremeStress: () => void
+  onUseSkiaRenderer: () => void
+  onUseCanvas2DRenderer: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
   return (
@@ -286,6 +310,8 @@ const CommandsBlock = React.memo(function CommandsBlock({
         <button onClick={onLoadLargeStress}>50k Scene</button>
         <button onClick={onLoadStress}>100k Scene</button>
         <button onClick={onLoadExtremeStress}>1000k Scene</button>
+        <button onClick={onUseSkiaRenderer}>Use Skia</button>
+        <button onClick={onUseCanvas2DRenderer}>Use Canvas2D</button>
         <button onClick={() => onDispatch({type: 'viewport.fit'})}>Fit</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
@@ -319,6 +345,7 @@ const HistoryBlock = React.memo(function HistoryBlock({
 })
 
 const PlaygroundStage = React.memo(function PlaygroundStage({
+  rendererBackend,
   document,
   shapes,
   stats,
@@ -330,6 +357,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onViewportResize,
   onViewportZoom,
 }: {
+  rendererBackend: 'skia' | 'canvas2d'
   document: EditorDocument
   shapes: SceneShapeSnapshot[]
   stats: SceneStats
@@ -341,11 +369,13 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onViewportResize: (width: number, height: number) => void
   onViewportZoom: (nextScale: number, anchor?: { x: number; y: number }) => void
 }) {
+  const renderer = (rendererBackend === 'skia' ? SkiaRenderer : Canvas2DRenderer) as CanvasRenderer
+
   return (
     <section className="playground-stage">
       <CanvasViewport
         document={document}
-        renderer={SkiaRenderer}
+        renderer={renderer}
         shapes={shapes}
         stats={stats}
         viewport={viewport}
@@ -360,13 +390,32 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   )
 })
 
-function RendererDiagnosticsPanel() {
+function RendererDiagnosticsPanel({
+  rendererBackend,
+}: {
+  rendererBackend: 'skia' | 'canvas2d'
+}) {
   const renderDiagnostics = useSkiaRenderDiagnostics()
+  const canvas2dDiagnostics = useCanvas2DRenderDiagnostics()
+
+  if (rendererBackend === 'canvas2d') {
+    return (
+      <div className="panel-block">
+        <span className="panel-label">Renderer Cache</span>
+        <ul className="panel-list">
+          <li>backend: canvas2d</li>
+          <li>visible: {canvas2dDiagnostics.visibleShapeCount}</li>
+          <li>drawMs: {canvas2dDiagnostics.drawMs.toFixed(1)}ms</li>
+        </ul>
+      </div>
+    )
+  }
 
   return (
     <div className="panel-block">
       <span className="panel-label">Renderer Cache</span>
       <ul className="panel-list">
+        <li>backend: skia</li>
         <li>tiles: {renderDiagnostics.tileCount}</li>
         <li>visible: {renderDiagnostics.visibleShapeCount}</li>
         <li>static: {renderDiagnostics.staticShapeCount}</li>

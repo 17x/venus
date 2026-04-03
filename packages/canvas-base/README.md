@@ -21,6 +21,8 @@ Today it provides two public entry points:
 
 - [`createCanvasRuntimeController`](./src/runtime/createCanvasRuntimeController.ts)
 - [`useCanvasRuntime`](./src/react/useCanvasRuntime.ts)
+- [`createCanvasViewerController`](./src/runtime/createCanvasViewerController.ts)
+- [`useCanvasViewer`](./src/react/useCanvasViewer.ts)
 
 ## What It Does Not Own
 
@@ -128,6 +130,23 @@ Returned state includes:
 - `dispatchCommand(...)`
 - `receiveRemoteOperation(...)`
 - `clearHover()`
+
+### `useCanvasViewer`
+
+Read-only runtime for preview/embed scenarios where worker/SAB/edit commands
+are not required.
+
+Use this when:
+
+- you need pan/zoom + rendering, but no editing
+- you want optional hover/selection hit-test in read-only mode
+- you want lower integration cost for display surfaces
+
+Viewer options:
+
+- `document`
+- `enableHitTest?: boolean` (default `true`)
+- `selectOnPointerDown?: boolean` (default `false`)
 
 ## Example
 

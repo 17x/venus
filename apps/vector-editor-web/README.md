@@ -1,75 +1,67 @@
-# React + TypeScript + Vite
+# `@venus/vector-editor-web`
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`vector-editor-web` is the product-facing editor app in the Venus monorepo.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From repo root:
 
-## React Compiler
-
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+pnpm --dir apps/vector-editor-web dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Build:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+pnpm --dir apps/vector-editor-web build
 ```
+
+Type-check:
+
+```sh
+pnpm --dir apps/vector-editor-web exec tsc --noEmit
+```
+
+## Architecture in This App
+
+Current runtime path:
+
+`useEditorRuntime` -> `canvas-base` -> `editor-worker` + `shared-memory` -> `renderer-skia`
+
+Key points:
+
+- The app is a UI shell (toolbar, header, panels, menu).
+- High-frequency scene mutation runs in worker.
+- Scene hot data lives in SAB and is read by renderer/runtime.
+- `CanvasViewport` is a React adapter; gesture and zoom logic are extracted into shared modules.
+
+## Important Files
+
+- App entry:
+  - [src/App.tsx](/Users/yahone/projects/venus/apps/vector-editor-web/src/App.tsx)
+- Runtime orchestration:
+  - [src/hooks/useEditorRuntime.ts](/Users/yahone/projects/venus/apps/vector-editor-web/src/hooks/useEditorRuntime.ts)
+- Main frame:
+  - [src/components/editorFrame/EditorFrame.tsx](/Users/yahone/projects/venus/apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx)
+- File/document adapter:
+  - [src/adapters/fileDocument.ts](/Users/yahone/projects/venus/apps/vector-editor-web/src/adapters/fileDocument.ts)
+
+## Performance Debugging
+
+For large-scene debugging, use `apps/runtime-playground` first:
+
+```sh
+pnpm --dir apps/runtime-playground dev
+```
+
+Renderer diagnostics currently expose:
+
+- tile counts / cache hits / misses
+- rebuilt tile count
+- draw and record costs
+- slow-frame console logs with `[renderer-skia]` prefix
+
+## Notes
+
+- This app currently prioritizes runtime migration stability over final product polish.
+- `canvaskit-wasm` chunk is large by design and may trigger size warnings in build output.

@@ -18,6 +18,7 @@
     "@venus/editor-product": "workspace:*",
     "@venus/editor-worker": "workspace:*",
     "@venus/file-format": "workspace:*",
+    "@venus/renderer-canvas": "workspace:*",
     "@venus/renderer-skia": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",
