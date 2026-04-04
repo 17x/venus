@@ -426,6 +426,39 @@ function createLocalHistoryEntry(
     }
   }
 
+  if (command.type === 'shape.rename') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) {
+      return createLogOnlyEntry(command.type, 'Rename Missing Shape')
+    }
+
+    const nextText = command.text ?? (shape.type === 'text' ? command.name : shape.text)
+    return {
+      id: `shape.rename.${shape.id}`,
+      label: `Rename ${shape.name}`,
+      forward: [
+        {
+          type: 'rename-shape',
+          shapeId: shape.id,
+          prevName: shape.name,
+          nextName: command.name,
+          prevText: shape.text,
+          nextText,
+        },
+      ],
+      backward: [
+        {
+          type: 'rename-shape',
+          shapeId: shape.id,
+          prevName: command.name,
+          nextName: shape.name,
+          prevText: nextText,
+          nextText: shape.text,
+        },
+      ],
+    }
+  }
+
   if (command.type === 'shape.resize') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) {
@@ -625,6 +658,28 @@ function createRemotePatches(
     ]
   }
 
+  if (operation.type === 'shape.rename') {
+    const shapeId = asString(operation.payload?.shapeId)
+    const nextName = asString(operation.payload?.name)
+    const nextText = asOptionalString(operation.payload?.text)
+    const shape = shapeId ? findShapeById(document, shapeId) : null
+
+    if (!shape || nextName === null) {
+      return []
+    }
+
+    return [
+      {
+        type: 'rename-shape',
+        shapeId: shape.id,
+        prevName: shape.name,
+        nextName,
+        prevText: shape.text,
+        nextText: nextText ?? (shape.type === 'text' ? nextName : shape.text),
+      },
+    ]
+  }
+
   if (operation.type === 'shape.resize') {
     const shapeId = asString(operation.payload?.shapeId)
     const nextWidth = asNumber(operation.payload?.width)
@@ -774,6 +829,21 @@ function applyPatches(
       return
     }
 
+    if (patch.type === 'rename-shape') {
+      const shape = findShapeById(document, patch.shapeId)
+      if (!shape) {
+        return
+      }
+
+      shape.name = patch.nextName
+      shape.text = patch.nextText
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      writeShapeToScene(scene, index, shape)
+      incrementSceneVersion(scene)
+      updateSpatialShape(spatialIndex, document, shape.id)
+      return
+    }
+
     if (patch.type === 'resize-shape') {
       const shape = findShapeById(document, patch.shapeId)
       if (!shape) {
@@ -824,6 +894,9 @@ function applyPatches(
       document.shapes.splice(patch.index, 0, {
         ...patch.shape,
         type: patch.shape.type as DocumentNode['type'],
+        text: patch.shape.text,
+        assetId: patch.shape.assetId,
+        assetUrl: patch.shape.assetUrl,
         points: clonePoints(patch.shape.points),
         bezierPoints: cloneBezierPoints(patch.shape.bezierPoints),
       })
@@ -934,6 +1007,9 @@ function syncSpatialRange(
  *
  * If the index returns nothing useful, we gracefully fall back to `-1`.
  */
+const LINE_HIT_TOLERANCE = 6
+const PATH_HIT_TOLERANCE = 6
+
 function hitTestDocument(
   document: EditorDocument,
   spatialIndex: WorkerSpatialIndex,
@@ -954,11 +1030,17 @@ function hitTestDocument(
       continue
     }
 
+    const hitTolerance =
+      shape.type === 'lineSegment'
+        ? LINE_HIT_TOLERANCE
+        : shape.type === 'path'
+          ? PATH_HIT_TOLERANCE
+          : 0
     const inBounds =
-      pointer.x >= shape.x &&
-      pointer.x <= shape.x + shape.width &&
-      pointer.y >= shape.y &&
-      pointer.y <= shape.y + shape.height
+      pointer.x >= shape.x - hitTolerance &&
+      pointer.x <= shape.x + shape.width + hitTolerance &&
+      pointer.y >= shape.y - hitTolerance &&
+      pointer.y <= shape.y + shape.height + hitTolerance
 
     if (!inBounds) {
       continue
@@ -984,26 +1066,37 @@ function hitTestDocument(
         y1: shape.y,
         x2: shape.x + shape.width,
         y2: shape.y + shape.height,
-      })
+      }, LINE_HIT_TOLERANCE)
 
       if (!lineHit) {
         continue
       }
     }
 
-    if (shape.type === 'path' && shape.points && shape.points.length >= 2) {
-      const lineHit = isPointNearPolyline(pointer, shape.points)
+    if (shape.type === 'path') {
+      const hasBezierPath = !!shape.bezierPoints && shape.bezierPoints.length >= 2
+      const hasPolylinePath = !!shape.points && shape.points.length >= 2
 
-      if (!lineHit) {
-        continue
-      }
-    }
+      if (hasBezierPath) {
+        const curveHit = isPointNearBezierPath(
+          pointer,
+          shape.bezierPoints!,
+          PATH_HIT_TOLERANCE,
+        )
 
-    if (shape.type === 'path' && shape.bezierPoints && shape.bezierPoints.length >= 2) {
-      const curveHit = isPointNearBezierPath(pointer, shape.bezierPoints)
+        if (!curveHit) {
+          continue
+        }
+      } else if (hasPolylinePath) {
+        const lineHit = isPointNearPolyline(
+          pointer,
+          shape.points!,
+          PATH_HIT_TOLERANCE,
+        )
 
-      if (!curveHit) {
-        continue
+        if (!lineHit) {
+          continue
+        }
       }
     }
 
@@ -1100,6 +1193,8 @@ function cloneDocument(document: EditorDocument): EditorDocument {
       ...shape,
       points: clonePoints(shape.points),
       bezierPoints: cloneBezierPoints(shape.bezierPoints),
+      assetId: shape.assetId,
+      assetUrl: shape.assetUrl,
     })),
   }
 }
@@ -1118,6 +1213,14 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
       shapeId: command.shapeId,
       x: command.x,
       y: command.y,
+    }
+  }
+
+  if (command.type === 'shape.rename') {
+    return {
+      shapeId: command.shapeId,
+      name: command.name,
+      text: command.text,
     }
   }
 
@@ -1156,6 +1259,10 @@ function asString(value: unknown) {
   return typeof value === 'string' ? value : null
 }
 
+function asOptionalString(value: unknown) {
+  return typeof value === 'string' ? value : undefined
+}
+
 function asNumber(value: unknown) {
   return typeof value === 'number' ? value : null
 }
@@ -1169,6 +1276,9 @@ function asDocumentNode(value: unknown): DocumentNode | null {
   const id = asString(record.id)
   const type = asString(record.type)
   const name = asString(record.name)
+  const text = asOptionalString(record.text)
+  const assetId = asOptionalString(record.assetId)
+  const assetUrl = asOptionalString(record.assetUrl)
   const x = asNumber(record.x)
   const y = asNumber(record.y)
   const width = asNumber(record.width)
@@ -1207,6 +1317,9 @@ function asDocumentNode(value: unknown): DocumentNode | null {
     id,
     type: type as DocumentNode['type'],
     name,
+    text,
+    assetId,
+    assetUrl,
     x: nextBounds?.x ?? x,
     y: nextBounds?.y ?? y,
     width: nextBounds?.width ?? width,

@@ -34,6 +34,7 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const metadata = getMetadataMap(node.featureEntries)
   const vectorFeature = getVectorFeature(node)
   const textFeature = getTextFeature(node)
+  const imageFeature = getImageFeature(node)
   const shapeType = resolveShapeType(node, metadata)
   const pathData = vectorFeature ? extractPathGeometry(vectorFeature.paths) : null
   const bounds = pathData?.bezierPoints.length
@@ -52,6 +53,20 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
     y,
     width,
     height,
+    text: textFeature?.text,
+    textRuns: textFeature?.runs.map((run) => ({
+      start: run.start,
+      end: run.end,
+      style: {
+        color: typeof run.color === 'string' ? run.color : undefined,
+        fontFamily: run.fontFamily,
+        fontSize: run.fontSize,
+        fontWeight: run.fontWeight,
+        letterSpacing: run.letterSpacing,
+        lineHeight: run.lineHeight,
+      },
+    })),
+    assetId: imageFeature ? resolveImageAssetId(imageFeature) : undefined,
     points: pathData?.points,
     bezierPoints: pathData?.bezierPoints,
   }
@@ -69,7 +84,8 @@ function resolveShapeType(
     nodeKind === 'ellipse' ||
     nodeKind === 'lineSegment' ||
     nodeKind === 'path' ||
-    nodeKind === 'text'
+    nodeKind === 'text' ||
+    nodeKind === 'image'
   ) {
     return nodeKind
   }
@@ -84,6 +100,10 @@ function resolveShapeType(
 
   if (node.type === 'VECTOR') {
     return 'path'
+  }
+
+  if (node.type === 'IMAGE') {
+    return 'image'
   }
 
   return 'rectangle'
@@ -130,6 +150,29 @@ function getTextFeature(node: RuntimeSceneLatest['nodes'][number]) {
   }
 
   return null
+}
+
+function getImageFeature(node: RuntimeSceneLatest['nodes'][number]) {
+  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'IMAGE')
+  if (entry?.feature.kind === 'IMAGE') {
+    return entry.feature
+  }
+
+  const legacyFeature = node.features.find((feature) => feature.kind === 'IMAGE')
+  if (legacyFeature?.kind === 'IMAGE') {
+    return legacyFeature
+  }
+
+  return null
+}
+
+function resolveImageAssetId(imageFeature: ReturnType<typeof getImageFeature>) {
+  if (!imageFeature) {
+    return undefined
+  }
+
+  const feature = imageFeature as {imageId?: string; assetId?: string}
+  return feature.imageId ?? feature.assetId
 }
 
 function extractPathGeometry(paths: RuntimePathV4[]) {

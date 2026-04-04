@@ -55,6 +55,7 @@ export type EditorRuntimeCommand =
   | { type: 'selection.delete' }
   | { type: 'selection.set'; shapeId: string | null }
   | { type: 'tool.select'; tool: ToolId }
+  | { type: 'shape.rename'; shapeId: string; name: string; text?: string }
   | { type: 'shape.move'; shapeId: string; x: number; y: number }
   | { type: 'shape.resize'; shapeId: string; width: number; height: number }
   | { type: 'shape.reorder'; shapeId: string; toIndex: number }

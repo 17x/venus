@@ -612,7 +612,8 @@ function drawShapes(
     }
 
     if (shape.type === 'text') {
-      drawText(canvasKit, skCanvas, shape, showTextContent)
+      const source = sceneIndex.sourceById.get(shape.id)
+      drawText(canvasKit, skCanvas, shape, source, showTextContent)
     }
   })
 }
@@ -756,6 +757,7 @@ function drawText(
   canvasKit: CanvasKit,
   skCanvas: Canvas,
   shape: CanvasRendererProps['shapes'][number],
+  source: DocumentNode | undefined,
   showTextContent: boolean,
 ) {
   const border = new canvasKit.Paint()
@@ -767,13 +769,15 @@ function drawText(
   border.delete()
 
   if (showTextContent) {
+    const text = source?.text || shape.name
+    const primaryRun = source?.textRuns?.[0]
     const textPaint = new canvasKit.Paint()
     textPaint.setAntiAlias(true)
     textPaint.setStyle(canvasKit.PaintStyle.Fill)
     textPaint.setColor(canvasKit.Color(15, 23, 42, 1))
 
-    const font = new canvasKit.Font(null, 16)
-    skCanvas.drawText(shape.name, shape.x + 10, shape.y + 28, textPaint, font)
+    const font = new canvasKit.Font(null, primaryRun?.style?.fontSize ?? 16)
+    skCanvas.drawText(text, shape.x + 10, shape.y + 28, textPaint, font)
     font.delete()
     textPaint.delete()
   }

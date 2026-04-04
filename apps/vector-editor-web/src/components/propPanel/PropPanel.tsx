@@ -41,6 +41,7 @@ const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeA
     color: props.stroke?.color ?? '#000000',
     weight: props.stroke?.weight ?? 1,
   }
+  const typeLabel = String(props.type ?? 'unknown')
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const keyName = e.target.name as Extract<keyof ElementProps, string>
@@ -68,6 +69,24 @@ const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeA
   return <div className="z-30 text-sm">
     {/* Shape Properties Group */}
     <div className="mb-1 ">
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Type:</span>
+        <div className="px-2 py-1 text-xs uppercase tracking-wide text-gray-700 bg-gray-100 rounded">
+          {typeLabel}
+        </div>
+      </div>
+      {props.type === 'text' && (
+        <div className=" w-full h-full flex justify-between items-center gap-2">
+          <span>Text:</span>
+          <ProtectedInput
+            type="text"
+            name="name"
+            value={props.name ?? ''}
+            onChange={handleChange}
+            className="flex-1 min-w-0 py-1 text-black rounded"
+          />
+        </div>
+      )}
       <div className=" w-full h-full flex justify-between items-center">
         <span className={''}>X:</span>
         <ProtectedInput

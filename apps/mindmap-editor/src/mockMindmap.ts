@@ -27,6 +27,7 @@ function topicLabel(topic: TopicNode): DocumentNode {
     id: `label:${topic.id}`,
     type: 'text',
     name: topic.label,
+    text: topic.label,
     x: topic.x + 12,
     y: topic.y + 12,
     width: topic.width - 24,

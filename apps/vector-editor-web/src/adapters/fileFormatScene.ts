@@ -89,6 +89,18 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     })
   }
 
+  if (type === 'image' && typeof element.asset === 'string') {
+    featureEntries.push({
+      id: `${element.id}:image`,
+      role: 'content',
+      feature: {
+        kind: 'IMAGE',
+        imageId: element.asset,
+        scaleMode: 'FIT',
+      },
+    })
+  }
+
   return {
     id: element.id,
     type: resolveRuntimeNodeType(type),
@@ -111,6 +123,10 @@ function resolveRuntimeNodeType(type: string): RuntimeSceneLatest['nodes'][numbe
 
   if (type === 'text') {
     return 'TEXT'
+  }
+
+  if (type === 'image') {
+    return 'IMAGE'
   }
 
   if (type === 'path' || type === 'lineSegment') {

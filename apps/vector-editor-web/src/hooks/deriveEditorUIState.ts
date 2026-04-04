@@ -34,11 +34,14 @@ export function deriveEditorUIState(options: {
       hasPrev: canvasRuntime.history.canUndo,
       hasNext: canvasRuntime.history.canRedo,
     },
-    layerItems: canvasRuntime.shapes.map((shape) => ({
-      id: shape.id,
-      name: shape.name,
-      show: true,
-    })),
+    layerItems: canvasRuntime.shapes.map((shape) => {
+      const source = canvasRuntime.document.shapes.find((node) => node.id === shape.id)
+      return {
+        id: shape.id,
+        name: source?.text ?? source?.name ?? shape.id,
+        show: true,
+      }
+    }),
     selectedIds: selectedShapeId ? [selectedShapeId] : [],
     selectedProps: buildSelectedProps(selectedNode),
     showCreateFile,

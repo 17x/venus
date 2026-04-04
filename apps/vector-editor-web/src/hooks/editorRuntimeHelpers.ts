@@ -40,7 +40,9 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
   return {
     id: shape.id,
     type: shape.type,
-    name: shape.name,
+    name: shape.text ?? shape.name,
+    asset: shape.assetId,
+    assetUrl: shape.assetUrl,
     x: shape.x,
     y: shape.y,
     width: shape.width,

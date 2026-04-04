@@ -22,6 +22,7 @@ export interface CanvasViewerSnapshot<TDocument extends EditorDocument> {
 export interface CanvasViewerControllerOptions<TDocument extends EditorDocument> {
   document: TDocument
   enableHitTest?: boolean
+  hoverOnPointerMove?: boolean
   selectOnPointerDown?: boolean
 }
 
@@ -46,6 +47,7 @@ function debugViewer(message: string, details?: unknown) {
 export function createCanvasViewerController<TDocument extends EditorDocument>({
   document,
   enableHitTest = true,
+  hoverOnPointerMove = true,
   selectOnPointerDown = false,
 }: CanvasViewerControllerOptions<TDocument>): CanvasViewerController<TDocument> {
   const listeners = new Set<VoidFunction>()
@@ -153,12 +155,17 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
       return
     }
 
-    const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
     if (type === 'pointermove') {
+      if (!hoverOnPointerMove) {
+        return
+      }
+
+      const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
       updateHoverSelection(hoveredIndex, snapshot.stats.selectedIndex)
       return
     }
 
+    const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
     if (type === 'pointerdown' && selectOnPointerDown) {
       updateHoverSelection(hoveredIndex, hoveredIndex)
       return

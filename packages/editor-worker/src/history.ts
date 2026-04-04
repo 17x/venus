@@ -13,6 +13,14 @@ export type HistoryPatch =
       next: number
     }
   | {
+      type: 'rename-shape'
+      shapeId: string
+      prevName: string
+      nextName: string
+      prevText?: string
+      nextText?: string
+    }
+  | {
       type: 'move-shape'
       shapeId: string
       prevX: number
@@ -41,6 +49,9 @@ export type HistoryPatch =
         id: string
         type: string
         name: string
+        text?: string
+        assetId?: string
+        assetUrl?: string
         x: number
         y: number
         width: number
@@ -60,6 +71,9 @@ export type HistoryPatch =
         id: string
         type: string
         name: string
+        text?: string
+        assetId?: string
+        assetUrl?: string
         x: number
         y: number
         width: number

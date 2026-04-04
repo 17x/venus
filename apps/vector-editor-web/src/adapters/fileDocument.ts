@@ -13,7 +13,8 @@ function resolveShapeType(type: string | undefined): ShapeType {
     type === 'ellipse' ||
     type === 'lineSegment' ||
     type === 'path' ||
-    type === 'text'
+    type === 'text' ||
+    type === 'image'
   ) {
     return type
   }
@@ -21,7 +22,10 @@ function resolveShapeType(type: string | undefined): ShapeType {
   return 'rectangle'
 }
 
-function toDocumentShape(element: ElementProps): DocumentNode {
+function toDocumentShape(
+  element: ElementProps,
+  assetUrlResolver?: (assetId: string | undefined) => string | undefined,
+): DocumentNode {
   const points = Array.isArray(element.points)
     ? element.points
         .map((point) =>
@@ -64,6 +68,12 @@ function toDocumentShape(element: ElementProps): DocumentNode {
     y,
     width: resolvedWidth,
     height: resolvedHeight,
+    text: resolveTextContent(element),
+    assetId: typeof element.asset === 'string' ? element.asset : undefined,
+    assetUrl:
+      typeof element.assetUrl === 'string'
+        ? element.assetUrl
+        : assetUrlResolver?.(typeof element.asset === 'string' ? element.asset : undefined),
     points,
     bezierPoints,
   }
@@ -76,17 +86,26 @@ export function createDocumentNodeFromElement(element: ElementProps): DocumentNo
 export function createEditorDocumentFromFile(file: VisionFileType): EditorDocument {
   const runtimeScene = createRuntimeSceneFromVisionFile(file)
   const document = parseRuntimeSceneToEditorDocument(runtimeScene)
+  const assetMap = new Map((file.assets ?? []).map((asset) => [asset.id, asset]))
 
   return {
     ...document,
-    shapes: document.shapes.map((shape) =>
-      shape.id === `${file.id}:page-frame`
+    shapes: document.shapes.map((shape) => {
+      const nextShape = shape.id === `${file.id}:page-frame`
         ? {
             ...shape,
             id: `${file.id}${PAGE_FRAME_SUFFIX}`,
           }
-        : shape,
-    ),
+        : shape
+      if (!nextShape.assetId) {
+        return nextShape
+      }
+
+      return {
+        ...nextShape,
+        assetUrl: assetMap.get(nextShape.assetId)?.objectUrl,
+      }
+    }),
   }
 }
 
@@ -96,12 +115,13 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
     .map((shape, index) => ({
       id: shape.id,
       type: shape.type,
-      name: shape.name,
+      name: shape.text ?? shape.name,
       layer: index,
       x: shape.x,
       y: shape.y,
       width: shape.width,
       height: shape.height,
+      asset: shape.assetId,
       points: shape.points?.map((point) => ({...point})),
       bezierPoints: shape.bezierPoints?.map((point) => ({
         anchor: {...point.anchor},
@@ -120,6 +140,14 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
         weight: 1,
       },
     }))
+}
+
+function resolveTextContent(element: ElementProps) {
+  if (element.type !== 'text') {
+    return undefined
+  }
+
+  return String(element.name ?? 'Text')
 }
 
 function toPoint(value: unknown) {

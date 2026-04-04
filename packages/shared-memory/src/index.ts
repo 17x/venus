@@ -59,6 +59,7 @@ const TYPE_TO_KIND: Record<ShapeType, number> = {
   text: 4,
   lineSegment: 5,
   path: 6,
+  image: 7,
 }
 
 const KIND_TO_TYPE: Record<number, ShapeType> = {
@@ -68,6 +69,7 @@ const KIND_TO_TYPE: Record<number, ShapeType> = {
   4: 'text',
   5: 'lineSegment',
   6: 'path',
+  7: 'image',
 }
 
 /**

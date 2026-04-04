@@ -85,6 +85,21 @@ const path0 = {
   },
 }
 
+const text0 = {
+  ...rect0,
+  id: 'text0',
+  type: 'text',
+  name: 'Vector text baseline',
+  x: 470,
+  y: 90,
+  width: 220,
+  height: 40,
+  fill: {
+    enabled: false,
+    color: '#ffffff',
+  },
+}
+
 export const MOCK_FILE: VisionFileType = {
   id: 'mock-file',
   name: 'Untitled',
@@ -99,6 +114,6 @@ export const MOCK_FILE: VisionFileType = {
       dpi: 72,
     },
   },
-  elements: [rect0, rect1, rect2, ellipse0, lineSegment0, path0],
+  elements: [rect0, rect1, rect2, ellipse0, lineSegment0, path0, text0],
   assets: [],
 }

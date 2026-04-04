@@ -15,6 +15,7 @@ export interface VisionFileAsset {
   mimeType: string
   file?: File
   imageRef?: unknown
+  objectUrl?: string
 }
 
 export interface VisionFilePageSet {
@@ -101,6 +102,7 @@ export interface EditorRuntimeCommands {
   executeAction: EditorExecutor
   saveFile: VoidFunction
   createFile: (nextFile: VisionFileType) => void
+  addAsset: (asset: VisionFileAsset) => void
   handleCreating: (value: boolean) => void
   startCreateFile: VoidFunction
   setCurrentTool: (toolName: ToolName) => void

@@ -41,11 +41,13 @@ const readFileHelper = (file: File): Promise<VisionFileType> => {
         const fileName = asset.name
         const assetBlob = await assetEntry.async('blob')
         const nextFile = new File([assetBlob], fileName, {type: asset.mimeType})
+        const objectUrl = URL.createObjectURL(nextFile)
 
         if (asset.type === 'image') {
           asset.imageRef = await waitImageSize(nextFile)
         }
 
+        asset.objectUrl = objectUrl
         asset.file = nextFile
       })
 

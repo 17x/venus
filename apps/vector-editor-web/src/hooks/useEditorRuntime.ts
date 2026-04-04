@@ -2,7 +2,7 @@ import {useCallback, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@lite-u/ui'
 import {nid, type ToolName} from '@venus/document-core'
 import {useCanvasRuntime} from '@venus/canvas-base'
-import {SkiaRenderer} from '@venus/renderer-skia'
+import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'
@@ -29,6 +29,26 @@ import type {
   VisionFileAsset,
 } from './useEditorRuntime.types.ts'
 
+function toElementPropsFromNode(selectedNode: import('@venus/document-core').DocumentNode): ElementProps {
+  return {
+    id: selectedNode.id,
+    type: selectedNode.type,
+    name: selectedNode.text ?? selectedNode.name,
+    asset: selectedNode.assetId,
+    assetUrl: selectedNode.assetUrl,
+    x: selectedNode.x,
+    y: selectedNode.y,
+    width: selectedNode.width,
+    height: selectedNode.height,
+    points: selectedNode.points?.map((point) => ({...point})),
+    bezierPoints: selectedNode.bezierPoints?.map((point) => ({
+      anchor: {...point.anchor},
+      cp1: point.cp1 ? {...point.cp1} : point.cp1,
+      cp2: point.cp2 ? {...point.cp2} : point.cp2,
+    })),
+  }
+}
+
 export type {
   EditorDocumentState,
   EditorExecutor,
@@ -43,7 +63,7 @@ export type {
 } from './useEditorRuntime.types.ts'
 
 const SCENE_CAPACITY = 256
-
+const IMAGE_INSERT_VIEWPORT_RATIO = 0.82
 const useEditorRuntime = (options?: {
   onContextMenu?: (position: {x: number; y: number}) => void
 }) => {
@@ -57,6 +77,7 @@ const useEditorRuntime = (options?: {
     openFile,
     closeFile,
     createFile,
+    addAsset,
     startCreateFile,
     handleCreating,
     saveFile,
@@ -65,6 +86,7 @@ const useEditorRuntime = (options?: {
   const [focused, setFocused] = useState(false)
   const [currentTool, setCurrentToolState] = useState<ToolName>('selector')
   const [clipboard, setClipboard] = useState<ElementProps[]>([])
+  const [pasteSerial, setPasteSerial] = useState(0)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
@@ -192,44 +214,16 @@ const useEditorRuntime = (options?: {
 
     if (type === 'element-copy') {
       if (selectedNode && selectedNode.type !== 'frame') {
-        setClipboard([{
-          ...cloneElementProps({
-            id: selectedNode.id,
-            type: selectedNode.type,
-            name: selectedNode.name,
-            x: selectedNode.x,
-            y: selectedNode.y,
-            width: selectedNode.width,
-            height: selectedNode.height,
-            points: selectedNode.points?.map((point) => ({...point})),
-            bezierPoints: selectedNode.bezierPoints?.map((point) => ({
-              anchor: {...point.anchor},
-              cp1: point.cp1 ? {...point.cp1} : point.cp1,
-              cp2: point.cp2 ? {...point.cp2} : point.cp2,
-            })),
-          }),
-        }])
+        setClipboard([cloneElementProps(toElementPropsFromNode(selectedNode))])
+        setPasteSerial(0)
       }
       return
     }
 
     if (type === 'element-cut') {
       if (selectedNode && selectedNode.type !== 'frame') {
-        setClipboard([cloneElementProps({
-          id: selectedNode.id,
-          type: selectedNode.type,
-          name: selectedNode.name,
-          x: selectedNode.x,
-          y: selectedNode.y,
-          width: selectedNode.width,
-          height: selectedNode.height,
-          points: selectedNode.points?.map((point) => ({...point})),
-          bezierPoints: selectedNode.bezierPoints?.map((point) => ({
-            anchor: {...point.anchor},
-            cp1: point.cp1 ? {...point.cp1} : point.cp1,
-            cp2: point.cp2 ? {...point.cp2} : point.cp2,
-          })),
-        })])
+        setClipboard([cloneElementProps(toElementPropsFromNode(selectedNode))])
+        setPasteSerial(0)
         handleCommand({type: 'selection.delete'})
       }
       return
@@ -241,23 +235,13 @@ const useEditorRuntime = (options?: {
       }
 
       insertElement({
-        ...offsetElementPosition({
-          id: selectedNode.id,
-          type: selectedNode.type,
-          name: selectedNode.name,
-          x: selectedNode.x,
-          y: selectedNode.y,
-          width: selectedNode.width,
-          height: selectedNode.height,
-          points: selectedNode.points?.map((point) => ({...point})),
-          bezierPoints: selectedNode.bezierPoints?.map((point) => ({
-            anchor: {...point.anchor},
-            cp1: point.cp1 ? {...point.cp1} : point.cp1,
-            cp2: point.cp2 ? {...point.cp2} : point.cp2,
-          })),
-        }, selectedNode.x + 24, selectedNode.y + 24),
+        ...offsetElementPosition(
+          toElementPropsFromNode(selectedNode),
+          selectedNode.x + 24,
+          selectedNode.y + 24,
+        ),
         id: nid(),
-        name: `${selectedNode.name ?? selectedNode.type} Copy`,
+        name: `${selectedNode.text ?? selectedNode.name ?? selectedNode.type} Copy`,
       })
       return
     }
@@ -270,9 +254,10 @@ const useEditorRuntime = (options?: {
       const position = data && typeof data === 'object' && 'x' in data && 'y' in data
         ? data as {x: number; y: number}
         : null
+      const baseOffset = 24 * (pasteSerial + 1)
 
       clipboard.forEach((item, index) => {
-        const offset = 24 * (index + 1)
+        const offset = baseOffset + 24 * index
         insertElement({
           ...offsetElementPosition(
             item,
@@ -283,6 +268,7 @@ const useEditorRuntime = (options?: {
           name: `${item.name ?? item.type} Copy`,
         })
       })
+      setPasteSerial((value) => value + 1)
       return
     }
 
@@ -340,31 +326,43 @@ const useEditorRuntime = (options?: {
     }
 
     if (type === 'drop-image' && data && typeof data === 'object' && 'position' in data) {
-      const position = data.position as {x: number; y: number}
+      const viewportPosition = data.position as {x: number; y: number}
+      const position = applyMatrixToPoint(canvasRuntime.viewport.inverseMatrix, viewportPosition)
       const asset = Array.isArray((data as {assets?: VisionFileAsset[]}).assets)
         ? (data as {assets?: VisionFileAsset[]}).assets?.[0]
         : null
       const imageRef = asset?.imageRef as {naturalWidth?: number; naturalHeight?: number} | undefined
+      const naturalWidth = imageRef?.naturalWidth ?? 160
+      const naturalHeight = imageRef?.naturalHeight ?? 120
+      const viewportWidth = canvasRuntime.viewport.viewportWidth || 960
+      const viewportHeight = canvasRuntime.viewport.viewportHeight || 640
+      const maxWidth = viewportWidth * IMAGE_INSERT_VIEWPORT_RATIO
+      const maxHeight = viewportHeight * IMAGE_INSERT_VIEWPORT_RATIO
+      const scale = Math.min(
+        1,
+        maxWidth / naturalWidth,
+        maxHeight / naturalHeight,
+      )
+      const width = naturalWidth * scale
+      const height = naturalHeight * scale
+
+      if (asset) {
+        addAsset(asset)
+        add(`Image dropped: ${asset.name}`, 'info')
+      }
 
       insertElement({
         id: nid(),
-        type: 'rectangle',
+        type: 'image',
         name: asset?.name ?? 'Image',
-        x: position.x,
-        y: position.y,
-        width: imageRef?.naturalWidth ?? 160,
-        height: imageRef?.naturalHeight ?? 120,
+        asset: asset?.id,
+        assetUrl: asset?.objectUrl,
+        x: position.x - width / 2,
+        y: position.y - height / 2,
+        width,
+        height,
         rotation: 0,
         opacity: 1,
-        fill: {
-          enabled: true,
-          color: '#fce7f3',
-        },
-        stroke: {
-          enabled: true,
-          color: '#db2777',
-          weight: 1,
-        },
       })
       return
     }
@@ -418,6 +416,16 @@ const useEditorRuntime = (options?: {
       const nextY = typeof patch.props.y === 'number' ? patch.props.y : shape.y
       const nextWidth = typeof patch.props.width === 'number' ? patch.props.width : shape.width
       const nextHeight = typeof patch.props.height === 'number' ? patch.props.height : shape.height
+      const nextName = typeof patch.props.name === 'string' ? patch.props.name : shape.text ?? shape.name
+
+      if (nextName !== (shape.text ?? shape.name)) {
+        handleCommand({
+          type: 'shape.rename',
+          shapeId: shape.id,
+          name: nextName,
+          text: shape.type === 'text' ? nextName : shape.text,
+        })
+      }
 
       if (nextX !== shape.x || nextY !== shape.y) {
         handleCommand({
@@ -506,7 +514,7 @@ const useEditorRuntime = (options?: {
 
   const runtimeState: EditorRuntimeState = {
     canvas: {
-      Renderer: SkiaRenderer,
+      Renderer: Canvas2DRenderer,
       document: canvasRuntime.document,
       shapes: canvasRuntime.shapes,
       stats: canvasRuntime.stats,
@@ -556,6 +564,7 @@ const useEditorRuntime = (options?: {
     executeAction,
     saveFile: () => saveFile(canvasRuntime.document),
     createFile,
+    addAsset,
     handleCreating,
     startCreateFile,
     setCurrentTool,

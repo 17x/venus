@@ -15,15 +15,16 @@ import {
 export function useCanvasViewer<TDocument extends EditorDocument>(
   options: CanvasViewerControllerOptions<TDocument>,
 ) {
-  const {document, enableHitTest, selectOnPointerDown} = options
+  const {document, enableHitTest, hoverOnPointerMove, selectOnPointerDown} = options
   const controller = React.useMemo(
     () =>
       createCanvasViewerController({
         document,
         enableHitTest,
+        hoverOnPointerMove,
         selectOnPointerDown,
       }),
-    [document, enableHitTest, selectOnPointerDown],
+    [document, enableHitTest, hoverOnPointerMove, selectOnPointerDown],
   )
   const [snapshot, setSnapshot] = React.useState<CanvasViewerSnapshot<TDocument>>(
     controller.getSnapshot(),
