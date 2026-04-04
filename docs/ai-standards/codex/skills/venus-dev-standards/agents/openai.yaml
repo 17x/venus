@@ -1,0 +1,4 @@
+interface:
+  display_name: "Venus Dev Standards"
+  short_description: "Apply Venus engineering standards and review checks"
+  default_prompt: "Use $venus-dev-standards to apply the shared Venus engineering standards and project constraints while implementing or reviewing code changes."
