@@ -1,7 +1,10 @@
-import {useEffect, useRef, useState} from 'react'
+import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Con, Panel} from '@lite-u/ui'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 import type {LayerItem} from '../../hooks/useEditorRuntime.types.ts'
+import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
+import {useTranslation} from 'react-i18next'
+import type {I18nHistoryDataItem} from '../../i18n/type'
 
 interface LayerPanelProps {
   executeAction: EditorExecutor
@@ -11,6 +14,7 @@ interface LayerPanelProps {
 
 const ITEM_HEIGHT = 28
 export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelProps) => {
+  const {t} = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -111,6 +115,32 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelP
              overflow: 'hidden',
            }}>
       <Con rela ovh>
+        <div className={'flex items-center gap-1 p-1 border border-gray-200 border-b-0'}>
+          <LayerActionButton
+            title={(t('bringForward', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
+            disabled={selectedIds.length === 0}
+            onClick={() => executeAction('element-layer', 'up')}
+            icon={<LayerUp size={16}/>}
+          />
+          <LayerActionButton
+            title={(t('sendBackward', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
+            disabled={selectedIds.length === 0}
+            onClick={() => executeAction('element-layer', 'down')}
+            icon={<LayerDown size={16}/>}
+          />
+          <LayerActionButton
+            title={(t('bringToFront', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
+            disabled={selectedIds.length === 0}
+            onClick={() => executeAction('element-layer', 'top')}
+            icon={<LayerToTop size={16}/>}
+          />
+          <LayerActionButton
+            title={(t('sendToBack', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
+            disabled={selectedIds.length === 0}
+            onClick={() => executeAction('element-layer', 'bottom')}
+            icon={<LayerToBottom size={16}/>}
+          />
+        </div>
         <div ref={scrollRef}
              onScroll={handleScroll}
              className={'relative scrollbar-custom overflow-x-hidden overflow-y-auto p-2 border h-30 border-gray-200 select-none'}>
@@ -122,4 +152,24 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelP
       </Con>
     </Panel>
   </Con>
+}
+
+function LayerActionButton(props: {
+  title?: string
+  disabled?: boolean
+  onClick: VoidFunction
+  icon: ReactNode
+}) {
+  const {title, disabled, onClick, icon} = props
+  return (
+    <button
+      type={'button'}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={'w-6 h-6 inline-flex items-center justify-center rounded-sm hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent'}
+    >
+      {icon}
+    </button>
+  )
 }

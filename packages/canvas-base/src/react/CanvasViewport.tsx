@@ -244,10 +244,24 @@ export function CanvasViewport({
         if (active && !zoomingRef.current) {
           onPointerLeaveRef.current?.()
         }
+        if (!active) {
+          applyViewportPreviewTransform(
+            previewLayerRef.current,
+            {
+              panOffset: previewPanOffsetRef.current,
+              zoom: { factor: 1, anchor: null },
+            },
+            resolveViewportPreviewOverscan(viewportStateRef.current),
+          )
+        }
         zoomingRef.current = active
         setRenderQuality(active ? 'interactive' : 'full')
       },
-      onZoomPreview: () => {},
+      onZoomPreview: () => {
+        // Zoom preview transform is temporarily disabled in the default
+        // commit-immediately path because applying both preview and committed
+        // viewport in the same loop can cause visible offset drift.
+      },
       onZoomCommitViewport: (targetViewport) => {
         if (onViewportChangeRef.current) {
           onViewportChangeRef.current(targetViewport)

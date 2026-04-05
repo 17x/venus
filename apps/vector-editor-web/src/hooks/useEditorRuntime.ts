@@ -122,6 +122,63 @@ function applyPreviewGeometryToShape(
   }
 }
 
+function buildTransformPreviewMap(
+  document: import('@venus/document-core').EditorDocument,
+  preview: TransformPreview,
+) {
+  const previewById = new Map(
+    preview.shapes.map((shape) => [shape.shapeId, shape] as const),
+  )
+  const childrenByParent = new Map<string, string[]>()
+
+  document.shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+    const siblings = childrenByParent.get(shape.parentId) ?? []
+    siblings.push(shape.id)
+    childrenByParent.set(shape.parentId, siblings)
+  })
+
+  for (const previewShape of preview.shapes) {
+    const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
+    if (!source || source.type !== 'group') {
+      continue
+    }
+
+    const deltaX = previewShape.x - source.x
+    const deltaY = previewShape.y - source.y
+    if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
+      continue
+    }
+
+    const queue = [...(childrenByParent.get(source.id) ?? [])]
+    while (queue.length > 0) {
+      const childId = queue.shift()!
+      const child = document.shapes.find((shape) => shape.id === childId)
+      if (!child) {
+        continue
+      }
+      if (!previewById.has(child.id)) {
+        previewById.set(child.id, {
+          shapeId: child.id,
+          x: child.x + deltaX,
+          y: child.y + deltaY,
+          width: child.width,
+          height: child.height,
+          rotation: child.rotation,
+        })
+      }
+      const nested = childrenByParent.get(child.id)
+      if (nested && nested.length > 0) {
+        queue.push(...nested)
+      }
+    }
+  }
+
+  return previewById
+}
+
 function hitTestSceneShape(
   shapes: Array<{x: number; y: number; width: number; height: number; type: string}>,
   point: {x: number; y: number},
@@ -290,9 +347,7 @@ const useEditorRuntime = (options?: {
     if (!transformPreview) {
       return canvasRuntime.document
     }
-    const previewById = new Map(
-      transformPreview.shapes.map((shape) => [shape.shapeId, shape] as const),
-    )
+    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview)
 
     return {
       ...canvasRuntime.document,
@@ -314,9 +369,7 @@ const useEditorRuntime = (options?: {
       return canvasRuntime.shapes
     }
 
-    const previewById = new Map(
-      transformPreview.shapes.map((shape) => [shape.shapeId, shape] as const),
-    )
+    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview)
 
     return canvasRuntime.shapes.map((shape) => (
       previewById.has(shape.id)

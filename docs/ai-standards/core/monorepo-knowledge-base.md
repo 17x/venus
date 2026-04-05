@@ -65,6 +65,12 @@ Use this file as the shared knowledge base for the Venus monorepo.
   now renders per-corner rounded rectangles, arc/sector ellipses, and shape
   shadows/colors using `DocumentNode` style fields.
 
+- Unified layer-operation UI wiring in `vector-editor-web`: top menu `layer`
+  entries, context-menu layer submenu, shortcut-bar layer buttons, and layer
+  panel action icons now all dispatch the same `element-layer` action with
+  explicit direction payload (`up/down/top/bottom`) to keep behavior
+  consistent across entry points.
+
 - Landed true multi-select selection semantics across runtime and worker
   protocol. `selection.set` now supports `shapeIds + mode`
   (`replace/add/remove/toggle/clear`), pointer-down messages forward modifier

@@ -39,6 +39,7 @@ export function bindViewportGestures({
   onPointerUp,
   onPointerLeave,
   onZoomingChange,
+  onZoomPreview,
   onZoomCommitViewport,
   onPanPreview,
   onPanCommit,
@@ -50,6 +51,8 @@ export function bindViewportGestures({
   let pointerFrame: number | null = null
   let panCommitTimeout: number | null = null
   let zoomSettleTimeout: number | null = null
+  let zoomCommitFrame: number | null = null
+  let pendingZoomViewport: CanvasViewportState | null = null
   let interactionPointerId: number | null = null
   let suppressPointerUntil = 0
 
@@ -99,16 +102,31 @@ export function bindViewportGestures({
       zoomSettleTimeout = window.setTimeout(() => {
         zoomSettleTimeout = null
         zoomSession = resetZoomSession()
+        onZoomPreview?.(null)
         onZoomingChange?.(false)
       }, nextZoom.settleDelay)
 
       const baseViewport = getViewportState()
+      const commitBaseViewport = pendingZoomViewport ?? baseViewport
       const nextViewport = zoomViewportState(
-        baseViewport,
-        baseViewport.scale * nextZoom.factor,
+        commitBaseViewport,
+        commitBaseViewport.scale * nextZoom.factor,
         nextZoom.anchor,
       )
-      onZoomCommitViewport(nextViewport)
+      onZoomPreview?.(nextViewport)
+      pendingZoomViewport = nextViewport
+
+      if (zoomCommitFrame === null) {
+        zoomCommitFrame = requestAnimationFrame(() => {
+          zoomCommitFrame = null
+          if (!pendingZoomViewport) {
+            return
+          }
+          const targetViewport = pendingZoomViewport
+          pendingZoomViewport = null
+          onZoomCommitViewport(targetViewport)
+        })
+      }
 
       return
     }
@@ -257,7 +275,13 @@ export function bindViewportGestures({
     }
     if (zoomSettleTimeout !== null) {
       window.clearTimeout(zoomSettleTimeout)
+      zoomSettleTimeout = null
     }
+    if (zoomCommitFrame !== null) {
+      cancelAnimationFrame(zoomCommitFrame)
+      zoomCommitFrame = null
+    }
+    pendingZoomViewport = null
     if (
       interactionPointerId !== null &&
       typeof element.releasePointerCapture === 'function' &&

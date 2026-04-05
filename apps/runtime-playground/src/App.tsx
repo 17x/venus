@@ -5,6 +5,7 @@ import {
   createMarqueeState,
   getMarqueeNormalizedBounds,
   createSelectionDragController,
+  createTransformSessionManager,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   updateMarqueeState,
@@ -220,6 +221,70 @@ function hitTestSceneShape(
   return -1
 }
 
+function buildGroupAwarePreviewMap(
+  document: EditorDocument,
+  previewShapes: Array<{
+    shapeId: string
+    x: number
+    y: number
+    width: number
+    height: number
+    rotation?: number
+  }>,
+) {
+  const previewById = new Map(previewShapes.map((shape) => [shape.shapeId, shape] as const))
+  const childrenByParent = new Map<string, string[]>()
+
+  document.shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+    const siblings = childrenByParent.get(shape.parentId) ?? []
+    siblings.push(shape.id)
+    childrenByParent.set(shape.parentId, siblings)
+  })
+
+  for (const previewShape of previewShapes) {
+    const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
+    if (!source || source.type !== 'group') {
+      continue
+    }
+
+    const deltaX = previewShape.x - source.x
+    const deltaY = previewShape.y - source.y
+    if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
+      continue
+    }
+
+    const queue = [...(childrenByParent.get(source.id) ?? [])]
+    while (queue.length > 0) {
+      const childId = queue.shift()!
+      const child = document.shapes.find((shape) => shape.id === childId)
+      if (!child) {
+        continue
+      }
+
+      if (!previewById.has(child.id)) {
+        previewById.set(child.id, {
+          shapeId: child.id,
+          x: child.x + deltaX,
+          y: child.y + deltaY,
+          width: child.width,
+          height: child.height,
+          rotation: child.rotation,
+        })
+      }
+
+      const nested = childrenByParent.get(child.id)
+      if (nested && nested.length > 0) {
+        queue.push(...nested)
+      }
+    }
+  }
+
+  return previewById
+}
+
 function App() {
   const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'>('demo')
   const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
@@ -272,9 +337,14 @@ function App() {
   const runtimeController = runtimeStore.controller
   const [renderLodState, setRenderLodState] = React.useState<CanvasRenderLodState | null>(null)
   const [dragPreview, setDragPreview] = React.useState<{
-    shapeIds: string[]
-    deltaX: number
-    deltaY: number
+    shapes: Array<{
+      shapeId: string
+      x: number
+      y: number
+      width: number
+      height: number
+      rotation?: number
+    }>
   } | null>(null)
   const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
 
@@ -311,7 +381,50 @@ function App() {
   const dragControllerRef = React.useRef(createSelectionDragController({
     allowFrameSelection: false,
   }))
+  const transformManagerRef = React.useRef(createTransformSessionManager())
+
+  const resolveSelectedBounds = React.useCallback((snapshot: ReturnType<typeof runtimeController.getSnapshot>) => {
+    const selectedNodes = snapshot.shapes
+      .filter((shape) => shape.isSelected)
+      .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
+      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
+    if (selectedNodes.length === 0) {
+      return null
+    }
+
+    const first = selectedNodes[0]
+    const initial = getMarqueeNormalizedBounds(first.x, first.y, first.width, first.height)
+    return selectedNodes
+      .slice(1)
+      .map((shape) => getMarqueeNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
+      .reduce((acc, item) => ({
+        minX: Math.min(acc.minX, item.minX),
+        minY: Math.min(acc.minY, item.minY),
+        maxX: Math.max(acc.maxX, item.maxX),
+        maxY: Math.max(acc.maxY, item.maxY),
+      }), initial)
+  }, [runtimeController])
+
   const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
+    const transformSession = transformManagerRef.current.getSession()
+    if (transformSession) {
+      runtimeController.clearHover()
+      const preview = transformManagerRef.current.update(pointer)
+      if (preview) {
+        setDragPreview({
+          shapes: preview.shapes.map((shape) => ({
+            shapeId: shape.shapeId,
+            x: shape.x,
+            y: shape.y,
+            width: shape.width,
+            height: shape.height,
+            rotation: shape.rotation,
+          })),
+        })
+      }
+      return
+    }
+
     if (marquee) {
       runtimeController.clearHover()
       setMarquee((current) => (current ? updateMarqueeState(current, pointer) : current))
@@ -324,16 +437,63 @@ function App() {
       shapes: snapshot.shapes,
     })
     if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
-      setDragPreview({
-        shapeIds: dragMove.session.shapes.map((shape) => shape.shapeId),
-        deltaX: dragMove.session.current.x - dragMove.session.start.x,
-        deltaY: dragMove.session.current.y - dragMove.session.start.y,
-      })
+      runtimeController.clearHover()
+      if (dragMove.phase === 'started') {
+        const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
+        const dragShapes = dragShapeIds
+          .map((id) => snapshot.document.shapes.find((shape) => shape.id === id))
+          .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
+
+        if (dragShapes.length > 0) {
+          transformManagerRef.current.start({
+            shapeIds: dragShapes.map((shape) => shape.id),
+            shapes: dragShapes.map((shape) => ({
+              shapeId: shape.id,
+              x: shape.x,
+              y: shape.y,
+              width: Math.max(1, shape.width),
+              height: Math.max(1, shape.height),
+              rotation: shape.rotation ?? 0,
+              centerX: shape.x + shape.width / 2,
+              centerY: shape.y + shape.height / 2,
+            })),
+            handle: 'move',
+            pointer: dragMove.session.start,
+            startBounds: dragMove.session.bounds,
+          })
+          setDragPreview({
+            shapes: dragShapes.map((shape) => ({
+              shapeId: shape.id,
+              x: shape.x,
+              y: shape.y,
+              width: Math.max(1, shape.width),
+              height: Math.max(1, shape.height),
+              rotation: shape.rotation ?? 0,
+            })),
+          })
+        }
+      }
+
+      const preview = transformManagerRef.current.update(pointer)
+      if (preview) {
+        setDragPreview({
+          shapes: preview.shapes.map((shape) => ({
+            shapeId: shape.shapeId,
+            x: shape.x,
+            y: shape.y,
+            width: shape.width,
+            height: shape.height,
+            rotation: shape.rotation,
+          })),
+        })
+      }
+      return
     }
+
     if (dragMove.phase === 'none') {
       setDragPreview(null)
     }
-    if (dragMove.phase === 'pending' || dragMove.phase === 'started' || dragMove.phase === 'dragging') {
+    if (dragMove.phase === 'pending') {
       runtimeController.clearHover()
       return
     }
@@ -345,6 +505,43 @@ function App() {
     modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
   ) => {
     const snapshot = runtimeController.getSnapshot()
+    const selectedNodes = snapshot.shapes
+      .filter((shape) => shape.isSelected)
+      .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
+      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
+    const selectedBounds = resolveSelectedBounds(snapshot)
+
+    if (selectedBounds && selectedNodes.length > 0 && isPointInBounds(pointer, selectedBounds)) {
+      dragControllerRef.current.clear()
+      transformManagerRef.current.start({
+        shapeIds: selectedNodes.map((shape) => shape.id),
+        shapes: selectedNodes.map((shape) => ({
+          shapeId: shape.id,
+          x: shape.x,
+          y: shape.y,
+          width: Math.max(1, shape.width),
+          height: Math.max(1, shape.height),
+          rotation: shape.rotation ?? 0,
+          centerX: shape.x + shape.width / 2,
+          centerY: shape.y + shape.height / 2,
+        })),
+        handle: 'move',
+        pointer,
+        startBounds: selectedBounds,
+      })
+      setDragPreview({
+        shapes: selectedNodes.map((shape) => ({
+          shapeId: shape.id,
+          x: shape.x,
+          y: shape.y,
+          width: Math.max(1, shape.width),
+          height: Math.max(1, shape.height),
+          rotation: shape.rotation ?? 0,
+        })),
+      })
+      return
+    }
+
     const hitIndex = hitTestSceneShape(snapshot.shapes, pointer, {
       allowFrameSelection: false,
     })
@@ -366,8 +563,9 @@ function App() {
       document: snapshot.document,
       shapes: snapshot.shapes,
     }, modifiers)
-  }, [runtimeController])
+  }, [resolveSelectedBounds, runtimeController])
   const handlePointerUp = React.useCallback(() => {
+    dragControllerRef.current.pointerUp()
     if (marquee) {
       const snapshot = runtimeController.getSnapshot()
       const bounds = resolveMarqueeBounds(marquee)
@@ -385,31 +583,40 @@ function App() {
       return
     }
 
-    setDragPreview(null)
-    const drag = dragControllerRef.current.pointerUp()
-    if (!drag) {
+    const transformSession = transformManagerRef.current.commit()
+    if (!transformSession) {
+      setDragPreview(null)
       return
     }
 
-    const deltaX = drag.current.x - drag.start.x
-    const deltaY = drag.current.y - drag.start.y
-    if (Math.abs(deltaX) < 0.001 && Math.abs(deltaY) < 0.001) {
+    const snapshot = runtimeController.getSnapshot()
+    const preview = dragPreview
+    if (!preview) {
+      setDragPreview(null)
       return
     }
 
-    drag.shapes.forEach((shape) => {
-      runtimeController.dispatchCommand({
-        type: 'shape.move',
-        shapeId: shape.shapeId,
-        x: shape.x + deltaX,
-        y: shape.y + deltaY,
-      })
+    preview.shapes.forEach((item) => {
+      const shape = snapshot.document.shapes.find((candidate) => candidate.id === item.shapeId)
+      if (!shape) {
+        return
+      }
+      if (shape.x !== item.x || shape.y !== item.y) {
+        runtimeController.dispatchCommand({
+          type: 'shape.move',
+          shapeId: shape.id,
+          x: item.x,
+          y: item.y,
+        })
+      }
     })
+    setDragPreview(null)
   }, [marquee, runtimeController])
   const handlePointerLeave = React.useCallback(() => {
     setDragPreview(null)
     setMarquee(null)
     dragControllerRef.current.clear()
+    transformManagerRef.current.cancel()
     runtimeController.clearHover()
   }, [runtimeController])
   const marqueeBounds = React.useMemo<MarqueeBounds | null>(
@@ -437,6 +644,7 @@ function App() {
         runtimeStore={runtimeStore}
         canvasLodConfig={defaultCanvas2DLodConfig}
         onRenderLodChange={setRenderLodState}
+        onDispatch={dispatch}
         dragPreview={dragPreview}
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
@@ -813,6 +1021,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   runtimeStore,
   canvasLodConfig,
   onRenderLodChange,
+  onDispatch,
   dragPreview,
   onPointerMove,
   onPointerDown,
@@ -827,10 +1036,16 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   runtimeStore: CanvasRuntimeStore<EditorDocument>
   canvasLodConfig: Canvas2DLodConfig
   onRenderLodChange: (lodState: CanvasRenderLodState) => void
+  onDispatch: (command: EditorRuntimeCommand) => void
   dragPreview: {
-    shapeIds: string[]
-    deltaX: number
-    deltaY: number
+    shapes: Array<{
+      shapeId: string
+      x: number
+      y: number
+      width: number
+      height: number
+      rotation?: number
+    }>
   } | null
   onPointerMove: (pointer: { x: number; y: number }) => void
   onPointerDown: (
@@ -845,6 +1060,14 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onViewportResize: (width: number, height: number) => void
   onViewportZoom: (nextScale: number, anchor?: { x: number; y: number }) => void
 }) {
+  const stageRef = React.useRef<HTMLElement | null>(null)
+  const contextMenuRef = React.useRef<HTMLDivElement | null>(null)
+  const [showContextMenu, setShowContextMenu] = React.useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = React.useState<{x: number; y: number}>({x: 0, y: 0})
+  const [resolvedContextMenuPosition, setResolvedContextMenuPosition] = React.useState<{x: number; y: number}>({
+    x: 0,
+    y: 0,
+  })
   const document = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document)
   const shapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.shapes)
   const stats = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.stats)
@@ -854,15 +1077,18 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
       return document
     }
 
-    const previewIds = new Set(dragPreview.shapeIds)
+    const previewById = buildGroupAwarePreviewMap(document, dragPreview.shapes)
     return {
       ...document,
       shapes: document.shapes.map((shape) => (
-        previewIds.has(shape.id)
+        previewById.has(shape.id)
           ? {
               ...shape,
-              x: shape.x + dragPreview.deltaX,
-              y: shape.y + dragPreview.deltaY,
+              x: previewById.get(shape.id)?.x ?? shape.x,
+              y: previewById.get(shape.id)?.y ?? shape.y,
+              width: previewById.get(shape.id)?.width ?? shape.width,
+              height: previewById.get(shape.id)?.height ?? shape.height,
+              rotation: previewById.get(shape.id)?.rotation ?? shape.rotation,
             }
           : shape
       )),
@@ -873,17 +1099,19 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
       return shapes
     }
 
-    const previewIds = new Set(dragPreview.shapeIds)
+    const previewById = buildGroupAwarePreviewMap(document, dragPreview.shapes)
     return shapes.map((shape) => (
-      previewIds.has(shape.id)
+      previewById.has(shape.id)
         ? {
             ...shape,
-            x: shape.x + dragPreview.deltaX,
-            y: shape.y + dragPreview.deltaY,
+            x: previewById.get(shape.id)?.x ?? shape.x,
+            y: previewById.get(shape.id)?.y ?? shape.y,
+            width: previewById.get(shape.id)?.width ?? shape.width,
+            height: previewById.get(shape.id)?.height ?? shape.height,
           }
         : shape
     ))
-  }, [shapes, dragPreview])
+  }, [document, shapes, dragPreview])
 
   const renderer = React.useMemo<CanvasRenderer>(() => {
     const Canvas2DWithLod: CanvasRenderer = (props) => (
@@ -944,8 +1172,57 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
     }
   }, [marqueeBounds])
 
+  React.useLayoutEffect(() => {
+    if (!showContextMenu) {
+      return
+    }
+
+    const menu = contextMenuRef.current
+    const stage = stageRef.current
+    if (!menu || !stage) {
+      setResolvedContextMenuPosition(contextMenuPosition)
+      return
+    }
+
+    const menuWidth = menu.offsetWidth
+    const menuHeight = menu.offsetHeight
+    const maxX = Math.max(0, stage.clientWidth - menuWidth - 4)
+    const maxY = Math.max(0, stage.clientHeight - menuHeight - 4)
+
+    setResolvedContextMenuPosition({
+      x: Math.min(Math.max(0, contextMenuPosition.x), maxX),
+      y: Math.min(Math.max(0, contextMenuPosition.y), maxY),
+    })
+  }, [contextMenuPosition, showContextMenu])
+
+  React.useEffect(() => {
+    if (!showContextMenu) {
+      return
+    }
+    const close = () => setShowContextMenu(false)
+    window.addEventListener('pointerdown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+    }
+  }, [showContextMenu])
+
   return (
-    <section className="playground-stage">
+    <section
+      ref={stageRef}
+      className="playground-stage"
+      onContextMenu={(event) => {
+        event.preventDefault()
+        const rect = stageRef.current?.getBoundingClientRect()
+        if (!rect) {
+          return
+        }
+        setContextMenuPosition({
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        })
+        setShowContextMenu(true)
+      }}
+    >
       <CanvasViewport
         document={renderDocument}
         renderer={renderer}
@@ -963,9 +1240,90 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
         onViewportResize={onViewportResize}
         onViewportZoom={onViewportZoom}
       />
+      {showContextMenu && (
+        <div
+          ref={contextMenuRef}
+          style={{
+            position: 'absolute',
+            left: resolvedContextMenuPosition.x,
+            top: resolvedContextMenuPosition.y,
+            background: '#ffffff',
+            border: '1px solid #d1d5db',
+            borderRadius: 6,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.14)',
+            zIndex: 40,
+            minWidth: 120,
+            overflow: 'hidden',
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation()
+          }}
+        >
+          <ContextActionButton
+            label="Fit"
+            onClick={() => {
+              onDispatch({type: 'viewport.fit'})
+              setShowContextMenu(false)
+            }}
+          />
+          <ContextActionButton
+            label="Zoom In"
+            onClick={() => {
+              onDispatch({type: 'viewport.zoomIn'})
+              setShowContextMenu(false)
+            }}
+          />
+          <ContextActionButton
+            label="Zoom Out"
+            onClick={() => {
+              onDispatch({type: 'viewport.zoomOut'})
+              setShowContextMenu(false)
+            }}
+          />
+          <ContextActionButton
+            label="Delete Selection"
+            onClick={() => {
+              onDispatch({type: 'selection.delete'})
+              setShowContextMenu(false)
+            }}
+          />
+        </div>
+      )}
     </section>
   )
 })
+
+function ContextActionButton({
+  label,
+  onClick,
+}: {
+  label: string
+  onClick: VoidFunction
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        border: 0,
+        background: 'transparent',
+        textAlign: 'left',
+        padding: '8px 10px',
+        fontSize: 12,
+        cursor: 'pointer',
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.background = '#f3f4f6'
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = 'transparent'
+      }}
+    >
+      {label}
+    </button>
+  )
+}
 
 function RendererDiagnosticsPanel() {
   const canvas2dDiagnostics = useCanvas2DRenderDiagnostics()

@@ -53,6 +53,16 @@ export {
   type SelectionDragSnapshot,
 } from './interaction/selectionDragController.ts'
 export {
+  createTransformSessionManager,
+  type TransformBounds,
+  type TransformHandleKind,
+  type TransformPoint,
+  type TransformPreview,
+  type TransformPreviewShape,
+  type TransformSession,
+  type TransformSessionShape,
+} from './interaction/transformSessionManager.ts'
+export {
   createMarqueeState,
   updateMarqueeState,
   resolveMarqueeBounds,

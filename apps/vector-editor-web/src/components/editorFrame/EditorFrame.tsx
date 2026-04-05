@@ -17,13 +17,9 @@ import {CanvasViewport} from '@venus/canvas-base'
 const EditorFrame = () => {
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0})
+  const [contextMenuPastePosition, setContextMenuPastePosition] = useState({x: 0, y: 0})
   const stageHostRef = useRef<HTMLDivElement>(null)
-  const runtime = useEditorRuntime({
-    onContextMenu: (position) => {
-      setShowContextMenu(true)
-      setContextMenuPosition(position)
-    },
-  })
+  const runtime = useEditorRuntime()
 
   const {
     documentState,
@@ -69,6 +65,14 @@ const EditorFrame = () => {
     }
   }
 
+  const resolveWorldPoint = (viewportPoint: {x: number; y: number}) => {
+    const matrix = canvas.viewport.inverseMatrix
+    return {
+      x: matrix[0] * viewportPoint.x + matrix[1] * viewportPoint.y + matrix[2],
+      y: matrix[3] * viewportPoint.x + matrix[4] * viewportPoint.y + matrix[5],
+    }
+  }
+
   return <div className={'w-full h-full flex flex-col select-none'}>
     <div className={'flex justify-between items-center border-b border-gray-200 bg-white'}>
       <div className={'px-4 py-2 text-sm text-gray-700'}>
@@ -106,6 +110,9 @@ const EditorFrame = () => {
                     event.preventDefault()
                     setShowContextMenu(true)
                     const viewportPoint = resolveViewportPoint(event.clientX, event.clientY)
+                    const worldPoint = resolveWorldPoint(viewportPoint)
+                    setContextMenuPosition(viewportPoint)
+                    setContextMenuPastePosition(worldPoint)
                     canvas.onContextMenu({
                       x: viewportPoint.x,
                       y: viewportPoint.y,
@@ -136,6 +143,7 @@ const EditorFrame = () => {
 
                 {showContextMenu &&
                   <ContextMenu position={contextMenuPosition}
+                               pastePosition={contextMenuPastePosition}
                                executeAction={executeAction}
                                selectedIds={selectedIds}
                                copiedItems={copiedItems}
