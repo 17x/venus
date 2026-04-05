@@ -584,6 +584,117 @@ function createLocalHistoryEntry(
     }
   }
 
+  if (command.type === 'shape.rotate.batch') {
+    const candidates = command.rotations
+      .map((item) => ({
+        shape: findShapeById(document, item.shapeId),
+        nextRotation: item.rotation,
+      }))
+      .filter((item): item is {shape: DocumentNode; nextRotation: number} => !!item.shape)
+
+    if (candidates.length === 0) {
+      return createLogOnlyEntry(command.type, 'Rotate Missing Shape')
+    }
+
+    const forward = candidates.map(({shape, nextRotation}) => ({
+      type: 'rotate-shape' as const,
+      shapeId: shape.id,
+      prevRotation: shape.rotation ?? 0,
+      nextRotation,
+    }))
+    const backward = candidates.map(({shape, nextRotation}) => ({
+      type: 'rotate-shape' as const,
+      shapeId: shape.id,
+      prevRotation: nextRotation,
+      nextRotation: shape.rotation ?? 0,
+    }))
+
+    return {
+      id: `shape.rotate.batch.${Date.now()}`,
+      label: `Rotate ${candidates.length} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.transform.batch') {
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+    let touchedShapes = 0
+
+    command.transforms.forEach((item) => {
+      const shape = findShapeById(document, item.id)
+      if (!shape) {
+        return
+      }
+      touchedShapes += 1
+
+      if (item.from.x !== item.to.x || item.from.y !== item.to.y) {
+        forward.push({
+          type: 'move-shape',
+          shapeId: shape.id,
+          prevX: item.from.x,
+          prevY: item.from.y,
+          nextX: item.to.x,
+          nextY: item.to.y,
+        })
+        backward.unshift({
+          type: 'move-shape',
+          shapeId: shape.id,
+          prevX: item.to.x,
+          prevY: item.to.y,
+          nextX: item.from.x,
+          nextY: item.from.y,
+        })
+      }
+
+      if (item.from.width !== item.to.width || item.from.height !== item.to.height) {
+        forward.push({
+          type: 'resize-shape',
+          shapeId: shape.id,
+          prevWidth: item.from.width,
+          prevHeight: item.from.height,
+          nextWidth: item.to.width,
+          nextHeight: item.to.height,
+        })
+        backward.unshift({
+          type: 'resize-shape',
+          shapeId: shape.id,
+          prevWidth: item.to.width,
+          prevHeight: item.to.height,
+          nextWidth: item.from.width,
+          nextHeight: item.from.height,
+        })
+      }
+
+      if (item.from.rotation !== item.to.rotation) {
+        forward.push({
+          type: 'rotate-shape',
+          shapeId: shape.id,
+          prevRotation: item.from.rotation,
+          nextRotation: item.to.rotation,
+        })
+        backward.unshift({
+          type: 'rotate-shape',
+          shapeId: shape.id,
+          prevRotation: item.to.rotation,
+          nextRotation: item.from.rotation,
+        })
+      }
+    })
+
+    if (forward.length === 0) {
+      return createLogOnlyEntry(command.type, 'Transform Noop')
+    }
+
+    return {
+      id: `shape.transform.batch.${Date.now()}`,
+      label: `Transform ${touchedShapes} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
   if (command.type === 'shape.patch') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) {
@@ -740,6 +851,36 @@ function createLocalHistoryEntry(
           shape: command.shape,
         },
       ],
+    }
+  }
+
+  if (command.type === 'shape.insert.batch') {
+    if (command.shapes.length === 0) {
+      return createLogOnlyEntry(command.type, 'Insert Noop')
+    }
+    const baseIndex = command.index ?? document.shapes.length
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+
+    command.shapes.forEach((shape, index) => {
+      const targetIndex = baseIndex + index
+      forward.push({
+        type: 'insert-shape',
+        index: targetIndex,
+        shape,
+      })
+      backward.unshift({
+        type: 'remove-shape',
+        index: targetIndex,
+        shape,
+      })
+    })
+
+    return {
+      id: `shape.insert.batch.${Date.now()}`,
+      label: `Insert ${command.shapes.length} Shapes`,
+      forward,
+      backward,
     }
   }
 
@@ -914,6 +1055,74 @@ function createRemotePatches(
     ]
   }
 
+  if (operation.type === 'shape.rotate.batch') {
+    const rotationItems = asRotateBatch(operation.payload?.rotations)
+    if (rotationItems.length === 0) {
+      return []
+    }
+
+    return rotationItems
+      .map((item) => {
+        const shape = findShapeById(document, item.shapeId)
+        if (!shape) {
+          return null
+        }
+        return {
+          type: 'rotate-shape' as const,
+          shapeId: shape.id,
+          prevRotation: shape.rotation ?? 0,
+          nextRotation: item.rotation,
+        }
+      })
+      .filter((patch): patch is Extract<HistoryPatch, {type: 'rotate-shape'}> => patch !== null)
+  }
+
+  if (operation.type === 'shape.transform.batch') {
+    const transformItems = asTransformBatch(operation.payload?.transforms)
+    if (transformItems.length === 0) {
+      return []
+    }
+
+    const patches: HistoryPatch[] = []
+    transformItems.forEach((item) => {
+      const shape = findShapeById(document, item.id)
+      if (!shape) {
+        return
+      }
+
+      if (item.from.x !== item.to.x || item.from.y !== item.to.y) {
+        patches.push({
+          type: 'move-shape',
+          shapeId: shape.id,
+          prevX: item.from.x,
+          prevY: item.from.y,
+          nextX: item.to.x,
+          nextY: item.to.y,
+        })
+      }
+      if (item.from.width !== item.to.width || item.from.height !== item.to.height) {
+        patches.push({
+          type: 'resize-shape',
+          shapeId: shape.id,
+          prevWidth: item.from.width,
+          prevHeight: item.from.height,
+          nextWidth: item.to.width,
+          nextHeight: item.to.height,
+        })
+      }
+      if (item.from.rotation !== item.to.rotation) {
+        patches.push({
+          type: 'rotate-shape',
+          shapeId: shape.id,
+          prevRotation: item.from.rotation,
+          nextRotation: item.to.rotation,
+        })
+      }
+    })
+
+    return patches
+  }
+
   if (operation.type === 'shape.patch') {
     const shapeId = asString(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
@@ -1007,6 +1216,20 @@ function createRemotePatches(
     ]
   }
 
+  if (operation.type === 'shape.insert.batch') {
+    const shapes = asDocumentNodeList(operation.payload?.shapes)
+    const baseIndex = asNumber(operation.payload?.index) ?? document.shapes.length
+    if (shapes.length === 0) {
+      return []
+    }
+
+    return shapes.map((shape, index) => ({
+      type: 'insert-shape' as const,
+      index: baseIndex + index,
+      shape,
+    }))
+  }
+
   if (operation.type === 'shape.remove') {
     const shapeId = asString(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
@@ -1068,6 +1291,11 @@ function applyPatches(
   let needsGroupBoundsSync = false
   const movedGroupIds = new Set<string>()
   const changedShapeIds = new Set<string>()
+  const explicitlyMovedShapeIds = new Set(
+    patches
+      .filter((patch): patch is Extract<HistoryPatch, {type: 'move-shape'}> => patch.type === 'move-shape')
+      .map((patch) => patch.shapeId),
+  )
 
   patches.forEach((patch) => {
     if (patch.type === 'set-selected-index') {
@@ -1091,6 +1319,16 @@ function applyPatches(
       writeRuntimeShapeToScene(scene, document, index, shape)
       updateSpatialShape(spatialIndex, document, shape.id)
       changedShapeIds.add(shape.id)
+      moveMaskedImagesWithClip(
+        scene,
+        document,
+        spatialIndex,
+        shape.id,
+        deltaX,
+        deltaY,
+        explicitlyMovedShapeIds,
+        changedShapeIds,
+      )
 
       if (shape.type === 'group') {
         movedGroupIds.add(shape.id)
@@ -1101,6 +1339,16 @@ function applyPatches(
           writeRuntimeShapeToScene(scene, document, childIndex, child)
           updateSpatialShape(spatialIndex, document, child.id)
           changedShapeIds.add(child.id)
+          moveMaskedImagesWithClip(
+            scene,
+            document,
+            spatialIndex,
+            child.id,
+            deltaX,
+            deltaY,
+            explicitlyMovedShapeIds,
+            changedShapeIds,
+          )
         })
       }
 
@@ -1396,6 +1644,10 @@ function hitTestDocument(
     if (!allowFrameSelection && shape.type === 'frame') {
       continue
     }
+    // Masked images should not be directly hit-tested as interactive targets.
+    if (shape.type === 'image' && shape.clipPathId) {
+      continue
+    }
     const testPointer = resolveHitTestPointer(pointer, shape)
 
     const hitTolerance =
@@ -1413,6 +1665,15 @@ function hitTestDocument(
 
     if (!inBounds) {
       continue
+    }
+
+    // For clipped elements, gate hit-test by clip source first so we do not
+    // accidentally select through the unclipped host bounds.
+    if (shape.clipPathId) {
+      const clipSource = findShapeById(document, shape.clipPathId)
+      if (clipSource && !isPointInsideClipSource(testPointer, clipSource)) {
+        continue
+      }
     }
 
     if (shape.type === 'ellipse') {
@@ -1480,13 +1741,6 @@ function hitTestDocument(
         if (!lineHit) {
           continue
         }
-      }
-    }
-
-    if (shape.type === 'image' && shape.clipPathId) {
-      const clipSource = findShapeById(document, shape.clipPathId)
-      if (clipSource && !isPointInsideClipSource(testPointer, clipSource)) {
-        continue
       }
     }
 
@@ -1748,6 +2002,36 @@ function getDescendants(parentId: string, shapes: DocumentNode[]) {
   }
 
   return result
+}
+
+function moveMaskedImagesWithClip(
+  scene: SceneMemory,
+  document: EditorDocument,
+  spatialIndex: WorkerSpatialIndex,
+  clipShapeId: string,
+  deltaX: number,
+  deltaY: number,
+  explicitlyMovedShapeIds: Set<string>,
+  changedShapeIds: Set<string>,
+) {
+  if (deltaX === 0 && deltaY === 0) {
+    return
+  }
+
+  document.shapes.forEach((shape) => {
+    if (shape.type !== 'image' || shape.clipPathId !== clipShapeId) {
+      return
+    }
+    if (explicitlyMovedShapeIds.has(shape.id)) {
+      return
+    }
+
+    applyShapeMoveDelta(shape, deltaX, deltaY)
+    const imageIndex = document.shapes.findIndex((item) => item.id === shape.id)
+    writeRuntimeShapeToScene(scene, document, imageIndex, shape)
+    updateSpatialShape(spatialIndex, document, shape.id)
+    changedShapeIds.add(shape.id)
+  })
 }
 
 function hasMovedGroupAncestor(
@@ -2069,6 +2353,37 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     }
   }
 
+  if (command.type === 'shape.rotate.batch') {
+    return {
+      rotations: command.rotations.map((item) => ({
+        shapeId: item.shapeId,
+        rotation: item.rotation,
+      })),
+    }
+  }
+
+  if (command.type === 'shape.transform.batch') {
+    return {
+      transforms: command.transforms.map((item) => ({
+        id: item.id,
+        from: {
+          x: item.from.x,
+          y: item.from.y,
+          width: item.from.width,
+          height: item.from.height,
+          rotation: item.from.rotation,
+        },
+        to: {
+          x: item.to.x,
+          y: item.to.y,
+          width: item.to.width,
+          height: item.to.height,
+          rotation: item.to.rotation,
+        },
+      })),
+    }
+  }
+
   if (command.type === 'shape.patch') {
     const patchPayload: Record<string, unknown> = {}
     if (Object.prototype.hasOwnProperty.call(command.patch, 'fill')) {
@@ -2120,6 +2435,13 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     }
   }
 
+  if (command.type === 'shape.insert.batch') {
+    return {
+      shapes: command.shapes,
+      index: command.index,
+    }
+  }
+
   if (command.type === 'shape.remove') {
     return {
       shapeId: command.shapeId,
@@ -2139,6 +2461,106 @@ function asOptionalString(value: unknown) {
 
 function asOptionalNumber(value: unknown) {
   return typeof value === 'number' ? value : undefined
+}
+
+function asRotateBatch(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+      const shapeId = asString((item as Record<string, unknown>).shapeId)
+      const rotation = asNumber((item as Record<string, unknown>).rotation)
+      if (!shapeId || rotation === null) {
+        return null
+      }
+      return {shapeId, rotation}
+    })
+    .filter((item): item is {shapeId: string; rotation: number} => item !== null)
+}
+
+function asTransformBatch(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+      const record = item as Record<string, unknown>
+      const id = asString(record.id)
+      const from = record.from && typeof record.from === 'object'
+        ? record.from as Record<string, unknown>
+        : null
+      const to = record.to && typeof record.to === 'object'
+        ? record.to as Record<string, unknown>
+        : null
+      if (!id || !from || !to) {
+        return null
+      }
+      const fromX = asNumber(from.x)
+      const fromY = asNumber(from.y)
+      const fromWidth = asNumber(from.width)
+      const fromHeight = asNumber(from.height)
+      const fromRotation = asNumber(from.rotation)
+      const toX = asNumber(to.x)
+      const toY = asNumber(to.y)
+      const toWidth = asNumber(to.width)
+      const toHeight = asNumber(to.height)
+      const toRotation = asNumber(to.rotation)
+      if (
+        fromX === null ||
+        fromY === null ||
+        fromWidth === null ||
+        fromHeight === null ||
+        fromRotation === null ||
+        toX === null ||
+        toY === null ||
+        toWidth === null ||
+        toHeight === null ||
+        toRotation === null
+      ) {
+        return null
+      }
+      return {
+        id,
+        from: {
+          x: fromX,
+          y: fromY,
+          width: fromWidth,
+          height: fromHeight,
+          rotation: fromRotation,
+        },
+        to: {
+          x: toX,
+          y: toY,
+          width: toWidth,
+          height: toHeight,
+          rotation: toRotation,
+        },
+      }
+    })
+    .filter((item): item is {
+      id: string
+      from: {x: number; y: number; width: number; height: number; rotation: number}
+      to: {x: number; y: number; width: number; height: number; rotation: number}
+    } => item !== null)
+}
+
+function asDocumentNodeList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => asDocumentNode(item))
+    .filter((item): item is DocumentNode => item !== null)
 }
 
 function asNumber(value: unknown) {

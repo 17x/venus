@@ -269,42 +269,6 @@ function createRandomShape(
   }
 }
 
-function maybeCreateGroupNode(
-  random: () => number,
-  index: number,
-  shapeCount: number,
-  frame: Pick<DocumentNode, 'x' | 'y' | 'width' | 'height'>,
-): DocumentNode | null {
-  if (index === 0 || index % Math.max(250, Math.floor(shapeCount / 40)) !== 0) {
-    return null
-  }
-
-  const width = randomInt(random, 320, 760)
-  const height = randomInt(random, 220, 540)
-  const padding = 48
-  const x = randomInt(
-    random,
-    frame.x + padding,
-    frame.x + Math.max(padding, frame.width - width - padding),
-  )
-  const y = randomInt(
-    random,
-    frame.y + padding,
-    frame.y + Math.max(padding, frame.height - height - padding),
-  )
-
-  return {
-    id: nid(),
-    type: 'group',
-    name: `group-${index}`,
-    x,
-    y,
-    width,
-    height,
-    childIds: [],
-  }
-}
-
 /**
  * Generates a large deterministic stress scene for render and hit-test work.
  */
@@ -328,28 +292,9 @@ export function createStressDocument(
     height: frameHeight,
   }
   const shapes: DocumentNode[] = [frame]
-  const eligibleGroupIds: string[] = []
 
   for (let index = 0; index < shapeCount; index += 1) {
-    const groupNode = maybeCreateGroupNode(random, index, shapeCount, frame)
-    if (groupNode) {
-      shapes.push(groupNode)
-      eligibleGroupIds.push(groupNode.id)
-    }
-
     const nextShape = createRandomShape(random, index, shapeCount, imageDensity, frame)
-    const shouldAttachToGroup =
-      nextShape.type !== 'group' &&
-      eligibleGroupIds.length > 0 &&
-      index % 6 === 0
-
-    if (shouldAttachToGroup) {
-      const parentId = eligibleGroupIds[index % eligibleGroupIds.length]
-      const parent = shapes.find((shape) => shape.id === parentId)
-      nextShape.parentId = parentId
-      parent?.childIds?.push(nextShape.id)
-    }
-
     shapes.push(nextShape)
   }
 

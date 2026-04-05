@@ -35,7 +35,10 @@ export interface SelectionDragController {
     pointer: {x: number; y: number},
     snapshot: SelectionDragSnapshot,
     modifiers?: SelectionDragModifiers,
-  ) => void
+    options?: {
+      hitShapeId?: string | null
+    },
+  ) => boolean
   pointerMove: (pointer: {x: number; y: number}, snapshot: SelectionDragSnapshot) => SelectionDragMoveResult
   pointerUp: () => SelectionDragSession | null
   clear: () => void
@@ -60,16 +63,32 @@ export function createSelectionDragController(options?: {
   }
 
   return {
-    pointerDown(pointer, snapshot, modifiers) {
+    pointerDown(pointer, snapshot, modifiers, options) {
       // Modifier-based selection edits should not arm drag-pending state.
       if (modifiers?.shiftKey || modifiers?.metaKey || modifiers?.ctrlKey) {
         pending = null
         session = null
-        return
+        return false
       }
 
-      const hitIndex = hitTestSnapshot(snapshot, pointer, lineHitTolerance, allowFrameSelection)
-      const hitShape = hitIndex >= 0 ? snapshot.shapes[hitIndex] : null
+      let hitShape = null as SceneShapeSnapshot | null
+      const hintedId = options?.hitShapeId ?? null
+      const shapeById = new Map(snapshot.document.shapes.map((item) => [item.id, item]))
+      if (hintedId) {
+        const hintedShape = snapshot.shapes.find((shape) => shape.id === hintedId) ?? null
+        const hintedSource = hintedShape ? shapeById.get(hintedShape.id) : undefined
+        if (
+          hintedShape &&
+          hintedSource &&
+          isShapeHitAtPointer(hintedShape, hintedSource, pointer, lineHitTolerance, allowFrameSelection, shapeById)
+        ) {
+          hitShape = hintedShape
+        }
+      }
+      if (!hitShape) {
+        const hitIndex = hitTestSnapshot(snapshot, pointer, lineHitTolerance, allowFrameSelection)
+        hitShape = hitIndex >= 0 ? snapshot.shapes[hitIndex] : null
+      }
       pending = hitShape
         ? {
             start: pointer,
@@ -77,6 +96,7 @@ export function createSelectionDragController(options?: {
           }
         : null
       session = null
+      return !!hitShape
     },
     pointerMove(pointer, snapshot) {
       if (pending) {
@@ -177,93 +197,111 @@ function hitTestSnapshot(
   allowFrameSelection: boolean,
 ) {
   const {document, shapes} = snapshot
+  const shapeById = new Map(document.shapes.map((item) => [item.id, item]))
   for (let index = shapes.length - 1; index >= 0; index -= 1) {
     const shape = shapes[index]
-    const source = document.shapes.find((item) => item.id === shape.id)
-    if (!allowFrameSelection && shape.type === 'frame') {
+    const source = shapeById.get(shape.id)
+    if (!source) {
       continue
     }
-    const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? lineHitTolerance : 0
-    const left = Math.min(shape.x, shape.x + shape.width) - tolerance
-    const right = Math.max(shape.x, shape.x + shape.width) + tolerance
-    const top = Math.min(shape.y, shape.y + shape.height) - tolerance
-    const bottom = Math.max(shape.y, shape.y + shape.height) + tolerance
+    if (isShapeHitAtPointer(shape, source, pointer, lineHitTolerance, allowFrameSelection, shapeById)) {
+      return index
+    }
+  }
 
-    const inBounds = pointer.x >= left && pointer.x <= right && pointer.y >= top && pointer.y <= bottom
-    if (!inBounds) {
-      continue
+  return -1
+}
+
+function isShapeHitAtPointer(
+  shape: SceneShapeSnapshot,
+  source: EditorDocument['shapes'][number],
+  pointer: {x: number; y: number},
+  lineHitTolerance: number,
+  allowFrameSelection: boolean,
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+) {
+  if (!allowFrameSelection && shape.type === 'frame') {
+    return false
+  }
+  if (shape.type === 'image' && source.clipPathId) {
+    return false
+  }
+  const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? lineHitTolerance : 0
+  const left = Math.min(shape.x, shape.x + shape.width) - tolerance
+  const right = Math.max(shape.x, shape.x + shape.width) + tolerance
+  const top = Math.min(shape.y, shape.y + shape.height) - tolerance
+  const bottom = Math.max(shape.y, shape.y + shape.height) + tolerance
+
+  const inBounds = pointer.x >= left && pointer.x <= right && pointer.y >= top && pointer.y <= bottom
+  if (!inBounds) {
+    return false
+  }
+
+  if (source.clipPathId) {
+    const clipSource = shapeById.get(source.clipPathId)
+    if (clipSource && !isPointInsideClipShape(pointer, clipSource, {tolerance: lineHitTolerance})) {
+      return false
+    }
+  }
+
+  if (shape.type === 'ellipse') {
+    const radiusX = Math.abs(shape.width) / 2
+    const radiusY = Math.abs(shape.height) / 2
+    if (radiusX <= 0 || radiusY <= 0) {
+      return false
     }
 
-    if (shape.type === 'ellipse') {
-      const radiusX = Math.abs(shape.width) / 2
-      const radiusY = Math.abs(shape.height) / 2
-      if (radiusX <= 0 || radiusY <= 0) {
-        continue
-      }
+    const centerX = Math.min(shape.x, shape.x + shape.width) + radiusX
+    const centerY = Math.min(shape.y, shape.y + shape.height) + radiusY
+    const normalized =
+      ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
+      ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
 
-      const centerX = Math.min(shape.x, shape.x + shape.width) + radiusX
-      const centerY = Math.min(shape.y, shape.y + shape.height) + radiusY
-      const normalized =
-        ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
-        ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
+    if (normalized > 1) {
+      return false
+    }
+  }
 
-      if (normalized > 1) {
-        continue
-      }
+  if (shape.type === 'lineSegment') {
+    const hit = isPointNearLineSegment(pointer, {
+      x1: shape.x,
+      y1: shape.y,
+      x2: shape.x + shape.width,
+      y2: shape.y + shape.height,
+    }, lineHitTolerance)
+    if (!hit) {
+      return false
+    }
+  }
+
+  if (shape.type === 'polygon' || shape.type === 'star') {
+    const points = source.points
+    if (!points || points.length < 3) {
+      return false
     }
 
-    if (shape.type === 'lineSegment') {
-      const hit = isPointNearLineSegment(pointer, {
-        x1: shape.x,
-        y1: shape.y,
-        x2: shape.x + shape.width,
-        y2: shape.y + shape.height,
-      }, lineHitTolerance)
-      if (!hit) {
-        continue
-      }
+    const inside = isPointInsidePolygon(pointer, points)
+    const edge = isPointNearPolygonEdge(pointer, points, lineHitTolerance)
+    if (!inside && !edge) {
+      return false
     }
+  }
 
-    if (shape.type === 'polygon' || shape.type === 'star') {
-      const points = source?.points
-      if (!points || points.length < 3) {
-        continue
-      }
-
-      const inside = isPointInsidePolygon(pointer, points)
-      const edge = isPointNearPolygonEdge(pointer, points, lineHitTolerance)
-      if (!inside && !edge) {
-        continue
-      }
-    }
-
-    if (shape.type === 'path') {
-      const strokeHit = resolvePathStrokeHit(pointer, source, shape, lineHitTolerance)
-      if (strokeHit) {
-        return index
-      }
-
+  if (shape.type === 'path') {
+    const strokeHit = resolvePathStrokeHit(pointer, source, shape, lineHitTolerance)
+    if (!strokeHit) {
       if (!hasPathFill(source)) {
-        continue
+        return false
       }
 
       const fillHit = resolvePathFillHit(pointer, source, lineHitTolerance)
       if (!fillHit) {
-        continue
+        return false
       }
     }
-
-    if (shape.type === 'image' && source?.clipPathId) {
-      const clipSource = document.shapes.find((item) => item.id === source.clipPathId)
-      if (clipSource && !isPointInsideClipShape(pointer, clipSource, {tolerance: lineHitTolerance})) {
-        continue
-      }
-    }
-
-    return index
   }
 
-  return -1
+  return true
 }
 
 function getNormalizedBounds(x: number, y: number, width: number, height: number) {

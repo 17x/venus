@@ -3,7 +3,7 @@ import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import type {InteractionBounds, SelectionState} from '../types.ts'
 
 export function buildSelectionState(
-  document: EditorDocument,
+  _document: EditorDocument,
   snapshots: SceneShapeSnapshot[],
 ): SelectionState {
   const selectedIds = snapshots.filter((shape) => shape.isSelected).map((shape) => shape.id)
@@ -18,7 +18,7 @@ export function buildSelectionState(
   }
 
   const selectedBounds = selectedIds
-    .map((id) => document.shapes.find((shape) => shape.id === id))
+    .map((id) => snapshots.find((shape) => shape.id === id))
     .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
     .map((shape) => getNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
     .reduce<InteractionBounds | null>(

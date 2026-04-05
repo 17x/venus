@@ -57,6 +57,63 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ### 2026-04-05
 
+- Updated selection-visual ownership split: selected/hovered visual feedback was
+  removed from `renderer-canvas` draw paths and moved to selection overlay
+  layers. The overlay now draws both selected bounds and a thin selected-shape
+  geometry stroke (`rect/ellipse/polygon/star/path/line`) so element chrome is
+  centralized in interaction UI rather than render primitives.
+
+- Hit-test now treats clip mask as the first gate for clipped elements instead
+  of image-only post checks. `editor-worker` candidate filtering, shared
+  `canvas-base` drag arming hit-test, and `vector-editor-web` pointerdown
+  pre-hit test now all require pointer inclusion in `clipPathId` source shape
+  before considering host geometry, reducing clipped-element selection mismatch.
+  Follow-up fix: shared drag hit-test now builds a per-call `id -> shape` map
+  before clip checks to avoid `O(n²)` source lookups on large playground scenes,
+  restoring drag responsiveness while keeping clip-first semantics.
+  Follow-up refactor: drag/transform preview commit synchronization was moved
+  into shared `@venus/canvas-base` hook
+  `useTransformPreviewCommitState` (pending-commit flag + doc-sync clear path),
+  and both `vector-editor-web` and `runtime-playground` now consume the same
+  implementation to avoid app-local bounce/stale-preview regressions.
+
+- Runtime playground fake-data sources were flattened to exclude `group` nodes:
+  stress-scene generation now skips group synthesis/parent wiring, and the
+  default demo mock document no longer includes group wrappers or group
+  parent-child links.
+
+- Fixed runtime-playground transform preview rendering for point-based shapes:
+  preview application now remaps `points` / `bezierPoints` alongside
+  `x/y/width/height`, so `polygon/star/path` follow pointer movement immediately
+  during drag instead of waiting for command commit.
+
+- Runtime-playground selector pointer-down now relies on shared
+  `createSelectionDragController` hit results (exact shape filtering) instead
+  of app-local coarse bbox pre-hit checks, reducing dense-scene mis-picks and
+  drag jitter for `10k+` documents.
+
+- Fixed vector multi-select rotate undo granularity: introduced
+  `shape.rotate.batch` command path so rotating multiple selected elements is
+  recorded as one history transaction (`editor-worker` builds one history entry
+  with multi `rotate-shape` patches), and one undo restores the full rotated
+  set instead of only the last shape.
+
+- Extended transform commit batching to cover move/resize/rotate together:
+  `shape.transform.batch` now commits multi-shape transform previews as a single
+  worker history transaction (multi `move/resize/rotate` patches in one entry),
+  so one undo restores the complete multi-select transform instead of stepping
+  shape-by-shape.
+
+- Added safe zoom de-flicker path in `canvas-base` gestures: wheel-zoom commits
+  are now coalesced with `requestAnimationFrame` into per-frame viewport
+  updates, reducing transient redraw flicker without re-enabling unstable
+  preview-transform offset behavior.
+
+- Synced group drag preview behavior across vector and playground: when a group
+  is transform-preview moved, non-explicitly-previewed descendants now inherit
+  the same delta immediately in preview maps so children visually move with the
+  group before commit.
+
 - Added first-class shape appearance editing for vector primitives:
   `shape.patch` now supports `fill/stroke/shadow`, rectangle
   `cornerRadius/cornerRadii`, and ellipse `start/end` angles across worker

@@ -58,6 +58,12 @@ export function InteractionOverlay({
       viewport.matrix,
     )
   }, [hovered, selection.selectedIds, viewport.matrix])
+  const selectedShapes = useMemo(
+    () => selection.selectedIds
+      .map((id) => document.shapes.find((shape) => shape.id === id))
+      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape)),
+    [document.shapes, selection.selectedIds],
+  )
   const selectedPolygon = useMemo(() => {
     if (!selection.selectedBounds || hideSelectionChrome) {
       return null
@@ -97,6 +103,10 @@ export function InteractionOverlay({
         width="100%"
         height="100%"
       >
+        <g transform={`matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`}>
+          {selectedShapes.map((shape) => renderSelectedShapeStroke(shape))}
+        </g>
+
         {hoveredPolygon && (
           <polygon
             points={toSvgPoints(hoveredPolygon)}
@@ -147,6 +157,115 @@ export function InteractionOverlay({
       </svg>
     </div>
   )
+}
+
+function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
+  const strokeColor = '#2563eb'
+  const strokeWidth = 1
+  const common = {
+    fill: 'none',
+    stroke: strokeColor,
+    strokeWidth,
+    vectorEffect: 'non-scaling-stroke' as const,
+  }
+  const rotation = shape.rotation ?? 0
+  const centerX = shape.x + shape.width / 2
+  const centerY = shape.y + shape.height / 2
+  const transform = Math.abs(rotation) > 0.0001
+    ? `rotate(${rotation} ${centerX} ${centerY})`
+    : undefined
+
+  if (shape.type === 'group') {
+    return null
+  }
+
+  if (shape.type === 'ellipse') {
+    return (
+      <ellipse
+        key={`selected-stroke:${shape.id}`}
+        cx={shape.x + shape.width / 2}
+        cy={shape.y + shape.height / 2}
+        rx={Math.abs(shape.width) / 2}
+        ry={Math.abs(shape.height) / 2}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if ((shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length >= 3) {
+    return (
+      <polygon
+        key={`selected-stroke:${shape.id}`}
+        points={shape.points.map((point) => `${point.x},${point.y}`).join(' ')}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'lineSegment') {
+    return (
+      <line
+        key={`selected-stroke:${shape.id}`}
+        x1={shape.x}
+        y1={shape.y}
+        x2={shape.x + shape.width}
+        y2={shape.y + shape.height}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'path') {
+    const d = buildPathStrokeD(shape)
+    if (!d) {
+      return null
+    }
+    return (
+      <path
+        key={`selected-stroke:${shape.id}`}
+        d={d}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  return (
+    <rect
+      key={`selected-stroke:${shape.id}`}
+      x={shape.x}
+      y={shape.y}
+      width={shape.width}
+      height={shape.height}
+      transform={transform}
+      {...common}
+    />
+  )
+}
+
+function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {
+  if (shape.bezierPoints && shape.bezierPoints.length > 1) {
+    const first = shape.bezierPoints[0]
+    let d = `M ${first.anchor.x} ${first.anchor.y}`
+    for (let index = 0; index < shape.bezierPoints.length - 1; index += 1) {
+      const current = shape.bezierPoints[index]
+      const next = shape.bezierPoints[index + 1]
+      const cp1 = current.cp2 ?? current.anchor
+      const cp2 = next.cp1 ?? next.anchor
+      d += ` C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${next.anchor.x} ${next.anchor.y}`
+    }
+    return d
+  }
+
+  if (shape.points && shape.points.length > 1) {
+    const [first, ...rest] = shape.points
+    return `M ${first.x} ${first.y} ${rest.map((point) => `L ${point.x} ${point.y}`).join(' ')}`
+  }
+
+  return null
 }
 
 function getNormalizedBounds(x: number, y: number, width: number, height: number) {

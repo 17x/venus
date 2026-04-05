@@ -25,6 +25,27 @@ function createMockImageDataUrl() {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+function createMockImageDataUrlSecondary() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+      <defs>
+        <linearGradient id="panel" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f97316" />
+          <stop offset="100%" stop-color="#be123c" />
+        </linearGradient>
+      </defs>
+      <rect width="360" height="240" rx="24" fill="#0f172a" />
+      <rect x="18" y="18" width="324" height="204" rx="18" fill="url(#panel)" />
+      <path d="M28 178 L 112 128 L 184 164 L 268 112 L 334 160 L 334 210 L 28 210 Z" fill="rgba(15,23,42,0.22)" />
+      <circle cx="82" cy="82" r="22" fill="rgba(255,255,255,0.35)" />
+      <text x="44" y="78" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#fff7ed">Editor Board</text>
+      <text x="44" y="104" font-family="Arial, sans-serif" font-size="13" fill="rgba(255,247,237,0.9)">Secondary mock image for clip tests</text>
+    </svg>
+  `.trim()
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
 function createStarPoints(x: number, y: number, width: number, height: number) {
   const centerX = x + width / 2
   const centerY = y + height / 2
@@ -98,6 +119,38 @@ function createSecondaryMockMixedBezierPoints(): BezierPoint[] {
 function createSecondaryMockBezierPath() {
   const points = createSecondaryMockMixedPathPoints()
   const bezierPoints = createSecondaryMockMixedBezierPoints()
+  const bounds = getBoundingRectFromBezierPoints(bezierPoints)
+
+  return {
+    points,
+    bezierPoints,
+    bounds,
+  }
+}
+
+function createTertiaryMockMixedPathPoints(): Point[] {
+  return [
+    {x: 494, y: 458},
+    {x: 556, y: 394},
+    {x: 620, y: 432},
+    {x: 684, y: 378},
+    {x: 744, y: 424},
+  ]
+}
+
+function createTertiaryMockMixedBezierPoints(): BezierPoint[] {
+  return [
+    {anchor: {x: 494, y: 458}, cp2: {x: 532, y: 404}},
+    {anchor: {x: 556, y: 394}, cp1: {x: 528, y: 404}, cp2: {x: 590, y: 392}},
+    {anchor: {x: 620, y: 432}, cp1: {x: 596, y: 470}, cp2: {x: 656, y: 448}},
+    {anchor: {x: 684, y: 378}, cp1: {x: 656, y: 350}, cp2: {x: 714, y: 370}},
+    {anchor: {x: 744, y: 424}, cp1: {x: 722, y: 454}},
+  ]
+}
+
+function createTertiaryMockBezierPath() {
+  const points = createTertiaryMockMixedPathPoints()
+  const bezierPoints = createTertiaryMockMixedBezierPoints()
   const bounds = getBoundingRectFromBezierPoints(bezierPoints)
 
   return {
@@ -223,6 +276,40 @@ const image0 = {
   parentId: null,
 }
 
+const imageMask1 = {
+  ...rect0,
+  id: 'imageMask1',
+  type: 'polygon',
+  name: 'Image Mask Polygon',
+  x: 474,
+  y: 56,
+  width: 148,
+  height: 110,
+  points: [
+    {x: 532, y: 56},
+    {x: 618, y: 88},
+    {x: 598, y: 164},
+    {x: 510, y: 166},
+    {x: 474, y: 108},
+  ],
+  parentId: null,
+}
+
+const image1 = {
+  ...rect0,
+  id: 'image1',
+  type: 'image',
+  name: 'Polygon Masked Image',
+  x: 458,
+  y: 40,
+  width: 180,
+  height: 136,
+  asset: 'mock-image-asset-1',
+  clipPathId: 'imageMask1',
+  clipRule: 'nonzero',
+  parentId: null,
+}
+
 const group1 = {
   id: 'group1',
   type: 'group',
@@ -262,8 +349,32 @@ const lineSegment0 = {
   parentId: null,
 }
 
+const lineSegment1 = {
+  ...rect0,
+  id: 'lineSegment1',
+  type: 'lineSegment',
+  cx: 228,
+  cy: 382,
+  width: 168,
+  height: 88,
+  rotation: 8,
+  fill: {
+    enabled: false,
+    color: '#ffffff',
+  },
+  stroke: {
+    enabled: true,
+    color: '#dc2626',
+    weight: 4,
+  },
+  strokeStartArrowhead: 'circle',
+  strokeEndArrowhead: 'triangle',
+  parentId: null,
+}
+
 const mockBezierPath = createMockBezierPath()
 const mockBezierPathSecondary = createSecondaryMockBezierPath()
+const mockBezierPathTertiary = createTertiaryMockBezierPath()
 
 const path0 = {
   ...rect0,
@@ -314,6 +425,31 @@ const path1 = {
   parentId: null,
 }
 
+const path2 = {
+  ...rect0,
+  id: 'path2',
+  type: 'path',
+  name: 'Bezier Path C',
+  x: mockBezierPathTertiary.bounds.x,
+  y: mockBezierPathTertiary.bounds.y,
+  width: mockBezierPathTertiary.bounds.width,
+  height: mockBezierPathTertiary.bounds.height,
+  points: mockBezierPathTertiary.points,
+  bezierPoints: mockBezierPathTertiary.bezierPoints,
+  strokeStartArrowhead: 'bar',
+  strokeEndArrowhead: 'diamond',
+  fill: {
+    enabled: false,
+    color: '#ffffff',
+  },
+  stroke: {
+    enabled: true,
+    color: '#7c3aed',
+    weight: 2,
+  },
+  parentId: null,
+}
+
 const text0 = {
   ...rect0,
   id: 'text0',
@@ -326,6 +462,139 @@ const text0 = {
   fill: {
     enabled: false,
     color: '#ffffff',
+  },
+  parentId: null,
+}
+
+const text1 = {
+  ...rect0,
+  id: 'text1',
+  type: 'text',
+  name: 'Multi-select and clip regression sample',
+  x: 64,
+  y: 548,
+  width: 340,
+  height: 40,
+  fill: {
+    enabled: false,
+    color: '#ffffff',
+  },
+  parentId: null,
+}
+
+const ellipse1 = {
+  ...rect0,
+  id: 'ellipse1',
+  type: 'ellipse',
+  cx: 704,
+  cy: 252,
+  width: 132,
+  height: 96,
+  ellipseStartAngle: 30,
+  ellipseEndAngle: 298,
+  fill: {
+    enabled: true,
+    color: '#fde68a',
+  },
+  stroke: {
+    enabled: true,
+    weight: 2,
+    color: '#92400e',
+  },
+  parentId: null,
+}
+
+const rect3 = {
+  ...rect0,
+  id: 'rectangle3',
+  cx: 118,
+  cy: 354,
+  width: 124,
+  height: 74,
+  cornerRadius: 16,
+  fill: {
+    enabled: true,
+    color: '#dbeafe',
+  },
+  stroke: {
+    enabled: true,
+    weight: 2,
+    color: '#1d4ed8',
+  },
+  parentId: null,
+}
+
+const rect4 = {
+  ...rect0,
+  id: 'rectangle4',
+  cx: 744,
+  cy: 72,
+  width: 96,
+  height: 68,
+  cornerRadii: {
+    topLeft: 20,
+    topRight: 6,
+    bottomRight: 20,
+    bottomLeft: 6,
+  },
+  fill: {
+    enabled: true,
+    color: '#fbcfe8',
+  },
+  stroke: {
+    enabled: true,
+    weight: 2,
+    color: '#9d174d',
+  },
+  parentId: null,
+}
+
+const polygon1 = {
+  ...rect0,
+  id: 'polygon1',
+  type: 'polygon',
+  name: 'Polygon B',
+  x: 54,
+  y: 402,
+  width: 112,
+  height: 96,
+  points: [
+    {x: 96, y: 402},
+    {x: 166, y: 438},
+    {x: 148, y: 492},
+    {x: 74, y: 498},
+    {x: 54, y: 448},
+  ],
+  fill: {
+    enabled: true,
+    color: '#ecfccb',
+  },
+  stroke: {
+    enabled: true,
+    weight: 2,
+    color: '#4d7c0f',
+  },
+  parentId: null,
+}
+
+const star1 = {
+  ...rect0,
+  id: 'star1',
+  type: 'star',
+  name: 'Star B',
+  x: 286,
+  y: 70,
+  width: 94,
+  height: 94,
+  points: createStarPoints(286, 70, 94, 94),
+  fill: {
+    enabled: true,
+    color: '#fef3c7',
+  },
+  stroke: {
+    enabled: true,
+    weight: 2,
+    color: '#b45309',
   },
   parentId: null,
 }
@@ -344,7 +613,33 @@ export const MOCK_FILE: VisionFileType = {
       dpi: 72,
     },
   },
-  elements: [group0, groupedRect0, rect1, group1, groupedRect2, ellipse0, polygon0, star0, imageMask0, image0, lineSegment0, path0, path1, text0],
+  // Keep sample order stable so layer stack interactions are reproducible.
+  elements: [
+    group0,
+    groupedRect0,
+    rect1,
+    group1,
+    groupedRect2,
+    ellipse0,
+    polygon0,
+    star0,
+    imageMask0,
+    image0,
+    imageMask1,
+    image1,
+    rect3,
+    rect4,
+    ellipse1,
+    polygon1,
+    star1,
+    lineSegment0,
+    lineSegment1,
+    path0,
+    path1,
+    path2,
+    text0,
+    text1,
+  ],
   assets: [
     {
       id: 'mock-image-asset-0',
@@ -352,6 +647,13 @@ export const MOCK_FILE: VisionFileType = {
       type: 'image',
       mimeType: 'image/svg+xml',
       objectUrl: createMockImageDataUrl(),
+    },
+    {
+      id: 'mock-image-asset-1',
+      name: 'Secondary Masked Image',
+      type: 'image',
+      mimeType: 'image/svg+xml',
+      objectUrl: createMockImageDataUrlSecondary(),
     },
   ],
 }

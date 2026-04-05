@@ -63,6 +63,10 @@ export {
   type TransformSessionShape,
 } from './interaction/transformSessionManager.ts'
 export {
+  useTransformPreviewCommitState,
+  isTransformPreviewSynced,
+} from './react/useTransformPreviewCommitState.ts'
+export {
   createMarqueeState,
   updateMarqueeState,
   resolveMarqueeBounds,

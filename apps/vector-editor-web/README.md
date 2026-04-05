@@ -65,3 +65,5 @@ Renderer diagnostics currently expose:
 
 - This app currently prioritizes runtime migration stability over final product polish.
 - `canvaskit-wasm` chunk is large by design and may trigger size warnings in build output.
+- Default mock document lives at `src/contexts/appContext/mockFile.ts` and now includes a denser mixed-shape baseline:
+  grouped rectangles, rounded-corner variants, arc ellipse angles, multiple bezier paths, arrowhead line segments, and two clipped image assets. Use it for quick manual checks of selection, transform, layer order, clip-path, and style persistence flows.

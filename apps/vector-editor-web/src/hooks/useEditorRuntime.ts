@@ -7,9 +7,9 @@ import {
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   updateMarqueeState,
+  useTransformPreviewCommitState,
   useCanvasRuntime,
   type MarqueeSelectionMode,
-  getMarqueeNormalizedBounds as getNormalizedBounds,
 } from '@venus/canvas-base'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
@@ -125,19 +125,39 @@ function applyPreviewGeometryToShape(
 function buildTransformPreviewMap(
   document: import('@venus/document-core').EditorDocument,
   preview: TransformPreview,
+  runtimeShapes?: Array<{
+    id: string
+    x: number
+    y: number
+    width: number
+    height: number
+    rotation?: number
+  }>,
 ) {
   const previewById = new Map(
     preview.shapes.map((shape) => [shape.shapeId, shape] as const),
   )
   const childrenByParent = new Map<string, string[]>()
+  const imagesByClipId = new Map<string, string[]>()
+  const runtimeShapeById = new Map((runtimeShapes ?? []).map((shape) => [shape.id, shape]))
 
   document.shapes.forEach((shape) => {
     if (!shape.parentId) {
+      if (shape.type === 'image' && shape.clipPathId) {
+        const boundImages = imagesByClipId.get(shape.clipPathId) ?? []
+        boundImages.push(shape.id)
+        imagesByClipId.set(shape.clipPathId, boundImages)
+      }
       return
     }
     const siblings = childrenByParent.get(shape.parentId) ?? []
     siblings.push(shape.id)
     childrenByParent.set(shape.parentId, siblings)
+    if (shape.type === 'image' && shape.clipPathId) {
+      const boundImages = imagesByClipId.get(shape.clipPathId) ?? []
+      boundImages.push(shape.id)
+      imagesByClipId.set(shape.clipPathId, boundImages)
+    }
   })
 
   for (const previewShape of preview.shapes) {
@@ -176,34 +196,41 @@ function buildTransformPreviewMap(
     }
   }
 
-  return previewById
-}
-
-function hitTestSceneShape(
-  shapes: Array<{x: number; y: number; width: number; height: number; type: string}>,
-  point: {x: number; y: number},
-  options?: {
-    allowFrameSelection?: boolean
-  },
-) {
-  const allowFrameSelection = options?.allowFrameSelection ?? true
-  for (let index = shapes.length - 1; index >= 0; index -= 1) {
-    const shape = shapes[index]
-    if (!allowFrameSelection && shape.type === 'frame') {
+  // Mask-drag preview should move clipped images in real time.
+  // Commit-time linkage is handled in worker; this keeps UI preview consistent.
+  for (const previewShape of preview.shapes) {
+    const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
+    if (!source) {
       continue
     }
-    const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? 6 : 0
-    const bounds = getNormalizedBounds(
-      shape.x - tolerance,
-      shape.y - tolerance,
-      shape.width + tolerance * 2,
-      shape.height + tolerance * 2,
-    )
-    if (isPointInBounds(point, bounds)) {
-      return index
+    const deltaX = previewShape.x - source.x
+    const deltaY = previewShape.y - source.y
+    if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
+      continue
     }
+
+    const imageIds = imagesByClipId.get(source.id) ?? []
+    imageIds.forEach((imageId) => {
+      if (previewById.has(imageId)) {
+        return
+      }
+      const image = document.shapes.find((shape) => shape.id === imageId)
+      if (!image) {
+        return
+      }
+      const runtimeShape = runtimeShapeById.get(image.id)
+      previewById.set(image.id, {
+        shapeId: image.id,
+        x: (runtimeShape?.x ?? image.x) + deltaX,
+        y: (runtimeShape?.y ?? image.y) + deltaY,
+        width: runtimeShape?.width ?? image.width,
+        height: runtimeShape?.height ?? image.height,
+        rotation: runtimeShape?.rotation ?? image.rotation,
+      })
+    })
   }
-  return -1
+
+  return previewById
 }
 
 function isPointInBounds(
@@ -302,9 +329,7 @@ const useEditorRuntime = (options?: {
   const [currentTool, setCurrentToolState] = useState<ToolName>('selector')
   const [clipboard, setClipboard] = useState<ElementProps[]>([])
   const [pasteSerial, setPasteSerial] = useState(0)
-  const [transformPreview, setTransformPreview] = useState<TransformPreview | null>(null)
   const [activeTransformHandle, setActiveTransformHandle] = useState<HandleKind | null>(null)
-  const [pendingTransformCommit, setPendingTransformCommit] = useState(false)
   const [marquee, setMarquee] = useState<{
     start: {x: number; y: number}
     current: {x: number; y: number}
@@ -330,6 +355,14 @@ const useEditorRuntime = (options?: {
     allowFrameSelection: false,
   }), [createWorker, document])
   const canvasRuntime = useCanvasRuntime(runtimeOptions)
+  const {
+    preview: transformPreview,
+    setPreview: setTransformPreview,
+    clearPreview: clearTransformPreview,
+    markCommitPending: markTransformPreviewCommitPending,
+  } = useTransformPreviewCommitState<TransformPreview['shapes'][number]>({
+    documentShapes: canvasRuntime.document.shapes,
+  })
   const {add} = useNotification()
   const {t} = useTranslation()
   const selectedShape = canvasRuntime.stats.selectedIndex >= 0
@@ -347,7 +380,7 @@ const useEditorRuntime = (options?: {
     if (!transformPreview) {
       return canvasRuntime.document
     }
-    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview)
+    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview, canvasRuntime.shapes)
 
     return {
       ...canvasRuntime.document,
@@ -369,7 +402,7 @@ const useEditorRuntime = (options?: {
       return canvasRuntime.shapes
     }
 
-    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview)
+    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview, canvasRuntime.shapes)
 
     return canvasRuntime.shapes.map((shape) => (
       previewById.has(shape.id)
@@ -379,36 +412,12 @@ const useEditorRuntime = (options?: {
             y: previewById.get(shape.id)?.y ?? shape.y,
             width: previewById.get(shape.id)?.width ?? shape.width,
             height: previewById.get(shape.id)?.height ?? shape.height,
+            rotation: previewById.get(shape.id)?.rotation ?? shape.rotation,
           }
         : shape
     ))
   }, [canvasRuntime.shapes, transformPreview])
 
-  useEffect(() => {
-    if (!pendingTransformCommit || !transformPreview) {
-      return
-    }
-
-    const synced = transformPreview.shapes.every((item) => {
-      const shape = canvasRuntime.document.shapes.find((candidate) => candidate.id === item.shapeId)
-      if (!shape) {
-        return true
-      }
-
-      return (
-        shape.x === item.x &&
-        shape.y === item.y &&
-        shape.width === item.width &&
-        shape.height === item.height &&
-        (typeof item.rotation !== 'number' || (shape.rotation ?? 0) === item.rotation)
-      )
-    })
-
-    if (synced) {
-      setTransformPreview(null)
-      setPendingTransformCommit(false)
-    }
-  }, [canvasRuntime.document.shapes, pendingTransformCommit, transformPreview])
   const selectionState = useMemo(
     () => buildSelectionState(previewDocument, previewShapes),
     [previewDocument, previewShapes],
@@ -434,13 +443,29 @@ const useEditorRuntime = (options?: {
   }, [activeTransformHandle, marqueeBounds])
 
   const handleCommand = useCallback((command: import('@venus/editor-worker').EditorRuntimeCommand) => {
+    if (command.type === 'history.undo' || command.type === 'history.redo') {
+      clearTransformPreview()
+      transformManagerRef.current.cancel()
+      selectionDragControllerRef.current.clear()
+      setActiveTransformHandle(null)
+      setMarquee(null)
+    }
     canvasRuntime.dispatchCommand(command)
-  }, [canvasRuntime])
+  }, [canvasRuntime, clearTransformPreview])
 
   const insertElement = useCallback((element: ElementProps) => {
     handleCommand({
       type: 'shape.insert',
       shape: createDocumentNodeFromElement(element),
+    })
+  }, [handleCommand])
+  const insertElementsBatch = useCallback((elements: ElementProps[]) => {
+    if (elements.length === 0) {
+      return
+    }
+    handleCommand({
+      type: 'shape.insert.batch',
+      shapes: elements.map((element) => createDocumentNodeFromElement(element)),
     })
   }, [handleCommand])
 
@@ -619,16 +644,24 @@ const useEditorRuntime = (options?: {
     }
 
     if (type === 'element-copy') {
-      if (selectedNode && selectedNode.type !== 'frame') {
-        setClipboard([cloneElementProps(toElementPropsFromNode(selectedNode))])
+      const selectedSet = new Set(selectedShapeIds)
+      const copied = canvasRuntime.document.shapes
+        .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
+        .map((shape) => cloneElementProps(toElementPropsFromNode(shape)))
+      if (copied.length > 0) {
+        setClipboard(copied)
         setPasteSerial(0)
       }
       return
     }
 
     if (type === 'element-cut') {
-      if (selectedNode && selectedNode.type !== 'frame') {
-        setClipboard([cloneElementProps(toElementPropsFromNode(selectedNode))])
+      const selectedSet = new Set(selectedShapeIds)
+      const copied = canvasRuntime.document.shapes
+        .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
+        .map((shape) => cloneElementProps(toElementPropsFromNode(shape)))
+      if (copied.length > 0) {
+        setClipboard(copied)
         setPasteSerial(0)
         handleCommand({type: 'selection.delete'})
       }
@@ -636,19 +669,18 @@ const useEditorRuntime = (options?: {
     }
 
     if (type === 'element-duplicate') {
-      if (!selectedNode || selectedNode.type === 'frame') {
+      const selectedSet = new Set(selectedShapeIds)
+      const copied = canvasRuntime.document.shapes
+        .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
+        .map((shape) => toElementPropsFromNode(shape))
+      if (copied.length === 0) {
         return
       }
-
-      insertElement({
-        ...offsetElementPosition(
-          toElementPropsFromNode(selectedNode),
-          selectedNode.x + 24,
-          selectedNode.y + 24,
-        ),
+      insertElementsBatch(copied.map((item) => ({
+        ...offsetElementPosition(item, (item.x ?? 0) + 24, (item.y ?? 0) + 24),
         id: nid(),
-        name: `${selectedNode.text ?? selectedNode.name ?? selectedNode.type} Copy`,
-      })
+        name: `${item.name ?? item.type} Copy`,
+      })))
       return
     }
 
@@ -671,19 +703,23 @@ const useEditorRuntime = (options?: {
         ? data as {x: number; y: number}
         : null
       const baseOffset = 24 * (pasteSerial + 1)
+      const anchor = clipboard[0]
+      const anchorX = anchor?.x ?? 0
+      const anchorY = anchor?.y ?? 0
+      const pasteTargetX = position ? position.x + baseOffset : anchorX + baseOffset
+      const pasteTargetY = position ? position.y + baseOffset : anchorY + baseOffset
+      const deltaX = pasteTargetX - anchorX
+      const deltaY = pasteTargetY - anchorY
 
-      clipboard.forEach((item, index) => {
-        const offset = baseOffset + 24 * index
-        insertElement({
-          ...offsetElementPosition(
-            item,
-            position ? position.x + offset : (item.x ?? 0) + offset,
-            position ? position.y + offset : (item.y ?? 0) + offset,
-          ),
-          id: nid(),
-          name: `${item.name ?? item.type} Copy`,
-        })
-      })
+      insertElementsBatch(clipboard.map((item) => ({
+        ...offsetElementPosition(
+          item,
+          (item.x ?? 0) + deltaX,
+          (item.y ?? 0) + deltaY,
+        ),
+        id: nid(),
+        name: `${item.name ?? item.type} Copy`,
+      })))
       setPasteSerial((value) => value + 1)
       return
     }
@@ -725,20 +761,39 @@ const useEditorRuntime = (options?: {
     }
 
     if (type === 'element-move-up' || type === 'element-move-right' || type === 'element-move-down' || type === 'element-move-left') {
-      if (!selectedShape || selectedShape.type === 'frame') {
-        return
-      }
-
       const delta = {
         x: type === 'element-move-right' ? 1 : type === 'element-move-left' ? -1 : 0,
         y: type === 'element-move-down' ? 1 : type === 'element-move-up' ? -1 : 0,
       }
 
+      const selectedSet = new Set(selectedShapeIds)
+      const moveTargets = canvasRuntime.document.shapes
+        .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
+        .map((shape) => ({
+          id: shape.id,
+          from: {
+            x: shape.x,
+            y: shape.y,
+            width: shape.width,
+            height: shape.height,
+            rotation: shape.rotation ?? 0,
+          },
+          to: {
+            x: shape.x + delta.x,
+            y: shape.y + delta.y,
+            width: shape.width,
+            height: shape.height,
+            rotation: shape.rotation ?? 0,
+          },
+        }))
+
+      if (moveTargets.length === 0) {
+        return
+      }
+
       handleCommand({
-        type: 'shape.move',
-        shapeId: selectedShape.id,
-        x: selectedShape.x + delta.x,
-        y: selectedShape.y + delta.y,
+        type: 'shape.transform.batch',
+        transforms: moveTargets,
       })
       return
     }
@@ -956,9 +1011,11 @@ const useEditorRuntime = (options?: {
     closeFile,
     handleCommand,
     insertElement,
+    insertElementsBatch,
     reorderSelectedShape,
     saveFile,
     selectedNode,
+    selectedShapeIds,
     selectedShape,
     startCreateFile,
   ])
@@ -1221,15 +1278,18 @@ const useEditorRuntime = (options?: {
             return
           }
 
-          const hitIndex = hitTestSceneShape(canvasRuntime.shapes, point, {
-            allowFrameSelection: false,
+          const hoveredShape = canvasRuntime.stats.hoveredIndex >= 0
+            ? canvasRuntime.shapes[canvasRuntime.stats.hoveredIndex] ?? null
+            : null
+          const hasHit = selectionDragControllerRef.current.pointerDown(point, {
+            document: previewDocument,
+            shapes: canvasRuntime.shapes,
+          }, modifiers, {
+            hitShapeId: hoveredShape?.id ?? null,
           })
-          if (hitIndex >= 0) {
+
+          if (hasHit) {
             canvasRuntime.postPointer('pointerdown', point, modifiers)
-            selectionDragControllerRef.current.pointerDown(point, {
-              document: previewDocument,
-              shapes: canvasRuntime.shapes,
-            }, modifiers)
             return
           }
 
@@ -1263,43 +1323,81 @@ const useEditorRuntime = (options?: {
         setActiveTransformHandle(null)
         const transformSession = transformManagerRef.current.commit()
         if (transformSession) {
+          if (transformSession.shapeIds.length > 0) {
+            handleCommand({
+              type: 'selection.set',
+              shapeIds: transformSession.shapeIds,
+              mode: 'replace',
+            })
+          }
           const preview = transformPreview
 
           if (preview) {
+            const transformBatch: Array<{
+              id: string
+              from: {
+                x: number
+                y: number
+                width: number
+                height: number
+                rotation: number
+              }
+              to: {
+                x: number
+                y: number
+                width: number
+                height: number
+                rotation: number
+              }
+            }> = []
             preview.shapes.forEach((item) => {
               const shape = canvasRuntime.document.shapes.find((candidate) => candidate.id === item.shapeId)
               if (!shape) {
                 return
               }
+              const nextRotation = typeof item.rotation === 'number' ? item.rotation : (shape.rotation ?? 0)
+              const changed =
+                shape.x !== item.x ||
+                shape.y !== item.y ||
+                shape.width !== item.width ||
+                shape.height !== item.height ||
+                (shape.rotation ?? 0) !== nextRotation
+              if (!changed) {
+                return
+              }
 
-              if (shape.x !== item.x || shape.y !== item.y) {
-                handleCommand({
-                  type: 'shape.move',
-                  shapeId: shape.id,
+              transformBatch.push({
+                id: shape.id,
+                from: {
+                  x: shape.x,
+                  y: shape.y,
+                  width: shape.width,
+                  height: shape.height,
+                  rotation: shape.rotation ?? 0,
+                },
+                to: {
                   x: item.x,
                   y: item.y,
-                })
-              }
-              if (shape.width !== item.width || shape.height !== item.height) {
-                handleCommand({
-                  type: 'shape.resize',
-                  shapeId: shape.id,
                   width: item.width,
                   height: item.height,
-                })
-              }
-              if (typeof item.rotation === 'number' && item.rotation !== (shape.rotation ?? 0)) {
-                handleCommand({
-                  type: 'shape.rotate',
-                  shapeId: shape.id,
-                  rotation: item.rotation,
-                })
-              }
+                  rotation: nextRotation,
+                },
+              })
             })
-            setPendingTransformCommit(true)
+
+            if (transformBatch.length > 0) {
+              // Commit all drag/resize/rotate transforms as one command so
+              // undo/redo stays atomic for both single and multi selection.
+              handleCommand({
+                type: 'shape.transform.batch',
+                transforms: transformBatch,
+              })
+              markTransformPreviewCommitPending()
+            } else {
+              clearTransformPreview()
+            }
           } else {
-            setTransformPreview(null)
-            setPendingTransformCommit(false)
+            clearTransformPreview()
           }
           return
         }
@@ -1323,9 +1421,8 @@ const useEditorRuntime = (options?: {
       },
       onPointerLeave: () => {
         transformManagerRef.current.cancel()
-        setTransformPreview(null)
+        clearTransformPreview()
         setActiveTransformHandle(null)
-        setPendingTransformCommit(false)
         selectionDragControllerRef.current.clear()
         setMarquee(null)
         penTool.clearDraft()

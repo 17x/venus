@@ -252,13 +252,8 @@ function drawShape(
   const baseStrokeEnabled = source?.stroke?.enabled ?? true
   const baseStrokeColor = source?.stroke?.color ?? '#111827'
   const baseStrokeWidth = Math.max(0, source?.stroke?.weight ?? 1)
-  const interactionStrokeColor = shape.isSelected ? '#2563eb' : shape.isHovered ? '#0ea5e9' : baseStrokeColor
-  const interactionStrokeScale = 1 / Math.max(viewportScale, 0.1)
-  const interactionStrokeWidth = shape.isSelected
-    ? Math.max(0.75, baseStrokeWidth * 0.75) * interactionStrokeScale
-    : shape.isHovered
-      ? Math.max(1, baseStrokeWidth) * interactionStrokeScale
-      : baseStrokeWidth
+  const strokeColor = baseStrokeColor
+  const strokeWidth = baseStrokeWidth
   const shadowEnabled = source?.shadow?.enabled ?? false
   const rotation = source?.rotation ?? 0
   const needsRotation = Math.abs(rotation) > 0.0001 && shape.type !== 'group'
@@ -272,16 +267,7 @@ function drawShape(
   }
 
   if (shape.type === 'group') {
-    if (!shape.isHovered && !shape.isSelected) {
-      finish()
-      return
-    }
-
-    context.strokeStyle = interactionStrokeColor
-    context.lineWidth = interactionStrokeWidth
-    context.setLineDash([8, 6])
-    context.strokeRect(shape.x, shape.y, shape.width, shape.height)
-    context.setLineDash([])
+    // Group chrome belongs to the interaction overlay layer, not renderer.
     finish()
     return
   }
@@ -295,9 +281,9 @@ function drawShape(
       context.fillStyle = baseFillColor
       context.fill()
     }
-    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-      context.strokeStyle = interactionStrokeColor
-      context.lineWidth = interactionStrokeWidth
+    if (baseStrokeEnabled && strokeWidth > 0) {
+      context.strokeStyle = strokeColor
+      context.lineWidth = strokeWidth
       context.stroke()
     }
     if (shadowEnabled) {
@@ -316,9 +302,9 @@ function drawShape(
       context.fillStyle = baseFillColor
       context.fill()
     }
-    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-      context.strokeStyle = interactionStrokeColor
-      context.lineWidth = interactionStrokeWidth
+    if (baseStrokeEnabled && strokeWidth > 0) {
+      context.strokeStyle = strokeColor
+      context.lineWidth = strokeWidth
       context.stroke()
     }
     if (shadowEnabled) {
@@ -337,13 +323,13 @@ function drawShape(
     if (shadowEnabled) {
       applyShapeShadow(context, source)
     }
-    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-      context.strokeStyle = interactionStrokeColor
-      context.lineWidth = interactionStrokeWidth
+    if (baseStrokeEnabled && strokeWidth > 0) {
+      context.strokeStyle = strokeColor
+      context.lineWidth = strokeWidth
       context.stroke()
       drawStrokeArrowheads(context, {
-        stroke: interactionStrokeColor,
-        strokeWidth: interactionStrokeWidth,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
         start,
         end,
         startTangent: {x: end.x - start.x, y: end.y - start.y},
@@ -377,9 +363,9 @@ function drawShape(
         context.fillStyle = baseFillColor
         context.fill()
       }
-      if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-        context.strokeStyle = interactionStrokeColor
-        context.lineWidth = interactionStrokeWidth
+      if (baseStrokeEnabled && strokeWidth > 0) {
+        context.strokeStyle = strokeColor
+        context.lineWidth = strokeWidth
         context.stroke()
       }
       if (shadowEnabled) {
@@ -397,9 +383,9 @@ function drawShape(
       context.fillStyle = baseFillColor
       context.fill()
     }
-    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-      context.strokeStyle = interactionStrokeColor
-      context.lineWidth = interactionStrokeWidth
+    if (baseStrokeEnabled && strokeWidth > 0) {
+      context.strokeStyle = strokeColor
+      context.lineWidth = strokeWidth
       context.stroke()
     }
     if (shadowEnabled) {
@@ -433,9 +419,9 @@ function drawShape(
         context.fillStyle = baseFillColor
         context.fill()
       }
-      if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-        context.strokeStyle = interactionStrokeColor
-        context.lineWidth = interactionStrokeWidth
+      if (baseStrokeEnabled && strokeWidth > 0) {
+        context.strokeStyle = strokeColor
+        context.lineWidth = strokeWidth
         context.stroke()
         const start = bezierPoints[0].anchor
         const end = bezierPoints[bezierPoints.length - 1].anchor
@@ -444,8 +430,8 @@ function drawShape(
         const preLast = bezierPoints[bezierPoints.length - 2]
         const last = bezierPoints[bezierPoints.length - 1]
         drawStrokeArrowheads(context, {
-          stroke: interactionStrokeColor,
-          strokeWidth: interactionStrokeWidth,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
           start,
           end,
           startTangent: resolveBezierStartTangent(firstPoint, second),
@@ -475,13 +461,13 @@ function drawShape(
         context.fillStyle = baseFillColor
         context.fill()
       }
-      if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-        context.strokeStyle = interactionStrokeColor
-        context.lineWidth = interactionStrokeWidth
+      if (baseStrokeEnabled && strokeWidth > 0) {
+        context.strokeStyle = strokeColor
+        context.lineWidth = strokeWidth
         context.stroke()
         drawStrokeArrowheads(context, {
-          stroke: interactionStrokeColor,
-          strokeWidth: interactionStrokeWidth,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
           start: points[0],
           end: points[points.length - 1],
           startTangent: {
@@ -520,9 +506,9 @@ function drawShape(
     if (shadowEnabled) {
       applyShapeShadow(context, source)
     }
-    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
-      context.strokeStyle = interactionStrokeColor
-      context.lineWidth = interactionStrokeWidth
+    if (baseStrokeEnabled && strokeWidth > 0) {
+      context.strokeStyle = strokeColor
+      context.lineWidth = strokeWidth
       context.stroke()
     }
     if (shadowEnabled) {
@@ -568,8 +554,8 @@ function drawShape(
       applyShapeShadow(context, source)
     }
     context.fillStyle = baseFillColor
-    context.strokeStyle = interactionStrokeColor
-    context.lineWidth = Math.max(1, interactionStrokeWidth)
+    context.strokeStyle = strokeColor
+    context.lineWidth = Math.max(1, strokeWidth)
     context.fillRect(shape.x, shape.y, shape.width, shape.height)
     if (baseStrokeEnabled) {
       context.strokeRect(shape.x, shape.y, shape.width, shape.height)
@@ -1077,10 +1063,6 @@ function shouldDrawShapeAtLod(
   lodLevel: Canvas2DLodLevel,
   lodConfig: import('./lod.ts').Canvas2DLodConfig,
 ) {
-  if (shape.isHovered || shape.isSelected) {
-    return true
-  }
-
   if (shape.type === 'frame' || shape.type === 'group') {
     return true
   }

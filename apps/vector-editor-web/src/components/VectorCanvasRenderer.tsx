@@ -44,9 +44,10 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
           {props.document.shapes
             .filter((shape) => shape.type === 'image')
             .map((shape) => {
-              const snapshot = props.shapes.find((item) => item.id === shape.id)
               const rotation = shape.rotation ?? 0
-              const selectedStrokeWidth = 1.5 / Math.max(props.viewport.scale, 0.1)
+              const imageStrokeColor = shape.stroke?.color ?? 'rgba(15, 23, 42, 0.18)'
+              const imageStrokeWidth = Math.max(1, shape.stroke?.weight ?? 1)
+              const imageStrokeEnabled = shape.stroke?.enabled ?? true
 
               if (shape.assetUrl) {
                 return (
@@ -61,9 +62,7 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                       width: shape.width,
                       height: shape.height,
                       objectFit: 'fill',
-                      border: snapshot?.isSelected
-                        ? `${selectedStrokeWidth}px solid #2563eb`
-                        : '1px solid rgba(15, 23, 42, 0.18)',
+                      border: imageStrokeEnabled ? `${imageStrokeWidth}px solid ${imageStrokeColor}` : 'none',
                       background: '#fff',
                       boxSizing: 'border-box',
                       transform: `rotate(${rotation}deg)`,

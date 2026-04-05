@@ -9,6 +9,7 @@ import {
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   updateMarqueeState,
+  useTransformPreviewCommitState,
   useCanvasRuntimeSelector,
   useCanvasRuntimeStore,
   type CanvasRenderLodState,
@@ -194,31 +195,80 @@ function isPointInBounds(
   )
 }
 
-function hitTestSceneShape(
-  shapes: Array<{x: number; y: number; width: number; height: number; type: string}>,
-  point: {x: number; y: number},
-  options?: {
-    allowFrameSelection?: boolean
-  },
+type PlaygroundHandleKind =
+  | 'move'
+  | 'nw'
+  | 'n'
+  | 'ne'
+  | 'e'
+  | 'se'
+  | 's'
+  | 'sw'
+  | 'w'
+  | 'rotate'
+
+function buildSelectionHandles(
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+  rotateOffset: number,
+  rotateDegrees: number,
 ) {
-  const allowFrameSelection = options?.allowFrameSelection ?? true
-  for (let index = shapes.length - 1; index >= 0; index -= 1) {
-    const shape = shapes[index]
-    if (!allowFrameSelection && shape.type === 'frame') {
-      continue
-    }
-    const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? 6 : 0
-    const bounds = getMarqueeNormalizedBounds(
-      shape.x - tolerance,
-      shape.y - tolerance,
-      shape.width + tolerance * 2,
-      shape.height + tolerance * 2,
-    )
-    if (isPointInBounds(point, bounds)) {
-      return index
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerY = (bounds.minY + bounds.maxY) / 2
+  const handles = [
+    {kind: 'nw' as const, x: bounds.minX, y: bounds.minY},
+    {kind: 'n' as const, x: centerX, y: bounds.minY},
+    {kind: 'ne' as const, x: bounds.maxX, y: bounds.minY},
+    {kind: 'e' as const, x: bounds.maxX, y: centerY},
+    {kind: 'se' as const, x: bounds.maxX, y: bounds.maxY},
+    {kind: 's' as const, x: centerX, y: bounds.maxY},
+    {kind: 'sw' as const, x: bounds.minX, y: bounds.maxY},
+    {kind: 'w' as const, x: bounds.minX, y: centerY},
+    {kind: 'rotate' as const, x: centerX, y: bounds.minY - rotateOffset},
+  ]
+
+  if (Math.abs(rotateDegrees) <= 0.0001) {
+    return handles
+  }
+
+  return handles.map((handle) => ({
+    ...handle,
+    ...rotatePointAround(
+      {x: handle.x, y: handle.y},
+      {x: centerX, y: centerY},
+      rotateDegrees,
+    ),
+  }))
+}
+
+function pickHandleAtPoint(
+  point: {x: number; y: number},
+  handles: Array<{kind: PlaygroundHandleKind; x: number; y: number}>,
+  tolerance: number,
+) {
+  for (const handle of handles) {
+    if (Math.hypot(handle.x - point.x, handle.y - point.y) <= tolerance) {
+      return handle
     }
   }
-  return -1
+
+  return null
+}
+
+function rotatePointAround(
+  point: {x: number; y: number},
+  center: {x: number; y: number},
+  degrees: number,
+) {
+  const radians = (degrees * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  const dx = point.x - center.x
+  const dy = point.y - center.y
+
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  }
 }
 
 function buildGroupAwarePreviewMap(
@@ -285,6 +335,58 @@ function buildGroupAwarePreviewMap(
   return previewById
 }
 
+function remapPoint(
+  point: {x: number; y: number},
+  source: {x: number; y: number; width: number; height: number},
+  target: {x: number; y: number; width: number; height: number},
+) {
+  const scaleX = source.width === 0 ? 1 : target.width / source.width
+  const scaleY = source.height === 0 ? 1 : target.height / source.height
+  return {
+    x: target.x + (point.x - source.x) * scaleX,
+    y: target.y + (point.y - source.y) * scaleY,
+  }
+}
+
+function applyPreviewGeometryToShape(
+  shape: EditorDocument['shapes'][number],
+  preview: {x: number; y: number; width: number; height: number; rotation?: number},
+) {
+  const source = {
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+  }
+  const target = {
+    x: preview.x,
+    y: preview.y,
+    width: preview.width,
+    height: preview.height,
+  }
+
+  return {
+    ...shape,
+    x: preview.x,
+    y: preview.y,
+    width: preview.width,
+    height: preview.height,
+    rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
+    points:
+      (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
+        ? shape.points.map((point) => remapPoint(point, source, target))
+        : shape.points,
+    bezierPoints:
+      shape.type === 'path' && shape.bezierPoints
+        ? shape.bezierPoints.map((point) => ({
+            anchor: remapPoint(point.anchor, source, target),
+            cp1: point.cp1 ? remapPoint(point.cp1, source, target) : point.cp1,
+            cp2: point.cp2 ? remapPoint(point.cp2, source, target) : point.cp2,
+          }))
+        : shape.bezierPoints,
+  }
+}
+
 function App() {
   const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'>('demo')
   const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
@@ -335,17 +437,17 @@ function App() {
   )
   const runtimeStore = useCanvasRuntimeStore(runtimeOptions)
   const runtimeController = runtimeStore.controller
+  const runtimeDocumentShapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document.shapes)
   const [renderLodState, setRenderLodState] = React.useState<CanvasRenderLodState | null>(null)
-  const [dragPreview, setDragPreview] = React.useState<{
-    shapes: Array<{
-      shapeId: string
-      x: number
-      y: number
-      width: number
-      height: number
-      rotation?: number
-    }>
-  } | null>(null)
+  const {
+    preview: dragPreview,
+    previewRef: dragPreviewRef,
+    setPreview: setDragPreviewState,
+    clearPreview: clearDragPreview,
+    markCommitPending: markDragPreviewCommitPending,
+  } = useTransformPreviewCommitState({
+    documentShapes: runtimeDocumentShapes,
+  })
   const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
 
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
@@ -411,7 +513,7 @@ function App() {
       runtimeController.clearHover()
       const preview = transformManagerRef.current.update(pointer)
       if (preview) {
-        setDragPreview({
+        setDragPreviewState({
           shapes: preview.shapes.map((shape) => ({
             shapeId: shape.shapeId,
             x: shape.x,
@@ -461,7 +563,7 @@ function App() {
             pointer: dragMove.session.start,
             startBounds: dragMove.session.bounds,
           })
-          setDragPreview({
+          setDragPreviewState({
             shapes: dragShapes.map((shape) => ({
               shapeId: shape.id,
               x: shape.x,
@@ -476,7 +578,7 @@ function App() {
 
       const preview = transformManagerRef.current.update(pointer)
       if (preview) {
-        setDragPreview({
+        setDragPreviewState({
           shapes: preview.shapes.map((shape) => ({
             shapeId: shape.shapeId,
             x: shape.x,
@@ -491,7 +593,7 @@ function App() {
     }
 
     if (dragMove.phase === 'none') {
-      setDragPreview(null)
+      setDragPreviewState(null)
     }
     if (dragMove.phase === 'pending') {
       runtimeController.clearHover()
@@ -499,7 +601,7 @@ function App() {
     }
 
     runtimeController.postPointer('pointermove', pointer)
-  }, [marquee, runtimeController])
+  }, [clearDragPreview, marquee, runtimeController, setDragPreviewState])
   const handlePointerDown = React.useCallback((
     pointer: { x: number; y: number },
     modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
@@ -510,6 +612,44 @@ function App() {
       .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
       .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
     const selectedBounds = resolveSelectedBounds(snapshot)
+
+    if (selectedBounds && selectedNodes.length > 0) {
+      const singleSelectedRotation = selectedNodes.length === 1
+        ? (selectedNodes[0].rotation ?? 0)
+        : 0
+      const handles = buildSelectionHandles(selectedBounds, 28, singleSelectedRotation)
+      const handle = pickHandleAtPoint(pointer, handles, 6)
+      if (handle) {
+        dragControllerRef.current.clear()
+        transformManagerRef.current.start({
+          shapeIds: selectedNodes.map((shape) => shape.id),
+          shapes: selectedNodes.map((shape) => ({
+            shapeId: shape.id,
+            x: shape.x,
+            y: shape.y,
+            width: Math.max(1, shape.width),
+            height: Math.max(1, shape.height),
+            rotation: shape.rotation ?? 0,
+            centerX: shape.x + shape.width / 2,
+            centerY: shape.y + shape.height / 2,
+          })),
+          handle: handle.kind,
+          pointer,
+          startBounds: selectedBounds,
+        })
+        setDragPreviewState({
+          shapes: selectedNodes.map((shape) => ({
+            shapeId: shape.id,
+            x: shape.x,
+            y: shape.y,
+            width: Math.max(1, shape.width),
+            height: Math.max(1, shape.height),
+            rotation: shape.rotation ?? 0,
+          })),
+        })
+        return
+      }
+    }
 
     if (selectedBounds && selectedNodes.length > 0 && isPointInBounds(pointer, selectedBounds)) {
       dragControllerRef.current.clear()
@@ -529,7 +669,7 @@ function App() {
         pointer,
         startBounds: selectedBounds,
       })
-      setDragPreview({
+      setDragPreviewState({
         shapes: selectedNodes.map((shape) => ({
           shapeId: shape.id,
           x: shape.x,
@@ -542,11 +682,17 @@ function App() {
       return
     }
 
-    const hitIndex = hitTestSceneShape(snapshot.shapes, pointer, {
-      allowFrameSelection: false,
+    const hoveredShape = snapshot.stats.hoveredIndex >= 0
+      ? snapshot.shapes[snapshot.stats.hoveredIndex] ?? null
+      : null
+    const hasHit = dragControllerRef.current.pointerDown(pointer, {
+      document: snapshot.document,
+      shapes: snapshot.shapes,
+    }, modifiers, {
+      hitShapeId: hoveredShape?.id ?? null,
     })
 
-    if (hitIndex < 0) {
+    if (!hasHit) {
       dragControllerRef.current.clear()
       const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
         ? 'add'
@@ -559,10 +705,6 @@ function App() {
     }
 
     runtimeController.postPointer('pointerdown', pointer, modifiers)
-    dragControllerRef.current.pointerDown(pointer, {
-      document: snapshot.document,
-      shapes: snapshot.shapes,
-    }, modifiers)
   }, [resolveSelectedBounds, runtimeController])
   const handlePointerUp = React.useCallback(() => {
     dragControllerRef.current.pointerUp()
@@ -585,40 +727,72 @@ function App() {
 
     const transformSession = transformManagerRef.current.commit()
     if (!transformSession) {
-      setDragPreview(null)
+      clearDragPreview()
       return
     }
 
     const snapshot = runtimeController.getSnapshot()
-    const preview = dragPreview
+    const preview = dragPreviewRef.current
     if (!preview) {
-      setDragPreview(null)
+      clearDragPreview()
       return
     }
 
+    const transformBatch: Array<{
+      id: string
+      from: {x: number; y: number; width: number; height: number; rotation: number}
+      to: {x: number; y: number; width: number; height: number; rotation: number}
+    }> = []
     preview.shapes.forEach((item) => {
       const shape = snapshot.document.shapes.find((candidate) => candidate.id === item.shapeId)
       if (!shape) {
         return
       }
-      if (shape.x !== item.x || shape.y !== item.y) {
-        runtimeController.dispatchCommand({
-          type: 'shape.move',
-          shapeId: shape.id,
+      const nextRotation = typeof item.rotation === 'number' ? item.rotation : (shape.rotation ?? 0)
+      const changed =
+        shape.x !== item.x ||
+        shape.y !== item.y ||
+        shape.width !== item.width ||
+        shape.height !== item.height ||
+        (shape.rotation ?? 0) !== nextRotation
+      if (!changed) {
+        return
+      }
+      transformBatch.push({
+        id: shape.id,
+        from: {
+          x: shape.x,
+          y: shape.y,
+          width: shape.width,
+          height: shape.height,
+          rotation: shape.rotation ?? 0,
+        },
+        to: {
           x: item.x,
           y: item.y,
-        })
-      }
+          width: item.width,
+          height: item.height,
+          rotation: nextRotation,
+        },
+      })
     })
-    setDragPreview(null)
-  }, [marquee, runtimeController])
+    if (transformBatch.length === 0) {
+      clearDragPreview()
+      return
+    }
+    runtimeController.dispatchCommand({
+      type: 'shape.transform.batch',
+      transforms: transformBatch,
+    })
+    markDragPreviewCommitPending()
+  }, [clearDragPreview, dragPreviewRef, markDragPreviewCommitPending, marquee, runtimeController])
   const handlePointerLeave = React.useCallback(() => {
-    setDragPreview(null)
+    clearDragPreview()
     setMarquee(null)
     dragControllerRef.current.clear()
     transformManagerRef.current.cancel()
     runtimeController.clearHover()
-  }, [runtimeController])
+  }, [clearDragPreview, runtimeController])
   const marqueeBounds = React.useMemo<MarqueeBounds | null>(
     () => marquee ? resolveMarqueeBounds(marquee) : null,
     [marquee],
@@ -1082,14 +1256,13 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
       ...document,
       shapes: document.shapes.map((shape) => (
         previewById.has(shape.id)
-          ? {
-              ...shape,
+          ? applyPreviewGeometryToShape(shape, {
               x: previewById.get(shape.id)?.x ?? shape.x,
               y: previewById.get(shape.id)?.y ?? shape.y,
               width: previewById.get(shape.id)?.width ?? shape.width,
               height: previewById.get(shape.id)?.height ?? shape.height,
-              rotation: previewById.get(shape.id)?.rotation ?? shape.rotation,
-            }
+              rotation: previewById.get(shape.id)?.rotation,
+            })
           : shape
       )),
     }

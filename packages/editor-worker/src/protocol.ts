@@ -73,6 +73,33 @@ export type EditorRuntimeCommand =
   | { type: 'shape.resize'; shapeId: string; width: number; height: number }
   | { type: 'shape.rotate'; shapeId: string; rotation: number }
   | {
+      type: 'shape.rotate.batch'
+      rotations: Array<{
+        shapeId: string
+        rotation: number
+      }>
+    }
+  | {
+      type: 'shape.transform.batch'
+      transforms: Array<{
+        id: string
+        from: {
+          x: number
+          y: number
+          width: number
+          height: number
+          rotation: number
+        }
+        to: {
+          x: number
+          y: number
+          width: number
+          height: number
+          rotation: number
+        }
+      }>
+    }
+  | {
       type: 'shape.patch'
       shapeId: string
       patch: {
@@ -88,6 +115,7 @@ export type EditorRuntimeCommand =
   | { type: 'shape.set-clip'; shapeId: string; clipPathId?: string; clipRule?: 'nonzero' | 'evenodd' }
   | { type: 'shape.reorder'; shapeId: string; toIndex: number }
   | { type: 'shape.insert'; shape: DocumentNode; index?: number }
+  | { type: 'shape.insert.batch'; shapes: DocumentNode[]; index?: number }
   | { type: 'shape.remove'; shapeId: string }
 
 export interface SceneUpdateMessage {
