@@ -3,6 +3,7 @@ import {
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,
+  type StrokeArrowhead,
 } from '@venus/document-core'
 import type {
   RuntimeFeatureEntryV5,
@@ -16,6 +17,7 @@ import type {
  */
 export function parseRuntimeSceneToEditorDocument(scene: RuntimeSceneLatest): EditorDocument {
   const shapes = scene.nodes.flatMap((node) => flattenNode(node)).map((node) => parseRuntimeNode(node))
+  deriveGroupBoundsFromChildren(shapes)
 
   return {
     id: scene.documentId,
@@ -34,26 +36,120 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const metadata = getMetadataMap(node.featureEntries)
   const vectorFeature = getVectorFeature(node)
   const textFeature = getTextFeature(node)
+  const imageFeature = getImageFeature(node)
+  const clipFeature = getClipFeature(node)
   const shapeType = resolveShapeType(node, metadata)
   const pathData = vectorFeature ? extractPathGeometry(vectorFeature.paths) : null
-  const bounds = pathData?.bezierPoints.length
+  const bezierBounds = pathData?.bezierPoints.length
     ? getBoundingRectFromBezierPoints(pathData.bezierPoints)
     : null
-  const x = readNumber(metadata, 'x') ?? bounds?.x ?? node.transform.m02
-  const y = readNumber(metadata, 'y') ?? bounds?.y ?? node.transform.m12
-  const width = readNumber(metadata, 'width') ?? bounds?.width ?? 0
-  const height = readNumber(metadata, 'height') ?? bounds?.height ?? 0
+  const pointBounds = pathData?.points && pathData.points.length > 0
+    ? {
+        x: Math.min(...pathData.points.map((point) => point.x)),
+        y: Math.min(...pathData.points.map((point) => point.y)),
+        width: Math.max(...pathData.points.map((point) => point.x)) - Math.min(...pathData.points.map((point) => point.x)),
+        height: Math.max(...pathData.points.map((point) => point.y)) - Math.min(...pathData.points.map((point) => point.y)),
+      }
+    : null
+  const geometryBounds = (shapeType === 'path' || shapeType === 'polygon' || shapeType === 'star')
+    ? (bezierBounds ?? pointBounds)
+    : null
+  const x = geometryBounds?.x ?? readNumber(metadata, 'x') ?? node.transform.m02
+  const y = geometryBounds?.y ?? readNumber(metadata, 'y') ?? node.transform.m12
+  const width = geometryBounds?.width ?? readNumber(metadata, 'width') ?? 0
+  const height = geometryBounds?.height ?? readNumber(metadata, 'height') ?? 0
+  const rotation = readNumber(metadata, 'rotation') ?? 0
+  const fillEnabled = readBoolean(metadata, 'fillEnabled')
+  const fillColor = readString(metadata, 'fillColor')
+  const strokeEnabled = readBoolean(metadata, 'strokeEnabled')
+  const strokeColor = readString(metadata, 'strokeColor')
+  const strokeWeight = readNumber(metadata, 'strokeWeight')
+  const shadowEnabled = readBoolean(metadata, 'shadowEnabled')
+  const shadowColor = readString(metadata, 'shadowColor')
+  const shadowOffsetX = readNumber(metadata, 'shadowOffsetX')
+  const shadowOffsetY = readNumber(metadata, 'shadowOffsetY')
+  const shadowBlur = readNumber(metadata, 'shadowBlur')
+  const cornerRadius = readNumber(metadata, 'cornerRadius')
+  const cornerTopLeft = readNumber(metadata, 'cornerTopLeft')
+  const cornerTopRight = readNumber(metadata, 'cornerTopRight')
+  const cornerBottomRight = readNumber(metadata, 'cornerBottomRight')
+  const cornerBottomLeft = readNumber(metadata, 'cornerBottomLeft')
+  const ellipseStartAngle = readNumber(metadata, 'ellipseStartAngle')
+  const ellipseEndAngle = readNumber(metadata, 'ellipseEndAngle')
 
   return {
     id: node.id,
     type: shapeType,
     name: node.name || textFeature?.text || node.id,
+    parentId: node.parentId,
+    childIds: node.children.map((child) => child.id),
     x,
     y,
     width,
     height,
+    rotation,
+    text: textFeature?.text,
+    textRuns: textFeature?.runs.map((run) => ({
+      start: run.start,
+      end: run.end,
+      style: {
+        color: typeof run.color === 'string' ? run.color : undefined,
+        fontFamily: run.fontFamily,
+        fontSize: run.fontSize,
+        fontWeight: run.fontWeight,
+        letterSpacing: run.letterSpacing,
+        lineHeight: run.lineHeight,
+      },
+    })),
+    assetId: imageFeature ? resolveImageAssetId(imageFeature) : undefined,
+    clipPathId: clipFeature?.sourceNodeId,
+    clipRule: clipFeature
+      ? clipFeature.clipRule === 'EVENODD'
+        ? 'evenodd'
+        : 'nonzero'
+      : undefined,
     points: pathData?.points,
     bezierPoints: pathData?.bezierPoints,
+    strokeStartArrowhead: readArrowhead(metadata, 'strokeStartArrowhead'),
+    strokeEndArrowhead: readArrowhead(metadata, 'strokeEndArrowhead'),
+    fill: fillEnabled !== null || fillColor !== undefined
+      ? {
+          enabled: fillEnabled ?? undefined,
+          color: fillColor,
+        }
+      : undefined,
+    stroke: strokeEnabled !== null || strokeColor !== undefined || strokeWeight !== null
+      ? {
+          enabled: strokeEnabled ?? undefined,
+          color: strokeColor,
+          weight: strokeWeight ?? undefined,
+        }
+      : undefined,
+    shadow: shadowEnabled !== null || shadowColor !== undefined || shadowOffsetX !== null || shadowOffsetY !== null || shadowBlur !== null
+      ? {
+          enabled: shadowEnabled ?? undefined,
+          color: shadowColor,
+          offsetX: shadowOffsetX ?? undefined,
+          offsetY: shadowOffsetY ?? undefined,
+          blur: shadowBlur ?? undefined,
+        }
+      : undefined,
+    cornerRadius: cornerRadius ?? undefined,
+    cornerRadii: cornerTopLeft !== null || cornerTopRight !== null || cornerBottomRight !== null || cornerBottomLeft !== null
+      ? {
+          topLeft: cornerTopLeft ?? undefined,
+          topRight: cornerTopRight ?? undefined,
+          bottomRight: cornerBottomRight ?? undefined,
+          bottomLeft: cornerBottomLeft ?? undefined,
+        }
+      : undefined,
+    ellipseStartAngle: ellipseStartAngle ?? undefined,
+    ellipseEndAngle: ellipseEndAngle ?? undefined,
+    schema: {
+      sourceNodeType: node.type,
+      sourceNodeKind: node.nodeKind,
+      sourceFeatureKinds: node.featureEntries.map((entry) => entry.feature.kind),
+    },
   }
 }
 
@@ -65,11 +161,15 @@ function resolveShapeType(
 
   if (
     nodeKind === 'frame' ||
+    nodeKind === 'group' ||
     nodeKind === 'rectangle' ||
     nodeKind === 'ellipse' ||
+    nodeKind === 'polygon' ||
+    nodeKind === 'star' ||
     nodeKind === 'lineSegment' ||
     nodeKind === 'path' ||
-    nodeKind === 'text'
+    nodeKind === 'text' ||
+    nodeKind === 'image'
   ) {
     return nodeKind
   }
@@ -78,12 +178,20 @@ function resolveShapeType(
     return 'frame'
   }
 
+  if (node.type === 'GROUP') {
+    return 'group'
+  }
+
   if (node.type === 'TEXT') {
     return 'text'
   }
 
   if (node.type === 'VECTOR') {
     return 'path'
+  }
+
+  if (node.type === 'IMAGE') {
+    return 'image'
   }
 
   return 'rectangle'
@@ -130,6 +238,38 @@ function getTextFeature(node: RuntimeSceneLatest['nodes'][number]) {
   }
 
   return null
+}
+
+function getImageFeature(node: RuntimeSceneLatest['nodes'][number]) {
+  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'IMAGE')
+  if (entry?.feature.kind === 'IMAGE') {
+    return entry.feature
+  }
+
+  const legacyFeature = node.features.find((feature) => feature.kind === 'IMAGE')
+  if (legacyFeature?.kind === 'IMAGE') {
+    return legacyFeature
+  }
+
+  return null
+}
+
+function getClipFeature(node: RuntimeSceneLatest['nodes'][number]) {
+  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'CLIP')
+  if (entry?.feature.kind === 'CLIP') {
+    return entry.feature
+  }
+
+  return null
+}
+
+function resolveImageAssetId(imageFeature: ReturnType<typeof getImageFeature>) {
+  if (!imageFeature) {
+    return undefined
+  }
+
+  const feature = imageFeature as {imageId?: string; assetId?: string}
+  return feature.imageId ?? feature.assetId
 }
 
 function extractPathGeometry(paths: RuntimePathV4[]) {
@@ -210,4 +350,128 @@ function readNumber(metadata: Map<string, string>, key: string) {
 
   const nextValue = Number(value)
   return Number.isFinite(nextValue) ? nextValue : null
+}
+
+function readBoolean(metadata: Map<string, string>, key: string) {
+  const value = metadata.get(key)
+  if (value === 'true') {
+    return true
+  }
+  if (value === 'false') {
+    return false
+  }
+  return null
+}
+
+function readString(metadata: Map<string, string>, key: string) {
+  const value = metadata.get(key)
+  return typeof value === 'string' ? value : undefined
+}
+
+function readArrowhead(metadata: Map<string, string>, key: string): StrokeArrowhead | undefined {
+  const value = metadata.get(key)
+  if (
+    value === 'none' ||
+    value === 'triangle' ||
+    value === 'diamond' ||
+    value === 'circle' ||
+    value === 'bar'
+  ) {
+    return value
+  }
+  return undefined
+}
+
+function deriveGroupBoundsFromChildren(shapes: DocumentNode[]) {
+  const shapeById = new Map(shapes.map((shape) => [shape.id, shape]))
+  const childrenByParent = new Map<string, DocumentNode[]>()
+
+  shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+    const parent = shapeById.get(shape.parentId)
+    if (!parent) {
+      return
+    }
+    const list = childrenByParent.get(parent.id)
+    if (list) {
+      list.push(shape)
+      return
+    }
+    childrenByParent.set(parent.id, [shape])
+  })
+
+  const cache = new Map<string, Bounds | null>()
+  const visiting = new Set<string>()
+
+  const visit = (shape: DocumentNode): Bounds | null => {
+    if (cache.has(shape.id)) {
+      return cache.get(shape.id) ?? null
+    }
+    if (visiting.has(shape.id)) {
+      return getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+    }
+
+    visiting.add(shape.id)
+    let bounds: Bounds | null = null
+
+    if (shape.type === 'group') {
+      const children = childrenByParent.get(shape.id) ?? []
+      for (const child of children) {
+        const childBounds = visit(child)
+        if (!childBounds) {
+          continue
+        }
+        bounds = bounds ? mergeBounds(bounds, childBounds) : childBounds
+      }
+
+      if (bounds) {
+        const nextBounds = bounds
+        shape.x = nextBounds.minX
+        shape.y = nextBounds.minY
+        shape.width = nextBounds.maxX - nextBounds.minX
+        shape.height = nextBounds.maxY - nextBounds.minY
+      }
+    }
+
+    if (!bounds) {
+      bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+    }
+
+    visiting.delete(shape.id)
+    cache.set(shape.id, bounds)
+    return bounds
+  }
+
+  shapes.forEach((shape) => {
+    if (shape.type === 'group') {
+      visit(shape)
+    }
+  })
+}
+
+interface Bounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+function mergeBounds(left: Bounds, right: Bounds): Bounds {
+  return {
+    minX: Math.min(left.minX, right.minX),
+    minY: Math.min(left.minY, right.minY),
+    maxX: Math.max(left.maxX, right.maxX),
+    maxY: Math.max(left.maxY, right.maxY),
+  }
+}
+
+function getNormalizedBounds(x: number, y: number, width: number, height: number): Bounds {
+  return {
+    minX: Math.min(x, x + width),
+    minY: Math.min(y, y + height),
+    maxX: Math.max(x, x + width),
+    maxY: Math.max(y, y + height),
+  }
 }

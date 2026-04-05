@@ -3,6 +3,13 @@
 Venus is a composable canvas runtime monorepo for building multi-editor products (vector, flowchart, mindmap, whiteboard).
 The current active stack focuses on `vector-editor-web` and `runtime-playground`.
 
+## Live Demo
+
+- Vector App Demo:
+[https://lucasischow.github.io/demos/venus/vector/](https://lucasischow.github.io/demos/venus/vector/)
+- Runtime playground: [https://lucasischow.github.io/demos/venus/playground/](https://lucasischow.github.io/demos/venus/playground/)
+
+
 ## Workspace Layout
 
 - `apps/*`: runnable apps
@@ -63,11 +70,11 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime Data Flow
 
-`vector-editor-web` / `runtime-playground` -> `canvas-base` -> `editor-worker` + `shared-memory` -> `renderer-skia`
+`vector-editor-web` / `runtime-playground` -> `canvas-base` -> `editor-worker` + `shared-memory` -> `renderer-canvas`
 
 - UI and product actions stay in app layer.
 - Worker owns scene mutation and command execution.
-- Renderer consumes snapshot + viewport and draws with Skia.
+- Renderer consumes snapshot + viewport and currently draws with Canvas2D on the main active surfaces.
 
 ## Notes
 

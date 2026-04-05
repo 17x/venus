@@ -1,7 +1,7 @@
 import React from 'react'
 import {Col, Con, IconButton, Tooltip} from '@lite-u/ui'
 import {ToolName} from '@venus/document-core'
-import {LuCircle, LuHand, LuPencilLine, LuRectangleHorizontal, LuZoomIn} from 'react-icons/lu'
+import {LuCircle, LuHand, LuPentagon, LuPencilLine, LuRectangleHorizontal, LuStar, LuZoomIn} from 'react-icons/lu'
 import {lineSeg, mousePointer} from '../../assets/svg/icons.tsx'
 
 const toolList = [
@@ -29,6 +29,16 @@ const toolList = [
     name: 'Circle',
     icon: <LuCircle/>,
     toolName: 'ellipse',
+  },
+  {
+    name: 'Polygon',
+    icon: <LuPentagon/>,
+    toolName: 'polygon',
+  },
+  {
+    name: 'Star',
+    icon: <LuStar/>,
+    toolName: 'star',
   },
   {
     name: 'Text',

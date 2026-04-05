@@ -22,6 +22,7 @@ export interface CanvasViewerSnapshot<TDocument extends EditorDocument> {
 export interface CanvasViewerControllerOptions<TDocument extends EditorDocument> {
   document: TDocument
   enableHitTest?: boolean
+  hoverOnPointerMove?: boolean
   selectOnPointerDown?: boolean
 }
 
@@ -34,6 +35,7 @@ export interface CanvasViewerController<TDocument extends EditorDocument> {
   panViewport: (deltaX: number, deltaY: number) => void
   postPointer: (type: 'pointermove' | 'pointerdown', pointer: PointerState) => void
   resizeViewport: (width: number, height: number) => void
+  setViewport: (viewport: CanvasViewportState) => void
   start: () => void
   subscribe: (listener: () => void) => () => void
   zoomViewport: (nextScale: number, anchor?: Point2D) => void
@@ -46,6 +48,7 @@ function debugViewer(message: string, details?: unknown) {
 export function createCanvasViewerController<TDocument extends EditorDocument>({
   document,
   enableHitTest = true,
+  hoverOnPointerMove = true,
   selectOnPointerDown = false,
 }: CanvasViewerControllerOptions<TDocument>): CanvasViewerController<TDocument> {
   const listeners = new Set<VoidFunction>()
@@ -117,6 +120,11 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
     updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
   }
 
+  const setViewport = (viewport: CanvasViewportState) => {
+    snapshot.viewport = viewport
+    notify()
+  }
+
   const updateHoverSelection = (hoveredIndex: number, selectedIndex: number) => {
     if (
       hoveredIndex === snapshot.stats.hoveredIndex &&
@@ -153,12 +161,17 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
       return
     }
 
-    const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
     if (type === 'pointermove') {
+      if (!hoverOnPointerMove) {
+        return
+      }
+
+      const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
       updateHoverSelection(hoveredIndex, snapshot.stats.selectedIndex)
       return
     }
 
+    const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
     if (type === 'pointerdown' && selectOnPointerDown) {
       updateHoverSelection(hoveredIndex, hoveredIndex)
       return
@@ -197,6 +210,7 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
     panViewport,
     postPointer,
     resizeViewport,
+    setViewport,
     start: () => {},
     subscribe: (listener) => {
       listeners.add(listener)

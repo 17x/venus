@@ -4,7 +4,11 @@ import {FC, ReactNode, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import {EditorExecutor} from '../hooks/useEditorRuntime.ts'
 
-const FileReceiver: FC<{ children: ReactNode, executeAction: EditorExecutor }> = ({children, executeAction}) => {
+const FileReceiver: FC<{
+  children: ReactNode
+  executeAction: EditorExecutor
+  resolveDropPosition?: (clientX: number, clientY: number) => {x: number; y: number}
+}> = ({children, executeAction, resolveDropPosition}) => {
   const [showDropNotice, setShowDropNotice] = useState(false)
   const [dropNoticeColor, setDropNoticeColor] = useState('green')
   const {add} = useNotification()
@@ -23,7 +27,10 @@ const FileReceiver: FC<{ children: ReactNode, executeAction: EditorExecutor }> =
                  setShowDropNotice(false)
 
                  readImageHelper(e.dataTransfer.files[0]).then(newAsset => {
-                   executeAction('drop-image', {position: {x: e.clientX, y: e.clientY}, assets: [newAsset]})
+                   const position = resolveDropPosition
+                     ? resolveDropPosition(e.clientX, e.clientY)
+                     : {x: e.clientX, y: e.clientY}
+                   executeAction('drop-image', {position, assets: [newAsset]})
                  }).catch(() => {
                    add(t('misc.imageResolveFailed'), 'info')
                  })

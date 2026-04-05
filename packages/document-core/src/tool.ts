@@ -1,4 +1,13 @@
-export type ToolId = 'select' | 'frame' | 'rectangle' | 'ellipse' | 'lineSegment' | 'pen' | 'text'
+export type ToolId =
+  | 'select'
+  | 'frame'
+  | 'rectangle'
+  | 'ellipse'
+  | 'lineSegment'
+  | 'polygon'
+  | 'star'
+  | 'pen'
+  | 'text'
 
 export type ToolName =
   | 'selector'
@@ -8,6 +17,8 @@ export type ToolName =
   | 'ellipse'
   | 'panning'
   | 'lineSegment'
+  | 'polygon'
+  | 'star'
   | 'path'
   | 'pencil'
   | 'zoomIn'

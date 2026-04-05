@@ -33,6 +33,8 @@ export interface SceneStats {
   selectedIndex: number
 }
 
+export type SceneSelectionMode = 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
+
 // meta[Int32]: [version, shapeCount, hoveredIndex, selectedIndex, pointerX, pointerY]
 const META_LENGTH = 6
 // geometry[Float32]: [x, y, width, height] per shape
@@ -54,20 +56,28 @@ const enum ShapeFlag {
 
 const TYPE_TO_KIND: Record<ShapeType, number> = {
   frame: 1,
-  rectangle: 2,
-  ellipse: 3,
-  text: 4,
-  lineSegment: 5,
-  path: 6,
+  group: 2,
+  rectangle: 3,
+  ellipse: 4,
+  polygon: 5,
+  star: 6,
+  text: 7,
+  lineSegment: 8,
+  path: 9,
+  image: 10,
 }
 
 const KIND_TO_TYPE: Record<number, ShapeType> = {
   1: 'frame',
-  2: 'rectangle',
-  3: 'ellipse',
-  4: 'text',
-  5: 'lineSegment',
-  6: 'path',
+  2: 'group',
+  3: 'rectangle',
+  4: 'ellipse',
+  5: 'polygon',
+  6: 'star',
+  7: 'text',
+  8: 'lineSegment',
+  9: 'path',
+  10: 'image',
 }
 
 /**
@@ -322,20 +332,109 @@ export function setHoveredShape(scene: SceneMemory, nextIndex: number) {
  * - `false` when selected index remained the same
  */
 export function setSelectedShape(scene: SceneMemory, nextIndex: number) {
-  const currentIndex = scene.meta[MetaIndex.SelectedIndex]
-  if (currentIndex === nextIndex) {
+  if (nextIndex < 0) {
+    return setSelectedShapes(scene, [], 'clear')
+  }
+
+  return setSelectedShapes(scene, [nextIndex], 'replace')
+}
+
+export function getSelectedShapeIndices(scene: SceneMemory) {
+  const count = scene.meta[MetaIndex.ShapeCount]
+  const selected: number[] = []
+
+  for (let index = 0; index < count; index += 1) {
+    if ((scene.flags[index] & ShapeFlag.Selected) !== 0) {
+      selected.push(index)
+    }
+  }
+
+  return selected
+}
+
+export function setSelectedShapes(
+  scene: SceneMemory,
+  indices: number[],
+  mode: SceneSelectionMode = 'replace',
+) {
+  const count = scene.meta[MetaIndex.ShapeCount]
+  const currentPrimaryIndex = scene.meta[MetaIndex.SelectedIndex]
+  const normalizedIndices = Array.from(
+    new Set(indices.filter((index) => index >= 0 && index < count)),
+  )
+  const targetSet = new Set(normalizedIndices)
+  const nextFlags = scene.flags.slice(0, count)
+  let primaryIndex = currentPrimaryIndex
+
+  if (mode === 'clear') {
+    nextFlags.fill(0)
+    primaryIndex = -1
+  }
+
+  if (mode === 'replace') {
+    for (let index = 0; index < count; index += 1) {
+      if (targetSet.has(index)) {
+        nextFlags[index] |= ShapeFlag.Selected
+      } else {
+        nextFlags[index] &= ~ShapeFlag.Selected
+      }
+    }
+
+    primaryIndex = normalizedIndices.length > 0 ? normalizedIndices[normalizedIndices.length - 1] : -1
+  }
+
+  if (mode === 'add') {
+    normalizedIndices.forEach((index) => {
+      nextFlags[index] |= ShapeFlag.Selected
+    })
+    if (normalizedIndices.length > 0) {
+      primaryIndex = normalizedIndices[normalizedIndices.length - 1]
+    }
+  }
+
+  if (mode === 'remove') {
+    normalizedIndices.forEach((index) => {
+      nextFlags[index] &= ~ShapeFlag.Selected
+    })
+    if (primaryIndex >= 0 && normalizedIndices.includes(primaryIndex)) {
+      primaryIndex = findTopmostSelectedIndex(nextFlags, count)
+    }
+  }
+
+  if (mode === 'toggle') {
+    normalizedIndices.forEach((index) => {
+      if ((nextFlags[index] & ShapeFlag.Selected) !== 0) {
+        nextFlags[index] &= ~ShapeFlag.Selected
+      } else {
+        nextFlags[index] |= ShapeFlag.Selected
+      }
+    })
+
+    if (normalizedIndices.length > 0) {
+      const lastIndex = normalizedIndices[normalizedIndices.length - 1]
+      primaryIndex = (nextFlags[lastIndex] & ShapeFlag.Selected) !== 0
+        ? lastIndex
+        : findTopmostSelectedIndex(nextFlags, count)
+    }
+  }
+
+  let changed = primaryIndex !== currentPrimaryIndex
+  for (let index = 0; index < count; index += 1) {
+    const selected = (nextFlags[index] & ShapeFlag.Selected) !== 0
+    const wasSelected = (scene.flags[index] & ShapeFlag.Selected) !== 0
+    if (selected !== wasSelected) {
+      changed = true
+      scene.flags[index] = selected
+        ? (scene.flags[index] | ShapeFlag.Selected)
+        : (scene.flags[index] & ~ShapeFlag.Selected)
+    }
+  }
+
+  if (!changed) {
     return false
   }
 
-  if (currentIndex >= 0) {
-    scene.flags[currentIndex] &= ~ShapeFlag.Selected
-  }
-
-  if (nextIndex >= 0) {
-    scene.flags[nextIndex] |= ShapeFlag.Selected
-  }
-
-  scene.meta[MetaIndex.SelectedIndex] = nextIndex
+  scene.meta[MetaIndex.SelectedIndex] = primaryIndex
   incrementSceneVersion(scene)
   return true
 }
@@ -363,12 +462,13 @@ export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
     const y = scene.geometry[geometryOffset + 1]
     const width = scene.geometry[geometryOffset + 2]
     const height = scene.geometry[geometryOffset + 3]
+    const bounds = getNormalizedBounds(x, y, width, height)
 
     const inBounds =
-      pointer.x >= x &&
-      pointer.x <= x + width &&
-      pointer.y >= y &&
-      pointer.y <= y + height
+      pointer.x >= bounds.minX &&
+      pointer.x <= bounds.maxX &&
+      pointer.y >= bounds.minY &&
+      pointer.y <= bounds.maxY
 
     if (!inBounds) {
       continue
@@ -376,10 +476,10 @@ export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
 
     const type = KIND_TO_TYPE[scene.kind[index]]
     if (type === 'ellipse') {
-      const radiusX = width / 2
-      const radiusY = height / 2
-      const centerX = x + radiusX
-      const centerY = y + radiusY
+      const radiusX = Math.abs(width) / 2
+      const radiusY = Math.abs(height) / 2
+      const centerX = bounds.minX + radiusX
+      const centerY = bounds.minY + radiusY
       const normalized =
         ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
         ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
@@ -419,6 +519,20 @@ export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
   }
 
   return -1
+}
+
+function getNormalizedBounds(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  return {
+    minX: Math.min(x, x + width),
+    maxX: Math.max(x, x + width),
+    minY: Math.min(y, y + height),
+    maxY: Math.max(y, y + height),
+  }
 }
 
 /**
@@ -576,6 +690,16 @@ function remapIndex(current: number, fromIndex: number, toIndex: number) {
   }
 
   return current
+}
+
+function findTopmostSelectedIndex(flags: Uint8Array, count: number) {
+  for (let index = count - 1; index >= 0; index -= 1) {
+    if ((flags[index] & ShapeFlag.Selected) !== 0) {
+      return index
+    }
+  }
+
+  return -1
 }
 
 function isPointNearLineSegment(

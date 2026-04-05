@@ -1,19 +1,25 @@
 import type { PointerState } from '@venus/shared-memory'
 import type {CanvasViewportState} from '../viewport/types.ts'
 import { applyMatrixToPoint } from '../viewport/matrix.ts'
+import {zoomViewportState} from '../viewport/controller.ts'
 import {handleZoomWheel, resetZoomSession} from '../zoom/index.ts'
 
 const PAN_COMMIT_DELAY_MS = 200
+const POINTER_SUPPRESS_AFTER_WHEEL_MS = 180
 
 export interface ViewportGestureBindingOptions {
   element: HTMLElement
   getViewportState: () => CanvasViewportState
   onPointerMove?: (pointer: PointerState) => void
-  onPointerDown?: (pointer: PointerState) => void
+  onPointerDown?: (
+    pointer: PointerState,
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+  ) => void
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction
   onZoomingChange?: (active: boolean) => void
-  onZoomCommit?: (nextScale: number, anchor: {x: number; y: number}) => void
+  onZoomPreview?: (viewport: CanvasViewportState | null) => void
+  onZoomCommitViewport?: (viewport: CanvasViewportState) => void
   onPanPreview?: (deltaX: number, deltaY: number) => void
   onPanCommit?: (deltaX: number, deltaY: number) => void
 }
@@ -33,20 +39,22 @@ export function bindViewportGestures({
   onPointerUp,
   onPointerLeave,
   onZoomingChange,
-  onZoomCommit,
+  onZoomPreview,
+  onZoomCommitViewport,
   onPanPreview,
   onPanCommit,
 }: ViewportGestureBindingOptions) {
   let zoomSession = resetZoomSession()
-  let zoomTargetScale: number | null = null
-  let zoomAnchor: {x: number; y: number} | null = null
   let panOffset = {x: 0, y: 0}
   let panOrigin: {x: number; y: number; pointerId: number} | null = null
   let latestPointerClient: {x: number; y: number} | null = null
-  let wheelFrame: number | null = null
   let pointerFrame: number | null = null
   let panCommitTimeout: number | null = null
   let zoomSettleTimeout: number | null = null
+  let zoomCommitFrame: number | null = null
+  let pendingZoomViewport: CanvasViewportState | null = null
+  let interactionPointerId: number | null = null
+  let suppressPointerUntil = 0
 
   const preventGesture = (event: Event) => {
     event.preventDefault()
@@ -62,12 +70,14 @@ export function bindViewportGestures({
   }
 
   const handleWheel = (event: WheelEvent) => {
+    suppressPointerUntil = performance.now() + POINTER_SUPPRESS_AFTER_WHEEL_MS
+
     if (event.ctrlKey || event.metaKey) {
       if (event.cancelable) {
         event.preventDefault()
       }
 
-      if (!onZoomCommit) {
+      if (!onZoomCommitViewport) {
         return
       }
 
@@ -92,28 +102,29 @@ export function bindViewportGestures({
       zoomSettleTimeout = window.setTimeout(() => {
         zoomSettleTimeout = null
         zoomSession = resetZoomSession()
-        zoomTargetScale = null
-        zoomAnchor = null
+        onZoomPreview?.(null)
         onZoomingChange?.(false)
       }, nextZoom.settleDelay)
 
-      if (zoomTargetScale === null) {
-        zoomTargetScale = getViewportState().scale
-      }
-      zoomTargetScale *= nextZoom.factor
-      zoomAnchor = nextZoom.anchor
+      const baseViewport = getViewportState()
+      const commitBaseViewport = pendingZoomViewport ?? baseViewport
+      const nextViewport = zoomViewportState(
+        commitBaseViewport,
+        commitBaseViewport.scale * nextZoom.factor,
+        nextZoom.anchor,
+      )
+      onZoomPreview?.(nextViewport)
+      pendingZoomViewport = nextViewport
 
-      if (wheelFrame === null) {
-        wheelFrame = requestAnimationFrame(() => {
-          wheelFrame = null
-          const nextScale = zoomTargetScale
-          const anchor = zoomAnchor
-
-          if (!anchor || nextScale === null) {
+      if (zoomCommitFrame === null) {
+        zoomCommitFrame = requestAnimationFrame(() => {
+          zoomCommitFrame = null
+          if (!pendingZoomViewport) {
             return
           }
-
-          onZoomCommit(nextScale, anchor)
+          const targetViewport = pendingZoomViewport
+          pendingZoomViewport = null
+          onZoomCommitViewport(targetViewport)
         })
       }
 
@@ -151,16 +162,32 @@ export function bindViewportGestures({
   }
 
   const handlePointerDownEvent = (event: PointerEvent) => {
-    if (event.button === 1 || event.altKey) {
-      panOrigin = {x: event.clientX, y: event.clientY, pointerId: event.pointerId}
-      element.setPointerCapture(event.pointerId)
+    if (performance.now() < suppressPointerUntil) {
       return
     }
 
-    onPointerDown?.(resolveWorldPointer(event.clientX, event.clientY))
+    interactionPointerId = event.pointerId
+    if (typeof element.setPointerCapture === 'function') {
+      element.setPointerCapture(event.pointerId)
+    }
+
+    if (event.button === 1 || event.altKey) {
+      panOrigin = {x: event.clientX, y: event.clientY, pointerId: event.pointerId}
+      return
+    }
+
+    onPointerDown?.(resolveWorldPointer(event.clientX, event.clientY), {
+      shiftKey: event.shiftKey,
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+    })
   }
 
   const handlePointerMoveEvent = (event: PointerEvent) => {
+    if (interactionPointerId !== null && event.pointerId !== interactionPointerId) {
+      return
+    }
+
     if (panOrigin && onPanCommit) {
       const deltaX = event.clientX - panOrigin.x
       const deltaY = event.clientY - panOrigin.y
@@ -192,9 +219,15 @@ export function bindViewportGestures({
   }
 
   const handlePointerUpEvent = (event: PointerEvent) => {
+    const wasInteractionPointer = interactionPointerId === event.pointerId
+    const wasPanPointer = panOrigin?.pointerId === event.pointerId
+
+    if (interactionPointerId !== null && event.pointerId !== interactionPointerId) {
+      return
+    }
+
     if (panOrigin && panOrigin.pointerId === event.pointerId) {
       panOrigin = null
-      element.releasePointerCapture(event.pointerId)
       const nextDelta = panOffset
       if (nextDelta.x !== 0 || nextDelta.y !== 0) {
         onPanCommit?.(nextDelta.x, nextDelta.y)
@@ -202,10 +235,24 @@ export function bindViewportGestures({
       }
     }
 
-    onPointerUp?.()
+    if (
+      interactionPointerId === event.pointerId &&
+      typeof element.releasePointerCapture === 'function' &&
+      element.hasPointerCapture?.(event.pointerId)
+    ) {
+      element.releasePointerCapture(event.pointerId)
+    }
+    interactionPointerId = null
+
+    if (wasInteractionPointer || wasPanPointer) {
+      onPointerUp?.()
+    }
   }
 
   const handlePointerLeaveEvent = () => {
+    if (interactionPointerId !== null) {
+      return
+    }
     onPointerLeave?.()
   }
 
@@ -220,9 +267,6 @@ export function bindViewportGestures({
   element.addEventListener('gestureend', preventGesture as EventListener, {passive: false})
 
   return () => {
-    if (wheelFrame !== null) {
-      cancelAnimationFrame(wheelFrame)
-    }
     if (pointerFrame !== null) {
       cancelAnimationFrame(pointerFrame)
     }
@@ -231,7 +275,21 @@ export function bindViewportGestures({
     }
     if (zoomSettleTimeout !== null) {
       window.clearTimeout(zoomSettleTimeout)
+      zoomSettleTimeout = null
     }
+    if (zoomCommitFrame !== null) {
+      cancelAnimationFrame(zoomCommitFrame)
+      zoomCommitFrame = null
+    }
+    pendingZoomViewport = null
+    if (
+      interactionPointerId !== null &&
+      typeof element.releasePointerCapture === 'function' &&
+      element.hasPointerCapture?.(interactionPointerId)
+    ) {
+      element.releasePointerCapture(interactionPointerId)
+    }
+    interactionPointerId = null
 
     element.removeEventListener('wheel', handleWheel)
     element.removeEventListener('pointerdown', handlePointerDownEvent)

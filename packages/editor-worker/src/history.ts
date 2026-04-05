@@ -13,6 +13,14 @@ export type HistoryPatch =
       next: number
     }
   | {
+      type: 'rename-shape'
+      shapeId: string
+      prevName: string
+      nextName: string
+      prevText?: string
+      nextText?: string
+    }
+  | {
       type: 'move-shape'
       shapeId: string
       prevX: number
@@ -29,6 +37,74 @@ export type HistoryPatch =
       nextHeight: number
     }
   | {
+      type: 'rotate-shape'
+      shapeId: string
+      prevRotation: number
+      nextRotation: number
+    }
+  | {
+      type: 'patch-shape'
+      shapeId: string
+      prevFill?: {
+        enabled?: boolean
+        color?: string
+      }
+      nextFill?: {
+        enabled?: boolean
+        color?: string
+      }
+      prevStroke?: {
+        enabled?: boolean
+        color?: string
+        weight?: number
+      }
+      nextStroke?: {
+        enabled?: boolean
+        color?: string
+        weight?: number
+      }
+      prevShadow?: {
+        enabled?: boolean
+        color?: string
+        offsetX?: number
+        offsetY?: number
+        blur?: number
+      }
+      nextShadow?: {
+        enabled?: boolean
+        color?: string
+        offsetX?: number
+        offsetY?: number
+        blur?: number
+      }
+      prevCornerRadius?: number
+      nextCornerRadius?: number
+      prevCornerRadii?: {
+        topLeft?: number
+        topRight?: number
+        bottomRight?: number
+        bottomLeft?: number
+      }
+      nextCornerRadii?: {
+        topLeft?: number
+        topRight?: number
+        bottomRight?: number
+        bottomLeft?: number
+      }
+      prevEllipseStartAngle?: number
+      nextEllipseStartAngle?: number
+      prevEllipseEndAngle?: number
+      nextEllipseEndAngle?: number
+    }
+  | {
+      type: 'set-shape-clip'
+      shapeId: string
+      prevClipPathId?: string
+      nextClipPathId?: string
+      prevClipRule?: 'nonzero' | 'evenodd'
+      nextClipRule?: 'nonzero' | 'evenodd'
+    }
+  | {
       type: 'reorder-shape'
       shapeId: string
       fromIndex: number
@@ -41,10 +117,41 @@ export type HistoryPatch =
         id: string
         type: string
         name: string
+        text?: string
+        assetId?: string
+        assetUrl?: string
+        clipPathId?: string
+        clipRule?: 'nonzero' | 'evenodd'
         x: number
         y: number
         width: number
         height: number
+        rotation?: number
+        fill?: {
+          enabled?: boolean
+          color?: string
+        }
+        stroke?: {
+          enabled?: boolean
+          color?: string
+          weight?: number
+        }
+        shadow?: {
+          enabled?: boolean
+          color?: string
+          offsetX?: number
+          offsetY?: number
+          blur?: number
+        }
+        cornerRadius?: number
+        cornerRadii?: {
+          topLeft?: number
+          topRight?: number
+          bottomRight?: number
+          bottomLeft?: number
+        }
+        ellipseStartAngle?: number
+        ellipseEndAngle?: number
         points?: Array<{x: number; y: number}>
         bezierPoints?: Array<{
           anchor: {x: number; y: number}
@@ -60,10 +167,41 @@ export type HistoryPatch =
         id: string
         type: string
         name: string
+        text?: string
+        assetId?: string
+        assetUrl?: string
+        clipPathId?: string
+        clipRule?: 'nonzero' | 'evenodd'
         x: number
         y: number
         width: number
         height: number
+        rotation?: number
+        fill?: {
+          enabled?: boolean
+          color?: string
+        }
+        stroke?: {
+          enabled?: boolean
+          color?: string
+          weight?: number
+        }
+        shadow?: {
+          enabled?: boolean
+          color?: string
+          offsetX?: number
+          offsetY?: number
+          blur?: number
+        }
+        cornerRadius?: number
+        cornerRadii?: {
+          topLeft?: number
+          topRight?: number
+          bottomRight?: number
+          bottomLeft?: number
+        }
+        ellipseStartAngle?: number
+        ellipseEndAngle?: number
         points?: Array<{x: number; y: number}>
         bezierPoints?: Array<{
           anchor: {x: number; y: number}

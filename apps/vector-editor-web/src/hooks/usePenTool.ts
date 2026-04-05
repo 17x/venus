@@ -45,6 +45,12 @@ export function usePenTool(options: {
       return
     }
 
+    const first = draft.points[0]
+    const last = draft.points[draft.points.length - 1]
+    if (Math.hypot(last.x - first.x, last.y - first.y) < 2 && draft.points.length < 4) {
+      return
+    }
+
     insertElement(createPathElement(draft.points))
   }, [currentTool, insertElement])
 

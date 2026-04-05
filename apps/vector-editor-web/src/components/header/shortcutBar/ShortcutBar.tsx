@@ -105,7 +105,11 @@ const ShortcutBar: React.FC<{
                       }
                       const action = item.editorActionCode || item.action
                       if (action) {
-                        executeAction(action)
+                        if (item.editorActionData) {
+                          executeAction(action, item.editorActionData)
+                        } else {
+                          executeAction(action)
+                        }
                       }
                     }}
                     className={'relative ml-1 rounded-sm mr-1 flex items-center cursor-pointer justify-center w-6 h-6   hover:bg-gray-200  hover:opacity-100  disabled:hover:bg-transparent disabled:text-gray-200 disabled:cursor-default'}>

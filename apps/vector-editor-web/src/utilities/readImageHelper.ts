@@ -1,8 +1,8 @@
 import {nid} from '@venus/document-core'
-import {VisionEditorAssetType} from '@lite-u/editor/types'
+import type {VisionFileAsset} from '../hooks/useEditorRuntime.types.ts'
 
-const readImageHelper = (file: File): Promise<VisionEditorAssetType> => {
-  return new Promise<VisionEditorAssetType>(async (resolve, reject) => {
+const readImageHelper = (file: File): Promise<VisionFileAsset> => {
+  return new Promise<VisionFileAsset>(async (resolve, reject) => {
     try {
       let mimeType = file.type
 
@@ -12,6 +12,7 @@ const readImageHelper = (file: File): Promise<VisionEditorAssetType> => {
         file,
         mimeType,
         imageRef: await waitImageSize(file),
+        objectUrl: URL.createObjectURL(file),
         name: file.name,
       })
     } catch (error) {

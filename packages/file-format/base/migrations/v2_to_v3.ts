@@ -55,7 +55,7 @@ function inferNodeType(source: Record<string, unknown>): RuntimeNodeType {
 
   if (kind === 'text') return 'TEXT'
   if (kind === 'image') return 'IMAGE'
-  if (kind === 'path' || kind === 'line' || kind === 'arc') return 'VECTOR'
+  if (kind === 'path' || kind === 'line' || kind === 'arc' || kind === 'polygon') return 'VECTOR'
   if (kind === 'group') return 'GROUP'
   if (kind === 'rect' || kind === 'circle' || kind === 'point') return 'SHAPE'
 
@@ -123,7 +123,7 @@ function extractFeatures(source: Record<string, unknown>, nodeType: RuntimeNodeT
     })
   }
 
-  if (nodeType === 'VECTOR' || kind === 'path') {
+  if (nodeType === 'VECTOR' || kind === 'path' || kind === 'polygon') {
     features.push({
       kind: 'VECTOR',
       vertices: arrayFromUnknown(data?.vertices),

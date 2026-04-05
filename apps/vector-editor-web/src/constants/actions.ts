@@ -104,6 +104,8 @@ export const TOOLS = {
     {id: 'lineSegmentTool', shortcut: '\\', editorAction: 'switch-tool', editorActionData: 'lineSegment'},
     {id: 'rectangleTool', shortcut: 'm', editorAction: 'switch-tool', editorActionData: 'rectangle'},
     {id: 'ellipseTool', shortcut: 'l', editorAction: 'switch-tool', editorActionData: 'ellipse'},
+    {id: 'polygonTool', shortcut: '5', editorAction: 'switch-tool', editorActionData: 'polygon'},
+    {id: 'starTool', shortcut: '8', editorAction: 'switch-tool', editorActionData: 'star'},
     {id: 'textTool', shortcut: 't', editorAction: 'switch-tool', editorActionData: 'text'},
     {id: 'pencilTool', shortcut: 'p', editorAction: 'switch-tool', editorActionData: 'pencil'},
     {id: 'panningTool', shortcut: 'h', editorAction: 'switch-tool', editorActionData: 'panning'},

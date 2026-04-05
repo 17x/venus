@@ -233,6 +233,7 @@ export type RuntimeNodeTypeV5 = RuntimeNodeTypeV4
 export type RuntimeFeatureKindV5 =
   | RuntimeFeatureKindV4
   | 'METADATA'
+  | 'CLIP'
   | 'MINDMAP_BRANCH'
   | 'CONNECTOR'
 
@@ -269,9 +270,16 @@ export interface RuntimeConnectorFeatureV5 {
   connectorType: 'STRAIGHT' | 'ORTHOGONAL' | 'CURVED'
 }
 
+export interface RuntimeClipFeatureV5 {
+  kind: 'CLIP'
+  sourceNodeId: string
+  clipRule: 'NONZERO' | 'EVENODD'
+}
+
 export type RuntimeNodeFeatureV5 =
   | RuntimeNodeFeatureV4
   | RuntimeMetadataFeatureV5
+  | RuntimeClipFeatureV5
   | RuntimeMindmapBranchFeatureV5
   | RuntimeConnectorFeatureV5
 

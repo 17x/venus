@@ -15,10 +15,18 @@
 - Avoid speculative abstraction unless it removes repeated, current pain
 - Prefer explicit names over short clever ones
 - Add comments only where the code would otherwise be hard to parse
+- When shipping a new feature or materially updating an existing one, add
+  concise code comments at the non-obvious implementation points so the change
+  remains legible to the next context
 - Keep package entrypoints clean and intentional; export only the surface that should be reused
 - Use strict typing to model the domain instead of bypassing errors with assertions or ignore comments
 - Prefer extending existing `@venus/*` modules over creating parallel helpers in app code
 - Preserve the repository's existing import and formatting style, including extension-bearing local imports where already used
+- Treat `packages/file-format` as the source of truth for persisted scene/document
+  semantics; describe runtime or app-only structures as adapters, not competing
+  canonical models
+- Prefer the file-format `node + feature` model when reasoning about geometry,
+  content, and serialization behavior
 
 ## Safety Rules
 
@@ -35,6 +43,10 @@
 - If full validation is too expensive, run targeted checks and say what was not verified
 - Report validation gaps plainly
 - Treat architecture docs and actual exports as part of validation when changing package boundaries or runtime flow
+- After shipping a meaningful feature addition or behavior update, write a short
+  factual knowledge note into the most relevant module-level knowledge/doc file;
+  if no module-specific file exists, fall back to
+  `docs/ai-standards/core/monorepo-knowledge-base.md`
 
 ## Communication Rules
 

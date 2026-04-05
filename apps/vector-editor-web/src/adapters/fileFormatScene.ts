@@ -1,12 +1,47 @@
 import type {RuntimeFeatureEntryV5, RuntimePathCommandV4, RuntimePathV4, RuntimeSceneLatest} from '@venus/file-format/base'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
+import {getBoundingRectFromBezierPoints} from '@venus/document-core'
+
+type ElementHierarchyMeta = {
+  parentId?: string | null
+  childIds?: string[]
+}
+
+function resolveArrowhead(value: unknown) {
+  if (
+    value === 'none' ||
+    value === 'triangle' ||
+    value === 'diamond' ||
+    value === 'circle' ||
+    value === 'bar'
+  ) {
+    return value
+  }
+  return undefined
+}
 
 /**
  * Converts the app-level JSON file into the normalized file-format runtime
  * scene so the editor can go through a single parse entry afterwards.
  */
 export function createRuntimeSceneFromVisionFile(file: VisionFileType): RuntimeSceneLatest {
+  const runtimeNodes = file.elements.map((element) => createRuntimeNodeFromElement(element))
+  const nodeById = new Map(runtimeNodes.map((node) => [node.id, node]))
+  const rootNodes: RuntimeSceneLatest['nodes'] = []
+
+  runtimeNodes.forEach((node) => {
+    if (node.parentId) {
+      const parent = nodeById.get(node.parentId)
+      if (parent) {
+        parent.children.push(node)
+        return
+      }
+    }
+
+    rootNodes.push(node)
+  })
+
   return {
     version: 5,
     canvasWidth: file.config.page.width,
@@ -19,7 +54,7 @@ export function createRuntimeSceneFromVisionFile(file: VisionFileType): RuntimeS
     metadata: [],
     nodes: [
       createPageFrameNode(file),
-      ...file.elements.map((element) => createRuntimeNodeFromElement(element)),
+      ...rootNodes,
     ],
   }
 }
@@ -49,19 +84,91 @@ function createPageFrameNode(file: VisionFileType): RuntimeSceneLatest['nodes'][
 }
 
 function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest['nodes'][number] {
-  const x = Number(element.x ?? 0)
-  const y = Number(element.y ?? 0)
-  const width = Number(element.width ?? 0)
-  const height = Number(element.height ?? 0)
+  const geometry = resolveElementGeometry(element)
+  const x = geometry.x
+  const y = geometry.y
+  const width = geometry.width
+  const height = geometry.height
   const type = String(element.type ?? 'rectangle')
+  const parentIdMeta = (element as ElementProps & ElementHierarchyMeta).parentId
+  const strokeStartArrowhead = resolveArrowhead(element.strokeStartArrowhead)
+  const strokeEndArrowhead = resolveArrowhead(element.strokeEndArrowhead)
+  const rotation = Number(element.rotation ?? 0)
+  const metadataValues: Record<string, string | number | boolean> = {
+    shapeType: type,
+    x,
+    y,
+    width,
+    height,
+    rotation,
+  }
+  if (strokeStartArrowhead) {
+    metadataValues.strokeStartArrowhead = strokeStartArrowhead
+  }
+  if (strokeEndArrowhead) {
+    metadataValues.strokeEndArrowhead = strokeEndArrowhead
+  }
+  if (element.fill && typeof element.fill === 'object') {
+    if (typeof element.fill.enabled === 'boolean') {
+      metadataValues.fillEnabled = element.fill.enabled
+    }
+    if (typeof element.fill.color === 'string') {
+      metadataValues.fillColor = element.fill.color
+    }
+  }
+  if (element.stroke && typeof element.stroke === 'object') {
+    if (typeof element.stroke.enabled === 'boolean') {
+      metadataValues.strokeEnabled = element.stroke.enabled
+    }
+    if (typeof element.stroke.color === 'string') {
+      metadataValues.strokeColor = element.stroke.color
+    }
+    if (typeof element.stroke.weight === 'number') {
+      metadataValues.strokeWeight = element.stroke.weight
+    }
+  }
+  if (element.shadow && typeof element.shadow === 'object') {
+    if (typeof element.shadow.enabled === 'boolean') {
+      metadataValues.shadowEnabled = element.shadow.enabled
+    }
+    if (typeof element.shadow.color === 'string') {
+      metadataValues.shadowColor = element.shadow.color
+    }
+    if (typeof element.shadow.offsetX === 'number') {
+      metadataValues.shadowOffsetX = element.shadow.offsetX
+    }
+    if (typeof element.shadow.offsetY === 'number') {
+      metadataValues.shadowOffsetY = element.shadow.offsetY
+    }
+    if (typeof element.shadow.blur === 'number') {
+      metadataValues.shadowBlur = element.shadow.blur
+    }
+  }
+  if (typeof element.cornerRadius === 'number') {
+    metadataValues.cornerRadius = element.cornerRadius
+  }
+  if (element.cornerRadii && typeof element.cornerRadii === 'object') {
+    if (typeof element.cornerRadii.topLeft === 'number') {
+      metadataValues.cornerTopLeft = element.cornerRadii.topLeft
+    }
+    if (typeof element.cornerRadii.topRight === 'number') {
+      metadataValues.cornerTopRight = element.cornerRadii.topRight
+    }
+    if (typeof element.cornerRadii.bottomRight === 'number') {
+      metadataValues.cornerBottomRight = element.cornerRadii.bottomRight
+    }
+    if (typeof element.cornerRadii.bottomLeft === 'number') {
+      metadataValues.cornerBottomLeft = element.cornerRadii.bottomLeft
+    }
+  }
+  if (typeof element.ellipseStartAngle === 'number') {
+    metadataValues.ellipseStartAngle = element.ellipseStartAngle
+  }
+  if (typeof element.ellipseEndAngle === 'number') {
+    metadataValues.ellipseEndAngle = element.ellipseEndAngle
+  }
   const featureEntries: RuntimeFeatureEntryV5[] = [
-    createMetadataEntry(`${element.id}:metadata`, {
-      shapeType: type,
-      x,
-      y,
-      width,
-      height,
-    }),
+    createMetadataEntry(`${element.id}:metadata`, metadataValues),
   ]
 
   const vectorPaths = createVectorPathsFromElement(element)
@@ -89,6 +196,30 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     })
   }
 
+  if (type === 'image' && typeof element.asset === 'string') {
+    featureEntries.push({
+      id: `${element.id}:image`,
+      role: 'content',
+      feature: {
+        kind: 'IMAGE',
+        imageId: element.asset,
+        scaleMode: 'FIT',
+      },
+    })
+  }
+
+  if (type === 'image' && typeof element.clipPathId === 'string') {
+    featureEntries.push({
+      id: `${element.id}:clip`,
+      role: 'clip',
+      feature: {
+        kind: 'CLIP',
+        sourceNodeId: element.clipPathId,
+        clipRule: element.clipRule === 'evenodd' ? 'EVENODD' : 'NONZERO',
+      },
+    })
+  }
+
   return {
     id: element.id,
     type: resolveRuntimeNodeType(type),
@@ -96,11 +227,76 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     children: [],
     features: [],
     name: String(element.name ?? type),
-    parentId: null,
+    parentId: typeof parentIdMeta === 'string' ? parentIdMeta : null,
     featureEntries,
     nodeKind: type,
     isVisible: element.show !== false,
     isLocked: false,
+  }
+}
+
+function resolveElementGeometry(element: ElementProps) {
+  const points = Array.isArray(element.points)
+    ? element.points
+        .map((point) => toPointLike(point))
+        .filter((point): point is NonNullable<ReturnType<typeof toPointLike>> => point !== null)
+    : []
+  const pointBounds = points.length > 0
+    ? {
+        minX: Math.min(...points.map((point) => point.x)),
+        minY: Math.min(...points.map((point) => point.y)),
+        maxX: Math.max(...points.map((point) => point.x)),
+        maxY: Math.max(...points.map((point) => point.y)),
+      }
+    : null
+
+  const bezierPoints = Array.isArray(element.bezierPoints)
+    ? element.bezierPoints
+        .map((point) => toBezierPointLike(point))
+        .filter((point): point is NonNullable<ReturnType<typeof toBezierPointLike>> => point !== null)
+    : []
+  const bezierBounds = bezierPoints.length > 0
+    ? getBoundingRectFromBezierPoints(bezierPoints)
+    : null
+
+  const width = Number(
+    element.width ??
+      (bezierBounds
+        ? bezierBounds.width
+        : pointBounds
+          ? pointBounds.maxX - pointBounds.minX
+          : 0),
+  )
+  const height = Number(
+    element.height ??
+      (bezierBounds
+        ? bezierBounds.height
+        : pointBounds
+          ? pointBounds.maxY - pointBounds.minY
+          : 0),
+  )
+  const x = Number(
+    element.x ??
+      (bezierBounds
+        ? bezierBounds.x
+        : pointBounds
+          ? pointBounds.minX
+          : ((element.cx ?? 0) - width / 2)),
+  )
+  const y = Number(
+    element.y ??
+      (bezierBounds
+        ? bezierBounds.y
+        : pointBounds
+          ? pointBounds.minY
+          : ((element.cy ?? 0) - height / 2)),
+  )
+
+  return {
+    x,
+    y,
+    width,
+    height,
   }
 }
 
@@ -109,12 +305,23 @@ function resolveRuntimeNodeType(type: string): RuntimeSceneLatest['nodes'][numbe
     return 'FRAME'
   }
 
+  if (type === 'group') {
+    return 'GROUP'
+  }
+
   if (type === 'text') {
     return 'TEXT'
   }
 
+  if (type === 'image') {
+    return 'IMAGE'
+  }
+
   if (type === 'path' || type === 'lineSegment') {
     return 'VECTOR'
+  }
+  if (type === 'polygon' || type === 'star') {
+    return 'SHAPE'
   }
 
   return 'SHAPE'
@@ -140,6 +347,20 @@ function createVectorPathsFromElement(element: ElementProps): RuntimePathV4[] {
       return [
         {
           commands: createPolylineCommands(points),
+        },
+      ]
+    }
+  }
+
+  if (type === 'polygon' || type === 'star') {
+    const points = Array.isArray(element.points) ? element.points : []
+    if (points.length >= 3) {
+      return [
+        {
+          commands: [
+            ...createPolylineCommands(points),
+            {type: 'CLOSE', points: []},
+          ],
         },
       ]
     }
@@ -224,7 +445,7 @@ function createPolylineCommands(points: unknown[]): RuntimePathCommandV4[] {
   ]
 }
 
-function createMetadataEntry(id: string, values: Record<string, string | number>): RuntimeFeatureEntryV5 {
+function createMetadataEntry(id: string, values: Record<string, string | number | boolean>): RuntimeFeatureEntryV5 {
   return {
     id,
     role: 'metadata',
