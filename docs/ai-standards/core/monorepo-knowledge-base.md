@@ -57,6 +57,14 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ### 2026-04-05
 
+- Added first-class shape appearance editing for vector primitives:
+  `shape.patch` now supports `fill/stroke/shadow`, rectangle
+  `cornerRadius/cornerRadii`, and ellipse `start/end` angles across worker
+  history + collaboration payloads. Vector property panel emits these patches,
+  file-format metadata parse/serialize paths persist them, and `Canvas2D`
+  now renders per-corner rounded rectangles, arc/sector ellipses, and shape
+  shadows/colors using `DocumentNode` style fields.
+
 - Landed true multi-select selection semantics across runtime and worker
   protocol. `selection.set` now supports `shapeIds + mode`
   (`replace/add/remove/toggle/clear`), pointer-down messages forward modifier
@@ -150,6 +158,32 @@ Use this file as the shared knowledge base for the Venus monorepo.
   Handle positions and handle hit-picking in vector selector flow were aligned
   to the same rotated frame, avoiding visual-vs-interaction mismatch after
   element rotation.
+
+- Extracted marquee (box-select) core logic into
+  `@venus/canvas-base/interaction/marqueeSelection` and exported it via package
+  entry. `vector-editor-web` now uses shared helpers for marquee state updates,
+  bounds resolution, and selected-id computation to keep future app surfaces
+  aligned on the same baseline behavior.
+
+- Enabled marquee selection in `runtime-playground` using the same shared
+  marquee helpers (`createMarqueeState`, `updateMarqueeState`,
+  `resolveMarqueeBounds`, `resolveMarqueeSelection`) and added marquee overlay
+  visualization on top of `CanvasSelectionOverlay` so playground and vector can
+  validate the same box-select baseline behavior.
+
+- Selection chrome (selection border, handle size, rotate-handle offset, and
+  marquee border) now uses screen-space constant sizing by scaling UI values
+  with `1 / viewport.scale`, so chrome no longer visually expands/shrinks when
+  zooming canvas content.
+
+- Updated selection chrome sizing policy: hover frame, handles, and marquee are
+  now decoupled from `viewport.scale` (fixed world-space sizing), while the
+  selected bounding box border keeps its scale-compensated stroke behavior.
+
+- Gesture layer now suppresses pointer selection events for a short window
+  after wheel/pinch input (`POINTER_SUPPRESS_AFTER_WHEEL_MS`) and only emits
+  `onPointerUp` when a real pointer interaction was active. This prevents zoom
+  gestures from accidentally triggering selection commits.
 
 ### 2026-04-04
 

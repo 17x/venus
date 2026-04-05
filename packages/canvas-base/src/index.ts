@@ -52,6 +52,21 @@ export {
   type SelectionDragShapeState,
   type SelectionDragSnapshot,
 } from './interaction/selectionDragController.ts'
+export {
+  createMarqueeState,
+  updateMarqueeState,
+  resolveMarqueeBounds,
+  resolveMarqueeSelection,
+  getNormalizedBounds as getMarqueeNormalizedBounds,
+  intersectsBounds as intersectsMarqueeBounds,
+  containsBounds as containsMarqueeBounds,
+  type MarqueeBounds,
+  type MarqueePoint,
+  type MarqueeSelectableShape,
+  type MarqueeSelectionMatchMode,
+  type MarqueeSelectionMode,
+  type MarqueeState,
+} from './interaction/marqueeSelection.ts'
 export type {
   ZoomInputSource,
   ZoomWheelResult,

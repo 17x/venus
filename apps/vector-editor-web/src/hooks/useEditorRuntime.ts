@@ -1,7 +1,16 @@
 import {createElement, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@lite-u/ui'
 import {nid, type ToolName} from '@venus/document-core'
-import {createSelectionDragController, useCanvasRuntime} from '@venus/canvas-base'
+import {
+  createMarqueeState,
+  createSelectionDragController,
+  resolveMarqueeBounds,
+  resolveMarqueeSelection,
+  updateMarqueeState,
+  useCanvasRuntime,
+  type MarqueeSelectionMode,
+  getMarqueeNormalizedBounds as getNormalizedBounds,
+} from '@venus/canvas-base'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
@@ -61,15 +70,6 @@ function boundsOverlap(
   )
 }
 
-function getNormalizedBounds(x: number, y: number, width: number, height: number) {
-  return {
-    minX: Math.min(x, x + width),
-    minY: Math.min(y, y + height),
-    maxX: Math.max(x, x + width),
-    maxY: Math.max(y, y + height),
-  }
-}
-
 function remapPoint(
   point: {x: number; y: number},
   source: {x: number; y: number; width: number; height: number},
@@ -120,18 +120,6 @@ function applyPreviewGeometryToShape(
           }))
         : shape.bezierPoints,
   }
-}
-
-function intersectsBounds(
-  left: {minX: number; minY: number; maxX: number; maxY: number},
-  right: {minX: number; minY: number; maxX: number; maxY: number},
-) {
-  return !(
-    left.maxX < right.minX ||
-    right.maxX < left.minX ||
-    left.maxY < right.minY ||
-    right.maxY < left.minY
-  )
 }
 
 function hitTestSceneShape(
@@ -209,6 +197,13 @@ function toElementPropsFromNode(selectedNode: import('@venus/document-core').Doc
     })),
     strokeStartArrowhead: selectedNode.strokeStartArrowhead,
     strokeEndArrowhead: selectedNode.strokeEndArrowhead,
+    fill: selectedNode.fill ? {...selectedNode.fill} : undefined,
+    stroke: selectedNode.stroke ? {...selectedNode.stroke} : undefined,
+    shadow: selectedNode.shadow ? {...selectedNode.shadow} : undefined,
+    cornerRadius: selectedNode.cornerRadius,
+    cornerRadii: selectedNode.cornerRadii ? {...selectedNode.cornerRadii} : undefined,
+    ellipseStartAngle: selectedNode.ellipseStartAngle,
+    ellipseEndAngle: selectedNode.ellipseEndAngle,
   }
 }
 
@@ -256,7 +251,7 @@ const useEditorRuntime = (options?: {
   const [marquee, setMarquee] = useState<{
     start: {x: number; y: number}
     current: {x: number; y: number}
-    mode: 'replace' | 'add' | 'toggle'
+    mode: MarqueeSelectionMode
   } | null>(null)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
@@ -369,12 +364,7 @@ const useEditorRuntime = (options?: {
     if (!marquee) {
       return null
     }
-    return getNormalizedBounds(
-      marquee.start.x,
-      marquee.start.y,
-      marquee.current.x - marquee.start.x,
-      marquee.current.y - marquee.start.y,
-    )
+    return resolveMarqueeBounds(marquee)
   }, [marquee])
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
@@ -833,6 +823,76 @@ const useEditorRuntime = (options?: {
           rotation: nextRotation,
         })
       }
+
+      const stylePatch: {
+        fill?: import('@venus/document-core').DocumentNode['fill']
+        stroke?: import('@venus/document-core').DocumentNode['stroke']
+        shadow?: import('@venus/document-core').DocumentNode['shadow']
+        cornerRadius?: number
+        cornerRadii?: import('@venus/document-core').DocumentNode['cornerRadii']
+        ellipseStartAngle?: number
+        ellipseEndAngle?: number
+      } = {}
+
+      if (Object.prototype.hasOwnProperty.call(patch.props, 'fill')) {
+        const incoming = patch.props.fill
+        stylePatch.fill = incoming && typeof incoming === 'object'
+          ? {
+              ...(shape.fill ?? {}),
+              ...(incoming as Record<string, unknown>),
+            }
+          : undefined
+      }
+
+      if (Object.prototype.hasOwnProperty.call(patch.props, 'stroke')) {
+        const incoming = patch.props.stroke
+        stylePatch.stroke = incoming && typeof incoming === 'object'
+          ? {
+              ...(shape.stroke ?? {}),
+              ...(incoming as Record<string, unknown>),
+            }
+          : undefined
+      }
+
+      if (Object.prototype.hasOwnProperty.call(patch.props, 'shadow')) {
+        const incoming = patch.props.shadow
+        stylePatch.shadow = incoming && typeof incoming === 'object'
+          ? {
+              ...(shape.shadow ?? {}),
+              ...(incoming as Record<string, unknown>),
+            }
+          : undefined
+      }
+
+      if (typeof patch.props.cornerRadius === 'number') {
+        stylePatch.cornerRadius = patch.props.cornerRadius
+      }
+
+      if (Object.prototype.hasOwnProperty.call(patch.props, 'cornerRadii')) {
+        const incoming = patch.props.cornerRadii
+        stylePatch.cornerRadii = incoming && typeof incoming === 'object'
+          ? {
+              ...(shape.cornerRadii ?? {}),
+              ...(incoming as Record<string, unknown>),
+            }
+          : undefined
+      }
+
+      if (typeof patch.props.ellipseStartAngle === 'number') {
+        stylePatch.ellipseStartAngle = patch.props.ellipseStartAngle
+      }
+
+      if (typeof patch.props.ellipseEndAngle === 'number') {
+        stylePatch.ellipseEndAngle = patch.props.ellipseEndAngle
+      }
+
+      if (Object.keys(stylePatch).length > 0) {
+        handleCommand({
+          type: 'shape.patch',
+          shapeId: shape.id,
+          patch: stylePatch,
+        })
+      }
     }
   }, [
     add,
@@ -947,6 +1007,7 @@ const useEditorRuntime = (options?: {
         worldPointRef.current?.set(point)
         const transformSession = transformManagerRef.current.getSession()
         if (transformSession) {
+          canvasRuntime.clearHover()
           const preview = transformManagerRef.current.update(point)
           if (preview) {
             setTransformPreview(preview)
@@ -954,10 +1015,8 @@ const useEditorRuntime = (options?: {
           return
         }
         if (marquee) {
-          setMarquee((current) => (current ? {
-            ...current,
-            current: point,
-          } : current))
+          canvasRuntime.clearHover()
+          setMarquee((current) => (current ? updateMarqueeState(current, point) : current))
           return
         }
         if (currentTool === 'selector' || currentTool === 'dselector') {
@@ -966,9 +1025,11 @@ const useEditorRuntime = (options?: {
             shapes: canvasRuntime.shapes,
           })
           if (dragMove.phase === 'pending') {
+            canvasRuntime.clearHover()
             return
           }
           if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
+            canvasRuntime.clearHover()
             if (dragMove.phase === 'started') {
               const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
               const dragShapes = dragShapeIds
@@ -1037,9 +1098,10 @@ const useEditorRuntime = (options?: {
             hoverId: null,
             selectedBounds,
           }, {
+            rotateOffset: 28,
             rotateDegrees: singleSelectedRotation,
           })
-          const handleTolerance = Math.max(6, 8 / Math.max(canvasRuntime.viewport.scale, 0.1))
+          const handleTolerance = 6
           const handle = pickHandleAtPoint(point, handles, handleTolerance)
 
           if (handle && selectedBounds && selectedNodes.length > 0) {
@@ -1119,15 +1181,13 @@ const useEditorRuntime = (options?: {
           }
 
           selectionDragControllerRef.current.clear()
-          setMarquee({
-            start: point,
-            current: point,
-            mode: modifiers?.shiftKey
-              ? 'add'
-              : (modifiers?.metaKey || modifiers?.ctrlKey)
-                ? 'toggle'
-                : 'replace',
-          })
+          const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
+            ? 'add'
+            : (modifiers?.metaKey || modifiers?.ctrlKey)
+              ? 'toggle'
+              : 'replace'
+          canvasRuntime.clearHover()
+          setMarquee(createMarqueeState(point, marqueeMode))
           return
         }
 
@@ -1192,19 +1252,10 @@ const useEditorRuntime = (options?: {
         }
 
         if (marquee) {
-          const bounds = getNormalizedBounds(
-            marquee.start.x,
-            marquee.start.y,
-            marquee.current.x - marquee.start.x,
-            marquee.current.y - marquee.start.y,
-          )
-          const selectedIds = previewDocument.shapes
-            .filter((shape) => shape.type !== 'frame')
-            .filter((shape) => intersectsBounds(
-              bounds,
-              getNormalizedBounds(shape.x, shape.y, shape.width, shape.height),
-            ))
-            .map((shape) => shape.id)
+          const bounds = resolveMarqueeBounds(marquee)
+          const selectedIds = resolveMarqueeSelection(previewDocument.shapes, bounds, {
+            excludeShape: (shape) => shape.type === 'frame',
+          })
 
           handleCommand({
             type: 'selection.set',

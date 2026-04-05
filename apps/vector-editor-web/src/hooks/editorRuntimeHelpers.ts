@@ -177,15 +177,24 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
     strokeEndArrowhead: shape.strokeEndArrowhead,
     rotation: shape.rotation ?? 0,
     opacity: 1,
-    fill: {
-      enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
-      color: '#ffffff',
-    },
-    stroke: {
-      enabled: true,
-      color: '#000000',
-      weight: 1,
-    },
+    fill: shape.fill
+      ? {...shape.fill}
+      : {
+          enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
+          color: '#ffffff',
+        },
+    stroke: shape.stroke
+      ? {...shape.stroke}
+      : {
+          enabled: true,
+          color: '#000000',
+          weight: 1,
+        },
+    shadow: shape.shadow ? {...shape.shadow} : undefined,
+    cornerRadius: shape.cornerRadius,
+    cornerRadii: shape.cornerRadii ? {...shape.cornerRadii} : undefined,
+    ellipseStartAngle: shape.ellipseStartAngle,
+    ellipseEndAngle: shape.ellipseEndAngle,
   }
 }
 
@@ -208,6 +217,8 @@ export function cloneElementProps(element: ElementProps): ElementProps {
       : undefined,
     fill: element.fill ? {...element.fill} : undefined,
     stroke: element.stroke ? {...element.stroke} : undefined,
+    shadow: element.shadow ? {...element.shadow} : undefined,
+    cornerRadii: element.cornerRadii ? {...element.cornerRadii} : undefined,
   }
 }
 

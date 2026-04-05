@@ -41,26 +41,38 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
     color: props.stroke?.color ?? '#000000',
     weight: props.stroke?.weight ?? 1,
   }
+  const shadow = {
+    enabled: props.shadow?.enabled ?? false,
+    color: props.shadow?.color ?? '#000000',
+    offsetX: props.shadow?.offsetX ?? 0,
+    offsetY: props.shadow?.offsetY ?? 0,
+    blur: props.shadow?.blur ?? 8,
+  }
+  const cornerRadii = {
+    topLeft: props.cornerRadii?.topLeft ?? props.cornerRadius ?? 0,
+    topRight: props.cornerRadii?.topRight ?? props.cornerRadius ?? 0,
+    bottomRight: props.cornerRadii?.bottomRight ?? props.cornerRadius ?? 0,
+    bottomLeft: props.cornerRadii?.bottomLeft ?? props.cornerRadius ?? 0,
+  }
   const typeLabel = String(props.type ?? 'unknown')
+
+  const patchElementProps = (nextProps: Partial<SelectedElementProps>) => {
+    executeAction('element-modify', [{
+      id: props.id,
+      props: nextProps,
+    }])
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const keyName = e.target.name as Extract<keyof SelectedElementProps, string>
     let newValue: string | number = e.target.value
 
     // @ts-ignore
-    if (['x', 'y', 'width', 'height', 'rotation'].includes(keyName)) {
-      newValue = Number(newValue)
-    } else if (['x', 'y', 'width', 'height', 'rotation'].includes(keyName)) {
+    if (['x', 'y', 'width', 'height', 'rotation', 'cornerRadius', 'ellipseStartAngle', 'ellipseEndAngle'].includes(keyName)) {
       newValue = Number(newValue)
     }
 
-    // console.log(keyName,newValue)
-    executeAction('element-modify', [{
-      id: props.id,
-      props: {
-        [keyName]: newValue,
-      },
-    }])
+    patchElementProps({[keyName]: newValue} as Partial<SelectedElementProps>)
 
     e.preventDefault()
     e.stopPropagation()
@@ -266,12 +278,9 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           // onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             // console.log(e)
-            executeAction('element-modify', [{
-              id: props.id,
-              props: {
-                fill: {color: e.target.value},
-              },
-            }])
+            patchElementProps({
+              fill: {color: e.target.value},
+            })
           }}
           // onChange={handleChange}
           className="w-10 h-10 p-1 rounded"
@@ -282,14 +291,11 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
         <ProtectedInput
           type="checkbox"
           name="enableLine"
-          defaultChecked={stroke.enabled}
+          checked={stroke.enabled}
           onChange={(e) => {
-            executeAction('element-modify', [{
-              id: props.id,
-              props: {
-                stroke: {enabled: e.target.checked},
-              },
-            }])
+            patchElementProps({
+              stroke: {enabled: e.target.checked},
+            })
           }}
           className="ml-2"
         />
@@ -301,12 +307,9 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           name="lineColor"
           value={stroke.color}
           onChange={(e) => {
-            executeAction('element-modify', [{
-              id: props.id,
-              props: {
-                stroke: {color: e.target.value},
-              },
-            }])
+            patchElementProps({
+              stroke: {color: e.target.value},
+            })
           }}
           className="w-10 h-10 p-1 rounded"
         />
@@ -319,30 +322,165 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           step={0.25}
           value={stroke.weight}
           onChange={(e)=>{
-            executeAction('element-modify', [{
-              id: props.id,
-              props: {
-                stroke: {weight: Number(e.target.value)},
-              },
-            }])
+            patchElementProps({
+              stroke: {weight: Number(e.target.value)},
+            })
           }}
           className="w-16  py-1 text-black rounded"
         />
       </div>
     </div>
 
+    {(props.type === 'rectangle' || props.type === 'frame') && (
+      <div className="mb-1">
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>Corner Radius:</span>
+          <ProtectedInput
+            type="number"
+            name="cornerRadius"
+            value={props.cornerRadius ?? 0}
+            onChange={handleChange}
+            className="w-16  py-1 text-black rounded"
+          />
+        </div>
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>Corner TL:</span>
+          <ProtectedInput
+            type="number"
+            name="cornerTopLeft"
+            value={cornerRadii.topLeft}
+            onChange={(e) => patchElementProps({
+              cornerRadii: {topLeft: Number(e.target.value)},
+            })}
+            className="w-16 py-1 text-black rounded"
+          />
+        </div>
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>Corner TR:</span>
+          <ProtectedInput
+            type="number"
+            name="cornerTopRight"
+            value={cornerRadii.topRight}
+            onChange={(e) => patchElementProps({
+              cornerRadii: {topRight: Number(e.target.value)},
+            })}
+            className="w-16 py-1 text-black rounded"
+          />
+        </div>
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>Corner BR:</span>
+          <ProtectedInput
+            type="number"
+            name="cornerBottomRight"
+            value={cornerRadii.bottomRight}
+            onChange={(e) => patchElementProps({
+              cornerRadii: {bottomRight: Number(e.target.value)},
+            })}
+            className="w-16 py-1 text-black rounded"
+          />
+        </div>
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>Corner BL:</span>
+          <ProtectedInput
+            type="number"
+            name="cornerBottomLeft"
+            value={cornerRadii.bottomLeft}
+            onChange={(e) => patchElementProps({
+              cornerRadii: {bottomLeft: Number(e.target.value)},
+            })}
+            className="w-16 py-1 text-black rounded"
+          />
+        </div>
+      </div>
+    )}
+
+    {props.type === 'ellipse' && (
+      <div className="mb-1">
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>Start Angle:</span>
+          <ProtectedInput
+            type="number"
+            name="ellipseStartAngle"
+            value={props.ellipseStartAngle ?? 0}
+            onChange={handleChange}
+            className="w-16 py-1 text-black rounded"
+          />
+        </div>
+        <div className=" w-full h-full flex justify-between items-center">
+          <span>End Angle:</span>
+          <ProtectedInput
+            type="number"
+            name="ellipseEndAngle"
+            value={props.ellipseEndAngle ?? 360}
+            onChange={handleChange}
+            className="w-16 py-1 text-black rounded"
+          />
+        </div>
+      </div>
+    )}
+
     {/* Appearance Group */}
     <div className="mb-1">
-      {/*<div className=" w-full h-full flex justify-between items-center">
+      <div className=" w-full h-full flex justify-between items-center">
         <span>Shadow</span>
         <ProtectedInput
           type="checkbox"
-          name="shadow"
-          defaultChecked={props.shadow}
-          onChange={handleChange}
+          name="shadowEnabled"
+          checked={shadow.enabled}
+          onChange={(e) => patchElementProps({
+            shadow: {enabled: e.target.checked},
+          })}
           className="ml-2"
         />
-      </div>*/}
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Shadow Color:</span>
+        <ProtectedInput
+          type="color"
+          name="shadowColor"
+          value={shadow.color}
+          onChange={(e) => patchElementProps({
+            shadow: {color: e.target.value},
+          })}
+          className="w-10 h-10 p-1 rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Shadow X:</span>
+        <ProtectedInput
+          type="number"
+          name="shadowOffsetX"
+          value={shadow.offsetX}
+          onChange={(e) => patchElementProps({
+            shadow: {offsetX: Number(e.target.value)},
+          })}
+          className="w-16 py-1 text-black rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Shadow Y:</span>
+        <ProtectedInput
+          type="number"
+          name="shadowOffsetY"
+          value={shadow.offsetY}
+          onChange={(e) => patchElementProps({
+            shadow: {offsetY: Number(e.target.value)},
+          })}
+          className="w-16 py-1 text-black rounded"
+        />
+      </div>
+      <div className=" w-full h-full flex justify-between items-center">
+        <span>Shadow Blur:</span>
+        <ProtectedInput
+          type="number"
+          name="shadowBlur"
+          value={shadow.blur}
+          onChange={(e) => patchElementProps({
+            shadow: {blur: Number(e.target.value)},
+          })}
+          className="w-16 py-1 text-black rounded"
+        />
+      </div>
       <div className=" w-full h-full flex justify-between items-center">
         <span>Opacity:</span>
         <ProtectedInput

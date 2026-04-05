@@ -13,6 +13,8 @@ export function CanvasSelectionOverlay({
   shapes,
   viewport,
 }: CanvasOverlayProps) {
+  const handleSize = 8
+  const halfHandleSize = handleSize / 2
   const selectedIds = React.useMemo(
     () => shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
     [shapes],
@@ -71,8 +73,34 @@ export function CanvasSelectionOverlay({
       ...rotatePointAround(handle.x, handle.y, centerX, centerY, rotation),
     }))
   }, [selectedBounds, singleSelectedShape?.rotation])
-
-  const viewportTransform = `matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`
+  const hoveredPolygon = React.useMemo(() => {
+    if (!hoveredShape || selectedIds.includes(hoveredShape.id)) {
+      return null
+    }
+    const bounds = normalizeBounds(hoveredShape.x, hoveredShape.y, hoveredShape.width, hoveredShape.height)
+    const rotation = hoveredShape.rotation ?? 0
+    return projectPolygon(
+      buildRectPolygon(bounds, rotation),
+      viewport.matrix,
+    )
+  }, [hoveredShape, selectedIds, viewport.matrix])
+  const selectedPolygon = React.useMemo(() => {
+    if (!selectedBounds) {
+      return null
+    }
+    const rotation = singleSelectedShape?.rotation ?? 0
+    return projectPolygon(
+      buildRectPolygon(selectedBounds, rotation),
+      viewport.matrix,
+    )
+  }, [selectedBounds, singleSelectedShape?.rotation, viewport.matrix])
+  const screenHandles = React.useMemo(
+    () => handles.map((handle) => ({
+      ...handle,
+      ...projectPoint(handle, viewport.matrix),
+    })),
+    [handles, viewport.matrix],
+  )
 
   return (
     <div
@@ -83,65 +111,51 @@ export function CanvasSelectionOverlay({
         overflow: 'hidden',
       }}
     >
-      <div
+      <svg
         style={{
           position: 'absolute',
           inset: 0,
-          transform: viewportTransform,
-          transformOrigin: '0 0',
         }}
+        width="100%"
+        height="100%"
       >
-        {hoveredShape && !selectedIds.includes(hoveredShape.id) && (
-          <div
-            style={{
-              position: 'absolute',
-              left: Math.min(hoveredShape.x, hoveredShape.x + hoveredShape.width),
-              top: Math.min(hoveredShape.y, hoveredShape.y + hoveredShape.height),
-              width: Math.abs(hoveredShape.width),
-              height: Math.abs(hoveredShape.height),
-              border: '1px dashed rgba(14, 165, 233, 0.9)',
-              boxSizing: 'border-box',
-            }}
+        {hoveredPolygon && (
+          <polygon
+            points={toSvgPoints(hoveredPolygon)}
+            fill="none"
+            stroke="rgba(14, 165, 233, 0.9)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+            strokeDasharray="4 3"
           />
         )}
 
-        {selectedBounds && (
-          <div
-            style={{
-              position: 'absolute',
-              left: selectedBounds.minX,
-              top: selectedBounds.minY,
-              width: selectedBounds.maxX - selectedBounds.minX,
-              height: selectedBounds.maxY - selectedBounds.minY,
-              border: '1px solid #2563eb',
-              boxSizing: 'border-box',
-              // Keep single-selection chrome aligned with element-local rotation.
-              transform:
-                singleSelectedShape && (singleSelectedShape.rotation ?? 0) !== 0
-                  ? `rotate(${singleSelectedShape.rotation ?? 0}deg)`
-                  : undefined,
-              transformOrigin: 'center',
-            }}
+        {selectedPolygon && (
+          <polygon
+            points={toSvgPoints(selectedPolygon)}
+            fill="none"
+            stroke="#2563eb"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
           />
         )}
 
-        {handles.map((handle) => (
-          <div
+        {screenHandles.map((handle) => (
+          <rect
             key={handle.id}
-            style={{
-              position: 'absolute',
-              left: handle.x - 4,
-              top: handle.y - 4,
-              width: 8,
-              height: 8,
-              borderRadius: handle.round ? '50%' : 2,
-              background: '#ffffff',
-              border: '1px solid #2563eb',
-              boxSizing: 'border-box',
-            }}
+            x={handle.x - halfHandleSize}
+            y={handle.y - halfHandleSize}
+            width={handleSize}
+            height={handleSize}
+            rx={handle.round ? handleSize / 2 : 2}
+            ry={handle.round ? handleSize / 2 : 2}
+            fill="#ffffff"
+            stroke="#2563eb"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
           />
         ))}
-      </div>
+      </svg>
     </div>
   )
 }
@@ -181,4 +195,43 @@ function rotatePointAround(
     x: centerX + dx * cos - dy * sin,
     y: centerY + dx * sin + dy * cos,
   }
+}
+
+function buildRectPolygon(
+  bounds: Bounds,
+  rotationDegrees: number,
+) {
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerY = (bounds.minY + bounds.maxY) / 2
+  const corners = [
+    {x: bounds.minX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.maxY},
+    {x: bounds.minX, y: bounds.maxY},
+  ]
+  if (Math.abs(rotationDegrees) <= 0.0001) {
+    return corners
+  }
+  return corners.map((point) => rotatePointAround(point.x, point.y, centerX, centerY, rotationDegrees))
+}
+
+function projectPolygon(
+  points: Array<{x: number; y: number}>,
+  matrix: CanvasOverlayProps['viewport']['matrix'],
+) {
+  return points.map((point) => projectPoint(point, matrix))
+}
+
+function projectPoint(
+  point: {x: number; y: number},
+  matrix: CanvasOverlayProps['viewport']['matrix'],
+) {
+  return {
+    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
+    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
+  }
+}
+
+function toSvgPoints(points: Array<{x: number; y: number}>) {
+  return points.map((point) => `${point.x},${point.y}`).join(' ')
 }

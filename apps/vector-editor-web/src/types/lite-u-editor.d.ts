@@ -14,6 +14,19 @@ declare module '@lite-u/editor/types' {
     join?: string
     dashed?: boolean
   }
+  export interface Shadow {
+    enabled?: boolean
+    color?: string
+    offsetX?: number
+    offsetY?: number
+    blur?: number
+  }
+  export interface CornerRadii {
+    topLeft?: number
+    topRight?: number
+    bottomRight?: number
+    bottomLeft?: number
+  }
 
   export interface ElementProps {
     id: UID
@@ -33,6 +46,11 @@ declare module '@lite-u/editor/types' {
     opacity?: number
     fill?: Fill
     stroke?: Stroke
+    shadow?: Shadow
+    cornerRadius?: number
+    cornerRadii?: CornerRadii
+    ellipseStartAngle?: number
+    ellipseEndAngle?: number
     asset?: string
     [key: string]: unknown
   }

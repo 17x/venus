@@ -59,6 +59,23 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const width = geometryBounds?.width ?? readNumber(metadata, 'width') ?? 0
   const height = geometryBounds?.height ?? readNumber(metadata, 'height') ?? 0
   const rotation = readNumber(metadata, 'rotation') ?? 0
+  const fillEnabled = readBoolean(metadata, 'fillEnabled')
+  const fillColor = readString(metadata, 'fillColor')
+  const strokeEnabled = readBoolean(metadata, 'strokeEnabled')
+  const strokeColor = readString(metadata, 'strokeColor')
+  const strokeWeight = readNumber(metadata, 'strokeWeight')
+  const shadowEnabled = readBoolean(metadata, 'shadowEnabled')
+  const shadowColor = readString(metadata, 'shadowColor')
+  const shadowOffsetX = readNumber(metadata, 'shadowOffsetX')
+  const shadowOffsetY = readNumber(metadata, 'shadowOffsetY')
+  const shadowBlur = readNumber(metadata, 'shadowBlur')
+  const cornerRadius = readNumber(metadata, 'cornerRadius')
+  const cornerTopLeft = readNumber(metadata, 'cornerTopLeft')
+  const cornerTopRight = readNumber(metadata, 'cornerTopRight')
+  const cornerBottomRight = readNumber(metadata, 'cornerBottomRight')
+  const cornerBottomLeft = readNumber(metadata, 'cornerBottomLeft')
+  const ellipseStartAngle = readNumber(metadata, 'ellipseStartAngle')
+  const ellipseEndAngle = readNumber(metadata, 'ellipseEndAngle')
 
   return {
     id: node.id,
@@ -95,6 +112,39 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
     bezierPoints: pathData?.bezierPoints,
     strokeStartArrowhead: readArrowhead(metadata, 'strokeStartArrowhead'),
     strokeEndArrowhead: readArrowhead(metadata, 'strokeEndArrowhead'),
+    fill: fillEnabled !== null || fillColor !== undefined
+      ? {
+          enabled: fillEnabled ?? undefined,
+          color: fillColor,
+        }
+      : undefined,
+    stroke: strokeEnabled !== null || strokeColor !== undefined || strokeWeight !== null
+      ? {
+          enabled: strokeEnabled ?? undefined,
+          color: strokeColor,
+          weight: strokeWeight ?? undefined,
+        }
+      : undefined,
+    shadow: shadowEnabled !== null || shadowColor !== undefined || shadowOffsetX !== null || shadowOffsetY !== null || shadowBlur !== null
+      ? {
+          enabled: shadowEnabled ?? undefined,
+          color: shadowColor,
+          offsetX: shadowOffsetX ?? undefined,
+          offsetY: shadowOffsetY ?? undefined,
+          blur: shadowBlur ?? undefined,
+        }
+      : undefined,
+    cornerRadius: cornerRadius ?? undefined,
+    cornerRadii: cornerTopLeft !== null || cornerTopRight !== null || cornerBottomRight !== null || cornerBottomLeft !== null
+      ? {
+          topLeft: cornerTopLeft ?? undefined,
+          topRight: cornerTopRight ?? undefined,
+          bottomRight: cornerBottomRight ?? undefined,
+          bottomLeft: cornerBottomLeft ?? undefined,
+        }
+      : undefined,
+    ellipseStartAngle: ellipseStartAngle ?? undefined,
+    ellipseEndAngle: ellipseEndAngle ?? undefined,
     schema: {
       sourceNodeType: node.type,
       sourceNodeKind: node.nodeKind,
@@ -300,6 +350,22 @@ function readNumber(metadata: Map<string, string>, key: string) {
 
   const nextValue = Number(value)
   return Number.isFinite(nextValue) ? nextValue : null
+}
+
+function readBoolean(metadata: Map<string, string>, key: string) {
+  const value = metadata.get(key)
+  if (value === 'true') {
+    return true
+  }
+  if (value === 'false') {
+    return false
+  }
+  return null
+}
+
+function readString(metadata: Map<string, string>, key: string) {
+  const value = metadata.get(key)
+  return typeof value === 'string' ? value : undefined
 }
 
 function readArrowhead(metadata: Map<string, string>, key: string): StrokeArrowhead | undefined {

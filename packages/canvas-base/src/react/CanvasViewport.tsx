@@ -134,6 +134,7 @@ export function CanvasViewport({
   const onPointerDownRef = React.useRef(onPointerDown)
   const onPointerUpRef = React.useRef(onPointerUp)
   const onPointerLeaveRef = React.useRef(onPointerLeave)
+  const zoomingRef = React.useRef(false)
   const onRenderLodChangeRef = React.useRef(onRenderLodChange)
   const previousRenderLodStateRef = React.useRef<CanvasRenderLodState | null>(null)
 
@@ -225,6 +226,9 @@ export function CanvasViewport({
       element: node,
       getViewportState: () => viewportStateRef.current,
       onPointerMove: (pointer) => {
+        if (zoomingRef.current) {
+          return
+        }
         onPointerMoveRef.current?.(pointer)
       },
       onPointerDown: (pointer, modifiers) => {
@@ -237,6 +241,10 @@ export function CanvasViewport({
         onPointerLeaveRef.current?.()
       },
       onZoomingChange: (active) => {
+        if (active && !zoomingRef.current) {
+          onPointerLeaveRef.current?.()
+        }
+        zoomingRef.current = active
         setRenderQuality(active ? 'interactive' : 'full')
       },
       onZoomPreview: () => {},

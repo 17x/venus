@@ -65,6 +65,56 @@ function resolveRuntimeNodeType(type: ShapeType): string {
   return 'SHAPE'
 }
 
+function resolveFill(value: unknown): DocumentNode['fill'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+    color: typeof record.color === 'string' ? record.color : undefined,
+  }
+}
+
+function resolveStroke(value: unknown): DocumentNode['stroke'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+    color: typeof record.color === 'string' ? record.color : undefined,
+    weight: typeof record.weight === 'number' ? record.weight : undefined,
+  }
+}
+
+function resolveShadow(value: unknown): DocumentNode['shadow'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+    color: typeof record.color === 'string' ? record.color : undefined,
+    offsetX: typeof record.offsetX === 'number' ? record.offsetX : undefined,
+    offsetY: typeof record.offsetY === 'number' ? record.offsetY : undefined,
+    blur: typeof record.blur === 'number' ? record.blur : undefined,
+  }
+}
+
+function resolveCornerRadii(value: unknown): DocumentNode['cornerRadii'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    topLeft: typeof record.topLeft === 'number' ? record.topLeft : undefined,
+    topRight: typeof record.topRight === 'number' ? record.topRight : undefined,
+    bottomRight: typeof record.bottomRight === 'number' ? record.bottomRight : undefined,
+    bottomLeft: typeof record.bottomLeft === 'number' ? record.bottomLeft : undefined,
+  }
+}
+
 function resolveFeatureKinds(element: ElementProps, shapeType: ShapeType) {
   const featureKinds = ['METADATA']
 
@@ -165,6 +215,13 @@ function toDocumentShape(
     bezierPoints,
     strokeStartArrowhead: resolveArrowhead(element.strokeStartArrowhead),
     strokeEndArrowhead: resolveArrowhead(element.strokeEndArrowhead),
+    fill: resolveFill(element.fill),
+    stroke: resolveStroke(element.stroke),
+    shadow: resolveShadow(element.shadow),
+    cornerRadius: typeof element.cornerRadius === 'number' ? element.cornerRadius : undefined,
+    cornerRadii: resolveCornerRadii(element.cornerRadii),
+    ellipseStartAngle: typeof element.ellipseStartAngle === 'number' ? element.ellipseStartAngle : undefined,
+    ellipseEndAngle: typeof element.ellipseEndAngle === 'number' ? element.ellipseEndAngle : undefined,
     schema: {
       sourceNodeType: resolveRuntimeNodeType(shapeType),
       sourceNodeKind: shapeType,
@@ -230,15 +287,24 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       strokeEndArrowhead: shape.strokeEndArrowhead,
       rotation: shape.rotation ?? 0,
       opacity: 1,
-      fill: {
-        enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
-        color: '#ffffff',
-      },
-      stroke: {
-        enabled: true,
-        color: '#000000',
-        weight: 1,
-      },
+      fill: shape.fill
+        ? {...shape.fill}
+        : {
+            enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
+            color: '#ffffff',
+          },
+      stroke: shape.stroke
+        ? {...shape.stroke}
+        : {
+            enabled: true,
+            color: '#000000',
+            weight: 1,
+          },
+      shadow: shape.shadow ? {...shape.shadow} : undefined,
+      cornerRadius: shape.cornerRadius,
+      cornerRadii: shape.cornerRadii ? {...shape.cornerRadii} : undefined,
+      ellipseStartAngle: shape.ellipseStartAngle,
+      ellipseEndAngle: shape.ellipseEndAngle,
     }))
 }
 

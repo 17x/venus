@@ -5,6 +5,7 @@ import {zoomViewportState} from '../viewport/controller.ts'
 import {handleZoomWheel, resetZoomSession} from '../zoom/index.ts'
 
 const PAN_COMMIT_DELAY_MS = 200
+const POINTER_SUPPRESS_AFTER_WHEEL_MS = 180
 
 export interface ViewportGestureBindingOptions {
   element: HTMLElement
@@ -50,6 +51,7 @@ export function bindViewportGestures({
   let panCommitTimeout: number | null = null
   let zoomSettleTimeout: number | null = null
   let interactionPointerId: number | null = null
+  let suppressPointerUntil = 0
 
   const preventGesture = (event: Event) => {
     event.preventDefault()
@@ -65,6 +67,8 @@ export function bindViewportGestures({
   }
 
   const handleWheel = (event: WheelEvent) => {
+    suppressPointerUntil = performance.now() + POINTER_SUPPRESS_AFTER_WHEEL_MS
+
     if (event.ctrlKey || event.metaKey) {
       if (event.cancelable) {
         event.preventDefault()
@@ -140,6 +144,10 @@ export function bindViewportGestures({
   }
 
   const handlePointerDownEvent = (event: PointerEvent) => {
+    if (performance.now() < suppressPointerUntil) {
+      return
+    }
+
     interactionPointerId = event.pointerId
     if (typeof element.setPointerCapture === 'function') {
       element.setPointerCapture(event.pointerId)
@@ -193,6 +201,9 @@ export function bindViewportGestures({
   }
 
   const handlePointerUpEvent = (event: PointerEvent) => {
+    const wasInteractionPointer = interactionPointerId === event.pointerId
+    const wasPanPointer = panOrigin?.pointerId === event.pointerId
+
     if (interactionPointerId !== null && event.pointerId !== interactionPointerId) {
       return
     }
@@ -215,7 +226,9 @@ export function bindViewportGestures({
     }
     interactionPointerId = null
 
-    onPointerUp?.()
+    if (wasInteractionPointer || wasPanPointer) {
+      onPointerUp?.()
+    }
   }
 
   const handlePointerLeaveEvent = () => {

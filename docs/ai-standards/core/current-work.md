@@ -26,6 +26,13 @@ context starts, or work needs to resume after switching topics.
   - layer panel range select (`Shift`) and toggle select (`Cmd/Ctrl`)
   - single-select chrome now follows element rotation (shared + app overlay)
   - rotated single-select handle positions and handle pick path are aligned
+  - marquee core logic moved into shared canvas-base interaction module
+  - runtime-playground now enables marquee selection via shared marquee module
+  - selection chrome now keeps constant screen-size across viewport zoom
+  - hover/handles/marquee are now no-scale; selected border remains compensated
+  - shape appearance baseline extended: rectangle per-corner radii, ellipse
+    start/end angles, and style plumbing (`fill`/`stroke`/`shadow`) are now
+    threaded through panel -> runtime command -> worker -> renderer
 
 - `runtime-playground`
   Use as the main render diagnostics bench for `Canvas2D`.

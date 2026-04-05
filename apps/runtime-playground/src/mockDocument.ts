@@ -65,6 +65,15 @@ function createDemoBezierShape(): DocumentNode {
     bezierPoints,
     strokeStartArrowhead: 'none',
     strokeEndArrowhead: 'none',
+    fill: {
+      enabled: false,
+      color: '#ffffff',
+    },
+    stroke: {
+      enabled: true,
+      color: '#2563eb',
+      weight: 2,
+    },
   }
 }
 
@@ -104,6 +113,15 @@ function createDemoSecondaryBezierShape(): DocumentNode {
     points,
     bezierPoints,
     strokeEndArrowhead: 'none',
+    fill: {
+      enabled: false,
+      color: '#ffffff',
+    },
+    stroke: {
+      enabled: true,
+      color: '#ef4444',
+      weight: 2,
+    },
   }
 }
 
@@ -136,6 +154,28 @@ const SHAPES: DocumentNode[] = [
     y: 120,
     width: 240,
     height: 160,
+    fill: {
+      enabled: true,
+      color: '#f8fafc',
+    },
+    stroke: {
+      enabled: true,
+      color: '#0f172a',
+      weight: 1.25,
+    },
+    shadow: {
+      enabled: true,
+      color: 'rgba(15,23,42,0.2)',
+      offsetX: 0,
+      offsetY: 4,
+      blur: 14,
+    },
+    cornerRadii: {
+      topLeft: 28,
+      topRight: 12,
+      bottomRight: 30,
+      bottomLeft: 6,
+    },
   },
   {
     id: 'group-nested',
@@ -157,6 +197,24 @@ const SHAPES: DocumentNode[] = [
     y: 180,
     width: 200,
     height: 140,
+    fill: {
+      enabled: true,
+      color: '#dbeafe',
+    },
+    stroke: {
+      enabled: true,
+      color: '#1d4ed8',
+      weight: 2,
+    },
+    shadow: {
+      enabled: true,
+      color: 'rgba(37,99,235,0.22)',
+      offsetX: 0,
+      offsetY: 3,
+      blur: 12,
+    },
+    ellipseStartAngle: 18,
+    ellipseEndAngle: 318,
   },
   {
     id: 'shape-text',
@@ -179,6 +237,18 @@ const SHAPES: DocumentNode[] = [
     y: 120,
     width: 320,
     height: 220,
+    stroke: {
+      enabled: true,
+      color: '#be123c',
+      weight: 1,
+    },
+    shadow: {
+      enabled: true,
+      color: 'rgba(15,23,42,0.24)',
+      offsetX: 0,
+      offsetY: 6,
+      blur: 18,
+    },
   },
 ]
 

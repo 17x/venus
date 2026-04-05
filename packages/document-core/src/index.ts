@@ -23,6 +23,28 @@ export {Unit, type UnitType} from './unit.ts'
 
 export type ShapeType = 'frame' | 'group' | 'rectangle' | 'ellipse' | 'polygon' | 'star' | 'lineSegment' | 'path' | 'text' | 'image'
 export type StrokeArrowhead = 'none' | 'triangle' | 'diamond' | 'circle' | 'bar'
+export interface ShapeFillStyle {
+  enabled?: boolean
+  color?: string
+}
+export interface ShapeStrokeStyle {
+  enabled?: boolean
+  color?: string
+  weight?: number
+}
+export interface ShapeShadowStyle {
+  enabled?: boolean
+  color?: string
+  offsetX?: number
+  offsetY?: number
+  blur?: number
+}
+export interface RectangleCornerRadii {
+  topLeft?: number
+  topRight?: number
+  bottomRight?: number
+  bottomLeft?: number
+}
 
 export interface TextStyle {
   color?: string
@@ -77,6 +99,16 @@ export interface DocumentNode {
   // Optional arrowhead styles for open stroke primitives.
   strokeStartArrowhead?: StrokeArrowhead
   strokeEndArrowhead?: StrokeArrowhead
+  // Shape appearance styles.
+  fill?: ShapeFillStyle
+  stroke?: ShapeStrokeStyle
+  shadow?: ShapeShadowStyle
+  // Rectangle corner radius controls.
+  cornerRadius?: number
+  cornerRadii?: RectangleCornerRadii
+  // Ellipse arc controls in degrees.
+  ellipseStartAngle?: number
+  ellipseEndAngle?: number
   // File-format source metadata preserved for adapters, renderer diagnostics,
   // and interaction logic that needs to stay aligned with node+feature truth.
   schema?: DocumentSchemaMeta

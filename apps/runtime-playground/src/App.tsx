@@ -2,10 +2,19 @@ import * as React from 'react'
 import {
   CanvasViewport,
   CanvasSelectionOverlay,
+  createMarqueeState,
+  getMarqueeNormalizedBounds,
   createSelectionDragController,
+  resolveMarqueeBounds,
+  resolveMarqueeSelection,
+  updateMarqueeState,
   useCanvasRuntimeSelector,
   useCanvasRuntimeStore,
   type CanvasRenderLodState,
+  type CanvasOverlayProps,
+  type MarqueeBounds,
+  type MarqueeSelectionMode,
+  type MarqueeState,
   type CanvasRuntimeStore,
   type CanvasRenderer,
   type CanvasViewportState,
@@ -172,6 +181,45 @@ function summarizeShapeTypes(document: EditorDocument) {
     .filter((item) => item.count > 0)
 }
 
+function isPointInBounds(
+  point: {x: number; y: number},
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+) {
+  return (
+    point.x >= bounds.minX &&
+    point.x <= bounds.maxX &&
+    point.y >= bounds.minY &&
+    point.y <= bounds.maxY
+  )
+}
+
+function hitTestSceneShape(
+  shapes: Array<{x: number; y: number; width: number; height: number; type: string}>,
+  point: {x: number; y: number},
+  options?: {
+    allowFrameSelection?: boolean
+  },
+) {
+  const allowFrameSelection = options?.allowFrameSelection ?? true
+  for (let index = shapes.length - 1; index >= 0; index -= 1) {
+    const shape = shapes[index]
+    if (!allowFrameSelection && shape.type === 'frame') {
+      continue
+    }
+    const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? 6 : 0
+    const bounds = getMarqueeNormalizedBounds(
+      shape.x - tolerance,
+      shape.y - tolerance,
+      shape.width + tolerance * 2,
+      shape.height + tolerance * 2,
+    )
+    if (isPointInBounds(point, bounds)) {
+      return index
+    }
+  }
+  return -1
+}
+
 function App() {
   const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'>('demo')
   const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
@@ -228,6 +276,7 @@ function App() {
     deltaX: number
     deltaY: number
   } | null>(null)
+  const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
 
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
     runtimeController.dispatchCommand(command)
@@ -263,6 +312,12 @@ function App() {
     allowFrameSelection: false,
   }))
   const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
+    if (marquee) {
+      runtimeController.clearHover()
+      setMarquee((current) => (current ? updateMarqueeState(current, pointer) : current))
+      return
+    }
+
     const snapshot = runtimeController.getSnapshot()
     const dragMove = dragControllerRef.current.pointerMove(pointer, {
       document: snapshot.document,
@@ -279,23 +334,57 @@ function App() {
       setDragPreview(null)
     }
     if (dragMove.phase === 'pending' || dragMove.phase === 'started' || dragMove.phase === 'dragging') {
+      runtimeController.clearHover()
       return
     }
 
     runtimeController.postPointer('pointermove', pointer)
-  }, [runtimeController])
+  }, [marquee, runtimeController])
   const handlePointerDown = React.useCallback((
     pointer: { x: number; y: number },
     modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
   ) => {
-    runtimeController.postPointer('pointerdown', pointer, modifiers)
     const snapshot = runtimeController.getSnapshot()
+    const hitIndex = hitTestSceneShape(snapshot.shapes, pointer, {
+      allowFrameSelection: false,
+    })
+
+    if (hitIndex < 0) {
+      dragControllerRef.current.clear()
+      const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
+        ? 'add'
+        : (modifiers?.metaKey || modifiers?.ctrlKey)
+          ? 'toggle'
+          : 'replace'
+      runtimeController.clearHover()
+      setMarquee(createMarqueeState(pointer, marqueeMode))
+      return
+    }
+
+    runtimeController.postPointer('pointerdown', pointer, modifiers)
     dragControllerRef.current.pointerDown(pointer, {
       document: snapshot.document,
       shapes: snapshot.shapes,
     }, modifiers)
   }, [runtimeController])
   const handlePointerUp = React.useCallback(() => {
+    if (marquee) {
+      const snapshot = runtimeController.getSnapshot()
+      const bounds = resolveMarqueeBounds(marquee)
+      const selectedIds = resolveMarqueeSelection(snapshot.document.shapes, bounds, {
+        excludeShape: (shape) => shape.type === 'frame',
+      })
+
+      runtimeController.dispatchCommand({
+        type: 'selection.set',
+        shapeIds: selectedIds,
+        mode: marquee.mode,
+      })
+      dragControllerRef.current.clear()
+      setMarquee(null)
+      return
+    }
+
     setDragPreview(null)
     const drag = dragControllerRef.current.pointerUp()
     if (!drag) {
@@ -316,12 +405,17 @@ function App() {
         y: shape.y + deltaY,
       })
     })
-  }, [runtimeController])
+  }, [marquee, runtimeController])
   const handlePointerLeave = React.useCallback(() => {
     setDragPreview(null)
+    setMarquee(null)
     dragControllerRef.current.clear()
     runtimeController.clearHover()
   }, [runtimeController])
+  const marqueeBounds = React.useMemo<MarqueeBounds | null>(
+    () => marquee ? resolveMarqueeBounds(marquee) : null,
+    [marquee],
+  )
 
   return (
     <main className="playground-shell">
@@ -348,6 +442,7 @@ function App() {
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
+        marqueeBounds={marqueeBounds}
         onViewportChange={runtimeController.setViewport}
         onViewportPan={runtimeController.panViewport}
         onViewportResize={runtimeController.resizeViewport}
@@ -723,6 +818,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onPointerDown,
   onPointerUp,
   onPointerLeave,
+  marqueeBounds,
   onViewportChange,
   onViewportPan,
   onViewportResize,
@@ -743,6 +839,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   ) => void
   onPointerUp: VoidFunction
   onPointerLeave: VoidFunction
+  marqueeBounds: MarqueeBounds | null
   onViewportChange: (viewport: CanvasViewportState) => void
   onViewportPan: (deltaX: number, deltaY: number) => void
   onViewportResize: (width: number, height: number) => void
@@ -795,13 +892,64 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
 
     return Canvas2DWithLod
   }, [canvasLodConfig])
+  const overlayRenderer = React.useMemo(() => {
+    const activeMarqueeBounds = marqueeBounds
+
+    return function PlaygroundOverlay(props: CanvasOverlayProps) {
+      const marqueePolygon = activeMarqueeBounds
+        ? [
+            {x: activeMarqueeBounds.minX, y: activeMarqueeBounds.minY},
+            {x: activeMarqueeBounds.maxX, y: activeMarqueeBounds.minY},
+            {x: activeMarqueeBounds.maxX, y: activeMarqueeBounds.maxY},
+            {x: activeMarqueeBounds.minX, y: activeMarqueeBounds.maxY},
+          ].map((point) => ({
+            x: props.viewport.matrix[0] * point.x + props.viewport.matrix[1] * point.y + props.viewport.matrix[2],
+            y: props.viewport.matrix[3] * point.x + props.viewport.matrix[4] * point.y + props.viewport.matrix[5],
+          }))
+        : null
+
+      return (
+        <>
+          <CanvasSelectionOverlay {...props} />
+          {marqueePolygon && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: 'none',
+                overflow: 'hidden',
+              }}
+            >
+              <svg
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                }}
+                width="100%"
+                height="100%"
+              >
+                <polygon
+                  points={marqueePolygon.map((point) => `${point.x},${point.y}`).join(' ')}
+                  fill="rgba(37, 99, 235, 0.12)"
+                  stroke="rgba(37, 99, 235, 0.95)"
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                  strokeDasharray="4 3"
+                />
+              </svg>
+            </div>
+          )}
+        </>
+      )
+    }
+  }, [marqueeBounds])
 
   return (
     <section className="playground-stage">
       <CanvasViewport
         document={renderDocument}
         renderer={renderer}
-        overlayRenderer={CanvasSelectionOverlay}
+        overlayRenderer={overlayRenderer}
         shapes={renderShapes}
         stats={stats}
         viewport={viewport}

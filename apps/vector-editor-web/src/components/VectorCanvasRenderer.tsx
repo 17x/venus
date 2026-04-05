@@ -46,6 +46,7 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
             .map((shape) => {
               const snapshot = props.shapes.find((item) => item.id === shape.id)
               const rotation = shape.rotation ?? 0
+              const selectedStrokeWidth = 1.5 / Math.max(props.viewport.scale, 0.1)
 
               if (shape.assetUrl) {
                 return (
@@ -60,7 +61,9 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                       width: shape.width,
                       height: shape.height,
                       objectFit: 'fill',
-                      border: snapshot?.isSelected ? '2px solid #2563eb' : '1px solid rgba(15, 23, 42, 0.18)',
+                      border: snapshot?.isSelected
+                        ? `${selectedStrokeWidth}px solid #2563eb`
+                        : '1px solid rgba(15, 23, 42, 0.18)',
                       background: '#fff',
                       boxSizing: 'border-box',
                       transform: `rotate(${rotation}deg)`,

@@ -195,6 +195,22 @@ function cloneBezierPoints(points?: BezierPoint[]) {
   }))
 }
 
+function cloneFill(fill?: DocumentNode['fill']) {
+  return fill ? {...fill} : undefined
+}
+
+function cloneStroke(stroke?: DocumentNode['stroke']) {
+  return stroke ? {...stroke} : undefined
+}
+
+function cloneShadow(shadow?: DocumentNode['shadow']) {
+  return shadow ? {...shadow} : undefined
+}
+
+function cloneCornerRadii(cornerRadii?: DocumentNode['cornerRadii']) {
+  return cornerRadii ? {...cornerRadii} : undefined
+}
+
 function asPoint(value: unknown) {
   if (
     !value ||
@@ -568,6 +584,74 @@ function createLocalHistoryEntry(
     }
   }
 
+  if (command.type === 'shape.patch') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) {
+      return createLogOnlyEntry(command.type, 'Patch Missing Shape')
+    }
+
+    // `shape.patch` is partial by design; omitted keys must preserve the
+    // current shape value instead of being treated as explicit clears.
+    const nextFill = command.patch.fill === undefined ? cloneFill(shape.fill) : cloneFill(command.patch.fill)
+    const nextStroke = command.patch.stroke === undefined ? cloneStroke(shape.stroke) : cloneStroke(command.patch.stroke)
+    const nextShadow = command.patch.shadow === undefined ? cloneShadow(shape.shadow) : cloneShadow(command.patch.shadow)
+    const nextCornerRadius = command.patch.cornerRadius === undefined ? shape.cornerRadius : command.patch.cornerRadius
+    const nextCornerRadii = command.patch.cornerRadii === undefined
+      ? cloneCornerRadii(shape.cornerRadii)
+      : cloneCornerRadii(command.patch.cornerRadii)
+    const nextEllipseStartAngle = command.patch.ellipseStartAngle === undefined
+      ? shape.ellipseStartAngle
+      : command.patch.ellipseStartAngle
+    const nextEllipseEndAngle = command.patch.ellipseEndAngle === undefined
+      ? shape.ellipseEndAngle
+      : command.patch.ellipseEndAngle
+
+    return {
+      id: `shape.patch.${shape.id}`,
+      label: `Patch ${shape.name}`,
+      forward: [
+        {
+          type: 'patch-shape',
+          shapeId: shape.id,
+          prevFill: cloneFill(shape.fill),
+          nextFill,
+          prevStroke: cloneStroke(shape.stroke),
+          nextStroke,
+          prevShadow: cloneShadow(shape.shadow),
+          nextShadow,
+          prevCornerRadius: shape.cornerRadius,
+          nextCornerRadius,
+          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          nextCornerRadii,
+          prevEllipseStartAngle: shape.ellipseStartAngle,
+          nextEllipseStartAngle,
+          prevEllipseEndAngle: shape.ellipseEndAngle,
+          nextEllipseEndAngle,
+        },
+      ],
+      backward: [
+        {
+          type: 'patch-shape',
+          shapeId: shape.id,
+          prevFill: nextFill,
+          nextFill: cloneFill(shape.fill),
+          prevStroke: nextStroke,
+          nextStroke: cloneStroke(shape.stroke),
+          prevShadow: nextShadow,
+          nextShadow: cloneShadow(shape.shadow),
+          prevCornerRadius: nextCornerRadius,
+          nextCornerRadius: shape.cornerRadius,
+          prevCornerRadii: nextCornerRadii,
+          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          prevEllipseStartAngle: nextEllipseStartAngle,
+          nextEllipseStartAngle: shape.ellipseStartAngle,
+          prevEllipseEndAngle: nextEllipseEndAngle,
+          nextEllipseEndAngle: shape.ellipseEndAngle,
+        },
+      ],
+    }
+  }
+
   if (command.type === 'shape.set-clip') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) {
@@ -830,6 +914,62 @@ function createRemotePatches(
     ]
   }
 
+  if (operation.type === 'shape.patch') {
+    const shapeId = asString(operation.payload?.shapeId)
+    const shape = shapeId ? findShapeById(document, shapeId) : null
+
+    if (!shape) {
+      return []
+    }
+
+    const patchRecord =
+      operation.payload?.patch && typeof operation.payload.patch === 'object'
+        ? (operation.payload.patch as Record<string, unknown>)
+        : {}
+    const nextFill = Object.prototype.hasOwnProperty.call(patchRecord, 'fill')
+      ? asFill(patchRecord.fill)
+      : cloneFill(shape.fill)
+    const nextStroke = Object.prototype.hasOwnProperty.call(patchRecord, 'stroke')
+      ? asStroke(patchRecord.stroke)
+      : cloneStroke(shape.stroke)
+    const nextShadow = Object.prototype.hasOwnProperty.call(patchRecord, 'shadow')
+      ? asShadow(patchRecord.shadow)
+      : cloneShadow(shape.shadow)
+    const nextCornerRadius = Object.prototype.hasOwnProperty.call(patchRecord, 'cornerRadius')
+      ? asOptionalNumber(patchRecord.cornerRadius)
+      : shape.cornerRadius
+    const nextCornerRadii = Object.prototype.hasOwnProperty.call(patchRecord, 'cornerRadii')
+      ? asCornerRadii(patchRecord.cornerRadii)
+      : cloneCornerRadii(shape.cornerRadii)
+    const nextEllipseStartAngle = Object.prototype.hasOwnProperty.call(patchRecord, 'ellipseStartAngle')
+      ? asOptionalNumber(patchRecord.ellipseStartAngle)
+      : shape.ellipseStartAngle
+    const nextEllipseEndAngle = Object.prototype.hasOwnProperty.call(patchRecord, 'ellipseEndAngle')
+      ? asOptionalNumber(patchRecord.ellipseEndAngle)
+      : shape.ellipseEndAngle
+
+    return [
+      {
+        type: 'patch-shape',
+        shapeId: shape.id,
+        prevFill: cloneFill(shape.fill),
+        nextFill,
+        prevStroke: cloneStroke(shape.stroke),
+        nextStroke,
+        prevShadow: cloneShadow(shape.shadow),
+        nextShadow,
+        prevCornerRadius: shape.cornerRadius,
+        nextCornerRadius,
+        prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
+        nextCornerRadii,
+        prevEllipseStartAngle: shape.ellipseStartAngle,
+        nextEllipseStartAngle,
+        prevEllipseEndAngle: shape.ellipseEndAngle,
+        nextEllipseEndAngle,
+      },
+    ]
+  }
+
   if (operation.type === 'shape.set-clip') {
     const shapeId = asString(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
@@ -1046,6 +1186,28 @@ function applyPatches(
       return
     }
 
+    if (patch.type === 'patch-shape') {
+      const shape = findShapeById(document, patch.shapeId)
+      if (!shape) {
+        return
+      }
+
+      shape.fill = cloneFill(patch.nextFill)
+      shape.stroke = cloneStroke(patch.nextStroke)
+      shape.shadow = cloneShadow(patch.nextShadow)
+      shape.cornerRadius = patch.nextCornerRadius
+      shape.cornerRadii = cloneCornerRadii(patch.nextCornerRadii)
+      shape.ellipseStartAngle = patch.nextEllipseStartAngle
+      shape.ellipseEndAngle = patch.nextEllipseEndAngle
+
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      writeRuntimeShapeToScene(scene, document, index, shape)
+      incrementSceneVersion(scene)
+      updateSpatialShape(spatialIndex, document, shape.id)
+      changedShapeIds.add(shape.id)
+      return
+    }
+
     if (patch.type === 'set-shape-clip') {
       const shape = findShapeById(document, patch.shapeId)
       if (!shape) {
@@ -1071,6 +1233,13 @@ function applyPatches(
         clipPathId: patch.shape.clipPathId,
         clipRule: patch.shape.clipRule,
         rotation: patch.shape.rotation,
+        fill: cloneFill(patch.shape.fill),
+        stroke: cloneStroke(patch.shape.stroke),
+        shadow: cloneShadow(patch.shape.shadow),
+        cornerRadius: patch.shape.cornerRadius,
+        cornerRadii: cloneCornerRadii(patch.shape.cornerRadii),
+        ellipseStartAngle: patch.shape.ellipseStartAngle,
+        ellipseEndAngle: patch.shape.ellipseEndAngle,
         points: clonePoints(patch.shape.points),
         bezierPoints: cloneBezierPoints(patch.shape.bezierPoints),
       })
@@ -1843,6 +2012,13 @@ function cloneDocument(document: EditorDocument): EditorDocument {
       assetUrl: shape.assetUrl,
       clipPathId: shape.clipPathId,
       clipRule: shape.clipRule,
+      fill: cloneFill(shape.fill),
+      stroke: cloneStroke(shape.stroke),
+      shadow: cloneShadow(shape.shadow),
+      cornerRadius: shape.cornerRadius,
+      cornerRadii: cloneCornerRadii(shape.cornerRadii),
+      ellipseStartAngle: shape.ellipseStartAngle,
+      ellipseEndAngle: shape.ellipseEndAngle,
       schema: shape.schema
         ? {
             ...shape.schema,
@@ -1893,6 +2069,35 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     }
   }
 
+  if (command.type === 'shape.patch') {
+    const patchPayload: Record<string, unknown> = {}
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'fill')) {
+      patchPayload.fill = cloneFill(command.patch.fill)
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'stroke')) {
+      patchPayload.stroke = cloneStroke(command.patch.stroke)
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'shadow')) {
+      patchPayload.shadow = cloneShadow(command.patch.shadow)
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'cornerRadius')) {
+      patchPayload.cornerRadius = command.patch.cornerRadius
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'cornerRadii')) {
+      patchPayload.cornerRadii = cloneCornerRadii(command.patch.cornerRadii)
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'ellipseStartAngle')) {
+      patchPayload.ellipseStartAngle = command.patch.ellipseStartAngle
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'ellipseEndAngle')) {
+      patchPayload.ellipseEndAngle = command.patch.ellipseEndAngle
+    }
+    return {
+      shapeId: command.shapeId,
+      patch: patchPayload,
+    }
+  }
+
   if (command.type === 'shape.set-clip') {
     return {
       shapeId: command.shapeId,
@@ -1932,6 +2137,10 @@ function asOptionalString(value: unknown) {
   return typeof value === 'string' ? value : undefined
 }
 
+function asOptionalNumber(value: unknown) {
+  return typeof value === 'number' ? value : undefined
+}
+
 function asNumber(value: unknown) {
   return typeof value === 'number' ? value : null
 }
@@ -1953,6 +2162,13 @@ function asDocumentNode(value: unknown): DocumentNode | null {
   const rotation = asNumber(record.rotation)
   const strokeStartArrowhead = asArrowhead(record.strokeStartArrowhead)
   const strokeEndArrowhead = asArrowhead(record.strokeEndArrowhead)
+  const fill = asFill(record.fill)
+  const stroke = asStroke(record.stroke)
+  const shadow = asShadow(record.shadow)
+  const cornerRadius = asOptionalNumber(record.cornerRadius)
+  const cornerRadii = asCornerRadii(record.cornerRadii)
+  const ellipseStartAngle = asOptionalNumber(record.ellipseStartAngle)
+  const ellipseEndAngle = asOptionalNumber(record.ellipseEndAngle)
   const x = asNumber(record.x)
   const y = asNumber(record.y)
   const width = asNumber(record.width)
@@ -1999,6 +2215,13 @@ function asDocumentNode(value: unknown): DocumentNode | null {
     rotation: rotation === null ? undefined : rotation,
     strokeStartArrowhead,
     strokeEndArrowhead,
+    fill,
+    stroke,
+    shadow,
+    cornerRadius,
+    cornerRadii,
+    ellipseStartAngle,
+    ellipseEndAngle,
     x: nextBounds?.x ?? x,
     y: nextBounds?.y ?? y,
     width: nextBounds?.width ?? width,
@@ -2035,4 +2258,54 @@ function asArrowhead(value: unknown): DocumentNode['strokeStartArrowhead'] {
     return value
   }
   return undefined
+}
+
+function asFill(value: unknown): DocumentNode['fill'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+    color: typeof record.color === 'string' ? record.color : undefined,
+  }
+}
+
+function asStroke(value: unknown): DocumentNode['stroke'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+    color: typeof record.color === 'string' ? record.color : undefined,
+    weight: typeof record.weight === 'number' ? record.weight : undefined,
+  }
+}
+
+function asShadow(value: unknown): DocumentNode['shadow'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+    color: typeof record.color === 'string' ? record.color : undefined,
+    offsetX: typeof record.offsetX === 'number' ? record.offsetX : undefined,
+    offsetY: typeof record.offsetY === 'number' ? record.offsetY : undefined,
+    blur: typeof record.blur === 'number' ? record.blur : undefined,
+  }
+}
+
+function asCornerRadii(value: unknown): DocumentNode['cornerRadii'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    topLeft: typeof record.topLeft === 'number' ? record.topLeft : undefined,
+    topRight: typeof record.topRight === 'number' ? record.topRight : undefined,
+    bottomRight: typeof record.bottomRight === 'number' ? record.bottomRight : undefined,
+    bottomLeft: typeof record.bottomLeft === 'number' ? record.bottomLeft : undefined,
+  }
 }

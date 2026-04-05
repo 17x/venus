@@ -245,9 +245,21 @@ function drawShape(
   lodConfig: import('./lod.ts').Canvas2DLodConfig,
   lodLevel: Canvas2DLodLevel,
 ) {
-  const stroke = shape.isSelected ? '#2563eb' : shape.isHovered ? '#0ea5e9' : '#111827'
-  const strokeWidth = shape.isSelected ? 2 : 1
-  const fill = '#ffffff'
+  const baseFillEnabled =
+    source?.fill?.enabled ??
+    (shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path')
+  const baseFillColor = source?.fill?.color ?? '#ffffff'
+  const baseStrokeEnabled = source?.stroke?.enabled ?? true
+  const baseStrokeColor = source?.stroke?.color ?? '#111827'
+  const baseStrokeWidth = Math.max(0, source?.stroke?.weight ?? 1)
+  const interactionStrokeColor = shape.isSelected ? '#2563eb' : shape.isHovered ? '#0ea5e9' : baseStrokeColor
+  const interactionStrokeScale = 1 / Math.max(viewportScale, 0.1)
+  const interactionStrokeWidth = shape.isSelected
+    ? Math.max(0.75, baseStrokeWidth * 0.75) * interactionStrokeScale
+    : shape.isHovered
+      ? Math.max(1, baseStrokeWidth) * interactionStrokeScale
+      : baseStrokeWidth
+  const shadowEnabled = source?.shadow?.enabled ?? false
   const rotation = source?.rotation ?? 0
   const needsRotation = Math.abs(rotation) > 0.0001 && shape.type !== 'group'
   if (needsRotation) {
@@ -265,8 +277,8 @@ function drawShape(
       return
     }
 
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
+    context.strokeStyle = interactionStrokeColor
+    context.lineWidth = interactionStrokeWidth
     context.setLineDash([8, 6])
     context.strokeRect(shape.x, shape.y, shape.width, shape.height)
     context.setLineDash([])
@@ -275,31 +287,43 @@ function drawShape(
   }
 
   if (shape.type === 'rectangle' || shape.type === 'frame') {
-    context.fillStyle = fill
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
-    context.fillRect(shape.x, shape.y, shape.width, shape.height)
-    context.strokeRect(shape.x, shape.y, shape.width, shape.height)
+    beginRoundedRectPath(context, shape, source)
+    if (shadowEnabled) {
+      applyShapeShadow(context, source)
+    }
+    if (baseFillEnabled) {
+      context.fillStyle = baseFillColor
+      context.fill()
+    }
+    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+      context.strokeStyle = interactionStrokeColor
+      context.lineWidth = interactionStrokeWidth
+      context.stroke()
+    }
+    if (shadowEnabled) {
+      clearShapeShadow(context)
+    }
     finish()
     return
   }
 
   if (shape.type === 'ellipse') {
-    context.beginPath()
-    context.ellipse(
-      shape.x + shape.width / 2,
-      shape.y + shape.height / 2,
-      Math.abs(shape.width) / 2,
-      Math.abs(shape.height) / 2,
-      0,
-      0,
-      Math.PI * 2,
-    )
-    context.fillStyle = fill
-    context.fill()
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
-    context.stroke()
+    beginEllipsePath(context, shape, source)
+    if (shadowEnabled) {
+      applyShapeShadow(context, source)
+    }
+    if (baseFillEnabled) {
+      context.fillStyle = baseFillColor
+      context.fill()
+    }
+    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+      context.strokeStyle = interactionStrokeColor
+      context.lineWidth = interactionStrokeWidth
+      context.stroke()
+    }
+    if (shadowEnabled) {
+      clearShapeShadow(context)
+    }
     finish()
     return
   }
@@ -310,19 +334,27 @@ function drawShape(
     context.beginPath()
     context.moveTo(start.x, start.y)
     context.lineTo(end.x, end.y)
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
-    context.stroke()
-    drawStrokeArrowheads(context, {
-      stroke,
-      strokeWidth,
-      start,
-      end,
-      startTangent: {x: end.x - start.x, y: end.y - start.y},
-      endTangent: {x: end.x - start.x, y: end.y - start.y},
-      startArrowhead: source?.strokeStartArrowhead,
-      endArrowhead: source?.strokeEndArrowhead,
-    })
+    if (shadowEnabled) {
+      applyShapeShadow(context, source)
+    }
+    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+      context.strokeStyle = interactionStrokeColor
+      context.lineWidth = interactionStrokeWidth
+      context.stroke()
+      drawStrokeArrowheads(context, {
+        stroke: interactionStrokeColor,
+        strokeWidth: interactionStrokeWidth,
+        start,
+        end,
+        startTangent: {x: end.x - start.x, y: end.y - start.y},
+        endTangent: {x: end.x - start.x, y: end.y - start.y},
+        startArrowhead: source?.strokeStartArrowhead,
+        endArrowhead: source?.strokeEndArrowhead,
+      })
+    }
+    if (shadowEnabled) {
+      clearShapeShadow(context)
+    }
     finish()
     return
   }
@@ -338,20 +370,41 @@ function drawShape(
         context.lineTo(points[index].x, points[index].y)
       }
       context.closePath()
-      context.fillStyle = fill
-      context.fill()
-      context.strokeStyle = stroke
-      context.lineWidth = strokeWidth
-      context.stroke()
+      if (shadowEnabled) {
+        applyShapeShadow(context, source)
+      }
+      if (baseFillEnabled) {
+        context.fillStyle = baseFillColor
+        context.fill()
+      }
+      if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+        context.strokeStyle = interactionStrokeColor
+        context.lineWidth = interactionStrokeWidth
+        context.stroke()
+      }
+      if (shadowEnabled) {
+        clearShapeShadow(context)
+      }
       finish()
       return
     }
 
-    context.fillStyle = fill
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
-    context.fillRect(shape.x, shape.y, shape.width, shape.height)
-    context.strokeRect(shape.x, shape.y, shape.width, shape.height)
+    beginRoundedRectPath(context, shape, source)
+    if (shadowEnabled) {
+      applyShapeShadow(context, source)
+    }
+    if (baseFillEnabled) {
+      context.fillStyle = baseFillColor
+      context.fill()
+    }
+    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+      context.strokeStyle = interactionStrokeColor
+      context.lineWidth = interactionStrokeWidth
+      context.stroke()
+    }
+    if (shadowEnabled) {
+      clearShapeShadow(context)
+    }
     finish()
     return
   }
@@ -372,25 +425,38 @@ function drawShape(
         context.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, next.anchor.x, next.anchor.y)
       }
 
-      context.strokeStyle = stroke
-      context.lineWidth = strokeWidth
-      context.stroke()
-      const start = bezierPoints[0].anchor
-      const end = bezierPoints[bezierPoints.length - 1].anchor
-      const firstPoint = bezierPoints[0]
-      const second = bezierPoints[1]
-      const preLast = bezierPoints[bezierPoints.length - 2]
-      const last = bezierPoints[bezierPoints.length - 1]
-      drawStrokeArrowheads(context, {
-        stroke,
-        strokeWidth,
-        start,
-        end,
-        startTangent: resolveBezierStartTangent(firstPoint, second),
-        endTangent: resolveBezierEndTangent(preLast, last),
-        startArrowhead: source?.strokeStartArrowhead,
-        endArrowhead: source?.strokeEndArrowhead,
-      })
+      if (shadowEnabled) {
+        applyShapeShadow(context, source)
+      }
+      if (baseFillEnabled && isClosedBezierPath(bezierPoints)) {
+        context.closePath()
+        context.fillStyle = baseFillColor
+        context.fill()
+      }
+      if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+        context.strokeStyle = interactionStrokeColor
+        context.lineWidth = interactionStrokeWidth
+        context.stroke()
+        const start = bezierPoints[0].anchor
+        const end = bezierPoints[bezierPoints.length - 1].anchor
+        const firstPoint = bezierPoints[0]
+        const second = bezierPoints[1]
+        const preLast = bezierPoints[bezierPoints.length - 2]
+        const last = bezierPoints[bezierPoints.length - 1]
+        drawStrokeArrowheads(context, {
+          stroke: interactionStrokeColor,
+          strokeWidth: interactionStrokeWidth,
+          start,
+          end,
+          startTangent: resolveBezierStartTangent(firstPoint, second),
+          endTangent: resolveBezierEndTangent(preLast, last),
+          startArrowhead: source?.strokeStartArrowhead,
+          endArrowhead: source?.strokeEndArrowhead,
+        })
+      }
+      if (shadowEnabled) {
+        clearShapeShadow(context)
+      }
       finish()
       return
     }
@@ -401,25 +467,38 @@ function drawShape(
       for (let index = 1; index < points.length; index += 1) {
         context.lineTo(points[index].x, points[index].y)
       }
-      context.strokeStyle = stroke
-      context.lineWidth = strokeWidth
-      context.stroke()
-      drawStrokeArrowheads(context, {
-        stroke,
-        strokeWidth,
-        start: points[0],
-        end: points[points.length - 1],
-        startTangent: {
-          x: points[1].x - points[0].x,
-          y: points[1].y - points[0].y,
-        },
-        endTangent: {
-          x: points[points.length - 1].x - points[points.length - 2].x,
-          y: points[points.length - 1].y - points[points.length - 2].y,
-        },
-        startArrowhead: source?.strokeStartArrowhead,
-        endArrowhead: source?.strokeEndArrowhead,
-      })
+      if (shadowEnabled) {
+        applyShapeShadow(context, source)
+      }
+      if (baseFillEnabled && isClosedPolyline(points)) {
+        context.closePath()
+        context.fillStyle = baseFillColor
+        context.fill()
+      }
+      if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+        context.strokeStyle = interactionStrokeColor
+        context.lineWidth = interactionStrokeWidth
+        context.stroke()
+        drawStrokeArrowheads(context, {
+          stroke: interactionStrokeColor,
+          strokeWidth: interactionStrokeWidth,
+          start: points[0],
+          end: points[points.length - 1],
+          startTangent: {
+            x: points[1].x - points[0].x,
+            y: points[1].y - points[0].y,
+          },
+          endTangent: {
+            x: points[points.length - 1].x - points[points.length - 2].x,
+            y: points[points.length - 1].y - points[points.length - 2].y,
+          },
+          startArrowhead: source?.strokeStartArrowhead,
+          endArrowhead: source?.strokeEndArrowhead,
+        })
+      }
+      if (shadowEnabled) {
+        clearShapeShadow(context)
+      }
       finish()
       return
     }
@@ -438,9 +517,17 @@ function drawShape(
         context.lineTo(x, y)
       }
     }
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
-    context.stroke()
+    if (shadowEnabled) {
+      applyShapeShadow(context, source)
+    }
+    if (baseStrokeEnabled && interactionStrokeWidth > 0) {
+      context.strokeStyle = interactionStrokeColor
+      context.lineWidth = interactionStrokeWidth
+      context.stroke()
+    }
+    if (shadowEnabled) {
+      clearShapeShadow(context)
+    }
     finish()
     return
   }
@@ -458,7 +545,7 @@ function drawShape(
       Math.min(22, Math.round(textRun?.style?.fontSize ?? shape.height * 0.6)),
     )
 
-    context.fillStyle = '#111827'
+    context.fillStyle = source?.fill?.color ?? '#111827'
     context.font = `${fontSize}px ${textRun?.style?.fontFamily || 'sans-serif'}`
     context.textBaseline = 'top'
     context.fillText(text, shape.x, shape.y)
@@ -477,15 +564,22 @@ function drawShape(
       context.clip(source?.clipRule === 'evenodd' ? 'evenodd' : 'nonzero')
     }
 
-    context.fillStyle = '#fdf2f8'
-    context.strokeStyle = stroke
-    context.lineWidth = Math.max(2, strokeWidth)
+    if (shadowEnabled) {
+      applyShapeShadow(context, source)
+    }
+    context.fillStyle = baseFillColor
+    context.strokeStyle = interactionStrokeColor
+    context.lineWidth = Math.max(1, interactionStrokeWidth)
     context.fillRect(shape.x, shape.y, shape.width, shape.height)
-    context.strokeRect(shape.x, shape.y, shape.width, shape.height)
+    if (baseStrokeEnabled) {
+      context.strokeRect(shape.x, shape.y, shape.width, shape.height)
+    }
 
     if (image && image.complete) {
       context.drawImage(image, shape.x, shape.y, shape.width, shape.height)
-      context.strokeRect(shape.x, shape.y, shape.width, shape.height)
+      if (baseStrokeEnabled) {
+        context.strokeRect(shape.x, shape.y, shape.width, shape.height)
+      }
     } else {
       context.strokeStyle = '#ec4899'
       context.setLineDash([10, 6])
@@ -506,6 +600,9 @@ function drawShape(
         context.fillText(source?.name || 'Image', shape.x + 12, shape.y + Math.min(shape.height / 2, 48))
       }
     }
+    if (shadowEnabled) {
+      clearShapeShadow(context)
+    }
 
     if (hasClip) {
       context.restore()
@@ -515,6 +612,142 @@ function drawShape(
   }
 
   finish()
+}
+
+function applyShapeShadow(context: CanvasRenderingContext2D, source: DocumentNode | undefined) {
+  context.shadowColor = source?.shadow?.color ?? 'rgba(17, 24, 39, 0.25)'
+  context.shadowBlur = Math.max(0, source?.shadow?.blur ?? 8)
+  context.shadowOffsetX = source?.shadow?.offsetX ?? 0
+  context.shadowOffsetY = source?.shadow?.offsetY ?? 2
+}
+
+function clearShapeShadow(context: CanvasRenderingContext2D) {
+  context.shadowColor = 'transparent'
+  context.shadowBlur = 0
+  context.shadowOffsetX = 0
+  context.shadowOffsetY = 0
+}
+
+function beginRoundedRectPath(
+  context: CanvasRenderingContext2D,
+  shape: CanvasRendererProps['shapes'][number],
+  source: DocumentNode | undefined,
+) {
+  const cornerRadii = resolveCornerRadii(source, shape)
+  const left = Math.min(shape.x, shape.x + shape.width)
+  const right = Math.max(shape.x, shape.x + shape.width)
+  const top = Math.min(shape.y, shape.y + shape.height)
+  const bottom = Math.max(shape.y, shape.y + shape.height)
+  const width = right - left
+  const height = bottom - top
+  const maxRadius = Math.max(0, Math.min(width, height) / 2)
+  const tl = Math.min(maxRadius, Math.max(0, cornerRadii.topLeft))
+  const tr = Math.min(maxRadius, Math.max(0, cornerRadii.topRight))
+  const br = Math.min(maxRadius, Math.max(0, cornerRadii.bottomRight))
+  const bl = Math.min(maxRadius, Math.max(0, cornerRadii.bottomLeft))
+
+  context.beginPath()
+  context.moveTo(left + tl, top)
+  context.lineTo(right - tr, top)
+  if (tr > 0) {
+    context.arcTo(right, top, right, top + tr, tr)
+  }
+  context.lineTo(right, bottom - br)
+  if (br > 0) {
+    context.arcTo(right, bottom, right - br, bottom, br)
+  }
+  context.lineTo(left + bl, bottom)
+  if (bl > 0) {
+    context.arcTo(left, bottom, left, bottom - bl, bl)
+  }
+  context.lineTo(left, top + tl)
+  if (tl > 0) {
+    context.arcTo(left, top, left + tl, top, tl)
+  }
+  context.closePath()
+}
+
+function beginEllipsePath(
+  context: CanvasRenderingContext2D,
+  shape: CanvasRendererProps['shapes'][number],
+  source: DocumentNode | undefined,
+) {
+  const centerX = shape.x + shape.width / 2
+  const centerY = shape.y + shape.height / 2
+  const radiusX = Math.abs(shape.width) / 2
+  const radiusY = Math.abs(shape.height) / 2
+  const startAngle = normalizeAngleDegrees(source?.ellipseStartAngle ?? 0)
+  const endAngle = normalizeAngleDegrees(source?.ellipseEndAngle ?? 360)
+  const delta = normalizeAngleDelta(startAngle, endAngle)
+  const isFullEllipse = Math.abs(delta - Math.PI * 2) <= 0.001
+
+  context.beginPath()
+  if (isFullEllipse) {
+    context.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2)
+    context.closePath()
+    return
+  }
+
+  // Partial ellipse is rendered as a sector so both fill and stroke stay
+  // consistent with vector-editor arc controls.
+  context.moveTo(centerX, centerY)
+  context.ellipse(centerX, centerY, radiusX, radiusY, 0, startAngle, startAngle + delta)
+  context.closePath()
+}
+
+function normalizeAngleDegrees(value: number) {
+  return (value * Math.PI) / 180
+}
+
+function normalizeAngleDelta(start: number, end: number) {
+  const full = Math.PI * 2
+  let delta = end - start
+  while (delta <= 0) {
+    delta += full
+  }
+  while (delta > full) {
+    delta -= full
+  }
+  return delta
+}
+
+function resolveCornerRadii(
+  source: DocumentNode | undefined,
+  shape: CanvasRendererProps['shapes'][number],
+) {
+  const fallback = source?.cornerRadius ?? 0
+  if (shape.type !== 'rectangle' && shape.type !== 'frame') {
+    return {
+      topLeft: fallback,
+      topRight: fallback,
+      bottomRight: fallback,
+      bottomLeft: fallback,
+    }
+  }
+  return {
+    topLeft: source?.cornerRadii?.topLeft ?? fallback,
+    topRight: source?.cornerRadii?.topRight ?? fallback,
+    bottomRight: source?.cornerRadii?.bottomRight ?? fallback,
+    bottomLeft: source?.cornerRadii?.bottomLeft ?? fallback,
+  }
+}
+
+function isClosedPolyline(points: Array<{x: number; y: number}>) {
+  if (points.length < 3) {
+    return false
+  }
+  const first = points[0]
+  const last = points[points.length - 1]
+  return Math.hypot(first.x - last.x, first.y - last.y) <= 1e-3
+}
+
+function isClosedBezierPath(points: NonNullable<DocumentNode['bezierPoints']>) {
+  if (points.length < 3) {
+    return false
+  }
+  const first = points[0].anchor
+  const last = points[points.length - 1].anchor
+  return Math.hypot(first.x - last.x, first.y - last.y) <= 1e-3
 }
 
 function applyShapeRotationTransform(
@@ -742,23 +975,33 @@ function beginClipPath(
   context: CanvasRenderingContext2D,
   clipSource: DocumentNode,
 ) {
-  if (clipSource.type === 'rectangle' || clipSource.type === 'frame' || clipSource.type === 'group') {
+  if (clipSource.type === 'rectangle' || clipSource.type === 'frame') {
+    beginRoundedRectPath(context, {
+      id: clipSource.id,
+      type: clipSource.type,
+      x: clipSource.x,
+      y: clipSource.y,
+      width: clipSource.width,
+      height: clipSource.height,
+    } as CanvasRendererProps['shapes'][number], clipSource)
+    return true
+  }
+
+  if (clipSource.type === 'group') {
     context.beginPath()
     context.rect(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
     return true
   }
 
   if (clipSource.type === 'ellipse') {
-    context.beginPath()
-    context.ellipse(
-      clipSource.x + clipSource.width / 2,
-      clipSource.y + clipSource.height / 2,
-      Math.abs(clipSource.width) / 2,
-      Math.abs(clipSource.height) / 2,
-      0,
-      0,
-      Math.PI * 2,
-    )
+    beginEllipsePath(context, {
+      id: clipSource.id,
+      type: clipSource.type,
+      x: clipSource.x,
+      y: clipSource.y,
+      width: clipSource.width,
+      height: clipSource.height,
+    } as CanvasRendererProps['shapes'][number], clipSource)
     return true
   }
 

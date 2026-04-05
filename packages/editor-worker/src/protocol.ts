@@ -72,6 +72,19 @@ export type EditorRuntimeCommand =
   | { type: 'shape.move'; shapeId: string; x: number; y: number }
   | { type: 'shape.resize'; shapeId: string; width: number; height: number }
   | { type: 'shape.rotate'; shapeId: string; rotation: number }
+  | {
+      type: 'shape.patch'
+      shapeId: string
+      patch: {
+        fill?: DocumentNode['fill']
+        stroke?: DocumentNode['stroke']
+        shadow?: DocumentNode['shadow']
+        cornerRadius?: number
+        cornerRadii?: DocumentNode['cornerRadii']
+        ellipseStartAngle?: number
+        ellipseEndAngle?: number
+      }
+    }
   | { type: 'shape.set-clip'; shapeId: string; clipPathId?: string; clipRule?: 'nonzero' | 'evenodd' }
   | { type: 'shape.reorder'; shapeId: string; toIndex: number }
   | { type: 'shape.insert'; shape: DocumentNode; index?: number }

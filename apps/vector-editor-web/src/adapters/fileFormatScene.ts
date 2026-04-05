@@ -94,17 +94,81 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
   const strokeStartArrowhead = resolveArrowhead(element.strokeStartArrowhead)
   const strokeEndArrowhead = resolveArrowhead(element.strokeEndArrowhead)
   const rotation = Number(element.rotation ?? 0)
+  const metadataValues: Record<string, string | number | boolean> = {
+    shapeType: type,
+    x,
+    y,
+    width,
+    height,
+    rotation,
+  }
+  if (strokeStartArrowhead) {
+    metadataValues.strokeStartArrowhead = strokeStartArrowhead
+  }
+  if (strokeEndArrowhead) {
+    metadataValues.strokeEndArrowhead = strokeEndArrowhead
+  }
+  if (element.fill && typeof element.fill === 'object') {
+    if (typeof element.fill.enabled === 'boolean') {
+      metadataValues.fillEnabled = element.fill.enabled
+    }
+    if (typeof element.fill.color === 'string') {
+      metadataValues.fillColor = element.fill.color
+    }
+  }
+  if (element.stroke && typeof element.stroke === 'object') {
+    if (typeof element.stroke.enabled === 'boolean') {
+      metadataValues.strokeEnabled = element.stroke.enabled
+    }
+    if (typeof element.stroke.color === 'string') {
+      metadataValues.strokeColor = element.stroke.color
+    }
+    if (typeof element.stroke.weight === 'number') {
+      metadataValues.strokeWeight = element.stroke.weight
+    }
+  }
+  if (element.shadow && typeof element.shadow === 'object') {
+    if (typeof element.shadow.enabled === 'boolean') {
+      metadataValues.shadowEnabled = element.shadow.enabled
+    }
+    if (typeof element.shadow.color === 'string') {
+      metadataValues.shadowColor = element.shadow.color
+    }
+    if (typeof element.shadow.offsetX === 'number') {
+      metadataValues.shadowOffsetX = element.shadow.offsetX
+    }
+    if (typeof element.shadow.offsetY === 'number') {
+      metadataValues.shadowOffsetY = element.shadow.offsetY
+    }
+    if (typeof element.shadow.blur === 'number') {
+      metadataValues.shadowBlur = element.shadow.blur
+    }
+  }
+  if (typeof element.cornerRadius === 'number') {
+    metadataValues.cornerRadius = element.cornerRadius
+  }
+  if (element.cornerRadii && typeof element.cornerRadii === 'object') {
+    if (typeof element.cornerRadii.topLeft === 'number') {
+      metadataValues.cornerTopLeft = element.cornerRadii.topLeft
+    }
+    if (typeof element.cornerRadii.topRight === 'number') {
+      metadataValues.cornerTopRight = element.cornerRadii.topRight
+    }
+    if (typeof element.cornerRadii.bottomRight === 'number') {
+      metadataValues.cornerBottomRight = element.cornerRadii.bottomRight
+    }
+    if (typeof element.cornerRadii.bottomLeft === 'number') {
+      metadataValues.cornerBottomLeft = element.cornerRadii.bottomLeft
+    }
+  }
+  if (typeof element.ellipseStartAngle === 'number') {
+    metadataValues.ellipseStartAngle = element.ellipseStartAngle
+  }
+  if (typeof element.ellipseEndAngle === 'number') {
+    metadataValues.ellipseEndAngle = element.ellipseEndAngle
+  }
   const featureEntries: RuntimeFeatureEntryV5[] = [
-    createMetadataEntry(`${element.id}:metadata`, {
-      shapeType: type,
-      x,
-      y,
-      width,
-      height,
-      rotation,
-      ...(strokeStartArrowhead ? {strokeStartArrowhead} : {}),
-      ...(strokeEndArrowhead ? {strokeEndArrowhead} : {}),
-    }),
+    createMetadataEntry(`${element.id}:metadata`, metadataValues),
   ]
 
   const vectorPaths = createVectorPathsFromElement(element)
@@ -381,7 +445,7 @@ function createPolylineCommands(points: unknown[]): RuntimePathCommandV4[] {
   ]
 }
 
-function createMetadataEntry(id: string, values: Record<string, string | number>): RuntimeFeatureEntryV5 {
+function createMetadataEntry(id: string, values: Record<string, string | number | boolean>): RuntimeFeatureEntryV5 {
   return {
     id,
     role: 'metadata',
