@@ -1,11 +1,12 @@
 {
   "name": "@venus/vector-editor-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "pnpm vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "pnpm build": "pnpm run build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

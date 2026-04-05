@@ -912,7 +912,7 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
       <SelectionBlock selectedShape={selectedShape} selectedNode={selectedNode} />
       <HistoryBlock history={history} />
 
-      <RendererDiagnosticsPanel rendererBackend={rendererBackend} />
+      <RendererDiagnosticsPanel/>
     </aside>
   )
 })
