@@ -5,12 +5,32 @@ import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
 import {createRuntimeSceneFromVisionFile} from './fileFormatScene.ts'
 
 const PAGE_FRAME_SUFFIX = ':page-frame'
+type ElementHierarchyMeta = {
+  parentId?: string | null
+  childIds?: string[]
+}
+
+function resolveArrowhead(value: unknown): DocumentNode['strokeStartArrowhead'] {
+  if (
+    value === 'none' ||
+    value === 'triangle' ||
+    value === 'diamond' ||
+    value === 'circle' ||
+    value === 'bar'
+  ) {
+    return value
+  }
+  return undefined
+}
 
 function resolveShapeType(type: string | undefined): ShapeType {
   if (
     type === 'frame' ||
+    type === 'group' ||
     type === 'rectangle' ||
     type === 'ellipse' ||
+    type === 'polygon' ||
+    type === 'star' ||
     type === 'lineSegment' ||
     type === 'path' ||
     type === 'text' ||
@@ -22,10 +42,53 @@ function resolveShapeType(type: string | undefined): ShapeType {
   return 'rectangle'
 }
 
+function resolveRuntimeNodeType(type: ShapeType): string {
+  if (type === 'frame') {
+    return 'FRAME'
+  }
+  if (type === 'group') {
+    return 'GROUP'
+  }
+  if (type === 'text') {
+    return 'TEXT'
+  }
+  if (type === 'image') {
+    return 'IMAGE'
+  }
+  if (type === 'path' || type === 'lineSegment') {
+    return 'VECTOR'
+  }
+  if (type === 'polygon' || type === 'star') {
+    return 'SHAPE'
+  }
+
+  return 'SHAPE'
+}
+
+function resolveFeatureKinds(element: ElementProps, shapeType: ShapeType) {
+  const featureKinds = ['METADATA']
+
+  if (shapeType === 'path' || shapeType === 'lineSegment' || shapeType === 'polygon' || shapeType === 'star') {
+    featureKinds.push('VECTOR')
+  }
+  if (shapeType === 'text') {
+    featureKinds.push('TEXT')
+  }
+  if (shapeType === 'image' && typeof element.asset === 'string') {
+    featureKinds.push('IMAGE')
+  }
+  if (shapeType === 'image' && typeof element.clipPathId === 'string') {
+    featureKinds.push('CLIP')
+  }
+
+  return featureKinds
+}
+
 function toDocumentShape(
   element: ElementProps,
   assetUrlResolver?: (assetId: string | undefined) => string | undefined,
 ): DocumentNode {
+  const shapeType = resolveShapeType(element.type)
   const points = Array.isArray(element.points)
     ? element.points
         .map((point) =>
@@ -55,27 +118,58 @@ function toDocumentShape(
     : null
   const width = Number(element.width ?? (pointBounds ? pointBounds.maxX - pointBounds.minX : 0))
   const height = Number(element.height ?? (pointBounds ? pointBounds.maxY - pointBounds.minY : 0))
-  const x = Number(element.x ?? (bezierBounds ? bezierBounds.x : pointBounds ? pointBounds.minX : ((element.cx ?? 0) - width / 2)))
-  const y = Number(element.y ?? (bezierBounds ? bezierBounds.y : pointBounds ? pointBounds.minY : ((element.cy ?? 0) - height / 2)))
-  const resolvedWidth = Number(element.width ?? (bezierBounds ? bezierBounds.width : pointBounds ? pointBounds.maxX - pointBounds.minX : 0))
-  const resolvedHeight = Number(element.height ?? (bezierBounds ? bezierBounds.height : pointBounds ? pointBounds.maxY - pointBounds.minY : 0))
+  const fallbackX = Number(element.x ?? ((element.cx ?? 0) - width / 2))
+  const fallbackY = Number(element.y ?? ((element.cy ?? 0) - height / 2))
+  const geometryBounds =
+    (shapeType === 'path' || shapeType === 'polygon' || shapeType === 'star') && pointBounds
+      ? {
+          x: pointBounds.minX,
+          y: pointBounds.minY,
+          width: pointBounds.maxX - pointBounds.minX,
+          height: pointBounds.maxY - pointBounds.minY,
+        }
+      : shapeType === 'path' && bezierBounds
+        ? bezierBounds
+        : null
+  const x = geometryBounds?.x ?? fallbackX
+  const y = geometryBounds?.y ?? fallbackY
+  const resolvedWidth = geometryBounds?.width ?? Number(element.width ?? (bezierBounds ? bezierBounds.width : pointBounds ? pointBounds.maxX - pointBounds.minX : 0))
+  const resolvedHeight = geometryBounds?.height ?? Number(element.height ?? (bezierBounds ? bezierBounds.height : pointBounds ? pointBounds.maxY - pointBounds.minY : 0))
 
   return {
     id: element.id,
-    type: resolveShapeType(element.type),
+    type: shapeType,
     name: String(element.name ?? element.type ?? 'shape'),
+    parentId: typeof (element as ElementProps & ElementHierarchyMeta).parentId === 'string'
+      ? (element as ElementProps & ElementHierarchyMeta).parentId
+      : (element as ElementProps & ElementHierarchyMeta).parentId === null
+        ? null
+        : undefined,
+    childIds: Array.isArray((element as ElementProps & ElementHierarchyMeta).childIds)
+      ? (element as ElementProps & ElementHierarchyMeta).childIds?.filter((value): value is string => typeof value === 'string')
+      : undefined,
     x,
     y,
     width: resolvedWidth,
     height: resolvedHeight,
+    rotation: Number(element.rotation ?? 0),
     text: resolveTextContent(element),
     assetId: typeof element.asset === 'string' ? element.asset : undefined,
+    clipPathId: typeof element.clipPathId === 'string' ? element.clipPathId : undefined,
+    clipRule: element.clipRule === 'evenodd' ? 'evenodd' : element.clipPathId ? 'nonzero' : undefined,
     assetUrl:
       typeof element.assetUrl === 'string'
         ? element.assetUrl
         : assetUrlResolver?.(typeof element.asset === 'string' ? element.asset : undefined),
     points,
     bezierPoints,
+    strokeStartArrowhead: resolveArrowhead(element.strokeStartArrowhead),
+    strokeEndArrowhead: resolveArrowhead(element.strokeEndArrowhead),
+    schema: {
+      sourceNodeType: resolveRuntimeNodeType(shapeType),
+      sourceNodeKind: shapeType,
+      sourceFeatureKinds: resolveFeatureKinds(element, shapeType),
+    },
   }
 }
 
@@ -116,19 +210,25 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       id: shape.id,
       type: shape.type,
       name: shape.text ?? shape.name,
+      parentId: shape.parentId,
+      childIds: shape.childIds?.slice(),
       layer: index,
       x: shape.x,
       y: shape.y,
       width: shape.width,
       height: shape.height,
       asset: shape.assetId,
+      clipPathId: shape.clipPathId,
+      clipRule: shape.clipRule,
       points: shape.points?.map((point) => ({...point})),
       bezierPoints: shape.bezierPoints?.map((point) => ({
         anchor: {...point.anchor},
         cp1: point.cp1 ? {...point.cp1} : point.cp1,
         cp2: point.cp2 ? {...point.cp2} : point.cp2,
       })),
-      rotation: 0,
+      strokeStartArrowhead: shape.strokeStartArrowhead,
+      strokeEndArrowhead: shape.strokeEndArrowhead,
+      rotation: shape.rotation ?? 0,
       opacity: 1,
       fill: {
         enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',

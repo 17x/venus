@@ -30,6 +30,8 @@ export const ContextMenu: FC<ContextMenuProps> = ({position, executeAction, onCl
       {id: 'copy', editorActionCode: 'element-copy', disabled: noSelectedElement},
       {id: 'paste', editorActionCode: 'element-paste', disabled: copiedItems.length === 0},
       {id: 'duplicate', editorActionCode: 'element-duplicate', disabled: noSelectedElement},
+      {id: 'maskWithShape', editorActionCode: 'image-mask-with-shape', disabled: noSelectedElement},
+      {id: 'clearMask', editorActionCode: 'image-clear-mask', disabled: noSelectedElement},
       {id: 'delete', editorActionCode: 'element-delete', disabled: noSelectedElement, divide: true},
       {id: 'undo', editorActionCode: 'history-undo', disabled: !historyStatus.hasPrev},
       {id: 'redo', editorActionCode: 'history-redo', disabled: !historyStatus.hasNext},

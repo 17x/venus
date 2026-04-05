@@ -1,116 +1,226 @@
-import type { CanvasRendererProps } from '@venus/canvas-base'
+export type Canvas2DLodLevel = 0 | 1 | 2 | 3
 
 export interface Canvas2DTextLodConfig {
-  minScaleForContent: {
-    full: number
-    interactive: number
-  }
+  minScaleForContentByLevel: Record<Canvas2DLodLevel, number>
+}
+
+export interface Canvas2DShapeLodConfig {
+  minRenderedExtentToDrawByLevel: Record<Canvas2DLodLevel, number>
 }
 
 export interface Canvas2DImageLodConfig {
-  smoothing: {
-    full: ImageSmoothingQuality
-    interactive: ImageSmoothingQuality
-  }
+  smoothingByLevel: Record<Canvas2DLodLevel, ImageSmoothingQuality>
   minRenderedSizeForPlaceholderLabel: {
     width: number
     height: number
   }
+  minRenderedExtentToDrawByLevel: Record<Canvas2DLodLevel, number>
 }
 
 export interface Canvas2DPathLodConfig {
-  fallbackCurveSteps: number
+  fallbackCurveStepsByLevel: Record<Canvas2DLodLevel, number>
+  minRenderedLengthToDrawByLevel: Record<Canvas2DLodLevel, number>
 }
 
 export interface Canvas2DLodConfig {
+  shape: Canvas2DShapeLodConfig
   text: Canvas2DTextLodConfig
   image: Canvas2DImageLodConfig
   path: Canvas2DPathLodConfig
 }
 
 export const defaultCanvas2DLodConfig: Canvas2DLodConfig = {
+  shape: {
+    minRenderedExtentToDrawByLevel: {
+      0: 0,
+      1: 0.5,
+      2: 1,
+      3: 2,
+    },
+  },
   text: {
-    minScaleForContent: {
-      full: 0,
-      interactive: 0.45,
+    minScaleForContentByLevel: {
+      0: 0,
+      1: 0.2,
+      2: 0.45,
+      3: 0.7,
     },
   },
   image: {
-    smoothing: {
-      full: 'high',
-      interactive: 'low',
+    smoothingByLevel: {
+      0: 'high',
+      1: 'medium',
+      2: 'low',
+      3: 'low',
     },
     minRenderedSizeForPlaceholderLabel: {
       width: 72,
       height: 48,
     },
+    minRenderedExtentToDrawByLevel: {
+      0: 0,
+      1: 1,
+      2: 2,
+      3: 4,
+    },
   },
   path: {
-    fallbackCurveSteps: 24,
+    fallbackCurveStepsByLevel: {
+      0: 24,
+      1: 20,
+      2: 16,
+      3: 12,
+    },
+    minRenderedLengthToDrawByLevel: {
+      0: 0,
+      1: 1,
+      2: 2,
+      3: 4,
+    },
   },
 }
 
 export const performanceCanvas2DLodConfig: Canvas2DLodConfig = {
+  shape: {
+    minRenderedExtentToDrawByLevel: {
+      0: 0.5,
+      1: 1,
+      2: 2,
+      3: 3,
+    },
+  },
   text: {
-    minScaleForContent: {
-      full: 0.15,
-      interactive: 0.7,
+    minScaleForContentByLevel: {
+      0: 0.15,
+      1: 0.45,
+      2: 0.7,
+      3: 0.9,
     },
   },
   image: {
-    smoothing: {
-      full: 'medium',
-      interactive: 'low',
+    smoothingByLevel: {
+      0: 'medium',
+      1: 'medium',
+      2: 'low',
+      3: 'low',
     },
     minRenderedSizeForPlaceholderLabel: {
       width: 96,
       height: 64,
     },
+    minRenderedExtentToDrawByLevel: {
+      0: 1,
+      1: 2,
+      2: 3,
+      3: 5,
+    },
   },
   path: {
-    fallbackCurveSteps: 12,
+    fallbackCurveStepsByLevel: {
+      0: 12,
+      1: 10,
+      2: 8,
+      3: 6,
+    },
+    minRenderedLengthToDrawByLevel: {
+      0: 1,
+      1: 2,
+      2: 3,
+      3: 5,
+    },
   },
 }
 
 export const imageHeavyCanvas2DLodConfig: Canvas2DLodConfig = {
+  shape: {
+    minRenderedExtentToDrawByLevel: {
+      0: 0.5,
+      1: 1,
+      2: 1.5,
+      3: 2.5,
+    },
+  },
   text: {
-    minScaleForContent: {
-      full: 0.1,
-      interactive: 0.55,
+    minScaleForContentByLevel: {
+      0: 0.1,
+      1: 0.3,
+      2: 0.55,
+      3: 0.8,
     },
   },
   image: {
-    smoothing: {
-      full: 'medium',
-      interactive: 'low',
+    smoothingByLevel: {
+      0: 'medium',
+      1: 'medium',
+      2: 'low',
+      3: 'low',
     },
     minRenderedSizeForPlaceholderLabel: {
       width: 88,
       height: 56,
     },
+    minRenderedExtentToDrawByLevel: {
+      0: 1,
+      1: 2,
+      2: 3,
+      3: 5,
+    },
   },
   path: {
-    fallbackCurveSteps: 16,
+    fallbackCurveStepsByLevel: {
+      0: 16,
+      1: 14,
+      2: 12,
+      3: 8,
+    },
+    minRenderedLengthToDrawByLevel: {
+      0: 1,
+      1: 2,
+      2: 3,
+      3: 5,
+    },
   },
 }
 
 export function resolveShowTextContent(
   viewportScale: number,
-  renderQuality: NonNullable<CanvasRendererProps['renderQuality']>,
+  lodLevel: Canvas2DLodLevel,
   lodConfig: Canvas2DLodConfig,
 ) {
-  const minScale = renderQuality === 'full'
-    ? lodConfig.text.minScaleForContent.full
-    : lodConfig.text.minScaleForContent.interactive
-
-  return viewportScale >= minScale
+  return viewportScale >= lodConfig.text.minScaleForContentByLevel[lodLevel]
 }
 
 export function resolveImageSmoothingQuality(
-  renderQuality: NonNullable<CanvasRendererProps['renderQuality']>,
+  lodLevel: Canvas2DLodLevel,
   lodConfig: Canvas2DLodConfig,
 ) {
-  return renderQuality === 'full'
-    ? lodConfig.image.smoothing.full
-    : lodConfig.image.smoothing.interactive
+  return lodConfig.image.smoothingByLevel[lodLevel]
+}
+
+export function resolvePathFallbackCurveSteps(
+  lodLevel: Canvas2DLodLevel,
+  lodConfig: Canvas2DLodConfig,
+) {
+  return lodConfig.path.fallbackCurveStepsByLevel[lodLevel]
+}
+
+export function resolveShapeMinRenderedExtentToDraw(
+  lodLevel: Canvas2DLodLevel,
+  lodConfig: Canvas2DLodConfig,
+) {
+  return lodConfig.shape.minRenderedExtentToDrawByLevel[lodLevel]
+}
+
+export function resolveImageMinRenderedExtentToDraw(
+  lodLevel: Canvas2DLodLevel,
+  lodConfig: Canvas2DLodConfig,
+) {
+  return lodConfig.image.minRenderedExtentToDrawByLevel[lodLevel]
+}
+
+export function resolvePathMinRenderedLengthToDraw(
+  lodLevel: Canvas2DLodLevel,
+  lodConfig: Canvas2DLodConfig,
+) {
+  return lodConfig.path.minRenderedLengthToDrawByLevel[lodLevel]
 }

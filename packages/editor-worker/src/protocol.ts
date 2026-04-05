@@ -18,11 +18,19 @@ export interface WorkerInitMessage {
   buffer: SharedArrayBuffer
   capacity: number
   document: EditorDocument
+  interaction?: {
+    allowFrameSelection?: boolean
+  }
 }
 
 export interface WorkerPointerMessage {
   type: 'pointermove' | 'pointerdown'
   pointer: PointerState
+  modifiers?: {
+    shiftKey?: boolean
+    metaKey?: boolean
+    ctrlKey?: boolean
+  }
 }
 
 export interface WorkerPointerLeaveMessage {
@@ -53,11 +61,18 @@ export type EditorRuntimeCommand =
   | { type: 'viewport.zoomIn' }
   | { type: 'viewport.zoomOut' }
   | { type: 'selection.delete' }
-  | { type: 'selection.set'; shapeId: string | null }
+  | {
+      type: 'selection.set'
+      shapeId?: string | null
+      shapeIds?: string[]
+      mode?: 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
+    }
   | { type: 'tool.select'; tool: ToolId }
   | { type: 'shape.rename'; shapeId: string; name: string; text?: string }
   | { type: 'shape.move'; shapeId: string; x: number; y: number }
   | { type: 'shape.resize'; shapeId: string; width: number; height: number }
+  | { type: 'shape.rotate'; shapeId: string; rotation: number }
+  | { type: 'shape.set-clip'; shapeId: string; clipPathId?: string; clipRule?: 'nonzero' | 'evenodd' }
   | { type: 'shape.reorder'; shapeId: string; toIndex: number }
   | { type: 'shape.insert'; shape: DocumentNode; index?: number }
   | { type: 'shape.remove'; shapeId: string }

@@ -55,6 +55,7 @@ export interface CanvasRuntimeControllerOptions<TDocument extends EditorDocument
   capacity: number
   createWorker: () => Worker
   document: TDocument
+  allowFrameSelection?: boolean
 }
 
 /**
@@ -71,9 +72,14 @@ export interface CanvasRuntimeController<TDocument extends EditorDocument> {
   fitViewport: () => void
   getSnapshot: () => CanvasRuntimeSnapshot<TDocument>
   panViewport: (deltaX: number, deltaY: number) => void
-  postPointer: (type: 'pointermove' | 'pointerdown', pointer: PointerState) => void
+  postPointer: (
+    type: 'pointermove' | 'pointerdown',
+    pointer: PointerState,
+    modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean},
+  ) => void
   receiveRemoteOperation: (operation: CollaborationOperation) => void
   resizeViewport: (width: number, height: number) => void
+  setViewport: (viewport: CanvasViewportState) => void
   start: () => void
   subscribe: (listener: () => void) => () => void
   zoomViewport: (nextScale: number, anchor?: Point2D) => void
@@ -95,6 +101,7 @@ const DEFAULT_HISTORY_STATE: HistorySummary = {
 }
 
 const SLOW_MESSAGE_HANDLER_MS = 16
+const HIT_TEST_TOLERANCE = 6
 
 /**
  * Development-only trace helper for following the runtime bridge without
@@ -108,6 +115,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   capacity,
   createWorker,
   document,
+  allowFrameSelection = true,
 }: CanvasRuntimeControllerOptions<TDocument>): CanvasRuntimeController<TDocument> {
   let scene: SceneMemory | null = null
   let worker: Worker | null = null
@@ -191,6 +199,32 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
   }
 
+  const setViewport = (viewport: CanvasViewportState) => {
+    snapshot.viewport = viewport
+    notify()
+  }
+
+  const updateLocalHoverSelection = (hoveredIndex: number, selectedIndex: number) => {
+    if (hoveredIndex === snapshot.stats.hoveredIndex && selectedIndex === snapshot.stats.selectedIndex) {
+      return
+    }
+
+    snapshot.stats = {
+      ...snapshot.stats,
+      hoveredIndex,
+      selectedIndex,
+      version: snapshot.stats.version + 1,
+    }
+
+    snapshot.shapes = snapshot.shapes.map((shape, index) => ({
+      ...shape,
+      isHovered: index === hoveredIndex,
+      isSelected: index === selectedIndex,
+    }))
+
+    notify()
+  }
+
   const handleWorkerMessage = (event: MessageEvent<SceneUpdateMessage>) => {
     const handlerStart = performance.now()
     let snapshotReadMs = 0
@@ -215,7 +249,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
       snapshotReadMs = performance.now() - snapshotReadStart
     } else {
-      snapshot.shapes = patchSnapshotFlags(snapshot.shapes, snapshot.stats, nextStats)
+      snapshot.shapes = readSceneSnapshot(scene, snapshot.document)
     }
 
     snapshot.stats = nextStats
@@ -257,6 +291,9 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       buffer,
       capacity,
       document,
+      interaction: {
+        allowFrameSelection,
+      },
     })
     started = true
   }
@@ -270,7 +307,16 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   return {
-    clearHover: () => worker?.postMessage({ type: 'pointerleave' }),
+    clearHover: () => {
+      if (!sabSupported) {
+        if (snapshot.stats.hoveredIndex >= 0) {
+          updateLocalHoverSelection(-1, snapshot.stats.selectedIndex)
+        }
+        return
+      }
+
+      worker?.postMessage({ type: 'pointerleave' })
+    },
     destroy,
     dispatchCommand: (command) => {
       if (command.type === 'viewport.zoomIn') {
@@ -287,17 +333,29 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     fitViewport,
     getSnapshot: () => snapshot,
     panViewport,
-    postPointer: (type, pointer) => {
+    postPointer: (type, pointer, modifiers) => {
+      if (!sabSupported) {
+        const hoveredIndex = hitTestSnapshot(snapshot.shapes, pointer, allowFrameSelection)
+        if (type === 'pointerdown') {
+          updateLocalHoverSelection(hoveredIndex, hoveredIndex)
+          return
+        }
+
+        updateLocalHoverSelection(hoveredIndex, snapshot.stats.selectedIndex)
+        return
+      }
+
       if (type === 'pointerdown') {
         debugRuntime('dispatch pointerdown', pointer)
       }
-      worker?.postMessage({ type, pointer })
+      worker?.postMessage({ type, pointer, modifiers })
     },
     receiveRemoteOperation: (operation) => {
       debugRuntime('dispatch remote operation', operation)
       worker?.postMessage({ type: 'collaboration.receive', operation })
     },
     resizeViewport,
+    setViewport,
     start,
     subscribe: (listener) => {
       listeners.add(listener)
@@ -309,41 +367,36 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 }
 
-function patchSnapshotFlags(
+function hitTestSnapshot(
   shapes: SceneShapeSnapshot[],
-  previousStats: SceneStats,
-  nextStats: SceneStats,
+  pointer: PointerState,
+  allowFrameSelection = true,
 ) {
-  if (shapes.length !== nextStats.shapeCount) {
-    return shapes
-  }
-
-  const changedIndices = new Set(
-    [
-      previousStats.hoveredIndex,
-      previousStats.selectedIndex,
-      nextStats.hoveredIndex,
-      nextStats.selectedIndex,
-    ].filter((index) => index >= 0 && index < shapes.length),
-  )
-
-  if (changedIndices.size === 0) {
-    return shapes
-  }
-
-  const nextShapes = shapes.slice()
-  changedIndices.forEach((index) => {
+  for (let index = shapes.length - 1; index >= 0; index -= 1) {
     const shape = shapes[index]
     if (!shape) {
-      return
+      continue
+    }
+    if (!allowFrameSelection && shape.type === 'frame') {
+      continue
     }
 
-    nextShapes[index] = {
-      ...shape,
-      isHovered: index === nextStats.hoveredIndex,
-      isSelected: index === nextStats.selectedIndex,
-    }
-  })
+    const isLineLike = shape.type === 'lineSegment' || shape.type === 'path'
+    const tolerance = isLineLike ? HIT_TEST_TOLERANCE : 0
+    const left = Math.min(shape.x, shape.x + shape.width) - tolerance
+    const right = Math.max(shape.x, shape.x + shape.width) + tolerance
+    const top = Math.min(shape.y, shape.y + shape.height) - tolerance
+    const bottom = Math.max(shape.y, shape.y + shape.height) + tolerance
 
-  return nextShapes
+    if (
+      pointer.x >= left &&
+      pointer.x <= right &&
+      pointer.y >= top &&
+      pointer.y <= bottom
+    ) {
+      return index
+    }
+  }
+
+  return -1
 }

@@ -1,7 +1,11 @@
 import type * as React from 'react'
 import type {ToolName} from '@venus/document-core'
-import type {useCanvasRuntime} from '@venus/canvas-base'
-import {SkiaRenderer} from '@venus/renderer-skia'
+import type {
+  CanvasOverlayRenderer,
+  CanvasRenderer,
+  CanvasViewportState,
+  useCanvasRuntime,
+} from '@venus/canvas-base'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../components/statusBar/StatusBar.tsx'
 import type {createEditorDocumentFromFile} from '../adapters/fileDocument.ts'
@@ -59,16 +63,21 @@ export interface EditorDocumentState {
 
 export interface EditorRuntimeState {
   canvas: {
-    Renderer: typeof SkiaRenderer
+    Renderer: CanvasRenderer
+    OverlayRenderer?: CanvasOverlayRenderer
     document: ReturnType<typeof createEditorDocumentFromFile>
     shapes: SceneShapeSnapshot[]
     stats: ReturnType<typeof useCanvasRuntime>['stats']
     viewport: ReturnType<typeof useCanvasRuntime>['viewport']
     ready: boolean
     onPointerMove: (point: {x: number; y: number}) => void
-    onPointerDown: (point: {x: number; y: number}) => void
+    onPointerDown: (
+      point: {x: number; y: number},
+      modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+    ) => void
     onPointerUp: () => void
     onPointerLeave: () => void
+    onViewportChange: (viewport: CanvasViewportState) => void
     onViewportPan: (deltaX: number, deltaY: number) => void
     onViewportResize: (width: number, height: number) => void
     onViewportZoom: (nextScale: number, anchor?: {x: number; y: number}) => void
@@ -90,12 +99,40 @@ export interface EditorUIState {
     hasPrev: boolean
     hasNext: boolean
   }
-  layerItems: {id: string; name: string; show: boolean}[]
+  layerItems: LayerItem[]
   selectedIds: string[]
-  selectedProps: ElementProps | null
+  selectedProps: SelectedElementProps | null
   showCreateFile: boolean
   showPrint: boolean
   viewportScale: number
+}
+
+export interface LayerItem {
+  id: string
+  name: string
+  show: boolean
+  type: string
+  depth: number
+  isGroup: boolean
+}
+
+export interface SelectedImageMeta {
+  assetId?: string
+  assetName?: string
+  mimeType?: string
+  naturalWidth?: number
+  naturalHeight?: number
+}
+
+export interface SelectedSchemaMeta {
+  sourceNodeType?: string
+  sourceNodeKind?: string
+  sourceFeatureKinds?: string[]
+}
+
+export type SelectedElementProps = ElementProps & {
+  imageMeta?: SelectedImageMeta
+  schemaMeta?: SelectedSchemaMeta
 }
 
 export interface EditorRuntimeCommands {

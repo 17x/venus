@@ -1,10 +1,11 @@
 import {useEffect, useRef, useState} from 'react'
 import {Con, Panel} from '@lite-u/ui'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import type {LayerItem} from '../../hooks/useEditorRuntime.types.ts'
 
 interface LayerPanelProps {
   executeAction: EditorExecutor
-  layerItems: { id: string, name: string, show: boolean }[]
+  layerItems: LayerItem[]
   selectedIds: string[]
 }
 
@@ -14,6 +15,7 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelP
   const targetRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [indexRange, setIndexRange] = useState([0, 10])
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null)
   useEffect(() => {
     /*  const closestOne = selected[selected.length - 1]
 
@@ -54,13 +56,49 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds}: LayerPanelP
         <div ref={selectedIds?.includes(item.id) ? targetRef : null}
              style={{height: ITEM_HEIGHT}}
              className={selectedIds?.includes(item.id) ? 'bg-gray-400 text-white' : ''}
-             onClick={() => {
-               executeAction('selection-modify', {mode: 'replace', idSet: new Set([item.id])})
+             onClick={(event) => {
+               const isToggle = event.metaKey || event.ctrlKey
+               if (event.shiftKey && lastClickedId) {
+                 const currentIndex = layerItems.findIndex((candidate) => candidate.id === item.id)
+                 const anchorIndex = layerItems.findIndex((candidate) => candidate.id === lastClickedId)
+                 const from = Math.min(currentIndex, anchorIndex)
+                 const to = Math.max(currentIndex, anchorIndex)
+                 const rangeIds = layerItems
+                   .slice(from, to + 1)
+                   .map((candidate) => candidate.id)
+                 executeAction('selection-modify', {
+                   mode: isToggle ? 'add' : 'replace',
+                   idSet: new Set(rangeIds),
+                 })
+                 setLastClickedId(item.id)
+                 return
+               }
+
+               executeAction('selection-modify', {
+                 mode: isToggle ? 'toggle' : 'replace',
+                 idSet: new Set([item.id]),
+               })
+               setLastClickedId(item.id)
              }}
              id={`layer-element-${item.id}`}
              key={item.id}>
-          {/*{item.id.match(/\d+$/)[0]}*/}
-          {item.name}
+          <div
+            style={{
+              paddingLeft: 8 + item.depth * 14,
+              height: ITEM_HEIGHT,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span style={{fontSize: 11, opacity: 0.7, minWidth: 16}}>
+              {item.isGroup ? '▾' : '•'}
+            </span>
+            <span style={{fontSize: 11, opacity: 0.65, textTransform: 'uppercase'}}>
+              {item.type}
+            </span>
+            <span>{item.name}</span>
+          </div>
         </div>,
       )
     }

@@ -1,5 +1,6 @@
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {CanvasRendererProps} from '@venus/canvas-base'
+import {InteractionOverlay} from '../interaction/index.ts'
 
 export function VectorCanvasRenderer(props: CanvasRendererProps) {
   const imageIds = new Set(
@@ -44,6 +45,7 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
             .filter((shape) => shape.type === 'image')
             .map((shape) => {
               const snapshot = props.shapes.find((item) => item.id === shape.id)
+              const rotation = shape.rotation ?? 0
 
               if (shape.assetUrl) {
                 return (
@@ -61,6 +63,8 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                       border: snapshot?.isSelected ? '2px solid #2563eb' : '1px solid rgba(15, 23, 42, 0.18)',
                       background: '#fff',
                       boxSizing: 'border-box',
+                      transform: `rotate(${rotation}deg)`,
+                      transformOrigin: 'center',
                     }}
                   />
                 )
@@ -82,6 +86,8 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                     boxSizing: 'border-box',
                     fontSize: 14,
                     fontWeight: 700,
+                    transform: `rotate(${rotation}deg)`,
+                    transformOrigin: 'center',
                   }}
                 >
                   Image placeholder
@@ -90,6 +96,12 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
             })}
         </div>
       </div>
+
+      <InteractionOverlay
+        document={props.document}
+        shapes={props.shapes}
+        viewport={props.viewport}
+      />
     </div>
   )
 }

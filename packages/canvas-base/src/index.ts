@@ -19,12 +19,39 @@ export {
   type CanvasViewerSnapshot,
 } from './runtime/createCanvasViewerController.ts'
 export { CanvasViewport } from './react/CanvasViewport.tsx'
-export { useCanvasRuntime } from './react/useCanvasRuntime.ts'
-export { useCanvasViewer } from './react/useCanvasViewer.ts'
-export type { CanvasRenderer, CanvasRendererProps } from './renderer/types.ts'
+export { CanvasSelectionOverlay } from './react/CanvasSelectionOverlay.tsx'
+export {
+  useCanvasRuntime,
+  useCanvasRuntimeSelector,
+  useCanvasRuntimeStore,
+  type CanvasRuntimeStore,
+} from './react/useCanvasRuntime.ts'
+export {
+  useCanvasViewer,
+  useCanvasViewerSelector,
+  useCanvasViewerStore,
+  type CanvasViewerStore,
+} from './react/useCanvasViewer.ts'
+export type {
+  CanvasOverlayProps,
+  CanvasOverlayRenderer,
+  CanvasRenderer,
+  CanvasRendererProps,
+} from './renderer/types.ts'
+export type { CanvasRenderLodLevel, CanvasRenderLodState } from './renderer/lod.ts'
+export { resolveCanvasRenderLodState } from './renderer/lod.ts'
 export type { CanvasViewportState } from './viewport/types.ts'
 export type { ViewportGestureBindingOptions } from './gesture/index.ts'
 export { bindViewportGestures } from './gesture/index.ts'
+export {
+  createSelectionDragController,
+  type SelectionDragController,
+  type SelectionDragModifiers,
+  type SelectionDragMoveResult,
+  type SelectionDragSession,
+  type SelectionDragShapeState,
+  type SelectionDragSnapshot,
+} from './interaction/selectionDragController.ts'
 export type {
   ZoomInputSource,
   ZoomWheelResult,

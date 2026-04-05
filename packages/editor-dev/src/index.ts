@@ -52,6 +52,7 @@ export function createEditorViteConfig(options: CreateEditorViteConfigOptions) {
   ]
 
   return {
+    base: './',
     resolve: {
       alias: [...(options.aliases ?? []), ...sharedAliases],
     },

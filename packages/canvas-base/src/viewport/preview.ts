@@ -31,7 +31,7 @@ export function resolveViewportPreviewOverscan(viewport: CanvasViewportState) {
  * or zoom interactions before the runtime viewport state commits.
  */
 export function applyViewportPreviewTransform(
-  node: HTMLDivElement | null,
+  node: HTMLElement | null,
   preview: ViewportPreviewState,
   overscan: number,
 ) {
@@ -50,6 +50,38 @@ export function applyViewportPreviewTransform(
     `translate(${-anchorX}px, ${-anchorY}px)`
   node.style.willChange =
     preview.panOffset.x !== 0 || preview.panOffset.y !== 0 || scale !== 1
+      ? 'transform'
+      : ''
+}
+
+/**
+ * Apply a relative viewport transform between an already rendered base
+ * viewport and a preview target viewport.
+ *
+ * This is used for zoom preview so the cached renderer output can be scaled and
+ * translated as one layer without committing intermediate viewport redraws.
+ */
+export function applyViewportTransitionTransform(
+  node: HTMLElement | null,
+  fromViewport: CanvasViewportState,
+  toViewport: CanvasViewportState,
+  overscan: number,
+) {
+  if (!node) {
+    return
+  }
+
+  const scale = toViewport.scale / fromViewport.scale
+  const sourceX = fromViewport.offsetX + overscan
+  const sourceY = fromViewport.offsetY + overscan
+  const targetX = toViewport.offsetX + overscan
+  const targetY = toViewport.offsetY + overscan
+  const translateX = targetX - scale * sourceX
+  const translateY = targetY - scale * sourceY
+
+  node.style.transform = `matrix(${scale}, 0, 0, ${scale}, ${translateX}, ${translateY})`
+  node.style.willChange =
+    scale !== 1 || translateX !== 0 || translateY !== 0
       ? 'transform'
       : ''
 }

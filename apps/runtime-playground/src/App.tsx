@@ -1,20 +1,31 @@
 import * as React from 'react'
-import {CanvasViewport, useCanvasRuntime} from '@venus/canvas-base'
-import {nid} from '@venus/document-core'
-import {SkiaRenderer, useSkiaRenderDiagnostics} from '@venus/renderer-skia'
+import {
+  CanvasViewport,
+  CanvasSelectionOverlay,
+  createSelectionDragController,
+  useCanvasRuntimeSelector,
+  useCanvasRuntimeStore,
+  type CanvasRenderLodState,
+  type CanvasRuntimeStore,
+  type CanvasRenderer,
+  type CanvasViewportState,
+} from '@venus/canvas-base'
+import {
+  convertDrawPointsToBezierPoints,
+  getBoundingRectFromBezierPoints,
+  nid,
+  type Point,
+} from '@venus/document-core'
 import {
   Canvas2DRenderer,
   defaultCanvas2DLodConfig,
-  imageHeavyCanvas2DLodConfig,
-  performanceCanvas2DLodConfig,
   useCanvas2DRenderDiagnostics,
   type Canvas2DLodConfig,
 } from '@venus/renderer-canvas'
 import type {EditorRuntimeCommand} from '@venus/editor-worker'
 import type {HistorySummary} from '@venus/editor-worker'
 import type {EditorDocument} from '@venus/document-core'
-import type {SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
-import type {CanvasRenderer, CanvasViewportState} from '@venus/canvas-base'
+import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
 import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
@@ -23,12 +34,7 @@ const STRESS_SHAPE_COUNT = 100_000
 const LARGE_STRESS_SHAPE_COUNT = 50_000
 const MEDIUM_STRESS_SHAPE_COUNT = 10_000
 const EXTREME_STRESS_SHAPE_COUNT = 1_000_000
-const SHAPE_TYPE_ORDER = ['frame', 'rectangle', 'ellipse', 'lineSegment', 'path', 'text', 'image'] as const
-const CANVAS_LOD_PRESETS = {
-  balanced: defaultCanvas2DLodConfig,
-  performance: performanceCanvas2DLodConfig,
-  imageHeavy: imageHeavyCanvas2DLodConfig,
-} satisfies Record<'balanced' | 'performance' | 'imageHeavy', Canvas2DLodConfig>
+const SHAPE_TYPE_ORDER = ['frame', 'group', 'rectangle', 'ellipse', 'polygon', 'star', 'lineSegment', 'path', 'text', 'image'] as const
 
 function createGeneratedImageDataUrl(label: string, width: number, height: number) {
   const hue = Math.floor(Math.random() * 360)
@@ -50,6 +56,32 @@ function createGeneratedImageDataUrl(label: string, width: number, height: numbe
   `.trim()
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function createStarPoints(x: number, y: number, width: number, height: number) {
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const outerRadius = Math.min(width, height) / 2
+  const innerRadius = outerRadius * 0.46
+
+  return Array.from({length: 10}, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI / 5) * index
+    const radius = index % 2 === 0 ? outerRadius : innerRadius
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    }
+  })
+}
+
+function createMockBezierPoints(x: number, y: number, width: number, height: number): Point[] {
+  return [
+    {x, y: y + height * 0.72},
+    {x: x + width * 0.22, y: y + height * 0.18},
+    {x: x + width * 0.48, y: y + height * 0.86},
+    {x: x + width * 0.74, y: y + height * 0.28},
+    {x: x + width, y: y + height * 0.66},
+  ]
 }
 
 function createRandomMockShape() {
@@ -75,14 +107,50 @@ function createRandomMockShape() {
     }
   }
 
+  const shapeRoll = Math.random()
+  const shapeType =
+    shapeRoll < 0.2 ? 'polygon' as const :
+      shapeRoll < 0.38 ? 'star' as const :
+        shapeRoll < 0.56 ? 'path' as const :
+          'rectangle' as const
+
+  if (shapeType === 'path') {
+    const points = createMockBezierPoints(x, y, width, height)
+    const path = convertDrawPointsToBezierPoints(points, 0.24)
+    const bounds = getBoundingRectFromBezierPoints(path.points)
+
+    return {
+      id: nid(),
+      type: 'path' as const,
+      name: `Bezier ${Math.floor(Math.random() * 100)}`,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      points,
+      bezierPoints: path.points,
+    }
+  }
+
   return {
     id: nid(),
-    type: 'rectangle' as const,
-    name: `Rect ${Math.floor(Math.random() * 100)}`,
+    type: shapeType,
+    name: `Shape ${Math.floor(Math.random() * 100)}`,
     x,
     y,
     width,
     height,
+    points: shapeType === 'polygon'
+      ? [
+          {x: x + width * 0.5, y},
+          {x: x + width, y: y + height * 0.34},
+          {x: x + width * 0.82, y: y + height},
+          {x: x + width * 0.18, y: y + height},
+          {x, y: y + height * 0.34},
+        ]
+      : shapeType === 'star'
+        ? createStarPoints(x, y, width, height)
+      : undefined,
   }
 }
 
@@ -106,52 +174,39 @@ function summarizeShapeTypes(document: EditorDocument) {
 
 function App() {
   const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'>('demo')
-  const [rendererBackend, setRendererBackend] = React.useState<'skia' | 'canvas2d'>('canvas2d')
-  const [canvasLodPreset, setCanvasLodPreset] = React.useState<'balanced' | 'performance' | 'imageHeavy'>('balanced')
   const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
   const [largeStressRevision, setLargeStressRevision] = React.useState(0)
   const [stressRevision, setStressRevision] = React.useState(0)
   const [extremeStressRevision, setExtremeStressRevision] = React.useState(0)
   const [imageHeavyRevision, setImageHeavyRevision] = React.useState(0)
   const [imageHeavyLargeRevision, setImageHeavyLargeRevision] = React.useState(0)
-  const mediumStressDocument = React.useMemo(
-    () => createStressDocument(MEDIUM_STRESS_SHAPE_COUNT),
-    [mediumStressRevision],
-  )
-  const largeStressDocument = React.useMemo(
-    () => createStressDocument(LARGE_STRESS_SHAPE_COUNT),
-    [largeStressRevision],
-  )
-  const stressDocument = React.useMemo(
-    () => createStressDocument(STRESS_SHAPE_COUNT),
-    [stressRevision],
-  )
-  const extremeStressDocument = React.useMemo(
-    () => createStressDocument(EXTREME_STRESS_SHAPE_COUNT),
-    [extremeStressRevision],
-  )
-  const imageHeavyDocument = React.useMemo(
-    () => createStressDocument(MEDIUM_STRESS_SHAPE_COUNT, {imageDensity: 'high'}),
-    [imageHeavyRevision],
-  )
-  const imageHeavyLargeDocument = React.useMemo(
-    () => createStressDocument(LARGE_STRESS_SHAPE_COUNT, {imageDensity: 'high'}),
-    [imageHeavyLargeRevision],
-  )
-  const activeDocument =
-    documentMode === 'extreme-stress'
-      ? extremeStressDocument
-      : documentMode === 'image-heavy-large'
-      ? imageHeavyLargeDocument
-      : documentMode === 'image-heavy'
-      ? imageHeavyDocument
-      : documentMode === 'stress'
-      ? stressDocument
-      : documentMode === 'large-stress'
-        ? largeStressDocument
-      : documentMode === 'medium-stress'
-        ? mediumStressDocument
-        : MOCK_DOCUMENT
+  const activeDocument = React.useMemo(() => {
+    switch (documentMode) {
+      case 'medium-stress':
+        return createStressDocument(MEDIUM_STRESS_SHAPE_COUNT)
+      case 'large-stress':
+        return createStressDocument(LARGE_STRESS_SHAPE_COUNT)
+      case 'stress':
+        return createStressDocument(STRESS_SHAPE_COUNT)
+      case 'extreme-stress':
+        return createStressDocument(EXTREME_STRESS_SHAPE_COUNT)
+      case 'image-heavy':
+        return createStressDocument(MEDIUM_STRESS_SHAPE_COUNT, {imageDensity: 'high'})
+      case 'image-heavy-large':
+        return createStressDocument(LARGE_STRESS_SHAPE_COUNT, {imageDensity: 'high'})
+      case 'demo':
+      default:
+        return MOCK_DOCUMENT
+    }
+  }, [
+    documentMode,
+    mediumStressRevision,
+    largeStressRevision,
+    stressRevision,
+    extremeStressRevision,
+    imageHeavyRevision,
+    imageHeavyLargeRevision,
+  ])
   const createWorker = React.useCallback(
     () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
@@ -161,21 +216,22 @@ function App() {
       capacity: activeDocument.shapes.length + 16,
       createWorker,
       document: activeDocument,
+      allowFrameSelection: false,
     }),
     [activeDocument, createWorker],
   )
-  const runtime = useCanvasRuntime(runtimeOptions)
-
-  const selectedShape = runtime.stats.selectedIndex >= 0
-    ? runtime.shapes[runtime.stats.selectedIndex] ?? null
-    : null
-  const selectedNode = selectedShape
-    ? runtime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
-    : null
+  const runtimeStore = useCanvasRuntimeStore(runtimeOptions)
+  const runtimeController = runtimeStore.controller
+  const [renderLodState, setRenderLodState] = React.useState<CanvasRenderLodState | null>(null)
+  const [dragPreview, setDragPreview] = React.useState<{
+    shapeIds: string[]
+    deltaX: number
+    deltaY: number
+  } | null>(null)
 
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
-    runtime.dispatchCommand(command)
-  }, [runtime.dispatchCommand])
+    runtimeController.dispatchCommand(command)
+  }, [runtimeController])
   const handleLoadDemo = React.useCallback(() => {
     setDocumentMode('demo')
   }, [])
@@ -203,33 +259,76 @@ function App() {
     setImageHeavyLargeRevision((current) => current + 1)
     setDocumentMode('image-heavy-large')
   }, [])
+  const dragControllerRef = React.useRef(createSelectionDragController({
+    allowFrameSelection: false,
+  }))
   const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
-    runtime.postPointer('pointermove', pointer)
-  }, [runtime.postPointer])
-  const handlePointerDown = React.useCallback((pointer: { x: number; y: number }) => {
-    runtime.postPointer('pointerdown', pointer)
-  }, [runtime.postPointer])
+    const snapshot = runtimeController.getSnapshot()
+    const dragMove = dragControllerRef.current.pointerMove(pointer, {
+      document: snapshot.document,
+      shapes: snapshot.shapes,
+    })
+    if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
+      setDragPreview({
+        shapeIds: dragMove.session.shapes.map((shape) => shape.shapeId),
+        deltaX: dragMove.session.current.x - dragMove.session.start.x,
+        deltaY: dragMove.session.current.y - dragMove.session.start.y,
+      })
+    }
+    if (dragMove.phase === 'none') {
+      setDragPreview(null)
+    }
+    if (dragMove.phase === 'pending' || dragMove.phase === 'started' || dragMove.phase === 'dragging') {
+      return
+    }
 
-  const selectedLabel = selectedShape ? `${selectedShape.name} (${selectedShape.type})` : 'None'
-  const typeSummary = React.useMemo(() => summarizeShapeTypes(runtime.document), [runtime.document])
+    runtimeController.postPointer('pointermove', pointer)
+  }, [runtimeController])
+  const handlePointerDown = React.useCallback((
+    pointer: { x: number; y: number },
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+  ) => {
+    runtimeController.postPointer('pointerdown', pointer, modifiers)
+    const snapshot = runtimeController.getSnapshot()
+    dragControllerRef.current.pointerDown(pointer, {
+      document: snapshot.document,
+      shapes: snapshot.shapes,
+    }, modifiers)
+  }, [runtimeController])
+  const handlePointerUp = React.useCallback(() => {
+    setDragPreview(null)
+    const drag = dragControllerRef.current.pointerUp()
+    if (!drag) {
+      return
+    }
+
+    const deltaX = drag.current.x - drag.start.x
+    const deltaY = drag.current.y - drag.start.y
+    if (Math.abs(deltaX) < 0.001 && Math.abs(deltaY) < 0.001) {
+      return
+    }
+
+    drag.shapes.forEach((shape) => {
+      runtimeController.dispatchCommand({
+        type: 'shape.move',
+        shapeId: shape.shapeId,
+        x: shape.x + deltaX,
+        y: shape.y + deltaY,
+      })
+    })
+  }, [runtimeController])
+  const handlePointerLeave = React.useCallback(() => {
+    setDragPreview(null)
+    dragControllerRef.current.clear()
+    runtimeController.clearHover()
+  }, [runtimeController])
 
   return (
     <main className="playground-shell">
       <PlaygroundSidebar
+        runtimeStore={runtimeStore}
         documentMode={documentMode}
-        rendererBackend={rendererBackend}
-        canvasLodPreset={canvasLodPreset}
-        document={runtime.document}
-        stats={runtime.stats}
-        history={runtime.history}
-        viewport={runtime.viewport}
-        ready={runtime.ready}
-        sabSupported={runtime.sabSupported}
-        scaleLabel={runtime.viewport.scale.toFixed(2)}
-        selectedLabel={selectedLabel}
-        selectedShape={selectedShape}
-        selectedNode={selectedNode}
-        typeSummary={typeSummary}
+        renderLodState={renderLodState}
         onLoadDemo={handleLoadDemo}
         onLoadMediumStress={handleLoadMediumStress}
         onLoadLargeStress={handleLoadLargeStress}
@@ -237,47 +336,31 @@ function App() {
         onLoadExtremeStress={handleLoadExtremeStress}
         onLoadImageHeavy={handleLoadImageHeavy}
         onLoadImageHeavyLarge={handleLoadImageHeavyLarge}
-        onUseSkiaRenderer={() => setRendererBackend('skia')}
-        onUseCanvas2DRenderer={() => setRendererBackend('canvas2d')}
-        onUseBalancedLod={() => setCanvasLodPreset('balanced')}
-        onUsePerformanceLod={() => setCanvasLodPreset('performance')}
-        onUseImageHeavyLod={() => setCanvasLodPreset('imageHeavy')}
         onDispatch={dispatch}
       />
 
       <PlaygroundStage
-        rendererBackend={rendererBackend}
-        canvasLodConfig={CANVAS_LOD_PRESETS[canvasLodPreset]}
-        document={runtime.document}
-        shapes={runtime.shapes}
-        stats={runtime.stats}
-        viewport={runtime.viewport}
+        runtimeStore={runtimeStore}
+        canvasLodConfig={defaultCanvas2DLodConfig}
+        onRenderLodChange={setRenderLodState}
+        dragPreview={dragPreview}
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
-        onPointerLeave={runtime.clearHover}
-        onViewportPan={runtime.panViewport}
-        onViewportResize={runtime.resizeViewport}
-        onViewportZoom={runtime.zoomViewport}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onViewportChange={runtimeController.setViewport}
+        onViewportPan={runtimeController.panViewport}
+        onViewportResize={runtimeController.resizeViewport}
+        onViewportZoom={runtimeController.zoomViewport}
       />
     </main>
   )
 }
 
 const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
+  runtimeStore,
   documentMode,
-  rendererBackend,
-  canvasLodPreset,
-  document,
-  stats,
-  history,
-  viewport,
-  ready,
-  sabSupported,
-  scaleLabel,
-  selectedLabel,
-  selectedShape,
-  selectedNode,
-  typeSummary,
+  renderLodState,
   onLoadDemo,
   onLoadMediumStress,
   onLoadLargeStress,
@@ -285,27 +368,11 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadExtremeStress,
   onLoadImageHeavy,
   onLoadImageHeavyLarge,
-  onUseSkiaRenderer,
-  onUseCanvas2DRenderer,
-  onUseBalancedLod,
-  onUsePerformanceLod,
-  onUseImageHeavyLod,
   onDispatch,
 }: {
+  runtimeStore: CanvasRuntimeStore<EditorDocument>
   documentMode: 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
-  rendererBackend: 'skia' | 'canvas2d'
-  canvasLodPreset: 'balanced' | 'performance' | 'imageHeavy'
-  document: EditorDocument
-  stats: SceneStats
-  history: HistorySummary
-  viewport: CanvasViewportState
-  ready: boolean
-  sabSupported: boolean
-  scaleLabel: string
-  selectedLabel: string
-  selectedShape: SceneShapeSnapshot | null
-  selectedNode: EditorDocument['shapes'][number] | null
-  typeSummary: Array<{type: string; count: number}>
+  renderLodState: CanvasRenderLodState | null
   onLoadDemo: () => void
   onLoadMediumStress: () => void
   onLoadLargeStress: () => void
@@ -313,22 +380,39 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadExtremeStress: () => void
   onLoadImageHeavy: () => void
   onLoadImageHeavyLarge: () => void
-  onUseSkiaRenderer: () => void
-  onUseCanvas2DRenderer: () => void
-  onUseBalancedLod: () => void
-  onUsePerformanceLod: () => void
-  onUseImageHeavyLod: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
+  const document = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document)
+  const stats = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.stats)
+  const history = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.history)
+  const viewport = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.viewport)
+  const ready = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.ready)
+  const sabSupported = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.sabSupported)
+  const shapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.shapes)
+  const selectedShape = stats.selectedIndex >= 0 ? shapes[stats.selectedIndex] ?? null : null
+  const selectedNode = React.useMemo(
+    () => (selectedShape ? document.shapes.find((shape) => shape.id === selectedShape.id) ?? null : null),
+    [document, selectedShape],
+  )
+  const selectedLabel = selectedShape ? `${selectedShape.name} (${selectedShape.type})` : 'None'
+  const scaleLabel = viewport.scale.toFixed(2)
+  const typeSummary = React.useMemo(() => summarizeShapeTypes(document), [document])
+
   return (
     <aside className="playground-panel">
-      <RuntimeIntroBlock rendererBackend={rendererBackend} documentMode={documentMode} />
+      <RuntimeIntroBlock documentMode={documentMode} />
       <LodBlock
-        rendererBackend={rendererBackend}
-        canvasLodPreset={canvasLodPreset}
-        onUseBalancedLod={onUseBalancedLod}
-        onUsePerformanceLod={onUsePerformanceLod}
-        onUseImageHeavyLod={onUseImageHeavyLod}
+        renderLodState={renderLodState}
+      />
+       <CommandsBlock
+        onLoadDemo={onLoadDemo}
+        onLoadMediumStress={onLoadMediumStress}
+        onLoadLargeStress={onLoadLargeStress}
+        onLoadStress={onLoadStress}
+        onLoadExtremeStress={onLoadExtremeStress}
+        onLoadImageHeavy={onLoadImageHeavy}
+        onLoadImageHeavyLarge={onLoadImageHeavyLarge}
+        onDispatch={onDispatch}
       />
       <DocumentBlock
         documentMode={documentMode}
@@ -340,18 +424,7 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
         version={stats.version}
         typeSummary={typeSummary}
       />
-      <CommandsBlock
-        onLoadDemo={onLoadDemo}
-        onLoadMediumStress={onLoadMediumStress}
-        onLoadLargeStress={onLoadLargeStress}
-        onLoadStress={onLoadStress}
-        onLoadExtremeStress={onLoadExtremeStress}
-        onLoadImageHeavy={onLoadImageHeavy}
-        onLoadImageHeavyLarge={onLoadImageHeavyLarge}
-        onUseSkiaRenderer={onUseSkiaRenderer}
-        onUseCanvas2DRenderer={onUseCanvas2DRenderer}
-        onDispatch={onDispatch}
-      />
+     
       <ViewportBlock
         ready={ready}
         sabSupported={sabSupported}
@@ -362,59 +435,56 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
       <SelectionBlock selectedShape={selectedShape} selectedNode={selectedNode} />
       <HistoryBlock history={history} />
 
-      <RendererDiagnosticsPanel rendererBackend={rendererBackend} />
+      <RendererDiagnosticsPanel />
     </aside>
   )
 })
 
 const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock({
-  rendererBackend,
   documentMode,
 }: {
-  rendererBackend: 'skia' | 'canvas2d'
   documentMode: 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
 }) {
   return (
     <div className="panel-block">
       <span className="panel-label">Runtime</span>
       <strong className="panel-title">
-        Worker + SAB + {rendererBackend === 'skia' ? 'Skia' : 'Canvas2D'}
+        Worker + SAB + Canvas2D
       </strong>
       <p className="panel-copy">
         Validate the shared runtime loop without product UI.
       </p>
       <div className="panel-badges">
         <span className="panel-badge">{documentMode}</span>
-        <span className="panel-badge">{rendererBackend}</span>
+        <span className="panel-badge">canvas2d</span>
       </div>
     </div>
   )
 })
 
 const LodBlock = React.memo(function LodBlock({
-  rendererBackend,
-  canvasLodPreset,
-  onUseBalancedLod,
-  onUsePerformanceLod,
-  onUseImageHeavyLod,
+  renderLodState,
 }: {
-  rendererBackend: 'skia' | 'canvas2d'
-  canvasLodPreset: 'balanced' | 'performance' | 'imageHeavy'
-  onUseBalancedLod: () => void
-  onUsePerformanceLod: () => void
-  onUseImageHeavyLod: () => void
+  renderLodState: CanvasRenderLodState | null
 }) {
   return (
     <div className="panel-block">
       <span className="panel-label">LOD</span>
       <div className="panel-row">
-        <span>active</span>
-        <strong>{rendererBackend === 'canvas2d' ? canvasLodPreset : 'skia-default'}</strong>
+        <span>profile</span>
+        <strong>balanced</strong>
       </div>
-      <div className="panel-actions">
-        <button onClick={onUseBalancedLod}>Balanced</button>
-        <button onClick={onUsePerformanceLod}>Performance</button>
-        <button onClick={onUseImageHeavyLod}>Image Heavy</button>
+      <div className="panel-row">
+        <span>level</span>
+        <strong>{renderLodState ? renderLodState.level : '-'}</strong>
+      </div>
+      <div className="panel-row">
+        <span>mode</span>
+        <strong>{renderLodState ? renderLodState.renderQuality : '-'}</strong>
+      </div>
+      <div className="panel-row">
+        <span>images</span>
+        <strong>{renderLodState ? renderLodState.imageCount : '-'}</strong>
       </div>
     </div>
   )
@@ -590,8 +660,6 @@ const CommandsBlock = React.memo(function CommandsBlock({
   onLoadExtremeStress,
   onLoadImageHeavy,
   onLoadImageHeavyLarge,
-  onUseSkiaRenderer,
-  onUseCanvas2DRenderer,
   onDispatch,
 }: {
   onLoadDemo: () => void
@@ -601,8 +669,6 @@ const CommandsBlock = React.memo(function CommandsBlock({
   onLoadExtremeStress: () => void
   onLoadImageHeavy: () => void
   onLoadImageHeavyLarge: () => void
-  onUseSkiaRenderer: () => void
-  onUseCanvas2DRenderer: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
   return (
@@ -616,8 +682,6 @@ const CommandsBlock = React.memo(function CommandsBlock({
         <button onClick={onLoadExtremeStress}>1000k Scene</button>
         <button onClick={onLoadImageHeavy}>10k Img+</button>
         <button onClick={onLoadImageHeavyLarge}>50k Img+</button>
-        <button onClick={onUseSkiaRenderer}>Use Skia</button>
-        <button onClick={onUseCanvas2DRenderer}>Use Canvas2D</button>
         <button onClick={() => onDispatch({type: 'viewport.fit'})}>Fit</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
@@ -651,55 +715,102 @@ const HistoryBlock = React.memo(function HistoryBlock({
 })
 
 const PlaygroundStage = React.memo(function PlaygroundStage({
-  rendererBackend,
+  runtimeStore,
   canvasLodConfig,
-  document,
-  shapes,
-  stats,
-  viewport,
+  onRenderLodChange,
+  dragPreview,
   onPointerMove,
   onPointerDown,
+  onPointerUp,
   onPointerLeave,
+  onViewportChange,
   onViewportPan,
   onViewportResize,
   onViewportZoom,
 }: {
-  rendererBackend: 'skia' | 'canvas2d'
+  runtimeStore: CanvasRuntimeStore<EditorDocument>
   canvasLodConfig: Canvas2DLodConfig
-  document: EditorDocument
-  shapes: SceneShapeSnapshot[]
-  stats: SceneStats
-  viewport: CanvasViewportState
+  onRenderLodChange: (lodState: CanvasRenderLodState) => void
+  dragPreview: {
+    shapeIds: string[]
+    deltaX: number
+    deltaY: number
+  } | null
   onPointerMove: (pointer: { x: number; y: number }) => void
-  onPointerDown: (pointer: { x: number; y: number }) => void
+  onPointerDown: (
+    pointer: { x: number; y: number },
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+  ) => void
+  onPointerUp: VoidFunction
   onPointerLeave: VoidFunction
+  onViewportChange: (viewport: CanvasViewportState) => void
   onViewportPan: (deltaX: number, deltaY: number) => void
   onViewportResize: (width: number, height: number) => void
   onViewportZoom: (nextScale: number, anchor?: { x: number; y: number }) => void
 }) {
-  const renderer = React.useMemo(() => {
-    if (rendererBackend === 'skia') {
-      return SkiaRenderer as CanvasRenderer
+  const document = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document)
+  const shapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.shapes)
+  const stats = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.stats)
+  const viewport = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.viewport)
+  const renderDocument = React.useMemo(() => {
+    if (!dragPreview) {
+      return document
     }
 
+    const previewIds = new Set(dragPreview.shapeIds)
+    return {
+      ...document,
+      shapes: document.shapes.map((shape) => (
+        previewIds.has(shape.id)
+          ? {
+              ...shape,
+              x: shape.x + dragPreview.deltaX,
+              y: shape.y + dragPreview.deltaY,
+            }
+          : shape
+      )),
+    }
+  }, [document, dragPreview])
+  const renderShapes = React.useMemo(() => {
+    if (!dragPreview) {
+      return shapes
+    }
+
+    const previewIds = new Set(dragPreview.shapeIds)
+    return shapes.map((shape) => (
+      previewIds.has(shape.id)
+        ? {
+            ...shape,
+            x: shape.x + dragPreview.deltaX,
+            y: shape.y + dragPreview.deltaY,
+          }
+        : shape
+    ))
+  }, [shapes, dragPreview])
+
+  const renderer = React.useMemo<CanvasRenderer>(() => {
     const Canvas2DWithLod: CanvasRenderer = (props) => (
       <Canvas2DRenderer {...props} lodConfig={canvasLodConfig} />
     )
 
     return Canvas2DWithLod
-  }, [canvasLodConfig, rendererBackend])
+  }, [canvasLodConfig])
 
   return (
     <section className="playground-stage">
       <CanvasViewport
-        document={document}
+        document={renderDocument}
         renderer={renderer}
-        shapes={shapes}
+        overlayRenderer={CanvasSelectionOverlay}
+        shapes={renderShapes}
         stats={stats}
         viewport={viewport}
+        onRenderLodChange={onRenderLodChange}
         onPointerMove={onPointerMove}
         onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
         onPointerLeave={onPointerLeave}
+        onViewportChange={onViewportChange}
         onViewportPan={onViewportPan}
         onViewportResize={onViewportResize}
         onViewportZoom={onViewportZoom}
@@ -708,18 +819,12 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   )
 })
 
-function RendererDiagnosticsPanel({
-  rendererBackend,
-}: {
-  rendererBackend: 'skia' | 'canvas2d'
-}) {
-  const renderDiagnostics = useSkiaRenderDiagnostics()
+function RendererDiagnosticsPanel() {
   const canvas2dDiagnostics = useCanvas2DRenderDiagnostics()
 
-  if (rendererBackend === 'canvas2d') {
-    return (
-      <div className="panel-block">
-        <span className="panel-label">Renderer Cache</span>
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Renderer Cache</span>
       <div className="panel-stat-grid">
         <div className="panel-stat-card">
           <span>backend</span>
@@ -733,56 +838,9 @@ function RendererDiagnosticsPanel({
           <span>visible</span>
           <strong>{canvas2dDiagnostics.visibleShapeCount}</strong>
         </div>
-          <div className="panel-stat-card">
-            <span>draw</span>
-            <strong>{canvas2dDiagnostics.drawMs.toFixed(1)}ms</strong>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Renderer Cache</span>
-      <div className="panel-stat-grid">
         <div className="panel-stat-card">
-          <span>backend</span>
-          <strong>skia</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>tiles</span>
-          <strong>{renderDiagnostics.tileCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>visible</span>
-          <strong>{renderDiagnostics.visibleShapeCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>static</span>
-          <strong>{renderDiagnostics.staticShapeCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>overlay</span>
-          <strong>{renderDiagnostics.overlayShapeCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>rebuilt</span>
-          <strong>{renderDiagnostics.rebuiltTiles}</strong>
-        </div>
-      </div>
-      <div className="panel-list-rows">
-        <div className="panel-row">
-          <span>cache</span>
-          <strong>{renderDiagnostics.cacheHits} hit / {renderDiagnostics.cacheMisses} miss</strong>
-        </div>
-        <div className="panel-row">
           <span>draw</span>
-          <strong>{renderDiagnostics.drawMs.toFixed(1)}ms</strong>
-        </div>
-        <div className="panel-row">
-          <span>record</span>
-          <strong>{renderDiagnostics.recordMs.toFixed(1)}ms</strong>
+          <strong>{canvas2dDiagnostics.drawMs.toFixed(1)}ms</strong>
         </div>
       </div>
     </div>

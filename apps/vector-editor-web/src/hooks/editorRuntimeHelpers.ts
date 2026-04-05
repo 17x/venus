@@ -22,6 +22,10 @@ export function mapToolNameToToolId(toolName: ToolName): ToolId {
       return 'ellipse'
     case 'lineSegment':
       return 'lineSegment'
+    case 'polygon':
+      return 'polygon'
+    case 'star':
+      return 'star'
     case 'text':
       return 'text'
     case 'pencil':
@@ -30,6 +34,113 @@ export function mapToolNameToToolId(toolName: ToolName): ToolId {
     default:
       return 'select'
   }
+}
+
+export function createShapeElementFromTool(
+  toolName: ToolName,
+  point: {x: number; y: number},
+): ElementProps | null {
+  if (toolName === 'rectangle') {
+    const width = 140
+    const height = 96
+    return {
+      id: nid(),
+      type: 'rectangle',
+      name: 'Rectangle',
+      x: point.x - width / 2,
+      y: point.y - height / 2,
+      width,
+      height,
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'ellipse') {
+    const width = 120
+    const height = 120
+    return {
+      id: nid(),
+      type: 'ellipse',
+      name: 'Ellipse',
+      x: point.x - width / 2,
+      y: point.y - height / 2,
+      width,
+      height,
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'lineSegment') {
+    return {
+      id: nid(),
+      type: 'lineSegment',
+      name: 'Line',
+      x: point.x - 80,
+      y: point.y - 20,
+      width: 160,
+      height: 40,
+      fill: {enabled: false, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 2},
+    }
+  }
+
+  if (toolName === 'polygon') {
+    const width = 140
+    const height = 120
+    const x = point.x - width / 2
+    const y = point.y - height / 2
+    return {
+      id: nid(),
+      type: 'polygon',
+      name: 'Polygon',
+      x,
+      y,
+      width,
+      height,
+      points: createPolygonPoints(x, y, width, height),
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'star') {
+    const width = 140
+    const height = 140
+    const x = point.x - width / 2
+    const y = point.y - height / 2
+    return {
+      id: nid(),
+      type: 'star',
+      name: 'Star',
+      x,
+      y,
+      width,
+      height,
+      points: createStarPoints(x, y, width, height),
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'text') {
+    const width = 180
+    const height = 40
+    return {
+      id: nid(),
+      type: 'text',
+      name: 'Text',
+      x: point.x - width / 2,
+      y: point.y - height / 2,
+      width,
+      height,
+      fill: {enabled: false, color: '#ffffff'},
+      stroke: {enabled: false, color: '#111827', weight: 0},
+    }
+  }
+
+  return null
 }
 
 export function buildSelectedProps(shape: DocumentNode | null): ElementProps | null {
@@ -43,6 +154,15 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
     name: shape.text ?? shape.name,
     asset: shape.assetId,
     assetUrl: shape.assetUrl,
+    clipPathId: shape.clipPathId,
+    clipRule: shape.clipRule,
+    schemaMeta: shape.schema
+      ? {
+          sourceNodeType: shape.schema.sourceNodeType,
+          sourceNodeKind: shape.schema.sourceNodeKind,
+          sourceFeatureKinds: shape.schema.sourceFeatureKinds?.slice(),
+        }
+      : undefined,
     x: shape.x,
     y: shape.y,
     width: shape.width,
@@ -53,7 +173,9 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
       cp1: point.cp1 ? {...point.cp1} : point.cp1,
       cp2: point.cp2 ? {...point.cp2} : point.cp2,
     })),
-    rotation: 0,
+    strokeStartArrowhead: shape.strokeStartArrowhead,
+    strokeEndArrowhead: shape.strokeEndArrowhead,
+    rotation: shape.rotation ?? 0,
     opacity: 1,
     fill: {
       enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
@@ -178,10 +300,41 @@ export function isPenTool(toolName: ToolName) {
   return toolName === 'pencil' || toolName === 'path'
 }
 
+function createPolygonPoints(x: number, y: number, width: number, height: number) {
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const radius = Math.min(width, height) / 2
+  const sides = 5
+
+  return Array.from({length: sides}, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / sides
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    }
+  })
+}
+
+function createStarPoints(x: number, y: number, width: number, height: number) {
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const outerRadius = Math.min(width, height) / 2
+  const innerRadius = outerRadius * 0.46
+
+  return Array.from({length: 10}, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI / 5) * index
+    const radius = index % 2 === 0 ? outerRadius : innerRadius
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    }
+  })
+}
+
 export function appendPenPoint(
   draft: PenDraftState,
   point: {x: number; y: number},
-  minDistance = 4,
+  minDistance = 3,
 ) {
   const lastPoint = draft.points[draft.points.length - 1]
 
@@ -200,8 +353,73 @@ export function appendPenPoint(
   draft.points.push(point)
 }
 
+function simplifyDrawPoints(
+  points: Array<{x: number; y: number}>,
+  options: {
+    minDistance?: number
+    maxSegmentLength?: number
+    minCornerCos?: number
+  } = {},
+) {
+  const {
+    minDistance = 3,
+    maxSegmentLength = 28,
+    minCornerCos = 0.985,
+  } = options
+
+  if (points.length <= 2) {
+    return points.map((point) => ({...point}))
+  }
+
+  const simplified = [{...points[0]}]
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = simplified[simplified.length - 1]
+    const current = points[index]
+    const next = points[index + 1]
+    const dx = current.x - previous.x
+    const dy = current.y - previous.y
+    const distance = Math.hypot(dx, dy)
+
+    if (distance >= maxSegmentLength) {
+      simplified.push({...current})
+      continue
+    }
+
+    if (distance < minDistance) {
+      continue
+    }
+
+    const prevVectorX = current.x - previous.x
+    const prevVectorY = current.y - previous.y
+    const nextVectorX = next.x - current.x
+    const nextVectorY = next.y - current.y
+    const prevLength = Math.hypot(prevVectorX, prevVectorY)
+    const nextLength = Math.hypot(nextVectorX, nextVectorY)
+
+    if (prevLength === 0 || nextLength === 0) {
+      continue
+    }
+
+    const cornerCos =
+      (prevVectorX * nextVectorX + prevVectorY * nextVectorY) /
+      (prevLength * nextLength)
+
+    if (cornerCos <= minCornerCos) {
+      simplified.push({...current})
+    }
+  }
+
+  simplified.push({...points[points.length - 1]})
+  return simplified
+}
+
 export function createPathElement(points: Array<{x: number; y: number}>): ElementProps {
-  const path = convertDrawPointsToBezierPoints(points)
+  // Freehand input is intentionally simplified before bezier conversion so the
+  // resulting path stays editable and visually smoother instead of preserving
+  // every noisy pointer sample.
+  const simplifiedPoints = simplifyDrawPoints(points)
+  const path = convertDrawPointsToBezierPoints(simplifiedPoints)
   const bounds = getBoundingRectFromBezierPoints(path.points)
 
   return {
@@ -212,7 +430,7 @@ export function createPathElement(points: Array<{x: number; y: number}>): Elemen
     y: bounds.y,
     width: bounds.width,
     height: bounds.height,
-    points: points.map((point) => ({...point})),
+    points: simplifiedPoints.map((point) => ({...point})),
     bezierPoints: path.points.map((point) => ({
       anchor: {...point.anchor},
       cp1: point.cp1 ? {...point.cp1} : point.cp1,

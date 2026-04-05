@@ -1,7 +1,7 @@
-import {useCallback, useMemo, useRef, useState} from 'react'
+import {createElement, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@lite-u/ui'
 import {nid, type ToolName} from '@venus/document-core'
-import {useCanvasRuntime} from '@venus/canvas-base'
+import {createSelectionDragController, useCanvasRuntime} from '@venus/canvas-base'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
@@ -14,9 +14,18 @@ import readFileHelper from '../contexts/fileContext/readFileHelper.ts'
 import {
   applyMatrixToPoint,
   cloneElementProps,
+  createShapeElementFromTool,
   mapToolNameToToolId,
   offsetElementPosition,
 } from './editorRuntimeHelpers.ts'
+import {
+  buildSelectionHandles,
+  buildSelectionState,
+  createTransformSessionManager,
+  InteractionOverlay,
+} from '../interaction/index.ts'
+import type {HandleKind} from '../interaction/index.ts'
+import type {InteractionBounds, TransformPreview} from '../interaction/index.ts'
 import {deriveEditorUIState} from './deriveEditorUIState.ts'
 import {useEditorDocument} from './useEditorDocument.ts'
 import {usePenTool} from './usePenTool.ts'
@@ -26,8 +35,157 @@ import type {
   EditorRuntimeCommands,
   EditorRuntimeRefs,
   EditorRuntimeState,
+  SelectedElementProps,
   VisionFileAsset,
 } from './useEditorRuntime.types.ts'
+
+function isClosedMaskShape(shape: import('@venus/document-core').DocumentNode | null | undefined) {
+  return !!shape && (
+    shape.type === 'rectangle' ||
+    shape.type === 'ellipse' ||
+    shape.type === 'polygon' ||
+    shape.type === 'star' ||
+    shape.type === 'path'
+  )
+}
+
+function boundsOverlap(
+  left: import('@venus/document-core').DocumentNode,
+  right: import('@venus/document-core').DocumentNode,
+) {
+  return !(
+    left.x + left.width <= right.x ||
+    right.x + right.width <= left.x ||
+    left.y + left.height <= right.y ||
+    right.y + right.height <= left.y
+  )
+}
+
+function getNormalizedBounds(x: number, y: number, width: number, height: number) {
+  return {
+    minX: Math.min(x, x + width),
+    minY: Math.min(y, y + height),
+    maxX: Math.max(x, x + width),
+    maxY: Math.max(y, y + height),
+  }
+}
+
+function remapPoint(
+  point: {x: number; y: number},
+  source: {x: number; y: number; width: number; height: number},
+  target: {x: number; y: number; width: number; height: number},
+) {
+  const scaleX = source.width === 0 ? 1 : target.width / source.width
+  const scaleY = source.height === 0 ? 1 : target.height / source.height
+  return {
+    x: target.x + (point.x - source.x) * scaleX,
+    y: target.y + (point.y - source.y) * scaleY,
+  }
+}
+
+function applyPreviewGeometryToShape(
+  shape: import('@venus/document-core').DocumentNode,
+  preview: {x: number; y: number; width: number; height: number; rotation?: number},
+) {
+  const source = {
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+  }
+  const target = {
+    x: preview.x,
+    y: preview.y,
+    width: preview.width,
+    height: preview.height,
+  }
+
+  return {
+    ...shape,
+    x: preview.x,
+    y: preview.y,
+    width: preview.width,
+    height: preview.height,
+    rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
+    points:
+      (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
+        ? shape.points.map((point) => remapPoint(point, source, target))
+        : shape.points,
+    bezierPoints:
+      shape.type === 'path' && shape.bezierPoints
+        ? shape.bezierPoints.map((point) => ({
+            anchor: remapPoint(point.anchor, source, target),
+            cp1: point.cp1 ? remapPoint(point.cp1, source, target) : point.cp1,
+            cp2: point.cp2 ? remapPoint(point.cp2, source, target) : point.cp2,
+          }))
+        : shape.bezierPoints,
+  }
+}
+
+function intersectsBounds(
+  left: {minX: number; minY: number; maxX: number; maxY: number},
+  right: {minX: number; minY: number; maxX: number; maxY: number},
+) {
+  return !(
+    left.maxX < right.minX ||
+    right.maxX < left.minX ||
+    left.maxY < right.minY ||
+    right.maxY < left.minY
+  )
+}
+
+function hitTestSceneShape(
+  shapes: Array<{x: number; y: number; width: number; height: number; type: string}>,
+  point: {x: number; y: number},
+  options?: {
+    allowFrameSelection?: boolean
+  },
+) {
+  const allowFrameSelection = options?.allowFrameSelection ?? true
+  for (let index = shapes.length - 1; index >= 0; index -= 1) {
+    const shape = shapes[index]
+    if (!allowFrameSelection && shape.type === 'frame') {
+      continue
+    }
+    const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? 6 : 0
+    const bounds = getNormalizedBounds(
+      shape.x - tolerance,
+      shape.y - tolerance,
+      shape.width + tolerance * 2,
+      shape.height + tolerance * 2,
+    )
+    if (isPointInBounds(point, bounds)) {
+      return index
+    }
+  }
+  return -1
+}
+
+function isPointInBounds(
+  point: {x: number; y: number},
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+) {
+  return (
+    point.x >= bounds.minX &&
+    point.x <= bounds.maxX &&
+    point.y >= bounds.minY &&
+    point.y <= bounds.maxY
+  )
+}
+
+function pickHandleAtPoint(
+  point: {x: number; y: number},
+  handles: Array<{kind: HandleKind; x: number; y: number}>,
+  tolerance: number,
+) {
+  for (const handle of handles) {
+    if (Math.hypot(handle.x - point.x, handle.y - point.y) <= tolerance) {
+      return handle
+    }
+  }
+
+  return null
+}
 
 function toElementPropsFromNode(selectedNode: import('@venus/document-core').DocumentNode): ElementProps {
   return {
@@ -36,16 +194,21 @@ function toElementPropsFromNode(selectedNode: import('@venus/document-core').Doc
     name: selectedNode.text ?? selectedNode.name,
     asset: selectedNode.assetId,
     assetUrl: selectedNode.assetUrl,
+    clipPathId: selectedNode.clipPathId,
+    clipRule: selectedNode.clipRule,
     x: selectedNode.x,
     y: selectedNode.y,
     width: selectedNode.width,
     height: selectedNode.height,
+    rotation: selectedNode.rotation ?? 0,
     points: selectedNode.points?.map((point) => ({...point})),
     bezierPoints: selectedNode.bezierPoints?.map((point) => ({
       anchor: {...point.anchor},
       cp1: point.cp1 ? {...point.cp1} : point.cp1,
       cp2: point.cp2 ? {...point.cp2} : point.cp2,
     })),
+    strokeStartArrowhead: selectedNode.strokeStartArrowhead,
+    strokeEndArrowhead: selectedNode.strokeEndArrowhead,
   }
 }
 
@@ -87,9 +250,21 @@ const useEditorRuntime = (options?: {
   const [currentTool, setCurrentToolState] = useState<ToolName>('selector')
   const [clipboard, setClipboard] = useState<ElementProps[]>([])
   const [pasteSerial, setPasteSerial] = useState(0)
+  const [transformPreview, setTransformPreview] = useState<TransformPreview | null>(null)
+  const [activeTransformHandle, setActiveTransformHandle] = useState<HandleKind | null>(null)
+  const [pendingTransformCommit, setPendingTransformCommit] = useState(false)
+  const [marquee, setMarquee] = useState<{
+    start: {x: number; y: number}
+    current: {x: number; y: number}
+    mode: 'replace' | 'add' | 'toggle'
+  } | null>(null)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
+  const transformManagerRef = useRef(createTransformSessionManager())
+  const selectionDragControllerRef = useRef(createSelectionDragController({
+    allowFrameSelection: false,
+  }))
   const createWorker = useCallback(
     () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
@@ -100,6 +275,7 @@ const useEditorRuntime = (options?: {
     capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
     createWorker,
     document,
+    allowFrameSelection: false,
   }), [createWorker, document])
   const canvasRuntime = useCanvasRuntime(runtimeOptions)
   const {add} = useNotification()
@@ -107,10 +283,112 @@ const useEditorRuntime = (options?: {
   const selectedShape = canvasRuntime.stats.selectedIndex >= 0
     ? canvasRuntime.shapes[canvasRuntime.stats.selectedIndex] ?? null
     : null
+  const selectedShapeIds = useMemo(
+    () => canvasRuntime.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
+    [canvasRuntime.shapes],
+  )
   const selectedNode = selectedShape
     ? canvasRuntime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
     : null
   const selectedShapeId = selectedShape?.id ?? null
+  const previewDocument = useMemo(() => {
+    if (!transformPreview) {
+      return canvasRuntime.document
+    }
+    const previewById = new Map(
+      transformPreview.shapes.map((shape) => [shape.shapeId, shape] as const),
+    )
+
+    return {
+      ...canvasRuntime.document,
+      shapes: canvasRuntime.document.shapes.map((shape) =>
+        previewById.has(shape.id)
+          ? applyPreviewGeometryToShape(shape, {
+              x: previewById.get(shape.id)?.x ?? shape.x,
+              y: previewById.get(shape.id)?.y ?? shape.y,
+              width: previewById.get(shape.id)?.width ?? shape.width,
+              height: previewById.get(shape.id)?.height ?? shape.height,
+              rotation: previewById.get(shape.id)?.rotation,
+            })
+          : shape,
+      ),
+    }
+  }, [canvasRuntime.document, transformPreview])
+  const previewShapes = useMemo(() => {
+    if (!transformPreview) {
+      return canvasRuntime.shapes
+    }
+
+    const previewById = new Map(
+      transformPreview.shapes.map((shape) => [shape.shapeId, shape] as const),
+    )
+
+    return canvasRuntime.shapes.map((shape) => (
+      previewById.has(shape.id)
+        ? {
+            ...shape,
+            x: previewById.get(shape.id)?.x ?? shape.x,
+            y: previewById.get(shape.id)?.y ?? shape.y,
+            width: previewById.get(shape.id)?.width ?? shape.width,
+            height: previewById.get(shape.id)?.height ?? shape.height,
+          }
+        : shape
+    ))
+  }, [canvasRuntime.shapes, transformPreview])
+
+  useEffect(() => {
+    if (!pendingTransformCommit || !transformPreview) {
+      return
+    }
+
+    const synced = transformPreview.shapes.every((item) => {
+      const shape = canvasRuntime.document.shapes.find((candidate) => candidate.id === item.shapeId)
+      if (!shape) {
+        return true
+      }
+
+      return (
+        shape.x === item.x &&
+        shape.y === item.y &&
+        shape.width === item.width &&
+        shape.height === item.height &&
+        (typeof item.rotation !== 'number' || (shape.rotation ?? 0) === item.rotation)
+      )
+    })
+
+    if (synced) {
+      setTransformPreview(null)
+      setPendingTransformCommit(false)
+    }
+  }, [canvasRuntime.document.shapes, pendingTransformCommit, transformPreview])
+  const selectionState = useMemo(
+    () => buildSelectionState(previewDocument, previewShapes),
+    [previewDocument, previewShapes],
+  )
+  const marqueeBounds = useMemo<InteractionBounds | null>(() => {
+    if (!marquee) {
+      return null
+    }
+    return getNormalizedBounds(
+      marquee.start.x,
+      marquee.start.y,
+      marquee.current.x - marquee.start.x,
+      marquee.current.y - marquee.start.y,
+    )
+  }, [marquee])
+  const OverlayRenderer = useMemo(() => {
+    const overlayMarquee = marqueeBounds
+    const hideSelectionChrome = activeTransformHandle === 'move' || activeTransformHandle === 'rotate'
+    return function Overlay(
+      props: Parameters<typeof InteractionOverlay>[0],
+    ) {
+      return createElement(InteractionOverlay, {
+        ...props,
+        marqueeBounds: overlayMarquee,
+        hideSelectionChrome,
+      })
+    }
+  }, [activeTransformHandle, marqueeBounds])
 
   const handleCommand = useCallback((command: import('@venus/editor-worker').EditorRuntimeCommand) => {
     canvasRuntime.dispatchCommand(command)
@@ -175,6 +453,91 @@ const useEditorRuntime = (options?: {
 
     canvasRuntime.zoomViewport(nextScale.value, point)
   }, [canvasRuntime])
+
+  const applyAutoMask = useCallback(() => {
+    if (!selectedNode || selectedNode.type === 'frame' || selectedNode.type === 'group') {
+      add('Select an image or a closed shape to create a mask.', 'info')
+      return
+    }
+
+    const otherShapes = canvasRuntime.document.shapes.filter((shape) =>
+      shape.id !== selectedNode.id &&
+      shape.type !== 'frame' &&
+      shape.type !== 'group',
+    )
+
+    if (selectedNode.type === 'image') {
+      const candidates = otherShapes.filter((shape) =>
+        isClosedMaskShape(shape) && boundsOverlap(selectedNode, shape),
+      )
+
+      if (candidates.length !== 1) {
+        add(
+          candidates.length === 0
+            ? 'No single closed shape overlaps this image.'
+            : 'Multiple closed shapes overlap this image. Narrow the target first.',
+          'info',
+        )
+        return
+      }
+
+      handleCommand({
+        type: 'shape.set-clip',
+        shapeId: selectedNode.id,
+        clipPathId: candidates[0].id,
+        clipRule: 'nonzero',
+      })
+      add(`Masked with ${candidates[0].name}.`, 'info')
+      return
+    }
+
+    if (isClosedMaskShape(selectedNode)) {
+      const candidates = otherShapes.filter((shape) =>
+        shape.type === 'image' && boundsOverlap(selectedNode, shape),
+      )
+
+      if (candidates.length !== 1) {
+        add(
+          candidates.length === 0
+            ? 'No single image overlaps this shape.'
+            : 'Multiple images overlap this shape. Narrow the target first.',
+          'info',
+        )
+        return
+      }
+
+      handleCommand({
+        type: 'shape.set-clip',
+        shapeId: candidates[0].id,
+        clipPathId: selectedNode.id,
+        clipRule: 'nonzero',
+      })
+      add(`Masked ${candidates[0].name} with ${selectedNode.name}.`, 'info')
+      return
+    }
+
+    add('Only images and closed shapes can participate in masking.', 'info')
+  }, [add, canvasRuntime.document.shapes, handleCommand, selectedNode])
+
+  const clearMask = useCallback(() => {
+    if (!selectedNode || selectedNode.type !== 'image') {
+      add('Select an image to clear its mask.', 'info')
+      return
+    }
+
+    if (!selectedNode.clipPathId) {
+      add('This image does not have an active mask.', 'info')
+      return
+    }
+
+    handleCommand({
+      type: 'shape.set-clip',
+      shapeId: selectedNode.id,
+      clipPathId: undefined,
+      clipRule: undefined,
+    })
+    add('Image mask cleared.', 'info')
+  }, [add, handleCommand, selectedNode])
 
   const executeAction = useCallback<EditorExecutor>((type, data) => {
     if (type === 'print') {
@@ -246,6 +609,16 @@ const useEditorRuntime = (options?: {
       return
     }
 
+    if (type === 'image-mask-with-shape') {
+      applyAutoMask()
+      return
+    }
+
+    if (type === 'image-clear-mask') {
+      clearMask()
+      return
+    }
+
     if (type === 'element-paste') {
       if (clipboard.length === 0) {
         return
@@ -273,10 +646,12 @@ const useEditorRuntime = (options?: {
     }
 
     if (type === 'selection-all') {
-      const target = [...canvasRuntime.document.shapes].reverse().find((shape) => shape.type !== 'frame')
       handleCommand({
         type: 'selection.set',
-        shapeId: target?.id ?? null,
+        shapeIds: canvasRuntime.document.shapes
+          .filter((shape) => shape.type !== 'frame')
+          .map((shape) => shape.id),
+        mode: 'replace',
       })
       return
     }
@@ -396,10 +771,15 @@ const useEditorRuntime = (options?: {
     }
 
     if (type === 'selection-modify' && data && typeof data === 'object' && 'idSet' in data) {
-      const firstId = Array.from(data.idSet as Set<string>)[0] ?? null
+      const nextIds = Array.from(data.idSet as Set<string>)
+      const mode =
+        'mode' in data && typeof data.mode === 'string'
+          ? data.mode as 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
+          : 'replace'
       handleCommand({
         type: 'selection.set',
-        shapeId: firstId,
+        shapeIds: nextIds,
+        mode,
       })
       return
     }
@@ -416,6 +796,7 @@ const useEditorRuntime = (options?: {
       const nextY = typeof patch.props.y === 'number' ? patch.props.y : shape.y
       const nextWidth = typeof patch.props.width === 'number' ? patch.props.width : shape.width
       const nextHeight = typeof patch.props.height === 'number' ? patch.props.height : shape.height
+      const nextRotation = typeof patch.props.rotation === 'number' ? patch.props.rotation : (shape.rotation ?? 0)
       const nextName = typeof patch.props.name === 'string' ? patch.props.name : shape.text ?? shape.name
 
       if (nextName !== (shape.text ?? shape.name)) {
@@ -444,10 +825,21 @@ const useEditorRuntime = (options?: {
           height: nextHeight,
         })
       }
+
+      if (nextRotation !== (shape.rotation ?? 0)) {
+        handleCommand({
+          type: 'shape.rotate',
+          shapeId: shape.id,
+          rotation: nextRotation,
+        })
+      }
     }
   }, [
+    add,
+    applyAutoMask,
     canvasRuntime,
     clipboard,
+    clearMask,
     closeFile,
     handleCommand,
     insertElement,
@@ -501,10 +893,40 @@ const useEditorRuntime = (options?: {
     canvasRuntime,
     clipboard,
     selectedNode,
-    selectedShapeId,
+    selectedIds: selectedShapeIds,
     showCreateFile,
     showPrint,
   })
+  const selectedProps: SelectedElementProps | null = useMemo(() => {
+    if (!uiState.selectedProps) {
+      return null
+    }
+
+    if (!selectedNode || selectedNode.type !== 'image') {
+      return uiState.selectedProps
+    }
+
+    const asset = file?.assets.find((item) => item.id === selectedNode.assetId)
+    const imageRef = asset?.imageRef as {naturalWidth?: number; naturalHeight?: number} | undefined
+
+    return {
+      ...uiState.selectedProps,
+      schemaMeta: selectedNode.schema
+        ? {
+            sourceNodeType: selectedNode.schema.sourceNodeType,
+            sourceNodeKind: selectedNode.schema.sourceNodeKind,
+            sourceFeatureKinds: selectedNode.schema.sourceFeatureKinds?.slice(),
+          }
+        : uiState.selectedProps.schemaMeta,
+      imageMeta: {
+        assetId: selectedNode.assetId,
+        assetName: asset?.name,
+        mimeType: asset?.mimeType,
+        naturalWidth: imageRef?.naturalWidth,
+        naturalHeight: imageRef?.naturalHeight,
+      },
+    }
+  }, [file?.assets, selectedNode, uiState.selectedProps])
 
   const documentState: EditorDocumentState = {
     document: canvasRuntime.document,
@@ -515,35 +937,297 @@ const useEditorRuntime = (options?: {
   const runtimeState: EditorRuntimeState = {
     canvas: {
       Renderer: Canvas2DRenderer,
-      document: canvasRuntime.document,
-      shapes: canvasRuntime.shapes,
+      OverlayRenderer: OverlayRenderer,
+      document: previewDocument,
+      shapes: previewShapes,
       stats: canvasRuntime.stats,
       viewport: canvasRuntime.viewport,
       ready: canvasRuntime.ready,
       onPointerMove: (point) => {
         worldPointRef.current?.set(point)
+        const transformSession = transformManagerRef.current.getSession()
+        if (transformSession) {
+          const preview = transformManagerRef.current.update(point)
+          if (preview) {
+            setTransformPreview(preview)
+          }
+          return
+        }
+        if (marquee) {
+          setMarquee((current) => (current ? {
+            ...current,
+            current: point,
+          } : current))
+          return
+        }
+        if (currentTool === 'selector' || currentTool === 'dselector') {
+          const dragMove = selectionDragControllerRef.current.pointerMove(point, {
+            document: previewDocument,
+            shapes: canvasRuntime.shapes,
+          })
+          if (dragMove.phase === 'pending') {
+            return
+          }
+          if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
+            if (dragMove.phase === 'started') {
+              const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
+              const dragShapes = dragShapeIds
+                .map((id) => previewDocument.shapes.find((shape) => shape.id === id))
+                .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
+
+              if (dragShapes.length > 0) {
+                transformManagerRef.current.start({
+                  shapeIds: dragShapes.map((shape) => shape.id),
+                  shapes: dragShapes.map((shape) => ({
+                    shapeId: shape.id,
+                    x: shape.x,
+                    y: shape.y,
+                    width: Math.max(1, shape.width),
+                    height: Math.max(1, shape.height),
+                    rotation: shape.rotation ?? 0,
+                    centerX: shape.x + shape.width / 2,
+                    centerY: shape.y + shape.height / 2,
+                  })),
+                  handle: 'move',
+                  pointer: dragMove.session.start,
+                  startBounds: dragMove.session.bounds,
+                })
+                setActiveTransformHandle('move')
+                setTransformPreview({
+                  shapes: dragShapes.map((shape) => ({
+                    shapeId: shape.id,
+                    x: shape.x,
+                    y: shape.y,
+                    width: Math.max(1, shape.width),
+                    height: Math.max(1, shape.height),
+                    rotation: shape.rotation ?? 0,
+                  })),
+                })
+              }
+            }
+
+            const preview = transformManagerRef.current.update(point)
+            if (preview) {
+              setTransformPreview(preview)
+            }
+            return
+          }
+        }
         if (penTool.handlePointerMove(point)) {
           return
         }
         canvasRuntime.postPointer('pointermove', point)
       },
-      onPointerDown: (point) => {
+      onPointerDown: (point, modifiers) => {
         if (currentTool === 'zoomIn' || currentTool === 'zoomOut') {
           handleZoom(currentTool === 'zoomIn', point)
           return
         }
 
-        if (penTool.handlePointerDown(point)) {
+        if (currentTool === 'selector' || currentTool === 'dselector') {
+          const selectedNodes = selectedShapeIds
+            .map((id) => previewDocument.shapes.find((shape) => shape.id === id))
+            .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
+          const selectedBounds = selectionState.selectedBounds
+          const singleSelectedRotation = selectedNodes.length === 1
+            ? (selectedNodes[0].rotation ?? 0)
+            : 0
+          const handles = buildSelectionHandles({
+            selectedIds: selectionState.selectedIds,
+            hoverId: null,
+            selectedBounds,
+          }, {
+            rotateDegrees: singleSelectedRotation,
+          })
+          const handleTolerance = Math.max(6, 8 / Math.max(canvasRuntime.viewport.scale, 0.1))
+          const handle = pickHandleAtPoint(point, handles, handleTolerance)
+
+          if (handle && selectedBounds && selectedNodes.length > 0) {
+            selectionDragControllerRef.current.clear()
+            transformManagerRef.current.start({
+              shapeIds: selectedNodes.map((shape) => shape.id),
+              shapes: selectedNodes.map((shape) => ({
+                shapeId: shape.id,
+                x: shape.x,
+                y: shape.y,
+                width: Math.max(1, shape.width),
+                height: Math.max(1, shape.height),
+                rotation: shape.rotation ?? 0,
+                centerX: shape.x + shape.width / 2,
+                centerY: shape.y + shape.height / 2,
+              })),
+              handle: handle.kind,
+              pointer: point,
+              startBounds: selectedBounds,
+            })
+            setActiveTransformHandle(handle.kind)
+            setTransformPreview({
+              shapes: selectedNodes.map((shape) => ({
+                shapeId: shape.id,
+                x: shape.x,
+                y: shape.y,
+                width: Math.max(1, shape.width),
+                height: Math.max(1, shape.height),
+                rotation: shape.rotation ?? 0,
+              })),
+            })
+            return
+          }
+
+          if (selectedBounds && selectedNodes.length > 0 && isPointInBounds(point, selectedBounds)) {
+            selectionDragControllerRef.current.clear()
+            transformManagerRef.current.start({
+              shapeIds: selectedNodes.map((shape) => shape.id),
+              shapes: selectedNodes.map((shape) => ({
+                shapeId: shape.id,
+                x: shape.x,
+                y: shape.y,
+                width: Math.max(1, shape.width),
+                height: Math.max(1, shape.height),
+                rotation: shape.rotation ?? 0,
+                centerX: shape.x + shape.width / 2,
+                centerY: shape.y + shape.height / 2,
+              })),
+              handle: 'move',
+              pointer: point,
+              startBounds: selectedBounds,
+            })
+            setActiveTransformHandle('move')
+            setTransformPreview({
+              shapes: selectedNodes.map((shape) => ({
+                shapeId: shape.id,
+                x: shape.x,
+                y: shape.y,
+                width: Math.max(1, shape.width),
+                height: Math.max(1, shape.height),
+                rotation: shape.rotation ?? 0,
+              })),
+            })
+            return
+          }
+
+          const hitIndex = hitTestSceneShape(canvasRuntime.shapes, point, {
+            allowFrameSelection: false,
+          })
+          if (hitIndex >= 0) {
+            canvasRuntime.postPointer('pointerdown', point, modifiers)
+            selectionDragControllerRef.current.pointerDown(point, {
+              document: previewDocument,
+              shapes: canvasRuntime.shapes,
+            }, modifiers)
+            return
+          }
+
+          selectionDragControllerRef.current.clear()
+          setMarquee({
+            start: point,
+            current: point,
+            mode: modifiers?.shiftKey
+              ? 'add'
+              : (modifiers?.metaKey || modifiers?.ctrlKey)
+                ? 'toggle'
+                : 'replace',
+          })
           return
         }
 
-        canvasRuntime.postPointer('pointerdown', point)
+        const shapeFromTool = createShapeElementFromTool(currentTool, point)
+        if (shapeFromTool) {
+          insertElement(shapeFromTool)
+          return
+        }
+
+        if (penTool.handlePointerDown(point)) {
+          selectionDragControllerRef.current.clear()
+          return
+        }
+
+        selectionDragControllerRef.current.clear()
+        canvasRuntime.postPointer('pointerdown', point, modifiers)
       },
-      onPointerUp: penTool.handlePointerUp,
+      onPointerUp: () => {
+        selectionDragControllerRef.current.pointerUp()
+        setActiveTransformHandle(null)
+        const transformSession = transformManagerRef.current.commit()
+        if (transformSession) {
+          const preview = transformPreview
+
+          if (preview) {
+            preview.shapes.forEach((item) => {
+              const shape = canvasRuntime.document.shapes.find((candidate) => candidate.id === item.shapeId)
+              if (!shape) {
+                return
+              }
+
+              if (shape.x !== item.x || shape.y !== item.y) {
+                handleCommand({
+                  type: 'shape.move',
+                  shapeId: shape.id,
+                  x: item.x,
+                  y: item.y,
+                })
+              }
+              if (shape.width !== item.width || shape.height !== item.height) {
+                handleCommand({
+                  type: 'shape.resize',
+                  shapeId: shape.id,
+                  width: item.width,
+                  height: item.height,
+                })
+              }
+              if (typeof item.rotation === 'number' && item.rotation !== (shape.rotation ?? 0)) {
+                handleCommand({
+                  type: 'shape.rotate',
+                  shapeId: shape.id,
+                  rotation: item.rotation,
+                })
+              }
+            })
+            setPendingTransformCommit(true)
+          } else {
+            setTransformPreview(null)
+            setPendingTransformCommit(false)
+          }
+          return
+        }
+
+        if (marquee) {
+          const bounds = getNormalizedBounds(
+            marquee.start.x,
+            marquee.start.y,
+            marquee.current.x - marquee.start.x,
+            marquee.current.y - marquee.start.y,
+          )
+          const selectedIds = previewDocument.shapes
+            .filter((shape) => shape.type !== 'frame')
+            .filter((shape) => intersectsBounds(
+              bounds,
+              getNormalizedBounds(shape.x, shape.y, shape.width, shape.height),
+            ))
+            .map((shape) => shape.id)
+
+          handleCommand({
+            type: 'selection.set',
+            shapeIds: selectedIds,
+            mode: marquee.mode,
+          })
+          setMarquee(null)
+          return
+        }
+
+        penTool.handlePointerUp()
+      },
       onPointerLeave: () => {
+        transformManagerRef.current.cancel()
+        setTransformPreview(null)
+        setActiveTransformHandle(null)
+        setPendingTransformCommit(false)
+        selectionDragControllerRef.current.clear()
+        setMarquee(null)
         penTool.clearDraft()
         canvasRuntime.clearHover()
       },
+      onViewportChange: canvasRuntime.setViewport,
       onViewportPan: canvasRuntime.panViewport,
       onViewportResize: canvasRuntime.resizeViewport,
       onViewportZoom: (nextScale, anchor) => {
@@ -582,7 +1266,10 @@ const useEditorRuntime = (options?: {
   return {
     documentState,
     runtimeState,
-    uiState,
+    uiState: {
+      ...uiState,
+      selectedProps,
+    },
     commands,
     refs,
     file,

@@ -158,6 +158,7 @@ function App() {
             onPointerMove={(pointer) => viewer.postPointer('pointermove', pointer)}
             onPointerDown={(pointer) => viewer.postPointer('pointerdown', pointer)}
             onPointerLeave={viewer.clearHover}
+            onViewportChange={viewer.setViewport}
             onViewportPan={viewer.panViewport}
             onViewportResize={viewer.resizeViewport}
             onViewportZoom={viewer.zoomViewport}

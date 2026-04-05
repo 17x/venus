@@ -37,6 +37,20 @@ export type HistoryPatch =
       nextHeight: number
     }
   | {
+      type: 'rotate-shape'
+      shapeId: string
+      prevRotation: number
+      nextRotation: number
+    }
+  | {
+      type: 'set-shape-clip'
+      shapeId: string
+      prevClipPathId?: string
+      nextClipPathId?: string
+      prevClipRule?: 'nonzero' | 'evenodd'
+      nextClipRule?: 'nonzero' | 'evenodd'
+    }
+  | {
       type: 'reorder-shape'
       shapeId: string
       fromIndex: number
@@ -52,10 +66,13 @@ export type HistoryPatch =
         text?: string
         assetId?: string
         assetUrl?: string
+        clipPathId?: string
+        clipRule?: 'nonzero' | 'evenodd'
         x: number
         y: number
         width: number
         height: number
+        rotation?: number
         points?: Array<{x: number; y: number}>
         bezierPoints?: Array<{
           anchor: {x: number; y: number}
@@ -74,10 +91,13 @@ export type HistoryPatch =
         text?: string
         assetId?: string
         assetUrl?: string
+        clipPathId?: string
+        clipRule?: 'nonzero' | 'evenodd'
         x: number
         y: number
         width: number
         height: number
+        rotation?: number
         points?: Array<{x: number; y: number}>
         bezierPoints?: Array<{
           anchor: {x: number; y: number}

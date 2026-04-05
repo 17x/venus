@@ -1,11 +1,11 @@
 import {useEffect, useState} from 'react'
 import {ProtectedInput} from './protectedInput.tsx'
 import {Con, Panel} from '@lite-u/ui'
-import type {ElementProps} from '@lite-u/editor/types'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import type {SelectedElementProps} from '../../hooks/useEditorRuntime.types.ts'
 
 interface PropPanelProps {
-  props?: ElementProps
+  props?: SelectedElementProps
   executeAction: EditorExecutor
 }
 
@@ -31,7 +31,7 @@ const PropPanel = ({props, executeAction}: PropPanelProps) => {
 
 export default PropPanel
 
-const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeAction: EditorExecutor }) => {
+const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, executeAction: EditorExecutor }) => {
   const fill = {
     enabled: props.fill?.enabled ?? true,
     color: props.fill?.color ?? '#000000',
@@ -44,7 +44,7 @@ const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeA
   const typeLabel = String(props.type ?? 'unknown')
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const keyName = e.target.name as Extract<keyof ElementProps, string>
+    const keyName = e.target.name as Extract<keyof SelectedElementProps, string>
     let newValue: string | number = e.target.value
 
     // @ts-ignore
@@ -75,6 +75,12 @@ const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeA
           {typeLabel}
         </div>
       </div>
+      <div className="w-full h-full flex justify-between items-center gap-2">
+        <span>ID:</span>
+        <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate" title={props.id}>
+          {props.id}
+        </div>
+      </div>
       {props.type === 'text' && (
         <div className=" w-full h-full flex justify-between items-center gap-2">
           <span>Text:</span>
@@ -86,6 +92,74 @@ const ShapePropsPanel = ({props, executeAction}: { props: ElementProps, executeA
             className="flex-1 min-w-0 py-1 text-black rounded"
           />
         </div>
+      )}
+      {props.type === 'image' && (
+        <>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Asset:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {props.imageMeta?.assetName ?? props.asset ?? 'Linked image'}
+            </div>
+          </div>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Source:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {props.imageMeta?.mimeType ?? 'image/*'}
+            </div>
+          </div>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Natural:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {props.imageMeta?.naturalWidth && props.imageMeta?.naturalHeight
+                ? `${props.imageMeta.naturalWidth} x ${props.imageMeta.naturalHeight}`
+                : 'Unknown'}
+            </div>
+          </div>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Clip:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {typeof props.clipPathId === 'string' ? props.clipPathId : 'None'}
+            </div>
+          </div>
+          <div className="w-full flex items-center gap-2 py-1">
+            <button
+              type="button"
+              onClick={() => executeAction('image-mask-with-shape')}
+              className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
+            >
+              Mask with Shape
+            </button>
+            <button
+              type="button"
+              onClick={() => executeAction('image-clear-mask')}
+              className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
+            >
+              Clear Mask
+            </button>
+          </div>
+        </>
+      )}
+      {props.schemaMeta && (
+        <>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Schema Node:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {props.schemaMeta.sourceNodeType ?? 'Unknown'}
+            </div>
+          </div>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Node Kind:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {props.schemaMeta.sourceNodeKind ?? 'Unknown'}
+            </div>
+          </div>
+          <div className="w-full h-full flex justify-between items-center gap-2">
+            <span>Features:</span>
+            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+              {props.schemaMeta.sourceFeatureKinds?.join(', ') ?? 'Unknown'}
+            </div>
+          </div>
+        </>
       )}
       <div className=" w-full h-full flex justify-between items-center">
         <span className={''}>X:</span>

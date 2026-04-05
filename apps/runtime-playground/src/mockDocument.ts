@@ -1,4 +1,10 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import {
+  getBoundingRectFromBezierPoints,
+  type BezierPoint,
+  type DocumentNode,
+  type EditorDocument,
+  type Point,
+} from '@venus/document-core'
 
 function createMockImageDataUrl() {
   const svg = `
@@ -20,6 +26,87 @@ function createMockImageDataUrl() {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+function createDemoMixedPathPoints(): Point[] {
+  return [
+    {x: 112, y: 574},
+    {x: 268, y: 452},
+    {x: 386, y: 638},
+    {x: 582, y: 478},
+    {x: 694, y: 624},
+  ]
+}
+
+function createDemoMixedBezierPoints(): BezierPoint[] {
+  return [
+    {anchor: {x: 112, y: 574}, cp2: {x: 182, y: 498}},
+    {anchor: {x: 268, y: 452}, cp1: {x: 222, y: 470}, cp2: {x: 334, y: 430}},
+    {anchor: {x: 386, y: 638}, cp1: {x: 342, y: 706}, cp2: {x: 482, y: 670}},
+    {anchor: {x: 582, y: 478}, cp1: {x: 522, y: 402}, cp2: {x: 634, y: 528}},
+    {anchor: {x: 694, y: 624}, cp1: {x: 650, y: 572}},
+  ]
+}
+
+function createDemoBezierShape(): DocumentNode {
+  const points = createDemoMixedPathPoints()
+  // The default playground scene keeps one mixed path with straight and bezier
+  // segments so default hover/selection checks exercise both code paths.
+  const bezierPoints = createDemoMixedBezierPoints()
+  const bounds = getBoundingRectFromBezierPoints(bezierPoints)
+
+  return {
+    id: 'shape-bezier-path',
+    type: 'path',
+    name: 'Mixed Path',
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    points,
+    bezierPoints,
+    strokeStartArrowhead: 'none',
+    strokeEndArrowhead: 'none',
+  }
+}
+
+function createDemoSecondaryMixedPathPoints(): Point[] {
+  return [
+    {x: 760, y: 356},
+    {x: 842, y: 334},
+    {x: 902, y: 418},
+    {x: 982, y: 382},
+    {x: 1060, y: 448},
+  ]
+}
+
+function createDemoSecondaryMixedBezierPoints(): BezierPoint[] {
+  return [
+    {anchor: {x: 760, y: 356}, cp2: {x: 786, y: 348}},
+    {anchor: {x: 842, y: 334}, cp1: {x: 816, y: 340}, cp2: null},
+    {anchor: {x: 902, y: 418}, cp1: null, cp2: {x: 934, y: 432}},
+    {anchor: {x: 982, y: 382}, cp1: {x: 948, y: 354}, cp2: null},
+    {anchor: {x: 1060, y: 448}, cp1: null},
+  ]
+}
+
+function createDemoSecondaryBezierShape(): DocumentNode {
+  const points = createDemoSecondaryMixedPathPoints()
+  const bezierPoints = createDemoSecondaryMixedBezierPoints()
+  const bounds = getBoundingRectFromBezierPoints(bezierPoints)
+
+  return {
+    id: 'shape-bezier-path-secondary',
+    type: 'path',
+    name: 'Mixed Path B',
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    points,
+    bezierPoints,
+    strokeEndArrowhead: 'none',
+  }
+}
+
 const SHAPES: DocumentNode[] = [
   {
     id: 'frame-root',
@@ -31,18 +118,41 @@ const SHAPES: DocumentNode[] = [
     height: 800,
   },
   {
+    id: 'group-root',
+    type: 'group',
+    name: 'Hero Group',
+    childIds: ['shape-rect', 'group-nested', 'shape-text'],
+    x: 120,
+    y: 120,
+    width: 564,
+    height: 372,
+  },
+  {
     id: 'shape-rect',
     type: 'rectangle',
     name: 'Rectangle',
+    parentId: 'group-root',
     x: 120,
     y: 120,
     width: 240,
     height: 160,
   },
   {
+    id: 'group-nested',
+    type: 'group',
+    name: 'Nested Group',
+    parentId: 'group-root',
+    childIds: ['shape-ellipse'],
+    x: 460,
+    y: 180,
+    width: 200,
+    height: 140,
+  },
+  {
     id: 'shape-ellipse',
     type: 'ellipse',
     name: 'Ellipse',
+    parentId: 'group-nested',
     x: 460,
     y: 180,
     width: 200,
@@ -52,11 +162,14 @@ const SHAPES: DocumentNode[] = [
     id: 'shape-text',
     type: 'text',
     name: 'Runtime Playground',
+    parentId: 'group-root',
     x: 260,
     y: 420,
     width: 300,
     height: 72,
   },
+  createDemoBezierShape(),
+  createDemoSecondaryBezierShape(),
   {
     id: 'shape-image',
     type: 'image',

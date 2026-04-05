@@ -35,6 +35,7 @@ export interface CanvasViewerController<TDocument extends EditorDocument> {
   panViewport: (deltaX: number, deltaY: number) => void
   postPointer: (type: 'pointermove' | 'pointerdown', pointer: PointerState) => void
   resizeViewport: (width: number, height: number) => void
+  setViewport: (viewport: CanvasViewportState) => void
   start: () => void
   subscribe: (listener: () => void) => () => void
   zoomViewport: (nextScale: number, anchor?: Point2D) => void
@@ -117,6 +118,11 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
     updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
+  }
+
+  const setViewport = (viewport: CanvasViewportState) => {
+    snapshot.viewport = viewport
+    notify()
   }
 
   const updateHoverSelection = (hoveredIndex: number, selectedIndex: number) => {
@@ -204,6 +210,7 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
     panViewport,
     postPointer,
     resizeViewport,
+    setViewport,
     start: () => {},
     subscribe: (listener) => {
       listeners.add(listener)

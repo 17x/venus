@@ -115,6 +115,7 @@ const EditorFrame = () => {
                   <CanvasViewport
                     document={canvas.document}
                     renderer={canvas.Renderer}
+                    overlayRenderer={canvas.OverlayRenderer}
                     shapes={canvas.shapes}
                     stats={canvas.stats}
                     viewport={canvas.viewport}
@@ -122,6 +123,7 @@ const EditorFrame = () => {
                     onPointerDown={canvas.onPointerDown}
                     onPointerUp={canvas.onPointerUp}
                     onPointerLeave={canvas.onPointerLeave}
+                    onViewportChange={canvas.onViewportChange}
                     onViewportPan={canvas.onViewportPan}
                     onViewportResize={canvas.onViewportResize}
                     onViewportZoom={canvas.onViewportZoom}
