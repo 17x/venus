@@ -7,6 +7,7 @@
     "reinstall": "pnpm install",
     "dev": "pnpm vite",
     "build": "tsc -b && vite build",
+    "build force": "pnpm vite build",
     "preview": "vite preview"
   },
   "dependencies": {
