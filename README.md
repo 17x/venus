@@ -6,7 +6,7 @@ The current active stack focuses on `vector-editor-web` and `runtime-playground`
 ## Live Demo
 
 - Vector App Demo:
-[https://main-venus-vector.yahone-chow.workers.dev/](https://main-venus-vector.yahone-chow.workers.dev/)
+[https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
 - Runtime playground: [https://lucasischow.github.io/demos/venus/playground/](https://lucasischow.github.io/demos/venus/playground/)
 
 
