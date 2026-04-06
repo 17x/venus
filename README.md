@@ -80,7 +80,7 @@ pnpm --dir apps/vector-editor-web dev
 
 - TypeScript project references are enabled via root `tsconfig.json`.
 - Vite is pinned through `pnpm.overrides` in root `package.json`.
-- Architecture doc: [docs/cn/architecture.md](/Users/yahone/projects/venus/docs/cn/architecture.md)
+- Architecture doc: [./docs/cn/architecture.md](/Users/yahone/projects/venus/docs/cn/architecture.md)
 
 ## License
 
