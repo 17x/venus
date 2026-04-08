@@ -1,94 +1,118 @@
 import React from 'react'
-import {Col, Con, IconButton, Tooltip} from '@lite-u/ui'
+import {cn, Tooltip} from '@venus/ui'
 import {ToolName} from '@venus/document-core'
 import {LuCircle, LuHand, LuPentagon, LuPencilLine, LuRectangleHorizontal, LuStar, LuZoomIn} from 'react-icons/lu'
 import {lineSeg, mousePointer} from '../../assets/svg/icons.tsx'
+import {useTranslation} from 'react-i18next'
+import {
+  CHROME_ICON_SIZE,
+  CHROME_ICON_TEXT_CLASS,
+  CHROME_ICON_ITEM_ACTIVE_CLASS,
+  CHROME_ICON_ITEM_CLASS,
+  CHROME_RAIL_ITEM_CONTAINER_CLASS,
+} from '../editorChrome/chromeIconStyles.ts'
 
 const toolList = [
   {
-    name: 'Selector',
-    icon: mousePointer(false),
+    labelKey: 'toolbar.selector',
+    icon: mousePointer(false, CHROME_ICON_SIZE),
     toolName: 'selector',
   },
   {
-    name: 'Direct Selector',
-    icon: mousePointer(),
+    labelKey: 'toolbar.directSelector',
+    icon: mousePointer(true, CHROME_ICON_SIZE),
     toolName: 'dselector',
   },
   {
-    name: 'Line Segment',
-    icon: lineSeg(),
+    labelKey: 'toolbar.lineSegment',
+    icon: lineSeg(CHROME_ICON_SIZE),
     toolName: 'lineSegment',
   },
   {
-    name: 'Rectangle',
-    icon: <LuRectangleHorizontal/>,
+    labelKey: 'toolbar.rectangle',
+    icon: <LuRectangleHorizontal size={CHROME_ICON_SIZE}/>,
     toolName: 'rectangle',
   },
   {
-    name: 'Circle',
-    icon: <LuCircle/>,
+    labelKey: 'toolbar.ellipse',
+    icon: <LuCircle size={CHROME_ICON_SIZE}/>,
     toolName: 'ellipse',
   },
   {
-    name: 'Polygon',
-    icon: <LuPentagon/>,
+    labelKey: 'toolbar.polygon',
+    icon: <LuPentagon size={CHROME_ICON_SIZE}/>,
     toolName: 'polygon',
   },
   {
-    name: 'Star',
-    icon: <LuStar/>,
+    labelKey: 'toolbar.star',
+    icon: <LuStar size={CHROME_ICON_SIZE}/>,
     toolName: 'star',
   },
   {
-    name: 'Text',
-    icon: 'T',
+    labelKey: 'toolbar.text',
+    icon: <span className={CHROME_ICON_TEXT_CLASS}>T</span>,
     toolName: 'text',
   },
   {
-    name: 'Pencil',
-    icon: <LuPencilLine/>,
+    labelKey: 'toolbar.pencil',
+    icon: <LuPencilLine size={CHROME_ICON_SIZE}/>,
     toolName: 'pencil',
   },
   {
-    name: 'Hand',
-    icon: <LuHand/>,
+    labelKey: 'toolbar.hand',
+    icon: <LuHand size={CHROME_ICON_SIZE}/>,
     toolName: 'panning',
   },
   {
-    name: 'Zoom',
-    icon: <LuZoomIn/>,
+    labelKey: 'toolbar.zoom',
+    icon: <LuZoomIn size={CHROME_ICON_SIZE}/>,
     toolName: 'zoomIn',
   },
 ] as const
 
 const Toolbar: React.FC<{ tool: ToolName, setTool: (t: ToolName) => void }> = ({tool, setTool}) => {
-  return <Col fh center flex={0} w={50} style={{
-    borderRight: '1px solid #e4e4e4',
-  }}>
+  const {t} = useTranslation()
+
+  const handleToolKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, toolName: ToolName) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      setTool(toolName)
+    }
+  }
+
+  return <aside className={'relative flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-200 bg-gray-50 py-2'}>
     {
-      toolList.map(({toolName, name, icon}) => {
+      toolList.map(({toolName, labelKey, icon}) => {
         const active = toolName === tool
-        return <Tooltip placement={'r'} title={name} key={name}>
-          <Con p={2} w={40} h={40}>
-            <IconButton xs style={{
-              width: '100%',
-              height: '100%',
-              color: active ? 'white' : 'black',
-              borderRadius: 3,
-              backgroundColor: active ? '#aaa' : 'white',
-              fontSize: 18,
-              outline: 'none',
-            }}
-                        onClick={() => {
-                          setTool(toolName)
-                        }}>{icon}</IconButton>
-          </Con>
+        const label = t(`ui.${labelKey}`)
+        return <Tooltip placement={'r'} title={label} key={labelKey}>
+          <div className={CHROME_RAIL_ITEM_CONTAINER_CLASS}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={label}
+              aria-pressed={active}
+              className={cn(
+                CHROME_ICON_ITEM_CLASS,
+                'cursor-pointer',
+                active && CHROME_ICON_ITEM_ACTIVE_CLASS,
+              )}
+              style={{
+                outline: 'none',
+              }}
+              onClick={() => {
+                setTool(toolName)
+              }}
+              onKeyDown={(event) => handleToolKeyDown(event, toolName)}
+            >
+              {icon}
+            </div>
+          </div>
         </Tooltip>
 
       })
     }
-  </Col>
+  </aside>
 }
 
 export default Toolbar

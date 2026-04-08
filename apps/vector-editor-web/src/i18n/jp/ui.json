@@ -1,0 +1,18 @@
+{
+  "ui": {
+    "languageSelectorLabel": "言語",
+    "toolbar": {
+      "selector": "選択",
+      "directSelector": "ダイレクト選択",
+      "lineSegment": "線分",
+      "rectangle": "長方形",
+      "ellipse": "楕円",
+      "polygon": "多角形",
+      "star": "星",
+      "text": "テキスト",
+      "pencil": "鉛筆",
+      "hand": "手のひら",
+      "zoom": "ズーム"
+    }
+  }
+}

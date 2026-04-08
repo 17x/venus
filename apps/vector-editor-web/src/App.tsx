@@ -1,7 +1,7 @@
 import './components/comp.css'
 import './i18n/config.ts'
 import EditorFrame from './components/editorFrame/EditorFrame.tsx'
-import LiteUIProvider from '@lite-u/ui/LiteUIProvider'
+import {LiteUIProvider} from '@venus/ui'
 
 function App() {
   return <LiteUIProvider>

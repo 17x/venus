@@ -1,4 +1,5 @@
 import {FC, RefObject, useEffect, useRef, useState} from 'react'
+import {Button} from '@venus/ui'
 
 export const Print: FC<{
   onClose: VoidFunction,
@@ -54,7 +55,7 @@ export const Print: FC<{
       <div className={'w-[50%] flex flex-col justify-between'}>
         <div></div>
         <div className={'w-full flex items-end'}>
-          <button type={'button'} className={'border cursor-pointer'}
+          <Button type={'button'} className={'border cursor-pointer'}
                   onClick={() => {
                     const printWindow = window.open('', '', 'width=600,height=600')
                     if (!printWindow) return
@@ -70,9 +71,10 @@ export const Print: FC<{
                     printWindow.focus()
                     printWindow.print()
                     printWindow.close()
-                  }
-                  }>Print
-          </button>
+                  }}
+          >
+            Print
+          </Button>
         </div>
       </div>
     </div>

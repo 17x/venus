@@ -2,10 +2,17 @@ import {FC, FormEvent, useRef, useState} from 'react'
 import {convertUnit, UnitType} from '@venus/document-core'
 import uid from '../../utilities/Uid.ts'
 import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
-import {Button, Con, Flex, Input, MenuItem, Modal, P, Panel, Select, SelectItem, Title} from '@lite-u/ui'
+import {Button, Con, Flex, Input, Modal, P, Panel, Select, SelectItem, Title} from '@venus/ui'
 import {PAGE_PRESETS} from './pagePresets.ts'
 import {useTranslation} from 'react-i18next'
 import {VISION_VERSION} from '../../constants/version.ts'
+import {
+  EDITOR_HEADING_STYLE,
+  EDITOR_TEXT_BODY_CLASS,
+  EDITOR_TEXT_CONTROL_CLASS,
+  EDITOR_TEXT_HEADING_CLASS,
+  EDITOR_TEXT_MENU_CLASS,
+} from '../editorChrome/editorTypography.ts'
 
 const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, onBgClick?: VoidFunction }> = ({bg = '#00000066', createFile, onBgClick}) => {
   const formRef = useRef<HTMLFormElement>(null)
@@ -73,12 +80,12 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
   return <Modal backdropBg={bg} style={{
     zIndex: 1000,
   }} onBackdropClick={() => onBgClick && onBgClick()}>
-    <Flex col w={'90%'} h={'90%'} ovh className={'shadow-md rounded-sm shadow-gray-600 text-sm'}>
+    <Flex col w={'90%'} h={'90%'} ovh className={`shadow-md rounded-sm shadow-gray-600 ${EDITOR_TEXT_BODY_CLASS}`}>
       <Panel head={t('createTitle')}>
         <Flex alignItems={'stretch'} justifyContent={'center'} fh className={'p-4'}>
 
           <Con p={4} bg={'white'}>
-            <Title h2>Templates</Title>
+            <Title h2 className={EDITOR_TEXT_HEADING_CLASS} style={EDITOR_HEADING_STYLE}>Templates</Title>
             <Flex ovh className={'overflow-auto flex-auto flex-wrap space-x-2 space-y-2'}>
               {
                 PAGE_PRESETS.map((item, index) => {
@@ -117,7 +124,7 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
 
           <Con w={'30%'} p={10}>
             <Flex col fh alignItems={'stretch'}>
-              <Title h2>Presets</Title>
+              <Title h2 className={EDITOR_TEXT_HEADING_CLASS} style={EDITOR_HEADING_STYLE}>Presets</Title>
               <form ref={formRef}
                     className={'h-full relative min-h-30 z-20'}
                     onSubmit={handleSubmit}>
@@ -150,26 +157,28 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
                            type={'number'}/>
 
                     <P style={{marginTop: 10}}>Unit</P>
-                    <Select selectValue={currentPageSet.unit}
+                    <Select className={EDITOR_TEXT_CONTROL_CLASS}
+                            selectValue={currentPageSet.unit}
                             onSelectChange={(v) => {
                               handleNewUnit(v as UnitType)
                             }}
                             placeholderResolver={(value) => String(value)}>
-                      <SelectItem value={'px'}><MenuItem>px</MenuItem></SelectItem>
-                      <SelectItem value={'mm'}><MenuItem>mm</MenuItem></SelectItem>
-                      <SelectItem value={'cm'}><MenuItem>cm</MenuItem></SelectItem>
-                      <SelectItem value={'inches'}><MenuItem>inches</MenuItem></SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={'px'}>px</SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={'mm'}>mm</SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={'cm'}>cm</SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={'inches'}>inches</SelectItem>
                     </Select>
 
                     <P style={{marginTop: 10}}>DPI</P>
-                    <Select selectValue={dpi}
+                    <Select className={EDITOR_TEXT_CONTROL_CLASS}
+                            selectValue={dpi}
                             onSelectChange={(newDpi) => {
                               setDpi(newDpi as number)
                             }}
                             placeholderResolver={(value) => String(value)}>
-                      <SelectItem value={300}><MenuItem>300</MenuItem></SelectItem>
-                      <SelectItem value={96}><MenuItem>96</MenuItem></SelectItem>
-                      <SelectItem value={72}><MenuItem>72</MenuItem></SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={300}>300</SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={96}>96</SelectItem>
+                      <SelectItem className={EDITOR_TEXT_MENU_CLASS} value={72}>72</SelectItem>
                     </Select>
 
                   </Con>

@@ -1,4 +1,4 @@
-import {Con, Drop, useNotification} from '@lite-u/ui'
+import {Con, Drop, useNotification} from '@venus/ui'
 import readImageHelper from '../utilities/readImageHelper.ts'
 import {FC, ReactNode, useState} from 'react'
 import {useTranslation} from 'react-i18next'

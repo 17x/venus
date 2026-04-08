@@ -11,7 +11,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@lite-u/ui": "^0.1.25",
     "@tailwindcss/vite": "4.2.2",
     "@venus/canvas-base": "workspace:*",
     "@venus/document-core": "workspace:*",

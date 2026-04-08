@@ -4,10 +4,13 @@ import enMenu from './en/menu.json'
 import enHistory from './en/history.json'
 import enFile from './en/file.json'
 import enMisc from './en/misc.json'
+import enUi from './en/ui.json'
 import cnMenu from './cn/menu.json'
 import cnHistory from './cn/history.json'
+import cnUi from './cn/ui.json'
 import jpMenu from './jp/menu.json'
 import jpHistory from './jp/history.json'
+import jpUi from './jp/ui.json'
 
 const resources = {
   en: {
@@ -15,19 +18,22 @@ const resources = {
       ...enMenu,
       ...enHistory,
       ...enFile,
-      ...enMisc
+      ...enMisc,
+      ...enUi
     }
   },
   cn: {
     translation: {
       ...cnMenu,
       ...cnHistory,
+      ...cnUi,
     }
   },
   jp: {
     translation: {
       ...jpMenu,
       ...jpHistory,
+      ...jpUi,
     }
   }
 }

@@ -1,35 +1,81 @@
-import {useEffect, useState} from 'react'
+import {type ReactNode, useEffect, useState} from 'react'
 import {ProtectedInput} from './protectedInput.tsx'
-import {Con, Panel} from '@lite-u/ui'
+import {Button, Con, Panel} from '@venus/ui'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 import type {SelectedElementProps} from '../../hooks/useEditorRuntime.types.ts'
+import {LuMinus} from 'react-icons/lu'
+import {
+  EDITOR_PROPERTY_SECTION_CLASS,
+  EDITOR_TEXT_CONTROL_CLASS,
+  EDITOR_TEXT_PANEL_BODY_CLASS,
+  EDITOR_TEXT_PANEL_HEADING_CLASS,
+} from '../editorChrome/editorTypography.ts'
 
 interface PropPanelProps {
   props?: SelectedElementProps
   executeAction: EditorExecutor
+  onMinimize?: VoidFunction
 }
 
-const PropPanel = ({props, executeAction}: PropPanelProps) => {
+const PropPanel = ({props, executeAction, onMinimize}: PropPanelProps) => {
   const [localProps, setLocalProps] = useState(props)
 
   useEffect(() => {
     setLocalProps(props)
   }, [props])
 
-  return <Con p={10} h={'33.33%'}>
-    <Panel xs head={'Properties'}
-           contentStyle={{
-             overflow: 'hidden',
-           }}>
-      <Con p={10} fh
-           className={'scrollbar-custom overflow-x-hidden overflow-y-auto  border  border-gray-200 select-none'}>
-        {localProps && <ShapePropsPanel props={localProps} executeAction={executeAction}/>}
-      </Con>
+  return <Con flex={1} minH={0}>
+    <Panel xs head={<PanelHead title="Properties" onMinimize={onMinimize}/>}>
+      {localProps
+        ? <ShapePropsPanel props={localProps} executeAction={executeAction}/>
+        : <div className={`rounded border border-dashed border-gray-200 bg-gray-50 p-3 text-gray-500 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+            Select an element to edit its properties.
+          </div>}
     </Panel>
   </Con>
 }
 
 export default PropPanel
+
+function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
+  return (
+    <div className={'flex w-full items-center justify-between gap-2'}>
+      <span>{props.title}</span>
+      {props.onMinimize &&
+        <Button
+          type="button"
+          aria-label={`Minimize ${props.title}`}
+          title={`Minimize ${props.title}`}
+          className={'inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onMinimize?.()
+          }}
+        >
+          <LuMinus size={12}/>
+        </Button>}
+    </div>
+  )
+}
+
+function PropertySection(props: {title: string, children: ReactNode}) {
+  return (
+    <section
+      className={[
+        `rounded border border-gray-200 bg-gray-50/80 p-2 shadow-sm ${EDITOR_PROPERTY_SECTION_CLASS}`,
+        '[&>div]:flex [&>div]:min-h-7 [&>div]:items-center [&>div]:justify-between [&>div]:gap-2',
+        '[&_input:not([type=color]):not([type=checkbox])]:h-6 [&_input:not([type=color]):not([type=checkbox])]:rounded [&_input:not([type=color]):not([type=checkbox])]:border [&_input:not([type=color]):not([type=checkbox])]:border-gray-200 [&_input:not([type=color]):not([type=checkbox])]:bg-white [&_input:not([type=color]):not([type=checkbox])]:px-2 [&_input:not([type=color]):not([type=checkbox])]:text-gray-900',
+        '[&_input[type=color]]:h-7 [&_input[type=color]]:w-9 [&_input[type=color]]:rounded [&_input[type=color]]:border [&_input[type=color]]:border-gray-200 [&_input[type=color]]:bg-white [&_input[type=color]]:p-1',
+        '[&_input[type=checkbox]]:size-4 [&_input[type=checkbox]]:accent-gray-900',
+      ].join(' ')}
+    >
+      <div className={`mb-1 border-b border-gray-200 pb-1 text-gray-500 ${EDITOR_TEXT_PANEL_HEADING_CLASS}`}>
+        {props.title}
+      </div>
+      {props.children}
+    </section>
+  )
+}
 
 const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, executeAction: EditorExecutor }) => {
   const fill = {
@@ -78,18 +124,18 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
     e.stopPropagation()
   }
 
-  return <div className="z-30 text-sm">
+  return <div className={`z-30 flex flex-col gap-2 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
     {/* Shape Properties Group */}
-    <div className="mb-1 ">
+    <PropertySection title="Identity">
       <div className=" w-full h-full flex justify-between items-center">
         <span>Type:</span>
-        <div className="px-2 py-1 text-xs uppercase tracking-wide text-gray-700 bg-gray-100 rounded">
+        <div className={`px-2 py-1 uppercase tracking-wide text-gray-700 bg-gray-100 rounded ${EDITOR_TEXT_CONTROL_CLASS}`}>
           {typeLabel}
         </div>
       </div>
       <div className="w-full h-full flex justify-between items-center gap-2">
         <span>ID:</span>
-        <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate" title={props.id}>
+        <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`} title={props.id}>
           {props.id}
         </div>
       </div>
@@ -109,19 +155,19 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
         <>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Asset:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {props.imageMeta?.assetName ?? props.asset ?? 'Linked image'}
             </div>
           </div>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Source:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {props.imageMeta?.mimeType ?? 'image/*'}
             </div>
           </div>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Natural:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {props.imageMeta?.naturalWidth && props.imageMeta?.naturalHeight
                 ? `${props.imageMeta.naturalWidth} x ${props.imageMeta.naturalHeight}`
                 : 'Unknown'}
@@ -129,25 +175,25 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           </div>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Clip:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {typeof props.clipPathId === 'string' ? props.clipPathId : 'None'}
             </div>
           </div>
           <div className="w-full flex items-center gap-2 py-1">
-            <button
+            <Button
               type="button"
               onClick={() => executeAction('image-mask-with-shape')}
-              className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
+              className={`px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 ${EDITOR_TEXT_CONTROL_CLASS}`}
             >
               Mask with Shape
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => executeAction('image-clear-mask')}
-              className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
+              className={`px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 ${EDITOR_TEXT_CONTROL_CLASS}`}
             >
               Clear Mask
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -155,19 +201,19 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
         <>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Schema Node:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {props.schemaMeta.sourceNodeType ?? 'Unknown'}
             </div>
           </div>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Node Kind:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {props.schemaMeta.sourceNodeKind ?? 'Unknown'}
             </div>
           </div>
           <div className="w-full h-full flex justify-between items-center gap-2">
             <span>Features:</span>
-            <div className="flex-1 min-w-0 text-right text-xs text-gray-600 truncate">
+            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
               {props.schemaMeta.sourceFeatureKinds?.join(', ') ?? 'Unknown'}
             </div>
           </div>
@@ -247,10 +293,10 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           className="w-16  py-1 text-black rounded"
         />
       </div>
-    </div>
+    </PropertySection>
 
     {/* Fill and Line Properties Group */}
-    <div className="mb-1">
+    <PropertySection title="Fill and Stroke">
       <div className=" w-full h-full flex justify-between items-center">
         <span>Enable Fill</span>
         <ProtectedInput
@@ -329,10 +375,10 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           className="w-16  py-1 text-black rounded"
         />
       </div>
-    </div>
+    </PropertySection>
 
     {(props.type === 'rectangle' || props.type === 'frame') && (
-      <div className="mb-1">
+      <PropertySection title="Corners">
         <div className=" w-full h-full flex justify-between items-center">
           <span>Corner Radius:</span>
           <ProtectedInput
@@ -391,11 +437,11 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
             className="w-16 py-1 text-black rounded"
           />
         </div>
-      </div>
+      </PropertySection>
     )}
 
     {props.type === 'ellipse' && (
-      <div className="mb-1">
+      <PropertySection title="Ellipse">
         <div className=" w-full h-full flex justify-between items-center">
           <span>Start Angle:</span>
           <ProtectedInput
@@ -416,11 +462,11 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
             className="w-16 py-1 text-black rounded"
           />
         </div>
-      </div>
+      </PropertySection>
     )}
 
     {/* Appearance Group */}
-    <div className="mb-1">
+    <PropertySection title="Appearance">
       <div className=" w-full h-full flex justify-between items-center">
         <span>Shadow</span>
         <ProtectedInput
@@ -491,6 +537,6 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
           className="w-16  py-1 text-black rounded"
         />
       </div>
-    </div>
+    </PropertySection>
   </div>
 }

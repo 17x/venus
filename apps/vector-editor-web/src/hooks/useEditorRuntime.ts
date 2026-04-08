@@ -1,5 +1,5 @@
 import {createElement, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {useNotification} from '@lite-u/ui'
+import {useNotification} from '@venus/ui'
 import {nid, type ToolName} from '@venus/document-core'
 import {
   createMarqueeState,

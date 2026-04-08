@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react'
 import ZOOM_LEVELS from '../../constants/zoomLevels.ts'
-import {Row, Select, SelectItem} from '@lite-u/ui'
+import {Row, Select, SelectItem} from '@venus/ui'
+import {EDITOR_TEXT_CONTROL_CLASS, EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 
 export type ZoomLevels = {
   label: string,
@@ -51,6 +52,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
   // console.log(scale)
   return <Row w={20} h={30} ml={5} js center rela>
     <Select s
+            className={EDITOR_TEXT_CONTROL_CLASS}
             selectValue={scale}
             onSelectChange={v => {
               onChange(v as number | 'fit')
@@ -60,7 +62,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
               return fixNumber(Number(value))
             }}>
       {
-        ZOOM_LEVELS.map(({label, value}) => <SelectItem key={value} value={value}>{label}</SelectItem>)
+        ZOOM_LEVELS.map(({label, value}) => <SelectItem className={EDITOR_TEXT_MENU_CLASS} key={value} value={value}>{label}</SelectItem>)
       }
     </Select>
 
@@ -70,7 +72,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
       onChange={void 0}
       defaultValue={inputValue}
       onKeyDown={onKeyDown}
-      className="w-20 h-5 text-sm bg-gray-100 text-center overflow-hidden "
+      className={`w-20 h-5 bg-gray-100 text-center overflow-hidden ${EDITOR_TEXT_CONTROL_CLASS}`}
       placeholder="Enter zoom %"
     />
   </Row>
