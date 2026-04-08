@@ -7,6 +7,8 @@ import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 import {ElementProps} from '@lite-u/editor/types'
 import {Point} from '@venus/document-core'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
+import {Button} from '@venus/ui'
+import {EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 
 export interface ContextMenuProps {
   position: Point
@@ -109,17 +111,17 @@ export const ContextMenu: FC<ContextMenuProps> = ({
 
     return <div className={'min-w-40 relative group'}
                 title={menuText.tooltip}>
-      <button type={'button'}
+      <Button type={'button'}
               disabled={item.disabled}
               onMouseUp={onMouseUp}
-              className={'flex justify-between px-4 text-nowrap items-center py-1.5 w-full text-left text-sm  hover:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed'}
+              className={`flex justify-between px-4 text-nowrap items-center py-1.5 w-full text-left hover:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed ${EDITOR_TEXT_MENU_CLASS}`}
       >
         <span className={'inline-flex items-center gap-2'}>
           <span className={'inline-flex opacity-80'}>{resolveContextIcon(item.icon ?? item.id)}</span>
           <span>{menuText.label}</span>
         </span>
         {hasChildren && <LuChevronRight/>}
-      </button>
+      </Button>
 
       {
         hasChildren &&

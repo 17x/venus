@@ -1,11 +1,15 @@
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from './Icons/LayerIcons.tsx'
 import {Fragment, ReactNode} from 'react'
 import {NamedIcon} from '../../lib/icon/icon.tsx'
-import {t} from 'i18next'
 import {I18nHistoryDataItem} from '../../../i18n/type'
 import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
-
-const IconSize = 20
+import {Button, cn} from '@venus/ui'
+import {useTranslation} from 'react-i18next'
+import {
+  CHROME_ICON_BUTTON_DISABLED_CLASS,
+  CHROME_ICON_ITEM_CLASS,
+  CHROME_ICON_SIZE,
+} from '../../editorChrome/chromeIconStyles.ts'
 
 const ShortcutBar: React.FC<{
   executeAction: EditorExecutor
@@ -18,14 +22,16 @@ const ShortcutBar: React.FC<{
   }
   selectedIds: string[]
 }> = ({executeAction, saveFile, needSave, historyStatus, selectedIds}) => {
+  const {t} = useTranslation()
   const hasSelection = selectedIds.length > 0
 
   const actions = [
-    {id: 'save', action: 'saveFile', icon: 'save', disabled: !needSave, divide: true},
-    {id: 'undo', editorActionCode: 'history-undo', icon: 'undo', disabled: !historyStatus.hasPrev},
-    {id: 'redo', editorActionCode: 'history-redo', icon: 'redo', disabled: !historyStatus.hasNext, divide: true},
+    {id: 'save', i18nKey: 'saveFile', action: 'saveFile', icon: 'save', disabled: !needSave, divide: true},
+    {id: 'undo', i18nKey: 'undo', editorActionCode: 'history-undo', icon: 'undo', disabled: !historyStatus.hasPrev},
+    {id: 'redo', i18nKey: 'redo', editorActionCode: 'history-redo', icon: 'redo', disabled: !historyStatus.hasNext, divide: true},
     {
       id: 'delete',
+      i18nKey: 'delete',
       editorActionCode: 'element-delete',
       icon: 'trash',
       disabled: !hasSelection,
@@ -34,6 +40,7 @@ const ShortcutBar: React.FC<{
     // {id: 'add', icon: 'cross', disabled: false, divide: true},
     {
       id: 'layerUp',
+      i18nKey: 'bringForward',
       editorActionCode: 'element-layer',
       editorActionData: 'up',
       icon: 'layers',
@@ -41,6 +48,7 @@ const ShortcutBar: React.FC<{
     },
     {
       id: 'layerDown',
+      i18nKey: 'sendBackward',
       editorActionCode: 'element-layer',
       editorActionData: 'down',
       icon: 'layers',
@@ -48,6 +56,7 @@ const ShortcutBar: React.FC<{
     },
     {
       id: 'layerTop',
+      i18nKey: 'bringToFront',
       editorActionCode: 'element-layer',
       editorActionData: 'top',
       icon: 'layers',
@@ -55,6 +64,7 @@ const ShortcutBar: React.FC<{
     },
     {
       id: 'layerBottom',
+      i18nKey: 'sendToBack',
       editorActionCode: 'element-layer',
       editorActionData: 'bottom',
       icon: 'layers',
@@ -67,35 +77,37 @@ const ShortcutBar: React.FC<{
     {id: 'unlock', icon: 'unlock', disabled: true},*/
   ]
 
-  return <div className={'border-b border-gray-200 box-border'}>
-    <div className={'h-10 inline-flex pl-4 items-center'}>
+  return <div className={'border-b border-gray-200 bg-white'}>
+    <div className={'flex h-10 items-center gap-1 px-3'}>
       {
         Object.values(actions).map((item) => {
-          const {id, icon, disabled, divide} = item
+          const {id, i18nKey, icon, disabled, divide} = item
           let Icon: ReactNode
 
           switch (id) {
             case 'layerUp':
-              Icon = <LayerUp size={IconSize}/>
+              Icon = <LayerUp size={CHROME_ICON_SIZE}/>
               break
             case 'layerDown':
-              Icon = <LayerDown size={IconSize}/>
+              Icon = <LayerDown size={CHROME_ICON_SIZE}/>
               break
             case 'layerTop':
-              Icon = <LayerToTop size={IconSize}/>
+              Icon = <LayerToTop size={CHROME_ICON_SIZE}/>
               break
             case 'layerBottom':
-              Icon = <LayerToBottom size={IconSize}/>
+              Icon = <LayerToBottom size={CHROME_ICON_SIZE}/>
               break
             default:
-              Icon = <NamedIcon size={IconSize} iconName={icon!}/>
+              Icon = <NamedIcon size={CHROME_ICON_SIZE} iconName={icon!}/>
               break
           }
 
-          const {tooltip} = t(id, {returnObjects: true}) as I18nHistoryDataItem
+          const menuText = t(i18nKey, {returnObjects: true}) as I18nHistoryDataItem | string
+          const tooltip = typeof menuText === 'string' ? id : menuText.tooltip
 
           return <Fragment key={id}>
-            <button type={'button'}
+            <Button type={'button'}
+                    aria-label={tooltip}
                     disabled={disabled}
                     title={tooltip}
                     onClick={() => {
@@ -112,10 +124,13 @@ const ShortcutBar: React.FC<{
                         }
                       }
                     }}
-                    className={'relative ml-1 rounded-sm mr-1 flex items-center cursor-pointer justify-center w-6 h-6   hover:bg-gray-200  hover:opacity-100  disabled:hover:bg-transparent disabled:text-gray-200 disabled:cursor-default'}>
+                    className={cn(
+                      CHROME_ICON_ITEM_CLASS,
+                      CHROME_ICON_BUTTON_DISABLED_CLASS,
+                    )}>
               {Icon}
-            </button>
-            {divide && <div className={'w-[1px] h-4 bg-gray-400 mx-2'}></div>}
+            </Button>
+            {divide && <div className={'mx-1 h-5 w-px bg-gray-200'}></div>}
           </Fragment>
         })
       }

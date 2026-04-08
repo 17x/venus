@@ -1,0 +1,18 @@
+{
+  "ui": {
+    "languageSelectorLabel": "语言",
+    "toolbar": {
+      "selector": "选择",
+      "directSelector": "直接选择",
+      "lineSegment": "线段",
+      "rectangle": "矩形",
+      "ellipse": "椭圆",
+      "polygon": "多边形",
+      "star": "星形",
+      "text": "文本",
+      "pencil": "铅笔",
+      "hand": "抓手",
+      "zoom": "缩放"
+    }
+  }
+}

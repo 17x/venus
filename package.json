@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "pnpm --filter @venus/vector-editor-web dev",
     "build": "pnpm --filter @venus/vector-editor-web build",
+    "dev vector": "pnpm --filter @venus/vector-editor-web dev",
+    "dev playground": "pnpm --filter @venus/runtime-playground dev",
     "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.json",
     "test": "echo \"No tests configured yet\""

@@ -55,6 +55,99 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ## Recent Updates
 
+### 2026-04-08
+
+- Started the shared `@venus/ui` shadcn-aligned surface in `packages/ui` with
+  local component/lib subpath aliases, a shared `Button`, a `cn` helper, and
+  compatibility wrappers for the vector app's former `@lite-u/ui` surfaces.
+  `apps/vector-editor-web` now imports UI primitives from `@venus/ui` and no
+  longer declares `@lite-u/ui` as an app dependency. The shared `Select`,
+  `Modal`, and `Tooltip` wrappers now delegate to Radix primitives.
+
+- Added right-inspector panel minimize behavior in `apps/vector-editor-web`:
+  `EditorFrame` owns minimized state for Properties, Layer, and History panels,
+  each panel header exposes a minimize action, and a fixed narrow rail on the
+  far right shows all panel icons with active styling for opened panels and
+  click-to-restore behavior for hidden panels.
+
+- Updated shared UI affordances so enabled interactive primitives advertise
+  clickability: `@venus/ui` buttons and select triggers now use a pointer cursor
+  when enabled and a not-allowed cursor when disabled, while clickable vector
+  layer rows and modal backdrops follow the same interaction cue.
+
+- Added vector UI i18n helpers and resources under `apps/vector-editor-web/src/i18n`:
+  the language switcher now derives its selected language from i18next instead
+  of local state, uses shared language-code helpers, and the editor frame no
+  longer renders the filename in the top language bar.
+
+- Replaced remaining vector select composition with the shared shadcn/Radix
+  `@venus/ui` select style: the unused hand-rolled app-local select component
+  was removed, create-file select options no longer nest menu items, and the
+  shared select trigger/content/items now use shadcn-like focus, indicator, and
+  checked-item styling.
+
+- Rebuilt the vector language switcher as direct app markup over the shared
+  `@venus/ui` Select instead of legacy `Con`/`Row` layout wrappers, keeping the
+  i18next-derived language state while making the header control simpler.
+
+- Changed the vector language switcher from a select-style control into a
+  top-bar menu: the header button now opens an editor-chrome dropdown with
+  language menu rows and a current-language marker.
+
+- Unified vector editor chrome styling across the top menu, shortcut icon bar,
+  left toolbar, and language menu with shadcn-like rounded buttons, neutral
+  hover states, bordered dropdown surfaces, and stronger black active tool
+  states.
+
+- Finished i18n coverage for the unified editor chrome: sidebar toolbar
+  tooltips now use `ui.toolbar.*` translations, and the shortcut bar now uses
+  `useTranslation` plus explicit menu translation keys so language changes
+  update icon titles consistently.
+
+- Updated the vector left toolbar to behave as a rail rather than button stack:
+  tool items no longer render as button elements, keyboard activation is kept
+  via `role="button"`/`tabIndex`, and active state is shown by a light active
+  tile.
+
+- Matched the vector right inspector shortcut rail to the left toolbar style:
+  inspector icons no longer render as button elements, keep keyboard activation
+  through `role="button"`/`tabIndex`, and show open panels with light active
+  tiles.
+
+- Synced the vector toolbar rail, inspector rail, and shortcut icon bar through
+  shared editor-chrome icon style constants so static, active, focus, hover,
+  and disabled states do not drift across the three icon surfaces.
+
+- Removed rail-side active bars from vector chrome icons and unified toolbar,
+  inspector rail, and shortcut icon sizes through the shared `CHROME_ICON_SIZE`
+  constant.
+
+- Added vector editor typography tokens in
+  `apps/vector-editor-web/src/components/editorChrome/editorTypography.ts` and
+  app-level CSS classes in `src/index.css`: editor chrome now uses shared body,
+  label, meta, heading, menu, control, panel, and status text sizes instead of
+  scattered Tailwind font-size utilities.
+
+- Reduced the vector right inspector content wrapper from `w-72` to `w-64` in
+  `EditorFrame`, keeping the shortcut rail width unchanged while giving more
+  canvas space back to the editor.
+
+- Reduced the vector right inspector shortcut dock from `w-12` to `w-10` in
+  `EditorFrame` so the restored/minimized panel rail reads slimmer.
+
+- Softened the shared vector chrome active icon tile in
+  `editorChrome/chromeIconStyles.ts`: active toolbar, inspector dock, and
+  shortcut icon states now use a quieter gray background/ring without inset
+  shadow.
+
+- Strengthened the shared vector chrome active icon border from `ring-gray-200`
+  to `ring-gray-400` while keeping the softer active background.
+
+- Replaced layer panel type-name text with fixed-size type icons in
+  `LayerPanel`: known vector layer types resolve to shape/text/image/group
+  icons, while unknown types use a common placeholder icon with the type kept
+  in the title/accessible label.
+
 ### 2026-04-05
 
 - Updated selection-visual ownership split: selected/hovered visual feedback was

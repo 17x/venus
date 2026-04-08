@@ -1,0 +1,18 @@
+{
+  "ui": {
+    "languageSelectorLabel": "Language",
+    "toolbar": {
+      "selector": "Selector",
+      "directSelector": "Direct Selector",
+      "lineSegment": "Line Segment",
+      "rectangle": "Rectangle",
+      "ellipse": "Ellipse",
+      "polygon": "Polygon",
+      "star": "Star",
+      "text": "Text",
+      "pencil": "Pencil",
+      "hand": "Hand",
+      "zoom": "Zoom"
+    }
+  }
+}

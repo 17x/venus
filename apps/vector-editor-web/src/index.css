@@ -62,6 +62,75 @@ html, body, #root {
     }
 }
 
+@layer components {
+    .venus-editor {
+        --venus-editor-font-body: 12px;
+        --venus-editor-line-body: 18px;
+        --venus-editor-font-label: 11px;
+        --venus-editor-line-label: 16px;
+        --venus-editor-font-meta: 10px;
+        --venus-editor-line-meta: 14px;
+        --venus-editor-font-heading: 14px;
+        --venus-editor-line-heading: 20px;
+        font-size: var(--venus-editor-font-body);
+        line-height: var(--venus-editor-line-body);
+    }
+
+    .venus-editor-text-body,
+    .venus-editor-text-menu,
+    .venus-editor-text-control,
+    .venus-editor-text-panel-body {
+        font-size: var(--venus-editor-font-body);
+        line-height: var(--venus-editor-line-body);
+    }
+
+    .venus-editor-text-label,
+    .venus-editor-text-status,
+    .venus-editor-text-panel-label,
+    .venus-editor-text-panel-heading {
+        font-size: var(--venus-editor-font-label);
+        line-height: var(--venus-editor-line-label);
+    }
+
+    .venus-editor-text-meta {
+        font-size: var(--venus-editor-font-meta);
+        line-height: var(--venus-editor-line-meta);
+    }
+
+    .venus-editor-text-heading {
+        font-size: var(--venus-editor-font-heading);
+        line-height: var(--venus-editor-line-heading);
+        font-weight: 600;
+    }
+
+    .venus-editor-text-panel-label {
+        font-weight: 500;
+    }
+
+    .venus-editor-text-panel-heading {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    .venus-editor-property-section > div > span:first-child {
+        font-size: var(--venus-editor-font-label);
+        line-height: var(--venus-editor-line-label);
+        font-weight: 500;
+        color: rgb(107 114 128);
+    }
+
+    .venus-editor-property-section input:not([type=color]):not([type=checkbox]) {
+        font-size: var(--venus-editor-font-body);
+        line-height: var(--venus-editor-line-body);
+    }
+
+    .venus-editor-icon-text {
+        font-size: 16px;
+        line-height: 1;
+    }
+}
+
 
 /*
 html {
