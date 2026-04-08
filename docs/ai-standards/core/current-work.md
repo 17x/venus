@@ -110,3 +110,5 @@ context starts, or work needs to resume after switching topics.
   `vector-editor-web` before treating the result as stable.
 - For model/geometry questions, check `packages/file-format` first and defer to
   its `node + feature` structure before inventing runtime-only terminology.
+- SAB with Atomic
+- offscreen render for canvas
