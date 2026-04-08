@@ -1,0 +1,126 @@
+# Venus Agent Instructions
+
+Use this file as the repo-level entry point for AI coding agents. Keep the shared
+standards in `docs/ai-standards/core/*` as the source of truth.
+
+## Load First
+
+Before making changes, read:
+
+- `docs/ai-standards/core/project-context.md`
+- `docs/ai-standards/core/engineering-standards.md`
+- `docs/ai-standards/core/monorepo-knowledge-base.md`
+
+Also read:
+
+- `docs/ai-standards/core/current-work.md` when resuming work, continuing an
+implementation thread, or switching back from a side task.
+- `docs/ai-standards/core/review-checklist.md` for reviews, audits, and risk
+checks.
+- `docs/cn/architecture.md` and `docs/cn/canvas-base-mindmap-guide.md` when the
+task touches architecture, runtime layering, or mindmap integration.
+
+If docs conflict, prefer the newer core standards and README over older
+background docs. In particular, Canvas2D is the current active renderer path for
+vector and playground iteration; Skia remains available but is not the default
+development path.
+
+## Project Shape
+
+Venus is a `pnpm` monorepo for composable canvas editor products such as vector,
+flowchart, mindmap, and whiteboard editors.
+
+- `apps/*`: runnable editor apps and diagnostics surfaces.
+- `packages/*`: shared runtime, worker, renderer, file-format, document, and UI
+infrastructure.
+- `docs/*`: architecture notes, standards, and handoff context.
+
+Current priority areas:
+
+- Prefer product-facing work in `apps/vector-editor-web`.
+- Use `apps/runtime-playground` as the Canvas2D runtime and rendering diagnostics
+bench.
+- Keep shared behavior reusable across future editor surfaces.
+
+Primary runtime chain:
+
+```text
+apps/* -> @venus/canvas-base -> @venus/editor-worker + @venus/shared-memory -> renderer packages
+```
+
+## Architecture Rules
+
+- Keep product UI and orchestration in app layers.
+- Keep scene mutation, command execution, hit-testing, history, and protocol
+handling in worker/runtime-oriented packages.
+- Keep renderer code focused on consuming document snapshots and viewport state.
+- Keep React focused on orchestration and product UI, not high-frequency runtime
+state.
+- Treat `@venus/canvas-base` as the bridge between app UI and worker/renderer
+packages, not as a product-specific UI layer.
+- Treat `packages/file-format` as the source of truth for persisted
+scene/document semantics.
+- Prefer the file-format `node + feature` model when reasoning about geometry,
+content, image, serialization, or document compatibility behavior.
+- Treat `@venus/document-core` runtime nodes as adapters where they differ from
+persisted file-format semantics.
+
+## Code Style
+
+- Read the relevant local code before changing architecture-sensitive paths.
+- Prefer small, composable diffs over broad rewrites.
+- Preserve existing TypeScript, React, import, and formatting patterns.
+- Use existing `@venus/*` aliases when crossing package boundaries.
+- Local source imports may intentionally include `.ts` or `.tsx`; follow nearby
+style.
+- Do not add semicolons.
+- Do not use `@ts-ignore`.
+- Avoid speculative abstractions unless they remove current duplication or real
+complexity.
+- Keep package entrypoints intentional and small.
+- Add concise comments only where the implementation would otherwise be hard to
+parse, such as complex branching, state transitions, algorithmic transforms,
+or compatibility edges.
+- When changing public interfaces, protocols, or exported type contracts, update
+inline/API comments with parameter semantics, mode/flag behavior, and
+compatibility expectations.
+
+## Documentation
+
+For every meaningful feature, behavior, architecture, or standards change:
+
+- Update the closest module-level knowledge or architecture document.
+- If no narrower document exists, add a concise note to
+`docs/ai-standards/core/monorepo-knowledge-base.md`.
+- Update `docs/ai-standards/core/current-work.md` when a major active workstream
+changes direction, is paused, or is replaced.
+
+Keep notes factual: what changed, where it lives, and why it matters.
+
+## Validation
+
+Use the smallest meaningful validation for the changed scope.
+
+Preferred commands from the repo root:
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm build
+```
+
+`pnpm test` currently prints a placeholder and should not be presented as
+meaningful verification.
+
+If full validation is too expensive or not run, report exactly what was and was
+not verified.
+
+## Safety
+
+- Do not revert unrelated user changes.
+- Avoid destructive commands unless the user explicitly requested them.
+- State assumptions when local context is incomplete.
+- Flag changes that affect the runtime chain, worker protocol, renderer
+contract, file format, or public package API.
+- Prefer stable behavior over aggressive render-pipeline optimization unless the
+user explicitly asks for optimization work.
