@@ -148,6 +148,25 @@ Use this file as the shared knowledge base for the Venus monorepo.
   icons, while unknown types use a common placeholder icon with the type kept
   in the title/accessible label.
 
+- Redesigned the vector bottom status bar zoom control into a compact
+  Illustrator-style combo: the status bar now uses a slimmer neutral shell, the
+  zoom field edits percentage values correctly (`100%` -> scale `1`), and zoom
+  presets open upward from a single bordered control instead of rendering a
+  separate select plus input.
+
+- Tightened the vector zoom combo so the current scale appears only in the
+  input field; the select affordance is now a tiny chevron button embedded at
+  the right edge of the same input surface.
+
+- Refined the vector zoom combo focus model: the chevron now shares the input
+  surface without a separate divider, menu clicks no longer force a blur/commit
+  flicker, and the menu is linked to the input/button with ARIA controls.
+
+- Rebuilt the vector zoom combo as a single custom status-bar control with an
+  editable percent field, an embedded chevron-only preset trigger, ArrowDown
+  menu open support, focus-to-select editing, and listbox/option semantics for
+  the preset menu.
+
 ### 2026-04-05
 
 - Updated selection-visual ownership split: selected/hovered visual feedback was

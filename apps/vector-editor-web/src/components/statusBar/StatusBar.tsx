@@ -1,6 +1,5 @@
 import ZoomSelect from './ZoomSelect.tsx'
 import {FC, Ref, useImperativeHandle, useState} from 'react'
-import {Row} from '@venus/ui'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 import {EDITOR_TEXT_STATUS_CLASS} from '../editorChrome/editorTypography.ts'
 
@@ -25,17 +24,20 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
     }
   }, [])
 
-  return <Row between center fw h={30} style={{borderTop: '1px solid #dfdfdf'}}>
-    <ZoomSelect scale={worldScale} onChange={(newScale) => {
-      if (newScale === 'fit') {
-        executeAction('world-zoom', 'fit')
-      } else {
-        executeAction('world-zoom', {
-          zoomTo: true,
-          zoomFactor: newScale,
-        })
-      }
-    }}/>
-    <div className={`line-clamp-1 ${EDITOR_TEXT_STATUS_CLASS}`}>{`dx:${worldPoint.x.toFixed(2)} dy:${worldPoint.y.toFixed(2)}`}</div>
-  </Row>
+  return <div className={'flex h-7 w-full items-center justify-between border-t border-gray-200 bg-gray-50 px-2'}>
+    <ZoomSelect
+      scale={worldScale}
+      onChange={(newScale) => {
+        if (newScale === 'fit') {
+          executeAction('world-zoom', 'fit')
+        } else {
+          executeAction('world-zoom', {
+            zoomTo: true,
+            zoomFactor: newScale,
+          })
+        }
+      }}
+    />
+    <div className={`line-clamp-1 text-gray-500 ${EDITOR_TEXT_STATUS_CLASS}`}>{`dx:${worldPoint.x.toFixed(2)} dy:${worldPoint.y.toFixed(2)}`}</div>
+  </div>
 }
