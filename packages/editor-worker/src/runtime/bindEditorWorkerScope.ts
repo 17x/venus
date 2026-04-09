@@ -681,6 +681,53 @@ function createLocalHistoryEntry(
           nextRotation: item.from.rotation,
         })
       }
+
+      if (!!item.from.flipX !== !!item.to.flipX || !!item.from.flipY !== !!item.to.flipY) {
+        forward.push({
+          type: 'patch-shape',
+          shapeId: shape.id,
+          prevFill: cloneFill(shape.fill),
+          nextFill: cloneFill(shape.fill),
+          prevStroke: cloneStroke(shape.stroke),
+          nextStroke: cloneStroke(shape.stroke),
+          prevShadow: cloneShadow(shape.shadow),
+          nextShadow: cloneShadow(shape.shadow),
+          prevCornerRadius: shape.cornerRadius,
+          nextCornerRadius: shape.cornerRadius,
+          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          prevEllipseStartAngle: shape.ellipseStartAngle,
+          nextEllipseStartAngle: shape.ellipseStartAngle,
+          prevEllipseEndAngle: shape.ellipseEndAngle,
+          nextEllipseEndAngle: shape.ellipseEndAngle,
+          prevFlipX: !!item.from.flipX,
+          nextFlipX: !!item.to.flipX,
+          prevFlipY: !!item.from.flipY,
+          nextFlipY: !!item.to.flipY,
+        })
+        backward.unshift({
+          type: 'patch-shape',
+          shapeId: shape.id,
+          prevFill: cloneFill(shape.fill),
+          nextFill: cloneFill(shape.fill),
+          prevStroke: cloneStroke(shape.stroke),
+          nextStroke: cloneStroke(shape.stroke),
+          prevShadow: cloneShadow(shape.shadow),
+          nextShadow: cloneShadow(shape.shadow),
+          prevCornerRadius: shape.cornerRadius,
+          nextCornerRadius: shape.cornerRadius,
+          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          prevEllipseStartAngle: shape.ellipseStartAngle,
+          nextEllipseStartAngle: shape.ellipseStartAngle,
+          prevEllipseEndAngle: shape.ellipseEndAngle,
+          nextEllipseEndAngle: shape.ellipseEndAngle,
+          prevFlipX: !!item.to.flipX,
+          nextFlipX: !!item.from.flipX,
+          prevFlipY: !!item.to.flipY,
+          nextFlipY: !!item.from.flipY,
+        })
+      }
     })
 
     if (forward.length === 0) {
@@ -716,6 +763,8 @@ function createLocalHistoryEntry(
     const nextEllipseEndAngle = command.patch.ellipseEndAngle === undefined
       ? shape.ellipseEndAngle
       : command.patch.ellipseEndAngle
+    const nextFlipX = command.patch.flipX === undefined ? !!shape.flipX : command.patch.flipX
+    const nextFlipY = command.patch.flipY === undefined ? !!shape.flipY : command.patch.flipY
 
     return {
       id: `shape.patch.${shape.id}`,
@@ -738,6 +787,10 @@ function createLocalHistoryEntry(
           nextEllipseStartAngle,
           prevEllipseEndAngle: shape.ellipseEndAngle,
           nextEllipseEndAngle,
+          prevFlipX: !!shape.flipX,
+          nextFlipX,
+          prevFlipY: !!shape.flipY,
+          nextFlipY,
         },
       ],
       backward: [
@@ -758,6 +811,10 @@ function createLocalHistoryEntry(
           nextEllipseStartAngle: shape.ellipseStartAngle,
           prevEllipseEndAngle: nextEllipseEndAngle,
           nextEllipseEndAngle: shape.ellipseEndAngle,
+          prevFlipX: nextFlipX,
+          nextFlipX: !!shape.flipX,
+          prevFlipY: nextFlipY,
+          nextFlipY: !!shape.flipY,
         },
       ],
     }
@@ -1118,6 +1175,31 @@ function createRemotePatches(
           nextRotation: item.to.rotation,
         })
       }
+
+      if (!!item.from.flipX !== !!item.to.flipX || !!item.from.flipY !== !!item.to.flipY) {
+        patches.push({
+          type: 'patch-shape',
+          shapeId: shape.id,
+          prevFill: cloneFill(shape.fill),
+          nextFill: cloneFill(shape.fill),
+          prevStroke: cloneStroke(shape.stroke),
+          nextStroke: cloneStroke(shape.stroke),
+          prevShadow: cloneShadow(shape.shadow),
+          nextShadow: cloneShadow(shape.shadow),
+          prevCornerRadius: shape.cornerRadius,
+          nextCornerRadius: shape.cornerRadius,
+          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
+          prevEllipseStartAngle: shape.ellipseStartAngle,
+          nextEllipseStartAngle: shape.ellipseStartAngle,
+          prevEllipseEndAngle: shape.ellipseEndAngle,
+          nextEllipseEndAngle: shape.ellipseEndAngle,
+          prevFlipX: !!item.from.flipX,
+          nextFlipX: !!item.to.flipX,
+          prevFlipY: !!item.from.flipY,
+          nextFlipY: !!item.to.flipY,
+        })
+      }
     })
 
     return patches
@@ -1156,6 +1238,12 @@ function createRemotePatches(
     const nextEllipseEndAngle = Object.prototype.hasOwnProperty.call(patchRecord, 'ellipseEndAngle')
       ? asOptionalNumber(patchRecord.ellipseEndAngle)
       : shape.ellipseEndAngle
+    const nextFlipX = Object.prototype.hasOwnProperty.call(patchRecord, 'flipX')
+      ? asBoolean(patchRecord.flipX) ?? !!shape.flipX
+      : !!shape.flipX
+    const nextFlipY = Object.prototype.hasOwnProperty.call(patchRecord, 'flipY')
+      ? asBoolean(patchRecord.flipY) ?? !!shape.flipY
+      : !!shape.flipY
 
     return [
       {
@@ -1175,6 +1263,10 @@ function createRemotePatches(
         nextEllipseStartAngle,
         prevEllipseEndAngle: shape.ellipseEndAngle,
         nextEllipseEndAngle,
+        prevFlipX: !!shape.flipX,
+        nextFlipX,
+        prevFlipY: !!shape.flipY,
+        nextFlipY,
       },
     ]
   }
@@ -1447,6 +1539,8 @@ function applyPatches(
       shape.cornerRadii = cloneCornerRadii(patch.nextCornerRadii)
       shape.ellipseStartAngle = patch.nextEllipseStartAngle
       shape.ellipseEndAngle = patch.nextEllipseEndAngle
+      shape.flipX = patch.nextFlipX
+      shape.flipY = patch.nextFlipY
 
       const index = document.shapes.findIndex((item) => item.id === shape.id)
       writeRuntimeShapeToScene(scene, document, index, shape)
@@ -1481,6 +1575,8 @@ function applyPatches(
         clipPathId: patch.shape.clipPathId,
         clipRule: patch.shape.clipRule,
         rotation: patch.shape.rotation,
+        flipX: patch.shape.flipX,
+        flipY: patch.shape.flipY,
         fill: cloneFill(patch.shape.fill),
         stroke: cloneStroke(patch.shape.stroke),
         shadow: cloneShadow(patch.shape.shadow),
@@ -1754,18 +1850,24 @@ function resolveHitTestPointer(
   pointer: {x: number; y: number},
   shape: DocumentNode,
 ) {
-  const rotation = shape.rotation ?? 0
-  if (Math.abs(rotation) <= 0.0001) {
-    return pointer
-  }
-
   const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
   const center = {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2,
   }
+  const rotation = shape.rotation ?? 0
+  const unrotated = Math.abs(rotation) > 0.0001
+    ? rotatePointAround(pointer, center, -rotation)
+    : pointer
 
-  return rotatePointAround(pointer, center, -rotation)
+  if (!shape.flipX && !shape.flipY) {
+    return unrotated
+  }
+
+  return {
+    x: shape.flipX ? center.x - (unrotated.x - center.x) : unrotated.x,
+    y: shape.flipY ? center.y - (unrotated.y - center.y) : unrotated.y,
+  }
 }
 
 function isPointNearLineSegment(
@@ -2127,16 +2229,6 @@ function resolveRuntimeShapeBounds(
 }
 
 function resolveShapeBounds(shape: DocumentNode) {
-  if ((shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
-    const pointBounds = getPathBounds(shape.points)
-    return {
-      minX: pointBounds.x,
-      minY: pointBounds.y,
-      maxX: pointBounds.x + pointBounds.width,
-      maxY: pointBounds.y + pointBounds.height,
-    }
-  }
-
   if (shape.type === 'path' && shape.bezierPoints && shape.bezierPoints.length > 0) {
     const bezierBounds = getBezierPathBounds(shape.bezierPoints)
     return {
@@ -2144,6 +2236,16 @@ function resolveShapeBounds(shape: DocumentNode) {
       minY: bezierBounds.y,
       maxX: bezierBounds.x + bezierBounds.width,
       maxY: bezierBounds.y + bezierBounds.height,
+    }
+  }
+
+  if ((shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
+    const pointBounds = getPathBounds(shape.points)
+    return {
+      minX: pointBounds.x,
+      minY: pointBounds.y,
+      maxX: pointBounds.x + pointBounds.width,
+      maxY: pointBounds.y + pointBounds.height,
     }
   }
 
@@ -2372,6 +2474,8 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
           width: item.from.width,
           height: item.from.height,
           rotation: item.from.rotation,
+          flipX: item.from.flipX,
+          flipY: item.from.flipY,
         },
         to: {
           x: item.to.x,
@@ -2379,6 +2483,8 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
           width: item.to.width,
           height: item.to.height,
           rotation: item.to.rotation,
+          flipX: item.to.flipX,
+          flipY: item.to.flipY,
         },
       })),
     }
@@ -2406,6 +2512,12 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     }
     if (Object.prototype.hasOwnProperty.call(command.patch, 'ellipseEndAngle')) {
       patchPayload.ellipseEndAngle = command.patch.ellipseEndAngle
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'flipX')) {
+      patchPayload.flipX = command.patch.flipX
+    }
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'flipY')) {
+      patchPayload.flipY = command.patch.flipY
     }
     return {
       shapeId: command.shapeId,
@@ -2463,6 +2575,10 @@ function asOptionalNumber(value: unknown) {
   return typeof value === 'number' ? value : undefined
 }
 
+function asBoolean(value: unknown) {
+  return typeof value === 'boolean' ? value : null
+}
+
 function asRotateBatch(value: unknown) {
   if (!Array.isArray(value)) {
     return []
@@ -2481,6 +2597,12 @@ function asRotateBatch(value: unknown) {
       return {shapeId, rotation}
     })
     .filter((item): item is {shapeId: string; rotation: number} => item !== null)
+}
+
+type ParsedTransformBatchItem = {
+  id: string
+  from: {x: number; y: number; width: number; height: number; rotation: number; flipX: boolean; flipY: boolean}
+  to: {x: number; y: number; width: number; height: number; rotation: number; flipX: boolean; flipY: boolean}
 }
 
 function asTransformBatch(value: unknown) {
@@ -2509,11 +2631,15 @@ function asTransformBatch(value: unknown) {
       const fromWidth = asNumber(from.width)
       const fromHeight = asNumber(from.height)
       const fromRotation = asNumber(from.rotation)
+      const fromFlipX = asBoolean(from.flipX)
+      const fromFlipY = asBoolean(from.flipY)
       const toX = asNumber(to.x)
       const toY = asNumber(to.y)
       const toWidth = asNumber(to.width)
       const toHeight = asNumber(to.height)
       const toRotation = asNumber(to.rotation)
+      const toFlipX = asBoolean(to.flipX)
+      const toFlipY = asBoolean(to.flipY)
       if (
         fromX === null ||
         fromY === null ||
@@ -2536,6 +2662,8 @@ function asTransformBatch(value: unknown) {
           width: fromWidth,
           height: fromHeight,
           rotation: fromRotation,
+          flipX: fromFlipX ?? false,
+          flipY: fromFlipY ?? false,
         },
         to: {
           x: toX,
@@ -2543,14 +2671,12 @@ function asTransformBatch(value: unknown) {
           width: toWidth,
           height: toHeight,
           rotation: toRotation,
+          flipX: toFlipX ?? false,
+          flipY: toFlipY ?? false,
         },
       }
     })
-    .filter((item): item is {
-      id: string
-      from: {x: number; y: number; width: number; height: number; rotation: number}
-      to: {x: number; y: number; width: number; height: number; rotation: number}
-    } => item !== null)
+    .filter((item): item is ParsedTransformBatchItem => item !== null)
 }
 
 function asDocumentNodeList(value: unknown) {
@@ -2582,6 +2708,8 @@ function asDocumentNode(value: unknown): DocumentNode | null {
   const clipPathId = asOptionalString(record.clipPathId)
   const clipRule = asClipRule(record.clipRule)
   const rotation = asNumber(record.rotation)
+  const flipX = asBoolean(record.flipX)
+  const flipY = asBoolean(record.flipY)
   const strokeStartArrowhead = asArrowhead(record.strokeStartArrowhead)
   const strokeEndArrowhead = asArrowhead(record.strokeEndArrowhead)
   const fill = asFill(record.fill)
@@ -2619,10 +2747,10 @@ function asDocumentNode(value: unknown): DocumentNode | null {
         .map((point) => asBezierPoint(point))
         .filter((point): point is BezierPoint => point !== null)
     : undefined
-  const nextBounds = (type === 'path' || type === 'polygon' || type === 'star') && points && points.length > 0
-    ? getPathBounds(points)
-    : type === 'path' && bezierPoints && bezierPoints.length > 0
-      ? getBezierPathBounds(bezierPoints)
+  const nextBounds = type === 'path' && bezierPoints && bezierPoints.length > 0
+    ? getBezierPathBounds(bezierPoints)
+    : (type === 'path' || type === 'polygon' || type === 'star') && points && points.length > 0
+      ? getPathBounds(points)
       : null
 
   return {
@@ -2635,6 +2763,8 @@ function asDocumentNode(value: unknown): DocumentNode | null {
     clipPathId,
     clipRule,
     rotation: rotation === null ? undefined : rotation,
+    flipX: flipX ?? undefined,
+    flipY: flipY ?? undefined,
     strokeStartArrowhead,
     strokeEndArrowhead,
     fill,

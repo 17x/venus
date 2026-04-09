@@ -254,6 +254,54 @@ function pickHandleAtPoint(
   return null
 }
 
+function collectResizeTransformTargets(
+  selectedNodes: EditorDocument['shapes'],
+  document: EditorDocument,
+) {
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  const childrenByParent = new Map<string, EditorDocument['shapes']>()
+
+  document.shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+    const siblings = childrenByParent.get(shape.parentId) ?? []
+    siblings.push(shape)
+    childrenByParent.set(shape.parentId, siblings)
+  })
+
+  const targets = new Map<string, EditorDocument['shapes'][number]>()
+  const selectedIds = new Set(selectedNodes.map((shape) => shape.id))
+
+  const collectLeafDescendants = (shapeId: string) => {
+    const queue = [...(childrenByParent.get(shapeId) ?? [])]
+    while (queue.length > 0) {
+      const current = queue.shift()
+      if (!current) {
+        continue
+      }
+      if (current.type === 'group') {
+        queue.push(...(childrenByParent.get(current.id) ?? []))
+        continue
+      }
+      targets.set(current.id, current)
+    }
+  }
+
+  selectedNodes.forEach((shape) => {
+    if (shape.type === 'group') {
+      collectLeafDescendants(shape.id)
+      return
+    }
+    if (selectedIds.has(shape.parentId ?? '')) {
+      return
+    }
+    targets.set(shape.id, shapeById.get(shape.id) ?? shape)
+  })
+
+  return Array.from(targets.values())
+}
+
 function rotatePointAround(
   point: {x: number; y: number},
   center: {x: number; y: number},
@@ -350,7 +398,7 @@ function remapPoint(
 
 function applyPreviewGeometryToShape(
   shape: EditorDocument['shapes'][number],
-  preview: {x: number; y: number; width: number; height: number; rotation?: number},
+  preview: {x: number; y: number; width: number; height: number; rotation?: number; flipX?: boolean; flipY?: boolean},
 ) {
   const source = {
     x: shape.x,
@@ -372,6 +420,8 @@ function applyPreviewGeometryToShape(
     width: preview.width,
     height: preview.height,
     rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
+    flipX: typeof preview.flipX === 'boolean' ? preview.flipX : shape.flipX,
+    flipY: typeof preview.flipY === 'boolean' ? preview.flipY : shape.flipY,
     points:
       (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
         ? shape.points.map((point) => remapPoint(point, source, target))
@@ -556,6 +606,8 @@ function App() {
               width: Math.max(1, shape.width),
               height: Math.max(1, shape.height),
               rotation: shape.rotation ?? 0,
+              flipX: shape.flipX ?? false,
+              flipY: shape.flipY ?? false,
               centerX: shape.x + shape.width / 2,
               centerY: shape.y + shape.height / 2,
             })),
@@ -571,6 +623,8 @@ function App() {
               width: Math.max(1, shape.width),
               height: Math.max(1, shape.height),
               rotation: shape.rotation ?? 0,
+              flipX: shape.flipX ?? false,
+              flipY: shape.flipY ?? false,
             })),
           })
         }
@@ -586,6 +640,8 @@ function App() {
             width: shape.width,
             height: shape.height,
             rotation: shape.rotation,
+            flipX: shape.flipX,
+            flipY: shape.flipY,
           })),
         })
       }
@@ -620,16 +676,21 @@ function App() {
       const handles = buildSelectionHandles(selectedBounds, 28, singleSelectedRotation)
       const handle = pickHandleAtPoint(pointer, handles, 6)
       if (handle) {
+        const resizeTargets = handle.kind === 'move' || handle.kind === 'rotate'
+          ? selectedNodes
+          : collectResizeTransformTargets(selectedNodes, snapshot.document)
         dragControllerRef.current.clear()
         transformManagerRef.current.start({
           shapeIds: selectedNodes.map((shape) => shape.id),
-          shapes: selectedNodes.map((shape) => ({
+          shapes: resizeTargets.map((shape) => ({
             shapeId: shape.id,
             x: shape.x,
             y: shape.y,
             width: Math.max(1, shape.width),
             height: Math.max(1, shape.height),
             rotation: shape.rotation ?? 0,
+            flipX: shape.flipX ?? false,
+            flipY: shape.flipY ?? false,
             centerX: shape.x + shape.width / 2,
             centerY: shape.y + shape.height / 2,
           })),
@@ -638,13 +699,15 @@ function App() {
           startBounds: selectedBounds,
         })
         setDragPreviewState({
-          shapes: selectedNodes.map((shape) => ({
+          shapes: resizeTargets.map((shape) => ({
             shapeId: shape.id,
             x: shape.x,
             y: shape.y,
             width: Math.max(1, shape.width),
             height: Math.max(1, shape.height),
             rotation: shape.rotation ?? 0,
+            flipX: shape.flipX ?? false,
+            flipY: shape.flipY ?? false,
           })),
         })
         return
@@ -662,6 +725,8 @@ function App() {
           width: Math.max(1, shape.width),
           height: Math.max(1, shape.height),
           rotation: shape.rotation ?? 0,
+          flipX: shape.flipX ?? false,
+          flipY: shape.flipY ?? false,
           centerX: shape.x + shape.width / 2,
           centerY: shape.y + shape.height / 2,
         })),
@@ -677,6 +742,8 @@ function App() {
           width: Math.max(1, shape.width),
           height: Math.max(1, shape.height),
           rotation: shape.rotation ?? 0,
+          flipX: shape.flipX ?? false,
+          flipY: shape.flipY ?? false,
         })),
       })
       return
@@ -740,8 +807,8 @@ function App() {
 
     const transformBatch: Array<{
       id: string
-      from: {x: number; y: number; width: number; height: number; rotation: number}
-      to: {x: number; y: number; width: number; height: number; rotation: number}
+      from: {x: number; y: number; width: number; height: number; rotation: number; flipX?: boolean; flipY?: boolean}
+      to: {x: number; y: number; width: number; height: number; rotation: number; flipX?: boolean; flipY?: boolean}
     }> = []
     preview.shapes.forEach((item) => {
       const shape = snapshot.document.shapes.find((candidate) => candidate.id === item.shapeId)
@@ -749,12 +816,16 @@ function App() {
         return
       }
       const nextRotation = typeof item.rotation === 'number' ? item.rotation : (shape.rotation ?? 0)
+      const nextFlipX = typeof item.flipX === 'boolean' ? item.flipX : !!shape.flipX
+      const nextFlipY = typeof item.flipY === 'boolean' ? item.flipY : !!shape.flipY
       const changed =
         shape.x !== item.x ||
         shape.y !== item.y ||
         shape.width !== item.width ||
         shape.height !== item.height ||
-        (shape.rotation ?? 0) !== nextRotation
+        (shape.rotation ?? 0) !== nextRotation ||
+        !!shape.flipX !== nextFlipX ||
+        !!shape.flipY !== nextFlipY
       if (!changed) {
         return
       }
@@ -766,6 +837,8 @@ function App() {
           width: shape.width,
           height: shape.height,
           rotation: shape.rotation ?? 0,
+          flipX: !!shape.flipX,
+          flipY: !!shape.flipY,
         },
         to: {
           x: item.x,
@@ -773,6 +846,8 @@ function App() {
           width: item.width,
           height: item.height,
           rotation: nextRotation,
+          flipX: nextFlipX,
+          flipY: nextFlipY,
         },
       })
     })

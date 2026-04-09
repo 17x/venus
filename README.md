@@ -29,6 +29,13 @@ The current active stack focuses on `vector-editor-web` and `runtime-playground`
 - Node.js 20+
 - `pnpm` 8.x
 
+## UI Packages
+
+- `@venus/ui`: local shared UI package for vector editor chrome and reusable primitives.
+- shadcn-style component setup in `packages/ui/components.json`, with app-owned Tailwind CSS variables in `apps/vector-editor-web/src/index.css`.
+- Radix UI primitives in `@venus/ui` for dialog, select, scroll area, and tooltip behavior.
+- Tailwind CSS 4 for app and shared UI styling.
+
 ## Install
 
 ```sh

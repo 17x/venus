@@ -171,8 +171,11 @@ function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
   const rotation = shape.rotation ?? 0
   const centerX = shape.x + shape.width / 2
   const centerY = shape.y + shape.height / 2
-  const transform = Math.abs(rotation) > 0.0001
-    ? `rotate(${rotation} ${centerX} ${centerY})`
+  const scaleX = shape.flipX ? -1 : 1
+  const scaleY = shape.flipY ? -1 : 1
+  const needsTransform = Math.abs(rotation) > 0.0001 || shape.flipX || shape.flipY
+  const transform = needsTransform
+    ? `translate(${centerX} ${centerY}) rotate(${rotation}) scale(${scaleX} ${scaleY}) translate(${-centerX} ${-centerY})`
     : undefined
 
   if (shape.type === 'group') {

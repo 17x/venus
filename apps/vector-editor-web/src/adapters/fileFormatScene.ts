@@ -101,6 +101,8 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     width,
     height,
     rotation,
+    flipX: Boolean(element.flipX),
+    flipY: Boolean(element.flipY),
   }
   if (strokeStartArrowhead) {
     metadataValues.strokeStartArrowhead = strokeStartArrowhead

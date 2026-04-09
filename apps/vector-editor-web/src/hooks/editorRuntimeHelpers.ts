@@ -176,6 +176,8 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
     strokeStartArrowhead: shape.strokeStartArrowhead,
     strokeEndArrowhead: shape.strokeEndArrowhead,
     rotation: shape.rotation ?? 0,
+    flipX: shape.flipX ?? false,
+    flipY: shape.flipY ?? false,
     opacity: 1,
     fill: shape.fill
       ? {...shape.fill}

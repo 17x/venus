@@ -42,7 +42,9 @@ export interface TransformPreview {
     y: number
     width: number
     height: number
-    rotation?: number
+    rotation: number
+    flipX?: boolean
+    flipY?: boolean
   }>
 }
 

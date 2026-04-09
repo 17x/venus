@@ -59,6 +59,8 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const width = geometryBounds?.width ?? readNumber(metadata, 'width') ?? 0
   const height = geometryBounds?.height ?? readNumber(metadata, 'height') ?? 0
   const rotation = readNumber(metadata, 'rotation') ?? 0
+  const flipX = readBoolean(metadata, 'flipX') ?? false
+  const flipY = readBoolean(metadata, 'flipY') ?? false
   const fillEnabled = readBoolean(metadata, 'fillEnabled')
   const fillColor = readString(metadata, 'fillColor')
   const strokeEnabled = readBoolean(metadata, 'strokeEnabled')
@@ -88,6 +90,8 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
     width,
     height,
     rotation,
+    flipX,
+    flipY,
     text: textFeature?.text,
     textRuns: textFeature?.runs.map((run) => ({
       start: run.start,

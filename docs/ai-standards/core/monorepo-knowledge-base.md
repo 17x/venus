@@ -47,6 +47,14 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - `Skia` remains available but is not the current default path for vector and
   playground iteration.
 
+### Legacy Reference Code
+
+- `packages/editor_old` is deprecated and reference-only.
+- Agents may inspect `packages/editor_old` for legacy behavior or design
+  context, but new fixes and feature work should land in the active runtime
+  chain (`document-core`, `canvas-base`, `editor-worker`, renderer packages,
+  and app adapters) instead of modifying `editor_old`.
+
 ### Viewport Interaction Status
 
 - `pan` preview is currently the stable interaction optimization.
@@ -54,6 +62,41 @@ Use this file as the shared knowledge base for the Venus monorepo.
   redraw.
 
 ## Recent Updates
+
+### 2026-04-09
+
+- `@venus/document-core` bezier path bounds now solve cubic derivative extrema
+  in `packages/document-core/src/geometry.ts` instead of relying on fixed-step
+  sampling. Path MBRs therefore include true between-sample peaks/valleys,
+  which keeps worker hit bounds, runtime mock path sizing, and vector/file
+  adapters aligned for strongly curved segments.
+
+- Path bounds precedence now prefers `bezierPoints` over raw `points` in the
+  worker runtime and vector element-to-document adapter. This prevents authored
+  bezier paths from snapping back to anchor-list bounds after move/resize or
+  other operation commits that re-derive runtime `x/y/width/height`.
+
+- Vector selection overlay now hides the full selection chrome during active
+  transform drags, including resize, rotate, and move. The MBR, resize handles,
+  and rotation handle disappear until the gesture ends so direct manipulation
+  feedback stays less noisy.
+
+- Shared `canvas-base` transform resize now treats single rotated selections in
+  local shape space instead of world-axis space. Corner and edge handle drags
+  therefore resize rotated elements against their visual handle directions
+  while preserving the element's existing rotation.
+
+- `flipX` / `flipY` are now first-class transform state in the active vector
+  runtime path. Single-shape resize crossovers toggle flip state instead of
+  rebaking polygon/path geometry, and the worker, Canvas2D renderer, selection
+  overlays, file adapters, clip hit-tests, and runtime-playground/vector app
+  preview/commit paths all preserve those flips.
+
+- Multi-selection and group resize now use signed batch scaling in
+  `canvas-base` instead of positive-only box scaling. Crossing a group/selection
+  axis toggles per-shape flip state, and group resize targets leaf descendants
+  rather than the derived group container box, so reflected resize behavior
+  stays consistent for grouped content too.
 
 ### 2026-04-08
 
@@ -493,3 +536,12 @@ Use this file as the shared knowledge base for the Venus monorepo.
   generated `path` nodes are still smooth bezier waves, while a subset now
   alternates straight joints and bezier handles. Large-scene render and
   hit-test checks therefore cover both pure-curve and mixed-segment path data.
+
+- The root `README.md` now lists the new vector UI package surface narrowly:
+  `@venus/ui`, the shadcn-style `packages/ui/components.json` setup, Radix UI
+  primitives for dialog/select/scroll-area/tooltip, and Tailwind CSS 4.
+
+- Shared `@venus/ui` tooltips now use an inline `11px / 14px` content size
+  instead of Tailwind `text-xs`, because Radix Tooltip portals render outside
+  the vector editor root and cannot rely on `.venus-editor` typography
+  inheritance or app Tailwind scanning for package-local arbitrary classes.

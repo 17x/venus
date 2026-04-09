@@ -59,8 +59,8 @@ export function Tooltip({
             side={resolveSide(placement)}
             align={resolveAlign(placement)}
             sideOffset={6}
-            className="z-50 whitespace-nowrap rounded px-2 py-1 text-xs shadow"
-            style={{backgroundColor: bgColor, color: textColor}}
+            className="z-50 whitespace-nowrap rounded px-2 py-1 shadow"
+            style={{backgroundColor: bgColor, color: textColor, fontSize: 11, lineHeight: '14px'}}
           >
             {title}
             <RadixTooltip.Arrow width={8} height={4} style={{fill: bgColor}} />
