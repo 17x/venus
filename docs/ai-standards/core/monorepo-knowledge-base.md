@@ -68,6 +68,26 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ### 2026-04-09
 
+- `runtime-playground` now supports runtime mode tabs (`Editor` vs `Viewer`)
+  in `apps/runtime-playground/src/App.tsx`. The app is wired through the new
+  `canvas-base` instance APIs (`createCanvasEditorInstance`,
+  `createCanvasViewerInstance`), so mode switching can validate both the
+  worker-backed editing path and renderer-only viewer path in one surface.
+
+- `runtime-playground` editor transform move now includes first-pass bounds
+  snapping with visual guide lines in `apps/runtime-playground/src/App.tsx`.
+  Snapping logic/hints were then extracted into shared `canvas-base` package
+  surfaces (`interaction/snapping.ts` with pure-TS guide projection) so
+  playground now only orchestrates package APIs. Current scope remains
+  move-session snapping only (`min/center/max` x/y against non-selected shape
+  bounds); resize/rotate snapping remains unchanged.
+
+- `vector-editor-web` now consumes the same shared move-snapping package APIs
+  (`resolveMoveSnapPreview` + `resolveSnapGuideLines`) in
+  `apps/vector-editor-web/src/hooks/useEditorRuntime.ts` and
+  `apps/vector-editor-web/src/interaction/overlay/InteractionOverlay.tsx`,
+  aligning vector editor move snapping behavior with runtime-playground.
+
 - `@venus/document-core` bezier path bounds now solve cubic derivative extrema
   in `packages/document-core/src/geometry.ts` instead of relying on fixed-step
   sampling. Path MBRs therefore include true between-sample peaks/valleys,
@@ -676,3 +696,25 @@ Use this file as the shared knowledge base for the Venus monorepo.
   instead of Tailwind `text-xs`, because Radix Tooltip portals render outside
   the vector editor root and cannot rely on `.venus-editor` typography
   inheritance or app Tailwind scanning for package-local arbitrary classes.
+
+- Snapping candidate lookup now uses `@venus/spatial-index` in
+  `@venus/canvas-base` (`interaction/snapping.ts`) to query nearby bounds by
+  tolerance window around moving shapes, so snap priority is effectively
+  nearest-match among local neighbors rather than global full-scene scans.
+
+- Runtime command contracts now include `snapping.pause` and
+  `snapping.resume` in `@venus/editor-worker` protocol types. App runtimes
+  (`runtime-playground` and `vector-editor-web`) intercept these commands at
+  the runtime shell layer to toggle optional snapping behavior without
+  mutating worker document state.
+
+- Marquee (selection-box) commit behavior in `runtime-playground` and
+  `vector-editor-web` now uses `matchMode: 'contain'` explicitly when calling
+  `resolveMarqueeSelection(...)`, so drag-box selection only includes shapes
+  fully contained by the marquee bounds.
+
+- Marquee selection now supports explicit apply timing via
+  `canvas-base` `MarqueeApplyMode`; both `runtime-playground` and
+  `vector-editor-web` currently use `while-pointer-move`, so selection is
+  applied live during drag. After mouse-up, each app also emits a readable
+  selection name summary from selected shape names.

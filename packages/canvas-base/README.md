@@ -17,12 +17,17 @@ mindmap editor, or streamline-style editor.
 - pointer and command forwarding
 - history and collaboration summaries returned from the worker
 
-Today it provides two public entry points:
+Today it provides:
 
 - [`createCanvasRuntimeController`](./src/runtime/createCanvasRuntimeController.ts)
 - [`useCanvasRuntime`](./src/react/useCanvasRuntime.ts)
 - [`createCanvasViewerController`](./src/runtime/createCanvasViewerController.ts)
 - [`useCanvasViewer`](./src/react/useCanvasViewer.ts)
+- [`createCanvasEditorInstance`](./src/runtime/createCanvasEditorInstance.ts)
+- [`createCanvasViewerInstance`](./src/runtime/createCanvasViewerInstance.ts)
+- element behavior registry (`./src/extensibility/elements.ts`)
+- runtime module contracts (`./src/runtime/modules.ts`)
+- built-in module presets (`./src/presets/*`)
 
 ## What It Does Not Own
 
@@ -148,6 +153,22 @@ Viewer options:
 - `enableHitTest?: boolean` (default `true`)
 - `selectOnPointerDown?: boolean` (default `false`)
 
+### `createCanvasEditorInstance` / `createCanvasViewerInstance`
+
+Higher-level runtime constructors layered on top of the existing controllers.
+
+They add:
+
+- optional element behavior registry for custom element `render`/`hitTest`
+- optional runtime modules for policy hooks and optional capabilities
+- consistent instance surface across editor-mode and viewer-mode runtimes
+
+Use these when:
+
+- new app teams want one bootstrap API instead of wiring each part manually
+- products need renderer-only mode with optional policy modules
+- products need custom selection/snapping behavior without forking core
+
 ## Example
 
 ```ts
@@ -201,6 +222,88 @@ This package is intentionally small right now. Likely future additions:
 - extension registration surface for app-specific modules
 
 These should be added only if they are shared across multiple apps.
+
+## Extensibility Scaffold
+
+`canvas-base` now ships a first-pass extension scaffold with three layers:
+
+1. element behavior registry
+2. runtime module lifecycle hooks
+3. editor/viewer instance factories
+
+### Element Registry
+
+`createCanvasElementRegistry(...)` stores behavior contracts keyed by `type`.
+Custom element providers can define:
+
+- `render(context, node, runtime)`
+- `hitTest(point, node, runtime)`
+- optional `getBounds(node, document)`
+- optional `getSnapSources(node, document)`
+
+### Runtime Modules
+
+`createCanvasModuleRunner(...)` and `CanvasRuntimeModule` expose optional hooks:
+
+- `setup` + teardown
+- `onStart` / `onDestroy`
+- `beforePointer` / `afterPointer`
+- `beforeCommand` / `afterCommand`
+
+Built-in preset contracts:
+
+- `createSelectionModule(...)`
+- `createSnapModule(...)`
+- `createDefaultEditorModules(...)`
+
+### Snapping Data vs Hint UI
+
+Snapping contracts intentionally separate semantic snap data from rendering:
+
+- `SnapMatch[]` and `SnapComputationResult` carry math/decision data
+- product UIs can render their own hint style from that data
+- `SnapHintDescriptor` is optional and can be ignored by hosts
+
+## Import Style
+
+```ts
+import {
+  createCanvasEditorInstance,
+  createCanvasViewerInstance,
+  createDefaultEditorModules,
+  createSelectionModule,
+  createSnapModule,
+} from '@venus/canvas-base'
+```
+
+## Instance Style
+
+```ts
+const editor = createCanvasEditorInstance({
+  capacity: 1024,
+  createWorker: () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
+  document,
+  modules: createDefaultEditorModules({
+    snappingPreset: 'bounds',
+  }),
+})
+```
+
+```ts
+const viewer = createCanvasViewerInstance({
+  document,
+  modules: [
+    createSelectionModule({
+      config: {
+        marquee: {
+          enabled: true,
+          defaultMatchMode: 'contain',
+        },
+      },
+    }),
+  ],
+})
+```
 
 ## Design Constraints
 

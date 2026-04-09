@@ -5,6 +5,9 @@ import {
   CanvasViewport,
   CanvasSelectionOverlay,
   collectResizeTransformTargets,
+  createCanvasEditorInstance,
+  createCanvasViewerInstance,
+  createDefaultEditorModules,
   createTransformBatchCommand,
   createMarqueeState,
   pickSelectionHandleAtPoint,
@@ -16,18 +19,21 @@ import {
   createTransformSessionManager,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
+  resolveSnapGuideLines,
+  resolveMoveSnapPreview,
   updateMarqueeState,
   useTransformPreviewCommitState,
-  useCanvasRuntimeSelector,
-  useCanvasRuntimeStore,
   type CanvasRenderLodState,
   type CanvasOverlayProps,
   type MarqueeBounds,
+  type MarqueeApplyMode,
   type MarqueeSelectionMode,
   type MarqueeState,
-  type CanvasRuntimeStore,
+  type CanvasRuntimeSnapshot,
+  type CanvasViewerSnapshot,
   type CanvasRenderer,
   type CanvasViewportState,
+  type SnapGuide,
 } from '@venus/canvas-base'
 import {
   convertDrawPointsToBezierPoints,
@@ -57,6 +63,12 @@ const LARGE_STRESS_SHAPE_COUNT = 50_000
 const MEDIUM_STRESS_SHAPE_COUNT = 10_000
 const EXTREME_STRESS_SHAPE_COUNT = 1_000_000
 const SHAPE_TYPE_ORDER = ['frame', 'group', 'rectangle', 'ellipse', 'polygon', 'star', 'lineSegment', 'path', 'text', 'image'] as const
+type PlaygroundRuntimeMode = 'editor' | 'viewer'
+type PlaygroundDocumentMode = 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
+type PlaygroundEditorSnapshot = CanvasRuntimeSnapshot<EditorDocument>
+type PlaygroundViewerSnapshot = CanvasViewerSnapshot<EditorDocument>
+type PlaygroundSnapshot = PlaygroundEditorSnapshot | PlaygroundViewerSnapshot
+const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
 
 function createGeneratedImageDataUrl(label: string, width: number, height: number) {
   const hue = Math.floor(Math.random() * 360)
@@ -195,8 +207,28 @@ function summarizeShapeTypes(document: EditorDocument) {
     .filter((item) => item.count > 0)
 }
 
+function formatSelectionNames(document: EditorDocument, selectedIds: string[]) {
+  if (selectedIds.length === 0) {
+    return 'None'
+  }
+
+  const names = selectedIds
+    .map((id) => document.shapes.find((shape) => shape.id === id)?.name)
+    .filter((name): name is string => Boolean(name))
+
+  if (names.length === 0) {
+    return `${selectedIds.length} selected`
+  }
+  if (names.length <= 3) {
+    return names.join(', ')
+  }
+
+  return `${names.slice(0, 3).join(', ')} +${names.length - 3}`
+}
+
 function App() {
-  const [documentMode, setDocumentMode] = React.useState<'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'>('demo')
+  const [runtimeMode, setRuntimeMode] = React.useState<PlaygroundRuntimeMode>('editor')
+  const [documentMode, setDocumentMode] = React.useState<PlaygroundDocumentMode>('demo')
   const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
   const [largeStressRevision, setLargeStressRevision] = React.useState(0)
   const [stressRevision, setStressRevision] = React.useState(0)
@@ -234,18 +266,49 @@ function App() {
     () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
   )
-  const runtimeOptions = React.useMemo(
-    () => ({
-      capacity: activeDocument.shapes.length + 16,
-      createWorker,
-      document: activeDocument,
-      allowFrameSelection: false,
-    }),
-    [activeDocument, createWorker],
+  const editorInstance = React.useMemo(() => createCanvasEditorInstance({
+    capacity: activeDocument.shapes.length + 16,
+    createWorker,
+    document: activeDocument,
+    allowFrameSelection: false,
+    modules: createDefaultEditorModules<PlaygroundEditorSnapshot>(),
+  }), [activeDocument, createWorker])
+  const viewerInstance = React.useMemo(() => createCanvasViewerInstance({
+    document: activeDocument,
+    enableHitTest: true,
+    hoverOnPointerMove: true,
+    selectOnPointerDown: true,
+  }), [activeDocument])
+
+  React.useEffect(() => {
+    editorInstance.start()
+    return () => {
+      editorInstance.destroy()
+    }
+  }, [editorInstance])
+
+  React.useEffect(() => {
+    viewerInstance.start()
+    return () => {
+      viewerInstance.destroy()
+    }
+  }, [viewerInstance])
+
+  const editorSnapshot = React.useSyncExternalStore(
+    editorInstance.subscribe,
+    editorInstance.getSnapshot,
+    editorInstance.getSnapshot,
   )
-  const runtimeStore = useCanvasRuntimeStore(runtimeOptions)
-  const runtimeController = runtimeStore.controller
-  const runtimeDocumentShapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document.shapes)
+  const viewerSnapshot = React.useSyncExternalStore(
+    viewerInstance.subscribe,
+    viewerInstance.getSnapshot,
+    viewerInstance.getSnapshot,
+  )
+  const activeSnapshot: PlaygroundSnapshot = runtimeMode === 'editor'
+    ? editorSnapshot
+    : viewerSnapshot
+  const activeController = runtimeMode === 'editor' ? editorInstance : viewerInstance
+  const activeDocumentShapes = activeSnapshot.document.shapes
   const [renderLodState, setRenderLodState] = React.useState<CanvasRenderLodState | null>(null)
   const {
     preview: dragPreview,
@@ -254,13 +317,25 @@ function App() {
     clearPreview: clearDragPreview,
     markCommitPending: markDragPreviewCommitPending,
   } = useTransformPreviewCommitState({
-    documentShapes: runtimeDocumentShapes,
+    documentShapes: activeDocumentShapes,
   })
   const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
+  const [snapGuides, setSnapGuides] = React.useState<SnapGuide[]>([])
+  const [snappingEnabled, setSnappingEnabled] = React.useState(true)
+  const [lastMarqueeSelectionName, setLastMarqueeSelectionName] = React.useState('None')
 
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
-    runtimeController.dispatchCommand(command)
-  }, [runtimeController])
+    if (command.type === 'snapping.pause') {
+      setSnappingEnabled(false)
+      setSnapGuides([])
+      return
+    }
+    if (command.type === 'snapping.resume') {
+      setSnappingEnabled(true)
+      return
+    }
+    activeController.dispatchCommand(command)
+  }, [activeController])
   const handleLoadDemo = React.useCallback(() => {
     setDocumentMode('demo')
   }, [])
@@ -292,8 +367,23 @@ function App() {
     allowFrameSelection: false,
   }))
   const transformManagerRef = React.useRef(createTransformSessionManager())
+  const marqueeAppliedSignatureRef = React.useRef('')
 
-  const resolveSelectedBounds = React.useCallback((snapshot: ReturnType<typeof runtimeController.getSnapshot>) => {
+  React.useEffect(() => {
+    clearDragPreview()
+    setMarquee(null)
+    setSnapGuides([])
+    dragControllerRef.current.clear()
+    transformManagerRef.current.cancel()
+  }, [clearDragPreview, runtimeMode])
+
+  React.useEffect(() => {
+    if (!snappingEnabled) {
+      setSnapGuides([])
+    }
+  }, [snappingEnabled])
+
+  const resolveSelectedBounds = React.useCallback((snapshot: PlaygroundSnapshot) => {
     const selectedNodes = snapshot.shapes
       .filter((shape) => shape.isSelected)
       .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
@@ -313,16 +403,57 @@ function App() {
         maxX: Math.max(acc.maxX, item.maxX),
         maxY: Math.max(acc.maxY, item.maxY),
       }), initial)
-  }, [runtimeController])
+  }, [])
+
+  const resolveMarqueeSelectionIds = React.useCallback((nextMarquee: MarqueeState) => {
+    const snapshot = editorInstance.getSnapshot()
+    const bounds = resolveMarqueeBounds(nextMarquee)
+    return resolveMarqueeSelection(snapshot.document.shapes, bounds, {
+      matchMode: 'contain',
+      excludeShape: (shape) => shape.type === 'frame',
+    })
+  }, [editorInstance])
+
+  const applyMarqueeSelectionWhileMoving = React.useCallback((nextMarquee: MarqueeState) => {
+    if (nextMarquee.applyMode !== 'while-pointer-move') {
+      return
+    }
+
+    const selectedIds = resolveMarqueeSelectionIds(nextMarquee)
+    const signature = `${nextMarquee.mode}:${selectedIds.join(',')}`
+    if (signature === marqueeAppliedSignatureRef.current) {
+      return
+    }
+
+    marqueeAppliedSignatureRef.current = signature
+    editorInstance.dispatchCommand({
+      type: 'selection.set',
+      shapeIds: selectedIds,
+      mode: nextMarquee.mode,
+    })
+  }, [editorInstance, resolveMarqueeSelectionIds])
 
   const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
+    if (runtimeMode !== 'editor') {
+      setSnapGuides([])
+      viewerInstance.postPointer('pointermove', pointer)
+      return
+    }
+
     const transformSession = transformManagerRef.current.getSession()
     if (transformSession) {
-      runtimeController.clearHover()
+      editorInstance.clearHover()
       const preview = transformManagerRef.current.update(pointer)
       if (preview) {
+        const transformSession = transformManagerRef.current.getSession()
+        const maybeSnapped = transformSession?.handle === 'move'
+          ? snappingEnabled
+            ? resolveMoveSnapPreview(preview, editorInstance.getSnapshot().document)
+            : {preview, guides: [] as SnapGuide[]}
+          : {preview, guides: [] as SnapGuide[]}
+        setSnapGuides(maybeSnapped.guides)
         setDragPreviewState({
-          shapes: preview.shapes.map((shape) => ({
+          shapes: maybeSnapped.preview.shapes.map((shape) => ({
             shapeId: shape.shapeId,
             x: shape.x,
             y: shape.y,
@@ -336,18 +467,26 @@ function App() {
     }
 
     if (marquee) {
-      runtimeController.clearHover()
-      setMarquee((current) => (current ? updateMarqueeState(current, pointer) : current))
+      setSnapGuides([])
+      editorInstance.clearHover()
+      setMarquee((current) => {
+        if (!current) {
+          return current
+        }
+        const nextMarquee = updateMarqueeState(current, pointer)
+        applyMarqueeSelectionWhileMoving(nextMarquee)
+        return nextMarquee
+      })
       return
     }
 
-    const snapshot = runtimeController.getSnapshot()
+    const snapshot = editorInstance.getSnapshot()
     const dragMove = dragControllerRef.current.pointerMove(pointer, {
       document: snapshot.document,
       shapes: snapshot.shapes,
     })
     if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
-      runtimeController.clearHover()
+      editorInstance.clearHover()
       if (dragMove.phase === 'started') {
         const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
         const dragShapes = dragShapeIds
@@ -370,8 +509,15 @@ function App() {
 
       const preview = transformManagerRef.current.update(pointer)
       if (preview) {
+        const transformSession = transformManagerRef.current.getSession()
+        const maybeSnapped = transformSession?.handle === 'move'
+          ? snappingEnabled
+            ? resolveMoveSnapPreview(preview, editorInstance.getSnapshot().document)
+            : {preview, guides: [] as SnapGuide[]}
+          : {preview, guides: [] as SnapGuide[]}
+        setSnapGuides(maybeSnapped.guides)
         setDragPreviewState({
-          shapes: preview.shapes.map((shape) => ({
+          shapes: maybeSnapped.preview.shapes.map((shape) => ({
             shapeId: shape.shapeId,
             x: shape.x,
             y: shape.y,
@@ -387,20 +533,34 @@ function App() {
     }
 
     if (dragMove.phase === 'none') {
+      setSnapGuides([])
       setDragPreviewState(null)
     }
     if (dragMove.phase === 'pending') {
-      runtimeController.clearHover()
+      editorInstance.clearHover()
       return
     }
 
-    runtimeController.postPointer('pointermove', pointer)
-  }, [clearDragPreview, marquee, runtimeController, setDragPreviewState])
+    editorInstance.postPointer('pointermove', pointer)
+  }, [
+    applyMarqueeSelectionWhileMoving,
+    editorInstance,
+    marquee,
+    runtimeMode,
+    setDragPreviewState,
+    snappingEnabled,
+    viewerInstance,
+  ])
   const handlePointerDown = React.useCallback((
     pointer: { x: number; y: number },
     modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
   ) => {
-    const snapshot = runtimeController.getSnapshot()
+    if (runtimeMode !== 'editor') {
+      viewerInstance.postPointer('pointerdown', pointer)
+      return
+    }
+
+    const snapshot = editorInstance.getSnapshot()
     const selectedNodes = snapshot.shapes
       .filter((shape) => shape.isSelected)
       .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
@@ -439,7 +599,7 @@ function App() {
         !selectedNodes.some((shape) => isPointInsideShapeHitArea(pointer, shape, {tolerance: 6}))
       ) {
         dragControllerRef.current.clear()
-        runtimeController.dispatchCommand({
+        editorInstance.dispatchCommand({
           type: 'selection.set',
           shapeIds: [],
           mode: 'replace',
@@ -465,27 +625,35 @@ function App() {
         : (modifiers?.metaKey || modifiers?.ctrlKey)
           ? 'toggle'
           : 'replace'
-      runtimeController.clearHover()
-      setMarquee(createMarqueeState(pointer, marqueeMode))
+      editorInstance.clearHover()
+      marqueeAppliedSignatureRef.current = ''
+      setMarquee(createMarqueeState(pointer, marqueeMode, {
+        applyMode: DEFAULT_MARQUEE_APPLY_MODE,
+      }))
       return
     }
 
-    runtimeController.postPointer('pointerdown', pointer, modifiers)
-  }, [resolveSelectedBounds, runtimeController])
+    editorInstance.postPointer('pointerdown', pointer, modifiers)
+  }, [editorInstance, resolveSelectedBounds, runtimeMode, viewerInstance])
   const handlePointerUp = React.useCallback(() => {
-    dragControllerRef.current.pointerUp()
-    if (marquee) {
-      const snapshot = runtimeController.getSnapshot()
-      const bounds = resolveMarqueeBounds(marquee)
-      const selectedIds = resolveMarqueeSelection(snapshot.document.shapes, bounds, {
-        excludeShape: (shape) => shape.type === 'frame',
-      })
+    if (runtimeMode !== 'editor') {
+      return
+    }
 
-      runtimeController.dispatchCommand({
-        type: 'selection.set',
-        shapeIds: selectedIds,
-        mode: marquee.mode,
-      })
+    dragControllerRef.current.pointerUp()
+    setSnapGuides([])
+    if (marquee) {
+      const snapshot = editorInstance.getSnapshot()
+      const selectedIds = resolveMarqueeSelectionIds(marquee)
+      if (marquee.applyMode !== 'while-pointer-move') {
+        editorInstance.dispatchCommand({
+          type: 'selection.set',
+          shapeIds: selectedIds,
+          mode: marquee.mode,
+        })
+      }
+      marqueeAppliedSignatureRef.current = ''
+      setLastMarqueeSelectionName(formatSelectionNames(snapshot.document, selectedIds))
       dragControllerRef.current.clear()
       setMarquee(null)
       return
@@ -497,7 +665,7 @@ function App() {
       return
     }
 
-    const snapshot = runtimeController.getSnapshot()
+    const snapshot = editorInstance.getSnapshot()
     const preview = dragPreviewRef.current
     if (!preview) {
       clearDragPreview()
@@ -509,27 +677,63 @@ function App() {
       clearDragPreview()
       return
     }
-    runtimeController.dispatchCommand(transformCommand)
+    editorInstance.dispatchCommand(transformCommand)
     markDragPreviewCommitPending()
-  }, [clearDragPreview, dragPreviewRef, markDragPreviewCommitPending, marquee, runtimeController])
+  }, [
+    applyMarqueeSelectionWhileMoving,
+    clearDragPreview,
+    dragPreviewRef,
+    editorInstance,
+    markDragPreviewCommitPending,
+    marquee,
+    resolveMarqueeSelectionIds,
+    runtimeMode,
+  ])
   const handlePointerLeave = React.useCallback(() => {
     clearDragPreview()
     setMarquee(null)
+    setSnapGuides([])
     dragControllerRef.current.clear()
     transformManagerRef.current.cancel()
-    runtimeController.clearHover()
-  }, [clearDragPreview, runtimeController])
+    activeController.clearHover()
+  }, [activeController, clearDragPreview])
   const marqueeBounds = React.useMemo<MarqueeBounds | null>(
     () => marquee ? resolveMarqueeBounds(marquee) : null,
     [marquee],
   )
+  const activeHistory = runtimeMode === 'editor' ? editorSnapshot.history : null
+  const activeReady = runtimeMode === 'editor' ? editorSnapshot.ready : viewerSnapshot.ready
+  const activeSabSupported = runtimeMode === 'editor' ? editorSnapshot.sabSupported : false
+  const selectedShape = activeSnapshot.stats.selectedIndex >= 0
+    ? activeSnapshot.shapes[activeSnapshot.stats.selectedIndex] ?? null
+    : null
+  const selectedNode = selectedShape
+    ? activeSnapshot.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
+    : null
+  const selectedLabel = selectedShape ? `${selectedShape.name} (${selectedShape.type})` : 'None'
+  const scaleLabel = activeSnapshot.viewport.scale.toFixed(2)
+  const typeSummary = React.useMemo(() => summarizeShapeTypes(activeSnapshot.document), [activeSnapshot.document])
 
   return (
     <main className="playground-shell">
       <PlaygroundSidebar
-        runtimeStore={runtimeStore}
+        runtimeMode={runtimeMode}
+        document={activeSnapshot.document}
+        stats={activeSnapshot.stats}
+        viewport={activeSnapshot.viewport}
+        ready={activeReady}
+        sabSupported={activeSabSupported}
+        history={activeHistory}
+        selectedShape={selectedShape}
+        selectedNode={selectedNode}
+        selectedLabel={selectedLabel}
+        scaleLabel={scaleLabel}
+        lastMarqueeSelectionName={lastMarqueeSelectionName}
+        typeSummary={typeSummary}
         documentMode={documentMode}
+        snappingEnabled={snappingEnabled}
         renderLodState={renderLodState}
+        onSetRuntimeMode={setRuntimeMode}
         onLoadDemo={handleLoadDemo}
         onLoadMediumStress={handleLoadMediumStress}
         onLoadLargeStress={handleLoadLargeStress}
@@ -541,7 +745,11 @@ function App() {
       />
 
       <PlaygroundStage
-        runtimeStore={runtimeStore}
+        runtimeMode={runtimeMode}
+        document={activeSnapshot.document}
+        shapes={activeSnapshot.shapes}
+        stats={activeSnapshot.stats}
+        viewport={activeSnapshot.viewport}
         canvasLodConfig={defaultCanvas2DLodConfig}
         onRenderLodChange={setRenderLodState}
         onDispatch={dispatch}
@@ -551,19 +759,34 @@ function App() {
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
         marqueeBounds={marqueeBounds}
-        onViewportChange={runtimeController.setViewport}
-        onViewportPan={runtimeController.panViewport}
-        onViewportResize={runtimeController.resizeViewport}
-        onViewportZoom={runtimeController.zoomViewport}
+        snapGuides={snapGuides}
+        onViewportChange={activeController.setViewport}
+        onViewportPan={activeController.panViewport}
+        onViewportResize={activeController.resizeViewport}
+        onViewportZoom={activeController.zoomViewport}
       />
     </main>
   )
 }
 
 const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
-  runtimeStore,
+  runtimeMode,
+  document,
+  stats,
+  viewport,
+  ready,
+  sabSupported,
+  history,
+  selectedShape,
+  selectedNode,
+  selectedLabel,
+  scaleLabel,
+  lastMarqueeSelectionName,
+  typeSummary,
   documentMode,
+  snappingEnabled,
   renderLodState,
+  onSetRuntimeMode,
   onLoadDemo,
   onLoadMediumStress,
   onLoadLargeStress,
@@ -573,9 +796,23 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadImageHeavyLarge,
   onDispatch,
 }: {
-  runtimeStore: CanvasRuntimeStore<EditorDocument>
-  documentMode: 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
+  runtimeMode: PlaygroundRuntimeMode
+  document: EditorDocument
+  stats: PlaygroundSnapshot['stats']
+  viewport: CanvasViewportState
+  ready: boolean
+  sabSupported: boolean
+  history: HistorySummary | null
+  selectedShape: SceneShapeSnapshot | null
+  selectedNode: EditorDocument['shapes'][number] | null
+  selectedLabel: string
+  scaleLabel: string
+  lastMarqueeSelectionName: string
+  typeSummary: Array<{type: string; count: number}>
+  documentMode: PlaygroundDocumentMode
+  snappingEnabled: boolean
   renderLodState: CanvasRenderLodState | null
+  onSetRuntimeMode: (mode: PlaygroundRuntimeMode) => void
   onLoadDemo: () => void
   onLoadMediumStress: () => void
   onLoadLargeStress: () => void
@@ -585,25 +822,13 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadImageHeavyLarge: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
-  const document = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document)
-  const stats = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.stats)
-  const history = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.history)
-  const viewport = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.viewport)
-  const ready = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.ready)
-  const sabSupported = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.sabSupported)
-  const shapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.shapes)
-  const selectedShape = stats.selectedIndex >= 0 ? shapes[stats.selectedIndex] ?? null : null
-  const selectedNode = React.useMemo(
-    () => (selectedShape ? document.shapes.find((shape) => shape.id === selectedShape.id) ?? null : null),
-    [document, selectedShape],
-  )
-  const selectedLabel = selectedShape ? `${selectedShape.name} (${selectedShape.type})` : 'None'
-  const scaleLabel = viewport.scale.toFixed(2)
-  const typeSummary = React.useMemo(() => summarizeShapeTypes(document), [document])
-
   return (
     <aside className="playground-panel">
-      <RuntimeIntroBlock documentMode={documentMode} />
+      <RuntimeIntroBlock
+        documentMode={documentMode}
+        runtimeMode={runtimeMode}
+        onSetRuntimeMode={onSetRuntimeMode}
+      />
       <LodBlock
         renderLodState={renderLodState}
       />
@@ -615,6 +840,9 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
         onLoadExtremeStress={onLoadExtremeStress}
         onLoadImageHeavy={onLoadImageHeavy}
         onLoadImageHeavyLarge={onLoadImageHeavyLarge}
+        runtimeMode={runtimeMode}
+        snappingEnabled={snappingEnabled}
+        lastMarqueeSelectionName={lastMarqueeSelectionName}
         onDispatch={onDispatch}
       />
       <DocumentBlock
@@ -636,7 +864,7 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
         viewport={viewport}
       />
       <SelectionBlock selectedShape={selectedShape} selectedNode={selectedNode} />
-      <HistoryBlock history={history} />
+      {history ? <HistoryBlock history={history} /> : null}
 
       <RendererDiagnosticsPanel/>
     </aside>
@@ -645,19 +873,44 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
 
 const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock({
   documentMode,
+  runtimeMode,
+  onSetRuntimeMode,
 }: {
-  documentMode: 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
+  documentMode: PlaygroundDocumentMode
+  runtimeMode: PlaygroundRuntimeMode
+  onSetRuntimeMode: (mode: PlaygroundRuntimeMode) => void
 }) {
   return (
     <div className="panel-block">
       <span className="panel-label">Runtime</span>
       <strong className="panel-title">
-        Worker + SAB + Canvas2D
+        {runtimeMode === 'editor' ? 'Editor + Worker + Canvas2D' : 'Viewer + Canvas2D'}
       </strong>
       <p className="panel-copy">
-        Validate the shared runtime loop without product UI.
+        Switch runtime mode to compare full editing and viewer-only paths.
       </p>
+      <div className="runtime-mode-tabs" role="tablist" aria-label="Runtime mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={runtimeMode === 'editor'}
+          className={`runtime-mode-tab ${runtimeMode === 'editor' ? 'is-active' : ''}`}
+          onClick={() => onSetRuntimeMode('editor')}
+        >
+          Editor
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={runtimeMode === 'viewer'}
+          className={`runtime-mode-tab ${runtimeMode === 'viewer' ? 'is-active' : ''}`}
+          onClick={() => onSetRuntimeMode('viewer')}
+        >
+          Viewer
+        </button>
+      </div>
       <div className="panel-badges">
+        <span className="panel-badge">{runtimeMode}</span>
         <span className="panel-badge">{documentMode}</span>
         <span className="panel-badge">canvas2d</span>
       </div>
@@ -863,6 +1116,9 @@ const CommandsBlock = React.memo(function CommandsBlock({
   onLoadExtremeStress,
   onLoadImageHeavy,
   onLoadImageHeavyLarge,
+  runtimeMode,
+  snappingEnabled,
+  lastMarqueeSelectionName,
   onDispatch,
 }: {
   onLoadDemo: () => void
@@ -872,8 +1128,13 @@ const CommandsBlock = React.memo(function CommandsBlock({
   onLoadExtremeStress: () => void
   onLoadImageHeavy: () => void
   onLoadImageHeavyLarge: () => void
+  runtimeMode: PlaygroundRuntimeMode
+  snappingEnabled: boolean
+  lastMarqueeSelectionName: string
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
+  const editingEnabled = runtimeMode === 'editor'
+
   return (
     <div className="panel-block">
       <span className="panel-label">Commands</span>
@@ -888,12 +1149,31 @@ const CommandsBlock = React.memo(function CommandsBlock({
         <button onClick={() => onDispatch({type: 'viewport.fit'})}>Fit</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
         <button onClick={() => onDispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
-        <button onClick={() => onDispatch({type: 'shape.insert', shape: createRandomMockShape()})}>
+        <button
+          disabled={!editingEnabled}
+          onClick={() => onDispatch({type: 'shape.insert', shape: createRandomMockShape()})}
+        >
           Insert Mock
         </button>
-        <button onClick={() => onDispatch({type: 'history.undo'})}>Undo</button>
-        <button onClick={() => onDispatch({type: 'history.redo'})}>Redo</button>
-        <button onClick={() => onDispatch({type: 'selection.delete'})}>Delete Selected</button>
+        <button disabled={!editingEnabled} onClick={() => onDispatch({type: 'history.undo'})}>Undo</button>
+        <button disabled={!editingEnabled} onClick={() => onDispatch({type: 'history.redo'})}>Redo</button>
+        <button disabled={!editingEnabled} onClick={() => onDispatch({type: 'selection.delete'})}>Delete Selected</button>
+        <button
+          disabled={!editingEnabled || !snappingEnabled}
+          onClick={() => onDispatch({type: 'snapping.pause'})}
+        >
+          Pause Snap
+        </button>
+        <button
+          disabled={!editingEnabled || snappingEnabled}
+          onClick={() => onDispatch({type: 'snapping.resume'})}
+        >
+          Resume Snap
+        </button>
+      </div>
+      <div className="panel-row">
+        <span>last marquee</span>
+        <strong>{lastMarqueeSelectionName}</strong>
       </div>
     </div>
   )
@@ -918,7 +1198,11 @@ const HistoryBlock = React.memo(function HistoryBlock({
 })
 
 const PlaygroundStage = React.memo(function PlaygroundStage({
-  runtimeStore,
+  runtimeMode,
+  document,
+  shapes,
+  stats,
+  viewport,
   canvasLodConfig,
   onRenderLodChange,
   onDispatch,
@@ -928,12 +1212,17 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onPointerUp,
   onPointerLeave,
   marqueeBounds,
+  snapGuides,
   onViewportChange,
   onViewportPan,
   onViewportResize,
   onViewportZoom,
 }: {
-  runtimeStore: CanvasRuntimeStore<EditorDocument>
+  runtimeMode: PlaygroundRuntimeMode
+  document: EditorDocument
+  shapes: SceneShapeSnapshot[]
+  stats: PlaygroundSnapshot['stats']
+  viewport: CanvasViewportState
   canvasLodConfig: Canvas2DLodConfig
   onRenderLodChange: (lodState: CanvasRenderLodState) => void
   onDispatch: (command: EditorRuntimeCommand) => void
@@ -955,6 +1244,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onPointerUp: VoidFunction
   onPointerLeave: VoidFunction
   marqueeBounds: MarqueeBounds | null
+  snapGuides: SnapGuide[]
   onViewportChange: (viewport: CanvasViewportState) => void
   onViewportPan: (deltaX: number, deltaY: number) => void
   onViewportResize: (width: number, height: number) => void
@@ -968,10 +1258,6 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
     x: 0,
     y: 0,
   })
-  const document = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.document)
-  const shapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.shapes)
-  const stats = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.stats)
-  const viewport = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.viewport)
   const previewState = React.useMemo(() => resolveTransformPreviewRuntimeState(
     document,
     shapes,
@@ -989,6 +1275,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   }, [canvasLodConfig])
   const overlayRenderer = React.useMemo(() => {
     const activeMarqueeBounds = marqueeBounds
+    const activeSnapGuides = snapGuides
 
     return function PlaygroundOverlay(props: CanvasOverlayProps) {
       const marqueePolygon = activeMarqueeBounds
@@ -999,10 +1286,49 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
             {x: activeMarqueeBounds.minX, y: activeMarqueeBounds.maxY},
           ].map((point) => applyMatrixToPoint(props.viewport.matrix, point))
         : null
+      const snapLines = resolveSnapGuideLines({
+        guides: activeSnapGuides,
+        documentWidth: props.document.width,
+        documentHeight: props.document.height,
+        matrix: props.viewport.matrix,
+      })
 
       return (
         <>
           <CanvasSelectionOverlay {...props} />
+          {snapLines.length > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: 'none',
+                overflow: 'hidden',
+              }}
+            >
+              <svg
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                }}
+                width="100%"
+                height="100%"
+              >
+                {snapLines.map((line) => (
+                  <line
+                    key={line.id}
+                    x1={line.x1}
+                    y1={line.y1}
+                    x2={line.x2}
+                    y2={line.y2}
+                    stroke="rgba(248, 113, 113, 0.95)"
+                    strokeWidth={1}
+                    strokeDasharray="5 3"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+              </svg>
+            </div>
+          )}
           {marqueePolygon && (
             <div
               style={{
@@ -1034,7 +1360,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
         </>
       )
     }
-  }, [marqueeBounds])
+  }, [marqueeBounds, snapGuides])
 
   React.useLayoutEffect(() => {
     if (!showContextMenu) {
@@ -1146,6 +1472,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
           />
           <ContextActionButton
             label="Delete Selection"
+            disabled={runtimeMode !== 'editor'}
             onClick={() => {
               onDispatch({type: 'selection.delete'})
               setShowContextMenu(false)
@@ -1159,29 +1486,36 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
 
 function ContextActionButton({
   label,
+  disabled = false,
   onClick,
 }: {
   label: string
+  disabled?: boolean
   onClick: VoidFunction
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       style={{
         width: '100%',
         border: 0,
-        background: 'transparent',
+        background: disabled ? 'rgba(148, 163, 184, 0.12)' : 'transparent',
         textAlign: 'left',
         padding: '8px 10px',
         fontSize: 12,
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
       }}
       onMouseEnter={(event) => {
+        if (disabled) {
+          return
+        }
         event.currentTarget.style.background = '#f3f4f6'
       }}
       onMouseLeave={(event) => {
-        event.currentTarget.style.background = 'transparent'
+        event.currentTarget.style.background = disabled ? 'rgba(148, 163, 184, 0.12)' : 'transparent'
       }}
     >
       {label}

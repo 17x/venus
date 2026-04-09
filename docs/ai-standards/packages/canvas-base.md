@@ -14,6 +14,24 @@ infrastructure.
 
 ### 2026-04-09
 
+- Added first-pass snapping package surfaces:
+  `interaction/snapping.ts` now owns bounds-based move snapping resolution
+  (`resolveMoveSnapPreview`) plus pure-TS snap guide projection
+  (`resolveSnapGuideLines`). App overlays now render from this data instead of
+  relying on a package React snap overlay component.
+
+- Added an extensibility scaffold in `canvas-base` for product/app composition:
+  `extensibility/elements.ts` (custom element behavior registry),
+  `runtime/modules.ts` (optional runtime module lifecycle hooks), and
+  high-level `createCanvasEditorInstance` / `createCanvasViewerInstance`
+  constructors that wrap existing controllers while exposing module + element
+  registration points.
+
+- Added built-in optional module preset contracts under
+  `src/presets/{selection,snapping,defaultEditorModules}.ts`. The snap preset
+  contract now explicitly separates semantic snap computation output
+  (`SnapMatch[]` / `SnapComputationResult`) from hint-UI rendering concerns.
+
 - Shared resize logic now handles rotated single-shape resize in local shape
   space and uses signed scaling for multi/group resize crossover behavior.
 
@@ -123,3 +141,13 @@ infrastructure.
   `resolveTransformPreviewRuntimeState`, so app surfaces can derive
   preview-map/preview-document/preview-shapes from one shared computation
   rather than duplicating preview projection and mapping passes locally.
+
+- `interaction/snapping.ts` now uses `@venus/spatial-index` to query nearby
+  snap candidates around move-preview bounds (expanded by tolerance), instead
+  of scanning every non-moving shape. This keeps snap matching data-oriented
+  and decoupled from hint UI projection.
+
+- `interaction/marqueeSelection.ts` now includes `MarqueeApplyMode` on
+  `MarqueeState` (`on-pointer-up` or `while-pointer-move`) and
+  `createMarqueeState(..., {applyMode})` support, so app runtimes can choose
+  deferred box-select commit or live selection application during drag.

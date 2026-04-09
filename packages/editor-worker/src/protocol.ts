@@ -57,6 +57,8 @@ export type EditorWorkerMessage =
 export type EditorRuntimeCommand =
   | { type: 'history.undo' }
   | { type: 'history.redo' }
+  | { type: 'snapping.pause' }
+  | { type: 'snapping.resume' }
   | { type: 'viewport.fit' }
   | { type: 'viewport.zoomIn' }
   | { type: 'viewport.zoomOut' }

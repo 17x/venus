@@ -86,6 +86,30 @@ body {
   gap: 8px;
 }
 
+.runtime-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.runtime-mode-tab {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.4);
+  color: rgba(226, 232, 240, 0.9);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.runtime-mode-tab.is-active {
+  border-color: rgba(56, 189, 248, 0.62);
+  background: rgba(56, 189, 248, 0.2);
+  color: #e0f2fe;
+}
+
 .panel-badge {
   padding: 6px 10px;
   border-radius: 999px;
@@ -197,6 +221,12 @@ body {
 
 .panel-actions button:hover {
   background: #38bdf8;
+}
+
+.panel-actions button:disabled {
+  background: rgba(148, 163, 184, 0.2);
+  color: rgba(15, 23, 42, 0.68);
+  cursor: not-allowed;
 }
 
 .playground-stage {
