@@ -1,10 +1,18 @@
 import * as React from 'react'
 import {
+  applyMatrixToPoint,
+  buildSelectionHandlesFromBounds,
   CanvasViewport,
   CanvasSelectionOverlay,
+  collectResizeTransformTargets,
+  createTransformBatchCommand,
   createMarqueeState,
+  pickSelectionHandleAtPoint,
+  resolveTransformPreviewRuntimeState,
   getMarqueeNormalizedBounds,
   createSelectionDragController,
+  createTransformPreviewShape,
+  createTransformSessionShape,
   createTransformSessionManager,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
@@ -24,6 +32,9 @@ import {
 import {
   convertDrawPointsToBezierPoints,
   getBoundingRectFromBezierPoints,
+  getNormalizedBoundsFromBox,
+  isPointInsideRotatedBounds,
+  isPointInsideShapeHitArea,
   nid,
   type Point,
 } from '@venus/document-core'
@@ -70,9 +81,10 @@ function createGeneratedImageDataUrl(label: string, width: number, height: numbe
 }
 
 function createStarPoints(x: number, y: number, width: number, height: number) {
-  const centerX = x + width / 2
-  const centerY = y + height / 2
-  const outerRadius = Math.min(width, height) / 2
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+  const centerX = bounds.minX + bounds.width / 2
+  const centerY = bounds.minY + bounds.height / 2
+  const outerRadius = Math.min(bounds.width, bounds.height) / 2
   const innerRadius = outerRadius * 0.46
 
   return Array.from({length: 10}, (_, index) => {
@@ -181,260 +193,6 @@ function summarizeShapeTypes(document: EditorDocument) {
       count: counts.get(type) ?? 0,
     }))
     .filter((item) => item.count > 0)
-}
-
-function isPointInBounds(
-  point: {x: number; y: number},
-  bounds: {minX: number; minY: number; maxX: number; maxY: number},
-) {
-  return (
-    point.x >= bounds.minX &&
-    point.x <= bounds.maxX &&
-    point.y >= bounds.minY &&
-    point.y <= bounds.maxY
-  )
-}
-
-type PlaygroundHandleKind =
-  | 'move'
-  | 'nw'
-  | 'n'
-  | 'ne'
-  | 'e'
-  | 'se'
-  | 's'
-  | 'sw'
-  | 'w'
-  | 'rotate'
-
-function buildSelectionHandles(
-  bounds: {minX: number; minY: number; maxX: number; maxY: number},
-  rotateOffset: number,
-  rotateDegrees: number,
-) {
-  const centerX = (bounds.minX + bounds.maxX) / 2
-  const centerY = (bounds.minY + bounds.maxY) / 2
-  const handles = [
-    {kind: 'nw' as const, x: bounds.minX, y: bounds.minY},
-    {kind: 'n' as const, x: centerX, y: bounds.minY},
-    {kind: 'ne' as const, x: bounds.maxX, y: bounds.minY},
-    {kind: 'e' as const, x: bounds.maxX, y: centerY},
-    {kind: 'se' as const, x: bounds.maxX, y: bounds.maxY},
-    {kind: 's' as const, x: centerX, y: bounds.maxY},
-    {kind: 'sw' as const, x: bounds.minX, y: bounds.maxY},
-    {kind: 'w' as const, x: bounds.minX, y: centerY},
-    {kind: 'rotate' as const, x: centerX, y: bounds.minY - rotateOffset},
-  ]
-
-  if (Math.abs(rotateDegrees) <= 0.0001) {
-    return handles
-  }
-
-  return handles.map((handle) => ({
-    ...handle,
-    ...rotatePointAround(
-      {x: handle.x, y: handle.y},
-      {x: centerX, y: centerY},
-      rotateDegrees,
-    ),
-  }))
-}
-
-function pickHandleAtPoint(
-  point: {x: number; y: number},
-  handles: Array<{kind: PlaygroundHandleKind; x: number; y: number}>,
-  tolerance: number,
-) {
-  for (const handle of handles) {
-    if (Math.hypot(handle.x - point.x, handle.y - point.y) <= tolerance) {
-      return handle
-    }
-  }
-
-  return null
-}
-
-function collectResizeTransformTargets(
-  selectedNodes: EditorDocument['shapes'],
-  document: EditorDocument,
-) {
-  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  const childrenByParent = new Map<string, EditorDocument['shapes']>()
-
-  document.shapes.forEach((shape) => {
-    if (!shape.parentId) {
-      return
-    }
-    const siblings = childrenByParent.get(shape.parentId) ?? []
-    siblings.push(shape)
-    childrenByParent.set(shape.parentId, siblings)
-  })
-
-  const targets = new Map<string, EditorDocument['shapes'][number]>()
-  const selectedIds = new Set(selectedNodes.map((shape) => shape.id))
-
-  const collectLeafDescendants = (shapeId: string) => {
-    const queue = [...(childrenByParent.get(shapeId) ?? [])]
-    while (queue.length > 0) {
-      const current = queue.shift()
-      if (!current) {
-        continue
-      }
-      if (current.type === 'group') {
-        queue.push(...(childrenByParent.get(current.id) ?? []))
-        continue
-      }
-      targets.set(current.id, current)
-    }
-  }
-
-  selectedNodes.forEach((shape) => {
-    if (shape.type === 'group') {
-      collectLeafDescendants(shape.id)
-      return
-    }
-    if (selectedIds.has(shape.parentId ?? '')) {
-      return
-    }
-    targets.set(shape.id, shapeById.get(shape.id) ?? shape)
-  })
-
-  return Array.from(targets.values())
-}
-
-function rotatePointAround(
-  point: {x: number; y: number},
-  center: {x: number; y: number},
-  degrees: number,
-) {
-  const radians = (degrees * Math.PI) / 180
-  const cos = Math.cos(radians)
-  const sin = Math.sin(radians)
-  const dx = point.x - center.x
-  const dy = point.y - center.y
-
-  return {
-    x: center.x + dx * cos - dy * sin,
-    y: center.y + dx * sin + dy * cos,
-  }
-}
-
-function buildGroupAwarePreviewMap(
-  document: EditorDocument,
-  previewShapes: Array<{
-    shapeId: string
-    x: number
-    y: number
-    width: number
-    height: number
-    rotation?: number
-  }>,
-) {
-  const previewById = new Map(previewShapes.map((shape) => [shape.shapeId, shape] as const))
-  const childrenByParent = new Map<string, string[]>()
-
-  document.shapes.forEach((shape) => {
-    if (!shape.parentId) {
-      return
-    }
-    const siblings = childrenByParent.get(shape.parentId) ?? []
-    siblings.push(shape.id)
-    childrenByParent.set(shape.parentId, siblings)
-  })
-
-  for (const previewShape of previewShapes) {
-    const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
-    if (!source || source.type !== 'group') {
-      continue
-    }
-
-    const deltaX = previewShape.x - source.x
-    const deltaY = previewShape.y - source.y
-    if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
-      continue
-    }
-
-    const queue = [...(childrenByParent.get(source.id) ?? [])]
-    while (queue.length > 0) {
-      const childId = queue.shift()!
-      const child = document.shapes.find((shape) => shape.id === childId)
-      if (!child) {
-        continue
-      }
-
-      if (!previewById.has(child.id)) {
-        previewById.set(child.id, {
-          shapeId: child.id,
-          x: child.x + deltaX,
-          y: child.y + deltaY,
-          width: child.width,
-          height: child.height,
-          rotation: child.rotation,
-        })
-      }
-
-      const nested = childrenByParent.get(child.id)
-      if (nested && nested.length > 0) {
-        queue.push(...nested)
-      }
-    }
-  }
-
-  return previewById
-}
-
-function remapPoint(
-  point: {x: number; y: number},
-  source: {x: number; y: number; width: number; height: number},
-  target: {x: number; y: number; width: number; height: number},
-) {
-  const scaleX = source.width === 0 ? 1 : target.width / source.width
-  const scaleY = source.height === 0 ? 1 : target.height / source.height
-  return {
-    x: target.x + (point.x - source.x) * scaleX,
-    y: target.y + (point.y - source.y) * scaleY,
-  }
-}
-
-function applyPreviewGeometryToShape(
-  shape: EditorDocument['shapes'][number],
-  preview: {x: number; y: number; width: number; height: number; rotation?: number; flipX?: boolean; flipY?: boolean},
-) {
-  const source = {
-    x: shape.x,
-    y: shape.y,
-    width: shape.width,
-    height: shape.height,
-  }
-  const target = {
-    x: preview.x,
-    y: preview.y,
-    width: preview.width,
-    height: preview.height,
-  }
-
-  return {
-    ...shape,
-    x: preview.x,
-    y: preview.y,
-    width: preview.width,
-    height: preview.height,
-    rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
-    flipX: typeof preview.flipX === 'boolean' ? preview.flipX : shape.flipX,
-    flipY: typeof preview.flipY === 'boolean' ? preview.flipY : shape.flipY,
-    points:
-      (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
-        ? shape.points.map((point) => remapPoint(point, source, target))
-        : shape.points,
-    bezierPoints:
-      shape.type === 'path' && shape.bezierPoints
-        ? shape.bezierPoints.map((point) => ({
-            anchor: remapPoint(point.anchor, source, target),
-            cp1: point.cp1 ? remapPoint(point.cp1, source, target) : point.cp1,
-            cp2: point.cp2 ? remapPoint(point.cp2, source, target) : point.cp2,
-          }))
-        : shape.bezierPoints,
-  }
 }
 
 function App() {
@@ -599,33 +357,13 @@ function App() {
         if (dragShapes.length > 0) {
           transformManagerRef.current.start({
             shapeIds: dragShapes.map((shape) => shape.id),
-            shapes: dragShapes.map((shape) => ({
-              shapeId: shape.id,
-              x: shape.x,
-              y: shape.y,
-              width: Math.max(1, shape.width),
-              height: Math.max(1, shape.height),
-              rotation: shape.rotation ?? 0,
-              flipX: shape.flipX ?? false,
-              flipY: shape.flipY ?? false,
-              centerX: shape.x + shape.width / 2,
-              centerY: shape.y + shape.height / 2,
-            })),
+            shapes: dragShapes.map((shape) => createTransformSessionShape(shape)),
             handle: 'move',
             pointer: dragMove.session.start,
             startBounds: dragMove.session.bounds,
           })
           setDragPreviewState({
-            shapes: dragShapes.map((shape) => ({
-              shapeId: shape.id,
-              x: shape.x,
-              y: shape.y,
-              width: Math.max(1, shape.width),
-              height: Math.max(1, shape.height),
-              rotation: shape.rotation ?? 0,
-              flipX: shape.flipX ?? false,
-              flipY: shape.flipY ?? false,
-            })),
+            shapes: dragShapes.map((shape) => createTransformPreviewShape(shape)),
           })
         }
       }
@@ -673,80 +411,41 @@ function App() {
       const singleSelectedRotation = selectedNodes.length === 1
         ? (selectedNodes[0].rotation ?? 0)
         : 0
-      const handles = buildSelectionHandles(selectedBounds, 28, singleSelectedRotation)
-      const handle = pickHandleAtPoint(pointer, handles, 6)
+      const handles = buildSelectionHandlesFromBounds(selectedBounds, {
+        rotateOffset: 28,
+        rotateDegrees: singleSelectedRotation,
+      })
+      const handle = pickSelectionHandleAtPoint(pointer, handles, 6)
       if (handle) {
-        const resizeTargets = handle.kind === 'move' || handle.kind === 'rotate'
+        const resizeTargets = handle.kind === 'rotate'
           ? selectedNodes
           : collectResizeTransformTargets(selectedNodes, snapshot.document)
         dragControllerRef.current.clear()
         transformManagerRef.current.start({
           shapeIds: selectedNodes.map((shape) => shape.id),
-          shapes: resizeTargets.map((shape) => ({
-            shapeId: shape.id,
-            x: shape.x,
-            y: shape.y,
-            width: Math.max(1, shape.width),
-            height: Math.max(1, shape.height),
-            rotation: shape.rotation ?? 0,
-            flipX: shape.flipX ?? false,
-            flipY: shape.flipY ?? false,
-            centerX: shape.x + shape.width / 2,
-            centerY: shape.y + shape.height / 2,
-          })),
+          shapes: resizeTargets.map((shape) => createTransformSessionShape(shape)),
           handle: handle.kind,
           pointer,
           startBounds: selectedBounds,
         })
         setDragPreviewState({
-          shapes: resizeTargets.map((shape) => ({
-            shapeId: shape.id,
-            x: shape.x,
-            y: shape.y,
-            width: Math.max(1, shape.width),
-            height: Math.max(1, shape.height),
-            rotation: shape.rotation ?? 0,
-            flipX: shape.flipX ?? false,
-            flipY: shape.flipY ?? false,
-          })),
+          shapes: resizeTargets.map((shape) => createTransformPreviewShape(shape)),
         })
         return
       }
-    }
 
-    if (selectedBounds && selectedNodes.length > 0 && isPointInBounds(pointer, selectedBounds)) {
-      dragControllerRef.current.clear()
-      transformManagerRef.current.start({
-        shapeIds: selectedNodes.map((shape) => shape.id),
-        shapes: selectedNodes.map((shape) => ({
-          shapeId: shape.id,
-          x: shape.x,
-          y: shape.y,
-          width: Math.max(1, shape.width),
-          height: Math.max(1, shape.height),
-          rotation: shape.rotation ?? 0,
-          flipX: shape.flipX ?? false,
-          flipY: shape.flipY ?? false,
-          centerX: shape.x + shape.width / 2,
-          centerY: shape.y + shape.height / 2,
-        })),
-        handle: 'move',
-        pointer,
-        startBounds: selectedBounds,
-      })
-      setDragPreviewState({
-        shapes: selectedNodes.map((shape) => ({
-          shapeId: shape.id,
-          x: shape.x,
-          y: shape.y,
-          width: Math.max(1, shape.width),
-          height: Math.max(1, shape.height),
-          rotation: shape.rotation ?? 0,
-          flipX: shape.flipX ?? false,
-          flipY: shape.flipY ?? false,
-        })),
-      })
-      return
+      if (
+        isPointInsideRotatedBounds(pointer, selectedBounds, singleSelectedRotation) &&
+        !selectedNodes.some((shape) => isPointInsideShapeHitArea(pointer, shape, {tolerance: 6}))
+      ) {
+        dragControllerRef.current.clear()
+        runtimeController.dispatchCommand({
+          type: 'selection.set',
+          shapeIds: [],
+          mode: 'replace',
+        })
+        return
+      }
     }
 
     const hoveredShape = snapshot.stats.hoveredIndex >= 0
@@ -805,60 +504,12 @@ function App() {
       return
     }
 
-    const transformBatch: Array<{
-      id: string
-      from: {x: number; y: number; width: number; height: number; rotation: number; flipX?: boolean; flipY?: boolean}
-      to: {x: number; y: number; width: number; height: number; rotation: number; flipX?: boolean; flipY?: boolean}
-    }> = []
-    preview.shapes.forEach((item) => {
-      const shape = snapshot.document.shapes.find((candidate) => candidate.id === item.shapeId)
-      if (!shape) {
-        return
-      }
-      const nextRotation = typeof item.rotation === 'number' ? item.rotation : (shape.rotation ?? 0)
-      const nextFlipX = typeof item.flipX === 'boolean' ? item.flipX : !!shape.flipX
-      const nextFlipY = typeof item.flipY === 'boolean' ? item.flipY : !!shape.flipY
-      const changed =
-        shape.x !== item.x ||
-        shape.y !== item.y ||
-        shape.width !== item.width ||
-        shape.height !== item.height ||
-        (shape.rotation ?? 0) !== nextRotation ||
-        !!shape.flipX !== nextFlipX ||
-        !!shape.flipY !== nextFlipY
-      if (!changed) {
-        return
-      }
-      transformBatch.push({
-        id: shape.id,
-        from: {
-          x: shape.x,
-          y: shape.y,
-          width: shape.width,
-          height: shape.height,
-          rotation: shape.rotation ?? 0,
-          flipX: !!shape.flipX,
-          flipY: !!shape.flipY,
-        },
-        to: {
-          x: item.x,
-          y: item.y,
-          width: item.width,
-          height: item.height,
-          rotation: nextRotation,
-          flipX: nextFlipX,
-          flipY: nextFlipY,
-        },
-      })
-    })
-    if (transformBatch.length === 0) {
+    const transformCommand = createTransformBatchCommand(snapshot.document.shapes, preview)
+    if (!transformCommand) {
       clearDragPreview()
       return
     }
-    runtimeController.dispatchCommand({
-      type: 'shape.transform.batch',
-      transforms: transformBatch,
-    })
+    runtimeController.dispatchCommand(transformCommand)
     markDragPreviewCommitPending()
   }, [clearDragPreview, dragPreviewRef, markDragPreviewCommitPending, marquee, runtimeController])
   const handlePointerLeave = React.useCallback(() => {
@@ -1321,45 +972,13 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   const shapes = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.shapes)
   const stats = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.stats)
   const viewport = useCanvasRuntimeSelector(runtimeStore, (snapshot) => snapshot.viewport)
-  const renderDocument = React.useMemo(() => {
-    if (!dragPreview) {
-      return document
-    }
-
-    const previewById = buildGroupAwarePreviewMap(document, dragPreview.shapes)
-    return {
-      ...document,
-      shapes: document.shapes.map((shape) => (
-        previewById.has(shape.id)
-          ? applyPreviewGeometryToShape(shape, {
-              x: previewById.get(shape.id)?.x ?? shape.x,
-              y: previewById.get(shape.id)?.y ?? shape.y,
-              width: previewById.get(shape.id)?.width ?? shape.width,
-              height: previewById.get(shape.id)?.height ?? shape.height,
-              rotation: previewById.get(shape.id)?.rotation,
-            })
-          : shape
-      )),
-    }
-  }, [document, dragPreview])
-  const renderShapes = React.useMemo(() => {
-    if (!dragPreview) {
-      return shapes
-    }
-
-    const previewById = buildGroupAwarePreviewMap(document, dragPreview.shapes)
-    return shapes.map((shape) => (
-      previewById.has(shape.id)
-        ? {
-            ...shape,
-            x: previewById.get(shape.id)?.x ?? shape.x,
-            y: previewById.get(shape.id)?.y ?? shape.y,
-            width: previewById.get(shape.id)?.width ?? shape.width,
-            height: previewById.get(shape.id)?.height ?? shape.height,
-          }
-        : shape
-    ))
-  }, [document, shapes, dragPreview])
+  const previewState = React.useMemo(() => resolveTransformPreviewRuntimeState(
+    document,
+    shapes,
+    dragPreview?.shapes ?? null,
+  ), [document, dragPreview, shapes])
+  const renderDocument = previewState.previewDocument
+  const renderShapes = previewState.previewShapes
 
   const renderer = React.useMemo<CanvasRenderer>(() => {
     const Canvas2DWithLod: CanvasRenderer = (props) => (
@@ -1378,10 +997,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
             {x: activeMarqueeBounds.maxX, y: activeMarqueeBounds.minY},
             {x: activeMarqueeBounds.maxX, y: activeMarqueeBounds.maxY},
             {x: activeMarqueeBounds.minX, y: activeMarqueeBounds.maxY},
-          ].map((point) => ({
-            x: props.viewport.matrix[0] * point.x + props.viewport.matrix[1] * point.y + props.viewport.matrix[2],
-            y: props.viewport.matrix[3] * point.x + props.viewport.matrix[4] * point.y + props.viewport.matrix[5],
-          }))
+          ].map((point) => applyMatrixToPoint(props.viewport.matrix, point))
         : null
 
       return (

@@ -1,6 +1,13 @@
 import {useMemo} from 'react'
-import type {CanvasRendererProps} from '@venus/canvas-base'
-import type {EditorDocument} from '@venus/document-core'
+import {applyMatrixToPoint, type CanvasRendererProps} from '@venus/canvas-base'
+import {
+  applyAffineMatrixToPoint,
+  createAffineMatrixAroundPoint,
+  getNormalizedBoundsFromBox,
+  resolveNodeTransform,
+  toResolvedNodeSvgTransform,
+  type EditorDocument,
+} from '@venus/document-core'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'
@@ -51,8 +58,8 @@ export function InteractionOverlay({
     if (!hovered || selection.selectedIds.includes(hovered.id)) {
       return null
     }
-    const bounds = getNormalizedBounds(hovered.x, hovered.y, hovered.width, hovered.height)
-    const rotation = hovered.rotation ?? 0
+    const bounds = getNormalizedBoundsFromBox(hovered.x, hovered.y, hovered.width, hovered.height)
+    const rotation = resolveNodeTransform(hovered).rotation
     return projectPolygon(
       buildRectPolygon(bounds, rotation),
       viewport.matrix,
@@ -168,15 +175,8 @@ function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
     strokeWidth,
     vectorEffect: 'non-scaling-stroke' as const,
   }
-  const rotation = shape.rotation ?? 0
-  const centerX = shape.x + shape.width / 2
-  const centerY = shape.y + shape.height / 2
-  const scaleX = shape.flipX ? -1 : 1
-  const scaleY = shape.flipY ? -1 : 1
-  const needsTransform = Math.abs(rotation) > 0.0001 || shape.flipX || shape.flipY
-  const transform = needsTransform
-    ? `translate(${centerX} ${centerY}) rotate(${rotation}) scale(${scaleX} ${scaleY}) translate(${-centerX} ${-centerY})`
-    : undefined
+  const transformState = resolveNodeTransform(shape)
+  const transform = toResolvedNodeSvgTransform(transformState)
 
   if (shape.type === 'group') {
     return null
@@ -186,10 +186,10 @@ function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
     return (
       <ellipse
         key={`selected-stroke:${shape.id}`}
-        cx={shape.x + shape.width / 2}
-        cy={shape.y + shape.height / 2}
-        rx={Math.abs(shape.width) / 2}
-        ry={Math.abs(shape.height) / 2}
+        cx={transformState.center.x}
+        cy={transformState.center.y}
+        rx={transformState.bounds.width / 2}
+        ry={transformState.bounds.height / 2}
         transform={transform}
         {...common}
       />
@@ -271,15 +271,6 @@ function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {
   return null
 }
 
-function getNormalizedBounds(x: number, y: number, width: number, height: number) {
-  return {
-    minX: Math.min(x, x + width),
-    minY: Math.min(y, y + height),
-    maxX: Math.max(x, x + width),
-    maxY: Math.max(y, y + height),
-  }
-}
-
 function buildRectPolygon(
   bounds: {minX: number; minY: number; maxX: number; maxY: number},
   rotationDegrees: number,
@@ -295,25 +286,11 @@ function buildRectPolygon(
   if (Math.abs(rotationDegrees) <= 0.0001) {
     return corners
   }
-  return corners.map((point) => rotatePointAround(point, centerX, centerY, rotationDegrees))
-}
-
-function rotatePointAround(
-  point: {x: number; y: number},
-  centerX: number,
-  centerY: number,
-  rotationDegrees: number,
-) {
-  const angle = (rotationDegrees * Math.PI) / 180
-  const cos = Math.cos(angle)
-  const sin = Math.sin(angle)
-  const dx = point.x - centerX
-  const dy = point.y - centerY
-
-  return {
-    x: centerX + dx * cos - dy * sin,
-    y: centerY + dx * sin + dy * cos,
-  }
+  const matrix = createAffineMatrixAroundPoint(
+    {x: centerX, y: centerY},
+    {rotationDegrees},
+  )
+  return corners.map((point) => applyAffineMatrixToPoint(matrix, point))
 }
 
 function projectPolygon(
@@ -327,10 +304,7 @@ function projectPoint(
   point: {x: number; y: number},
   matrix: CanvasRendererProps['viewport']['matrix'],
 ) {
-  return {
-    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
-    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
-  }
+  return applyMatrixToPoint(matrix, point)
 }
 
 function toSvgPoints(points: Array<{x: number; y: number}>) {

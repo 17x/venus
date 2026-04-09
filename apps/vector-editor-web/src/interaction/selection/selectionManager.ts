@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import {getNormalizedBoundsFromBox, type EditorDocument} from '@venus/document-core'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import type {InteractionBounds, SelectionState} from '../types.ts'
 
@@ -20,9 +20,14 @@ export function buildSelectionState(
   const selectedBounds = selectedIds
     .map((id) => snapshots.find((shape) => shape.id === id))
     .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
-    .map((shape) => getNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
+    .map((shape) => getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height))
     .reduce<InteractionBounds | null>(
-      (acc, bounds) => (acc ? mergeBounds(acc, bounds) : bounds),
+      (acc, bounds) => (acc ? mergeBounds(acc, bounds) : {
+        minX: bounds.minX,
+        minY: bounds.minY,
+        maxX: bounds.maxX,
+        maxY: bounds.maxY,
+      }),
       null,
     )
 
@@ -39,14 +44,5 @@ function mergeBounds(left: InteractionBounds, right: InteractionBounds): Interac
     minY: Math.min(left.minY, right.minY),
     maxX: Math.max(left.maxX, right.maxX),
     maxY: Math.max(left.maxY, right.maxY),
-  }
-}
-
-function getNormalizedBounds(x: number, y: number, width: number, height: number): InteractionBounds {
-  return {
-    minX: Math.min(x, x + width),
-    minY: Math.min(y, y + height),
-    maxX: Math.max(x, x + width),
-    maxY: Math.max(y, y + height),
   }
 }

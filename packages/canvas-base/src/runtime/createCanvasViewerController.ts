@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import {isPointInsideClipShape, isPointInsideShapeHitArea, type EditorDocument} from '@venus/document-core'
 import type {EditorRuntimeCommand} from '@venus/editor-worker'
 import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
 import type {Point2D} from '../viewport/matrix.ts'
@@ -166,12 +166,12 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
         return
       }
 
-      const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
+      const hoveredIndex = hitTestDocument(snapshot.document, snapshot.shapes, pointer)
       updateHoverSelection(hoveredIndex, snapshot.stats.selectedIndex)
       return
     }
 
-    const hoveredIndex = hitTestDocument(snapshot.shapes, pointer)
+    const hoveredIndex = hitTestDocument(snapshot.document, snapshot.shapes, pointer)
     if (type === 'pointerdown' && selectOnPointerDown) {
       updateHoverSelection(hoveredIndex, hoveredIndex)
       return
@@ -222,20 +222,28 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
   }
 }
 
-function hitTestDocument(shapes: SceneShapeSnapshot[], pointer: PointerState) {
+function hitTestDocument(
+  document: EditorDocument,
+  shapes: SceneShapeSnapshot[],
+  pointer: PointerState,
+) {
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
   for (let index = shapes.length - 1; index >= 0; index -= 1) {
     const shape = shapes[index]
-    const left = Math.min(shape.x, shape.x + shape.width)
-    const right = Math.max(shape.x, shape.x + shape.width)
-    const top = Math.min(shape.y, shape.y + shape.height)
-    const bottom = Math.max(shape.y, shape.y + shape.height)
-
-    if (
-      pointer.x >= left &&
-      pointer.x <= right &&
-      pointer.y >= top &&
-      pointer.y <= bottom
-    ) {
+    const source = document.shapes[index] ?? shapeById.get(shape?.id ?? '')
+    if (!shape || !source) {
+      continue
+    }
+    if (source.type === 'image' && source.clipPathId) {
+      continue
+    }
+    if (source.clipPathId) {
+      const clipSource = shapeById.get(source.clipPathId)
+      if (clipSource && !isPointInsideClipShape(pointer, clipSource, {tolerance: 1.5})) {
+        continue
+      }
+    }
+    if (isPointInsideShapeHitArea(pointer, source, {tolerance: 6})) {
       return index
     }
   }

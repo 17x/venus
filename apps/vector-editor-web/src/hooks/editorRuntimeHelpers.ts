@@ -1,6 +1,7 @@
 import {
   convertDrawPointsToBezierPoints,
   getBoundingRectFromBezierPoints,
+  getNormalizedBoundsFromBox,
   nid,
   type DocumentNode,
   type ToolId,
@@ -280,13 +281,6 @@ export function offsetElementPosition(
   }
 }
 
-export function applyMatrixToPoint(matrix: number[], point: {x: number; y: number}) {
-  return {
-    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
-    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
-  }
-}
-
 export function buildHistoryArray(history: HistorySummary): HistoryNodeLike[] {
   return history.entries.map((entry, index, array) => ({
     id: index,
@@ -314,9 +308,10 @@ export function isPenTool(toolName: ToolName) {
 }
 
 function createPolygonPoints(x: number, y: number, width: number, height: number) {
-  const centerX = x + width / 2
-  const centerY = y + height / 2
-  const radius = Math.min(width, height) / 2
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+  const centerX = bounds.minX + bounds.width / 2
+  const centerY = bounds.minY + bounds.height / 2
+  const radius = Math.min(bounds.width, bounds.height) / 2
   const sides = 5
 
   return Array.from({length: sides}, (_, index) => {
@@ -329,9 +324,10 @@ function createPolygonPoints(x: number, y: number, width: number, height: number
 }
 
 function createStarPoints(x: number, y: number, width: number, height: number) {
-  const centerX = x + width / 2
-  const centerY = y + height / 2
-  const outerRadius = Math.min(width, height) / 2
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+  const centerX = bounds.minX + bounds.width / 2
+  const centerY = bounds.minY + bounds.height / 2
+  const outerRadius = Math.min(bounds.width, bounds.height) / 2
   const innerRadius = outerRadius * 0.46
 
   return Array.from({length: 10}, (_, index) => {

@@ -3,6 +3,13 @@ export {
   upgradeSceneToLatest,
 } from '../migrations/index.ts'
 export {parseRuntimeSceneToEditorDocument} from './parseRuntimeScene.ts'
+export {
+  createFileFormatTransformMetadataEntries,
+  resolveLegacyShapeTransformFromFileFormat,
+  resolveMatrixFirstTransformFromFileFormat,
+  type FileFormatTransformSource,
+  type GeometryBoundsLike,
+} from './transformAdapters.ts'
 export type {
   RuntimeFeatureKindV4,
   RuntimeFeatureKindV5,

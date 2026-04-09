@@ -25,6 +25,111 @@ export interface BezierPoint {
   cp2?: Point | null
 }
 
+/**
+ * Affine 2D transform in Canvas/SVG order:
+ *
+ * | a c e |
+ * | b d f |
+ * | 0 0 1 |
+ */
+export type AffineMatrix = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+]
+
+export function createIdentityAffineMatrix(): AffineMatrix {
+  return [1, 0, 0, 1, 0, 0]
+}
+
+export function createTranslationAffineMatrix(tx: number, ty: number): AffineMatrix {
+  return [1, 0, 0, 1, tx, ty]
+}
+
+export function createScaleAffineMatrix(scaleX: number, scaleY: number): AffineMatrix {
+  return [scaleX, 0, 0, scaleY, 0, 0]
+}
+
+export function createRotationAffineMatrix(rotationDegrees: number): AffineMatrix {
+  const angle = rotationDegrees * (Math.PI / 180)
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+
+  return [cos, sin, -sin, cos, 0, 0]
+}
+
+export function multiplyAffineMatrices(left: AffineMatrix, right: AffineMatrix): AffineMatrix {
+  const [la, lb, lc, ld, le, lf] = left
+  const [ra, rb, rc, rd, re, rf] = right
+
+  return [
+    la * ra + lc * rb,
+    lb * ra + ld * rb,
+    la * rc + lc * rd,
+    lb * rc + ld * rd,
+    la * re + lc * rf + le,
+    lb * re + ld * rf + lf,
+  ]
+}
+
+export function invertAffineMatrix(matrix: AffineMatrix): AffineMatrix {
+  const [a, b, c, d, e, f] = matrix
+  const determinant = a * d - b * c
+
+  if (Math.abs(determinant) <= 1e-9) {
+    return createIdentityAffineMatrix()
+  }
+
+  const inverseDeterminant = 1 / determinant
+  const nextA = d * inverseDeterminant
+  const nextB = -b * inverseDeterminant
+  const nextC = -c * inverseDeterminant
+  const nextD = a * inverseDeterminant
+
+  return [
+    nextA,
+    nextB,
+    nextC,
+    nextD,
+    -(nextA * e + nextC * f),
+    -(nextB * e + nextD * f),
+  ]
+}
+
+export function applyAffineMatrixToPoint(matrix: AffineMatrix, point: Point): Point {
+  return {
+    x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],
+    y: matrix[1] * point.x + matrix[3] * point.y + matrix[5],
+  }
+}
+
+export function createAffineMatrixAroundPoint(
+  center: Point,
+  options?: {
+    rotationDegrees?: number
+    scaleX?: number
+    scaleY?: number
+  },
+): AffineMatrix {
+  const rotationDegrees = options?.rotationDegrees ?? 0
+  const scaleX = options?.scaleX ?? 1
+  const scaleY = options?.scaleY ?? 1
+
+  return multiplyAffineMatrices(
+    multiplyAffineMatrices(
+      createTranslationAffineMatrix(center.x, center.y),
+      multiplyAffineMatrices(
+        createRotationAffineMatrix(rotationDegrees),
+        createScaleAffineMatrix(scaleX, scaleY),
+      ),
+    ),
+    createTranslationAffineMatrix(-center.x, -center.y),
+  )
+}
+
 export function rotatePointAroundPoint(
   px: number,
   py: number,

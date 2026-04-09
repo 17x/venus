@@ -25,6 +25,9 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - `packages/*` contains shared runtime, worker, renderer, file-format, and
   document primitives.
 - `docs/*` contains project standards, handoff notes, and architecture context.
+- Package-scoped knowledge notes now live under `docs/ai-standards/packages/*`
+  and should be preferred over this file when a change is mostly contained to
+  one package.
 
 ### Primary Runtime Chain
 
@@ -92,11 +95,139 @@ Use this file as the shared knowledge base for the Venus monorepo.
   overlays, file adapters, clip hit-tests, and runtime-playground/vector app
   preview/commit paths all preserve those flips.
 
+- Viewport point projection now routes through shared `canvas-base`
+  `applyMatrixToPoint` exports in both shared/app selection overlays and vector
+  runtime pointer projection paths (plus runtime-playground marquee projection),
+  reducing duplicated world/screen matrix math while matrix-internals migration
+  continues.
+
+- Runtime-playground rotated selection handle placement and rotated selection-box
+  interior hit checks now also use shared `document-core` affine helpers
+  (`createAffineMatrixAroundPoint` + inverse projection) instead of local
+  trig-based rotation helpers.
+
+- Rotated selection-box interior containment is now shared via
+  `document-core` `isPointInsideRotatedBounds`, and both vector and
+  runtime-playground interaction paths now consume that shared helper.
+
+- Selection handle layout + hit-pick math is now shared in
+  `canvas-base` (`interaction/selectionHandles.ts`), and active vector app,
+  runtime-playground, and shared overlay paths no longer maintain separate
+  duplicated rotate-handle layout helpers.
+
+- Group-aware resize target collection is now shared in `canvas-base`
+  (`interaction/transformTargets.ts`), aligning vector and runtime-playground
+  multi/group resize target expansion behavior on one helper.
+
+- Group-aware transform preview expansion and preview geometry remap are now
+  shared in `canvas-base` (`interaction/transformPreview.ts`), reducing another
+  duplicated transform-preview code path across vector and runtime-playground.
+
+- Clip-bound image preview propagation during transform sessions is now also
+  centralized in `canvas-base` preview-map helpers (optional
+  `includeClipBoundImagePreview` path), so vector no longer maintains a
+  separate app-local clip preview extension.
+
+- Vector mask/image overlap checks now normalize shape bounds via
+  `document-core` `getNormalizedBoundsFromBox`, so negative-width/height
+  compatibility stays consistent when clip candidate overlap is evaluated.
+
+- SVG/CSS transform-string composition for resolved rotate/flip state is now
+  shared in `document-core` (`toResolvedNodeSvgTransform`,
+  `toResolvedNodeCssTransform`), reducing duplicated transform attribute
+  formatting logic across vector and shared overlay/render paths.
+
+- Added cross-package matrix compatibility invariant documentation in
+  `docs/ai-standards/core/matrix-compatibility-invariants.md` to lock shared
+  transform ownership and migration boundaries while runtime storage remains
+  decomposed.
+
+- Added a shared matrix regression runbook in
+  `docs/ai-standards/core/matrix-regression-scenarios.md` covering rotated
+  resize, multi/group signed-scale crossover, rotated selection clear, path
+  fill/hit consistency, and clip preview/commit consistency checks.
+
+- Worker runtime bounds resolution now normalizes path/bezier derived bounds
+  through the shared normalized-box helper before scene/spatial writes, reducing
+  one more indexing drift risk under transform-sign edge cases.
+
+- Vector and runtime-playground preview document/runtime-shape derivation now
+  route through shared `canvas-base` `resolveTransformPreviewRuntimeState`,
+  reducing duplicated transform-preview computation and keeping preview map
+  semantics aligned across app surfaces.
+
+- Added runnable one-command matrix regression gate:
+  `pnpm matrix:check` (implemented by
+  `tooling/matrix-regression-check/scripts/run-check.mjs`) for repeated
+  migration verification across active packages/apps.
+
+- Normalized bounds overlap/intersection semantics are now shared in
+  `document-core` (`doNormalizedBoundsOverlap`, `intersectNormalizedBounds`) and
+  consumed by vector overlap checks plus worker clip/runtime intersection paths.
+
+- Group/parent-child transform edge hardening now includes ancestor-aware
+  resize target filtering in `canvas-base` and per-cycle hierarchy map reuse in
+  worker moved-group ancestor checks.
+
+- Added Phase-5 matrix-first runtime RFC draft at
+  `docs/ai-standards/core/matrix-first-runtime-rfc.md` plus initial
+  `document-core` scaffold adapters (`MatrixFirstNodeTransform`,
+  `createMatrixFirstNodeTransform`, `toLegacyShapeTransformRecord`).
+
+- Added file-format transform compatibility adapter layer at
+  `packages/file-format/base/src/transformAdapters.ts` and routed runtime-scene
+  transform parsing through it, providing shared legacy + matrix-first transform
+  resolution and matrix-first metadata serialization helpers.
+
+- Vector file export (`apps/vector-editor-web/src/adapters/fileFormatScene.ts`)
+  now emits transform metadata through the shared file-format adapters
+  (`createMatrixFirstNodeTransform` +
+  `createFileFormatTransformMetadataEntries`) instead of app-local manual
+  transform key assembly, tightening persisted/runtime transform boundary
+  consistency.
+
+- `renderer-skia` now derives scene revision keys from a pure scene hash
+  (`computeSceneRevision`) instead of mutating refs during render. This keeps
+  tile/prewarm cache revisioning deterministic while satisfying current React
+  hooks lint constraints.
+
 - Multi-selection and group resize now use signed batch scaling in
   `canvas-base` instead of positive-only box scaling. Crossing a group/selection
   axis toggles per-shape flip state, and group resize targets leaf descendants
   rather than the derived group container box, so reflected resize behavior
   stays consistent for grouped content too.
+
+- Shared hit-testing now targets actual stroke/fill geometry instead of falling
+  back to selection/document bounds for picking. `document-core` owns the
+  stroke/fill hit rules, worker and canvas-base hover/drag hit-tests consume
+  that same helper, and the vector/playground selection box now only starts
+  transforms through explicit handles rather than by clicking empty MBR space.
+
+- Clicking empty interior space inside the current selection box now clears the
+  selection in both the vector app and runtime playground. The clear path only
+  triggers when the pointer is inside the current selection box, misses all
+  transform handles, and also misses the selected shapes' actual stroke/fill
+  hit geometry.
+
+- File-format path parsing/export now preserves explicit `CLOSE` commands for
+  vector paths. `parseRuntimeScene` rehydrates closed subpaths back into the
+  runtime point/bezier lists, and the vector scene adapter emits `CLOSE` for
+  closed polyline/bezier paths, which keeps Canvas2D path fill rendering
+  aligned across import/export cycles.
+
+- Canvas2D fill rendering now depends on the fill toggle plus the fill color's
+  effective alpha. Explicit fill styles render unless `fill.enabled === false`,
+  and fully transparent fill colors no longer paint even when a fill color
+  string is present. This keeps closed paths with authored fill colors visible
+  without requiring a separately persisted `fill.enabled = true`.
+
+- Phase 1 of the matrix-internals migration has started in `document-core`.
+  Shared affine helpers now live in `packages/document-core/src/geometry.ts`,
+  `hitTest.ts` resolves shape-local pointers through inverse affine transforms,
+  and the Canvas2D renderer applies shape rotation/flip through the same shared
+  affine composition. The runtime node model is still decomposed
+  (`x/y/width/height/rotation/flipX/flipY`), but transform-sensitive code
+  should prefer the shared affine helpers over hand-rolled rotate/flip math.
 
 ### 2026-04-08
 

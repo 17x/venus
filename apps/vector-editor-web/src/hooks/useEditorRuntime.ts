@@ -1,9 +1,23 @@
 import {createElement, useCallback, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@venus/ui'
-import {nid, type ToolName} from '@venus/document-core'
 import {
+  doNormalizedBoundsOverlap,
+  getNormalizedBoundsFromBox,
+  isPointInsideRotatedBounds,
+  isPointInsideShapeHitArea,
+  nid,
+  type ToolName,
+} from '@venus/document-core'
+import {
+  applyMatrixToPoint,
+  createTransformBatchCommand,
+  createTransformPreviewShape,
+  createTransformSessionShape,
   createMarqueeState,
+  collectResizeTransformTargets,
   createSelectionDragController,
+  pickSelectionHandleAtPoint,
+  resolveTransformPreviewRuntimeState,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   updateMarqueeState,
@@ -21,7 +35,6 @@ import ZOOM_LEVELS from '../constants/zoomLevels.ts'
 import {createDocumentNodeFromElement} from '../adapters/fileDocument.ts'
 import readFileHelper from '../contexts/fileContext/readFileHelper.ts'
 import {
-  applyMatrixToPoint,
   cloneElementProps,
   createShapeElementFromTool,
   mapToolNameToToolId,
@@ -62,257 +75,10 @@ function boundsOverlap(
   left: import('@venus/document-core').DocumentNode,
   right: import('@venus/document-core').DocumentNode,
 ) {
-  return !(
-    left.x + left.width <= right.x ||
-    right.x + right.width <= left.x ||
-    left.y + left.height <= right.y ||
-    right.y + right.height <= left.y
-  )
-}
+  const leftBounds = getNormalizedBoundsFromBox(left.x, left.y, left.width, left.height)
+  const rightBounds = getNormalizedBoundsFromBox(right.x, right.y, right.width, right.height)
 
-function remapPoint(
-  point: {x: number; y: number},
-  source: {x: number; y: number; width: number; height: number},
-  target: {x: number; y: number; width: number; height: number},
-) {
-  const scaleX = source.width === 0 ? 1 : target.width / source.width
-  const scaleY = source.height === 0 ? 1 : target.height / source.height
-  return {
-    x: target.x + (point.x - source.x) * scaleX,
-    y: target.y + (point.y - source.y) * scaleY,
-  }
-}
-
-function applyPreviewGeometryToShape(
-  shape: import('@venus/document-core').DocumentNode,
-  preview: {x: number; y: number; width: number; height: number; rotation?: number; flipX?: boolean; flipY?: boolean},
-) {
-  const source = {
-    x: shape.x,
-    y: shape.y,
-    width: shape.width,
-    height: shape.height,
-  }
-  const target = {
-    x: preview.x,
-    y: preview.y,
-    width: preview.width,
-    height: preview.height,
-  }
-
-  return {
-    ...shape,
-    x: preview.x,
-    y: preview.y,
-    width: preview.width,
-    height: preview.height,
-    rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
-    flipX: typeof preview.flipX === 'boolean' ? preview.flipX : shape.flipX,
-    flipY: typeof preview.flipY === 'boolean' ? preview.flipY : shape.flipY,
-    points:
-      (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
-        ? shape.points.map((point) => remapPoint(point, source, target))
-        : shape.points,
-    bezierPoints:
-      shape.type === 'path' && shape.bezierPoints
-        ? shape.bezierPoints.map((point) => ({
-            anchor: remapPoint(point.anchor, source, target),
-            cp1: point.cp1 ? remapPoint(point.cp1, source, target) : point.cp1,
-            cp2: point.cp2 ? remapPoint(point.cp2, source, target) : point.cp2,
-          }))
-        : shape.bezierPoints,
-  }
-}
-
-function buildTransformPreviewMap(
-  document: import('@venus/document-core').EditorDocument,
-  preview: TransformPreview,
-  runtimeShapes?: Array<{
-    id: string
-    x: number
-    y: number
-    width: number
-    height: number
-    rotation?: number
-    flipX?: boolean
-    flipY?: boolean
-  }>,
-) {
-  const previewById = new Map(
-    preview.shapes.map((shape) => [shape.shapeId, shape] as const),
-  )
-  const childrenByParent = new Map<string, string[]>()
-  const imagesByClipId = new Map<string, string[]>()
-  const runtimeShapeById = new Map((runtimeShapes ?? []).map((shape) => [shape.id, shape]))
-
-  document.shapes.forEach((shape) => {
-    if (!shape.parentId) {
-      if (shape.type === 'image' && shape.clipPathId) {
-        const boundImages = imagesByClipId.get(shape.clipPathId) ?? []
-        boundImages.push(shape.id)
-        imagesByClipId.set(shape.clipPathId, boundImages)
-      }
-      return
-    }
-    const siblings = childrenByParent.get(shape.parentId) ?? []
-    siblings.push(shape.id)
-    childrenByParent.set(shape.parentId, siblings)
-    if (shape.type === 'image' && shape.clipPathId) {
-      const boundImages = imagesByClipId.get(shape.clipPathId) ?? []
-      boundImages.push(shape.id)
-      imagesByClipId.set(shape.clipPathId, boundImages)
-    }
-  })
-
-  for (const previewShape of preview.shapes) {
-    const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
-    if (!source || source.type !== 'group') {
-      continue
-    }
-
-    const deltaX = previewShape.x - source.x
-    const deltaY = previewShape.y - source.y
-    if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
-      continue
-    }
-
-    const queue = [...(childrenByParent.get(source.id) ?? [])]
-    while (queue.length > 0) {
-      const childId = queue.shift()!
-      const child = document.shapes.find((shape) => shape.id === childId)
-      if (!child) {
-        continue
-      }
-      if (!previewById.has(child.id)) {
-        previewById.set(child.id, {
-          shapeId: child.id,
-          x: child.x + deltaX,
-          y: child.y + deltaY,
-          width: child.width,
-          height: child.height,
-          rotation: child.rotation ?? 0,
-          flipX: child.flipX,
-          flipY: child.flipY,
-        })
-      }
-      const nested = childrenByParent.get(child.id)
-      if (nested && nested.length > 0) {
-        queue.push(...nested)
-      }
-    }
-  }
-
-  // Mask-drag preview should move clipped images in real time.
-  // Commit-time linkage is handled in worker; this keeps UI preview consistent.
-  for (const previewShape of preview.shapes) {
-    const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
-    if (!source) {
-      continue
-    }
-    const deltaX = previewShape.x - source.x
-    const deltaY = previewShape.y - source.y
-    if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
-      continue
-    }
-
-    const imageIds = imagesByClipId.get(source.id) ?? []
-    imageIds.forEach((imageId) => {
-      if (previewById.has(imageId)) {
-        return
-      }
-      const image = document.shapes.find((shape) => shape.id === imageId)
-      if (!image) {
-        return
-      }
-      const runtimeShape = runtimeShapeById.get(image.id)
-      previewById.set(image.id, {
-        shapeId: image.id,
-        x: (runtimeShape?.x ?? image.x) + deltaX,
-        y: (runtimeShape?.y ?? image.y) + deltaY,
-        width: runtimeShape?.width ?? image.width,
-        height: runtimeShape?.height ?? image.height,
-        rotation: runtimeShape?.rotation ?? image.rotation ?? 0,
-        flipX: image.flipX,
-        flipY: image.flipY,
-      })
-    })
-  }
-
-  return previewById
-}
-
-function isPointInBounds(
-  point: {x: number; y: number},
-  bounds: {minX: number; minY: number; maxX: number; maxY: number},
-) {
-  return (
-    point.x >= bounds.minX &&
-    point.x <= bounds.maxX &&
-    point.y >= bounds.minY &&
-    point.y <= bounds.maxY
-  )
-}
-
-function pickHandleAtPoint(
-  point: {x: number; y: number},
-  handles: Array<{kind: HandleKind; x: number; y: number}>,
-  tolerance: number,
-) {
-  for (const handle of handles) {
-    if (Math.hypot(handle.x - point.x, handle.y - point.y) <= tolerance) {
-      return handle
-    }
-  }
-
-  return null
-}
-
-function collectResizeTransformTargets(
-  selectedNodes: import('@venus/document-core').DocumentNode[],
-  document: import('@venus/document-core').EditorDocument,
-) {
-  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  const childrenByParent = new Map<string, import('@venus/document-core').DocumentNode[]>()
-
-  document.shapes.forEach((shape) => {
-    if (!shape.parentId) {
-      return
-    }
-    const siblings = childrenByParent.get(shape.parentId) ?? []
-    siblings.push(shape)
-    childrenByParent.set(shape.parentId, siblings)
-  })
-
-  const targets = new Map<string, import('@venus/document-core').DocumentNode>()
-  const selectedIds = new Set(selectedNodes.map((shape) => shape.id))
-
-  const collectLeafDescendants = (shapeId: string) => {
-    const queue = [...(childrenByParent.get(shapeId) ?? [])]
-    while (queue.length > 0) {
-      const current = queue.shift()
-      if (!current) {
-        continue
-      }
-      if (current.type === 'group') {
-        queue.push(...(childrenByParent.get(current.id) ?? []))
-        continue
-      }
-      targets.set(current.id, current)
-    }
-  }
-
-  selectedNodes.forEach((shape) => {
-    if (shape.type === 'group') {
-      collectLeafDescendants(shape.id)
-      return
-    }
-    if (selectedIds.has(shape.parentId ?? '')) {
-      return
-    }
-    targets.set(shape.id, shapeById.get(shape.id) ?? shape)
-  })
-
-  return Array.from(targets.values())
+  return doNormalizedBoundsOverlap(leftBounds, rightBounds)
 }
 
 function toElementPropsFromNode(selectedNode: import('@venus/document-core').DocumentNode): ElementProps {
@@ -434,48 +200,14 @@ const useEditorRuntime = (options?: {
     ? canvasRuntime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
     : null
   const selectedShapeId = selectedShape?.id ?? null
-  const previewDocument = useMemo(() => {
-    if (!transformPreview) {
-      return canvasRuntime.document
-    }
-    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview, canvasRuntime.shapes)
-
-    return {
-      ...canvasRuntime.document,
-      shapes: canvasRuntime.document.shapes.map((shape) =>
-        previewById.has(shape.id)
-          ? applyPreviewGeometryToShape(shape, {
-              x: previewById.get(shape.id)?.x ?? shape.x,
-              y: previewById.get(shape.id)?.y ?? shape.y,
-              width: previewById.get(shape.id)?.width ?? shape.width,
-              height: previewById.get(shape.id)?.height ?? shape.height,
-              rotation: previewById.get(shape.id)?.rotation,
-              flipX: previewById.get(shape.id)?.flipX,
-              flipY: previewById.get(shape.id)?.flipY,
-            })
-          : shape,
-      ),
-    }
-  }, [canvasRuntime.document, transformPreview])
-  const previewShapes = useMemo(() => {
-    if (!transformPreview) {
-      return canvasRuntime.shapes
-    }
-
-    const previewById = buildTransformPreviewMap(canvasRuntime.document, transformPreview, canvasRuntime.shapes)
-
-    return canvasRuntime.shapes.map((shape) => (
-      previewById.has(shape.id)
-        ? {
-            ...shape,
-            x: previewById.get(shape.id)?.x ?? shape.x,
-            y: previewById.get(shape.id)?.y ?? shape.y,
-            width: previewById.get(shape.id)?.width ?? shape.width,
-            height: previewById.get(shape.id)?.height ?? shape.height,
-          }
-        : shape
-    ))
-  }, [canvasRuntime.shapes, transformPreview])
+  const previewState = useMemo(() => resolveTransformPreviewRuntimeState(
+    canvasRuntime.document,
+    canvasRuntime.shapes,
+    transformPreview?.shapes ?? null,
+    {includeClipBoundImagePreview: true},
+  ), [canvasRuntime.document, canvasRuntime.shapes, transformPreview])
+  const previewDocument = previewState.previewDocument
+  const previewShapes = previewState.previewShapes
 
   const selectionState = useMemo(
     () => buildSelectionState(previewDocument, previewShapes),
@@ -828,32 +560,23 @@ const useEditorRuntime = (options?: {
       const selectedSet = new Set(selectedShapeIds)
       const moveTargets = canvasRuntime.document.shapes
         .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
-        .map((shape) => ({
-          id: shape.id,
-          from: {
-            x: shape.x,
-            y: shape.y,
-            width: shape.width,
-            height: shape.height,
-            rotation: shape.rotation ?? 0,
-          },
-          to: {
-            x: shape.x + delta.x,
-            y: shape.y + delta.y,
-            width: shape.width,
-            height: shape.height,
-            rotation: shape.rotation ?? 0,
-          },
-        }))
 
-      if (moveTargets.length === 0) {
+      const command = createTransformBatchCommand(moveTargets, {
+        shapes: moveTargets.map((shape) => ({
+          shapeId: shape.id,
+          x: shape.x + delta.x,
+          y: shape.y + delta.y,
+          width: shape.width,
+          height: shape.height,
+          rotation: shape.rotation ?? 0,
+          flipX: shape.flipX ?? false,
+          flipY: shape.flipY ?? false,
+        })),
+      })
+      if (!command) {
         return
       }
-
-      handleCommand({
-        type: 'shape.transform.batch',
-        transforms: moveTargets,
-      })
+      handleCommand(command)
       return
     }
 
@@ -1063,6 +786,7 @@ const useEditorRuntime = (options?: {
     }
   }, [
     add,
+    addAsset,
     applyAutoMask,
     canvasRuntime,
     clipboard,
@@ -1073,9 +797,8 @@ const useEditorRuntime = (options?: {
     insertElementsBatch,
     reorderSelectedShape,
     saveFile,
-    selectedNode,
+    pasteSerial,
     selectedShapeIds,
-    selectedShape,
     startCreateFile,
   ])
 
@@ -1208,34 +931,14 @@ const useEditorRuntime = (options?: {
               if (dragShapes.length > 0) {
                 transformManagerRef.current.start({
                   shapeIds: dragShapes.map((shape) => shape.id),
-                  shapes: dragShapes.map((shape) => ({
-                    shapeId: shape.id,
-                    x: shape.x,
-                    y: shape.y,
-                    width: Math.max(1, shape.width),
-                    height: Math.max(1, shape.height),
-                    rotation: shape.rotation ?? 0,
-                    flipX: shape.flipX ?? false,
-                    flipY: shape.flipY ?? false,
-                    centerX: shape.x + shape.width / 2,
-                    centerY: shape.y + shape.height / 2,
-                  })),
+                  shapes: dragShapes.map((shape) => createTransformSessionShape(shape)),
                   handle: 'move',
                   pointer: dragMove.session.start,
                   startBounds: dragMove.session.bounds,
                 })
                 setActiveTransformHandle('move')
                 setTransformPreview({
-                  shapes: dragShapes.map((shape) => ({
-                    shapeId: shape.id,
-                    x: shape.x,
-                    y: shape.y,
-                    width: Math.max(1, shape.width),
-                    height: Math.max(1, shape.height),
-                    rotation: shape.rotation ?? 0,
-                    flipX: shape.flipX ?? false,
-                    flipY: shape.flipY ?? false,
-                  })),
+                  shapes: dragShapes.map((shape) => createTransformPreviewShape(shape)),
                 })
               }
             }
@@ -1275,7 +978,7 @@ const useEditorRuntime = (options?: {
             rotateDegrees: singleSelectedRotation,
           })
           const handleTolerance = 6
-          const handle = pickHandleAtPoint(point, handles, handleTolerance)
+          const handle = pickSelectionHandleAtPoint(point, handles, handleTolerance)
 
           if (handle && selectedBounds && selectedNodes.length > 0) {
             const resizeTargets = handle.kind === 'move' || handle.kind === 'rotate'
@@ -1284,70 +987,29 @@ const useEditorRuntime = (options?: {
             selectionDragControllerRef.current.clear()
             transformManagerRef.current.start({
               shapeIds: selectedNodes.map((shape) => shape.id),
-              shapes: resizeTargets.map((shape) => ({
-                shapeId: shape.id,
-                x: shape.x,
-                y: shape.y,
-                width: Math.max(1, shape.width),
-                height: Math.max(1, shape.height),
-                rotation: shape.rotation ?? 0,
-                flipX: shape.flipX ?? false,
-                flipY: shape.flipY ?? false,
-                centerX: shape.x + shape.width / 2,
-                centerY: shape.y + shape.height / 2,
-              })),
+              shapes: resizeTargets.map((shape) => createTransformSessionShape(shape)),
               handle: handle.kind,
               pointer: point,
               startBounds: selectedBounds,
             })
             setActiveTransformHandle(handle.kind)
             setTransformPreview({
-              shapes: resizeTargets.map((shape) => ({
-                shapeId: shape.id,
-                x: shape.x,
-                y: shape.y,
-                width: Math.max(1, shape.width),
-                height: Math.max(1, shape.height),
-                rotation: shape.rotation ?? 0,
-                flipX: shape.flipX ?? false,
-                flipY: shape.flipY ?? false,
-              })),
+              shapes: resizeTargets.map((shape) => createTransformPreviewShape(shape)),
             })
             return
           }
 
-          if (selectedBounds && selectedNodes.length > 0 && isPointInBounds(point, selectedBounds)) {
+          if (
+            selectedBounds &&
+            selectedNodes.length > 0 &&
+            isPointInsideRotatedBounds(point, selectedBounds, singleSelectedRotation) &&
+            !selectedNodes.some((shape) => isPointInsideShapeHitArea(point, shape, {tolerance: handleTolerance}))
+          ) {
             selectionDragControllerRef.current.clear()
-            transformManagerRef.current.start({
-              shapeIds: selectedNodes.map((shape) => shape.id),
-              shapes: selectedNodes.map((shape) => ({
-                shapeId: shape.id,
-                x: shape.x,
-                y: shape.y,
-                width: Math.max(1, shape.width),
-                height: Math.max(1, shape.height),
-                rotation: shape.rotation ?? 0,
-                flipX: shape.flipX ?? false,
-                flipY: shape.flipY ?? false,
-                centerX: shape.x + shape.width / 2,
-                centerY: shape.y + shape.height / 2,
-              })),
-              handle: 'move',
-              pointer: point,
-              startBounds: selectedBounds,
-            })
-            setActiveTransformHandle('move')
-            setTransformPreview({
-              shapes: selectedNodes.map((shape) => ({
-                shapeId: shape.id,
-                x: shape.x,
-                y: shape.y,
-                width: Math.max(1, shape.width),
-                height: Math.max(1, shape.height),
-                rotation: shape.rotation ?? 0,
-                flipX: shape.flipX ?? false,
-                flipY: shape.flipY ?? false,
-              })),
+            handleCommand({
+              type: 'selection.set',
+              shapeIds: [],
+              mode: 'replace',
             })
             return
           }
@@ -1407,77 +1069,11 @@ const useEditorRuntime = (options?: {
           const preview = transformPreview
 
           if (preview) {
-            const transformBatch: Array<{
-              id: string
-              from: {
-                x: number
-                y: number
-                width: number
-                height: number
-                rotation: number
-                flipX?: boolean
-                flipY?: boolean
-              }
-              to: {
-                x: number
-                y: number
-                width: number
-                height: number
-                rotation: number
-                flipX?: boolean
-                flipY?: boolean
-              }
-            }> = []
-            preview.shapes.forEach((item) => {
-              const shape = canvasRuntime.document.shapes.find((candidate) => candidate.id === item.shapeId)
-              if (!shape) {
-                return
-              }
-              const nextRotation = typeof item.rotation === 'number' ? item.rotation : (shape.rotation ?? 0)
-              const nextFlipX = typeof item.flipX === 'boolean' ? item.flipX : !!shape.flipX
-              const nextFlipY = typeof item.flipY === 'boolean' ? item.flipY : !!shape.flipY
-              const changed =
-                shape.x !== item.x ||
-                shape.y !== item.y ||
-                shape.width !== item.width ||
-                shape.height !== item.height ||
-                (shape.rotation ?? 0) !== nextRotation ||
-                !!shape.flipX !== nextFlipX ||
-                !!shape.flipY !== nextFlipY
-              if (!changed) {
-                return
-              }
-
-              transformBatch.push({
-                id: shape.id,
-                from: {
-                  x: shape.x,
-                  y: shape.y,
-                  width: shape.width,
-                  height: shape.height,
-                  rotation: shape.rotation ?? 0,
-                  flipX: !!shape.flipX,
-                  flipY: !!shape.flipY,
-                },
-                to: {
-                  x: item.x,
-                  y: item.y,
-                  width: item.width,
-                  height: item.height,
-                  rotation: nextRotation,
-                  flipX: nextFlipX,
-                  flipY: nextFlipY,
-                },
-              })
-            })
-
-            if (transformBatch.length > 0) {
+            const transformCommand = createTransformBatchCommand(canvasRuntime.document.shapes, preview)
+            if (transformCommand) {
               // Commit all drag/resize/rotate transforms as one command so
               // undo/redo stays atomic for both single and multi selection.
-              handleCommand({
-                type: 'shape.transform.batch',
-                transforms: transformBatch,
-              })
+              handleCommand(transformCommand)
               markTransformPreviewCommitPending()
             } else {
               clearTransformPreview()

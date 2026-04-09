@@ -1,6 +1,7 @@
 import {
   convertDrawPointsToBezierPoints,
   getBoundingRectFromBezierPoints,
+  getNormalizedBoundsFromBox,
   nid,
   type BezierPoint,
   type DocumentNode,
@@ -25,9 +26,10 @@ function randomInt(random: () => number, min: number, max: number) {
 }
 
 function createStarPoints(x: number, y: number, width: number, height: number) {
-  const centerX = x + width / 2
-  const centerY = y + height / 2
-  const outerRadius = Math.min(width, height) / 2
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+  const centerX = bounds.minX + bounds.width / 2
+  const centerY = bounds.minY + bounds.height / 2
+  const outerRadius = Math.min(bounds.width, bounds.height) / 2
   const innerRadius = outerRadius * 0.46
 
   return Array.from({length: 10}, (_, index) => {

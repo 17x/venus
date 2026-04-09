@@ -1,4 +1,4 @@
-import type { DocumentNode, EditorDocument, ToolId } from '@venus/document-core'
+import type { DocumentNode, EditorDocument, ShapeTransformBatchCommand, ToolId } from '@venus/document-core'
 import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
 import type { HistorySummary } from './history.ts'
 import type { PointerState } from '@venus/shared-memory'
@@ -79,30 +79,7 @@ export type EditorRuntimeCommand =
         rotation: number
       }>
     }
-  | {
-      type: 'shape.transform.batch'
-      transforms: Array<{
-        id: string
-        from: {
-          x: number
-          y: number
-          width: number
-          height: number
-          rotation: number
-          flipX?: boolean
-          flipY?: boolean
-        }
-        to: {
-          x: number
-          y: number
-          width: number
-          height: number
-          rotation: number
-          flipX?: boolean
-          flipY?: boolean
-        }
-      }>
-    }
+  | ShapeTransformBatchCommand
   | {
       type: 'shape.patch'
       shapeId: string

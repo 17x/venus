@@ -1,19 +1,13 @@
 import * as React from 'react'
+import {createShapeTransformRecord, type BoxTransformSource} from '@venus/document-core'
 import type {TransformPreviewShape} from '../interaction/transformSessionManager.ts'
 
 type TransformPreviewState<T extends TransformPreviewShape> = {
   shapes: T[]
 } | null
 
-type DocumentShapeGeometry = {
+type DocumentShapeGeometry = BoxTransformSource & {
   id: string
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation?: number
-  flipX?: boolean
-  flipY?: boolean
 }
 
 export function isTransformPreviewSynced<T extends TransformPreviewShape>(
@@ -24,21 +18,22 @@ export function isTransformPreviewSynced<T extends TransformPreviewShape>(
     return true
   }
 
-  const shapeById = new Map(documentShapes.map((shape) => [shape.id, shape]))
+  const shapeById = new Map(documentShapes.map((shape) => [shape.id, createShapeTransformRecord(shape)]))
   return preview.shapes.every((item) => {
     const shape = shapeById.get(item.shapeId)
     if (!shape) {
       return true
     }
+    const previewShape = createShapeTransformRecord(item)
 
     return (
-      shape.x === item.x &&
-      shape.y === item.y &&
-      shape.width === item.width &&
-      shape.height === item.height &&
-      (shape.rotation ?? 0) === (item.rotation ?? 0) &&
-      !!shape.flipX === !!item.flipX &&
-      !!shape.flipY === !!item.flipY
+      shape.x === previewShape.x &&
+      shape.y === previewShape.y &&
+      shape.width === previewShape.width &&
+      shape.height === previewShape.height &&
+      shape.rotation === previewShape.rotation &&
+      !!shape.flipX === !!previewShape.flipX &&
+      !!shape.flipY === !!previewShape.flipY
     )
   })
 }

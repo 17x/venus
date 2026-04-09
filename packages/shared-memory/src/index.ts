@@ -1,4 +1,4 @@
-import type { EditorDocument, ShapeType } from '@venus/document-core'
+import {getNormalizedBoundsFromBox, type EditorDocument, type ShapeType} from '@venus/document-core'
 
 export interface PointerState {
   x: number
@@ -527,11 +527,13 @@ function getNormalizedBounds(
   width: number,
   height: number,
 ) {
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+
   return {
-    minX: Math.min(x, x + width),
-    maxX: Math.max(x, x + width),
-    minY: Math.min(y, y + height),
-    maxY: Math.max(y, y + height),
+    minX: bounds.minX,
+    maxX: bounds.maxX,
+    minY: bounds.minY,
+    maxY: bounds.maxY,
   }
 }
 

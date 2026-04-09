@@ -1,7 +1,8 @@
 import type {RuntimeFeatureEntryV5, RuntimePathCommandV4, RuntimePathV4, RuntimeSceneLatest} from '@venus/file-format/base'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
-import {getBoundingRectFromBezierPoints} from '@venus/document-core'
+import {createMatrixFirstNodeTransform, getBoundingRectFromBezierPoints} from '@venus/document-core'
+import {createFileFormatTransformMetadataEntries} from '@venus/file-format/base'
 
 type ElementHierarchyMeta = {
   parentId?: string | null
@@ -94,15 +95,21 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
   const strokeStartArrowhead = resolveArrowhead(element.strokeStartArrowhead)
   const strokeEndArrowhead = resolveArrowhead(element.strokeEndArrowhead)
   const rotation = Number(element.rotation ?? 0)
+  const flipX = Boolean(element.flipX)
+  const flipY = Boolean(element.flipY)
+  const transformMetadataEntries = createFileFormatTransformMetadataEntries(
+    createMatrixFirstNodeTransform({
+      x,
+      y,
+      width,
+      height,
+      rotation,
+      flipX,
+      flipY,
+    }),
+  )
   const metadataValues: Record<string, string | number | boolean> = {
     shapeType: type,
-    x,
-    y,
-    width,
-    height,
-    rotation,
-    flipX: Boolean(element.flipX),
-    flipY: Boolean(element.flipY),
   }
   if (strokeStartArrowhead) {
     metadataValues.strokeStartArrowhead = strokeStartArrowhead
@@ -170,7 +177,7 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     metadataValues.ellipseEndAngle = element.ellipseEndAngle
   }
   const featureEntries: RuntimeFeatureEntryV5[] = [
-    createMetadataEntry(`${element.id}:metadata`, metadataValues),
+    createMetadataEntry(`${element.id}:metadata`, metadataValues, transformMetadataEntries),
   ]
 
   const vectorPaths = createVectorPathsFromElement(element)
@@ -359,10 +366,7 @@ function createVectorPathsFromElement(element: ElementProps): RuntimePathV4[] {
     if (points.length >= 3) {
       return [
         {
-          commands: [
-            ...createPolylineCommands(points),
-            {type: 'CLOSE', points: []},
-          ],
+          commands: createPolylineCommands(points),
         },
       ]
     }
@@ -423,6 +427,13 @@ function createBezierCommands(points: unknown[]): RuntimePathCommandV4[] {
     })
   }
 
+  if (isClosedBezierCommandPath(filtered)) {
+    commands.push({
+      type: 'CLOSE',
+      points: [],
+    })
+  }
+
   return commands
 }
 
@@ -444,19 +455,51 @@ function createPolylineCommands(points: unknown[]): RuntimePathCommandV4[] {
       type: 'LINE_TO' as const,
       points: [point.x, point.y],
     })),
+    ...(isClosedPointCommandPath(filtered)
+      ? [{type: 'CLOSE' as const, points: []}]
+      : []),
   ]
 }
 
-function createMetadataEntry(id: string, values: Record<string, string | number | boolean>): RuntimeFeatureEntryV5 {
+function isClosedBezierCommandPath(
+  points: Array<NonNullable<ReturnType<typeof toBezierPointLike>>>,
+) {
+  if (points.length < 3) {
+    return false
+  }
+  const first = points[0].anchor
+  const last = points[points.length - 1].anchor
+  return Math.hypot(first.x - last.x, first.y - last.y) <= 1e-3
+}
+
+function isClosedPointCommandPath(
+  points: Array<NonNullable<ReturnType<typeof toPointLike>>>,
+) {
+  if (points.length < 3) {
+    return false
+  }
+  const first = points[0]
+  const last = points[points.length - 1]
+  return Math.hypot(first.x - last.x, first.y - last.y) <= 1e-3
+}
+
+function createMetadataEntry(
+  id: string,
+  values: Record<string, string | number | boolean>,
+  leadingEntries: Array<{key: string; value: string}> = [],
+): RuntimeFeatureEntryV5 {
   return {
     id,
     role: 'metadata',
     feature: {
       kind: 'METADATA',
-      entries: Object.entries(values).map(([key, value]) => ({
-        key,
-        value: String(value),
-      })),
+      entries: [
+        ...leadingEntries,
+        ...Object.entries(values).map(([key, value]) => ({
+          key,
+          value: String(value),
+        })),
+      ],
     },
   }
 }

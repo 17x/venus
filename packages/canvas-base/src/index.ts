@@ -44,6 +44,24 @@ export type { CanvasViewportState } from './viewport/types.ts'
 export type { ViewportGestureBindingOptions } from './gesture/index.ts'
 export { bindViewportGestures } from './gesture/index.ts'
 export {
+  buildSelectionHandlesFromBounds,
+  pickSelectionHandleAtPoint,
+  type SelectionHandle,
+  type SelectionHandleBounds,
+  type SelectionHandleKind,
+  type SelectionHandlePoint,
+} from './interaction/selectionHandles.ts'
+export { collectResizeTransformTargets } from './interaction/transformTargets.ts'
+export {
+  applyTransformPreviewGeometryToShape,
+  buildGroupAwareTransformPreviewMap,
+  type BuildTransformPreviewMapOptions,
+  type TransformPreviewGeometry,
+  type TransformPreviewRuntimeShape,
+  type TransformPreviewRuntimeSnapshot,
+  resolveTransformPreviewRuntimeState,
+} from './interaction/transformPreview.ts'
+export {
   createSelectionDragController,
   type SelectionDragController,
   type SelectionDragModifiers,
@@ -53,8 +71,13 @@ export {
   type SelectionDragSnapshot,
 } from './interaction/selectionDragController.ts'
 export {
+  buildTransformBatch,
+  createTransformBatchCommand,
+  createTransformPreviewShape,
+  createTransformSessionShape,
   createTransformSessionManager,
   type TransformBounds,
+  type TransformBatchItem,
   type TransformHandleKind,
   type TransformPoint,
   type TransformPreview,
@@ -101,3 +124,8 @@ export {
   resolveViewportState,
   zoomViewportState,
 } from './viewport/controller.ts'
+export {
+  applyMatrixToPoint,
+  type Mat3,
+  type Point2D,
+} from './viewport/matrix.ts'

@@ -1,3 +1,13 @@
+import {
+  applyAffineMatrixToPoint,
+  createAffineMatrixAroundPoint,
+  resolveShapeTransformRecord,
+  type ResolvedShapeTransformRecord,
+  type ShapeTransformBatchCommand,
+  type ShapeTransformBatchItem,
+  type ShapeTransformRecord,
+} from '@venus/document-core'
+
 export type TransformHandleKind =
   | 'move'
   | 'nw'
@@ -22,32 +32,29 @@ export interface TransformPoint {
   y: number
 }
 
-export interface TransformSessionShape {
+export interface TransformSessionShape extends ResolvedShapeTransformRecord {
   shapeId: string
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation: number
-  flipX?: boolean
-  flipY?: boolean
-  centerX: number
-  centerY: number
 }
 
-export interface TransformPreviewShape {
+export interface TransformPreviewShape extends ShapeTransformRecord {
   shapeId: string
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation: number
-  flipX?: boolean
-  flipY?: boolean
 }
 
 export interface TransformPreview {
   shapes: TransformPreviewShape[]
+}
+
+export type TransformBatchItem = ShapeTransformBatchItem
+
+interface TransformShapeSource {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation?: number
+  flipX?: boolean
+  flipY?: boolean
 }
 
 export interface TransformSession {
@@ -57,6 +64,133 @@ export interface TransformSession {
   start: TransformPoint
   current: TransformPoint
   startBounds: TransformBounds
+}
+
+/**
+ * Normalizes a document/runtime shape into the transform-session contract used
+ * by shared resize/rotate/move interactions.
+ */
+export function createTransformSessionShape(shape: TransformShapeSource): TransformSessionShape {
+  const resolved = resolveShapeTransformRecord({
+    ...shape,
+    width: Math.max(1, shape.width),
+    height: Math.max(1, shape.height),
+  })
+
+  return {
+    shapeId: shape.id,
+    ...resolved,
+  }
+}
+
+/**
+ * Normalizes a document/runtime shape into the preview payload used by shared
+ * transform preview state and commit synchronization.
+ */
+export function createTransformPreviewShape(shape: TransformShapeSource): TransformPreviewShape {
+  const resolved = resolveShapeTransformRecord({
+    ...shape,
+    width: Math.max(1, shape.width),
+    height: Math.max(1, shape.height),
+  })
+
+  return {
+    shapeId: shape.id,
+    x: resolved.x,
+    y: resolved.y,
+    width: resolved.width,
+    height: resolved.height,
+    rotation: resolved.rotation,
+    flipX: resolved.flipX,
+    flipY: resolved.flipY,
+  }
+}
+
+/**
+ * Resolves preview payloads back into batch command patches so app shells can
+ * dispatch one shared transform commit contract to worker/runtime layers.
+ */
+export function buildTransformBatch(
+  documentShapes: TransformShapeSource[],
+  preview: TransformPreview | null | undefined,
+): TransformBatchItem[] {
+  if (!preview) {
+    return []
+  }
+
+  const shapeById = new Map(documentShapes.map((shape) => [shape.id, shape]))
+  const transforms: TransformBatchItem[] = []
+
+  preview.shapes.forEach((item) => {
+    const shape = shapeById.get(item.shapeId)
+    if (!shape) {
+      return
+    }
+
+    const from = createTransformPreviewShape(shape)
+    const to = {
+      shapeId: item.shapeId,
+      x: item.x,
+      y: item.y,
+      width: item.width,
+      height: item.height,
+      rotation: typeof item.rotation === 'number' ? item.rotation : from.rotation,
+      flipX: typeof item.flipX === 'boolean' ? item.flipX : from.flipX,
+      flipY: typeof item.flipY === 'boolean' ? item.flipY : from.flipY,
+    }
+
+    const changed =
+      from.x !== to.x ||
+      from.y !== to.y ||
+      from.width !== to.width ||
+      from.height !== to.height ||
+      from.rotation !== to.rotation ||
+      !!from.flipX !== !!to.flipX ||
+      !!from.flipY !== !!to.flipY
+
+    if (!changed) {
+      return
+    }
+
+    transforms.push({
+      id: shape.id,
+      from: {
+        x: from.x,
+        y: from.y,
+        width: from.width,
+        height: from.height,
+        rotation: from.rotation,
+        flipX: from.flipX,
+        flipY: from.flipY,
+      },
+      to: {
+        x: to.x,
+        y: to.y,
+        width: to.width,
+        height: to.height,
+        rotation: to.rotation,
+        flipX: to.flipX,
+        flipY: to.flipY,
+      },
+    })
+  })
+
+  return transforms
+}
+
+export function createTransformBatchCommand(
+  documentShapes: TransformShapeSource[],
+  preview: TransformPreview | null | undefined,
+): ShapeTransformBatchCommand | null {
+  const transforms = buildTransformBatch(documentShapes, preview)
+  if (transforms.length === 0) {
+    return null
+  }
+
+  return {
+    type: 'shape.transform.batch',
+    transforms,
+  }
 }
 
 export function createTransformSessionManager() {
@@ -136,7 +270,12 @@ export function createTransformSessionManager() {
 
       return {
         shapes: session.shapes.map((shape) => {
-          const rotated = rotatePointAround(shape.centerX, shape.centerY, center.x, center.y, delta)
+          const rotated = applyAffineMatrixToPoint(
+            createAffineMatrixAroundPoint(center, {
+              rotationDegrees: deltaDegrees,
+            }),
+            shape.center,
+          )
           return {
             shapeId: shape.shapeId,
             x: rotated.x - shape.width / 2,
@@ -169,10 +308,10 @@ export function createTransformSessionManager() {
 
     return {
       shapes: session.shapes.map((shape) => {
-        const shapeMinX = shape.x
-        const shapeMinY = shape.y
-        const shapeMaxX = shape.x + shape.width
-        const shapeMaxY = shape.y + shape.height
+        const shapeMinX = shape.bounds.minX
+        const shapeMinY = shape.bounds.minY
+        const shapeMaxX = shape.bounds.maxX
+        const shapeMaxY = shape.bounds.maxY
 
         const nextShapeMinX = next.minX + (shapeMinX - base.minX) * signedScaleX
         const nextShapeMaxX = next.minX + (shapeMaxX - base.minX) * signedScaleX
@@ -224,16 +363,12 @@ function resizeRotatedSingleShape(
 ): TransformPreviewShape | null {
   const halfWidth = Math.max(1, shape.width) / 2
   const halfHeight = Math.max(1, shape.height) / 2
-  const localPointer = rotatePointAround(
-    pointer.x,
-    pointer.y,
-    shape.centerX,
-    shape.centerY,
-    (-shape.rotation * Math.PI) / 180,
-  )
+  // Session shapes now carry inverse/matrix from the shared transform record,
+  // so resize math can use one canonical transform projection path.
+  const localPointer = applyAffineMatrixToPoint(shape.inverseMatrix, pointer)
   const localPointerOffset = {
-    x: localPointer.x - shape.centerX,
-    y: localPointer.y - shape.centerY,
+    x: localPointer.x - shape.center.x,
+    y: localPointer.y - shape.center.y,
   }
   const bounds = {
     minX: -halfWidth,
@@ -267,12 +402,9 @@ function resizeRotatedSingleShape(
     x: (minX + maxX) / 2,
     y: (minY + maxY) / 2,
   }
-  const worldCenter = rotatePointAround(
-    shape.centerX + localCenter.x,
-    shape.centerY + localCenter.y,
-    shape.centerX,
-    shape.centerY,
-    (shape.rotation * Math.PI) / 180,
+  const worldCenter = applyAffineMatrixToPoint(
+    shape.matrix,
+    {x: shape.center.x + localCenter.x, y: shape.center.y + localCenter.y},
   )
 
   return {
@@ -290,22 +422,4 @@ function resizeRotatedSingleShape(
 function normalizeDegrees(value: number) {
   const normalized = value % 360
   return normalized < 0 ? normalized + 360 : normalized
-}
-
-function rotatePointAround(
-  x: number,
-  y: number,
-  centerX: number,
-  centerY: number,
-  angleRad: number,
-) {
-  const dx = x - centerX
-  const dy = y - centerY
-  const cos = Math.cos(angleRad)
-  const sin = Math.sin(angleRad)
-
-  return {
-    x: centerX + dx * cos - dy * sin,
-    y: centerY + dx * sin + dy * cos,
-  }
 }
