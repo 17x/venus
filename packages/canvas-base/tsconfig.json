@@ -12,6 +12,7 @@
   "references": [
     { "path": "../document-core/tsconfig.json" },
     { "path": "../editor-worker/tsconfig.json" },
+    { "path": "../spatial-index/tsconfig.json" },
     { "path": "../shared-memory/tsconfig.json" }
   ],
   "include": ["src"]

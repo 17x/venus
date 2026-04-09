@@ -9,6 +9,7 @@
   "dependencies": {
     "@venus/document-core": "workspace:*",
     "@venus/editor-worker": "workspace:*",
+    "@venus/spatial-index": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "react": "^19.2.4"
   }

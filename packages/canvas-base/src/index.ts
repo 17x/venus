@@ -13,11 +13,39 @@ export {
   type CanvasRuntimeSnapshot,
 } from './runtime/createCanvasRuntimeController.ts'
 export {
+  createCanvasEditorInstance,
+  type CanvasEditorInstance,
+  type CanvasEditorInstanceOptions,
+} from './runtime/createCanvasEditorInstance.ts'
+export {
   createCanvasViewerController,
   type CanvasViewerController,
   type CanvasViewerControllerOptions,
   type CanvasViewerSnapshot,
 } from './runtime/createCanvasViewerController.ts'
+export {
+  createCanvasViewerInstance,
+  type CanvasViewerInstance,
+  type CanvasViewerInstanceOptions,
+} from './runtime/createCanvasViewerInstance.ts'
+export {
+  createCanvasModuleRunner,
+  type CanvasEditorModulePointerEvent,
+  type CanvasModuleContext,
+  type CanvasModuleRunner,
+  type CanvasRuntimeModule,
+  type CanvasViewerModulePointerEvent,
+} from './runtime/modules.ts'
+export {
+  createCanvasElementRegistry,
+  type CanvasElementBehavior,
+  type CanvasElementBounds,
+  type CanvasElementHitTestContext,
+  type CanvasElementNodeBase,
+  type CanvasElementRegistry,
+  type CanvasElementRenderContext,
+  type CanvasSnapSource,
+} from './extensibility/elements.ts'
 export { CanvasViewport } from './react/CanvasViewport.tsx'
 export { CanvasSelectionOverlay } from './react/CanvasSelectionOverlay.tsx'
 export {
@@ -52,6 +80,14 @@ export {
   type SelectionHandlePoint,
 } from './interaction/selectionHandles.ts'
 export { collectResizeTransformTargets } from './interaction/transformTargets.ts'
+export {
+  resolveMoveSnapPreview,
+  type MoveSnapOptions,
+  type SnapAxis,
+  type SnapGuide,
+  resolveSnapGuideLines,
+  type SnapGuideLine,
+} from './interaction/snapping.ts'
 export {
   applyTransformPreviewGeometryToShape,
   buildGroupAwareTransformPreviewMap,
@@ -98,6 +134,7 @@ export {
   intersectsBounds as intersectsMarqueeBounds,
   containsBounds as containsMarqueeBounds,
   type MarqueeBounds,
+  type MarqueeApplyMode,
   type MarqueePoint,
   type MarqueeSelectableShape,
   type MarqueeSelectionMatchMode,
@@ -129,3 +166,27 @@ export {
   type Mat3,
   type Point2D,
 } from './viewport/matrix.ts'
+export {
+  createSnapModule,
+  SNAP_PRESET_BOUNDS,
+  SNAP_PRESET_OFF,
+  SNAP_PRESET_PRECISION,
+  type CanvasSnapConfig,
+  type CanvasSnapModule,
+  type SnapComputationResult,
+  type SnapHintDescriptor,
+  type SnapMatch,
+  type SnapTargetKind,
+} from './presets/snapping.ts'
+export {
+  createSelectionModule,
+  DEFAULT_SELECTION_CONFIG,
+  type CanvasSelectionConfig,
+  type CanvasSelectionModule,
+  type SelectionAltClickBehavior,
+  type SelectionInputPolicy,
+  type SelectionMarqueeMatchMode,
+  type SelectionMarqueePolicy,
+  type SelectionSetMode,
+} from './presets/selection.ts'
+export { createDefaultEditorModules } from './presets/defaultEditorModules.ts'

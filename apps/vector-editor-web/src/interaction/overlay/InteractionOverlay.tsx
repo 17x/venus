@@ -1,5 +1,5 @@
 import {useMemo} from 'react'
-import {applyMatrixToPoint, type CanvasRendererProps} from '@venus/canvas-base'
+import {applyMatrixToPoint, resolveSnapGuideLines, type CanvasRendererProps, type SnapGuide} from '@venus/canvas-base'
 import {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
@@ -19,6 +19,7 @@ interface InteractionOverlayProps {
   viewport: CanvasRendererProps['viewport']
   marqueeBounds?: InteractionBounds | null
   hideSelectionChrome?: boolean
+  snapGuides?: SnapGuide[]
 }
 
 export function InteractionOverlay({
@@ -27,6 +28,7 @@ export function InteractionOverlay({
   viewport,
   marqueeBounds = null,
   hideSelectionChrome = false,
+  snapGuides = [],
 }: InteractionOverlayProps) {
   const handleSize = 8
   const halfHandleSize = handleSize / 2
@@ -91,6 +93,15 @@ export function InteractionOverlay({
   const marqueePolygon = useMemo(
     () => marqueeBounds ? projectPolygon(buildRectPolygon(marqueeBounds, 0), viewport.matrix) : null,
     [marqueeBounds, viewport.matrix],
+  )
+  const snapLines = useMemo(
+    () => resolveSnapGuideLines({
+      guides: snapGuides,
+      documentWidth: document.width,
+      documentHeight: document.height,
+      matrix: viewport.matrix,
+    }),
+    [document.height, document.width, snapGuides, viewport.matrix],
   )
 
   return (
@@ -161,6 +172,19 @@ export function InteractionOverlay({
             strokeDasharray="4 3"
           />
         )}
+        {snapLines.map((line) => (
+          <line
+            key={line.id}
+            x1={line.x1}
+            y1={line.y1}
+            x2={line.x2}
+            y2={line.y2}
+            stroke="rgba(248, 113, 113, 0.95)"
+            strokeWidth={1}
+            strokeDasharray="5 3"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
       </svg>
     </div>
   )

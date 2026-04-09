@@ -14,6 +14,7 @@ import {
   createTransformPreviewShape,
   createTransformSessionShape,
   createMarqueeState,
+  resolveMoveSnapPreview,
   collectResizeTransformTargets,
   createSelectionDragController,
   pickSelectionHandleAtPoint,
@@ -23,7 +24,10 @@ import {
   updateMarqueeState,
   useTransformPreviewCommitState,
   useCanvasRuntime,
+  type MarqueeApplyMode,
+  type MarqueeState,
   type MarqueeSelectionMode,
+  type SnapGuide,
 } from '@venus/canvas-base'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
@@ -130,6 +134,30 @@ export type {
 
 const SCENE_CAPACITY = 256
 const IMAGE_INSERT_VIEWPORT_RATIO = 0.82
+const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
+
+function formatSelectionNames(
+  document: import('@venus/document-core').EditorDocument,
+  selectedIds: string[],
+) {
+  if (selectedIds.length === 0) {
+    return 'None'
+  }
+
+  const names = selectedIds
+    .map((id) => document.shapes.find((shape) => shape.id === id)?.name)
+    .filter((name): name is string => Boolean(name))
+
+  if (names.length === 0) {
+    return `${selectedIds.length} selected`
+  }
+  if (names.length <= 3) {
+    return names.join(', ')
+  }
+
+  return `${names.slice(0, 3).join(', ')} +${names.length - 3}`
+}
+
 const useEditorRuntime = (options?: {
   onContextMenu?: (position: {x: number; y: number}) => void
 }) => {
@@ -154,11 +182,9 @@ const useEditorRuntime = (options?: {
   const [clipboard, setClipboard] = useState<ElementProps[]>([])
   const [pasteSerial, setPasteSerial] = useState(0)
   const [activeTransformHandle, setActiveTransformHandle] = useState<HandleKind | null>(null)
-  const [marquee, setMarquee] = useState<{
-    start: {x: number; y: number}
-    current: {x: number; y: number}
-    mode: MarqueeSelectionMode
-  } | null>(null)
+  const [marquee, setMarquee] = useState<MarqueeState | null>(null)
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
+  const [snappingEnabled, setSnappingEnabled] = useState(true)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
@@ -166,6 +192,7 @@ const useEditorRuntime = (options?: {
   const selectionDragControllerRef = useRef(createSelectionDragController({
     allowFrameSelection: false,
   }))
+  const marqueeAppliedSignatureRef = useRef('')
   const createWorker = useCallback(
     () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
@@ -222,6 +249,7 @@ const useEditorRuntime = (options?: {
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
     const hideSelectionChrome = activeTransformHandle !== null
+    const overlaySnapGuides = snapGuides
     return function Overlay(
       props: Parameters<typeof InteractionOverlay>[0],
     ) {
@@ -229,17 +257,58 @@ const useEditorRuntime = (options?: {
         ...props,
         marqueeBounds: overlayMarquee,
         hideSelectionChrome,
+        snapGuides: overlaySnapGuides,
       })
     }
-  }, [activeTransformHandle, marqueeBounds])
+  }, [activeTransformHandle, marqueeBounds, snapGuides])
+
+  const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
+    previewDocument.shapes,
+    resolveMarqueeBounds(nextMarquee),
+    {
+      matchMode: 'contain',
+      excludeShape: (shape) => shape.type === 'frame',
+    },
+  ), [previewDocument.shapes])
+
+  const applyMarqueeSelectionWhileMoving = useCallback((nextMarquee: MarqueeState) => {
+    if (nextMarquee.applyMode !== 'while-pointer-move') {
+      return
+    }
+
+    const selectedIds = resolveMarqueeSelectionIds(nextMarquee)
+    const signature = `${nextMarquee.mode}:${selectedIds.join(',')}`
+    if (signature === marqueeAppliedSignatureRef.current) {
+      return
+    }
+
+    marqueeAppliedSignatureRef.current = signature
+    canvasRuntime.dispatchCommand({
+      type: 'selection.set',
+      shapeIds: selectedIds,
+      mode: nextMarquee.mode,
+    })
+  }, [canvasRuntime, resolveMarqueeSelectionIds])
 
   const handleCommand = useCallback((command: import('@venus/editor-worker').EditorRuntimeCommand) => {
+    if (command.type === 'snapping.pause') {
+      setSnappingEnabled(false)
+      setSnapGuides([])
+      return
+    }
+
+    if (command.type === 'snapping.resume') {
+      setSnappingEnabled(true)
+      return
+    }
+
     if (command.type === 'history.undo' || command.type === 'history.redo') {
       clearTransformPreview()
       transformManagerRef.current.cancel()
       selectionDragControllerRef.current.clear()
       setActiveTransformHandle(null)
       setMarquee(null)
+      setSnapGuides([])
     }
     canvasRuntime.dispatchCommand(command)
   }, [canvasRuntime, clearTransformPreview])
@@ -902,13 +971,27 @@ const useEditorRuntime = (options?: {
           canvasRuntime.clearHover()
           const preview = transformManagerRef.current.update(point)
           if (preview) {
-            setTransformPreview(preview)
+            const maybeSnapped = transformSession.handle === 'move'
+              ? snappingEnabled
+                ? resolveMoveSnapPreview(preview, previewDocument)
+                : {preview, guides: [] as SnapGuide[]}
+              : {preview, guides: [] as SnapGuide[]}
+            setSnapGuides(maybeSnapped.guides)
+            setTransformPreview(maybeSnapped.preview)
           }
           return
         }
         if (marquee) {
+          setSnapGuides([])
           canvasRuntime.clearHover()
-          setMarquee((current) => (current ? updateMarqueeState(current, point) : current))
+          setMarquee((current) => {
+            if (!current) {
+              return current
+            }
+            const nextMarquee = updateMarqueeState(current, point)
+            applyMarqueeSelectionWhileMoving(nextMarquee)
+            return nextMarquee
+          })
           return
         }
         if (currentTool === 'selector' || currentTool === 'dselector') {
@@ -917,6 +1000,7 @@ const useEditorRuntime = (options?: {
             shapes: canvasRuntime.shapes,
           })
           if (dragMove.phase === 'pending') {
+            setSnapGuides([])
             canvasRuntime.clearHover()
             return
           }
@@ -945,14 +1029,24 @@ const useEditorRuntime = (options?: {
 
             const preview = transformManagerRef.current.update(point)
             if (preview) {
-              setTransformPreview(preview)
+              const transformSession = transformManagerRef.current.getSession()
+              const maybeSnapped = transformSession?.handle === 'move'
+                ? snappingEnabled
+                  ? resolveMoveSnapPreview(preview, previewDocument)
+                  : {preview, guides: [] as SnapGuide[]}
+                : {preview, guides: [] as SnapGuide[]}
+              setSnapGuides(maybeSnapped.guides)
+              setTransformPreview(maybeSnapped.preview)
             }
             return
           }
+          setSnapGuides([])
         }
         if (penTool.handlePointerMove(point)) {
+          setSnapGuides([])
           return
         }
+        setSnapGuides([])
         canvasRuntime.postPointer('pointermove', point)
       },
       onPointerDown: (point, modifiers) => {
@@ -996,6 +1090,7 @@ const useEditorRuntime = (options?: {
             setTransformPreview({
               shapes: resizeTargets.map((shape) => createTransformPreviewShape(shape)),
             })
+            setSnapGuides([])
             return
           }
 
@@ -1025,37 +1120,46 @@ const useEditorRuntime = (options?: {
           })
 
           if (hasHit) {
+            setSnapGuides([])
             canvasRuntime.postPointer('pointerdown', point, modifiers)
             return
           }
 
           selectionDragControllerRef.current.clear()
+          setSnapGuides([])
           const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
             ? 'add'
             : (modifiers?.metaKey || modifiers?.ctrlKey)
               ? 'toggle'
               : 'replace'
           canvasRuntime.clearHover()
-          setMarquee(createMarqueeState(point, marqueeMode))
+          marqueeAppliedSignatureRef.current = ''
+          setMarquee(createMarqueeState(point, marqueeMode, {
+            applyMode: DEFAULT_MARQUEE_APPLY_MODE,
+          }))
           return
         }
 
         const shapeFromTool = createShapeElementFromTool(currentTool, point)
         if (shapeFromTool) {
+          setSnapGuides([])
           insertElement(shapeFromTool)
           return
         }
 
         if (penTool.handlePointerDown(point)) {
           selectionDragControllerRef.current.clear()
+          setSnapGuides([])
           return
         }
 
         selectionDragControllerRef.current.clear()
+        setSnapGuides([])
         canvasRuntime.postPointer('pointerdown', point, modifiers)
       },
       onPointerUp: () => {
         selectionDragControllerRef.current.pointerUp()
+        setSnapGuides([])
         setActiveTransformHandle(null)
         const transformSession = transformManagerRef.current.commit()
         if (transformSession) {
@@ -1085,16 +1189,16 @@ const useEditorRuntime = (options?: {
         }
 
         if (marquee) {
-          const bounds = resolveMarqueeBounds(marquee)
-          const selectedIds = resolveMarqueeSelection(previewDocument.shapes, bounds, {
-            excludeShape: (shape) => shape.type === 'frame',
-          })
-
-          handleCommand({
-            type: 'selection.set',
-            shapeIds: selectedIds,
-            mode: marquee.mode,
-          })
+          const selectedIds = resolveMarqueeSelectionIds(marquee)
+          if (marquee.applyMode !== 'while-pointer-move') {
+            handleCommand({
+              type: 'selection.set',
+              shapeIds: selectedIds,
+              mode: marquee.mode,
+            })
+          }
+          marqueeAppliedSignatureRef.current = ''
+          add(`Selection: ${formatSelectionNames(previewDocument, selectedIds)}`, 'info')
           setMarquee(null)
           return
         }
@@ -1104,6 +1208,7 @@ const useEditorRuntime = (options?: {
       onPointerLeave: () => {
         transformManagerRef.current.cancel()
         clearTransformPreview()
+        setSnapGuides([])
         setActiveTransformHandle(null)
         selectionDragControllerRef.current.clear()
         setMarquee(null)

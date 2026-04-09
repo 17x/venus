@@ -15,11 +15,13 @@ export interface MarqueeBounds {
 
 export type MarqueeSelectionMode = 'replace' | 'add' | 'toggle'
 export type MarqueeSelectionMatchMode = 'intersect' | 'contain'
+export type MarqueeApplyMode = 'on-pointer-up' | 'while-pointer-move'
 
 export interface MarqueeState {
   start: MarqueePoint
   current: MarqueePoint
   mode: MarqueeSelectionMode
+  applyMode: MarqueeApplyMode
 }
 
 export interface MarqueeSelectableShape {
@@ -34,11 +36,15 @@ export interface MarqueeSelectableShape {
 export function createMarqueeState(
   start: MarqueePoint,
   mode: MarqueeSelectionMode,
+  options?: {
+    applyMode?: MarqueeApplyMode
+  },
 ): MarqueeState {
   return {
     start,
     current: start,
     mode,
+    applyMode: options?.applyMode ?? 'on-pointer-up',
   }
 }
 

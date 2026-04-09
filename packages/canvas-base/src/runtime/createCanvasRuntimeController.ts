@@ -107,8 +107,8 @@ const HIT_TEST_TOLERANCE = 6
  * Development-only trace helper for following the runtime bridge without
  * sprinkling raw `console.log` calls throughout the code.
  */
-function debugRuntime(message: string, details?: unknown) {
-  console.debug('CANVAS-BASE', message, details)
+function debugRuntime(_message: string, _details?: unknown) {
+  // console.debug('CANVAS-BASE', _message, _details)
 }
 
 export function createCanvasRuntimeController<TDocument extends EditorDocument>({
