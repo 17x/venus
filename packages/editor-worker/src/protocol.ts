@@ -30,6 +30,7 @@ export interface WorkerPointerMessage {
     shiftKey?: boolean
     metaKey?: boolean
     ctrlKey?: boolean
+    altKey?: boolean
   }
 }
 

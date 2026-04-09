@@ -718,3 +718,15 @@ Use this file as the shared knowledge base for the Venus monorepo.
   `vector-editor-web` currently use `while-pointer-move`, so selection is
   applied live during drag. After mouse-up, each app also emits a readable
   selection name summary from selected shape names.
+
+- Selection modifier handling is now consistent across gesture/runtime/worker:
+  `alt` is passed through pointer modifiers and maps to subtract (`remove`)
+  selection mode, `shift` maps to add, and `meta|ctrl` maps to toggle.
+  `selectionDragController` no longer blocks modifier hit-testing; it only
+  disables drag-pending arming for modifier clicks.
+
+- Live marquee apply mode now still commits a final `selection.set` on
+  pointer-up in both `runtime-playground` and `vector-editor-web`, fixing
+  blank-click clear behavior when no drag delta occurs. Group move drag
+  targeting in `selectionDragController` now follows the selected set when a
+  selected ancestor (group) contains the hit child.

@@ -158,6 +158,22 @@ function formatSelectionNames(
   return `${names.slice(0, 3).join(', ')} +${names.length - 3}`
 }
 
+function hasSelectedAncestorInDocument(
+  document: import('@venus/document-core').EditorDocument,
+  shapeId: string,
+  selectedIds: Set<string>,
+) {
+  const byId = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  let current = byId.get(shapeId)
+  while (current?.parentId) {
+    if (selectedIds.has(current.parentId)) {
+      return true
+    }
+    current = byId.get(current.parentId)
+  }
+  return false
+}
+
 const useEditorRuntime = (options?: {
   onContextMenu?: (position: {x: number; y: number}) => void
 }) => {
@@ -1121,7 +1137,24 @@ const useEditorRuntime = (options?: {
 
           if (hasHit) {
             setSnapGuides([])
-            canvasRuntime.postPointer('pointerdown', point, modifiers)
+            const isPlainClick =
+              !modifiers?.shiftKey &&
+              !modifiers?.metaKey &&
+              !modifiers?.ctrlKey &&
+              !modifiers?.altKey
+            const selectedIdSet = new Set(selectedNodes.map((shape) => shape.id))
+            const preserveGroupDragSelection = !!(
+              isPlainClick &&
+              hoveredShape &&
+              (
+                selectedIdSet.has(hoveredShape.id) ||
+                hasSelectedAncestorInDocument(previewDocument, hoveredShape.id, selectedIdSet)
+              )
+            )
+
+            if (!preserveGroupDragSelection) {
+              canvasRuntime.postPointer('pointerdown', point, modifiers)
+            }
             return
           }
 
@@ -1129,6 +1162,8 @@ const useEditorRuntime = (options?: {
           setSnapGuides([])
           const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
             ? 'add'
+            : modifiers?.altKey
+              ? 'remove'
             : (modifiers?.metaKey || modifiers?.ctrlKey)
               ? 'toggle'
               : 'replace'
@@ -1190,13 +1225,11 @@ const useEditorRuntime = (options?: {
 
         if (marquee) {
           const selectedIds = resolveMarqueeSelectionIds(marquee)
-          if (marquee.applyMode !== 'while-pointer-move') {
-            handleCommand({
-              type: 'selection.set',
-              shapeIds: selectedIds,
-              mode: marquee.mode,
-            })
-          }
+          handleCommand({
+            type: 'selection.set',
+            shapeIds: selectedIds,
+            mode: marquee.mode,
+          })
           marqueeAppliedSignatureRef.current = ''
           add(`Selection: ${formatSelectionNames(previewDocument, selectedIds)}`, 'info')
           setMarquee(null)

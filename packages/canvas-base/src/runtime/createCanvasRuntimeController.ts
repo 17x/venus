@@ -75,7 +75,7 @@ export interface CanvasRuntimeController<TDocument extends EditorDocument> {
   postPointer: (
     type: 'pointermove' | 'pointerdown',
     pointer: PointerState,
-    modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean},
+    modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean},
   ) => void
   receiveRemoteOperation: (operation: CollaborationOperation) => void
   resizeViewport: (width: number, height: number) => void

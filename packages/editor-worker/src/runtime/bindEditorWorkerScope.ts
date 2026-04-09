@@ -249,8 +249,12 @@ function asBezierPoint(value: unknown): BezierPoint | null {
 }
 
 function resolvePointerSelectionMode(
-  modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean},
+  modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean},
 ): SceneSelectionMode {
+  if (modifiers?.altKey) {
+    return 'remove'
+  }
+
   if (modifiers?.shiftKey) {
     return 'add'
   }

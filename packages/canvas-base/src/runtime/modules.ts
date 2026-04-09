@@ -8,6 +8,7 @@ export interface CanvasEditorModulePointerEvent {
     shiftKey?: boolean
     metaKey?: boolean
     ctrlKey?: boolean
+    altKey?: boolean
   }
 }
 
