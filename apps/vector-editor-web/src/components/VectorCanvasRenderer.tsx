@@ -1,5 +1,6 @@
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {CanvasRendererProps} from '@venus/canvas-base'
+import {resolveNodeTransform, toResolvedNodeCssTransform} from '@venus/document-core'
 import {InteractionOverlay} from '../interaction/index.ts'
 
 export function VectorCanvasRenderer(props: CanvasRendererProps) {
@@ -44,12 +45,11 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
           {props.document.shapes
             .filter((shape) => shape.type === 'image')
             .map((shape) => {
-              const rotation = shape.rotation ?? 0
-              const scaleX = shape.flipX ? -1 : 1
-              const scaleY = shape.flipY ? -1 : 1
+              const transformState = resolveNodeTransform(shape)
               const imageStrokeColor = shape.stroke?.color ?? 'rgba(15, 23, 42, 0.18)'
               const imageStrokeWidth = Math.max(1, shape.stroke?.weight ?? 1)
               const imageStrokeEnabled = shape.stroke?.enabled ?? true
+              const overlayTransform = toResolvedNodeCssTransform(transformState)
 
               if (shape.assetUrl) {
                 return (
@@ -59,16 +59,16 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                     alt={shape.name}
                     style={{
                       position: 'absolute',
-                      left: shape.x,
-                      top: shape.y,
-                      width: shape.width,
-                      height: shape.height,
+                      left: transformState.bounds.minX,
+                      top: transformState.bounds.minY,
+                      width: transformState.bounds.width,
+                      height: transformState.bounds.height,
                       objectFit: 'fill',
                       border: imageStrokeEnabled ? `${imageStrokeWidth}px solid ${imageStrokeColor}` : 'none',
                       background: '#fff',
                       boxSizing: 'border-box',
-                      transform: `rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
-                      transformOrigin: 'center',
+                      transform: overlayTransform,
+                      transformOrigin: '0 0',
                     }}
                   />
                 )
@@ -79,10 +79,10 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                   key={shape.id}
                   style={{
                     position: 'absolute',
-                    left: shape.x,
-                    top: shape.y,
-                    width: shape.width,
-                    height: shape.height,
+                    left: transformState.bounds.minX,
+                    top: transformState.bounds.minY,
+                    width: transformState.bounds.width,
+                    height: transformState.bounds.height,
                     background: '#fdf2f8',
                     border: '2px dashed #ec4899',
                     color: '#9d174d',
@@ -90,8 +90,8 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                     boxSizing: 'border-box',
                     fontSize: 14,
                     fontWeight: 700,
-                    transform: `rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
-                    transformOrigin: 'center',
+                    transform: overlayTransform,
+                    transformOrigin: '0 0',
                   }}
                 >
                   Image placeholder

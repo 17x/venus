@@ -5,12 +5,15 @@ import {
   type CollaborationOperation,
 } from '../collaboration.ts'
 import {
+  getNormalizedBoundsFromBox,
   getBoundingRectFromBezierPoints,
+  intersectNormalizedBounds,
   isPointInsideClipShape,
-  nearestPointOnCurve,
+  isPointInsideShapeHitArea,
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,
+  type ShapeTransformRecord,
 } from '@venus/document-core'
 import {
   createHistoryManager,
@@ -629,105 +632,13 @@ function createLocalHistoryEntry(
       }
       touchedShapes += 1
 
-      if (item.from.x !== item.to.x || item.from.y !== item.to.y) {
-        forward.push({
-          type: 'move-shape',
-          shapeId: shape.id,
-          prevX: item.from.x,
-          prevY: item.from.y,
-          nextX: item.to.x,
-          nextY: item.to.y,
-        })
-        backward.unshift({
-          type: 'move-shape',
-          shapeId: shape.id,
-          prevX: item.to.x,
-          prevY: item.to.y,
-          nextX: item.from.x,
-          nextY: item.from.y,
-        })
-      }
+      const forwardPatches = createTransformPatches(shape, item.from, item.to)
+      const backwardPatches = createTransformPatches(shape, item.to, item.from)
 
-      if (item.from.width !== item.to.width || item.from.height !== item.to.height) {
-        forward.push({
-          type: 'resize-shape',
-          shapeId: shape.id,
-          prevWidth: item.from.width,
-          prevHeight: item.from.height,
-          nextWidth: item.to.width,
-          nextHeight: item.to.height,
-        })
-        backward.unshift({
-          type: 'resize-shape',
-          shapeId: shape.id,
-          prevWidth: item.to.width,
-          prevHeight: item.to.height,
-          nextWidth: item.from.width,
-          nextHeight: item.from.height,
-        })
-      }
-
-      if (item.from.rotation !== item.to.rotation) {
-        forward.push({
-          type: 'rotate-shape',
-          shapeId: shape.id,
-          prevRotation: item.from.rotation,
-          nextRotation: item.to.rotation,
-        })
-        backward.unshift({
-          type: 'rotate-shape',
-          shapeId: shape.id,
-          prevRotation: item.to.rotation,
-          nextRotation: item.from.rotation,
-        })
-      }
-
-      if (!!item.from.flipX !== !!item.to.flipX || !!item.from.flipY !== !!item.to.flipY) {
-        forward.push({
-          type: 'patch-shape',
-          shapeId: shape.id,
-          prevFill: cloneFill(shape.fill),
-          nextFill: cloneFill(shape.fill),
-          prevStroke: cloneStroke(shape.stroke),
-          nextStroke: cloneStroke(shape.stroke),
-          prevShadow: cloneShadow(shape.shadow),
-          nextShadow: cloneShadow(shape.shadow),
-          prevCornerRadius: shape.cornerRadius,
-          nextCornerRadius: shape.cornerRadius,
-          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
-          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
-          prevEllipseStartAngle: shape.ellipseStartAngle,
-          nextEllipseStartAngle: shape.ellipseStartAngle,
-          prevEllipseEndAngle: shape.ellipseEndAngle,
-          nextEllipseEndAngle: shape.ellipseEndAngle,
-          prevFlipX: !!item.from.flipX,
-          nextFlipX: !!item.to.flipX,
-          prevFlipY: !!item.from.flipY,
-          nextFlipY: !!item.to.flipY,
-        })
-        backward.unshift({
-          type: 'patch-shape',
-          shapeId: shape.id,
-          prevFill: cloneFill(shape.fill),
-          nextFill: cloneFill(shape.fill),
-          prevStroke: cloneStroke(shape.stroke),
-          nextStroke: cloneStroke(shape.stroke),
-          prevShadow: cloneShadow(shape.shadow),
-          nextShadow: cloneShadow(shape.shadow),
-          prevCornerRadius: shape.cornerRadius,
-          nextCornerRadius: shape.cornerRadius,
-          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
-          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
-          prevEllipseStartAngle: shape.ellipseStartAngle,
-          nextEllipseStartAngle: shape.ellipseStartAngle,
-          prevEllipseEndAngle: shape.ellipseEndAngle,
-          nextEllipseEndAngle: shape.ellipseEndAngle,
-          prevFlipX: !!item.to.flipX,
-          nextFlipX: !!item.from.flipX,
-          prevFlipY: !!item.to.flipY,
-          nextFlipY: !!item.from.flipY,
-        })
-      }
+      forward.push(...forwardPatches)
+      backwardPatches.forEach((patch) => {
+        backward.unshift(patch)
+      })
     })
 
     if (forward.length === 0) {
@@ -1146,60 +1057,7 @@ function createRemotePatches(
       if (!shape) {
         return
       }
-
-      if (item.from.x !== item.to.x || item.from.y !== item.to.y) {
-        patches.push({
-          type: 'move-shape',
-          shapeId: shape.id,
-          prevX: item.from.x,
-          prevY: item.from.y,
-          nextX: item.to.x,
-          nextY: item.to.y,
-        })
-      }
-      if (item.from.width !== item.to.width || item.from.height !== item.to.height) {
-        patches.push({
-          type: 'resize-shape',
-          shapeId: shape.id,
-          prevWidth: item.from.width,
-          prevHeight: item.from.height,
-          nextWidth: item.to.width,
-          nextHeight: item.to.height,
-        })
-      }
-      if (item.from.rotation !== item.to.rotation) {
-        patches.push({
-          type: 'rotate-shape',
-          shapeId: shape.id,
-          prevRotation: item.from.rotation,
-          nextRotation: item.to.rotation,
-        })
-      }
-
-      if (!!item.from.flipX !== !!item.to.flipX || !!item.from.flipY !== !!item.to.flipY) {
-        patches.push({
-          type: 'patch-shape',
-          shapeId: shape.id,
-          prevFill: cloneFill(shape.fill),
-          nextFill: cloneFill(shape.fill),
-          prevStroke: cloneStroke(shape.stroke),
-          nextStroke: cloneStroke(shape.stroke),
-          prevShadow: cloneShadow(shape.shadow),
-          nextShadow: cloneShadow(shape.shadow),
-          prevCornerRadius: shape.cornerRadius,
-          nextCornerRadius: shape.cornerRadius,
-          prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
-          nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
-          prevEllipseStartAngle: shape.ellipseStartAngle,
-          nextEllipseStartAngle: shape.ellipseStartAngle,
-          prevEllipseEndAngle: shape.ellipseEndAngle,
-          nextEllipseEndAngle: shape.ellipseEndAngle,
-          prevFlipX: !!item.from.flipX,
-          nextFlipX: !!item.to.flipX,
-          prevFlipY: !!item.from.flipY,
-          nextFlipY: !!item.to.flipY,
-        })
-      }
+      patches.push(...createTransformPatches(shape, item.from, item.to))
     })
 
     return patches
@@ -1383,6 +1241,7 @@ function applyPatches(
   let needsGroupBoundsSync = false
   const movedGroupIds = new Set<string>()
   const changedShapeIds = new Set<string>()
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
   const explicitlyMovedShapeIds = new Set(
     patches
       .filter((patch): patch is Extract<HistoryPatch, {type: 'move-shape'}> => patch.type === 'move-shape')
@@ -1400,7 +1259,7 @@ function applyPatches(
       if (!shape) {
         return
       }
-      if (hasMovedGroupAncestor(shape, movedGroupIds, document.shapes)) {
+      if (hasMovedGroupAncestor(shape, movedGroupIds, shapeById)) {
         return
       }
 
@@ -1724,10 +1583,10 @@ function hitTestDocument(
 ) {
   const allowFrameSelection = options?.allowFrameSelection ?? true
   const candidates = spatialIndex.search({
-    minX: pointer.x,
-    minY: pointer.y,
-    maxX: pointer.x,
-    maxY: pointer.y,
+    minX: pointer.x - PATH_HIT_TOLERANCE,
+    minY: pointer.y - PATH_HIT_TOLERANCE,
+    maxX: pointer.x + PATH_HIT_TOLERANCE,
+    maxY: pointer.y + PATH_HIT_TOLERANCE,
   })
 
   const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
@@ -1744,254 +1603,27 @@ function hitTestDocument(
     if (shape.type === 'image' && shape.clipPathId) {
       continue
     }
-    const testPointer = resolveHitTestPointer(pointer, shape)
-
-    const hitTolerance =
-      shape.type === 'lineSegment'
-        ? LINE_HIT_TOLERANCE
-        : shape.type === 'path'
-          ? PATH_HIT_TOLERANCE
-          : 0
-    const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height, hitTolerance)
-    const inBounds =
-      testPointer.x >= bounds.minX &&
-      testPointer.x <= bounds.maxX &&
-      testPointer.y >= bounds.minY &&
-      testPointer.y <= bounds.maxY
-
-    if (!inBounds) {
-      continue
-    }
 
     // For clipped elements, gate hit-test by clip source first so we do not
     // accidentally select through the unclipped host bounds.
     if (shape.clipPathId) {
       const clipSource = findShapeById(document, shape.clipPathId)
-      if (clipSource && !isPointInsideClipSource(testPointer, clipSource)) {
+      if (clipSource && !isPointInsideClipSource(pointer, clipSource)) {
         continue
       }
     }
 
-    if (shape.type === 'ellipse') {
-      const radiusX = Math.abs(shape.width) / 2
-      const radiusY = Math.abs(shape.height) / 2
-      const centerX = bounds.minX + radiusX
-      const centerY = bounds.minY + radiusY
-      const normalized =
-        ((testPointer.x - centerX) * (testPointer.x - centerX)) / (radiusX * radiusX) +
-        ((testPointer.y - centerY) * (testPointer.y - centerY)) / (radiusY * radiusY)
-
-      if (normalized > 1) {
-        continue
-      }
-    }
-
-    if (shape.type === 'lineSegment') {
-      const lineHit = isPointNearLineSegment(testPointer, {
-        x1: shape.x,
-        y1: shape.y,
-        x2: shape.x + shape.width,
-        y2: shape.y + shape.height,
-      }, LINE_HIT_TOLERANCE)
-
-      if (!lineHit) {
-        continue
-      }
-    }
-
-    if (shape.type === 'polygon' || shape.type === 'star') {
-      const points = shape.points
-      if (!points || points.length < 3) {
-        continue
-      }
-
-      // Closed point-list shapes share the same inside-polygon hit-test path.
-      const polygonHit = isPointInsidePolygon(testPointer, points)
-      const edgeHit = isPointNearPolygonEdge(testPointer, points, POLYGON_EDGE_HIT_TOLERANCE)
-      if (!polygonHit && !edgeHit) {
-        continue
-      }
-    }
-
-    if (shape.type === 'path') {
-      const hasBezierPath = !!shape.bezierPoints && shape.bezierPoints.length >= 2
-      const hasPolylinePath = !!shape.points && shape.points.length >= 2
-
-      if (hasBezierPath) {
-        const curveHit = isPointNearBezierPath(
-          testPointer,
-          shape.bezierPoints!,
-          PATH_HIT_TOLERANCE,
-        )
-
-        if (!curveHit) {
-          continue
-        }
-      } else if (hasPolylinePath) {
-        const lineHit = isPointNearPolyline(
-          testPointer,
-          shape.points!,
-          PATH_HIT_TOLERANCE,
-        )
-
-        if (!lineHit) {
-          continue
-        }
-      }
+    if (!isPointInsideShapeHitArea(pointer, shape, {
+      allowFrameSelection,
+      tolerance: Math.max(LINE_HIT_TOLERANCE, PATH_HIT_TOLERANCE, POLYGON_EDGE_HIT_TOLERANCE),
+    })) {
+      continue
     }
 
     return document.shapes.findIndex((item) => item.id === shape.id)
   }
 
   return -1
-}
-
-function resolveHitTestPointer(
-  pointer: {x: number; y: number},
-  shape: DocumentNode,
-) {
-  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
-  const center = {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
-  }
-  const rotation = shape.rotation ?? 0
-  const unrotated = Math.abs(rotation) > 0.0001
-    ? rotatePointAround(pointer, center, -rotation)
-    : pointer
-
-  if (!shape.flipX && !shape.flipY) {
-    return unrotated
-  }
-
-  return {
-    x: shape.flipX ? center.x - (unrotated.x - center.x) : unrotated.x,
-    y: shape.flipY ? center.y - (unrotated.y - center.y) : unrotated.y,
-  }
-}
-
-function isPointNearLineSegment(
-  pointer: {x: number; y: number},
-  line: {x1: number; y1: number; x2: number; y2: number},
-  tolerance = 6,
-) {
-  const dx = line.x2 - line.x1
-  const dy = line.y2 - line.y1
-  const lengthSquared = dx * dx + dy * dy
-
-  if (lengthSquared === 0) {
-    const distanceSquared =
-      (pointer.x - line.x1) * (pointer.x - line.x1) +
-      (pointer.y - line.y1) * (pointer.y - line.y1)
-    return distanceSquared <= tolerance * tolerance
-  }
-
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      ((pointer.x - line.x1) * dx + (pointer.y - line.y1) * dy) / lengthSquared,
-    ),
-  )
-  const nearestX = line.x1 + t * dx
-  const nearestY = line.y1 + t * dy
-  const distanceSquared =
-    (pointer.x - nearestX) * (pointer.x - nearestX) +
-    (pointer.y - nearestY) * (pointer.y - nearestY)
-
-  return distanceSquared <= tolerance * tolerance
-}
-
-function isPointNearPolyline(
-  pointer: {x: number; y: number},
-  points: Array<{x: number; y: number}>,
-  tolerance = 6,
-) {
-  for (let index = 1; index < points.length; index += 1) {
-    if (
-      isPointNearLineSegment(pointer, {
-        x1: points[index - 1].x,
-        y1: points[index - 1].y,
-        x2: points[index].x,
-        y2: points[index].y,
-      }, tolerance)
-    ) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function isPointNearBezierPath(
-  pointer: {x: number; y: number},
-  points: BezierPoint[],
-  tolerance = 6,
-) {
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1]
-    const current = points[index]
-    const nearest = nearestPointOnCurve(
-      previous.anchor,
-      previous.cp2 ?? null,
-      current.cp1 ?? null,
-      current.anchor,
-      pointer,
-      32,
-    )
-    const dx = nearest.x - pointer.x
-    const dy = nearest.y - pointer.y
-
-    if (dx * dx + dy * dy <= tolerance * tolerance) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function isPointInsidePolygon(
-  pointer: {x: number; y: number},
-  points: Array<{x: number; y: number}>,
-) {
-  let inside = false
-
-  for (let index = 0, previous = points.length - 1; index < points.length; previous = index, index += 1) {
-    const current = points[index]
-    const last = points[previous]
-    const intersects =
-      ((current.y > pointer.y) !== (last.y > pointer.y)) &&
-      pointer.x < ((last.x - current.x) * (pointer.y - current.y)) / ((last.y - current.y) || 1e-9) + current.x
-
-    if (intersects) {
-      inside = !inside
-    }
-  }
-
-  return inside
-}
-
-function isPointNearPolygonEdge(
-  pointer: {x: number; y: number},
-  points: Array<{x: number; y: number}>,
-  tolerance = 6,
-) {
-  for (let index = 0; index < points.length; index += 1) {
-    const current = points[index]
-    const next = points[(index + 1) % points.length]
-    const edgeHit = isPointNearLineSegment(pointer, {
-      x1: current.x,
-      y1: current.y,
-      x2: next.x,
-      y2: next.y,
-    }, tolerance)
-
-    if (edgeHit) {
-      return true
-    }
-  }
-
-  return false
 }
 
 function isPointInsideClipSource(
@@ -2008,33 +1640,13 @@ function getNormalizedBounds(
   height: number,
   expand = 0,
 ) {
-  const left = Math.min(x, x + width) - expand
-  const right = Math.max(x, x + width) + expand
-  const top = Math.min(y, y + height) - expand
-  const bottom = Math.max(y, y + height) + expand
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
 
   return {
-    minX: left,
-    maxX: right,
-    minY: top,
-    maxY: bottom,
-  }
-}
-
-function rotatePointAround(
-  point: {x: number; y: number},
-  center: {x: number; y: number},
-  degrees: number,
-) {
-  const radians = (degrees * Math.PI) / 180
-  const cos = Math.cos(radians)
-  const sin = Math.sin(radians)
-  const dx = point.x - center.x
-  const dy = point.y - center.y
-
-  return {
-    x: center.x + dx * cos - dy * sin,
-    y: center.y + dx * sin + dy * cos,
+    minX: bounds.minX - expand,
+    maxX: bounds.maxX + expand,
+    minY: bounds.minY - expand,
+    maxY: bounds.maxY + expand,
   }
 }
 
@@ -2139,13 +1751,12 @@ function moveMaskedImagesWithClip(
 function hasMovedGroupAncestor(
   shape: DocumentNode,
   movedGroupIds: Set<string>,
-  shapes: DocumentNode[],
+  shapeById: Map<string, DocumentNode>,
 ) {
   if (!shape.parentId || movedGroupIds.size === 0) {
     return false
   }
 
-  const shapeById = new Map(shapes.map((item) => [item.id, item]))
   let currentParentId: string | null | undefined = shape.parentId
   while (currentParentId) {
     if (movedGroupIds.has(currentParentId)) {
@@ -2220,7 +1831,7 @@ function resolveRuntimeShapeBounds(
     return shapeBounds
   }
   const clipBounds = resolveShapeBounds(clipSource)
-  const intersection = intersectBounds(shapeBounds, clipBounds)
+  const intersection = intersectNormalizedBounds(shapeBounds, clipBounds)
   if (!intersection) {
     return shapeBounds
   }
@@ -2231,46 +1842,25 @@ function resolveRuntimeShapeBounds(
 function resolveShapeBounds(shape: DocumentNode) {
   if (shape.type === 'path' && shape.bezierPoints && shape.bezierPoints.length > 0) {
     const bezierBounds = getBezierPathBounds(shape.bezierPoints)
-    return {
-      minX: bezierBounds.x,
-      minY: bezierBounds.y,
-      maxX: bezierBounds.x + bezierBounds.width,
-      maxY: bezierBounds.y + bezierBounds.height,
-    }
+    return getNormalizedBounds(
+      bezierBounds.x,
+      bezierBounds.y,
+      bezierBounds.width,
+      bezierBounds.height,
+    )
   }
 
   if ((shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
     const pointBounds = getPathBounds(shape.points)
-    return {
-      minX: pointBounds.x,
-      minY: pointBounds.y,
-      maxX: pointBounds.x + pointBounds.width,
-      maxY: pointBounds.y + pointBounds.height,
-    }
+    return getNormalizedBounds(
+      pointBounds.x,
+      pointBounds.y,
+      pointBounds.width,
+      pointBounds.height,
+    )
   }
 
   return getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
-}
-
-function intersectBounds(
-  left: {minX: number; minY: number; maxX: number; maxY: number},
-  right: {minX: number; minY: number; maxX: number; maxY: number},
-) {
-  const minX = Math.max(left.minX, right.minX)
-  const minY = Math.max(left.minY, right.minY)
-  const maxX = Math.min(left.maxX, right.maxX)
-  const maxY = Math.min(left.maxY, right.maxY)
-
-  if (maxX <= minX || maxY <= minY) {
-    return null
-  }
-
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-  }
 }
 
 function syncDerivedGroupBounds(
@@ -2601,8 +2191,74 @@ function asRotateBatch(value: unknown) {
 
 type ParsedTransformBatchItem = {
   id: string
-  from: {x: number; y: number; width: number; height: number; rotation: number; flipX: boolean; flipY: boolean}
-  to: {x: number; y: number; width: number; height: number; rotation: number; flipX: boolean; flipY: boolean}
+  from: ShapeTransformRecord & {flipX: boolean; flipY: boolean}
+  to: ShapeTransformRecord & {flipX: boolean; flipY: boolean}
+}
+
+function createTransformPatches(
+  shape: DocumentNode,
+  from: ShapeTransformRecord,
+  to: ShapeTransformRecord,
+): HistoryPatch[] {
+  const patches: HistoryPatch[] = []
+
+  if (from.x !== to.x || from.y !== to.y) {
+    patches.push({
+      type: 'move-shape',
+      shapeId: shape.id,
+      prevX: from.x,
+      prevY: from.y,
+      nextX: to.x,
+      nextY: to.y,
+    })
+  }
+
+  if (from.width !== to.width || from.height !== to.height) {
+    patches.push({
+      type: 'resize-shape',
+      shapeId: shape.id,
+      prevWidth: from.width,
+      prevHeight: from.height,
+      nextWidth: to.width,
+      nextHeight: to.height,
+    })
+  }
+
+  if (from.rotation !== to.rotation) {
+    patches.push({
+      type: 'rotate-shape',
+      shapeId: shape.id,
+      prevRotation: from.rotation,
+      nextRotation: to.rotation,
+    })
+  }
+
+  if (!!from.flipX !== !!to.flipX || !!from.flipY !== !!to.flipY) {
+    patches.push({
+      type: 'patch-shape',
+      shapeId: shape.id,
+      prevFill: cloneFill(shape.fill),
+      nextFill: cloneFill(shape.fill),
+      prevStroke: cloneStroke(shape.stroke),
+      nextStroke: cloneStroke(shape.stroke),
+      prevShadow: cloneShadow(shape.shadow),
+      nextShadow: cloneShadow(shape.shadow),
+      prevCornerRadius: shape.cornerRadius,
+      nextCornerRadius: shape.cornerRadius,
+      prevCornerRadii: cloneCornerRadii(shape.cornerRadii),
+      nextCornerRadii: cloneCornerRadii(shape.cornerRadii),
+      prevEllipseStartAngle: shape.ellipseStartAngle,
+      nextEllipseStartAngle: shape.ellipseStartAngle,
+      prevEllipseEndAngle: shape.ellipseEndAngle,
+      nextEllipseEndAngle: shape.ellipseEndAngle,
+      prevFlipX: !!from.flipX,
+      nextFlipX: !!to.flipX,
+      prevFlipY: !!from.flipY,
+      nextFlipY: !!to.flipY,
+    })
+  }
+
+  return patches
 }
 
 function asTransformBatch(value: unknown) {

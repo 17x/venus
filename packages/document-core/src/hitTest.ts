@@ -1,5 +1,11 @@
-import {flipPointAroundPoint, rotatePointAroundPoint} from './geometry.ts'
+import {
+  applyAffineMatrixToPoint,
+} from './geometry.ts'
+import {getNormalizedBoundsFromBox, resolveNodeTransform} from './shapeTransform.ts'
 import type {DocumentNode} from './index.ts'
+
+const DEFAULT_HIT_TOLERANCE = 6
+const CLOSED_SHAPE_EPSILON = 1.5
 
 export function isPointInsideClipShape(
   pointer: {x: number; y: number},
@@ -12,7 +18,7 @@ export function isPointInsideClipShape(
   const testPointer = resolveShapeHitPointer(pointer, clipSource)
 
   if (clipSource.type === 'rectangle' || clipSource.type === 'frame' || clipSource.type === 'group') {
-    const bounds = getNormalizedBounds(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
+    const bounds = getNormalizedBoundsFromBox(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
     return (
       testPointer.x >= bounds.minX &&
       testPointer.x <= bounds.maxX &&
@@ -22,9 +28,9 @@ export function isPointInsideClipShape(
   }
 
   if (clipSource.type === 'ellipse') {
-    const bounds = getNormalizedBounds(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
-    const radiusX = Math.abs(clipSource.width) / 2
-    const radiusY = Math.abs(clipSource.height) / 2
+    const bounds = getNormalizedBoundsFromBox(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
+    const radiusX = bounds.width / 2
+    const radiusY = bounds.height / 2
     if (radiusX <= 0 || radiusY <= 0) {
       return false
     }
@@ -71,38 +77,136 @@ export function isPointInsideClipShape(
   return false
 }
 
+export function isPointInsideShapeHitArea(
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  options?: {
+    allowFrameSelection?: boolean
+    tolerance?: number
+  },
+) {
+  if (shape.type === 'group') {
+    return false
+  }
+  if (shape.type === 'frame' && options?.allowFrameSelection === false) {
+    return false
+  }
+
+  const tolerance = options?.tolerance ?? DEFAULT_HIT_TOLERANCE
+  const testPointer = resolveShapeHitPointer(pointer, shape)
+
+  if (shape.type === 'image' || shape.type === 'text') {
+    return isPointInsideBounds(testPointer, getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height))
+  }
+
+  if (shape.type === 'lineSegment') {
+    return isPointNearLineSegment(testPointer, {
+      x1: shape.x,
+      y1: shape.y,
+      x2: shape.x + shape.width,
+      y2: shape.y + shape.height,
+    }, tolerance)
+  }
+
+  if (shape.type === 'rectangle' || shape.type === 'frame') {
+    const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+    return (
+      (hasShapeFillHitArea(shape) && isPointInsideBounds(testPointer, bounds)) ||
+      (hasShapeStrokeHitArea(shape) && isPointNearRectEdge(testPointer, bounds, tolerance))
+    )
+  }
+
+  if (shape.type === 'ellipse') {
+    const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+    return (
+      (hasShapeFillHitArea(shape) && isPointInsideEllipse(testPointer, bounds)) ||
+      (hasShapeStrokeHitArea(shape) && isPointNearEllipseEdge(testPointer, bounds, tolerance))
+    )
+  }
+
+  if (shape.type === 'polygon' || shape.type === 'star') {
+    const points = shape.points
+    if (!points || points.length < 3) {
+      return false
+    }
+
+    return (
+      (hasShapeFillHitArea(shape) && isPointInsidePolygon(testPointer, points)) ||
+      (hasShapeStrokeHitArea(shape) && isPointNearPolygonEdge(testPointer, points, tolerance))
+    )
+  }
+
+  if (shape.type === 'path') {
+    if (hasShapeStrokeHitArea(shape) && isPathStrokeHit(testPointer, shape, tolerance)) {
+      return true
+    }
+    return hasShapeFillHitArea(shape) && isPathFillHit(testPointer, shape, tolerance)
+  }
+
+  return false
+}
+
 function resolveShapeHitPointer(
   pointer: {x: number; y: number},
   shape: DocumentNode,
 ) {
-  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
-  const center = {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
-  }
-  const unrotated = Math.abs(shape.rotation ?? 0) > 0.0001
-    ? rotatePointAroundPoint(pointer.x, pointer.y, center.x, center.y, -(shape.rotation ?? 0))
-    : pointer
-
-  if (!shape.flipX && !shape.flipY) {
-    return unrotated
-  }
-
-  return flipPointAroundPoint(unrotated, center, shape.flipX, shape.flipY)
+  return applyAffineMatrixToPoint(resolveNodeTransform(shape).inverseMatrix, pointer)
 }
 
-function getNormalizedBounds(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
+function isPointInsideBounds(
+  pointer: {x: number; y: number},
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
 ) {
-  return {
-    minX: Math.min(x, x + width),
-    maxX: Math.max(x, x + width),
-    minY: Math.min(y, y + height),
-    maxY: Math.max(y, y + height),
+  return (
+    pointer.x >= bounds.minX &&
+    pointer.x <= bounds.maxX &&
+    pointer.y >= bounds.minY &&
+    pointer.y <= bounds.maxY
+  )
+}
+
+function hasShapeFillHitArea(shape: DocumentNode) {
+  if (shape.type === 'image' || shape.type === 'text') {
+    return true
   }
+  if (shape.type === 'group' || shape.type === 'lineSegment') {
+    return false
+  }
+  if (shape.fill?.enabled === false) {
+    return false
+  }
+  if (shape.fill) {
+    return true
+  }
+
+  const featureKinds = shape.schema?.sourceFeatureKinds ?? []
+  if (featureKinds.some((kind) => String(kind).toUpperCase() === 'FILL')) {
+    return true
+  }
+
+  return shape.type === 'path' && isClosedPathShape(shape)
+}
+
+function hasShapeStrokeHitArea(shape: DocumentNode) {
+  if (shape.type === 'image' || shape.type === 'text' || shape.type === 'group') {
+    return false
+  }
+  if (shape.stroke?.enabled === false) {
+    return false
+  }
+  if (shape.stroke) {
+    return true
+  }
+
+  return (
+    shape.type === 'rectangle' ||
+    shape.type === 'frame' ||
+    shape.type === 'ellipse' ||
+    shape.type === 'polygon' ||
+    shape.type === 'star' ||
+    shape.type === 'lineSegment' ||
+    shape.type === 'path'
+  )
 }
 
 function isPointInsidePolygon(
@@ -149,6 +253,96 @@ function isPointNearPolygonEdge(
   return false
 }
 
+function isPointInsideEllipse(
+  pointer: {x: number; y: number},
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+) {
+  const radiusX = (bounds.maxX - bounds.minX) / 2
+  const radiusY = (bounds.maxY - bounds.minY) / 2
+  if (radiusX <= 0 || radiusY <= 0) {
+    return false
+  }
+
+  const centerX = bounds.minX + radiusX
+  const centerY = bounds.minY + radiusY
+  const normalized =
+    ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
+    ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
+
+  return normalized <= 1
+}
+
+function isPointNearRectEdge(
+  pointer: {x: number; y: number},
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+  tolerance: number,
+) {
+  return (
+    isPointNearLineSegment(pointer, {
+      x1: bounds.minX,
+      y1: bounds.minY,
+      x2: bounds.maxX,
+      y2: bounds.minY,
+    }, tolerance) ||
+    isPointNearLineSegment(pointer, {
+      x1: bounds.maxX,
+      y1: bounds.minY,
+      x2: bounds.maxX,
+      y2: bounds.maxY,
+    }, tolerance) ||
+    isPointNearLineSegment(pointer, {
+      x1: bounds.maxX,
+      y1: bounds.maxY,
+      x2: bounds.minX,
+      y2: bounds.maxY,
+    }, tolerance) ||
+    isPointNearLineSegment(pointer, {
+      x1: bounds.minX,
+      y1: bounds.maxY,
+      x2: bounds.minX,
+      y2: bounds.minY,
+    }, tolerance)
+  )
+}
+
+function isPointNearEllipseEdge(
+  pointer: {x: number; y: number},
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+  tolerance: number,
+) {
+  const radiusX = (bounds.maxX - bounds.minX) / 2
+  const radiusY = (bounds.maxY - bounds.minY) / 2
+  if (radiusX <= 0 || radiusY <= 0) {
+    return false
+  }
+
+  const centerX = bounds.minX + radiusX
+  const centerY = bounds.minY + radiusY
+  const dx = pointer.x - centerX
+  const dy = pointer.y - centerY
+  const outerRadiusX = radiusX + tolerance
+  const outerRadiusY = radiusY + tolerance
+  const insideOuter =
+    (dx * dx) / (outerRadiusX * outerRadiusX) +
+    (dy * dy) / (outerRadiusY * outerRadiusY) <= 1
+
+  if (!insideOuter) {
+    return false
+  }
+
+  const innerRadiusX = radiusX - tolerance
+  const innerRadiusY = radiusY - tolerance
+  if (innerRadiusX <= 0 || innerRadiusY <= 0) {
+    return true
+  }
+
+  const insideInner =
+    (dx * dx) / (innerRadiusX * innerRadiusX) +
+    (dy * dy) / (innerRadiusY * innerRadiusY) <= 1
+
+  return !insideInner
+}
+
 function isPointNearLineSegment(
   pointer: {x: number; y: number},
   line: {x1: number; y1: number; x2: number; y2: number},
@@ -179,6 +373,94 @@ function isPointNearLineSegment(
     (pointer.y - nearestY) * (pointer.y - nearestY)
 
   return distanceSquared <= tolerance * tolerance
+}
+
+function isPointNearPolyline(
+  pointer: {x: number; y: number},
+  points: Array<{x: number; y: number}>,
+  tolerance = DEFAULT_HIT_TOLERANCE,
+) {
+  for (let index = 1; index < points.length; index += 1) {
+    if (
+      isPointNearLineSegment(pointer, {
+        x1: points[index - 1].x,
+        y1: points[index - 1].y,
+        x2: points[index].x,
+        y2: points[index].y,
+      }, tolerance)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isPathStrokeHit(
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  tolerance: number,
+) {
+  if (shape.bezierPoints && shape.bezierPoints.length > 1) {
+    for (let index = 1; index < shape.bezierPoints.length; index += 1) {
+      const sampled = sampleBezierPathPolygon([
+        shape.bezierPoints[index - 1],
+        shape.bezierPoints[index],
+      ], 24)
+      if (isPointNearPolyline(pointer, sampled, tolerance)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  if (shape.points && shape.points.length > 1) {
+    return isPointNearPolyline(pointer, shape.points, tolerance)
+  }
+
+  return false
+}
+
+function isPathFillHit(
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  tolerance: number,
+) {
+  if (shape.bezierPoints && shape.bezierPoints.length > 1) {
+    const polygon = sampleBezierPathPolygon(shape.bezierPoints, 24)
+    return polygon.length >= 3 && (
+      isPointInsidePolygon(pointer, polygon) ||
+      isPointNearPolygonEdge(pointer, polygon, tolerance)
+    )
+  }
+
+  if (shape.points && shape.points.length > 2) {
+    return (
+      isPointInsidePolygon(pointer, shape.points) ||
+      isPointNearPolygonEdge(pointer, shape.points, tolerance)
+    )
+  }
+
+  return false
+}
+
+function isClosedPathShape(shape: DocumentNode) {
+  if (shape.bezierPoints && shape.bezierPoints.length > 2) {
+    const first = shape.bezierPoints[0]?.anchor
+    const last = shape.bezierPoints[shape.bezierPoints.length - 1]?.anchor
+    if (first && last) {
+      return Math.hypot(first.x - last.x, first.y - last.y) <= CLOSED_SHAPE_EPSILON
+    }
+  }
+
+  if (shape.points && shape.points.length > 2) {
+    const first = shape.points[0]
+    const last = shape.points[shape.points.length - 1]
+    return Math.hypot(first.x - last.x, first.y - last.y) <= CLOSED_SHAPE_EPSILON
+  }
+
+  return false
 }
 
 function sampleBezierPathPolygon(

@@ -1,5 +1,10 @@
 import type {EditorDocument} from '@venus/document-core'
-import {createViewportMatrix, invertViewportMatrix, type Point2D} from './matrix.ts'
+import {
+  applyMatrixToPoint,
+  createViewportMatrix,
+  invertViewportMatrix,
+  type Point2D,
+} from './matrix.ts'
 import type {CanvasViewportState} from './types.ts'
 
 const DEFAULT_VIEWPORT_OFFSET = 48
@@ -136,19 +141,12 @@ export function zoomViewportState(
     })
   }
 
-  const worldX =
-    viewport.inverseMatrix[0] * anchor.x +
-    viewport.inverseMatrix[1] * anchor.y +
-    viewport.inverseMatrix[2]
-  const worldY =
-    viewport.inverseMatrix[3] * anchor.x +
-    viewport.inverseMatrix[4] * anchor.y +
-    viewport.inverseMatrix[5]
+  const world = applyMatrixToPoint(viewport.inverseMatrix, anchor)
 
   return resolveViewportState({
     scale,
-    offsetX: anchor.x - worldX * scale,
-    offsetY: anchor.y - worldY * scale,
+    offsetX: anchor.x - world.x * scale,
+    offsetY: anchor.y - world.y * scale,
     viewportWidth: viewport.viewportWidth,
     viewportHeight: viewport.viewportHeight,
   })

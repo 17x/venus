@@ -1,3 +1,5 @@
+import {getNormalizedBoundsFromBox} from '@venus/document-core'
+
 // Shared marquee (box-select) primitives for app-level selector workflows.
 export interface MarqueePoint {
   x: number
@@ -87,11 +89,13 @@ export function getNormalizedBounds(
   width: number,
   height: number,
 ): MarqueeBounds {
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+
   return {
-    minX: Math.min(x, x + width),
-    minY: Math.min(y, y + height),
-    maxX: Math.max(x, x + width),
-    maxY: Math.max(y, y + height),
+    minX: bounds.minX,
+    minY: bounds.minY,
+    maxX: bounds.maxX,
+    maxY: bounds.maxY,
   }
 }
 

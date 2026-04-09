@@ -1,4 +1,9 @@
-import {isPointInsideClipShape, type EditorDocument} from '@venus/document-core'
+import {
+  getNormalizedBoundsFromBox,
+  isPointInsideClipShape,
+  isPointInsideShapeHitArea,
+  type EditorDocument,
+} from '@venus/document-core'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 
 export interface SelectionDragModifiers {
@@ -132,16 +137,22 @@ export function createSelectionDragController(options?: {
         }
 
         const first = dragShapes[0]
+        const firstBounds = getNormalizedBoundsFromBox(first.x, first.y, first.width, first.height)
         const bounds = dragShapes
-          .map((shape) => getNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
-          .reduce(
+          .map((shape) => getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height))
+          .reduce<{minX: number; minY: number; maxX: number; maxY: number}>(
             (acc, boundsItem) => ({
               minX: Math.min(acc.minX, boundsItem.minX),
               minY: Math.min(acc.minY, boundsItem.minY),
               maxX: Math.max(acc.maxX, boundsItem.maxX),
               maxY: Math.max(acc.maxY, boundsItem.maxY),
             }),
-            getNormalizedBounds(first.x, first.y, first.width, first.height),
+            {
+              minX: firstBounds.minX,
+              minY: firstBounds.minY,
+              maxX: firstBounds.maxX,
+              maxY: firstBounds.maxY,
+            },
           )
 
         session = {
@@ -213,27 +224,14 @@ function hitTestSnapshot(
 }
 
 function isShapeHitAtPointer(
-  shape: SceneShapeSnapshot,
+  _shape: SceneShapeSnapshot,
   source: EditorDocument['shapes'][number],
   pointer: {x: number; y: number},
   lineHitTolerance: number,
   allowFrameSelection: boolean,
   shapeById: Map<string, EditorDocument['shapes'][number]>,
 ) {
-  if (!allowFrameSelection && shape.type === 'frame') {
-    return false
-  }
-  if (shape.type === 'image' && source.clipPathId) {
-    return false
-  }
-  const tolerance = shape.type === 'lineSegment' || shape.type === 'path' ? lineHitTolerance : 0
-  const left = Math.min(shape.x, shape.x + shape.width) - tolerance
-  const right = Math.max(shape.x, shape.x + shape.width) + tolerance
-  const top = Math.min(shape.y, shape.y + shape.height) - tolerance
-  const bottom = Math.max(shape.y, shape.y + shape.height) + tolerance
-
-  const inBounds = pointer.x >= left && pointer.x <= right && pointer.y >= top && pointer.y <= bottom
-  if (!inBounds) {
+  if (source.type === 'image' && source.clipPathId) {
     return false
   }
 
@@ -244,343 +242,8 @@ function isShapeHitAtPointer(
     }
   }
 
-  const testPointer = resolveShapeHitPointer(pointer, source)
-
-  if (shape.type === 'ellipse') {
-    const radiusX = Math.abs(shape.width) / 2
-    const radiusY = Math.abs(shape.height) / 2
-    if (radiusX <= 0 || radiusY <= 0) {
-      return false
-    }
-
-    const centerX = Math.min(shape.x, shape.x + shape.width) + radiusX
-    const centerY = Math.min(shape.y, shape.y + shape.height) + radiusY
-    const normalized =
-      ((testPointer.x - centerX) * (testPointer.x - centerX)) / (radiusX * radiusX) +
-      ((testPointer.y - centerY) * (testPointer.y - centerY)) / (radiusY * radiusY)
-
-    if (normalized > 1) {
-      return false
-    }
-  }
-
-  if (shape.type === 'lineSegment') {
-    const hit = isPointNearLineSegment(testPointer, {
-      x1: shape.x,
-      y1: shape.y,
-      x2: shape.x + shape.width,
-      y2: shape.y + shape.height,
-    }, lineHitTolerance)
-    if (!hit) {
-      return false
-    }
-  }
-
-  if (shape.type === 'polygon' || shape.type === 'star') {
-    const points = source.points
-    if (!points || points.length < 3) {
-      return false
-    }
-
-    const inside = isPointInsidePolygon(testPointer, points)
-    const edge = isPointNearPolygonEdge(testPointer, points, lineHitTolerance)
-    if (!inside && !edge) {
-      return false
-    }
-  }
-
-  if (shape.type === 'path') {
-    const strokeHit = resolvePathStrokeHit(testPointer, source, shape, lineHitTolerance)
-    if (!strokeHit) {
-      if (!hasPathFill(source)) {
-        return false
-      }
-
-      const fillHit = resolvePathFillHit(testPointer, source, lineHitTolerance)
-      if (!fillHit) {
-        return false
-      }
-    }
-  }
-
-  return true
-}
-
-function resolveShapeHitPointer(
-  pointer: {x: number; y: number},
-  shape: EditorDocument['shapes'][number],
-) {
-  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
-  const center = {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
-  }
-  const rotation = shape.rotation ?? 0
-  const radians = (-rotation * Math.PI) / 180
-  const dx = pointer.x - center.x
-  const dy = pointer.y - center.y
-  const unrotated = Math.abs(rotation) > 0.0001
-    ? {
-        x: center.x + dx * Math.cos(radians) - dy * Math.sin(radians),
-        y: center.y + dx * Math.sin(radians) + dy * Math.cos(radians),
-      }
-    : pointer
-
-  return {
-    x: shape.flipX ? center.x - (unrotated.x - center.x) : unrotated.x,
-    y: shape.flipY ? center.y - (unrotated.y - center.y) : unrotated.y,
-  }
-}
-
-function getNormalizedBounds(x: number, y: number, width: number, height: number) {
-  return {
-    minX: Math.min(x, x + width),
-    minY: Math.min(y, y + height),
-    maxX: Math.max(x, x + width),
-    maxY: Math.max(y, y + height),
-  }
-}
-
-function hasPathFill(
-  shape: SelectionDragSnapshot['document']['shapes'][number] | undefined,
-) {
-  const featureKinds = shape?.schema?.sourceFeatureKinds ?? []
-  if (featureKinds.some((kind) => String(kind).toUpperCase() === 'FILL')) {
-    return true
-  }
-
-  // Fallback for authoring paths without schema: treat explicitly closed
-  // point-list paths as fill-hit capable.
-  const points = shape?.points
-  if (!points || points.length < 3) {
-    return false
-  }
-  const first = points[0]
-  const last = points[points.length - 1]
-  return Math.hypot(first.x - last.x, first.y - last.y) <= 1.5
-}
-
-function resolvePathStrokeHit(
-  pointer: {x: number; y: number},
-  source: SelectionDragSnapshot['document']['shapes'][number] | undefined,
-  fallbackShape: SceneShapeSnapshot,
-  tolerance: number,
-) {
-  if (source?.bezierPoints && source.bezierPoints.length > 1) {
-    return isPointNearBezierPath(pointer, source.bezierPoints, tolerance)
-  }
-  if (source?.points && source.points.length > 1) {
-    return isPointNearPolyline(pointer, source.points, tolerance)
-  }
-
-  return isPointNearLineSegment(pointer, {
-    x1: fallbackShape.x,
-    y1: fallbackShape.y,
-    x2: fallbackShape.x + fallbackShape.width,
-    y2: fallbackShape.y + fallbackShape.height,
-  }, tolerance)
-}
-
-function resolvePathFillHit(
-  pointer: {x: number; y: number},
-  source: SelectionDragSnapshot['document']['shapes'][number] | undefined,
-  tolerance: number,
-) {
-  if (!source) {
-    return false
-  }
-
-  if (source.bezierPoints && source.bezierPoints.length > 1) {
-    const polygon = sampleBezierPathPolygon(source.bezierPoints, 16)
-    if (polygon.length < 3) {
-      return false
-    }
-    return isPointInsidePolygon(pointer, polygon) || isPointNearPolygonEdge(pointer, polygon, tolerance)
-  }
-
-  if (source.points && source.points.length > 2) {
-    return (
-      isPointInsidePolygon(pointer, source.points) ||
-      isPointNearPolygonEdge(pointer, source.points, tolerance)
-    )
-  }
-
-  return false
-}
-
-function isPointNearLineSegment(
-  pointer: {x: number; y: number},
-  line: {x1: number; y1: number; x2: number; y2: number},
-  tolerance = 6,
-) {
-  const dx = line.x2 - line.x1
-  const dy = line.y2 - line.y1
-  const lengthSquared = dx * dx + dy * dy
-
-  if (lengthSquared === 0) {
-    const distanceSquared =
-      (pointer.x - line.x1) * (pointer.x - line.x1) +
-      (pointer.y - line.y1) * (pointer.y - line.y1)
-    return distanceSquared <= tolerance * tolerance
-  }
-
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      ((pointer.x - line.x1) * dx + (pointer.y - line.y1) * dy) / lengthSquared,
-    ),
-  )
-  const nearestX = line.x1 + t * dx
-  const nearestY = line.y1 + t * dy
-  const distanceSquared =
-    (pointer.x - nearestX) * (pointer.x - nearestX) +
-    (pointer.y - nearestY) * (pointer.y - nearestY)
-
-  return distanceSquared <= tolerance * tolerance
-}
-
-function isPointNearPolyline(
-  pointer: {x: number; y: number},
-  points: Array<{x: number; y: number}>,
-  tolerance = 6,
-) {
-  for (let index = 1; index < points.length; index += 1) {
-    if (
-      isPointNearLineSegment(pointer, {
-        x1: points[index - 1].x,
-        y1: points[index - 1].y,
-        x2: points[index].x,
-        y2: points[index].y,
-      }, tolerance)
-    ) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function isPointNearBezierPath(
-  pointer: {x: number; y: number},
-  points: Array<{
-    anchor: {x: number; y: number}
-    cp1?: {x: number; y: number} | null
-    cp2?: {x: number; y: number} | null
-  }>,
-  tolerance = 6,
-) {
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1]
-    const current = points[index]
-    for (let step = 0; step <= 32; step += 1) {
-      const t = step / 32
-      const sampled = sampleCubicBezierPoint(
-        previous.anchor,
-        previous.cp2 ?? previous.anchor,
-        current.cp1 ?? current.anchor,
-        current.anchor,
-        t,
-      )
-      const dx = sampled.x - pointer.x
-      const dy = sampled.y - pointer.y
-      if (dx * dx + dy * dy <= tolerance * tolerance) {
-        return true
-      }
-    }
-  }
-
-  return false
-}
-
-function isPointInsidePolygon(
-  pointer: {x: number; y: number},
-  points: Array<{x: number; y: number}>,
-) {
-  let inside = false
-
-  for (let index = 0, previous = points.length - 1; index < points.length; previous = index, index += 1) {
-    const current = points[index]
-    const last = points[previous]
-    const intersects =
-      ((current.y > pointer.y) !== (last.y > pointer.y)) &&
-      pointer.x < ((last.x - current.x) * (pointer.y - current.y)) / ((last.y - current.y) || 1e-9) + current.x
-
-    if (intersects) {
-      inside = !inside
-    }
-  }
-
-  return inside
-}
-
-function isPointNearPolygonEdge(
-  pointer: {x: number; y: number},
-  points: Array<{x: number; y: number}>,
-  tolerance = 6,
-) {
-  for (let index = 0; index < points.length; index += 1) {
-    const current = points[index]
-    const next = points[(index + 1) % points.length]
-    const edgeHit = isPointNearLineSegment(pointer, {
-      x1: current.x,
-      y1: current.y,
-      x2: next.x,
-      y2: next.y,
-    }, tolerance)
-
-    if (edgeHit) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function sampleBezierPathPolygon(
-  points: Array<{
-    anchor: {x: number; y: number}
-    cp1?: {x: number; y: number} | null
-    cp2?: {x: number; y: number} | null
-  }>,
-  stepsPerSegment = 16,
-) {
-  if (points.length < 2) {
-    return []
-  }
-
-  const sampled: Array<{x: number; y: number}> = [{...points[0].anchor}]
-
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const current = points[index]
-    const next = points[index + 1]
-    const cp1 = current.cp2 ?? current.anchor
-    const cp2 = next.cp1 ?? next.anchor
-
-    for (let step = 1; step <= stepsPerSegment; step += 1) {
-      const t = step / stepsPerSegment
-      sampled.push(sampleCubicBezierPoint(current.anchor, cp1, cp2, next.anchor, t))
-    }
-  }
-
-  return sampled
-}
-
-function sampleCubicBezierPoint(
-  p0: {x: number; y: number},
-  p1: {x: number; y: number},
-  p2: {x: number; y: number},
-  p3: {x: number; y: number},
-  t: number,
-) {
-  const inv = 1 - t
-  const a = inv * inv * inv
-  const b = 3 * inv * inv * t
-  const c = 3 * inv * t * t
-  const d = t * t * t
-
-  return {
-    x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
-    y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
-  }
+  return isPointInsideShapeHitArea(pointer, source, {
+    allowFrameSelection,
+    tolerance: lineHitTolerance,
+  })
 }

@@ -44,8 +44,9 @@
 - Report validation gaps plainly
 - Treat architecture docs and actual exports as part of validation when changing package boundaries or runtime flow
 - After shipping a meaningful feature addition or behavior update, write a short
-  factual knowledge note into the most relevant module-level knowledge/doc file;
-  if no module-specific file exists, fall back to
+  factual knowledge note into the most relevant package/module-level knowledge
+  file under `docs/ai-standards/packages/*` when available; if no narrower file
+  exists, fall back to
   `docs/ai-standards/core/monorepo-knowledge-base.md`
 
 ## Communication Rules

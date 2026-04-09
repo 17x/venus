@@ -19,6 +19,22 @@ context starts, or work needs to resume after switching topics.
   Focus on product-facing editor functionality first.
   Current direction: prefer stable behavior over aggressive render-pipeline
   optimization.
+  Tracking checklist:
+  - `docs/ai-standards/core/matrix-migration-checklist.md` (phase/status
+    tracker for matrix-internals migration)
+  - `docs/ai-standards/core/matrix-compatibility-invariants.md`
+    (cross-package transform compatibility invariants)
+  - `docs/ai-standards/core/matrix-regression-scenarios.md`
+    (shared matrix-sensitive regression runbook)
+  - `docs/ai-standards/core/matrix-first-runtime-rfc.md`
+    (Phase-5 matrix-first runtime contract draft)
+  - `packages/file-format/base/src/transformAdapters.ts`
+    (matrix-first <-> file-format transform compatibility adapter layer)
+  - `apps/vector-editor-web/src/adapters/fileFormatScene.ts`
+    (vector export now emits transform metadata through shared transform
+    adapters instead of app-local key assembly)
+  - `pnpm matrix:check`
+    (one-command matrix migration regression gate)
   Recent landed baseline:
   - true multi-select selection semantics (`replace/add/toggle/clear`)
   - marquee (box) selection in canvas space
@@ -33,6 +49,16 @@ context starts, or work needs to resume after switching topics.
   - shape appearance baseline extended: rectangle per-corner radii, ellipse
     start/end angles, and style plumbing (`fill`/`stroke`/`shadow`) are now
     threaded through panel -> runtime command -> worker -> renderer
+  - matrix-internals migration has started in the active stack: prefer shared
+    affine helpers in `document-core` for shape transform math before changing
+    persisted/runtime node contracts
+  - `document-core` now exposes a shared decomposed-box compatibility layer
+    (`resolveNodeTransform`) for normalized bounds, center, matrix, and inverse
+    matrix derivation; route new transform-sensitive runtime code through that
+    contract before introducing a matrix-first node model
+  - `canvas-base` now exposes shared transform session/preview shape builders,
+    shifting the migration from helper cleanup toward package-boundary
+    contracts for transform-sensitive app/runtime integration
 
 - `runtime-playground`
   Use as the main render diagnostics bench for `Canvas2D`.

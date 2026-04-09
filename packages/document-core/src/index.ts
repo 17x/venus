@@ -1,15 +1,23 @@
 import type {BezierPoint, Point} from './geometry.ts'
 
 export {convertUnit} from './converter.ts'
-export {isPointInsideClipShape} from './hitTest.ts'
-export type {BezierPoint, BoundingRect, Point, Rect} from './geometry.ts'
+export {isPointInsideClipShape, isPointInsideShapeHitArea} from './hitTest.ts'
+export type {AffineMatrix, BezierPoint, BoundingRect, Point, Rect} from './geometry.ts'
 export {
+  applyAffineMatrixToPoint,
+  createAffineMatrixAroundPoint,
+  createIdentityAffineMatrix,
+  createRotationAffineMatrix,
+  createScaleAffineMatrix,
+  createTranslationAffineMatrix,
   cubicBezier,
   flipPointAroundPoint,
   generateBoundingRectFromRect,
   generateBoundingRectFromRotatedRect,
   generateBoundingRectFromTwoPoints,
   getBoundingRectFromBezierPoints,
+  invertAffineMatrix,
+  multiplyAffineMatrices,
   convertDrawPointsToBezierPoints,
   isInsideRotatedRect,
   isPointNear,
@@ -18,6 +26,31 @@ export {
   rotatePointAroundPoint,
   transformPoints,
 } from './geometry.ts'
+export type {
+  BoxTransformSource,
+  MatrixFirstNodeTransform,
+  NormalizedBounds,
+  NormalizedBoundsLike,
+  ResolvedNodeTransform,
+  ResolvedShapeTransformRecord,
+  ShapeTransformBatchCommand,
+  ShapeTransformBatchItem,
+  ShapeTransformRecord,
+} from './shapeTransform.ts'
+export {
+  createMatrixFirstNodeTransform,
+  createShapeTransformRecord,
+  doNormalizedBoundsOverlap,
+  getNormalizedBoundsFromBox,
+  hasResolvedNodeTransformEffect,
+  intersectNormalizedBounds,
+  isPointInsideRotatedBounds,
+  resolveNodeTransform,
+  resolveShapeTransformRecord,
+  toLegacyShapeTransformRecord,
+  toResolvedNodeCssTransform,
+  toResolvedNodeSvgTransform,
+} from './shapeTransform.ts'
 export {nid} from './nid.ts'
 export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
 export {Unit, type UnitType} from './unit.ts'

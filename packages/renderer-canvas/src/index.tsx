@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { CanvasRendererProps } from '@venus/canvas-base'
-import type { DocumentNode } from '@venus/document-core'
+import {resolveNodeTransform, type DocumentNode} from '@venus/document-core'
 import {
   type Canvas2DLodLevel,
   defaultCanvas2DLodConfig,
@@ -245,22 +245,33 @@ function drawShape(
   lodConfig: import('./lod.ts').Canvas2DLodConfig,
   lodLevel: Canvas2DLodLevel,
 ) {
-  const baseFillEnabled =
-    source?.fill?.enabled ??
-    (shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path')
   const baseFillColor = source?.fill?.color ?? '#ffffff'
+  const defaultFillEnabled = shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path'
+  const hasExplicitFillStyle = Boolean(source?.fill)
+  const baseFillEnabled =
+    (source?.fill?.enabled !== false) &&
+    (hasExplicitFillStyle || defaultFillEnabled) &&
+    hasVisibleColorAlpha(baseFillColor)
   const baseStrokeEnabled = source?.stroke?.enabled ?? true
   const baseStrokeColor = source?.stroke?.color ?? '#111827'
   const baseStrokeWidth = Math.max(0, source?.stroke?.weight ?? 1)
   const strokeColor = baseStrokeColor
   const strokeWidth = baseStrokeWidth
   const shadowEnabled = source?.shadow?.enabled ?? false
-  const rotation = source?.rotation ?? 0
-  const flipX = source?.flipX ?? false
-  const flipY = source?.flipY ?? false
-  const needsTransform = (Math.abs(rotation) > 0.0001 || flipX || flipY) && shape.type !== 'group'
+  const transform = resolveNodeTransform({
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+    rotation: source?.rotation,
+    flipX: source?.flipX,
+    flipY: source?.flipY,
+  })
+  const needsTransform =
+    (Math.abs(transform.rotation) > 0.0001 || transform.flipX || transform.flipY) &&
+    shape.type !== 'group'
   if (needsTransform) {
-    applyShapeTransform(context, shape, rotation, flipX, flipY)
+    applyShapeTransform(context, transform.matrix)
   }
   const finish = () => {
     if (needsTransform) {
@@ -602,6 +613,46 @@ function drawShape(
   finish()
 }
 
+function hasVisibleColorAlpha(color: string) {
+  const normalized = color.trim().toLowerCase()
+  if (normalized.length === 0 || normalized === 'transparent') {
+    return false
+  }
+
+  if (normalized.startsWith('#')) {
+    const hex = normalized.slice(1)
+    if (hex.length === 4) {
+      const alpha = Number.parseInt(hex[3] + hex[3], 16)
+      return Number.isFinite(alpha) ? alpha > 0 : true
+    }
+    if (hex.length === 8) {
+      const alpha = Number.parseInt(hex.slice(6, 8), 16)
+      return Number.isFinite(alpha) ? alpha > 0 : true
+    }
+    return true
+  }
+
+  const alphaMatch = normalized.match(/^(rgba|hsla)\((.+)\)$/)
+  if (!alphaMatch) {
+    return true
+  }
+
+  const segments = alphaMatch[2].split(',').map((part) => part.trim())
+  if (segments.length < 4) {
+    return true
+  }
+
+  const rawAlpha = segments[3].replace('%', '')
+  const parsedAlpha = Number.parseFloat(rawAlpha)
+  if (!Number.isFinite(parsedAlpha)) {
+    return true
+  }
+
+  return segments[3].includes('%')
+    ? parsedAlpha > 0
+    : parsedAlpha > 0
+}
+
 function applyShapeShadow(context: CanvasRenderingContext2D, source: DocumentNode | undefined) {
   context.shadowColor = source?.shadow?.color ?? 'rgba(17, 24, 39, 0.25)'
   context.shadowBlur = Math.max(0, source?.shadow?.blur ?? 8)
@@ -738,29 +789,9 @@ function isClosedBezierPath(points: NonNullable<DocumentNode['bezierPoints']>) {
   return Math.hypot(first.x - last.x, first.y - last.y) <= 1e-3
 }
 
-function applyShapeTransform(
-  context: CanvasRenderingContext2D,
-  shape: CanvasRendererProps['shapes'][number],
-  rotation: number,
-  flipX: boolean,
-  flipY: boolean,
-) {
-  const bounds = {
-    minX: Math.min(shape.x, shape.x + shape.width),
-    maxX: Math.max(shape.x, shape.x + shape.width),
-    minY: Math.min(shape.y, shape.y + shape.height),
-    maxY: Math.max(shape.y, shape.y + shape.height),
-  }
-  const center = {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
-  }
-
+function applyShapeTransform(context: CanvasRenderingContext2D, matrix: [number, number, number, number, number, number]) {
   context.save()
-  context.translate(center.x, center.y)
-  context.rotate((rotation * Math.PI) / 180)
-  context.scale(flipX ? -1 : 1, flipY ? -1 : 1)
-  context.translate(-center.x, -center.y)
+  context.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5])
 }
 
 function drawStrokeArrowheads(

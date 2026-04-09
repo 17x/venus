@@ -1,4 +1,5 @@
 import {
+  getNormalizedBoundsFromBox,
   getBoundingRectFromBezierPoints,
   type BezierPoint,
   type DocumentNode,
@@ -10,6 +11,7 @@ import type {
   RuntimePathV4,
   RuntimeSceneLatest,
 } from '../migrations/types.ts'
+import {resolveLegacyShapeTransformFromFileFormat} from './transformAdapters.ts'
 
 /**
  * Standard parser from the normalized file-format runtime scene into the
@@ -54,13 +56,11 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const geometryBounds = (shapeType === 'path' || shapeType === 'polygon' || shapeType === 'star')
     ? (bezierBounds ?? pointBounds)
     : null
-  const x = geometryBounds?.x ?? readNumber(metadata, 'x') ?? node.transform.m02
-  const y = geometryBounds?.y ?? readNumber(metadata, 'y') ?? node.transform.m12
-  const width = geometryBounds?.width ?? readNumber(metadata, 'width') ?? 0
-  const height = geometryBounds?.height ?? readNumber(metadata, 'height') ?? 0
-  const rotation = readNumber(metadata, 'rotation') ?? 0
-  const flipX = readBoolean(metadata, 'flipX') ?? false
-  const flipY = readBoolean(metadata, 'flipY') ?? false
+  const transform = resolveLegacyShapeTransformFromFileFormat({
+    metadata,
+    nodeTransform: node.transform,
+    geometryBounds,
+  })
   const fillEnabled = readBoolean(metadata, 'fillEnabled')
   const fillColor = readString(metadata, 'fillColor')
   const strokeEnabled = readBoolean(metadata, 'strokeEnabled')
@@ -85,13 +85,13 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
     name: node.name || textFeature?.text || node.id,
     parentId: node.parentId,
     childIds: node.children.map((child) => child.id),
-    x,
-    y,
-    width,
-    height,
-    rotation,
-    flipX,
-    flipY,
+    x: transform.x,
+    y: transform.y,
+    width: transform.width,
+    height: transform.height,
+    rotation: transform.rotation,
+    flipX: transform.flipX,
+    flipY: transform.flipY,
     text: textFeature?.text,
     textRuns: textFeature?.runs.map((run) => ({
       start: run.start,
@@ -279,6 +279,8 @@ function resolveImageAssetId(imageFeature: ReturnType<typeof getImageFeature>) {
 function extractPathGeometry(paths: RuntimePathV4[]) {
   const points: Array<{x: number; y: number}> = []
   const bezierPoints: BezierPoint[] = []
+  let currentSubpathPointStart: {x: number; y: number} | null = null
+  let currentSubpathBezierStart: BezierPoint | null = null
 
   paths.forEach((path) => {
     path.commands.forEach((command) => {
@@ -289,9 +291,12 @@ function extractPathGeometry(paths: RuntimePathV4[]) {
         }
 
         points.push(point)
-        bezierPoints.push({
+        const bezierPoint = {
           anchor: point,
-        })
+        }
+        bezierPoints.push(bezierPoint)
+        currentSubpathPointStart = point
+        currentSubpathBezierStart = bezierPoint
         return
       }
 
@@ -325,6 +330,26 @@ function extractPathGeometry(paths: RuntimePathV4[]) {
         bezierPoints.push({
           anchor,
           cp1: cp2,
+        })
+        return
+      }
+
+      if (command.type === 'CLOSE') {
+        const firstPoint = currentSubpathPointStart
+        const firstBezierPoint = currentSubpathBezierStart
+        const lastPoint = points[points.length - 1]
+        if (
+          !firstPoint ||
+          !firstBezierPoint ||
+          !lastPoint ||
+          Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y) <= 1e-3
+        ) {
+          return
+        }
+
+        points.push(firstPoint)
+        bezierPoints.push({
+          anchor: firstBezierPoint.anchor,
         })
       }
     })
@@ -472,10 +497,12 @@ function mergeBounds(left: Bounds, right: Bounds): Bounds {
 }
 
 function getNormalizedBounds(x: number, y: number, width: number, height: number): Bounds {
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+
   return {
-    minX: Math.min(x, x + width),
-    minY: Math.min(y, y + height),
-    maxX: Math.max(x, x + width),
-    maxY: Math.max(y, y + height),
+    minX: bounds.minX,
+    minY: bounds.minY,
+    maxX: bounds.maxX,
+    maxY: bounds.maxY,
   }
 }

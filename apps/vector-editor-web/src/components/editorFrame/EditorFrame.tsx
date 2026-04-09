@@ -12,7 +12,7 @@ import {Print} from '../print/print.tsx'
 import FileReceiver from '../fileReceiver.tsx'
 import {cn, Col, Row, Tooltip} from '@venus/ui'
 import useEditorRuntime from '../../hooks/useEditorRuntime.ts'
-import {CanvasViewport} from '@venus/canvas-base'
+import {CanvasViewport, applyMatrixToPoint} from '@venus/canvas-base'
 import {LuHistory, LuLayers, LuSettings} from 'react-icons/lu'
 import {
   CHROME_ICON_SIZE,
@@ -88,11 +88,7 @@ const EditorFrame = () => {
   }
 
   const resolveWorldPoint = (viewportPoint: {x: number; y: number}) => {
-    const matrix = canvas.viewport.inverseMatrix
-    return {
-      x: matrix[0] * viewportPoint.x + matrix[1] * viewportPoint.y + matrix[2],
-      y: matrix[3] * viewportPoint.x + matrix[4] * viewportPoint.y + matrix[5],
-    }
+    return applyMatrixToPoint(canvas.viewport.inverseMatrix, viewportPoint)
   }
 
   const minimizeInspectorPanel = (panelId: InspectorPanelId) => {

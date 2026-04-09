@@ -131,10 +131,8 @@ export function SkiaRenderer({
   const tileCacheRef = React.useRef<Map<string, TileCacheEntry>>(new Map())
   const prewarmKeyRef = React.useRef<string | null>(null)
   const lastDrawKeyRef = React.useRef<string | null>(null)
-  const sceneRevisionRef = React.useRef(0)
   const sceneIndex = React.useMemo(() => {
-    sceneRevisionRef.current += 1
-    return buildRenderSceneIndex(document, sceneRevisionRef.current)
+    return buildRenderSceneIndex(document, computeSceneRevision(document))
   }, [document])
 
   React.useEffect(() => {
@@ -1053,6 +1051,36 @@ function cancelScheduledPrewarm(handle: {kind: 'idle' | 'timeout'; id: number}) 
   }
 
   runtimeWindow.clearTimeout(handle.id)
+}
+
+function computeSceneRevision(document: CanvasRendererProps['document']) {
+  let hash = 2166136261 >>> 0
+
+  document.shapes.forEach((shape) => {
+    hash = fnv1aHashString(hash, shape.id)
+    hash = fnv1aHashNumber(hash, shape.x)
+    hash = fnv1aHashNumber(hash, shape.y)
+    hash = fnv1aHashNumber(hash, shape.width)
+    hash = fnv1aHashNumber(hash, shape.height)
+    hash = fnv1aHashNumber(hash, shape.rotation ?? 0)
+    hash = fnv1aHashNumber(hash, shape.flipX ? 1 : 0)
+    hash = fnv1aHashNumber(hash, shape.flipY ? 1 : 0)
+  })
+
+  return hash
+}
+
+function fnv1aHashString(seed: number, value: string) {
+  let hash = seed >>> 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function fnv1aHashNumber(seed: number, value: number) {
+  return fnv1aHashString(seed, String(value))
 }
 
 function buildRenderSceneIndex(
