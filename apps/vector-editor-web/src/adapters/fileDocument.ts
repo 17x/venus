@@ -171,15 +171,15 @@ function toDocumentShape(
   const fallbackX = Number(element.x ?? ((element.cx ?? 0) - width / 2))
   const fallbackY = Number(element.y ?? ((element.cy ?? 0) - height / 2))
   const geometryBounds =
-    (shapeType === 'path' || shapeType === 'polygon' || shapeType === 'star') && pointBounds
-      ? {
-          x: pointBounds.minX,
-          y: pointBounds.minY,
-          width: pointBounds.maxX - pointBounds.minX,
-          height: pointBounds.maxY - pointBounds.minY,
-        }
-      : shapeType === 'path' && bezierBounds
-        ? bezierBounds
+    shapeType === 'path' && bezierBounds
+      ? bezierBounds
+      : (shapeType === 'path' || shapeType === 'polygon' || shapeType === 'star') && pointBounds
+        ? {
+            x: pointBounds.minX,
+            y: pointBounds.minY,
+            width: pointBounds.maxX - pointBounds.minX,
+            height: pointBounds.maxY - pointBounds.minY,
+          }
         : null
   const x = geometryBounds?.x ?? fallbackX
   const y = geometryBounds?.y ?? fallbackY
@@ -203,6 +203,8 @@ function toDocumentShape(
     width: resolvedWidth,
     height: resolvedHeight,
     rotation: Number(element.rotation ?? 0),
+    flipX: Boolean(element.flipX),
+    flipY: Boolean(element.flipY),
     text: resolveTextContent(element),
     assetId: typeof element.asset === 'string' ? element.asset : undefined,
     clipPathId: typeof element.clipPathId === 'string' ? element.clipPathId : undefined,
@@ -286,6 +288,8 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       strokeStartArrowhead: shape.strokeStartArrowhead,
       strokeEndArrowhead: shape.strokeEndArrowhead,
       rotation: shape.rotation ?? 0,
+      flipX: shape.flipX ?? false,
+      flipY: shape.flipY ?? false,
       opacity: 1,
       fill: shape.fill
         ? {...shape.fill}

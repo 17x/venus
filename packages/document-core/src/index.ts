@@ -5,6 +5,7 @@ export {isPointInsideClipShape} from './hitTest.ts'
 export type {BezierPoint, BoundingRect, Point, Rect} from './geometry.ts'
 export {
   cubicBezier,
+  flipPointAroundPoint,
   generateBoundingRectFromRect,
   generateBoundingRectFromRotatedRect,
   generateBoundingRectFromTwoPoints,
@@ -80,6 +81,8 @@ export interface DocumentNode {
   width: number
   height: number
   rotation?: number
+  flipX?: boolean
+  flipY?: boolean
   // Primary text payload for text-like nodes and product-level label adapters.
   text?: string
   // Rich text runs aligned with `text`, optional for the minimal plain-text case.

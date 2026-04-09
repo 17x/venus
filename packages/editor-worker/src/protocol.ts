@@ -89,6 +89,8 @@ export type EditorRuntimeCommand =
           width: number
           height: number
           rotation: number
+          flipX?: boolean
+          flipY?: boolean
         }
         to: {
           x: number
@@ -96,6 +98,8 @@ export type EditorRuntimeCommand =
           width: number
           height: number
           rotation: number
+          flipX?: boolean
+          flipY?: boolean
         }
       }>
     }
@@ -110,6 +114,8 @@ export type EditorRuntimeCommand =
         cornerRadii?: DocumentNode['cornerRadii']
         ellipseStartAngle?: number
         ellipseEndAngle?: number
+        flipX?: boolean
+        flipY?: boolean
       }
     }
   | { type: 'shape.set-clip'; shapeId: string; clipPathId?: string; clipRule?: 'nonzero' | 'evenodd' }

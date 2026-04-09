@@ -1,4 +1,4 @@
-import {createElement, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {createElement, useCallback, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@venus/ui'
 import {nid, type ToolName} from '@venus/document-core'
 import {
@@ -85,7 +85,7 @@ function remapPoint(
 
 function applyPreviewGeometryToShape(
   shape: import('@venus/document-core').DocumentNode,
-  preview: {x: number; y: number; width: number; height: number; rotation?: number},
+  preview: {x: number; y: number; width: number; height: number; rotation?: number; flipX?: boolean; flipY?: boolean},
 ) {
   const source = {
     x: shape.x,
@@ -107,6 +107,8 @@ function applyPreviewGeometryToShape(
     width: preview.width,
     height: preview.height,
     rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
+    flipX: typeof preview.flipX === 'boolean' ? preview.flipX : shape.flipX,
+    flipY: typeof preview.flipY === 'boolean' ? preview.flipY : shape.flipY,
     points:
       (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
         ? shape.points.map((point) => remapPoint(point, source, target))
@@ -132,6 +134,8 @@ function buildTransformPreviewMap(
     width: number
     height: number
     rotation?: number
+    flipX?: boolean
+    flipY?: boolean
   }>,
 ) {
   const previewById = new Map(
@@ -186,7 +190,9 @@ function buildTransformPreviewMap(
           y: child.y + deltaY,
           width: child.width,
           height: child.height,
-          rotation: child.rotation,
+          rotation: child.rotation ?? 0,
+          flipX: child.flipX,
+          flipY: child.flipY,
         })
       }
       const nested = childrenByParent.get(child.id)
@@ -225,7 +231,9 @@ function buildTransformPreviewMap(
         y: (runtimeShape?.y ?? image.y) + deltaY,
         width: runtimeShape?.width ?? image.width,
         height: runtimeShape?.height ?? image.height,
-        rotation: runtimeShape?.rotation ?? image.rotation,
+        rotation: runtimeShape?.rotation ?? image.rotation ?? 0,
+        flipX: image.flipX,
+        flipY: image.flipY,
       })
     })
   }
@@ -259,6 +267,54 @@ function pickHandleAtPoint(
   return null
 }
 
+function collectResizeTransformTargets(
+  selectedNodes: import('@venus/document-core').DocumentNode[],
+  document: import('@venus/document-core').EditorDocument,
+) {
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  const childrenByParent = new Map<string, import('@venus/document-core').DocumentNode[]>()
+
+  document.shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+    const siblings = childrenByParent.get(shape.parentId) ?? []
+    siblings.push(shape)
+    childrenByParent.set(shape.parentId, siblings)
+  })
+
+  const targets = new Map<string, import('@venus/document-core').DocumentNode>()
+  const selectedIds = new Set(selectedNodes.map((shape) => shape.id))
+
+  const collectLeafDescendants = (shapeId: string) => {
+    const queue = [...(childrenByParent.get(shapeId) ?? [])]
+    while (queue.length > 0) {
+      const current = queue.shift()
+      if (!current) {
+        continue
+      }
+      if (current.type === 'group') {
+        queue.push(...(childrenByParent.get(current.id) ?? []))
+        continue
+      }
+      targets.set(current.id, current)
+    }
+  }
+
+  selectedNodes.forEach((shape) => {
+    if (shape.type === 'group') {
+      collectLeafDescendants(shape.id)
+      return
+    }
+    if (selectedIds.has(shape.parentId ?? '')) {
+      return
+    }
+    targets.set(shape.id, shapeById.get(shape.id) ?? shape)
+  })
+
+  return Array.from(targets.values())
+}
+
 function toElementPropsFromNode(selectedNode: import('@venus/document-core').DocumentNode): ElementProps {
   return {
     id: selectedNode.id,
@@ -273,6 +329,8 @@ function toElementPropsFromNode(selectedNode: import('@venus/document-core').Doc
     width: selectedNode.width,
     height: selectedNode.height,
     rotation: selectedNode.rotation ?? 0,
+    flipX: selectedNode.flipX ?? false,
+    flipY: selectedNode.flipY ?? false,
     points: selectedNode.points?.map((point) => ({...point})),
     bezierPoints: selectedNode.bezierPoints?.map((point) => ({
       anchor: {...point.anchor},
@@ -392,6 +450,8 @@ const useEditorRuntime = (options?: {
               width: previewById.get(shape.id)?.width ?? shape.width,
               height: previewById.get(shape.id)?.height ?? shape.height,
               rotation: previewById.get(shape.id)?.rotation,
+              flipX: previewById.get(shape.id)?.flipX,
+              flipY: previewById.get(shape.id)?.flipY,
             })
           : shape,
       ),
@@ -412,7 +472,6 @@ const useEditorRuntime = (options?: {
             y: previewById.get(shape.id)?.y ?? shape.y,
             width: previewById.get(shape.id)?.width ?? shape.width,
             height: previewById.get(shape.id)?.height ?? shape.height,
-            rotation: previewById.get(shape.id)?.rotation ?? shape.rotation,
           }
         : shape
     ))
@@ -430,7 +489,7 @@ const useEditorRuntime = (options?: {
   }, [marquee])
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
-    const hideSelectionChrome = activeTransformHandle === 'move' || activeTransformHandle === 'rotate'
+    const hideSelectionChrome = activeTransformHandle !== null
     return function Overlay(
       props: Parameters<typeof InteractionOverlay>[0],
     ) {
@@ -1156,6 +1215,8 @@ const useEditorRuntime = (options?: {
                     width: Math.max(1, shape.width),
                     height: Math.max(1, shape.height),
                     rotation: shape.rotation ?? 0,
+                    flipX: shape.flipX ?? false,
+                    flipY: shape.flipY ?? false,
                     centerX: shape.x + shape.width / 2,
                     centerY: shape.y + shape.height / 2,
                   })),
@@ -1172,6 +1233,8 @@ const useEditorRuntime = (options?: {
                     width: Math.max(1, shape.width),
                     height: Math.max(1, shape.height),
                     rotation: shape.rotation ?? 0,
+                    flipX: shape.flipX ?? false,
+                    flipY: shape.flipY ?? false,
                   })),
                 })
               }
@@ -1215,16 +1278,21 @@ const useEditorRuntime = (options?: {
           const handle = pickHandleAtPoint(point, handles, handleTolerance)
 
           if (handle && selectedBounds && selectedNodes.length > 0) {
+            const resizeTargets = handle.kind === 'move' || handle.kind === 'rotate'
+              ? selectedNodes
+              : collectResizeTransformTargets(selectedNodes, previewDocument)
             selectionDragControllerRef.current.clear()
             transformManagerRef.current.start({
               shapeIds: selectedNodes.map((shape) => shape.id),
-              shapes: selectedNodes.map((shape) => ({
+              shapes: resizeTargets.map((shape) => ({
                 shapeId: shape.id,
                 x: shape.x,
                 y: shape.y,
                 width: Math.max(1, shape.width),
                 height: Math.max(1, shape.height),
                 rotation: shape.rotation ?? 0,
+                flipX: shape.flipX ?? false,
+                flipY: shape.flipY ?? false,
                 centerX: shape.x + shape.width / 2,
                 centerY: shape.y + shape.height / 2,
               })),
@@ -1234,13 +1302,15 @@ const useEditorRuntime = (options?: {
             })
             setActiveTransformHandle(handle.kind)
             setTransformPreview({
-              shapes: selectedNodes.map((shape) => ({
+              shapes: resizeTargets.map((shape) => ({
                 shapeId: shape.id,
                 x: shape.x,
                 y: shape.y,
                 width: Math.max(1, shape.width),
                 height: Math.max(1, shape.height),
                 rotation: shape.rotation ?? 0,
+                flipX: shape.flipX ?? false,
+                flipY: shape.flipY ?? false,
               })),
             })
             return
@@ -1257,6 +1327,8 @@ const useEditorRuntime = (options?: {
                 width: Math.max(1, shape.width),
                 height: Math.max(1, shape.height),
                 rotation: shape.rotation ?? 0,
+                flipX: shape.flipX ?? false,
+                flipY: shape.flipY ?? false,
                 centerX: shape.x + shape.width / 2,
                 centerY: shape.y + shape.height / 2,
               })),
@@ -1273,6 +1345,8 @@ const useEditorRuntime = (options?: {
                 width: Math.max(1, shape.width),
                 height: Math.max(1, shape.height),
                 rotation: shape.rotation ?? 0,
+                flipX: shape.flipX ?? false,
+                flipY: shape.flipY ?? false,
               })),
             })
             return
@@ -1341,6 +1415,8 @@ const useEditorRuntime = (options?: {
                 width: number
                 height: number
                 rotation: number
+                flipX?: boolean
+                flipY?: boolean
               }
               to: {
                 x: number
@@ -1348,6 +1424,8 @@ const useEditorRuntime = (options?: {
                 width: number
                 height: number
                 rotation: number
+                flipX?: boolean
+                flipY?: boolean
               }
             }> = []
             preview.shapes.forEach((item) => {
@@ -1356,12 +1434,16 @@ const useEditorRuntime = (options?: {
                 return
               }
               const nextRotation = typeof item.rotation === 'number' ? item.rotation : (shape.rotation ?? 0)
+              const nextFlipX = typeof item.flipX === 'boolean' ? item.flipX : !!shape.flipX
+              const nextFlipY = typeof item.flipY === 'boolean' ? item.flipY : !!shape.flipY
               const changed =
                 shape.x !== item.x ||
                 shape.y !== item.y ||
                 shape.width !== item.width ||
                 shape.height !== item.height ||
-                (shape.rotation ?? 0) !== nextRotation
+                (shape.rotation ?? 0) !== nextRotation ||
+                !!shape.flipX !== nextFlipX ||
+                !!shape.flipY !== nextFlipY
               if (!changed) {
                 return
               }
@@ -1374,6 +1456,8 @@ const useEditorRuntime = (options?: {
                   width: shape.width,
                   height: shape.height,
                   rotation: shape.rotation ?? 0,
+                  flipX: !!shape.flipX,
+                  flipY: !!shape.flipY,
                 },
                 to: {
                   x: item.x,
@@ -1381,6 +1465,8 @@ const useEditorRuntime = (options?: {
                   width: item.width,
                   height: item.height,
                   rotation: nextRotation,
+                  flipX: nextFlipX,
+                  flipY: nextFlipY,
                 },
               })
             })

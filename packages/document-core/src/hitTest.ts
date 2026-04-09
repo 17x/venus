@@ -1,3 +1,4 @@
+import {flipPointAroundPoint, rotatePointAroundPoint} from './geometry.ts'
 import type {DocumentNode} from './index.ts'
 
 export function isPointInsideClipShape(
@@ -8,14 +9,15 @@ export function isPointInsideClipShape(
   },
 ) {
   const tolerance = options?.tolerance ?? 1.5
+  const testPointer = resolveShapeHitPointer(pointer, clipSource)
 
   if (clipSource.type === 'rectangle' || clipSource.type === 'frame' || clipSource.type === 'group') {
     const bounds = getNormalizedBounds(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
     return (
-      pointer.x >= bounds.minX &&
-      pointer.x <= bounds.maxX &&
-      pointer.y >= bounds.minY &&
-      pointer.y <= bounds.maxY
+      testPointer.x >= bounds.minX &&
+      testPointer.x <= bounds.maxX &&
+      testPointer.y >= bounds.minY &&
+      testPointer.y <= bounds.maxY
     )
   }
 
@@ -29,8 +31,8 @@ export function isPointInsideClipShape(
     const centerX = bounds.minX + radiusX
     const centerY = bounds.minY + radiusY
     const normalized =
-      ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
-      ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
+      ((testPointer.x - centerX) * (testPointer.x - centerX)) / (radiusX * radiusX) +
+      ((testPointer.y - centerY) * (testPointer.y - centerY)) / (radiusY * radiusY)
 
     return normalized <= 1
   }
@@ -41,8 +43,8 @@ export function isPointInsideClipShape(
       return false
     }
     return (
-      isPointInsidePolygon(pointer, points) ||
-      isPointNearPolygonEdge(pointer, points, tolerance)
+      isPointInsidePolygon(testPointer, points) ||
+      isPointNearPolygonEdge(testPointer, points, tolerance)
     )
   }
 
@@ -53,20 +55,40 @@ export function isPointInsideClipShape(
         return false
       }
       return (
-        isPointInsidePolygon(pointer, polygon) ||
-        isPointNearPolygonEdge(pointer, polygon, tolerance)
+        isPointInsidePolygon(testPointer, polygon) ||
+        isPointNearPolygonEdge(testPointer, polygon, tolerance)
       )
     }
 
     if (clipSource.points && clipSource.points.length > 2) {
       return (
-        isPointInsidePolygon(pointer, clipSource.points) ||
-        isPointNearPolygonEdge(pointer, clipSource.points, tolerance)
+        isPointInsidePolygon(testPointer, clipSource.points) ||
+        isPointNearPolygonEdge(testPointer, clipSource.points, tolerance)
       )
     }
   }
 
   return false
+}
+
+function resolveShapeHitPointer(
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+) {
+  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  }
+  const unrotated = Math.abs(shape.rotation ?? 0) > 0.0001
+    ? rotatePointAroundPoint(pointer.x, pointer.y, center.x, center.y, -(shape.rotation ?? 0))
+    : pointer
+
+  if (!shape.flipX && !shape.flipY) {
+    return unrotated
+  }
+
+  return flipPointAroundPoint(unrotated, center, shape.flipX, shape.flipY)
 }
 
 function getNormalizedBounds(

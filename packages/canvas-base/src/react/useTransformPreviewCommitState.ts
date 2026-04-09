@@ -12,6 +12,8 @@ type DocumentShapeGeometry = {
   width: number
   height: number
   rotation?: number
+  flipX?: boolean
+  flipY?: boolean
 }
 
 export function isTransformPreviewSynced<T extends TransformPreviewShape>(
@@ -34,7 +36,9 @@ export function isTransformPreviewSynced<T extends TransformPreviewShape>(
       shape.y === item.y &&
       shape.width === item.width &&
       shape.height === item.height &&
-      (shape.rotation ?? 0) === (item.rotation ?? 0)
+      (shape.rotation ?? 0) === (item.rotation ?? 0) &&
+      !!shape.flipX === !!item.flipX &&
+      !!shape.flipY === !!item.flipY
     )
   })
 }

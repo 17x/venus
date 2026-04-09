@@ -45,6 +45,8 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
             .filter((shape) => shape.type === 'image')
             .map((shape) => {
               const rotation = shape.rotation ?? 0
+              const scaleX = shape.flipX ? -1 : 1
+              const scaleY = shape.flipY ? -1 : 1
               const imageStrokeColor = shape.stroke?.color ?? 'rgba(15, 23, 42, 0.18)'
               const imageStrokeWidth = Math.max(1, shape.stroke?.weight ?? 1)
               const imageStrokeEnabled = shape.stroke?.enabled ?? true
@@ -65,7 +67,7 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                       border: imageStrokeEnabled ? `${imageStrokeWidth}px solid ${imageStrokeColor}` : 'none',
                       background: '#fff',
                       boxSizing: 'border-box',
-                      transform: `rotate(${rotation}deg)`,
+                      transform: `rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
                       transformOrigin: 'center',
                     }}
                   />
@@ -88,7 +90,7 @@ export function VectorCanvasRenderer(props: CanvasRendererProps) {
                     boxSizing: 'border-box',
                     fontSize: 14,
                     fontWeight: 700,
-                    transform: `rotate(${rotation}deg)`,
+                    transform: `rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
                     transformOrigin: 'center',
                   }}
                 >

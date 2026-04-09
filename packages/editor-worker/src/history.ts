@@ -95,6 +95,10 @@ export type HistoryPatch =
       nextEllipseStartAngle?: number
       prevEllipseEndAngle?: number
       nextEllipseEndAngle?: number
+      prevFlipX?: boolean
+      nextFlipX?: boolean
+      prevFlipY?: boolean
+      nextFlipY?: boolean
     }
   | {
       type: 'set-shape-clip'
@@ -127,6 +131,8 @@ export type HistoryPatch =
         width: number
         height: number
         rotation?: number
+        flipX?: boolean
+        flipY?: boolean
         fill?: {
           enabled?: boolean
           color?: string
@@ -177,6 +183,8 @@ export type HistoryPatch =
         width: number
         height: number
         rotation?: number
+        flipX?: boolean
+        flipY?: boolean
         fill?: {
           enabled?: boolean
           color?: string

@@ -43,6 +43,8 @@ declare module '@lite-u/editor/types' {
     width?: number
     height?: number
     rotation?: number
+    flipX?: boolean
+    flipY?: boolean
     opacity?: number
     fill?: Fill
     stroke?: Stroke

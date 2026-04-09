@@ -244,6 +244,8 @@ function isShapeHitAtPointer(
     }
   }
 
+  const testPointer = resolveShapeHitPointer(pointer, source)
+
   if (shape.type === 'ellipse') {
     const radiusX = Math.abs(shape.width) / 2
     const radiusY = Math.abs(shape.height) / 2
@@ -254,8 +256,8 @@ function isShapeHitAtPointer(
     const centerX = Math.min(shape.x, shape.x + shape.width) + radiusX
     const centerY = Math.min(shape.y, shape.y + shape.height) + radiusY
     const normalized =
-      ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
-      ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
+      ((testPointer.x - centerX) * (testPointer.x - centerX)) / (radiusX * radiusX) +
+      ((testPointer.y - centerY) * (testPointer.y - centerY)) / (radiusY * radiusY)
 
     if (normalized > 1) {
       return false
@@ -263,7 +265,7 @@ function isShapeHitAtPointer(
   }
 
   if (shape.type === 'lineSegment') {
-    const hit = isPointNearLineSegment(pointer, {
+    const hit = isPointNearLineSegment(testPointer, {
       x1: shape.x,
       y1: shape.y,
       x2: shape.x + shape.width,
@@ -280,21 +282,21 @@ function isShapeHitAtPointer(
       return false
     }
 
-    const inside = isPointInsidePolygon(pointer, points)
-    const edge = isPointNearPolygonEdge(pointer, points, lineHitTolerance)
+    const inside = isPointInsidePolygon(testPointer, points)
+    const edge = isPointNearPolygonEdge(testPointer, points, lineHitTolerance)
     if (!inside && !edge) {
       return false
     }
   }
 
   if (shape.type === 'path') {
-    const strokeHit = resolvePathStrokeHit(pointer, source, shape, lineHitTolerance)
+    const strokeHit = resolvePathStrokeHit(testPointer, source, shape, lineHitTolerance)
     if (!strokeHit) {
       if (!hasPathFill(source)) {
         return false
       }
 
-      const fillHit = resolvePathFillHit(pointer, source, lineHitTolerance)
+      const fillHit = resolvePathFillHit(testPointer, source, lineHitTolerance)
       if (!fillHit) {
         return false
       }
@@ -302,6 +304,32 @@ function isShapeHitAtPointer(
   }
 
   return true
+}
+
+function resolveShapeHitPointer(
+  pointer: {x: number; y: number},
+  shape: EditorDocument['shapes'][number],
+) {
+  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  }
+  const rotation = shape.rotation ?? 0
+  const radians = (-rotation * Math.PI) / 180
+  const dx = pointer.x - center.x
+  const dy = pointer.y - center.y
+  const unrotated = Math.abs(rotation) > 0.0001
+    ? {
+        x: center.x + dx * Math.cos(radians) - dy * Math.sin(radians),
+        y: center.y + dx * Math.sin(radians) + dy * Math.cos(radians),
+      }
+    : pointer
+
+  return {
+    x: shape.flipX ? center.x - (unrotated.x - center.x) : unrotated.x,
+    y: shape.flipY ? center.y - (unrotated.y - center.y) : unrotated.y,
+  }
 }
 
 function getNormalizedBounds(x: number, y: number, width: number, height: number) {

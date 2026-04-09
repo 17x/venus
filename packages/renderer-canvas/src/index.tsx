@@ -256,12 +256,14 @@ function drawShape(
   const strokeWidth = baseStrokeWidth
   const shadowEnabled = source?.shadow?.enabled ?? false
   const rotation = source?.rotation ?? 0
-  const needsRotation = Math.abs(rotation) > 0.0001 && shape.type !== 'group'
-  if (needsRotation) {
-    applyShapeRotationTransform(context, shape, rotation)
+  const flipX = source?.flipX ?? false
+  const flipY = source?.flipY ?? false
+  const needsTransform = (Math.abs(rotation) > 0.0001 || flipX || flipY) && shape.type !== 'group'
+  if (needsTransform) {
+    applyShapeTransform(context, shape, rotation, flipX, flipY)
   }
   const finish = () => {
-    if (needsRotation) {
+    if (needsTransform) {
       context.restore()
     }
   }
@@ -736,10 +738,12 @@ function isClosedBezierPath(points: NonNullable<DocumentNode['bezierPoints']>) {
   return Math.hypot(first.x - last.x, first.y - last.y) <= 1e-3
 }
 
-function applyShapeRotationTransform(
+function applyShapeTransform(
   context: CanvasRenderingContext2D,
   shape: CanvasRendererProps['shapes'][number],
   rotation: number,
+  flipX: boolean,
+  flipY: boolean,
 ) {
   const bounds = {
     minX: Math.min(shape.x, shape.x + shape.width),
@@ -755,6 +759,7 @@ function applyShapeRotationTransform(
   context.save()
   context.translate(center.x, center.y)
   context.rotate((rotation * Math.PI) / 180)
+  context.scale(flipX ? -1 : 1, flipY ? -1 : 1)
   context.translate(-center.x, -center.y)
 }
 
