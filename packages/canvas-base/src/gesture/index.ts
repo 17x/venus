@@ -13,7 +13,7 @@ export interface ViewportGestureBindingOptions {
   onPointerMove?: (pointer: PointerState) => void
   onPointerDown?: (
     pointer: PointerState,
-    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
   ) => void
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction
@@ -171,7 +171,7 @@ export function bindViewportGestures({
       element.setPointerCapture(event.pointerId)
     }
 
-    if (event.button === 1 || event.altKey) {
+    if (event.button === 1) {
       panOrigin = {x: event.clientX, y: event.clientY, pointerId: event.pointerId}
       return
     }
@@ -180,6 +180,7 @@ export function bindViewportGestures({
       shiftKey: event.shiftKey,
       metaKey: event.metaKey,
       ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
     })
   }
 

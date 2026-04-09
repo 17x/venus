@@ -13,7 +13,7 @@ export interface MarqueeBounds {
   maxY: number
 }
 
-export type MarqueeSelectionMode = 'replace' | 'add' | 'toggle'
+export type MarqueeSelectionMode = 'replace' | 'add' | 'remove' | 'toggle'
 export type MarqueeSelectionMatchMode = 'intersect' | 'contain'
 export type MarqueeApplyMode = 'on-pointer-up' | 'while-pointer-move'
 

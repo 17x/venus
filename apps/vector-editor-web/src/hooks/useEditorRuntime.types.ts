@@ -73,7 +73,7 @@ export interface EditorRuntimeState {
     onPointerMove: (point: {x: number; y: number}) => void
     onPointerDown: (
       point: {x: number; y: number},
-      modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+      modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
     ) => void
     onPointerUp: () => void
     onPointerLeave: () => void

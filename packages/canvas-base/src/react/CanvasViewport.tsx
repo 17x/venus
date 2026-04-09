@@ -25,7 +25,7 @@ interface CanvasViewportProps {
   onPointerMove?: (pointer: PointerState) => void
   onPointerDown?: (
     pointer: PointerState,
-    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
   ) => void
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction

@@ -10,6 +10,7 @@ export interface SelectionDragModifiers {
   shiftKey?: boolean
   metaKey?: boolean
   ctrlKey?: boolean
+  altKey?: boolean
 }
 
 export interface SelectionDragSnapshot {
@@ -69,12 +70,14 @@ export function createSelectionDragController(options?: {
 
   return {
     pointerDown(pointer, snapshot, modifiers, options) {
-      // Modifier-based selection edits should not arm drag-pending state.
-      if (modifiers?.shiftKey || modifiers?.metaKey || modifiers?.ctrlKey) {
-        pending = null
-        session = null
-        return false
-      }
+      // Modifier-based selection edits should still hit-test for click
+      // selection, but should not arm drag-pending move sessions.
+      const hasModifier = !!(
+        modifiers?.shiftKey ||
+        modifiers?.metaKey ||
+        modifiers?.ctrlKey ||
+        modifiers?.altKey
+      )
 
       let hitShape = null as SceneShapeSnapshot | null
       const hintedId = options?.hitShapeId ?? null
@@ -94,11 +97,11 @@ export function createSelectionDragController(options?: {
         const hitIndex = hitTestSnapshot(snapshot, pointer, lineHitTolerance, allowFrameSelection)
         hitShape = hitIndex >= 0 ? snapshot.shapes[hitIndex] : null
       }
-      pending = hitShape
+      pending = hitShape && !hasModifier
         ? {
-            start: pointer,
-            shapeId: hitShape.id,
-          }
+          start: pointer,
+          shapeId: hitShape.id,
+        }
         : null
       session = null
       return !!hitShape
@@ -116,7 +119,13 @@ export function createSelectionDragController(options?: {
         const selectedIds = snapshot.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id)
         // Drag follows the selected set when hit shape is selected; otherwise
         // it drags the hit shape only (single-shape takeover).
-        const dragIds = selectedIds.includes(pending.shapeId) ? selectedIds : [pending.shapeId]
+        const selectedIdSet = new Set(selectedIds)
+        const dragIds = (
+          selectedIdSet.has(pending.shapeId) ||
+          hasSelectedAncestor(pending.shapeId, selectedIdSet, snapshot.document)
+        )
+          ? selectedIds
+          : [pending.shapeId]
         const dragShapes = dragIds
           .map((id) => snapshot.document.shapes.find((shape) => shape.id === id))
           .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
@@ -199,6 +208,22 @@ export function createSelectionDragController(options?: {
       return session
     },
   }
+}
+
+function hasSelectedAncestor(
+  shapeId: string,
+  selectedIds: Set<string>,
+  document: EditorDocument,
+) {
+  const byId = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  let current = byId.get(shapeId)
+  while (current?.parentId) {
+    if (selectedIds.has(current.parentId)) {
+      return true
+    }
+    current = byId.get(current.parentId)
+  }
+  return false
 }
 
 function hitTestSnapshot(

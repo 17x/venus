@@ -39,7 +39,7 @@ export interface CanvasEditorInstance<TDocument extends EditorDocument> {
   postPointer: (
     type: 'pointermove' | 'pointerdown',
     pointer: PointerState,
-    modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean},
+    modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean},
   ) => void
   receiveRemoteOperation: CanvasRuntimeController<TDocument>['receiveRemoteOperation']
   resizeViewport: (width: number, height: number) => void

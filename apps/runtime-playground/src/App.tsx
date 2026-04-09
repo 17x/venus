@@ -226,6 +226,22 @@ function formatSelectionNames(document: EditorDocument, selectedIds: string[]) {
   return `${names.slice(0, 3).join(', ')} +${names.length - 3}`
 }
 
+function hasSelectedAncestorInDocument(
+  document: EditorDocument,
+  shapeId: string,
+  selectedIds: Set<string>,
+) {
+  const byId = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  let current = byId.get(shapeId)
+  while (current?.parentId) {
+    if (selectedIds.has(current.parentId)) {
+      return true
+    }
+    current = byId.get(current.parentId)
+  }
+  return false
+}
+
 function App() {
   const [runtimeMode, setRuntimeMode] = React.useState<PlaygroundRuntimeMode>('editor')
   const [documentMode, setDocumentMode] = React.useState<PlaygroundDocumentMode>('demo')
@@ -553,7 +569,7 @@ function App() {
   ])
   const handlePointerDown = React.useCallback((
     pointer: { x: number; y: number },
-    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
   ) => {
     if (runtimeMode !== 'editor') {
       viewerInstance.postPointer('pointerdown', pointer)
@@ -622,6 +638,8 @@ function App() {
       dragControllerRef.current.clear()
       const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
         ? 'add'
+        : modifiers?.altKey
+          ? 'remove'
         : (modifiers?.metaKey || modifiers?.ctrlKey)
           ? 'toggle'
           : 'replace'
@@ -633,7 +651,20 @@ function App() {
       return
     }
 
-    editorInstance.postPointer('pointerdown', pointer, modifiers)
+    const isPlainClick = !modifiers?.shiftKey && !modifiers?.metaKey && !modifiers?.ctrlKey && !modifiers?.altKey
+    const selectedIdSet = new Set(selectedNodes.map((shape) => shape.id))
+    const preserveGroupDragSelection = !!(
+      isPlainClick &&
+      hoveredShape &&
+      (
+        selectedIdSet.has(hoveredShape.id) ||
+        hasSelectedAncestorInDocument(snapshot.document, hoveredShape.id, selectedIdSet)
+      )
+    )
+
+    if (!preserveGroupDragSelection) {
+      editorInstance.postPointer('pointerdown', pointer, modifiers)
+    }
   }, [editorInstance, resolveSelectedBounds, runtimeMode, viewerInstance])
   const handlePointerUp = React.useCallback(() => {
     if (runtimeMode !== 'editor') {
@@ -645,13 +676,11 @@ function App() {
     if (marquee) {
       const snapshot = editorInstance.getSnapshot()
       const selectedIds = resolveMarqueeSelectionIds(marquee)
-      if (marquee.applyMode !== 'while-pointer-move') {
-        editorInstance.dispatchCommand({
-          type: 'selection.set',
-          shapeIds: selectedIds,
-          mode: marquee.mode,
-        })
-      }
+      editorInstance.dispatchCommand({
+        type: 'selection.set',
+        shapeIds: selectedIds,
+        mode: marquee.mode,
+      })
       marqueeAppliedSignatureRef.current = ''
       setLastMarqueeSelectionName(formatSelectionNames(snapshot.document, selectedIds))
       dragControllerRef.current.clear()
@@ -1239,7 +1268,7 @@ const PlaygroundStage = React.memo(function PlaygroundStage({
   onPointerMove: (pointer: { x: number; y: number }) => void
   onPointerDown: (
     pointer: { x: number; y: number },
-    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
   ) => void
   onPointerUp: VoidFunction
   onPointerLeave: VoidFunction
