@@ -1,9 +1,0 @@
-{
-  "name": "@venus/matrix-regression-check",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "run": "node scripts/run-check.mjs"
-  }
-}

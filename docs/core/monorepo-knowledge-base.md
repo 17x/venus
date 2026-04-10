@@ -25,7 +25,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - `packages/*` contains shared runtime, worker, renderer, file-format, and
   document primitives.
 - `docs/*` contains project standards, handoff notes, and architecture context.
-- Package-scoped knowledge notes now live under `docs/ai-standards/packages/*`
+- Package-scoped knowledge notes now live under `docs/packages/*`
   and should be preferred over this file when a change is mostly contained to
   one package.
 
@@ -69,6 +69,16 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ### 2026-04-10
 
+- Standardized team skill ownership and docs navigation for monorepo use:
+  team-shared Codex skills now live in repo-local `.codex/skills` (including
+  `doc`), with global docs entry at `docs/00-Docs-Home.md`. Codex docs now
+  point to `.codex/skills` instead of carrying duplicated skill assets.
+  Legacy duplicated skill copies under the previous docs path were removed to
+  keep a single source of truth.
+
+- Added a global docs entrypoint for one shared Obsidian workflow:
+  `docs/00-Docs-Home.md`, plus key context at `docs/core/important-context.md`.
+
 - Removed the `packages/canvas-base` compatibility package after migrating app,
   renderer, manifest, alias, and TypeScript project references to the
   `runtime-*` family. `@venus/canvas-base` should now be treated as historical
@@ -87,9 +97,9 @@ Use this file as the shared knowledge base for the Venus monorepo.
   shared runtime package layout.
 
 - Added runtime package-boundary guidance to the shared standards in
-  `docs/ai-standards/core/project-context.md`,
-  `docs/ai-standards/core/engineering-standards.md`, and
-  `docs/ai-standards/core/current-work.md`. New guidance standardizes on a
+  `docs/core/project-context.md`,
+  `docs/core/engineering-standards.md`, and
+  `docs/core/current-work.md`. New guidance standardizes on a
   future `runtime-*` family: `@venus/runtime` for framework-agnostic runtime
   core, `@venus/runtime-interaction` for shared interaction algorithms,
   `@venus/runtime-react` for React adapters, and `@venus/runtime-presets` for
@@ -192,12 +202,12 @@ Use this file as the shared knowledge base for the Venus monorepo.
   formatting logic across vector and shared overlay/render paths.
 
 - Added cross-package matrix compatibility invariant documentation in
-  `docs/ai-standards/core/matrix-compatibility-invariants.md` to lock shared
+  `docs/core/matrix-compatibility-invariants.md` to lock shared
   transform ownership and migration boundaries while runtime storage remains
   decomposed.
 
 - Added a shared matrix regression runbook in
-  `docs/ai-standards/core/matrix-regression-scenarios.md` covering rotated
+  `docs/core/matrix-regression-scenarios.md` covering rotated
   resize, multi/group signed-scale crossover, rotated selection clear, path
   fill/hit consistency, and clip preview/commit consistency checks.
 
@@ -224,7 +234,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   reuse in worker moved-group ancestor checks.
 
 - Added Phase-5 matrix-first runtime RFC draft at
-  `docs/ai-standards/core/matrix-first-runtime-rfc.md` plus initial
+  `docs/core/matrix-first-runtime-rfc.md` plus initial
   `document-core` scaffold adapters (`MatrixFirstNodeTransform`,
   `createMatrixFirstNodeTransform`, `toLegacyShapeTransformRecord`).
 
@@ -592,7 +602,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ### 2026-04-04
 
-- Added `docs/ai-standards/core/current-work.md` and linked it into the Venus
+- Added `docs/core/current-work.md` and linked it into the Venus
   skill loading workflow so interrupted work can be resumed from repo state.
 
 - Added a repo rule that scene/document modeling questions should defer to

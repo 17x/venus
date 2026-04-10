@@ -17,12 +17,24 @@ The current active stack focuses on `vector-editor-web` and `runtime-playground`
   - `apps/runtime-playground`: runtime and rendering stress playground
 - `packages/*`: shared editor infrastructure
   - `@venus/document-core`: document model and core types
-  - `@venus/canvas-base`: runtime controller, viewport, gesture bridge
+  - `@venus/runtime`: framework-agnostic runtime controller, viewport, worker bridge
+  - `@venus/runtime-interaction`: shared interaction algorithms (selection, snapping, transform)
+  - `@venus/runtime-react`: React adapters and viewport components
   - `@venus/editor-worker`: command execution and scene mutation in worker
   - `@venus/shared-memory`: SAB layout and scene snapshot helpers
+  - `@venus/renderer-canvas`: Canvas2D renderer for active app surfaces
   - `@venus/renderer-skia`: Skia renderer with tile cache and diagnostics
   - `@venus/file-format`: schema and runtime format adapters
 - `docs/*`: architecture and design docs
+
+## Docs And Skills
+
+- Docs home (Obsidian):
+  - [`docs/00-Docs-Home.md`](/Users/yahone/projects/venus/docs/00-Docs-Home.md)
+- Team-shared Codex skills (repo-local):
+  - `.codex/skills`
+- Sync repo skills into your local Codex home when needed:
+  - `./tooling/codex/install-team-skills.sh`
 
 ## Requirements
 
@@ -77,7 +89,7 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime Data Flow
 
-`vector-editor-web` / `runtime-playground` -> `canvas-base` -> `editor-worker` + `shared-memory` -> `renderer-canvas`
+`vector-editor-web` / `runtime-playground` -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/renderer-canvas`
 
 - UI and product actions stay in app layer.
 - Worker owns scene mutation and command execution.
@@ -87,7 +99,7 @@ pnpm --dir apps/vector-editor-web dev
 
 - TypeScript project references are enabled via root `tsconfig.json`.
 - Vite is pinned through `pnpm.overrides` in root `package.json`.
-- Architecture doc: [./docs/cn/architecture.md](/Users/yahone/projects/venus/docs/cn/architecture.md)
+- Architecture doc: [./docs/architecture.md](/Users/yahone/projects/venus/docs/architecture.md)
 
 ## License
 

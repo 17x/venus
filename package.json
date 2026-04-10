@@ -11,7 +11,9 @@
     "matrix:check": "pnpm --filter @venus/matrix-regression-check run run",
     "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.json",
-    "test": "echo \"No tests configured yet\""
+    "test": "echo \"No tests configured yet\"",
+    "gh:pr": "gh pr create --fill",
+    "cpr": "sh -c 'msg=\"$1\"; if [ -z \"$msg\" ] || [ \"$msg\" = \"--\" ]; then echo \"Usage: pnpm gh:cpr -- \\\"commit message\\\"\"; exit 1; fi; git add -A && git commit -m \"$msg\" && git push && gh pr create --fill' --"
   },
   "keywords": [],
   "author": "",
