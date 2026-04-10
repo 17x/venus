@@ -30,13 +30,13 @@ context starts, or work needs to resume after switching topics.
   Current direction: prefer stable behavior over aggressive render-pipeline
   optimization.
   Tracking checklist:
-  - `docs/ai-standards/core/matrix-migration-checklist.md` (phase/status
+  - `docs/core/matrix-migration-checklist.md` (phase/status
     tracker for matrix-internals migration)
-  - `docs/ai-standards/core/matrix-compatibility-invariants.md`
+  - `docs/core/matrix-compatibility-invariants.md`
     (cross-package transform compatibility invariants)
-  - `docs/ai-standards/core/matrix-regression-scenarios.md`
+  - `docs/core/matrix-regression-scenarios.md`
     (shared matrix-sensitive regression runbook)
-  - `docs/ai-standards/core/matrix-first-runtime-rfc.md`
+  - `docs/core/matrix-first-runtime-rfc.md`
     (Phase-5 matrix-first runtime contract draft)
   - `packages/file-format/base/src/transformAdapters.ts`
     (matrix-first <-> file-format transform compatibility adapter layer)

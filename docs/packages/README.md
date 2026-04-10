@@ -7,7 +7,7 @@ architecture changes can be recorded closer to the code they affect.
 
 - Prefer updating the nearest package note first when a change is mostly scoped
   to one package.
-- Fall back to `docs/ai-standards/core/monorepo-knowledge-base.md` only when a
+- Fall back to `docs/core/monorepo-knowledge-base.md` only when a
   change spans multiple layers or no narrower package note exists yet.
 - Keep notes short and factual:
   - what changed

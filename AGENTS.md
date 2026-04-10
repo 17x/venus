@@ -1,29 +1,29 @@
 # Venus Agent Instructions
 
-Use this file as the repo-level entry point for AI coding agents. Keep the shared
-standards in `docs/ai-standards/core/*` as the source of truth.
+Use this file as the repo-level entry point for AI coding agents.
+Treat `docs/` as a single documentation base and `docs/core/*` as the source of truth for standards.
 
 ## Load First
 
 Before making changes, read:
 
-- `docs/ai-standards/core/project-context.md`
-- `docs/ai-standards/core/engineering-standards.md`
-- `docs/ai-standards/core/monorepo-knowledge-base.md`
+- `docs/core/project-context.md`
+- `docs/core/engineering-standards.md`
+- `docs/core/monorepo-knowledge-base.md`
+- `docs/core/important-context.md`
 
 Also read:
 
-- `docs/ai-standards/core/current-work.md` when resuming work, continuing an
+- `docs/core/current-work.md` when resuming work, continuing an
 implementation thread, or switching back from a side task.
-- `docs/ai-standards/core/review-checklist.md` for reviews, audits, and risk
+- `docs/core/review-checklist.md` for reviews, audits, and risk
 checks.
-- `docs/cn/architecture.md` and `docs/cn/canvas-base-mindmap-guide.md` when the
+- `docs/architecture.md` and `docs/runtime-mindmap-guide.md` when the
 task touches architecture, runtime layering, or mindmap integration.
 
-If docs conflict, prefer the newer core standards and README over older
-background docs. In particular, Canvas2D is the current active renderer path for
-vector and playground iteration; Skia remains available but is not the default
-development path.
+If docs conflict, prefer the newer core standards and root README over older notes.
+Canvas2D is the current active renderer path for vector and playground iteration;
+Skia remains available but is not the default development path.
 
 ## Project Shape
 
@@ -45,7 +45,7 @@ bench.
 Primary runtime chain:
 
 ```text
-apps/* -> @venus/canvas-base -> @venus/editor-worker + @venus/shared-memory -> renderer packages
+apps/* -> @venus/runtime + @venus/runtime-interaction + @venus/runtime-react -> @venus/editor-worker + @venus/shared-memory -> renderer packages
 ```
 
 ## Architecture Rules
@@ -56,7 +56,7 @@ handling in worker/runtime-oriented packages.
 - Keep renderer code focused on consuming document snapshots and viewport state.
 - Keep React focused on orchestration and product UI, not high-frequency runtime
 state.
-- Treat `@venus/canvas-base` as the bridge between app UI and worker/renderer
+- Treat `@venus/runtime` as the bridge between app UI and worker/renderer
 packages, not as a product-specific UI layer.
 - Treat `packages/file-format` as the source of truth for persisted
 scene/document semantics.
@@ -91,9 +91,12 @@ For every meaningful feature, behavior, architecture, or standards change:
 
 - Update the closest module-level knowledge or architecture document.
 - If no narrower document exists, add a concise note to
-`docs/ai-standards/core/monorepo-knowledge-base.md`.
-- Update `docs/ai-standards/core/current-work.md` when a major active workstream
+`docs/core/monorepo-knowledge-base.md`.
+- Update `docs/core/current-work.md` when a major active workstream
 changes direction, is paused, or is replaced.
+- Keep architecture-level docs under `docs/architecture.md` and
+  `docs/runtime-mindmap-guide.md`.
+- Keep package-level notes under `docs/packages/*`.
 
 Keep notes factual: what changed, where it lives, and why it matters.
 
