@@ -15,6 +15,16 @@ context starts, or work needs to resume after switching topics.
 
 ## In Progress
 
+- `runtime-*` package direction
+  Focus on clarifying package boundaries before broad runtime expansion.
+  Current direction:
+  - standardize on the `runtime-*` naming family for future package cleanup
+  - keep `@venus/runtime` framework-agnostic
+  - move framework adapters into `@venus/runtime-react`
+  - move shared interaction algorithms into `@venus/runtime-interaction`
+  - move opinionated out-of-box behavior into `@venus/runtime-presets`
+  - keep files and folders easy to scan by splitting mixed-responsibility modules and adding short boundary comments where behavior is non-obvious
+
 - `vector-editor-web`
   Focus on product-facing editor functionality first.
   Current direction: prefer stable behavior over aggressive render-pipeline
@@ -42,7 +52,7 @@ context starts, or work needs to resume after switching topics.
   - layer panel range select (`Shift`) and toggle select (`Cmd/Ctrl`)
   - single-select chrome now follows element rotation (shared + app overlay)
   - rotated single-select handle positions and handle pick path are aligned
-  - marquee core logic moved into shared canvas-base interaction module
+  - marquee core logic moved into shared runtime-interaction module
   - runtime-playground now enables marquee selection via shared marquee module
   - selection chrome now keeps constant screen-size across viewport zoom
   - hover/handles/marquee are now no-scale; selected border remains compensated
@@ -56,7 +66,7 @@ context starts, or work needs to resume after switching topics.
     (`resolveNodeTransform`) for normalized bounds, center, matrix, and inverse
     matrix derivation; route new transform-sensitive runtime code through that
     contract before introducing a matrix-first node model
-  - `canvas-base` now exposes shared transform session/preview shape builders,
+  - `runtime-interaction` now exposes shared transform session/preview shape builders,
     shifting the migration from helper cleanup toward package-boundary
     contracts for transform-sensitive app/runtime integration
 
@@ -68,7 +78,7 @@ context starts, or work needs to resume after switching topics.
 
 ## Paused
 
-- `canvas-base`
+- `runtime`
   Zoom preview experiments are paused.
   Reason: both DOM-transform preview and bitmap-preview attempts introduced
   regressions such as flicker, offset drift, unstable pan behavior, or
@@ -76,7 +86,7 @@ context starts, or work needs to resume after switching topics.
   Current stable baseline: keep `pan` preview, keep `zoom` on direct commit +
   redraw.
 
-- `canvas-base`
+- `runtime-react`
   Broad runtime selector migration is paused.
   Reason: the runtime snapshot is mutable, so selector caching needs to be
   introduced carefully and incrementally.
@@ -111,17 +121,17 @@ context starts, or work needs to resume after switching topics.
   - add targeted interaction regression checks for mixed rotate/scale/move
     batches
 
-- `canvas-base`
+- `runtime-react`
   Continue pushing the numeric LOD path before trying another zoom-preview
   experiment. The current scheduler + skip-small-shapes path is in place and
   should be tuned/measured first.
 
-- `canvas-base`
+- `runtime-react`
   If `50k+` and `100k` scenes remain too heavy after LOD tuning, prefer
   evaluating layer caching / tile caching / GPU-backed rendering over another
   quick preview experiment.
 
-- `canvas-base`
+- `runtime-react`
   Revisit selector-based subscriptions only in isolated app surfaces first,
   then expand after behavior is verified.
 

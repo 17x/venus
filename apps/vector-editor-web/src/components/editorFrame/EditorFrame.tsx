@@ -12,7 +12,8 @@ import {Print} from '../print/print.tsx'
 import FileReceiver from '../fileReceiver.tsx'
 import {cn, Col, Row, Tooltip} from '@venus/ui'
 import useEditorRuntime from '../../hooks/useEditorRuntime.ts'
-import {CanvasViewport, applyMatrixToPoint} from '@venus/canvas-base'
+import {applyMatrixToPoint} from '@venus/runtime'
+import {CanvasViewport} from '@venus/runtime-react'
 import {LuHistory, LuLayers, LuSettings} from 'react-icons/lu'
 import {
   CHROME_ICON_SIZE,

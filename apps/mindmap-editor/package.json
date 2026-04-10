@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "4.2.2",
-    "@venus/canvas-base": "workspace:*",
     "@venus/document-core": "workspace:*",
     "@venus/editor-dev": "workspace:*",
     "@venus/renderer-canvas": "workspace:*",
+    "@venus/runtime-react": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.2"

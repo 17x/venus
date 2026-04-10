@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx"
+    ".": "./src/index.ts"
   },
   "dependencies": {
-    "@venus/canvas-base": "workspace:*",
     "@venus/document-core": "workspace:*",
+    "@venus/runtime-react": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "canvaskit-wasm": "^0.41.0",
     "react": "^19.2.4"

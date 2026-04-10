@@ -14,10 +14,13 @@
 - Keep public API changes intentional and easy to trace
 - Avoid speculative abstraction unless it removes repeated, current pain
 - Prefer explicit names over short clever ones
+- Prefer responsibility-driven package names and boundaries over generic buckets such as `base` or `core`
 - Add comments only where the code would otherwise be hard to parse
 - When shipping a new feature or materially updating an existing one, add
   concise code comments at the non-obvious implementation points so the change
   remains legible to the next context
+- Keep files small enough to scan quickly; split large mixed-responsibility files and folders when a module is carrying more than one clear job
+- Prefer a few short, factual comments at boundary points and complex branches over long prose blocks or comment-heavy implementations
 - Keep package entrypoints clean and intentional; export only the surface that should be reused
 - Use strict typing to model the domain instead of bypassing errors with assertions or ignore comments
 - Prefer extending existing `@venus/*` modules over creating parallel helpers in app code
@@ -27,6 +30,14 @@
   canonical models
 - Prefer the file-format `node + feature` model when reasoning about geometry,
   content, and serialization behavior
+- Keep framework code out of framework-agnostic runtime packages; runtime core packages must not depend on React, Vue, or another UI framework
+- Separate mechanism from policy: runtime core owns lifecycle, transport, viewport state, and shared contracts, while presets and app layers own opinionated behavior
+- Use adapter packages for framework integration and preset packages for out-of-box behavior
+- When organizing runtime code, prefer the `runtime-*` family split:
+  `@venus/runtime` for portable runtime core,
+  `@venus/runtime-interaction` for shared editing interaction algorithms,
+  `@venus/runtime-react` for React adapters,
+  and `@venus/runtime-presets` for default behavior packs
 
 ## Safety Rules
 

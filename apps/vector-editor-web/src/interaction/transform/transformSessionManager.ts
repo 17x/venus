@@ -1,1 +1,1 @@
-export {createTransformSessionManager} from '@venus/canvas-base'
+export {createTransformSessionManager} from '@venus/runtime-interaction'

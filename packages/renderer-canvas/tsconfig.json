@@ -10,8 +10,8 @@
     "outDir": "./dist/types"
   },
   "references": [
-    { "path": "../canvas-base/tsconfig.json" },
     { "path": "../document-core/tsconfig.json" },
+    { "path": "../runtime-react/tsconfig.json" },
     { "path": "../shared-memory/tsconfig.json" }
   ],
   "include": ["src"]

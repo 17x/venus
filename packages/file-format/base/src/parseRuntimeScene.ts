@@ -15,7 +15,7 @@ import {resolveLegacyShapeTransformFromFileFormat} from './transformAdapters.ts'
 
 /**
  * Standard parser from the normalized file-format runtime scene into the
- * editor-facing document model used by canvas-base/worker/renderer.
+ * editor-facing document model used by runtime/worker/renderer packages.
  */
 export function parseRuntimeSceneToEditorDocument(scene: RuntimeSceneLatest): EditorDocument {
   const shapes = scene.nodes.flatMap((node) => flattenNode(node)).map((node) => parseRuntimeNode(node))

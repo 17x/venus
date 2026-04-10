@@ -6,7 +6,10 @@
 
 当前主链路已经跑通：
 
-`apps/vector-editor-web` / `apps/runtime-playground` -> `@venus/canvas-base` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/renderer-skia`
+`apps/vector-editor-web` / `apps/runtime-playground`
+-> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react`
+-> `@venus/editor-worker` + `@venus/shared-memory`
+-> `@venus/renderer-skia`
 
 ## 设计原则
 
@@ -23,12 +26,21 @@
 - 文档模型与基础类型
 - 几何工具、单位、工具类型等通用能力
 
-### `@venus/canvas-base`
+### `@venus/runtime`
 
 - 运行时 controller（启动、订阅、命令桥接）
 - viewport 状态与矩阵变换
 - gesture 输入绑定（wheel / gesture / pointer）
+
+### `@venus/runtime-interaction`
+
+- 选择框、多选、拖拽、吸附、变换等交互算法
+- 保持 framework-agnostic，不放产品 UI
+
+### `@venus/runtime-react`
+
 - React 适配层（`useCanvasRuntime`、`CanvasViewport`）
+- overlay / renderer React 契约
 
 ### `@venus/editor-worker`
 
@@ -76,7 +88,7 @@
 ### 命令流
 
 1. UI 触发动作（toolbar/menu/shortcut）
-2. `canvas-base` 发送 command 给 worker
+2. `runtime` 层发送 command 给 worker
 3. worker 修改文档与 SAB
 4. 主线程接收 scene 更新并通知订阅者
 5. renderer 按最新快照绘制
@@ -120,4 +132,3 @@
 2. 进一步收敛 `CanvasViewport`（保持 React adapter 职责）
 3. 细化 zoom/pan 设备策略（mouse 与 touchpad 分治）
 4. 逐步推进 `document-core` 向通用 `Node + Features` 语义演进
-

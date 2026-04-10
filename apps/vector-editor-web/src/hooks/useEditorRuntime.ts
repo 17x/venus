@@ -10,6 +10,8 @@ import {
 } from '@venus/document-core'
 import {
   applyMatrixToPoint,
+} from '@venus/runtime'
+import {
   createTransformBatchCommand,
   createTransformPreviewShape,
   createTransformSessionShape,
@@ -22,13 +24,15 @@ import {
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   updateMarqueeState,
-  useTransformPreviewCommitState,
-  useCanvasRuntime,
   type MarqueeApplyMode,
   type MarqueeState,
   type MarqueeSelectionMode,
   type SnapGuide,
-} from '@venus/canvas-base'
+} from '@venus/runtime-interaction'
+import {
+  useCanvasRuntime,
+  useTransformPreviewCommitState,
+} from '@venus/runtime-react'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'

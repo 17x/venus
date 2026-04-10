@@ -16,9 +16,12 @@ architecture changes can be recorded closer to the code they affect.
 
 ## Current Package Notes
 
-- `canvas-base.md`
 - `document-core.md`
 - `editor-worker.md`
 - `file-format.md`
 - `renderer-canvas.md`
+- `runtime.md`
+- `runtime-interaction.md`
+- `runtime-react.md`
+- `runtime-presets.md`
 - `ui.md`

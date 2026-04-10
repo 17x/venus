@@ -14,7 +14,17 @@ Venus is a composable canvas runtime monorepo for multi-editor products such as 
 
 Treat the current system as a layered runtime:
 
-`apps/vector-editor-web` or `apps/runtime-playground` -> `@venus/canvas-base` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/renderer-skia`
+`apps/vector-editor-web` or `apps/runtime-playground`
+-> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react`
+-> `@venus/editor-worker` + `@venus/shared-memory`
+-> `@venus/renderer-skia`
+
+Planned package direction for the active runtime family:
+
+- `@venus/runtime`: framework-agnostic runtime core, viewport state/math, worker bridge, extensibility contracts
+- `@venus/runtime-interaction`: shared editor interaction algorithms such as marquee, snapping, selection handles, and transform sessions
+- `@venus/runtime-react`: React adapters such as hooks, stores, and viewport/overlay components
+- `@venus/runtime-presets`: out-of-box default behavior packs and opinionated runtime presets
 
 ## Active Areas
 
@@ -44,5 +54,9 @@ Treat the current system as a layered runtime:
 - Keep scene mutation and command execution in worker-oriented layers
 - Keep renderer and snapshot consumption concerns separated from editing commands
 - Keep React focused on orchestration and product UI, not high-frequency runtime state
-- Treat `@venus/canvas-base` as the bridge between app UI and concrete worker/renderer packages
+- Treat `@venus/runtime` as the framework-agnostic bridge between app UI and concrete worker/renderer packages
+- Treat `@venus/runtime-react` as the React-only adapter layer
+- Treat `@venus/runtime-interaction` as the shared editing-interaction layer
 - Treat `@venus/document-core` as the home for shared document model and primitive editor types
+- Treat framework adapters as sibling packages, not part of the framework-agnostic runtime core
+- Treat runtime behavior presets as policy layers, not as core runtime ownership

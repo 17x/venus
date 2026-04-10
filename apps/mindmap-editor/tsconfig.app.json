@@ -7,9 +7,9 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
   "references": [
-    { "path": "../../packages/canvas-base/tsconfig.json" },
     { "path": "../../packages/document-core/tsconfig.json" },
     { "path": "../../packages/editor-dev/tsconfig.json" },
+    { "path": "../../packages/runtime-react/tsconfig.json" },
     { "path": "../../packages/renderer-canvas/tsconfig.json" }
   ],
   "include": [

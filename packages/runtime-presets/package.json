@@ -1,0 +1,12 @@
+{
+  "name": "@venus/runtime-presets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@venus/runtime": "workspace:*"
+  }
+}

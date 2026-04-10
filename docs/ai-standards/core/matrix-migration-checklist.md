@@ -7,7 +7,8 @@ decomposed runtime node fields.
 ## Scope
 
 - Runtime chain:
-  `apps/*` -> `@venus/canvas-base` -> `@venus/editor-worker` ->
+  `apps/*` -> `@venus/runtime` + `@venus/runtime-interaction` +
+  `@venus/runtime-react` -> `@venus/editor-worker` ->
   renderer + shared-memory packages
 - Source of shared transform truth: `@venus/document-core`
 - Current storage compatibility: keep `x/y/width/height/rotation/flipX/flipY`
@@ -28,9 +29,9 @@ Exit criteria:
 
 ## Phase 2: Package Boundary Contract Unification
 
-- [x] `canvas-base` transform session/preview payloads use shared transform
+- [x] shared runtime interaction payloads use shared transform
   records
-- [x] `canvas-base` exposes `createTransformBatchCommand` for app commit paths
+- [x] `runtime-interaction` exposes `createTransformBatchCommand` for app commit paths
 - [x] Vector app transform commit paths use shared transform batch builder
 - [x] Runtime playground transform commit paths use shared transform builder
 - [x] Worker protocol accepts shared `ShapeTransformBatchCommand` typing
@@ -39,7 +40,7 @@ Exit criteria:
 
 Exit criteria:
 - `shape.transform.batch` payload shape is authored from one shared contract
-  across app -> canvas-base -> worker boundaries
+  across app -> runtime stack -> worker boundaries
 
 ## Phase 3: Interaction/Overlay Matrix Consolidation
 
@@ -57,7 +58,7 @@ Exit criteria:
 ## Phase 4: Remaining Migration Work (Current)
 
 - [x] Centralize clip-bound transform preview propagation in shared
-  `canvas-base` preview helpers (remove app-local vector-only extension)
+  runtime-interaction preview helpers (remove app-local vector-only extension)
 - [x] Move remaining transform-sensitive bounds/indexing paths to shared
   normalized-box helpers where drift risk remains
 - [x] Audit group/parent-child transform edge paths for hidden decomposed math
@@ -70,7 +71,8 @@ Exit criteria:
 - [x] Add one-command matrix regression gate (`pnpm matrix:check`) for repeated
   migration verification
 - [x] Document matrix compatibility invariants per package (`document-core`,
-  `canvas-base`, `editor-worker`, `renderer-canvas`, `shared-memory`)
+  `runtime`, `runtime-interaction`, `editor-worker`, `renderer-canvas`,
+  `shared-memory`)
 
 Exit criteria:
 - Active runtime interaction and command execution paths rely on shared

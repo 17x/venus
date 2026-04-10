@@ -7,9 +7,12 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
   "references": [
-    { "path": "../../packages/canvas-base/tsconfig.json" },
     { "path": "../../packages/document-core/tsconfig.json" },
     { "path": "../../packages/editor-dev/tsconfig.json" },
+    { "path": "../../packages/runtime/tsconfig.json" },
+    { "path": "../../packages/runtime-interaction/tsconfig.json" },
+    { "path": "../../packages/runtime-react/tsconfig.json" },
+    { "path": "../../packages/runtime-presets/tsconfig.json" },
     { "path": "../../packages/shared-memory/tsconfig.json" },
     { "path": "../../packages/editor-worker/tsconfig.json" },
     { "path": "../../packages/renderer-canvas/tsconfig.json" },

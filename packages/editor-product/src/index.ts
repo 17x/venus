@@ -6,7 +6,7 @@ export type EditorProductId =
   | 'whiteboard'
 
 export interface SharedEditorStack {
-  runtime: '@venus/canvas-base'
+  runtime: '@venus/runtime'
   worker: '@venus/editor-worker'
   renderer: '@venus/renderer-skia'
   model: '@venus/document-core'
@@ -27,7 +27,7 @@ export interface EditorBootstrapResult {
 }
 
 export const SHARED_EDITOR_STACK: SharedEditorStack = {
-  runtime: '@venus/canvas-base',
+  runtime: '@venus/runtime',
   worker: '@venus/editor-worker',
   renderer: '@venus/renderer-skia',
   model: '@venus/document-core',
