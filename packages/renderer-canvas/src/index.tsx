@@ -1,6 +1,6 @@
 import * as React from 'react'
-import type { CanvasRendererProps } from '@venus/canvas-base'
 import {resolveNodeTransform, type DocumentNode} from '@venus/document-core'
+import type {CanvasRendererProps} from '@venus/runtime-react'
 import {
   type Canvas2DLodLevel,
   defaultCanvas2DLodConfig,

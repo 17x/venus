@@ -26,7 +26,10 @@ pnpm --dir apps/vector-editor-web exec tsc --noEmit
 
 Current runtime path:
 
-`useEditorRuntime` -> `canvas-base` -> `editor-worker` + `shared-memory` -> `renderer-skia`
+`useEditorRuntime`
+-> `runtime` + `runtime-interaction` + `runtime-react`
+-> `editor-worker` + `shared-memory`
+-> `renderer-skia`
 
 Key points:
 

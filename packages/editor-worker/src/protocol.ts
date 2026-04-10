@@ -8,7 +8,7 @@ import type { PointerState } from '@venus/shared-memory'
  *
  * Why:
  * - These types are consumed by the worker implementation, the app shell, and
- *   `canvas-base`.
+ *   the shared runtime stack.
  * - Keeping them separate from the runtime implementation makes the protocol
  *   easier to evolve and reuse.
  */

@@ -12,7 +12,7 @@
 - Does the change respect app vs shared package boundaries?
 - Is worker/runtime logic kept out of the UI layer unless intentionally bridged?
 - Is new coupling introduced, and if so is it justified?
-- Does `canvas-base` remain a bridge layer rather than absorbing product-specific UI concerns?
+- Does the shared runtime stack keep `@venus/runtime` framework-agnostic and avoid pulling product-specific UI concerns into shared packages?
 - If a package entrypoint changed, is the exported surface still coherent and intentionally small?
 
 ## Maintainability

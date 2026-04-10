@@ -1,6 +1,6 @@
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
-import type {CanvasRendererProps} from '@venus/canvas-base'
 import {resolveNodeTransform, toResolvedNodeCssTransform} from '@venus/document-core'
+import type {CanvasRendererProps} from '@venus/runtime-react'
 import {InteractionOverlay} from '../interaction/index.ts'
 
 export function VectorCanvasRenderer(props: CanvasRendererProps) {

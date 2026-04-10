@@ -1,0 +1,14 @@
+{
+  "name": "@venus/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@venus/document-core": "workspace:*",
+    "@venus/editor-worker": "workspace:*",
+    "@venus/shared-memory": "workspace:*"
+  }
+}

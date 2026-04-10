@@ -61,12 +61,12 @@ type WorkerSpatialIndex = ReturnType<
  * Worker entry for the current vector editor implementation.
  *
  * Boundary:
- * - Receives low-level runtime messages from `canvas-base`
+ * - Receives low-level runtime messages from the shared runtime stack
  * - Applies local commands and remote operations to the current scene
  * - Coordinates local history and collaboration state
  *
- * This file is intentionally worker-specific. `canvas-base` should only know
- * how to talk to a worker, not how this editor interprets commands.
+ * This file is intentionally worker-specific. Shared runtime packages should
+ * only know how to talk to a worker, not how this editor interprets commands.
  */
 export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let scene: SceneMemory | null = null

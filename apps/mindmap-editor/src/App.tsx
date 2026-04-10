@@ -1,5 +1,5 @@
 import * as React from 'react'
-import {CanvasViewport, useCanvasViewer} from '@venus/canvas-base'
+import {CanvasViewport, useCanvasViewer} from '@venus/runtime-react'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import {createMockMindmapDocument} from './mockMindmap.ts'
 

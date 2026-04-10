@@ -1,5 +1,5 @@
 import {useMemo} from 'react'
-import {applyMatrixToPoint, resolveSnapGuideLines, type CanvasRendererProps, type SnapGuide} from '@venus/canvas-base'
+import {applyMatrixToPoint} from '@venus/runtime'
 import {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
@@ -8,6 +8,8 @@ import {
   toResolvedNodeSvgTransform,
   type EditorDocument,
 } from '@venus/document-core'
+import {resolveSnapGuideLines, type SnapGuide} from '@venus/runtime-interaction'
+import type {CanvasRendererProps} from '@venus/runtime-react'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'

@@ -1,11 +1,11 @@
 import type * as React from 'react'
 import type {ToolName} from '@venus/document-core'
+import type {CanvasViewportState} from '@venus/runtime'
 import type {
   CanvasOverlayRenderer,
   CanvasRenderer,
-  CanvasViewportState,
   useCanvasRuntime,
-} from '@venus/canvas-base'
+} from '@venus/runtime-react'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../components/statusBar/StatusBar.tsx'
 import type {createEditorDocumentFromFile} from '../adapters/fileDocument.ts'

@@ -2,28 +2,27 @@
 
 ## 目标
 
-这份文档只回答一个问题：如何基于 `@venus/canvas-base` 快速起一个可扩展的 mindmap 编辑器运行时。
+这份文档只回答一个问题：如何基于当前 `runtime-*` 包族快速起一个可扩展的 mindmap 编辑器运行时。
 
 当前建议是：
 
-- 复用 `canvas-base` 的 runtime/viewport/gesture 能力
+- 复用 `@venus/runtime` / `@venus/runtime-react` 的 runtime/viewport/gesture 能力
 - 在 app 层定义 mindmap 的节点语义和命令语义
 - 在 worker 层扩展 mindmap 命令执行与命中检测
 - 渲染层可先用 `renderer-canvas`，再按需求切到 `renderer-skia`
 
-## Canvas-Base 当前职责
+## Runtime 包族当前职责
 
-`canvas-base` 是基础设施层，不是产品层。
+`runtime-*` 是基础设施层，不是产品层。
 
-它负责：
+它们负责：
 
-- runtime lifecycle：启动/销毁 worker，管理订阅
+- `@venus/runtime`：runtime lifecycle、viewport、gesture、worker bridge
+- `@venus/runtime-react`：`useCanvasRuntime`、`useCanvasViewer`、`CanvasViewport`
+- `@venus/runtime-interaction`：选择框、吸附、变换等共享交互算法
 - SAB 桥接：创建 shared memory，读取快照
-- viewport：矩阵、缩放、平移、fit
-- gesture：wheel/pointer/trackpad 输入编排
-- React 适配：`useCanvasRuntime`、`CanvasViewport`
 
-它不负责：
+它们不负责：
 
 - mindmap 节点语义（topic、edge、fold、layout）
 - 产品 UI（工具栏、右侧面板、菜单）
@@ -32,7 +31,7 @@
 
 ## Viewer 模式（纯展示）已支持
 
-当前 `canvas-base` 已提供无 worker 的 viewer runtime：
+当前 `runtime` 包族已提供无 worker 的 viewer runtime：
 
 - `createCanvasViewerController`
 - `useCanvasViewer`
@@ -59,7 +58,7 @@
 
 ### 1. Runtime 层（`createCanvasRuntimeController`）
 
-入口：`packages/canvas-base/src/runtime/createCanvasRuntimeController.ts`
+入口：`packages/runtime/src/runtime/createCanvasRuntimeController.ts`
 
 提供：
 
@@ -72,7 +71,7 @@
 
 ### 2. React 适配层（`useCanvasRuntime`）
 
-入口：`packages/canvas-base/src/react/useCanvasRuntime.ts`
+入口：`packages/runtime-react/src/react/useCanvasRuntime.ts`
 
 作用：
 
@@ -83,9 +82,9 @@
 
 入口：
 
-- `packages/canvas-base/src/react/CanvasViewport.tsx`
-- `packages/canvas-base/src/gesture/index.ts`
-- `packages/canvas-base/src/zoom/index.ts`
+- `packages/runtime-react/src/react/CanvasViewport.tsx`
+- `packages/runtime/src/gesture/index.ts`
+- `packages/runtime/src/zoom/index.ts`
 
 作用：
 
@@ -96,7 +95,7 @@
 
 ### 4. Renderer 契约层（`CanvasRendererProps`）
 
-入口：`packages/canvas-base/src/renderer/types.ts`
+入口：`packages/runtime-react/src/renderer/types.ts`
 
 渲染器只吃这组输入：
 
@@ -131,7 +130,7 @@
 - mindmap JSON <-> runtime document（当前可先映射到 `DocumentNode`）
 - UI intent -> worker command
 
-### B. Worker 先扩展命令，不动 canvas-base
+### B. Worker 先扩展命令，不动 runtime core
 
 建议新增：
 
@@ -170,7 +169,7 @@ mindmap 的 edge 命中可以先粗糙处理：
 
 ## 当前边界与现实约束
 
-现在 `canvas-base` 仍绑定 `EditorDocument`（`@venus/document-core`）。
+现在 runtime 栈仍绑定 `EditorDocument`（`@venus/document-core`）。
 
 对你做 mindmap 的现实策略：
 
@@ -208,7 +207,7 @@ apps/mindmap-editor
 ## Viewer 模式最小示例
 
 ```ts
-import {CanvasViewport, useCanvasViewer} from '@venus/canvas-base'
+import {CanvasViewport, useCanvasViewer} from '@venus/runtime-react'
 import {Canvas2DRenderer} from '@venus/renderer-canvas'
 
 const viewer = useCanvasViewer({

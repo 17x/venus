@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "4.2.2",
-    "@venus/canvas-base": "workspace:*",
     "@venus/document-core": "workspace:*",
     "@venus/editor-dev": "workspace:*",
     "@venus/editor-product": "workspace:*",
@@ -20,6 +19,9 @@
     "@venus/file-format": "workspace:*",
     "@venus/renderer-canvas": "workspace:*",
     "@venus/renderer-skia": "workspace:*",
+    "@venus/runtime": "workspace:*",
+    "@venus/runtime-interaction": "workspace:*",
+    "@venus/runtime-react": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",
     "i18next": "^24.2.3",

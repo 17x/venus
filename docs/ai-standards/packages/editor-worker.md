@@ -32,7 +32,7 @@ runtime hit-testing.
 
 - Worker protocol now also consumes shared `document-core`
   `ShapeTransformBatchCommand` for `shape.transform.batch`, aligning command
-  typing with `canvas-base` command builders and app dispatch payloads.
+  typing with shared runtime command builders and app dispatch payloads.
 
 - Worker `shape.transform.batch` patch derivation is now centralized through a
   shared transform-patch helper for both local command history entry creation

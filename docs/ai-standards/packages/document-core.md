@@ -26,7 +26,7 @@ hit-test behavior.
   in hit-testing.
 
 - The shared affine helpers are now consumed by both `renderer-canvas` and
-  `canvas-base` transform-session math, so new transform-sensitive code should
+  `runtime-interaction` transform-session math, so new transform-sensitive code should
   prefer them over local rotation/flip helpers.
 
 - Vector app selection handle placement, rotated selection-box interior checks,
@@ -64,7 +64,8 @@ hit-test behavior.
 
 - `shapeTransform.ts` now also exports `ShapeTransformBatchItem` and
   `ShapeTransformBatchCommand` so transform-batch command payloads can be typed
-  from one shared source across app, canvas-base, and worker protocol layers.
+  from one shared source across app, runtime-interaction, and worker protocol
+  layers.
 
 - `shapeTransform.ts` now also exports `isPointInsideRotatedBounds`, a shared
   inverse-affine bounds containment helper for rotated selection-box interior

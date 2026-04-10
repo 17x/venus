@@ -9,7 +9,9 @@ runtime storage is still decomposed.
   - `apps/vector-editor-web`
   - `apps/runtime-playground`
 - Shared runtime chain:
-  - `@venus/canvas-base`
+  - `@venus/runtime`
+  - `@venus/runtime-interaction`
+  - `@venus/runtime-react`
   - `@venus/editor-worker`
   - `@venus/document-core`
 
@@ -85,7 +87,9 @@ Equivalent underlying checks:
 ```sh
 pnpm exec tsc -b \
   packages/document-core/tsconfig.json \
-  packages/canvas-base/tsconfig.json \
+  packages/runtime/tsconfig.json \
+  packages/runtime-interaction/tsconfig.json \
+  packages/runtime-react/tsconfig.json \
   packages/editor-worker/tsconfig.json \
   packages/shared-memory/tsconfig.json \
   apps/vector-editor-web/tsconfig.app.json \

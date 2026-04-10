@@ -1,0 +1,16 @@
+{
+  "name": "@venus/runtime-react",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@venus/document-core": "workspace:*",
+    "@venus/runtime": "workspace:*",
+    "@venus/runtime-interaction": "workspace:*",
+    "@venus/shared-memory": "workspace:*",
+    "react": "^19.2.4"
+  }
+}
