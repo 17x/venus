@@ -29,7 +29,6 @@
       "@venus/runtime-presets": ["packages/runtime-presets/src/index.ts"],
       "@venus/runtime-react": ["packages/runtime-react/src/index.ts"],
       "@venus/shared-memory": ["packages/shared-memory/src/index.ts"],
-      "@venus/spatial-index": ["packages/spatial-index/src/index.ts"],
       "@venus/ui": ["packages/ui/src/index.ts"],
       "@venus/ui/*": ["packages/ui/src/*"],
       "react": ["apps/vector-editor-web/node_modules/@types/react/index.d.ts"],

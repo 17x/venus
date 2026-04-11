@@ -57,3 +57,8 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
   culling decisions, draw-list generation, and bucket metadata so Canvas2D and
   future WebGL backends can share optimization logic before backend-specific
   commit.
+- Added built-in coarse spatial index primitives in
+  `packages/engine/src/spatial/index.ts`
+  (`createEngineSpatialIndex`, `EngineSpatialIndex`, `EngineSpatialItem`).
+  Worker/runtime consumers now use this engine-owned mechanism instead of the
+  old standalone `@venus/spatial-index` package.

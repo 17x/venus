@@ -1,6 +1,6 @@
 import type {EditorDocument} from '@venus/document-core'
+import {createEngineSpatialIndex} from '@venus/engine'
 import {applyMatrixToPoint, type Mat3} from '@venus/runtime'
-import {createSpatialIndex} from '@venus/spatial-index'
 import type {TransformPreview} from './transformSessionManager.ts'
 
 export type SnapAxis = 'x' | 'y'
@@ -30,7 +30,7 @@ interface Bounds {
   maxY: number
 }
 
-type SnapSpatialIndex = ReturnType<typeof createSpatialIndex<{shapeId: string}>>
+type SnapSpatialIndex = ReturnType<typeof createEngineSpatialIndex<{shapeId: string}>>
 
 const snapIndexCache = new WeakMap<EditorDocument, SnapSpatialIndex>()
 
@@ -192,7 +192,7 @@ function getOrCreateSnapIndex(document: EditorDocument) {
     return cached
   }
 
-  const index = createSpatialIndex<{shapeId: string}>()
+  const index = createEngineSpatialIndex<{shapeId: string}>()
   index.load(document.shapes.map((shape) => {
     const bounds = toBounds(shape.x, shape.y, shape.width, shape.height)
     return {

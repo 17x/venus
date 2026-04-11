@@ -15,3 +15,9 @@ Package-scoped note for shared editor interaction algorithms.
 
 - Added the initial `packages/runtime-interaction` split so reusable editing
   behavior no longer lives under the runtime compatibility facade.
+
+### 2026-04-11
+
+- Snapping coarse-candidate lookup now uses engine-owned spatial index APIs
+  (`createEngineSpatialIndex(...)` from `@venus/engine`) instead of the old
+  standalone `@venus/spatial-index` package.

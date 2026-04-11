@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@venus/document-core": "workspace:*",
-    "@venus/shared-memory": "workspace:*",
-    "@venus/spatial-index": "workspace:*"
+    "@venus/engine": "workspace:*",
+    "@venus/shared-memory": "workspace:*"
   }
 }

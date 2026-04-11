@@ -47,7 +47,6 @@ export function createEditorViteConfig(options: CreateEditorViteConfigOptions) {
     createWorkspaceAlias('@venus/runtime-presets', 'packages/runtime-presets/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/runtime-react', 'packages/runtime-react/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/shared-memory', 'packages/shared-memory/src/index.ts', repoRootUrl),
-    createWorkspaceAlias('@venus/spatial-index', 'packages/spatial-index/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/ui', 'packages/ui/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/ui/components', 'packages/ui/src/components', repoRootUrl),
     createWorkspaceAlias('@venus/ui/hooks', 'packages/ui/src/hooks', repoRootUrl),

@@ -15,3 +15,10 @@ Package-scoped note for the React adapter layer over the Venus runtime stack.
 
 - Added the initial `packages/runtime-react` split and migrated active app and
   renderer imports to consume React-facing runtime APIs from here.
+
+### 2026-04-11
+
+- `useCanvasRuntime` now instantiates the editor-instance runtime path
+  (`createCanvasEditorInstance`) instead of the bare controller so app hooks
+  can pass runtime modules (`modules`) without rewriting app-level runtime
+  orchestration.
