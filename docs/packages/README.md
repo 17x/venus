@@ -18,7 +18,6 @@ architecture changes can be recorded closer to the code they affect.
 
 - `document-core.md`
 - `engine.md`
-- `editor-worker.md`
 - `file-format.md`
 - `runtime.md`
 - `runtime-interaction.md`

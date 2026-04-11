@@ -1,29 +1,7 @@
-/**
- * Minimal 3x3 affine matrix representation used by shared runtime viewport
- * math.
- *
- * The runtime currently only needs uniform scale + translation, but keeping the
- * shape as Mat3 makes forward/inverse transforms explicit and easy to reuse.
- */
-export type Mat3 = [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-]
+import type { Mat3 } from '@venus/engine'
 
-/**
- * Basic 2D point in screen or world space depending on call site.
- */
-export interface Point2D {
-  x: number
-  y: number
-}
+export type { Mat3, Point2D } from '@venus/engine'
+export { applyMatrixToPoint } from '@venus/engine'
 
 /**
  * Build a viewport matrix from scale and translation offsets.
@@ -69,14 +47,4 @@ export function invertViewportMatrix(matrix: Mat3): Mat3 {
     nextB, nextD, nextTy,
     0, 0, 1,
   ]
-}
-
-/**
- * Apply a 2D affine matrix to a point.
- */
-export function applyMatrixToPoint(matrix: Mat3, point: Point2D): Point2D {
-  return {
-    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
-    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
-  }
 }

@@ -1,13 +1,10 @@
 import React, {useEffect, useId, useRef, useState} from 'react'
-import ZOOM_LEVELS from '../../constants/zoomLevels.ts'
+import {RUNTIME_ZOOM_PRESETS, type RuntimeZoomPreset} from '@venus/runtime/interaction'
 import {cn} from '@venus/ui'
 import {EDITOR_TEXT_CONTROL_CLASS, EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 import {LuChevronDown} from 'react-icons/lu'
 
-export type ZoomLevels = {
-  label: string,
-  value: number | 'fit'
-}
+export type ZoomLevels = RuntimeZoomPreset
 
 const formatZoom = (scale: number) => {
   const percent = scale * 100
@@ -166,7 +163,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
         className={'absolute bottom-full left-0 z-50 mb-1 max-h-64 w-32 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg'}
       >
         {
-          ZOOM_LEVELS.map(({label, value}) => {
+          RUNTIME_ZOOM_PRESETS.map(({label, value}) => {
             const selected = value !== 'fit' && Math.abs(value - scale) < 0.0001
             return <button
               key={value}

@@ -15,24 +15,22 @@ context starts, or work needs to resume after switching topics.
 
 ## In Progress
 
-- `runtime-*` package direction
-  Focus on clarifying package boundaries before broad runtime expansion.
+- `runtime` package direction
+  Focus on stabilizing the consolidated runtime namespace and boundaries.
   Current direction:
-  - introduce `@venus/engine` as the renderer mechanism layer (renderer
-    contracts + frame/animation primitives + text/image/clip render-node
-    contracts)
-  - standardize on the `runtime-*` naming family for future package cleanup
-  - keep `@venus/runtime` framework-agnostic
-  - move framework adapters into `@venus/runtime-react`
-  - move shared interaction algorithms into `@venus/runtime-interaction`
-  - move opinionated out-of-box behavior into `@venus/runtime-presets`
-  - keep worker acceleration policy in `@venus/engine` with explicit
-    fallback modes (`main-thread` / `worker-postmessage` /
-    `worker-shared-memory`) so runtime/app layers do not duplicate SAB checks
+  - runtime family is physically consolidated in `packages/runtime` with
+    subpath exports (`@venus/runtime/interaction`, `@venus/runtime/react`,
+    `@venus/runtime/presets`, `@venus/runtime/worker`)
+  - standalone `editor-worker` package has been merged into
+    `packages/runtime/src/worker`
+  - keep `@venus/runtime` framework-agnostic, with React adapters and presets
+    implemented as runtime submodules rather than separate packages
+  - keep worker acceleration policy in `@venus/engine` with explicit fallback
+    modes (`main-thread` / `worker-postmessage` / `worker-shared-memory`)
+    so runtime/app layers do not duplicate SAB checks
   - keep `@venus/engine` root exports intentionally small; treat worker
-    bridge/protocol internals as non-public unless a new cross-package contract
-    is explicitly required
-  - keep files and folders easy to scan by splitting mixed-responsibility modules and adding short boundary comments where behavior is non-obvious
+    bridge/protocol internals as non-public unless a new cross-package
+    contract is explicitly required
 
 - `vector-editor-web`
   Focus on product-facing editor functionality first.
@@ -54,7 +52,7 @@ context starts, or work needs to resume after switching topics.
     adapters instead of app-local key assembly)
   - `pnpm matrix:check`
     (one-command matrix migration regression gate)
-  Recent landed baseline:
+    Recent landed baseline:
   - true multi-select selection semantics (`replace/add/toggle/clear`)
   - marquee (box) selection in canvas space
   - multi-shape move/scale/rotate transform preview + commit
@@ -81,19 +79,11 @@ context starts, or work needs to resume after switching topics.
 
 - `playground`
   Use as the main render diagnostics bench for `Canvas2D`.
-  Current direction: keep the stable zoom baseline (`direct commit + redraw`)
-  while using the new LOD scheduler to probe how far `Canvas2D` can be pushed
-  on `10k / 50k / 100k / Img+` scenes.
+  Current direction: use the pure canvas viewport path (`commit + redraw`)
+  plus viewport bitmap caching to probe how far `Canvas2D` can be pushed on
+  `10k / 50k / 100k / Img+` scenes.
 
 ## Paused
-
-- `runtime`
-  Zoom preview experiments are paused.
-  Reason: both DOM-transform preview and bitmap-preview attempts introduced
-  regressions such as flicker, offset drift, unstable pan behavior, or
-  continuous-wheel flashing.
-  Current stable baseline: keep `pan` preview, keep `zoom` on direct commit +
-  redraw.
 
 - `runtime-react`
   Broad runtime selector migration is paused.
@@ -131,14 +121,14 @@ context starts, or work needs to resume after switching topics.
     batches
 
 - `runtime-react`
-  Continue pushing the numeric LOD path before trying another zoom-preview
-  experiment. The current scheduler + skip-small-shapes path is in place and
-  should be tuned/measured first.
+  Continue pushing the numeric LOD path and viewport bitmap cache before trying
+  larger renderer architecture changes. The current scheduler + skip-small-shapes
+  path is in place and should be tuned/measured first.
 
 - `runtime-react`
-  If `50k+` and `100k` scenes remain too heavy after LOD tuning, prefer
-  evaluating layer caching / tile caching / GPU-backed rendering over another
-  quick preview experiment.
+  If `50k+` and `100k` scenes remain too heavy after LOD tuning and viewport
+  bitmap caching, prefer evaluating layer caching / tile caching / GPU-backed
+  rendering instead of bringing back DOM preview transforms.
 
 - `runtime-react`
   Revisit selector-based subscriptions only in isolated app surfaces first,
@@ -147,10 +137,6 @@ context starts, or work needs to resume after switching topics.
 ## Avoid Repeating
 
 - Do not assume runtime snapshots are immutable.
-- Do not land zoom preview changes directly on the default interaction path
-  without a stable fallback.
-- Do not reintroduce bitmap zoom preview as the default path without proving
-  continuous-wheel behavior is stable.
 - When optimizing viewport interactions, verify both `playground` and
   `vector-editor-web` before treating the result as stable.
 - For model/geometry questions, check `packages/file-format` first and defer to

@@ -1,4 +1,4 @@
-import {buildSelectionHandlesFromBounds} from '@venus/runtime-interaction'
+import {buildSelectionHandlesFromBounds} from '@venus/runtime/interaction'
 import type {InteractionHandle, SelectionState} from '../types.ts'
 
 const DEFAULT_ROTATE_OFFSET = 28

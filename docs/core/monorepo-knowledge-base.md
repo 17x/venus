@@ -15,7 +15,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - Keep notes concise and factual: what changed, where it lives, and why it
   matters.
 - Promote repeated or durable patterns from `Recent Updates` into `Stable
-  Knowledge` when they become long-term guidance.
+Knowledge` when they become long-term guidance.
 
 ## Stable Knowledge
 
@@ -32,8 +32,8 @@ Use this file as the shared knowledge base for the Venus monorepo.
 ### Primary Runtime Chain
 
 - Main interactive chain:
-  `apps/*` -> `@venus/runtime` + `@venus/runtime-interaction` +
-  `@venus/runtime-react` -> `@venus/editor-worker` +
+  `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` +
+  `@venus/runtime/react` -> `@venus/runtime/worker` +
   `@venus/shared-memory` -> `@venus/engine` (Canvas2D renderer in runtime-react)
 
 ### File And Model Truth
@@ -48,7 +48,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 - `Canvas2D` is the current default/stable development renderer for active app
   work.
-- Runtime app surfaces consume Canvas2D via `@venus/runtime-react` +
+- Runtime app surfaces consume Canvas2D via `@venus/runtime/react` +
   `@venus/engine`.
 
 ### Legacy Reference Code
@@ -56,32 +56,106 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - `packages/editor_old` is deprecated and reference-only.
 - Agents may inspect `packages/editor_old` for legacy behavior or design
   context, but new fixes and feature work should land in the active runtime
-  chain (`document-core`, `runtime*`, `editor-worker`, renderer packages,
+  chain (`document-core`, `runtime*`, `runtime/worker`, renderer packages,
   and app adapters) instead of modifying `editor_old`.
 
 ### Viewport Interaction Status
 
-- `pan` preview is currently the stable interaction optimization.
-- `zoom` preview experiments are paused; stable behavior remains direct commit +
-  redraw.
+- Shared canvas surfaces now use pure viewport commit + redraw instead of DOM
+  preview transforms.
+- Interactive pan performance is currently improved through renderer-side
+  viewport bitmap caching rather than CSS transform preview.
 
 ## Recent Updates
 
 ### 2026-04-11
 
+- Added unified runtime namespace import aliases through `@venus/runtime`
+  subpaths: `@venus/runtime/interaction`, `@venus/runtime/react`, and
+  `@venus/runtime/presets` (including `@venus/runtime/presets/*`).
+
+- Consolidated runtime family implementation into `packages/runtime` and
+  removed `packages/runtime-interaction`, `packages/runtime-react`, and
+  `packages/runtime-presets`. Logical imports remain unchanged at
+  `@venus/runtime/*` subpaths.
+
+- `apps/playground` page shell was refactored into a responsive Tailwind
+  structure (`top header + left control rail + right stage surface`) so scene
+  controls/diagnostics keep stable hierarchy and independent scrolling on both
+  compact and desktop viewports.
+
 - Spatial index mechanism is now owned by `@venus/engine`:
   `packages/engine/src/spatial/index.ts` exports
   `createEngineSpatialIndex(...)` and related types, and worker/runtime
-  consumers (`@venus/editor-worker`, `@venus/runtime-interaction`) were
+  consumers (`@venus/runtime/worker`, `@venus/runtime/interaction`) were
   migrated to that API. The standalone `packages/spatial-index` package and
   its monorepo alias/project references were removed to avoid duplicate index
   implementations.
 
+- Engine now also owns reusable interaction mechanisms that are not product
+  policy:
+  marquee state/bounds/selection helpers, selection-handle generation/picking,
+  and move-snap solving moved to `packages/engine/src/interaction/*`.
+  `@venus/runtime/interaction` now wraps these engine APIs for compatibility
+  and keeps only app/runtime adapter concerns.
+
+- `apps/playground` now consumes the migrated engine interaction APIs directly
+  (marquee, selection handles, move snap + snap guide-line projection) while
+  keeping the existing page layout and command-button behavior unchanged.
+
+- Viewport gesture collection/dispatch ownership moved to
+  `@venus/runtime/interaction` (`bindViewportGestures(...)`), and this module
+  now uses engine-owned matrix projection helpers (`applyMatrixToPoint` from
+  `@venus/engine`). Runtime core keeps viewport state-transition ownership.
+
+- Viewport scroll/middle-button pan mechanics now also route through
+  `@venus/engine` (`packages/engine/src/interaction/viewportPan.ts`).
+  `runtime-interaction` keeps browser event collection and frame-batched
+  commit scheduling, while wheel/pointer pan delta semantics are engine-owned.
+
+- `apps/playground` command-level zoom stepping (`viewport.zoomIn` /
+  `viewport.zoomOut`) now follows the same discrete preset ladder used by
+  vector editor instead of runtime's default `*1.1` incremental command path,
+  reducing cross-app zoom feel drift for toolbar/context-menu zoom actions.
+
+- Zoom-sense preset policy is now centralized in
+  `@venus/runtime/interaction` (`interaction/zoomPresets.ts`), and both
+  `vector-editor-web` and `playground` consume
+  `resolveRuntimeZoomPresetScale(...)` / `RUNTIME_ZOOM_PRESETS` so command and
+  preset-driven zoom stepping stay aligned from one source.
+
+- Wheel-zoom feel is now also routed through the shared runtime-interaction
+  zoom policy: mouse-wheel zoom uses the shared discrete preset ladder, while
+  trackpad zoom stays continuous. This keeps vector and playground aligned for
+  both command-based zoom and wheel-based zoom.
+
+- `apps/playground` WebGL capability probing now uses a cached one-time check
+  and immediately releases the probe context via `WEBGL_lose_context` when
+  available. This avoids dev-time warnings about too many active WebGL
+  contexts caused by repeated support checks across remounts/HMR.
+
+- `apps/playground` was reset from the old multi-tab diagnostics surface to a
+  minimal command-driven editor harness. It now mirrors the active vector
+  runtime chain more directly (`createCanvasEditorInstance` +
+  `createDefaultEditorModules` + `CanvasViewport` + `Canvas2DRenderer` +
+  `CanvasSelectionOverlay`) while intentionally omitting product UI layers.
+
 - Removed legacy renderer package coupling from active app/runtime paths:
   `vector-editor-web`, `playground`, and `mindmap-editor` now consume
-  `Canvas2DRenderer` from `@venus/runtime-react` directly, while
+  `Canvas2DRenderer` from `@venus/runtime/react` directly, while
   `runtime-react` hosts the Canvas2D renderer + LOD/diagnostics module that was
   previously in `@venus/renderer-canvas`.
+
+- `CanvasViewport` no longer uses a DOM/CSS preview layer. Shared canvas
+  surfaces now stay on the pure viewport commit + redraw path, and
+  `runtime-interaction` batches pan deltas with `requestAnimationFrame` so
+  viewport motion no longer depends on CSS transform preview.
+
+- `runtime-react` `Canvas2DRenderer` now keeps an overscanned viewport bitmap
+  cache for the `commit-redraw` path. Interactive same-scale pan can reuse
+  that bitmap directly on canvas, and both `vector-editor-web` status bar and
+  `playground` diagnostics now expose renderer cache hit/miss counters so the
+  no-CSS-preview path can be evaluated on `10k / 50k / 100k` scenes.
 
 - Removed monorepo config/runtime references to `@venus/renderer-canvas` and
   `@venus/renderer-skia` (`tsconfig` references, alias wiring, scaffold app
@@ -93,7 +167,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - Engine standalone usage path now has a first-class diagnostics surface in
   `apps/playground`: the `Engine` tab includes an independent engine demo that
   runs `@venus/engine` clock + animation + loop + scene contracts directly
-  (without `@venus/runtime-react`) and exposes backend selection entry
+  (without `@venus/runtime/react`) and exposes backend selection entry
   (`canvas2d` active, `webgl` reserved).
 
 - `@venus/engine` `createEngineLoop` now exposes a `beforeRender(frame)` hook,
@@ -118,22 +192,23 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - Active app and renderer imports now consume the new runtime family directly:
   `vector-editor-web`, `playground`, `mindmap-editor`,
   `renderer-canvas`, and `renderer-skia` now import from `@venus/runtime`,
-  `@venus/runtime-interaction`, `@venus/runtime-react`, and
-  `@venus/runtime-presets` as appropriate. Their package manifests and
+  `@venus/runtime/interaction`, `@venus/runtime/react`, and
+  `@venus/runtime/presets` as appropriate. Their package manifests and
   TypeScript project references were updated accordingly.
 
-- Added initial runtime package split scaffolding:
+- Historical note: runtime was briefly split into
   `packages/runtime`, `packages/runtime-interaction`,
-  `packages/runtime-react`, and `packages/runtime-presets`, replacing the old
-  shared runtime package layout.
+  `packages/runtime-react`, and `packages/runtime-presets` during migration.
+  This layout was later consolidated back into `packages/runtime` with
+  `@venus/runtime/*` subpath exports.
 
 - Added runtime package-boundary guidance to the shared standards in
   `docs/core/project-context.md`,
   `docs/core/engineering-standards.md`, and
   `docs/core/current-work.md`. New guidance standardizes on a
   future `runtime-*` family: `@venus/runtime` for framework-agnostic runtime
-  core, `@venus/runtime-interaction` for shared interaction algorithms,
-  `@venus/runtime-react` for React adapters, and `@venus/runtime-presets` for
+  core, `@venus/runtime/interaction` for shared interaction algorithms,
+  `@venus/runtime/react` for React adapters, and `@venus/runtime/presets` for
   opinionated default behavior packs. The standards also now explicitly prefer
   smaller, easier-to-scan files with short factual comments at non-obvious
   boundaries.
@@ -454,7 +529,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   before clip checks to avoid `O(n²)` source lookups on large playground scenes,
   restoring drag responsiveness while keeping clip-first semantics.
   Follow-up refactor: drag/transform preview commit synchronization was moved
-  into shared `@venus/runtime-react` hook `useTransformPreviewCommitState`
+  into shared `@venus/runtime/react` hook `useTransformPreviewCommitState`
   (pending-commit flag + doc-sync clear path), and both
   `vector-editor-web` and `playground` now consume the same
   implementation to avoid app-local bounce/stale-preview regressions.
@@ -531,7 +606,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   toggles individual items and `Shift+Cmd/Ctrl` appends ranges.
 
 - Extracted pointer-drag arming logic into a shared composable controller:
-  `@venus/runtime-interaction` now exports `createSelectionDragController`, and both
+  `@venus/runtime/interaction` now exports `createSelectionDragController`, and both
   `vector-editor-web` and `playground` use the same
   `pointerdown -> pending -> thresholded move -> drag session -> commit` flow
   instead of maintaining duplicated app-local drag state machines.
@@ -541,7 +616,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   runtime-interaction drag-start hit-test to use the same helper. This keeps clipped
   image interaction semantics aligned across selection, hover, and drag entry.
 
-- Added a reusable selection-overlay assembly point in `@venus/runtime-react`:
+- Added a reusable selection-overlay assembly point in `@venus/runtime/react`:
   the shared React runtime adapter now provides `CanvasViewport` optional
   `overlayRenderer` support, and `CanvasSelectionOverlay` is exported as a
   shared default overlay. Both `vector-editor-web` and `playground`
@@ -606,7 +681,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   element rotation.
 
 - Extracted marquee (box-select) core logic into
-  `@venus/runtime-interaction/interaction/marqueeSelection` and exported it via
+  `@venus/runtime/interaction/interaction/marqueeSelection` and exported it via
   package entry. `vector-editor-web` now uses shared helpers for marquee state
   updates, bounds resolution, and selected-id computation to keep future app
   surfaces aligned on the same baseline behavior.
@@ -713,7 +788,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - Image trimming by closed shapes is now wired end-to-end through the
   file-format path with a minimal `CLIP` feature on image nodes. The current
   chain is `file-format feature -> parser -> DocumentNode.clipPathId/clipRule ->
-  vector adapter -> Canvas2DRenderer clip draw`, and the default vector mock
+vector adapter -> Canvas2DRenderer clip draw`, and the default vector mock
   file includes a masked image example for direct verification.
 
 - `vector-editor-web` now exposes a first usable mask command on top of the
@@ -726,7 +801,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
 - `polygon` is now a first-class runtime/vector element instead of being forced
   through generic `path` semantics. The current chain is
   `ShapeType/shared-memory -> file-format adapters -> worker hit-test ->
-  Canvas2D render/clip -> vector/playground mock data`, and polygons are
+Canvas2D render/clip -> vector/playground mock data`, and polygons are
   represented as closed point lists backed by the existing `VECTOR` geometry
   feature.
 
@@ -746,7 +821,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   runtime fields used by authored pencil paths. `playground`
   demo/stress scenes, the playground `Insert Mock` action, and the default
   `vector-editor-web` mock file all generate `path.points +
-  path.bezierPoints` from sampled anchors via
+path.bezierPoints` from sampled anchors via
   `convertDrawPointsToBezierPoints(...)` so render, hit-test, and clip behavior
   can be verified without relying on hand-written bezier fixtures only.
 
@@ -775,12 +850,12 @@ Use this file as the shared knowledge base for the Venus monorepo.
   inheritance or app Tailwind scanning for package-local arbitrary classes.
 
 - Snapping candidate lookup now uses `@venus/engine` spatial index APIs in
-  `@venus/runtime-interaction` (`interaction/snapping.ts`) to query nearby bounds by
+  `@venus/runtime/interaction` (`interaction/snapping.ts`) to query nearby bounds by
   tolerance window around moving shapes, so snap priority is effectively
   nearest-match among local neighbors rather than global full-scene scans.
 
 - Runtime command contracts now include `snapping.pause` and
-  `snapping.resume` in `@venus/editor-worker` protocol types. App runtimes
+  `snapping.resume` in `@venus/runtime/worker` protocol types. App runtimes
   (`playground` and `vector-editor-web`) intercept these commands at
   the runtime shell layer to toggle optional snapping behavior without
   mutating worker document state.
@@ -823,7 +898,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   duplication: scene patch types/helpers and scene point hit-test helpers now
   live in `@venus/engine`, alongside internal worker transport logic.
 
-- `@venus/runtime-presets` now supports modular policy imports beyond snapping
+- `@venus/runtime/presets` now supports modular policy imports beyond snapping
   and selection: added `history` and `protocol` preset modules plus subpath
   exports (`/selection`, `/snapping`, `/history`, `/protocol`, `/default`).
   The package still keeps `createDefaultEditorModules(...)` as compatibility

@@ -7,8 +7,8 @@ decomposed runtime node fields.
 ## Scope
 
 - Runtime chain:
-  `apps/*` -> `@venus/runtime` + `@venus/runtime-interaction` +
-  `@venus/runtime-react` -> `@venus/editor-worker` ->
+  `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` +
+  `@venus/runtime/react` -> `@venus/runtime/worker` ->
   renderer + shared-memory packages
 - Source of shared transform truth: `@venus/document-core`
 - Current storage compatibility: keep `x/y/width/height/rotation/flipX/flipY`
@@ -71,7 +71,7 @@ Exit criteria:
 - [x] Add one-command matrix regression gate (`pnpm matrix:check`) for repeated
   migration verification
 - [x] Document matrix compatibility invariants per package (`document-core`,
-  `runtime`, `runtime-interaction`, `editor-worker`, Canvas2D renderer path,
+  `runtime`, `runtime-interaction`, `runtime/worker`, Canvas2D renderer path,
   `shared-memory`)
 
 Exit criteria:
