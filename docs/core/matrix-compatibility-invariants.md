@@ -37,7 +37,7 @@ incrementally centralized.
 - Runtime mutation remains decomposed for now; matrix-first node storage is not
   yet active.
 
-## `@venus/renderer-canvas`
+## Canvas2D Renderer (`@venus/runtime-react` + `@venus/engine`)
 
 - Renderer consumes resolved transform compatibility state from
   `document-core`; it should not become an alternate source of transform truth.

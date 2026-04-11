@@ -1,22 +1,23 @@
 # Venus
 
 Venus is a composable canvas runtime monorepo for building multi-editor products (vector, flowchart, mindmap, whiteboard).
-The current active stack focuses on `vector-editor-web` and `runtime-playground`.
+The current active stack focuses on `vector-editor-web` and `playground`.
 
 ## Live Demo
 
 - Vector App Demo:
 [https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
-- Runtime playground: [https://lucasischow.github.io/demos/venus/playground/](https://lucasischow.github.io/demos/venus/playground/)
+- Playground: [https://lucasischow.github.io/demos/venus/playground/](https://lucasischow.github.io/demos/venus/playground/)
 
 
 ## Workspace Layout
 
 - `apps/*`: runnable apps
   - `apps/vector-editor-web`: product-facing vector editor shell
-  - `apps/runtime-playground`: runtime and rendering stress playground
+  - `apps/playground`: runtime and rendering stress playground
 - `packages/*`: shared editor infrastructure
   - `@venus/document-core`: document model and core types
+  - `@venus/engine`: renderer contracts, scene render node model, frame clock, animation primitives
   - `@venus/runtime`: framework-agnostic runtime controller, viewport, worker bridge
   - `@venus/runtime-interaction`: shared interaction algorithms (selection, snapping, transform)
   - `@venus/runtime-react`: React adapters and viewport components
@@ -78,7 +79,7 @@ pnpm lint
 Run playground directly:
 
 ```sh
-pnpm --dir apps/runtime-playground dev
+pnpm --dir apps/playground dev
 ```
 
 Run vector app directly:
@@ -89,7 +90,7 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime Data Flow
 
-`vector-editor-web` / `runtime-playground` -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/renderer-canvas`
+`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/engine` renderer contracts -> `@venus/renderer-canvas`
 
 - UI and product actions stay in app layer.
 - Worker owns scene mutation and command execution.

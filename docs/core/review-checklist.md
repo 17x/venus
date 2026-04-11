@@ -20,6 +20,8 @@
 - Is the solution simpler than the alternatives that fit the same constraints?
 - Are names and file locations discoverable for the next person?
 - Are comments only used where they add real clarity?
+- For newly added or modified non-obvious logic, did the diff include concise
+  inline comments so a fresh context can follow intent quickly?
 - Does the change follow the repo's established import style, alias usage, and file organization?
 
 ## Validation

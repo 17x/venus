@@ -17,8 +17,6 @@
     "@venus/editor-product": "workspace:*",
     "@venus/editor-worker": "workspace:*",
     "@venus/file-format": "workspace:*",
-    "@venus/renderer-canvas": "workspace:*",
-    "@venus/renderer-skia": "workspace:*",
     "@venus/runtime": "workspace:*",
     "@venus/runtime-interaction": "workspace:*",
     "@venus/runtime-react": "workspace:*",

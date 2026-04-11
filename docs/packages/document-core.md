@@ -25,8 +25,8 @@ hit-test behavior.
   `src/geometry.ts`, and inverse affine shape-local pointer resolution is used
   in hit-testing.
 
-- The shared affine helpers are now consumed by both `renderer-canvas` and
-  `runtime-interaction` transform-session math, so new transform-sensitive code should
+- The shared affine helpers are now consumed by Canvas2D renderer paths in
+  `runtime-react` and `runtime-interaction` transform-session math, so new transform-sensitive code should
   prefer them over local rotation/flip helpers.
 
 - Vector app selection handle placement, rotated selection-box interior checks,
@@ -69,7 +69,7 @@ hit-test behavior.
 
 - `shapeTransform.ts` now also exports `isPointInsideRotatedBounds`, a shared
   inverse-affine bounds containment helper for rotated selection-box interior
-  checks. Vector and runtime-playground now consume this helper instead of
+  checks. Vector and playground now consume this helper instead of
   carrying local duplicated selection-box rotation math.
 
 - `shapeTransform.ts` now also exports shared transform string formatters

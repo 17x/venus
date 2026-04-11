@@ -9,10 +9,5 @@
     "rootDir": "./src",
     "outDir": "./dist/types"
   },
-  "references": [
-    { "path": "../document-core/tsconfig.json" },
-    { "path": "../runtime-react/tsconfig.json" },
-    { "path": "../shared-memory/tsconfig.json" }
-  ],
   "include": ["src"]
 }

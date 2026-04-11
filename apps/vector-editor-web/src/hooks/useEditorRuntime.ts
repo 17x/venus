@@ -32,8 +32,8 @@ import {
 import {
   useCanvasRuntime,
   useTransformPreviewCommitState,
+  Canvas2DRenderer,
 } from '@venus/runtime-react'
-import {Canvas2DRenderer} from '@venus/renderer-canvas'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'

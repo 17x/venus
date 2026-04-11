@@ -18,11 +18,20 @@ context starts, or work needs to resume after switching topics.
 - `runtime-*` package direction
   Focus on clarifying package boundaries before broad runtime expansion.
   Current direction:
+  - introduce `@venus/engine` as the renderer mechanism layer (renderer
+    contracts + frame/animation primitives + text/image/clip render-node
+    contracts)
   - standardize on the `runtime-*` naming family for future package cleanup
   - keep `@venus/runtime` framework-agnostic
   - move framework adapters into `@venus/runtime-react`
   - move shared interaction algorithms into `@venus/runtime-interaction`
   - move opinionated out-of-box behavior into `@venus/runtime-presets`
+  - keep worker acceleration policy in `@venus/engine` with explicit
+    fallback modes (`main-thread` / `worker-postmessage` /
+    `worker-shared-memory`) so runtime/app layers do not duplicate SAB checks
+  - keep `@venus/engine` root exports intentionally small; treat worker
+    bridge/protocol internals as non-public unless a new cross-package contract
+    is explicitly required
   - keep files and folders easy to scan by splitting mixed-responsibility modules and adding short boundary comments where behavior is non-obvious
 
 - `vector-editor-web`
@@ -53,7 +62,7 @@ context starts, or work needs to resume after switching topics.
   - single-select chrome now follows element rotation (shared + app overlay)
   - rotated single-select handle positions and handle pick path are aligned
   - marquee core logic moved into shared runtime-interaction module
-  - runtime-playground now enables marquee selection via shared marquee module
+  - playground now enables marquee selection via shared marquee module
   - selection chrome now keeps constant screen-size across viewport zoom
   - hover/handles/marquee are now no-scale; selected border remains compensated
   - shape appearance baseline extended: rectangle per-corner radii, ellipse
@@ -70,7 +79,7 @@ context starts, or work needs to resume after switching topics.
     shifting the migration from helper cleanup toward package-boundary
     contracts for transform-sensitive app/runtime integration
 
-- `runtime-playground`
+- `playground`
   Use as the main render diagnostics bench for `Canvas2D`.
   Current direction: keep the stable zoom baseline (`direct commit + redraw`)
   while using the new LOD scheduler to probe how far `Canvas2D` can be pushed
@@ -142,7 +151,7 @@ context starts, or work needs to resume after switching topics.
   without a stable fallback.
 - Do not reintroduce bitmap zoom preview as the default path without proving
   continuous-wheel behavior is stable.
-- When optimizing viewport interactions, verify both `runtime-playground` and
+- When optimizing viewport interactions, verify both `playground` and
   `vector-editor-web` before treating the result as stable.
 - For model/geometry questions, check `packages/file-format` first and defer to
   its `node + feature` structure before inventing runtime-only terminology.

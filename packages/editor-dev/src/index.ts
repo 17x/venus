@@ -36,12 +36,12 @@ export function createEditorViteConfig(options: CreateEditorViteConfigOptions) {
 
   const sharedAliases: EditorViteAlias[] = [
     createWorkspaceAlias('@venus/document-core', 'packages/document-core/src/index.ts', repoRootUrl),
+    createWorkspaceAlias('@venus/engine', 'packages/engine/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/editor-dev', 'packages/editor-dev/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/editor-product', 'packages/editor-product/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/editor-worker', 'packages/editor-worker/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/file-format/base', 'packages/file-format/base/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/file-format', 'packages/file-format/src/index.ts', repoRootUrl),
-    createWorkspaceAlias('@venus/renderer-skia', 'packages/renderer-skia/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/runtime', 'packages/runtime/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/runtime-interaction', 'packages/runtime-interaction/src/index.ts', repoRootUrl),
     createWorkspaceAlias('@venus/runtime-presets', 'packages/runtime-presets/src/index.ts', repoRootUrl),

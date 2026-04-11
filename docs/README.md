@@ -1,7 +1,5 @@
 # Venus Docs
 
-This repository uses a single English-only documentation base under `docs/`.
-
 Start here:
 
 - [[00-Docs-Home]]

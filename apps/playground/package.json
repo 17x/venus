@@ -1,5 +1,5 @@
 {
-  "name": "@venus/runtime-playground",
+  "name": "@venus/playground",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,9 +14,8 @@
     "@tailwindcss/vite": "4.2.2",
     "@venus/document-core": "workspace:*",
     "@venus/editor-dev": "workspace:*",
+    "@venus/engine": "workspace:*",
     "@venus/editor-worker": "workspace:*",
-    "@venus/renderer-canvas": "workspace:*",
-    "@venus/renderer-skia": "workspace:*",
     "@venus/runtime": "workspace:*",
     "@venus/runtime-interaction": "workspace:*",
     "@venus/runtime-presets": "workspace:*",

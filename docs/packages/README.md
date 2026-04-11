@@ -17,9 +17,9 @@ architecture changes can be recorded closer to the code they affect.
 ## Current Package Notes
 
 - `document-core.md`
+- `engine.md`
 - `editor-worker.md`
 - `file-format.md`
-- `renderer-canvas.md`
 - `runtime.md`
 - `runtime-interaction.md`
 - `runtime-react.md`

@@ -21,4 +21,30 @@ export {
   type SelectionMarqueePolicy,
   type SelectionSetMode,
 } from './presets/selection.ts'
-export { createDefaultEditorModules } from './presets/defaultEditorModules.ts'
+export {
+  createHistoryModule,
+  DEFAULT_HISTORY_CONFIG,
+  isHistoryCommand,
+  type CanvasHistoryConfig,
+  type CanvasHistoryModule,
+} from './presets/history.ts'
+export {
+  createProtocolModule,
+  DEFAULT_PROTOCOL_CONFIG,
+  type CanvasProtocolConfig,
+  type CanvasProtocolModule,
+} from './presets/protocol.ts'
+export {
+  createDefaultEditorModules,
+  createDefaultRuntimeModules,
+} from './presets/defaultEditorModules.ts'
+export {
+  createPresetAnimationController,
+  EASING_PRESET_EMPHASIS,
+  EASING_PRESET_LINEAR,
+  EASING_PRESET_STANDARD,
+  resolvePresetEasing,
+  type CubicBezierTuple,
+  type PresetAnimationControllerOptions,
+  type PresetEasing,
+} from './presets/easing.ts'

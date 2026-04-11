@@ -29,7 +29,7 @@ Current runtime path:
 `useEditorRuntime`
 -> `runtime` + `runtime-interaction` + `runtime-react`
 -> `editor-worker` + `shared-memory`
--> `renderer-skia`
+-> `engine` (Canvas2D via `runtime-react` renderer)
 
 Key points:
 
@@ -51,22 +51,21 @@ Key points:
 
 ## Performance Debugging
 
-For large-scene debugging, use `apps/runtime-playground` first:
+For large-scene debugging, use `apps/playground` first:
 
 ```sh
-pnpm --dir apps/runtime-playground dev
+pnpm --dir apps/playground dev
 ```
 
 Renderer diagnostics currently expose:
 
-- tile counts / cache hits / misses
-- rebuilt tile count
-- draw and record costs
-- slow-frame console logs with `[renderer-skia]` prefix
+- draw count
+- visible shape count
+- draw duration
+- render diagnostics from `Canvas2DRenderer`
 
 ## Notes
 
 - This app currently prioritizes runtime migration stability over final product polish.
-- `canvaskit-wasm` chunk is large by design and may trigger size warnings in build output.
 - Default mock document lives at `src/contexts/appContext/mockFile.ts` and now includes a denser mixed-shape baseline:
   grouped rectangles, rounded-corner variants, arc ellipse angles, multiple bezier paths, arrowhead line segments, and two clipped image assets. Use it for quick manual checks of selection, transform, layer order, clip-path, and style persistence flows.

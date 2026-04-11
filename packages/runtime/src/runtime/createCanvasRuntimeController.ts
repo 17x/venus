@@ -1,4 +1,5 @@
 import {isPointInsideClipShape, isPointInsideShapeHitArea, type EditorDocument} from '@venus/document-core'
+import { resolveEngineWorkerMode } from '@venus/engine'
 import type {
   CollaborationOperation,
   CollaborationState,
@@ -122,10 +123,11 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   let started = false
 
   const listeners = new Set<VoidFunction>()
-  const sabSupported =
-    typeof SharedArrayBuffer !== 'undefined' &&
-    typeof crossOriginIsolated !== 'undefined' &&
-    crossOriginIsolated
+  const workerModeResolution = resolveEngineWorkerMode({
+    preferWorker: true,
+    preferSharedMemory: true,
+  })
+  const sabSupported = workerModeResolution.mode === 'worker-shared-memory'
 
   // `snapshot` is the single mutable runtime record. React hooks subscribe to
   // controller updates and receive shallow-copied views of this object.
@@ -284,6 +286,8 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     debugRuntime('starting runtime', {
       capacity,
       initialShapeCount: document.shapes.length,
+      workerMode: workerModeResolution.mode,
+      workerModeReason: workerModeResolution.reason,
     })
     worker.addEventListener('message', handleWorkerMessage as EventListener)
     worker.postMessage({
