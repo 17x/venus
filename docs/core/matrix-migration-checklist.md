@@ -33,7 +33,7 @@ Exit criteria:
   records
 - [x] `runtime-interaction` exposes `createTransformBatchCommand` for app commit paths
 - [x] Vector app transform commit paths use shared transform batch builder
-- [x] Runtime playground transform commit paths use shared transform builder
+- [x] Playground transform commit paths use shared transform builder
 - [x] Worker protocol accepts shared `ShapeTransformBatchCommand` typing
 - [x] Worker transform batch patch derivation centralized for local +
   collaboration paths
@@ -49,7 +49,7 @@ Exit criteria:
 - [x] Selection-box interior checks use shared rotated-bounds helper
 - [x] Viewport point projection uses shared `applyMatrixToPoint` helper in
   vector + playground active paths
-- [x] Runtime playground removes local trig-based selection rotation helpers
+- [x] Playground removes local trig-based selection rotation helpers
 
 Exit criteria:
 - No remaining duplicated active-path selection/viewport transform formulas
@@ -71,7 +71,7 @@ Exit criteria:
 - [x] Add one-command matrix regression gate (`pnpm matrix:check`) for repeated
   migration verification
 - [x] Document matrix compatibility invariants per package (`document-core`,
-  `runtime`, `runtime-interaction`, `editor-worker`, `renderer-canvas`,
+  `runtime`, `runtime-interaction`, `editor-worker`, Canvas2D renderer path,
   `shared-memory`)
 
 Exit criteria:

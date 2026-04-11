@@ -4,9 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./selection": "./src/presets/selection.ts",
+    "./snapping": "./src/presets/snapping.ts",
+    "./history": "./src/presets/history.ts",
+    "./protocol": "./src/presets/protocol.ts",
+    "./default": "./src/presets/defaultEditorModules.ts"
   },
   "dependencies": {
+    "@venus/engine": "workspace:*",
     "@venus/runtime": "workspace:*"
   }
 }

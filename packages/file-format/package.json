@@ -8,5 +8,8 @@
     "./base": "./base/src/index.ts",
     "./mindmap": "./mindmap/src/index.ts",
     "./streamline": "./streamline/src/index.ts"
+  },
+  "dependencies": {
+    "@venus/document-core": "workspace:*"
   }
 }

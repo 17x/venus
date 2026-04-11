@@ -8,7 +8,7 @@ export type EditorProductId =
 export interface SharedEditorStack {
   runtime: '@venus/runtime'
   worker: '@venus/editor-worker'
-  renderer: '@venus/renderer-skia'
+  renderer: '@venus/engine'
   model: '@venus/document-core'
   sharedMemory: '@venus/shared-memory'
   protocol: '@venus/file-format'
@@ -29,7 +29,7 @@ export interface EditorBootstrapResult {
 export const SHARED_EDITOR_STACK: SharedEditorStack = {
   runtime: '@venus/runtime',
   worker: '@venus/editor-worker',
-  renderer: '@venus/renderer-skia',
+  renderer: '@venus/engine',
   model: '@venus/document-core',
   sharedMemory: '@venus/shared-memory',
   protocol: '@venus/file-format',

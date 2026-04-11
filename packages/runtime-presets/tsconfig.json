@@ -10,6 +10,7 @@
     "outDir": "./dist/types"
   },
   "references": [
+    { "path": "../engine/tsconfig.json" },
     { "path": "../runtime/tsconfig.json" }
   ],
   "include": ["src"]

@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/file-format/tsconfig.json" },
     { "path": "./packages/document-core/tsconfig.json" },
+    { "path": "./packages/engine/tsconfig.json" },
     { "path": "./packages/editor-dev/tsconfig.json" },
     { "path": "./packages/editor-product/tsconfig.json" },
     { "path": "./packages/runtime/tsconfig.json" },
@@ -13,12 +14,10 @@
     { "path": "./packages/shared-memory/tsconfig.json" },
     { "path": "./packages/spatial-index/tsconfig.json" },
     { "path": "./packages/editor-worker/tsconfig.json" },
-    { "path": "./packages/renderer-canvas/tsconfig.json" },
-    { "path": "./packages/renderer-skia/tsconfig.json" },
     { "path": "./apps/mindmap-editor/tsconfig.app.json" },
     { "path": "./apps/mindmap-editor/tsconfig.node.json" },
-    { "path": "./apps/runtime-playground/tsconfig.app.json" },
-    { "path": "./apps/runtime-playground/tsconfig.node.json" },
+    { "path": "./apps/playground/tsconfig.app.json" },
+    { "path": "./apps/playground/tsconfig.node.json" },
     { "path": "./apps/vector-editor-web/tsconfig.app.json" },
     { "path": "./apps/vector-editor-web/tsconfig.node.json" }
   ]

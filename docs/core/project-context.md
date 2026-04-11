@@ -14,10 +14,10 @@ Venus is a composable canvas runtime monorepo for multi-editor products such as 
 
 Treat the current system as a layered runtime:
 
-`apps/vector-editor-web` or `apps/runtime-playground`
+`apps/vector-editor-web` or `apps/playground`
 -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react`
 -> `@venus/editor-worker` + `@venus/shared-memory`
--> `@venus/renderer-skia`
+-> `@venus/engine` (Canvas2D renderer hosted by `@venus/runtime-react`)
 
 Planned package direction for the active runtime family:
 
@@ -29,7 +29,7 @@ Planned package direction for the active runtime family:
 ## Active Areas
 
 - Prefer current work to align with `apps/vector-editor-web`
-- Treat `apps/runtime-playground` as a runtime/rendering experiment surface
+- Treat `apps/playground` as a runtime/rendering experiment surface
 - Expect shared packages to be reused across editors
 
 ## Tooling Baseline

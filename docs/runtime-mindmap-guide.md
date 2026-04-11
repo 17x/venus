@@ -8,7 +8,7 @@ Use the current runtime package family to ship an extensible mindmap editor with
 
 - Reuse `@venus/runtime` and `@venus/runtime-react` for lifecycle/viewport/worker bridge.
 - Keep mindmap semantics (topic/edge/fold/layout) in app + worker command layers.
-- Start with `@venus/renderer-canvas`; add `@venus/renderer-skia` only when needed.
+- Start with Canvas2D renderer from `@venus/runtime-react` (engine-backed).
 
 ## What Runtime Packages Own
 

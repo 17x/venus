@@ -23,7 +23,7 @@ task touches architecture, runtime layering, or mindmap integration.
 
 If docs conflict, prefer the newer core standards and root README over older notes.
 Canvas2D is the current active renderer path for vector and playground iteration;
-Skia remains available but is not the default development path.
+runtime apps consume it through `@venus/runtime-react` + `@venus/engine`.
 
 ## Project Shape
 
@@ -38,14 +38,14 @@ infrastructure.
 Current priority areas:
 
 - Prefer product-facing work in `apps/vector-editor-web`.
-- Use `apps/runtime-playground` as the Canvas2D runtime and rendering diagnostics
+- Use `apps/playground` as the Canvas2D runtime and rendering diagnostics
 bench.
 - Keep shared behavior reusable across future editor surfaces.
 
 Primary runtime chain:
 
 ```text
-apps/* -> @venus/runtime + @venus/runtime-interaction + @venus/runtime-react -> @venus/editor-worker + @venus/shared-memory -> renderer packages
+apps/* -> @venus/runtime + @venus/runtime-interaction + @venus/runtime-react -> @venus/editor-worker + @venus/shared-memory -> @venus/engine
 ```
 
 ## Architecture Rules
@@ -81,6 +81,9 @@ complexity.
 - Add concise comments only where the implementation would otherwise be hard to
 parse, such as complex branching, state transitions, algorithmic transforms,
 or compatibility edges.
+- Treat comment upkeep as required handoff quality: when adding or changing
+  non-obvious logic, include concise inline comments in the same diff so a new
+  context can understand intent without re-deriving it from scratch.
 - When changing public interfaces, protocols, or exported type contracts, update
 inline/API comments with parameter semantics, mode/flag behavior, and
 compatibility expectations.

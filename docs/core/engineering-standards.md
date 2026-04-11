@@ -19,6 +19,9 @@
 - When shipping a new feature or materially updating an existing one, add
   concise code comments at the non-obvious implementation points so the change
   remains legible to the next context
+- Treat this as a required deliverable, not a nice-to-have: non-obvious control
+  flow, state transitions, algorithmic transforms, compatibility paths, and
+  public contract semantics should ship with concise comments in the same change
 - Keep files small enough to scan quickly; split large mixed-responsibility files and folders when a module is carrying more than one clear job
 - Prefer a few short, factual comments at boundary points and complex branches over long prose blocks or comment-heavy implementations
 - Keep package entrypoints clean and intentional; export only the surface that should be reused
@@ -32,6 +35,9 @@
   content, and serialization behavior
 - Keep framework code out of framework-agnostic runtime packages; runtime core packages must not depend on React, Vue, or another UI framework
 - Separate mechanism from policy: runtime core owns lifecycle, transport, viewport state, and shared contracts, while presets and app layers own opinionated behavior
+- Keep renderer mechanism contracts in `@venus/engine` (renderer adapters,
+  frame clock, animation primitives, and render node contracts such as text
+  runs/image clipping) instead of duplicating them across runtime or app layers
 - Use adapter packages for framework integration and preset packages for out-of-box behavior
 - When organizing runtime code, prefer the `runtime-*` family split:
   `@venus/runtime` for portable runtime core,

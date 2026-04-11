@@ -39,6 +39,23 @@ export {
   type CanvasSnapSource,
 } from './extensibility/elements.ts'
 export type { CanvasViewportState } from './viewport/types.ts'
+// Compatibility bridge: runtime keeps the historical time/animation export
+// names while mechanism ownership now lives in `@venus/engine`.
+export type {
+  EngineAnimationController as AnimationController,
+  EngineAnimationId as AnimationId,
+  EngineAnimationSpec as AnimationSpec,
+  EngineClock as RuntimeClock,
+  EngineEasingDefinition as EasingDefinition,
+  EngineEasingFunction as EasingFunction,
+  EngineEasingName as EasingName,
+  EngineFrameHandle as FrameHandle,
+  EngineFrameInfo as FrameInfo,
+} from '@venus/engine'
+export {
+  createEngineAnimationController as createAnimationController,
+  createSystemEngineClock as createSystemRuntimeClock,
+} from '@venus/engine'
 export type { ViewportGestureBindingOptions } from './gesture/index.ts'
 export { bindViewportGestures } from './gesture/index.ts'
 export type {

@@ -1,6 +1,13 @@
 import * as React from 'react'
 import {resolveNodeTransform, type DocumentNode} from '@venus/document-core'
-import type {CanvasRendererProps} from '@venus/runtime-react'
+import {
+  createEngineLoop,
+  createSystemEngineClock,
+  type EngineRenderFrame,
+  type EngineRenderStats,
+  type EngineRenderer,
+} from '@venus/engine'
+import type {CanvasRendererProps} from '../types.ts'
 import {
   type Canvas2DLodLevel,
   defaultCanvas2DLodConfig,
@@ -76,11 +83,31 @@ interface VisibleWorldBounds {
 export function Canvas2DRenderer({
   document,
   lodLevel = 0,
+  renderQuality = 'full',
   shapes,
   viewport,
   lodConfig = defaultCanvas2DLodConfig,
 }: CanvasRendererProps & {lodConfig?: import('./lod.ts').Canvas2DLodConfig}) {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+  const engineLoopRef = React.useRef<ReturnType<typeof createEngineLoop> | null>(null)
+  const renderQueueRef = React.useRef<Promise<void>>(Promise.resolve())
+  const latestRenderInputRef = React.useRef<{
+    document: CanvasRendererProps['document']
+    lodLevel: NonNullable<CanvasRendererProps['lodLevel']>
+    renderQuality: NonNullable<CanvasRendererProps['renderQuality']>
+    shapes: CanvasRendererProps['shapes']
+    viewport: CanvasRendererProps['viewport']
+    lodConfig: import('./lod.ts').Canvas2DLodConfig
+    shapeSourceById: Map<string, DocumentNode>
+  }>({
+    document,
+    lodLevel,
+    renderQuality,
+    shapes,
+    viewport,
+    lodConfig,
+    shapeSourceById: new Map<string, DocumentNode>(),
+  })
   const [imageVersion, setImageVersion] = React.useState(0)
   const shapeSourceById = React.useMemo(() => {
     const map = new Map<string, DocumentNode>()
@@ -126,17 +153,111 @@ export function Canvas2DRenderer({
       return
     }
 
-    drawScene2D({
-      canvas,
+    const renderer: EngineRenderer = {
+      id: 'venus.runtime-react.canvas2d.engine-loop-adapter',
+      capabilities: {
+        backend: 'canvas2d',
+        textRuns: true,
+        imageClip: true,
+        culling: true,
+        lod: true,
+      },
+      render: () => {
+        const {
+          document: currentDocument,
+          lodLevel: currentLodLevel,
+          renderQuality: currentRenderQuality,
+          shapes: currentShapes,
+          viewport: currentViewport,
+          lodConfig: currentLodConfig,
+          shapeSourceById: currentShapeSourceById,
+        } = latestRenderInputRef.current
+
+        const drawResult = drawScene2D({
+          canvas,
+          document: currentDocument,
+          lodLevel: currentLodLevel,
+          renderQuality: currentRenderQuality,
+          shapes: currentShapes,
+          viewport: currentViewport,
+          lodConfig: currentLodConfig,
+          shapeSourceById: currentShapeSourceById,
+          imageCache: imageCacheRef.current,
+        })
+
+        const stats: EngineRenderStats = {
+          drawCount: drawResult.visibleShapeCount,
+          visibleCount: drawResult.visibleShapeCount,
+          culledCount: Math.max(0, currentShapes.length - drawResult.visibleShapeCount),
+          cacheHits: 0,
+          cacheMisses: 0,
+          frameMs: drawResult.drawMs,
+        }
+
+        return stats
+      },
+    }
+
+    const loop = createEngineLoop({
+      clock: createSystemEngineClock(),
+      renderer,
+      // The canvas renderer still owns shape-level draw logic. We use engine
+      // loop as the render scheduling boundary so vector can migrate without
+      // changing runtime-react renderer contracts.
+      resolveFrame: (): EngineRenderFrame => ({
+        scene: {
+          revision: 0,
+          width: latestRenderInputRef.current.document.width,
+          height: latestRenderInputRef.current.document.height,
+          nodes: [],
+        },
+        viewport: latestRenderInputRef.current.viewport,
+        context: {
+          quality: latestRenderInputRef.current.renderQuality,
+        },
+      }),
+    })
+
+    engineLoopRef.current = loop
+    void loop.renderOnce()
+
+    return () => {
+      loop.stop()
+      engineLoopRef.current = null
+    }
+  }, [])
+
+  React.useEffect(() => {
+    latestRenderInputRef.current = {
       document,
       lodLevel,
+      renderQuality,
       shapes,
       viewport,
       lodConfig,
       shapeSourceById,
-      imageCache: imageCacheRef.current,
+    }
+
+    const loop = engineLoopRef.current
+    if (!loop) {
+      return
+    }
+
+    // Serialize render calls so high-frequency pointer and viewport updates do
+    // not race each other and paint out-of-order frames.
+    renderQueueRef.current = renderQueueRef.current.then(async () => {
+      await loop.renderOnce()
     })
-  }, [document, imageVersion, lodConfig, lodLevel, shapeSourceById, shapes, viewport])
+  }, [
+    document,
+    imageVersion,
+    lodConfig,
+    lodLevel,
+    renderQuality,
+    shapeSourceById,
+    shapes,
+    viewport,
+  ])
 
   return (
     <canvas
@@ -155,6 +276,7 @@ function drawScene2D({
   canvas,
   document,
   lodLevel,
+  renderQuality,
   shapes,
   viewport,
   lodConfig,
@@ -164,12 +286,13 @@ function drawScene2D({
   canvas: HTMLCanvasElement
   document: CanvasRendererProps['document']
   lodLevel: NonNullable<CanvasRendererProps['lodLevel']>
+  renderQuality: NonNullable<CanvasRendererProps['renderQuality']>
   shapes: CanvasRendererProps['shapes']
   viewport: CanvasRendererProps['viewport']
   lodConfig: import('./lod.ts').Canvas2DLodConfig
   shapeSourceById: Map<string, DocumentNode>
   imageCache: Map<string, HTMLImageElement>
-}) {
+}): {drawMs: number; visibleShapeCount: number} {
   const width = Math.max(1, Math.floor(viewport.viewportWidth))
   const height = Math.max(1, Math.floor(viewport.viewportHeight))
   const dpr = window.devicePixelRatio || 1
@@ -182,7 +305,10 @@ function drawScene2D({
 
   const context = canvas.getContext('2d')
   if (!context) {
-    return
+    return {
+      drawMs: 0,
+      visibleShapeCount: 0,
+    }
   }
 
   const drawStart = performance.now()
@@ -193,10 +319,9 @@ function drawScene2D({
     lodLevel,
     lodConfig,
   )
-  const imageSmoothingQuality = resolveImageSmoothingQuality(
-    lodLevel,
-    lodConfig,
-  )
+  const imageSmoothingQuality = renderQuality === 'interactive'
+    ? 'low'
+    : resolveImageSmoothingQuality(lodLevel, lodConfig)
 
   context.setTransform(1, 0, 0, 1, 0, 0)
   context.clearRect(0, 0, canvas.width, canvas.height)
@@ -232,6 +357,11 @@ function drawScene2D({
     drawMs,
     visibleShapeCount: visibleShapes.length,
   })
+
+  return {
+    drawMs,
+    visibleShapeCount: visibleShapes.length,
+  }
 }
 
 function drawShape(

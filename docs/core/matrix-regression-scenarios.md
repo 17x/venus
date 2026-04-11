@@ -7,7 +7,7 @@ runtime storage is still decomposed.
 
 - Apps:
   - `apps/vector-editor-web`
-  - `apps/runtime-playground`
+  - `apps/playground`
 - Shared runtime chain:
   - `@venus/runtime`
   - `@venus/runtime-interaction`
@@ -93,12 +93,12 @@ pnpm exec tsc -b \
   packages/editor-worker/tsconfig.json \
   packages/shared-memory/tsconfig.json \
   apps/vector-editor-web/tsconfig.app.json \
-  apps/runtime-playground/tsconfig.app.json \
+  apps/playground/tsconfig.app.json \
   --pretty false
 ```
 
 Optional targeted lint (acknowledge known existing hook/compiler warnings):
 
 ```sh
-pnpm exec eslint apps/vector-editor-web/src/hooks/useEditorRuntime.ts apps/runtime-playground/src/App.tsx
+pnpm exec eslint apps/vector-editor-web/src/hooks/useEditorRuntime.ts apps/playground/src/App.tsx
 ```

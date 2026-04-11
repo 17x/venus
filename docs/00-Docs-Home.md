@@ -28,7 +28,6 @@ aliases:
 - [[packages/document-core]]
 - [[packages/editor-worker]]
 - [[packages/file-format]]
-- [[packages/renderer-canvas]]
 - [[packages/runtime]]
 - [[packages/runtime-interaction]]
 - [[packages/runtime-react]]

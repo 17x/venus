@@ -1,5 +1,14 @@
 import * as React from 'react'
 import {
+  createCanvas2DEngineRenderer,
+  createEngineAnimationController,
+  createEngineLoop,
+  createSystemEngineClock,
+  type EngineBackend,
+  type EngineRenderStats,
+  type EngineSceneSnapshot,
+} from '@venus/engine'
+import {
   applyMatrixToPoint,
   createCanvasEditorInstance,
   createCanvasViewerInstance,
@@ -31,10 +40,14 @@ import {
   type SnapGuide,
 } from '@venus/runtime-interaction'
 import {
+  Canvas2DRenderer,
   CanvasSelectionOverlay,
   CanvasViewport,
+  defaultCanvas2DLodConfig,
+  useCanvas2DRenderDiagnostics,
   useTransformPreviewCommitState,
   type CanvasOverlayProps,
+  type Canvas2DLodConfig,
   type CanvasRenderLodState,
   type CanvasRenderer,
 } from '@venus/runtime-react'
@@ -48,12 +61,6 @@ import {
   nid,
   type Point,
 } from '@venus/document-core'
-import {
-  Canvas2DRenderer,
-  defaultCanvas2DLodConfig,
-  useCanvas2DRenderDiagnostics,
-  type Canvas2DLodConfig,
-} from '@venus/renderer-canvas'
 import type {EditorRuntimeCommand} from '@venus/editor-worker'
 import type {HistorySummary} from '@venus/editor-worker'
 import type {EditorDocument} from '@venus/document-core'
@@ -68,11 +75,21 @@ const MEDIUM_STRESS_SHAPE_COUNT = 10_000
 const EXTREME_STRESS_SHAPE_COUNT = 1_000_000
 const SHAPE_TYPE_ORDER = ['frame', 'group', 'rectangle', 'ellipse', 'polygon', 'star', 'lineSegment', 'path', 'text', 'image'] as const
 type PlaygroundRuntimeMode = 'editor' | 'viewer'
+type PlaygroundAbilityTab = 'engine' | 'runtime' | 'interaction' | 'document'
 type PlaygroundDocumentMode = 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
 type PlaygroundEditorSnapshot = CanvasRuntimeSnapshot<EditorDocument>
 type PlaygroundViewerSnapshot = CanvasViewerSnapshot<EditorDocument>
 type PlaygroundSnapshot = PlaygroundEditorSnapshot | PlaygroundViewerSnapshot
 const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
+const ENGINE_PREVIEW_WIDTH = 300
+const ENGINE_PREVIEW_HEIGHT = 188
+const ENGINE_PREVIEW_IMAGE_ASSET_ID = 'engine.preview.image'
+const PLAYGROUND_ABILITY_TABS: Array<{id: PlaygroundAbilityTab; label: string}> = [
+  {id: 'engine', label: 'Engine'},
+  {id: 'runtime', label: 'Runtime'},
+  {id: 'interaction', label: 'Interaction'},
+  {id: 'document', label: 'Document'},
+]
 
 function createGeneratedImageDataUrl(label: string, width: number, height: number) {
   const hue = Math.floor(Math.random() * 360)
@@ -855,51 +872,86 @@ const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
   onLoadImageHeavyLarge: () => void
   onDispatch: (command: EditorRuntimeCommand) => void
 }) {
+  const [activeAbilityTab, setActiveAbilityTab] = React.useState<PlaygroundAbilityTab>('engine')
+
   return (
     <aside className="playground-panel">
+      <div className="panel-block">
+        <span className="panel-label">Abilities</span>
+        <div className="ability-tabs" role="tablist" aria-label="Playground abilities">
+          {PLAYGROUND_ABILITY_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeAbilityTab === tab.id}
+              className={`ability-tab ${activeAbilityTab === tab.id ? 'is-active' : ''}`}
+              onClick={() => setActiveAbilityTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <RuntimeIntroBlock
         documentMode={documentMode}
         runtimeMode={runtimeMode}
         onSetRuntimeMode={onSetRuntimeMode}
       />
-      <LodBlock
-        renderLodState={renderLodState}
-      />
-       <CommandsBlock
-        onLoadDemo={onLoadDemo}
-        onLoadMediumStress={onLoadMediumStress}
-        onLoadLargeStress={onLoadLargeStress}
-        onLoadStress={onLoadStress}
-        onLoadExtremeStress={onLoadExtremeStress}
-        onLoadImageHeavy={onLoadImageHeavy}
-        onLoadImageHeavyLarge={onLoadImageHeavyLarge}
-        runtimeMode={runtimeMode}
-        snappingEnabled={snappingEnabled}
-        lastMarqueeSelectionName={lastMarqueeSelectionName}
-        onDispatch={onDispatch}
-      />
-      <DocumentBlock
-        documentMode={documentMode}
-        documentName={document.name}
-        documentWidth={document.width}
-        documentHeight={document.height}
-        documentShapeCount={document.shapes.length}
-        snapshotShapeCount={stats.shapeCount}
-        version={stats.version}
-        typeSummary={typeSummary}
-      />
-     
-      <ViewportBlock
-        ready={ready}
-        sabSupported={sabSupported}
-        scaleLabel={scaleLabel}
-        selectedLabel={selectedLabel}
-        viewport={viewport}
-      />
-      <SelectionBlock selectedShape={selectedShape} selectedNode={selectedNode} />
-      {history ? <HistoryBlock history={history} /> : null}
 
-      <RendererDiagnosticsPanel/>
+      {activeAbilityTab === 'engine' && (
+        <>
+          <EngineStandaloneBlock />
+          <LodBlock renderLodState={renderLodState} />
+          <RendererDiagnosticsPanel />
+        </>
+      )}
+
+      {activeAbilityTab === 'runtime' && (
+        <>
+          <ViewportBlock
+            ready={ready}
+            sabSupported={sabSupported}
+            scaleLabel={scaleLabel}
+            selectedLabel={selectedLabel}
+            viewport={viewport}
+          />
+          {history ? <HistoryBlock history={history} /> : null}
+        </>
+      )}
+
+      {activeAbilityTab === 'interaction' && (
+        <>
+          <CommandsBlock
+            onLoadDemo={onLoadDemo}
+            onLoadMediumStress={onLoadMediumStress}
+            onLoadLargeStress={onLoadLargeStress}
+            onLoadStress={onLoadStress}
+            onLoadExtremeStress={onLoadExtremeStress}
+            onLoadImageHeavy={onLoadImageHeavy}
+            onLoadImageHeavyLarge={onLoadImageHeavyLarge}
+            runtimeMode={runtimeMode}
+            snappingEnabled={snappingEnabled}
+            lastMarqueeSelectionName={lastMarqueeSelectionName}
+            onDispatch={onDispatch}
+          />
+          <SelectionBlock selectedShape={selectedShape} selectedNode={selectedNode} />
+        </>
+      )}
+
+      {activeAbilityTab === 'document' && (
+        <DocumentBlock
+          documentMode={documentMode}
+          documentName={document.name}
+          documentWidth={document.width}
+          documentHeight={document.height}
+          documentShapeCount={document.shapes.length}
+          snapshotShapeCount={stats.shapeCount}
+          version={stats.version}
+          typeSummary={typeSummary}
+        />
+      )}
     </aside>
   )
 })
@@ -950,6 +1002,273 @@ const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock({
     </div>
   )
 })
+
+const EngineStandaloneBlock = React.memo(function EngineStandaloneBlock() {
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+  const [backend, setBackend] = React.useState<EngineBackend>('canvas2d')
+  const [running, setRunning] = React.useState(false)
+  const [stats, setStats] = React.useState<EngineRenderStats | null>(null)
+  const imageAssetUrl = React.useMemo(
+    () => createGeneratedImageDataUrl('Engine', 420, 260),
+    [],
+  )
+  const [imageAsset, setImageAsset] = React.useState<HTMLImageElement | null>(null)
+  const webglAvailable = React.useMemo(() => {
+    if (typeof document === 'undefined') {
+      return false
+    }
+
+    const probe = document.createElement('canvas')
+    return Boolean(probe.getContext('webgl2') || probe.getContext('webgl'))
+  }, [])
+
+  React.useEffect(() => {
+    const image = new Image()
+    image.onload = () => setImageAsset(image)
+    image.src = imageAssetUrl
+    return () => {
+      setImageAsset(null)
+    }
+  }, [imageAssetUrl])
+
+  React.useEffect(() => {
+    if (backend === 'webgl') {
+      setRunning(false)
+      setStats(null)
+      return
+    }
+
+    const canvas = canvasRef.current
+    if (!canvas) {
+      return
+    }
+
+    let disposed = false
+    const clock = createSystemEngineClock()
+    const animations = createEngineAnimationController()
+    let progress = 0
+
+    const restartAnimation = (from: number, to: number) => {
+      animations.start({
+        from,
+        to,
+        duration: 1800,
+        easing: 'easeInOut',
+        onUpdate: (value) => {
+          progress = value
+        },
+        onComplete: () => {
+          if (disposed) {
+            return
+          }
+          restartAnimation(to, from)
+        },
+      })
+    }
+
+    restartAnimation(0, 1)
+
+    const renderer = createCanvas2DEngineRenderer({
+      canvas,
+      clearColor: '#070d1a',
+      enableCulling: true,
+    })
+
+    const loop = createEngineLoop({
+      clock,
+      renderer,
+      beforeRender: (frame) => {
+        animations.tick(frame)
+      },
+      resolveFrame: () => ({
+        scene: buildEngineStandaloneScene(progress),
+        viewport: {
+          viewportWidth: ENGINE_PREVIEW_WIDTH,
+          viewportHeight: ENGINE_PREVIEW_HEIGHT,
+          scale: 1,
+          offsetX: 0,
+          offsetY: 0,
+          matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+        },
+        context: {
+          quality: 'full',
+          loader: {
+            resolveImage: (assetId) => {
+              if (assetId === ENGINE_PREVIEW_IMAGE_ASSET_ID) {
+                return imageAsset
+              }
+              return null
+            },
+          },
+        },
+      }),
+      onStats: (nextStats) => {
+        setStats(nextStats)
+      },
+    })
+
+    loop.start()
+    setRunning(true)
+
+    return () => {
+      disposed = true
+      loop.stop()
+      animations.stopAll()
+      setRunning(false)
+    }
+  }, [backend, imageAsset])
+
+  return (
+    <div className="panel-block">
+      <span className="panel-label">Engine Standalone</span>
+      <strong className="panel-title">Independent Render Loop</strong>
+      <p className="panel-copy">
+        This preview runs on <code>@venus/engine</code> only: scene model, clock, animation, and renderer loop.
+      </p>
+
+      <div className="engine-backend-tabs" role="tablist" aria-label="Engine backend">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={backend === 'canvas2d'}
+          className={`runtime-mode-tab ${backend === 'canvas2d' ? 'is-active' : ''}`}
+          onClick={() => setBackend('canvas2d')}
+        >
+          canvas2d
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={backend === 'webgl'}
+          className={`runtime-mode-tab ${backend === 'webgl' ? 'is-active' : ''}`}
+          onClick={() => setBackend('webgl')}
+        >
+          webgl
+        </button>
+      </div>
+
+      <div className="panel-badges">
+        <span className="panel-badge">{backend}</span>
+        <span className="panel-badge">{running ? 'running' : 'idle'}</span>
+        <span className="panel-badge">{webglAvailable ? 'webgl-ready' : 'webgl-unavailable'}</span>
+      </div>
+
+      {backend === 'webgl' ? (
+        <p className="panel-copy">
+          WebGL backend is reserved in engine contracts and the switch is available, while the concrete renderer is next.
+        </p>
+      ) : (
+        <canvas
+          ref={canvasRef}
+          className="engine-standalone-canvas"
+          width={ENGINE_PREVIEW_WIDTH}
+          height={ENGINE_PREVIEW_HEIGHT}
+        />
+      )}
+
+      <div className="panel-row">
+        <span>draw / visible</span>
+        <strong>{stats ? `${stats.drawCount} / ${stats.visibleCount}` : '-'}</strong>
+      </div>
+      <div className="panel-row">
+        <span>cull / cache</span>
+        <strong>{stats ? `${stats.culledCount} / ${stats.cacheHits}` : '-'}</strong>
+      </div>
+      <div className="panel-row">
+        <span>frame ms</span>
+        <strong>{stats ? stats.frameMs.toFixed(2) : '-'}</strong>
+      </div>
+    </div>
+  )
+})
+
+function buildEngineStandaloneScene(progress: number): EngineSceneSnapshot {
+  const clamped = Math.max(0, Math.min(1, progress))
+  const headlineX = 22 + clamped * 90
+  const glowX = 36 + clamped * 140
+
+  return {
+    revision: `engine.demo.${Math.round(clamped * 1000)}`,
+    width: ENGINE_PREVIEW_WIDTH,
+    height: ENGINE_PREVIEW_HEIGHT,
+    nodes: [
+      {
+        id: 'engine.demo.image',
+        type: 'image',
+        x: 18,
+        y: 56,
+        width: 264,
+        height: 116,
+        assetId: ENGINE_PREVIEW_IMAGE_ASSET_ID,
+        clip: {
+          clipShape: {
+            kind: 'rect',
+            rect: {
+              x: 18,
+              y: 56,
+              width: 264,
+              height: 116,
+            },
+            radius: 14,
+          },
+        },
+      },
+      {
+        id: 'engine.demo.title',
+        type: 'text',
+        x: headlineX,
+        y: 18,
+        text: 'Venus Engine',
+        runs: [
+          {
+            text: 'Venus ',
+            style: {
+              fill: '#38bdf8',
+              fontWeight: 700,
+            },
+          },
+          {
+            text: 'Engine',
+            style: {
+              fill: '#f8fafc',
+              fontWeight: 800,
+            },
+          },
+        ],
+        style: {
+          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontSize: 24,
+          fontWeight: 700,
+          fill: '#f8fafc',
+        },
+      },
+      {
+        id: 'engine.demo.subtitle',
+        type: 'text',
+        x: 22,
+        y: 40,
+        text: 'text runs + clipped image + loop',
+        style: {
+          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontSize: 12,
+          fill: '#cbd5e1',
+        },
+      },
+      {
+        id: 'engine.demo.glow',
+        type: 'text',
+        x: glowX,
+        y: 142,
+        text: 'render tick',
+        style: {
+          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontSize: 12,
+          fill: '#22d3ee',
+        },
+      },
+    ],
+  }
+}
 
 const LodBlock = React.memo(function LodBlock({
   renderLodState,
