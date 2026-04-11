@@ -24,23 +24,24 @@ import {
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   updateMarqueeState,
+  resolveRuntimeZoomPresetScale,
   type MarqueeApplyMode,
   type MarqueeState,
   type MarqueeSelectionMode,
   type SnapGuide,
-} from '@venus/runtime-interaction'
+} from '@venus/runtime/interaction'
 import {
   useCanvasRuntime,
   useTransformPreviewCommitState,
-  Canvas2DRenderer,
-} from '@venus/runtime-react'
-import {createDefaultEditorModules} from '@venus/runtime-presets'
+} from '@venus/runtime/react'
+import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
+import type {EngineBackend} from '@venus/engine'
+import {createDefaultEditorModules} from '@venus/runtime/presets'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'
 import useFocus from './useFocus.tsx'
 import useShortcut from './useShortcut.tsx'
-import ZOOM_LEVELS from '../constants/zoomLevels.ts'
 import {createDocumentNodeFromElement} from '../adapters/fileDocument.ts'
 import readFileHelper from '../contexts/fileContext/readFileHelper.ts'
 import {
@@ -244,6 +245,22 @@ const useEditorRuntime = (options?: {
     modules: runtimeModules,
   }), [createWorker, document, runtimeModules])
   const canvasRuntime = useCanvasRuntime(runtimeOptions)
+  const preferredEngineBackend = useMemo<EngineBackend>(() => {
+    if (typeof window === 'undefined') {
+      return 'canvas2d'
+    }
+
+    const requested = new URLSearchParams(window.location.search).get('engineBackend')
+    return requested === 'webgl' ? 'webgl' : 'canvas2d'
+  }, [])
+  const RuntimeRenderer = useMemo(() => {
+    return function RuntimeCanvasRenderer(props: Parameters<typeof Canvas2DRenderer>[0]) {
+      return createElement(Canvas2DRenderer, {
+        ...props,
+        backend: preferredEngineBackend,
+      })
+    }
+  }, [preferredEngineBackend])
   const {
     preview: transformPreview,
     setPreview: setTransformPreview,
@@ -328,7 +345,7 @@ const useEditorRuntime = (options?: {
     })
   }, [canvasRuntime, resolveMarqueeSelectionIds])
 
-  const handleCommand = useCallback((command: import('@venus/editor-worker').EditorRuntimeCommand) => {
+  const handleCommand = useCallback((command: import('@venus/runtime/worker').EditorRuntimeCommand) => {
     if (command.type === 'snapping.pause') {
       setSnappingEnabled(false)
       setSnapGuides([])
@@ -407,17 +424,14 @@ const useEditorRuntime = (options?: {
   }, [canvasRuntime.document.shapes, handleCommand, selectedShapeId])
 
   const handleZoom = useCallback((zoomIn: boolean, point?: {x: number; y: number}) => {
-    const filtered = ZOOM_LEVELS.filter((zoomLevel) => typeof zoomLevel.value === 'number')
     const currentScale = canvasRuntime.viewport.scale
-    const nextScale = zoomIn
-      ? [...filtered].reverse().find((zoomLevel) => zoomLevel.value > currentScale)
-      : filtered.find((zoomLevel) => zoomLevel.value < currentScale)
+    const nextScaleValue = resolveRuntimeZoomPresetScale(currentScale, zoomIn ? 'in' : 'out')
 
-    if (!nextScale) {
+    if (nextScaleValue === null) {
       return
     }
 
-    canvasRuntime.zoomViewport(nextScale.value, point)
+    canvasRuntime.zoomViewport(nextScaleValue, point)
   }, [canvasRuntime])
 
   const applyAutoMask = useCallback(() => {
@@ -995,7 +1009,7 @@ const useEditorRuntime = (options?: {
 
   const runtimeState: EditorRuntimeState = {
     canvas: {
-      Renderer: Canvas2DRenderer,
+      Renderer: RuntimeRenderer,
       OverlayRenderer: OverlayRenderer,
       document: previewDocument,
       shapes: previewShapes,

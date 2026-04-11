@@ -4,12 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./worker": "./src/worker/index.ts",
+    "./interaction": "./src/interaction/index.ts",
+    "./react": "./src/react/index.ts",
+    "./presets": "./src/presets/index.ts",
+    "./presets/selection": "./src/presets/selection.ts",
+    "./presets/snapping": "./src/presets/snapping.ts",
+    "./presets/history": "./src/presets/history.ts",
+    "./presets/protocol": "./src/presets/protocol.ts",
+    "./presets/default": "./src/presets/defaultEditorModules.ts"
   },
   "dependencies": {
     "@venus/engine": "workspace:*",
     "@venus/document-core": "workspace:*",
-    "@venus/editor-worker": "workspace:*",
-    "@venus/shared-memory": "workspace:*"
+    "@venus/shared-memory": "workspace:*",
+    "react": "^19.2.4"
   }
 }

@@ -8,8 +8,8 @@ import {
   toResolvedNodeSvgTransform,
   type EditorDocument,
 } from '@venus/document-core'
-import {resolveSnapGuideLines, type SnapGuide} from '@venus/runtime-interaction'
-import type {CanvasRendererProps} from '@venus/runtime-react'
+import {resolveSnapGuideLines, type SnapGuide} from '@venus/runtime/interaction'
+import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'

@@ -28,7 +28,7 @@ Current runtime path:
 
 `useEditorRuntime`
 -> `runtime` + `runtime-interaction` + `runtime-react`
--> `editor-worker` + `shared-memory`
+-> `runtime/worker` + `shared-memory`
 -> `engine` (Canvas2D via `runtime-react` renderer)
 
 Key points:

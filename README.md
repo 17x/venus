@@ -6,9 +6,8 @@ The current active stack focuses on `vector-editor-web` and `playground`.
 ## Live Demo
 
 - Vector App Demo:
-[https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
+  [https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
 - Playground: [https://lucasischow.github.io/demos/venus/playground/](https://lucasischow.github.io/demos/venus/playground/)
-
 
 ## Workspace Layout
 
@@ -18,13 +17,13 @@ The current active stack focuses on `vector-editor-web` and `playground`.
 - `packages/*`: shared editor infrastructure
   - `@venus/document-core`: document model and core types
   - `@venus/engine`: renderer contracts, scene render node model, frame clock, animation primitives
-  - `@venus/runtime`: framework-agnostic runtime controller, viewport, worker bridge
-  - `@venus/runtime-interaction`: shared interaction algorithms (selection, snapping, transform)
-  - `@venus/runtime-react`: React adapters and viewport components
-  - `@venus/editor-worker`: command execution and scene mutation in worker
+  - `@venus/runtime`: consolidated runtime package
+    - core runtime/controller: `@venus/runtime`
+    - interaction submodule: `@venus/runtime/interaction`
+    - react submodule: `@venus/runtime/react`
+    - presets submodule: `@venus/runtime/presets`
+  - `@venus/runtime/worker`: command execution and scene mutation in worker
   - `@venus/shared-memory`: SAB layout and scene snapshot helpers
-  - `@venus/renderer-canvas`: Canvas2D renderer for active app surfaces
-  - `@venus/renderer-skia`: Skia renderer with tile cache and diagnostics
   - `@venus/file-format`: schema and runtime format adapters
 - `docs/*`: architecture and design docs
 
@@ -90,7 +89,7 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime Data Flow
 
-`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/engine` renderer contracts -> `@venus/renderer-canvas`
+`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`
 
 - UI and product actions stay in app layer.
 - Worker owns scene mutation and command execution.

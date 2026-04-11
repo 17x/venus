@@ -8,7 +8,7 @@ import {
   type ToolName,
 } from '@venus/document-core'
 import type {ElementProps} from '@lite-u/editor/types'
-import type {HistorySummary} from '@venus/editor-worker'
+import type {HistorySummary} from '@venus/runtime/worker'
 import type {HistoryNodeLike} from './useEditorRuntime.types.ts'
 
 interface PenDraftState {

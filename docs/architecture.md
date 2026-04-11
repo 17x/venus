@@ -4,7 +4,7 @@
 
 Venus uses a layered architecture to keep boundaries clear and performance stable:
 
-`apps/*` -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/engine` (Canvas2D via runtime-react)
+`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine` (Canvas2D via runtime-react)
 
 ## Principles
 
@@ -30,15 +30,15 @@ Venus uses a layered architecture to keep boundaries clear and performance stabl
 - Render node contracts for text, text runs, image, and clipping.
 - Frame clock and lightweight animation mechanism shared by renderer/runtime integrations.
 
-### `@venus/runtime-interaction`
+### `@venus/runtime/interaction`
 
 - Shared interaction algorithms: marquee, snapping, selection handles, transform sessions.
 
-### `@venus/runtime-react`
+### `@venus/runtime/react`
 
 - React adapters (`useCanvasRuntime`, `useCanvasViewer`, `CanvasViewport`) and renderer contracts.
 
-### `@venus/editor-worker`
+### `@venus/runtime/worker`
 
 - Worker protocol, command execution, hit-testing integration, history, collaboration state.
 
@@ -52,7 +52,7 @@ Venus uses a layered architecture to keep boundaries clear and performance stabl
 
 ### Renderer Integration
 
-- Active app surfaces consume Canvas2D renderer from `@venus/runtime-react`.
+- Active app surfaces consume Canvas2D renderer from `@venus/runtime/react`.
 - The renderer mechanism contract and backend primitives live in `@venus/engine`.
 
 ## App Roles

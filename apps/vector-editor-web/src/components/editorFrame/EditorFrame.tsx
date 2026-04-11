@@ -13,7 +13,7 @@ import FileReceiver from '../fileReceiver.tsx'
 import {cn, Col, Row, Tooltip} from '@venus/ui'
 import useEditorRuntime from '../../hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@venus/runtime'
-import {CanvasViewport} from '@venus/runtime-react'
+import {CanvasViewport} from '../../runtime/canvasAdapter.tsx'
 import {LuHistory, LuLayers, LuSettings} from 'react-icons/lu'
 import {
   CHROME_ICON_SIZE,

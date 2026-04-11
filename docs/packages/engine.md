@@ -19,14 +19,14 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
   `@venus/runtime` consumers can adopt engine APIs incrementally.
 - Added standalone usability primitives:
   `createCanvas2DEngineRenderer` and `createEngineLoop`, so engine can now run
-  a scene/viewport render loop without requiring `@venus/runtime-react`.
+  a scene/viewport render loop without requiring `@venus/runtime/react`.
 - Extended `createEngineLoop` with a frame-level `beforeRender(frame)` hook so
   animation controllers or other frame-driven state can tick inside one shared
   engine loop boundary.
 - Added a standalone `@venus/engine` demo block in `apps/playground` `Engine`
   tab (canvas2d backend live path + webgl reserved entry), demonstrating
   independent usage of engine scene contracts, frame clock, animation
-  controller, and loop APIs without `@venus/runtime-react`.
+  controller, and loop APIs without `@venus/runtime/react`.
 - Added built-in engine worker capability detection and fallback mode
   resolution (`main-thread`, `worker-postmessage`,
   `worker-shared-memory`) so runtime/app layers can reuse one policy from the
@@ -62,3 +62,21 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
   (`createEngineSpatialIndex`, `EngineSpatialIndex`, `EngineSpatialItem`).
   Worker/runtime consumers now use this engine-owned mechanism instead of the
   old standalone `@venus/spatial-index` package.
+- Moved reusable interaction mechanisms into engine-owned APIs so runtime/app
+  layers can consume them directly:
+  - marquee state/bounds/selection helpers in
+    `packages/engine/src/interaction/marquee.ts`
+  - selection handle generation/picking in
+    `packages/engine/src/interaction/selectionHandles.ts`
+  - move snapping solver in `packages/engine/src/interaction/snapping.ts`
+    Runtime-interaction now acts as a compatibility/adapter layer for these
+    engine mechanisms instead of hosting duplicate implementations.
+- Viewport core state mechanisms now live in
+  `packages/engine/src/interaction/viewport.ts`
+  (`resolve/pan/resize/zoom/fit + clamping + default viewport state`) so
+  runtime/runtime-interaction can reuse one matrix-first viewport state owner.
+- Zoom wheel/session core mechanisms now live in
+  `packages/engine/src/interaction/zoom.ts`
+  (`handle/reset/normalize/session accumulate + settle policy`) with
+  browser-agnostic delta-mode constants, while runtime-interaction keeps
+  device-feel policy (for example discrete mouse-wheel preset snapping).

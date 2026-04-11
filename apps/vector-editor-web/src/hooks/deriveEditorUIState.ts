@@ -1,7 +1,7 @@
 import {buildHistoryArray, buildSelectedProps} from './editorRuntimeHelpers.ts'
 import type {EditorUIState} from './useEditorRuntime.types.ts'
 import type {DocumentNode} from '@venus/document-core'
-import type {useCanvasRuntime} from '@venus/runtime-react'
+import type {useCanvasRuntime} from '@venus/runtime/react'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {LayerItem} from './useEditorRuntime.types.ts'
 

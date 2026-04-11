@@ -13,13 +13,8 @@
   "dependencies": {
     "@tailwindcss/vite": "4.2.2",
     "@venus/document-core": "workspace:*",
-    "@venus/editor-dev": "workspace:*",
     "@venus/engine": "workspace:*",
-    "@venus/editor-worker": "workspace:*",
     "@venus/runtime": "workspace:*",
-    "@venus/runtime-interaction": "workspace:*",
-    "@venus/runtime-presets": "workspace:*",
-    "@venus/runtime-react": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

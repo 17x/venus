@@ -26,7 +26,6 @@ aliases:
 
 - [[packages/README]]
 - [[packages/document-core]]
-- [[packages/editor-worker]]
 - [[packages/file-format]]
 - [[packages/runtime]]
 - [[packages/runtime-interaction]]

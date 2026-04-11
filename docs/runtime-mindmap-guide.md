@@ -6,15 +6,15 @@ Use the current runtime package family to ship an extensible mindmap editor with
 
 ## Recommended Approach
 
-- Reuse `@venus/runtime` and `@venus/runtime-react` for lifecycle/viewport/worker bridge.
+- Reuse `@venus/runtime` and `@venus/runtime/react` for lifecycle/viewport/worker bridge.
 - Keep mindmap semantics (topic/edge/fold/layout) in app + worker command layers.
-- Start with Canvas2D renderer from `@venus/runtime-react` (engine-backed).
+- Start with Canvas2D renderer from `@venus/runtime/react` (engine-backed).
 
 ## What Runtime Packages Own
 
 - `@venus/runtime`: lifecycle, viewport, command bridge, worker transport
-- `@venus/runtime-react`: React hooks/components (`useCanvasRuntime`, `useCanvasViewer`, `CanvasViewport`)
-- `@venus/runtime-interaction`: shared editing interaction algorithms
+- `@venus/runtime/react`: React hooks/components (`useCanvasRuntime`, `useCanvasViewer`, `CanvasViewport`)
+- `@venus/runtime/interaction`: shared editing interaction algorithms
 
 ## What They Do Not Own
 

@@ -6,8 +6,6 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "references": [
-    { "path": "../../packages/editor-dev/tsconfig.json" }
-  ],
+  "references": [],
   "include": ["vite.config.ts"]
 }

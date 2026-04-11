@@ -1,90 +1,36 @@
-import type {Point2D} from '../viewport/matrix.ts'
+import {
+  DEFAULT_ENGINE_ZOOM_SESSION,
+  accumulateEngineZoomSession,
+  detectEngineZoomInputSource,
+  getEngineZoomSettleDelay,
+  handleEngineZoomWheel,
+  normalizeEngineZoomDelta,
+  resetEngineZoomSession,
+  type EngineNormalizedZoomDelta,
+  type EngineZoomInputSource,
+  type EngineZoomSessionState,
+  type EngineZoomWheelInput,
+  type EngineZoomWheelResult,
+} from '@venus/engine'
 
-export interface ZoomWheelInput {
-  clientX: number
-  clientY: number
-  ctrlKey: boolean
-  metaKey: boolean
-  deltaMode: number
-  deltaX: number
-  deltaY: number
-  timeStamp?: number
-}
+// Compatibility bridge: zoom mechanism ownership moved to @venus/engine.
+// Runtime keeps historical names so existing integrations do not break.
+export type ZoomWheelInput = EngineZoomWheelInput
+export type ZoomInputSource = EngineZoomInputSource
+export type NormalizedZoomDelta = EngineNormalizedZoomDelta
+export type ZoomSessionState = EngineZoomSessionState
+export type ZoomWheelResult = EngineZoomWheelResult
 
-export type ZoomInputSource = 'mouse' | 'trackpad'
-
-export interface NormalizedZoomDelta {
-  anchor: Point2D
-  delta: number
-  source: ZoomInputSource
-  timeStamp?: number
-}
-
-export interface ZoomSessionState {
-  active: boolean
-  factor: number
-  anchor: Point2D | null
-  lastEventAt: number
-  source: ZoomInputSource | null
-}
-
-export interface ZoomWheelResult {
-  session: ZoomSessionState
-  factor: number
-  anchor: Point2D
-  settleDelay: number
-  source: ZoomInputSource
-}
-
-export const DEFAULT_ZOOM_SESSION: ZoomSessionState = {
-  active: false,
-  factor: 1,
-  anchor: null,
-  lastEventAt: 0,
-  source: null,
-}
-
-const ZOOM_SOURCE_LOCK_MS = 140
+export const DEFAULT_ZOOM_SESSION: ZoomSessionState = DEFAULT_ENGINE_ZOOM_SESSION
 
 export function detectZoomInputSource(
   input: Pick<ZoomWheelInput, 'deltaMode' | 'deltaX' | 'deltaY'>,
 ): ZoomInputSource {
-  if (input.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) {
-    return 'mouse'
-  }
-
-  const absX = Math.abs(input.deltaX)
-  const absY = Math.abs(input.deltaY)
-
-  if (!Number.isInteger(input.deltaX) || !Number.isInteger(input.deltaY)) {
-    return 'trackpad'
-  }
-
-  if (absX > 0 && absY < 16) {
-    return 'trackpad'
-  }
-
-  if (absY > 0 && absY <= 4) {
-    return 'trackpad'
-  }
-
-  return 'mouse'
+  return detectEngineZoomInputSource(input)
 }
 
 export function normalizeZoomDelta(input: ZoomWheelInput): NormalizedZoomDelta {
-  const source = detectZoomInputSource(input)
-  const normalizedDelta = Math.max(-160, Math.min(160, input.deltaY))
-  const deltaScale = resolveZoomDeltaScale(input.deltaMode, source)
-
-  return {
-    anchor: {
-      x: input.clientX,
-      y: input.clientY,
-    },
-    delta: normalizedDelta * deltaScale,
-    source,
-    timeStamp: input.timeStamp,
-  }
+  return normalizeEngineZoomDelta(input)
 }
 
 export function accumulateZoomSession(
@@ -96,132 +42,20 @@ export function accumulateZoomSession(
     timeStamp?: number
   },
 ): ZoomSessionState {
-  const nextFactor =
-    update.source === 'mouse'
-      ? update.factor
-      : session.factor * update.factor
-
-  return {
-    active: true,
-    factor: nextFactor,
-    anchor: update.anchor,
-    lastEventAt: update.timeStamp ?? Date.now(),
-    source: update.source,
-  }
+  return accumulateEngineZoomSession(session, update)
 }
 
 export function getZoomSettleDelay(source: ZoomInputSource | null) {
-  return source === 'trackpad' ? 120 : 72
+  return getEngineZoomSettleDelay(source)
 }
 
 export function resetZoomSession(): ZoomSessionState {
-  return DEFAULT_ZOOM_SESSION
+  return resetEngineZoomSession()
 }
 
-/**
- * Main entry for framework adapters.
- *
- * It hides the device heuristics and session accumulation details behind a
- * single call so React/Vue/Angular integrations can stay simple.
- */
 export function handleZoomWheel(
   session: ZoomSessionState,
   input: ZoomWheelInput,
 ): ZoomWheelResult {
-  const source = resolveZoomSource(session, input)
-  const normalized = normalizeZoomDeltaWithSource(input, source)
-  const factor = resolveZoomFactor(normalized)
-  const nextSession = accumulateZoomSession(session, {
-    anchor: normalized.anchor,
-    factor,
-    source: normalized.source,
-    timeStamp: normalized.timeStamp,
-  })
-
-  return {
-    session: nextSession,
-    factor,
-    anchor: normalized.anchor,
-    settleDelay: getZoomSettleDelay(nextSession.source),
-    source: normalized.source,
-  }
-}
-
-function normalizeZoomDeltaWithSource(
-  input: ZoomWheelInput,
-  source: ZoomInputSource,
-): NormalizedZoomDelta {
-  const normalizedDelta = Math.max(-160, Math.min(160, input.deltaY))
-  const deltaScale = resolveZoomDeltaScale(input.deltaMode, source)
-
-  return {
-    anchor: {
-      x: input.clientX,
-      y: input.clientY,
-    },
-    delta: normalizedDelta * deltaScale,
-    source,
-    timeStamp: input.timeStamp,
-  }
-}
-
-function resolveZoomSource(
-  session: ZoomSessionState,
-  input: ZoomWheelInput,
-): ZoomInputSource {
-  const detected = detectZoomInputSource(input)
-  const currentTime = input.timeStamp ?? Date.now()
-
-  if (
-    session.active &&
-    session.source &&
-    currentTime - session.lastEventAt <= ZOOM_SOURCE_LOCK_MS
-  ) {
-    return session.source
-  }
-
-  return detected
-}
-
-function resolveZoomDeltaScale(deltaMode: number, source: ZoomInputSource) {
-  if (source === 'mouse') {
-    if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-      return 0.008
-    }
-
-    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
-      return 0.004
-    }
-
-    return 0.0015
-  }
-
-  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-    return 0.05
-  }
-
-  if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
-    return 0.022
-  }
-
-  return 0.012
-}
-
-function resolveZoomFactor(normalized: NormalizedZoomDelta) {
-  if (normalized.source === 'mouse') {
-    if (normalized.delta > 0) {
-      return 0.992
-    }
-
-    if (normalized.delta < 0) {
-      return 1.008
-    }
-
-    return 1
-  }
-
-  const clampedDelta = Math.max(-0.18, Math.min(0.18, normalized.delta))
-  const softenedDelta = clampedDelta * 0.8
-
-  return Math.exp(-softenedDelta)
+  return handleEngineZoomWheel(session, input)
 }

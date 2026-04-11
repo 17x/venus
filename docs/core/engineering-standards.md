@@ -41,9 +41,9 @@
 - Use adapter packages for framework integration and preset packages for out-of-box behavior
 - When organizing runtime code, prefer the `runtime-*` family split:
   `@venus/runtime` for portable runtime core,
-  `@venus/runtime-interaction` for shared editing interaction algorithms,
-  `@venus/runtime-react` for React adapters,
-  and `@venus/runtime-presets` for default behavior packs
+  `@venus/runtime/interaction` for shared editing interaction algorithms,
+  `@venus/runtime/react` for React adapters,
+  and `@venus/runtime/presets` for default behavior packs
 
 ## Safety Rules
 

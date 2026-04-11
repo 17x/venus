@@ -2,7 +2,7 @@
 
 Status: Draft
 Date: 2026-04-09
-Scope: `document-core`, `canvas-base`, `editor-worker`, renderer/shared-memory
+Scope: `document-core`, `canvas-base`, `runtime/worker`, renderer/shared-memory
 
 ## Context
 
