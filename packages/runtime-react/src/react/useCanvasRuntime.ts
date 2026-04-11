@@ -1,9 +1,9 @@
 import * as React from 'react'
 import type { EditorDocument } from '@venus/document-core'
 import {
-  createCanvasRuntimeController,
-  type CanvasRuntimeController,
-  type CanvasRuntimeControllerOptions,
+  createCanvasEditorInstance,
+  type CanvasEditorInstance,
+  type CanvasEditorInstanceOptions,
   type CanvasRuntimeSnapshot,
 } from '@venus/runtime'
 import {useCanvasStoreSelector, type CanvasSnapshotStore} from './store.ts'
@@ -15,7 +15,7 @@ import {useCanvasStoreSelector, type CanvasSnapshotStore} from './store.ts'
  * editor runtime fits naturally into React render/update flow.
  */
 export function useCanvasRuntime<TDocument extends EditorDocument>(
-  options: CanvasRuntimeControllerOptions<TDocument>,
+  options: CanvasEditorInstanceOptions<TDocument>,
 ) {
   const store = useCanvasRuntimeStore(options)
   const controller = store.controller
@@ -50,21 +50,25 @@ export function useCanvasRuntime<TDocument extends EditorDocument>(
 
 export type CanvasRuntimeStore<TDocument extends EditorDocument> = CanvasSnapshotStore<
   CanvasRuntimeSnapshot<TDocument>,
-  CanvasRuntimeController<TDocument>
+  CanvasEditorInstance<TDocument>
 >
 
 export function useCanvasRuntimeStore<TDocument extends EditorDocument>(
-  options: CanvasRuntimeControllerOptions<TDocument>,
+  options: CanvasEditorInstanceOptions<TDocument>,
 ) {
-  const {capacity, createWorker, document, allowFrameSelection} = options
+  const {capacity, createWorker, document, allowFrameSelection, elements, modules} = options
   const controller = React.useMemo(
-    () => createCanvasRuntimeController({
+    // Use the editor-instance runtime path so app hooks can consume optional
+    // runtime modules (for example runtime-presets) without rewriting app code.
+    () => createCanvasEditorInstance({
       capacity,
       createWorker,
       document,
       allowFrameSelection,
+      elements,
+      modules,
     }),
-    [capacity, createWorker, document, allowFrameSelection],
+    [capacity, createWorker, document, allowFrameSelection, elements, modules],
   )
   const store = React.useMemo<CanvasRuntimeStore<TDocument>>(
     () => ({

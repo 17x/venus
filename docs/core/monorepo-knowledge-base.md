@@ -69,6 +69,14 @@ Use this file as the shared knowledge base for the Venus monorepo.
 
 ### 2026-04-11
 
+- Spatial index mechanism is now owned by `@venus/engine`:
+  `packages/engine/src/spatial/index.ts` exports
+  `createEngineSpatialIndex(...)` and related types, and worker/runtime
+  consumers (`@venus/editor-worker`, `@venus/runtime-interaction`) were
+  migrated to that API. The standalone `packages/spatial-index` package and
+  its monorepo alias/project references were removed to avoid duplicate index
+  implementations.
+
 - Removed legacy renderer package coupling from active app/runtime paths:
   `vector-editor-web`, `playground`, and `mindmap-editor` now consume
   `Canvas2DRenderer` from `@venus/runtime-react` directly, while
@@ -766,7 +774,7 @@ Use this file as the shared knowledge base for the Venus monorepo.
   the vector editor root and cannot rely on `.venus-editor` typography
   inheritance or app Tailwind scanning for package-local arbitrary classes.
 
-- Snapping candidate lookup now uses `@venus/spatial-index` in
+- Snapping candidate lookup now uses `@venus/engine` spatial index APIs in
   `@venus/runtime-interaction` (`interaction/snapping.ts`) to query nearby bounds by
   tolerance window around moving shapes, so snap priority is effectively
   nearest-match among local neighbors rather than global full-scene scans.

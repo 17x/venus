@@ -46,3 +46,10 @@ runtime hit-testing.
 - Worker move-patch ancestor gating now reuses one `shapeById` map per patch
   application cycle when checking moved group ancestors, reducing repeated
   hierarchy map rebuilds in nested group move paths.
+
+### 2026-04-11
+
+- Worker runtime coarse indexing now uses engine-owned spatial primitives
+  (`createEngineSpatialIndex(...)` and `EngineSpatialItem` from
+  `@venus/engine`) so worker hit-test indexing shares one mechanism surface
+  with runtime interactions.

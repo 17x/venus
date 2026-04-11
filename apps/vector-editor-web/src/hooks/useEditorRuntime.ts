@@ -34,6 +34,7 @@ import {
   useTransformPreviewCommitState,
   Canvas2DRenderer,
 } from '@venus/runtime-react'
+import {createDefaultEditorModules} from '@venus/runtime-presets'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'
@@ -217,6 +218,22 @@ const useEditorRuntime = (options?: {
     () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
   )
+  const runtimeModules = useMemo(() => createDefaultEditorModules({
+    selection: {
+      allowFrameSelection: false,
+      input: {
+        singleClick: 'replace',
+        shiftClick: 'add',
+        metaOrCtrlClick: 'toggle',
+        altClick: 'subtract',
+      },
+      marquee: {
+        enabled: true,
+        defaultMatchMode: 'contain',
+        shiftMatchMode: 'contain',
+      },
+    },
+  }), [])
   // Keep runtime boot options referentially stable so viewport updates do not
   // accidentally recreate the controller layer.
   const runtimeOptions = useMemo(() => ({
@@ -224,7 +241,8 @@ const useEditorRuntime = (options?: {
     createWorker,
     document,
     allowFrameSelection: false,
-  }), [createWorker, document])
+    modules: runtimeModules,
+  }), [createWorker, document, runtimeModules])
   const canvasRuntime = useCanvasRuntime(runtimeOptions)
   const {
     preview: transformPreview,

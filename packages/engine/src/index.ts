@@ -76,3 +76,9 @@ export {
   detectEngineWorkerCapabilities,
   resolveEngineWorkerMode,
 } from './worker/capabilities.ts'
+export type {
+  EngineSpatialBounds,
+  EngineSpatialIndex,
+  EngineSpatialItem,
+} from './spatial/index.ts'
+export { createEngineSpatialIndex } from './spatial/index.ts'

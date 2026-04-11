@@ -12,6 +12,7 @@
     { "path": "../../packages/editor-product/tsconfig.json" },
     { "path": "../../packages/runtime/tsconfig.json" },
     { "path": "../../packages/runtime-interaction/tsconfig.json" },
+    { "path": "../../packages/runtime-presets/tsconfig.json" },
     { "path": "../../packages/runtime-react/tsconfig.json" },
     { "path": "../../packages/ui/tsconfig.json" },
     { "path": "../../packages/shared-memory/tsconfig.json" },

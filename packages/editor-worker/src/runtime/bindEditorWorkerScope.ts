@@ -21,6 +21,11 @@ import {
   type HistoryPatch,
 } from '../history.ts'
 import {
+  createEngineSpatialIndex,
+  type EngineSpatialIndex,
+  type EngineSpatialItem,
+} from '@venus/engine'
+import {
   attachSceneMemory,
   clearHoveredShape,
   getSelectedShapeIndices,
@@ -38,7 +43,6 @@ import {
   type SceneSelectionMode,
   type SceneMemory,
 } from '@venus/shared-memory'
-import { createSpatialIndex } from '@venus/spatial-index'
 import type {
   EditorRuntimeCommand,
   EditorWorkerMessage,
@@ -53,9 +57,11 @@ function debugWorker(message: string, details?: unknown) {
   console.debug('EDITOR-WORKER', message, details)
 }
 
-type WorkerSpatialIndex = ReturnType<
-  typeof createSpatialIndex<{ shapeId: string; type: DocumentNode['type']; order: number }>
->
+type WorkerSpatialIndex = EngineSpatialIndex<{
+  shapeId: string
+  type: DocumentNode['type']
+  order: number
+}>
 
 /**
  * Worker entry for the current vector editor implementation.
@@ -74,7 +80,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let allowFrameSelection = true
   // The worker owns the coarse spatial index because hit-testing belongs to
   // execution/data flow, not the UI shell or app layer.
-  const spatialIndex = createSpatialIndex<{
+  const spatialIndex = createEngineSpatialIndex<{
     shapeId: string
     type: DocumentNode['type']
     order: number
@@ -1519,7 +1525,14 @@ function rebuildSpatialIndex(
   )
 }
 
-function createSpatialItem(shape: DocumentNode, order: number) {
+function createSpatialItem(
+  shape: DocumentNode,
+  order: number,
+): EngineSpatialItem<{
+  shapeId: string
+  type: DocumentNode['type']
+  order: number
+}> {
   const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
   return {
     id: shape.id,

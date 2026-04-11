@@ -19,6 +19,7 @@
     "@venus/file-format": "workspace:*",
     "@venus/runtime": "workspace:*",
     "@venus/runtime-interaction": "workspace:*",
+    "@venus/runtime-presets": "workspace:*",
     "@venus/runtime-react": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",
