@@ -1,13 +1,9 @@
 # Mindmap Editor App
 
-Product app shell for a mindmap/outliner editor experience.
+This app is intentionally paused.
 
-## Folder Guide
-
-- `src/app`: app entry, composition, providers
-- `src/features`: product-specific feature modules
-- `src/platform`: platform adapters (web/desktop bridge)
-- `src/state`: app-level state wiring
-- `src/workflows`: high-level editor workflows and orchestration
-
-This app should remain thin and reuse shared logic from `packages/*`.
+Current status:
+- the app shell is reduced to a minimal placeholder page
+- no active runtime, viewer, or editor wiring is maintained here
+- use `apps/vector-editor-web` for product-facing editor work
+- use `apps/playground` for runtime and renderer diagnostics

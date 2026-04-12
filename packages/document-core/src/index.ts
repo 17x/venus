@@ -125,7 +125,7 @@ export interface DocumentNode {
   // Resolved browser-usable URL for image rendering in app shells.
   assetUrl?: string
   // Clip source reference for image-backed nodes that are trimmed by another
-  // closed shape in the file-format layer.
+  // closed shape in persisted document adapters.
   clipPathId?: string
   clipRule?: 'nonzero' | 'evenodd'
   // Absolute world-space points used by polyline/path shapes.
@@ -145,8 +145,8 @@ export interface DocumentNode {
   // Ellipse arc controls in degrees.
   ellipseStartAngle?: number
   ellipseEndAngle?: number
-  // File-format source metadata preserved for adapters, renderer diagnostics,
-  // and interaction logic that needs to stay aligned with node+feature truth.
+  // Source metadata preserved for import/export adapters, renderer diagnostics,
+  // and interaction logic that needs model-origin hints.
   schema?: DocumentSchemaMeta
 }
 

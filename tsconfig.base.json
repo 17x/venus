@@ -25,7 +25,7 @@
       "@venus/file-format/base": ["packages/file-format/base/src/index.ts"],
       "@venus/runtime/interaction": ["packages/runtime/src/interaction/index.ts"],
       "@venus/runtime/presets": ["packages/runtime/src/presets/index.ts"],
-      "@venus/runtime/presets/*": ["packages/runtime/src/presets/presets/*.ts"],
+      "@venus/runtime/presets/*": ["packages/runtime/src/presets/*.ts"],
       "@venus/runtime/react": ["packages/runtime/src/react/index.ts"],
       "@venus/runtime": ["packages/runtime/src/index.ts"],
       "@venus/shared-memory": ["packages/shared-memory/src/index.ts"],

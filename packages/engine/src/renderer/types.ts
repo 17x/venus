@@ -64,6 +64,9 @@ export interface EngineRendererContext {
   // `interactive` allows renderers to trade fidelity for responsiveness during
   // high-frequency gestures (pan/zoom/drag).
   quality: EngineRenderQuality
+  // Pixel ratio used by renderers to map CSS-space viewport math to backing
+  // store resolution on high-DPI displays.
+  pixelRatio?: number
   loader?: EngineResourceLoader
   textShaper?: EngineTextShaper
 }

@@ -1,5 +1,6 @@
 import {
   applyAffineMatrixToPoint,
+  createMatrixFirstNodeTransform,
   createAffineMatrixAroundPoint,
   resolveShapeTransformRecord,
   type ResolvedShapeTransformRecord,
@@ -154,24 +155,8 @@ export function buildTransformBatch(
 
     transforms.push({
       id: shape.id,
-      from: {
-        x: from.x,
-        y: from.y,
-        width: from.width,
-        height: from.height,
-        rotation: from.rotation,
-        flipX: from.flipX,
-        flipY: from.flipY,
-      },
-      to: {
-        x: to.x,
-        y: to.y,
-        width: to.width,
-        height: to.height,
-        rotation: to.rotation,
-        flipX: to.flipX,
-        flipY: to.flipY,
-      },
+      fromMatrix: createMatrixFirstNodeTransform(from),
+      toMatrix: createMatrixFirstNodeTransform(to),
     })
   })
 

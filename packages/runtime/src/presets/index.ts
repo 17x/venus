@@ -48,3 +48,8 @@ export {
   type PresetAnimationControllerOptions,
   type PresetEasing,
 } from './easing.ts'
+export {
+  buildDocumentImageAssetUrlMap,
+  createEngineSceneFromRuntimeSnapshot,
+  type CreateEngineSceneFromRuntimeSnapshotOptions,
+} from './engineSceneAdapter.ts'
