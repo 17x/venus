@@ -1,5 +1,5 @@
-import {resolveNodeTransform, type EditorDocument} from '@venus/document-core'
-import type {EngineRenderableNode, EngineSceneSnapshot} from '@venus/engine'
+import type {EditorDocument} from '@venus/document-core'
+import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 
 export interface CreateEngineSceneFromRuntimeSnapshotOptions {
@@ -278,12 +278,10 @@ function resolveShapePaint(
   const baseFill = sourceShape?.fill?.enabled === false
     ? 'transparent'
     : sourceShape?.fill?.color ?? 'rgba(17,24,39,0.05)'
-  const hoverFill = flags?.isHovered
-    ? 'rgba(37,99,235,0.12)'
-    : baseFill
 
   return {
-    fill: hoverFill,
+    // Hover highlight is rendered by overlay chrome; keep node paint stable.
+    fill: baseFill,
     stroke: selectedStroke ?? baseStroke,
     strokeWidth: flags?.isSelected ? Math.max(2, baseStrokeWidth) : baseStrokeWidth,
   }

@@ -1,0 +1,6 @@
+{
+  "name": "venus-playground",
+  "compatibility_date": "2026-04-12",
+  "pages_build_output_dir": "./apps/playground/dist",
+  "workers_dev": true
+}

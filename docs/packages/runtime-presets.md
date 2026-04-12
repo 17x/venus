@@ -49,3 +49,6 @@ Package-scoped note for opinionated default runtime behavior packs.
   render semantics into engine nodes:
   rectangle corner radius, ellipse arc angles, line/path arrowheads, shape
   shadow style, text-run style payloads, and image clip rule forwarding.
+- Hover state no longer tints node fill paint in
+  `packages/runtime/src/presets/engineSceneAdapter.ts`; hover affordance stays
+  in overlay chrome so source node color remains stable while hovering.

@@ -1,4 +1,5 @@
-import {isPointInsideClipShape, isPointInsideShapeHitArea, type EditorDocument} from '@venus/document-core'
+import { type EditorDocument } from '@venus/document-core'
+import { isPointInsideEngineClipShape, isPointInsideEngineShapeHitArea } from '@venus/engine'
 import type {EditorRuntimeCommand} from '../worker/index.ts'
 import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
 import type {Point2D} from '../viewport/matrix.ts'
@@ -149,11 +150,7 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
   }
 
   const clearHover = () => {
-    if (snapshot.stats.hoveredIndex < 0) {
-      return
-    }
-
-    updateHoverSelection(-1, snapshot.stats.selectedIndex)
+    // Hover is overlay-owned and should not mutate viewer snapshot flags.
   }
 
   const postPointer = (type: 'pointermove' | 'pointerdown', pointer: PointerState) => {
@@ -165,9 +162,7 @@ export function createCanvasViewerController<TDocument extends EditorDocument>({
       if (!hoverOnPointerMove) {
         return
       }
-
-      const hoveredIndex = hitTestDocument(snapshot.document, snapshot.shapes, pointer)
-      updateHoverSelection(hoveredIndex, snapshot.stats.selectedIndex)
+      // Hover feedback is handled in overlay/app layers.
       return
     }
 
@@ -239,11 +234,14 @@ function hitTestDocument(
     }
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideClipShape(pointer, clipSource, {tolerance: 1.5})) {
+      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+        tolerance: 1.5,
+        shapeById,
+      })) {
         continue
       }
     }
-    if (isPointInsideShapeHitArea(pointer, source, {tolerance: 6})) {
+    if (isPointInsideEngineShapeHitArea(pointer, source, {tolerance: 6, shapeById})) {
       return index
     }
   }

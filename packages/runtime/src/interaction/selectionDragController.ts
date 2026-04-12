@@ -1,9 +1,11 @@
 import {
-  getNormalizedBoundsFromBox,
-  isPointInsideClipShape,
-  isPointInsideShapeHitArea,
   type EditorDocument,
 } from '@venus/document-core'
+import {
+  getNormalizedBounds,
+  isPointInsideEngineClipShape,
+  isPointInsideEngineShapeHitArea,
+} from '@venus/engine'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 
 export interface SelectionDragModifiers {
@@ -146,9 +148,9 @@ export function createSelectionDragController(options?: {
         }
 
         const first = dragShapes[0]
-        const firstBounds = getNormalizedBoundsFromBox(first.x, first.y, first.width, first.height)
+        const firstBounds = getNormalizedBounds(first.x, first.y, first.width, first.height)
         const bounds = dragShapes
-          .map((shape) => getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height))
+          .map((shape) => getNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
           .reduce<{minX: number; minY: number; maxX: number; maxY: number}>(
             (acc, boundsItem) => ({
               minX: Math.min(acc.minX, boundsItem.minX),
@@ -262,13 +264,17 @@ function isShapeHitAtPointer(
 
   if (source.clipPathId) {
     const clipSource = shapeById.get(source.clipPathId)
-    if (clipSource && !isPointInsideClipShape(pointer, clipSource, {tolerance: lineHitTolerance})) {
+    if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+      tolerance: lineHitTolerance,
+      shapeById,
+    })) {
       return false
     }
   }
 
-  return isPointInsideShapeHitArea(pointer, source, {
+  return isPointInsideEngineShapeHitArea(pointer, source, {
     allowFrameSelection,
     tolerance: lineHitTolerance,
+    shapeById,
   })
 }

@@ -70,6 +70,45 @@ Knowledge` when they become long-term guidance.
 
 ### 2026-04-12
 
+- Engine backend request default in app-level API wiring is now `webgl`
+  (with explicit `canvas2d` override):
+  `apps/vector-editor-web/src/hooks/useEditorRuntime.ts` now treats
+  `?engineBackend=canvas2d` as the opt-out path and defaults to requesting
+  `webgl` when no query override is provided.
+- `apps/playground/src/App.tsx` now exposes a renderer mode switch panel
+  (`webgl` / `canvas2d`) wired into `Canvas2DRenderer` `backend` prop so
+  diagnostics can quickly compare backend request modes without editing code.
+
+- `apps/playground` and `apps/vector-editor-web` Canvas2D adapters now defer
+  non-interacting full-quality redraw with a cancelable idle/timeout path.
+  Interactive pan/zoom frames still render immediately, while full redraw can
+  be skipped if a new interaction starts quickly, reducing post-pan hitch risk
+  on large scenes.
+- Replay tile mechanism ownership moved to `@venus/engine`:
+  `buildEngineReplayTiles(...)` now provides center-first tile ordering for
+  progressive bitmap replay, and app worker adapters consume this shared helper
+  instead of maintaining duplicated local tile planners.
+- Replay worker protocol and request orchestration are now also engine-owned
+  through `createEngineReplayCoordinator(...)`, so app workers keep only
+  backend-specific frame rendering while request/cancel and progressive tile
+  stream control paths are shared.
+- `apps/playground` and `apps/vector-editor-web` canvas adapters now actively
+  consume the replay worker path for large scenes (`shapeCount >= 10_000`):
+  non-interacting full redraw requests are sent to worker/offscreen rendering,
+  and main thread progressively replays center-first tiles while immediate
+  interactive frames still render on the main engine path.
+- Canvas adapters now use a coalesced input-priority render scheduler on the
+  main thread (single-flight + request merge + interactive interval throttle)
+  so panning/zooming event throughput is less likely to be back-pressured by
+  repeated `renderFrame` submissions during heavy scenes.
+
+- Shape-transform interaction mechanisms previously exposed by
+  `@venus/document-core` were migrated to `@venus/engine` interaction APIs
+  (`resolveNodeTransform`, `createShapeTransformRecord`,
+  `createMatrixFirstNodeTransform`, transform batch contracts, and legacy
+  adapter helpers). `document-core` now keeps low-level geometry primitives and
+  document model contracts.
+
 - `@venus/file-format/base` document model contracts are now JSON-first in
   `packages/file-format/base/src/types.ts`; parser/adapter exports no longer
   depend on `base/migrations/*` type re-exports.
@@ -996,6 +1035,12 @@ path.bezierPoints` from sampled anchors via
 - Engine scene-core mechanisms were consolidated to reduce cross-package
   duplication: scene patch types/helpers and scene point hit-test helpers now
   live in `@venus/engine`, alongside internal worker transport logic.
+
+- Editor/runtime hit-testing now routes through `@venus/engine` interaction
+  helpers (`isPointInsideEngineShapeHitArea`,
+  `isPointInsideEngineClipShape`) with optional shape-map context for
+  parent-transform-aware hit checks. `@venus/document-core` no longer exports
+  the old hit-test helpers from its root index.
 
 - `@venus/runtime/presets` now supports modular policy imports beyond snapping
   and selection: added `history` and `protocol` preset modules plus subpath

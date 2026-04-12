@@ -71,6 +71,8 @@ export function createWebGLEngineRenderer(
         culledCount: plan.stats.culledCount,
         cacheHits: 0,
         cacheMisses: 0,
+        frameReuseHits: 0,
+        frameReuseMisses: 0,
         frameMs: performance.now() - startAt,
       }
     },

@@ -1,4 +1,5 @@
-import {getNormalizedBoundsFromBox, type EditorDocument} from '@venus/document-core'
+import {getNormalizedBoundsFromBox} from '@venus/engine'
+import type {EditorDocument} from '@venus/document-core'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import type {InteractionBounds, SelectionState} from '../types.ts'
 

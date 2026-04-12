@@ -14,3 +14,7 @@ export {
   useTransformPreviewCommitState,
   isTransformPreviewSynced,
 } from './useTransformPreviewCommitState.ts'
+export {
+  useDefaultCanvasRuntime,
+  type UseDefaultCanvasRuntimeOptions,
+} from './useDefaultCanvasRuntime.ts'

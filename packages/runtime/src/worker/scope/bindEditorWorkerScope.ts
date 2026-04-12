@@ -5,17 +5,10 @@ import {
   type CollaborationOperation,
 } from '../collaboration.ts'
 import {
-  getNormalizedBoundsFromBox,
   getBoundingRectFromBezierPoints,
-  intersectNormalizedBounds,
-  isPointInsideClipShape,
-  isPointInsideShapeHitArea,
-  toLegacyShapeTransformRecord,
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,
-  type MatrixFirstNodeTransform,
-  type ShapeTransformRecord,
 } from '@venus/document-core'
 import {
   createHistoryManager,
@@ -24,19 +17,24 @@ import {
 } from '../history.ts'
 import {
   createEngineSpatialIndex,
+  getNormalizedBoundsFromBox,
+  intersectNormalizedBounds,
+  isPointInsideEngineClipShape,
+  isPointInsideEngineShapeHitArea,
+  toLegacyShapeTransformRecord,
   type EngineSpatialIndex,
   type EngineSpatialItem,
+  type MatrixFirstNodeTransform,
+  type ShapeTransformRecord,
 } from '@venus/engine'
 import {
   attachSceneMemory,
-  clearHoveredShape,
   getSelectedShapeIndices,
   incrementSceneVersion,
   insertShapeIntoScene,
   readSceneStats,
   removeShapeFromScene,
   reorderShapeInScene,
-  setHoveredShape,
   setSelectedShape,
   setSelectedShapes,
   updatePointer,
@@ -80,6 +78,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let scene: SceneMemory | null = null
   let documentState: EditorDocument | null = null
   let allowFrameSelection = true
+  let strictStrokeHitTest = false
   // The worker owns the coarse spatial index because hit-testing belongs to
   // execution/data flow, not the UI shell or app layer.
   const spatialIndex = createEngineSpatialIndex<{
@@ -106,10 +105,12 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
       scene = attachSceneMemory(message.buffer, message.capacity)
       documentState = cloneDocument(message.document)
       allowFrameSelection = message.interaction?.allowFrameSelection ?? true
+      strictStrokeHitTest = message.interaction?.strictStrokeHitTest ?? false
       debugWorker('init scene', {
         capacity: message.capacity,
         shapeCount: documentState.shapes.length,
         allowFrameSelection,
+        strictStrokeHitTest,
       })
       writeDocumentToScene(scene, documentState)
       rebuildSpatialIndex(spatialIndex, documentState)
@@ -132,10 +133,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     if (message.type === 'pointerleave') {
-      const changed = clearHoveredShape(scene)
-      if (changed) {
-        postScene(scope, 'scene-update', 'flags', scene, documentState, history, collaboration)
-      }
+      // Hover state is overlay-owned; pointerleave should not mutate scene flags.
       return
     }
 
@@ -166,29 +164,26 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     updatePointer(scene, message.pointer)
+
+    if (message.type === 'pointermove') {
+      // Hover feedback is app-layer only and should not trigger scene updates.
+      return
+    }
+
     const targetIndex = hitTestDocument(
       documentState,
       spatialIndex,
       message.pointer,
-      {allowFrameSelection},
+      {allowFrameSelection, strictStrokeHitTest},
     )
 
-    if (message.type === 'pointermove') {
-      const changed = setHoveredShape(scene, targetIndex)
-      if (changed) {
-        postScene(scope, 'scene-update', 'flags', scene, documentState, history, collaboration)
-      }
-      return
-    }
-
-    const hoverChanged = setHoveredShape(scene, targetIndex)
     const selectionMode = resolvePointerSelectionMode(message.modifiers)
     const selectionChanged =
       targetIndex < 0
         ? setSelectedShapes(scene, [], selectionMode === 'replace' ? 'clear' : selectionMode)
         : setSelectedShapes(scene, [targetIndex], selectionMode)
 
-    if (hoverChanged || selectionChanged) {
+    if (selectionChanged) {
       postScene(scope, 'scene-update', 'flags', scene, documentState, history, collaboration)
     }
   })
@@ -1602,9 +1597,12 @@ function hitTestDocument(
   pointer: { x: number; y: number },
   options?: {
     allowFrameSelection?: boolean
+    strictStrokeHitTest?: boolean
   },
 ) {
   const allowFrameSelection = options?.allowFrameSelection ?? true
+  const strictStrokeHitTest = options?.strictStrokeHitTest ?? false
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
   const candidates = spatialIndex.search({
     minX: pointer.x - PATH_HIT_TOLERANCE,
     minY: pointer.y - PATH_HIT_TOLERANCE,
@@ -1631,14 +1629,16 @@ function hitTestDocument(
     // accidentally select through the unclipped host bounds.
     if (shape.clipPathId) {
       const clipSource = findShapeById(document, shape.clipPathId)
-      if (clipSource && !isPointInsideClipSource(pointer, clipSource)) {
+      if (clipSource && !isPointInsideClipSource(pointer, clipSource, shapeById)) {
         continue
       }
     }
 
-    if (!isPointInsideShapeHitArea(pointer, shape, {
+    if (!isPointInsideEngineShapeHitArea(pointer, shape, {
       allowFrameSelection,
       tolerance: Math.max(LINE_HIT_TOLERANCE, PATH_HIT_TOLERANCE, POLYGON_EDGE_HIT_TOLERANCE),
+      strictStrokeHitTest,
+      shapeById,
     })) {
       continue
     }
@@ -1652,8 +1652,12 @@ function hitTestDocument(
 function isPointInsideClipSource(
   pointer: {x: number; y: number},
   clipSource: DocumentNode,
+  shapeById: Map<string, DocumentNode>,
 ) {
-  return isPointInsideClipShape(pointer, clipSource, {tolerance: 1.5})
+  return isPointInsideEngineClipShape(pointer, clipSource, {
+    tolerance: 1.5,
+    shapeById,
+  })
 }
 
 function getNormalizedBounds(

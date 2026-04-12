@@ -19,6 +19,15 @@ export interface BoundingRect extends Rect {
   cy: number
 }
 
+export interface NormalizedBounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  width: number
+  height: number
+}
+
 export interface BezierPoint {
   anchor: Point
   cp1?: Point | null
@@ -367,6 +376,27 @@ export function rectsOverlap(r1: BoundingRect, r2: BoundingRect): boolean {
     r1.bottom < r2.top ||
     r1.top > r2.bottom
   )
+}
+
+export function getNormalizedBoundsFromBox(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): NormalizedBounds {
+  const minX = Math.min(x, x + width)
+  const maxX = Math.max(x, x + width)
+  const minY = Math.min(y, y + height)
+  const maxY = Math.max(y, y + height)
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
 }
 
 export const isInsideRotatedRect = (

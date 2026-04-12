@@ -5,8 +5,8 @@ import {
   createAffineMatrixAroundPoint,
   resolveNodeTransform,
   toResolvedNodeSvgTransform,
-  type EditorDocument,
-} from '@venus/document-core'
+} from '@venus/engine'
+import type {EditorDocument} from '@venus/document-core'
 import {resolveSnapGuideLines, type SnapGuide} from '@venus/runtime/interaction'
 import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
@@ -21,6 +21,7 @@ interface InteractionOverlayProps {
   document: EditorDocument
   shapes: SceneShapeSnapshot[]
   viewport: CanvasRendererProps['viewport']
+  hoveredShapeId?: string | null
   marqueeBounds?: InteractionBounds | null
   hideSelectionChrome?: boolean
   snapGuides?: SnapGuide[]
@@ -30,6 +31,7 @@ export function InteractionOverlay({
   document,
   shapes,
   viewport,
+  hoveredShapeId = null,
   marqueeBounds = null,
   hideSelectionChrome = false,
   snapGuides = [],
@@ -57,12 +59,12 @@ export function InteractionOverlay({
     [document.shapes, selection.selectedIds],
   )
   const hovered = useMemo(
-    () => selection.hoverId ? document.shapes.find((shape) => shape.id === selection.hoverId) : null,
-    [document.shapes, selection.hoverId],
+    () => hoveredShapeId ? document.shapes.find((shape) => shape.id === hoveredShapeId) : null,
+    [document.shapes, hoveredShapeId],
   )
   const hoveredSnapshot = useMemo(
-    () => selection.hoverId ? shapes.find((shape) => shape.id === selection.hoverId) ?? null : null,
-    [selection.hoverId, shapes],
+    () => hoveredShapeId ? shapes.find((shape) => shape.id === hoveredShapeId) ?? null : null,
+    [hoveredShapeId, shapes],
   )
   const hoveredShape = useMemo(
     () => {

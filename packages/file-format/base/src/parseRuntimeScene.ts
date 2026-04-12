@@ -1,6 +1,6 @@
 import {
-  getNormalizedBoundsFromBox,
   getBoundingRectFromBezierPoints,
+  getNormalizedBoundsFromBox,
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,

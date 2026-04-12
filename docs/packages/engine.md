@@ -66,9 +66,46 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
   render through `createEngine(...)` instead of custom per-app draw loops.
   Their document/snapshot data is adapted into engine scene nodes (image/text +
   shape fallback), so both app surfaces now share the engine render entry.
+- Canvas2D interactive frame-reuse no longer re-caches transformed intermediate
+  frames and no longer quantizes reuse translation to integer pixels. Reuse now
+  stays anchored to the last full redraw baseline, which avoids cumulative
+  sub-pixel drift after zoom/pan interaction and keeps reuse output better
+  aligned with the next true redraw.
+- Engine now owns replay tile planning via
+  `buildEngineReplayTiles(...)` (`packages/engine/src/renderer/replay.ts`).
+  The helper generates center-first progressive tiles for bitmap replay, so app
+  worker adapters can reuse one mechanism instead of duplicating tile ordering
+  logic.
+- Engine now also owns replay worker protocol + orchestration through
+  `createEngineReplayCoordinator(...)`
+  (`packages/engine/src/renderer/replayWorker.ts`), including request/cancel
+  handling and progressive tile event emission (`start/tile/done/error`). App
+  worker adapters now only provide scene-to-bitmap rendering details.
+- Engine now owns input-priority render scheduling through
+  `createEngineRenderScheduler(...)`
+  (`packages/engine/src/runtime/renderScheduler.ts`), providing single-flight
+  submission, burst coalescing, and optional interactive interval throttling so
+  app adapters can reuse one render-pressure control mechanism.
 
 ### 2026-04-10
 
+- Document-shape hit testing ownership moved to engine interaction layer via
+  `packages/engine/src/interaction/hitTest.ts`.
+  Runtime/worker/app consumers now import hit-test helpers from `@venus/engine`
+  (`isPointInsideEngineShapeHitArea`, `isPointInsideEngineClipShape`) instead
+  of reading from `@venus/document-core` exports.
+
+### 2026-04-12
+
+- Engine hit-test helpers now expose a structural node contract
+  (`EngineEditorHitTestNode`) and optional `shapeById` map so runtime/editor
+  callers can evaluate clip and shape hits with parent-transform context while
+  keeping engine free of direct `document-core` dependency coupling.
+- Engine now also owns shared shape-transform mechanism APIs used by
+  runtime/worker/editor interaction flow (`resolveNodeTransform`,
+  `createShapeTransformRecord`, `createMatrixFirstNodeTransform`,
+  `toLegacyShapeTransformRecord`, and related transform batch types), which
+  were migrated out of `@venus/document-core`.
 - Added the initial `packages/engine` package and baseline API families:
   renderer contracts, scene node contracts (`text`, `text run`, clipped
   `image`), system engine clock, and lightweight animation controller.

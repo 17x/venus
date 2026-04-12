@@ -1,5 +1,9 @@
-import {isPointInsideClipShape, isPointInsideShapeHitArea, type EditorDocument} from '@venus/document-core'
-import { resolveEngineWorkerMode } from '@venus/engine'
+import { type EditorDocument } from '@venus/document-core'
+import {
+  isPointInsideEngineClipShape,
+  isPointInsideEngineShapeHitArea,
+  resolveEngineWorkerMode,
+} from '@venus/engine'
 import type {
   CollaborationOperation,
   CollaborationState,
@@ -57,6 +61,7 @@ export interface CanvasRuntimeControllerOptions<TDocument extends EditorDocument
   createWorker: () => Worker
   document: TDocument
   allowFrameSelection?: boolean
+  strictStrokeHitTest?: boolean
 }
 
 /**
@@ -117,6 +122,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   createWorker,
   document,
   allowFrameSelection = true,
+  strictStrokeHitTest = false,
 }: CanvasRuntimeControllerOptions<TDocument>): CanvasRuntimeController<TDocument> {
   let scene: SceneMemory | null = null
   let worker: Worker | null = null
@@ -297,6 +303,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       document,
       interaction: {
         allowFrameSelection,
+        strictStrokeHitTest,
       },
     })
     started = true
@@ -311,16 +318,9 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   return {
-    clearHover: () => {
-      if (!sabSupported) {
-        if (snapshot.stats.hoveredIndex >= 0) {
-          updateLocalHoverSelection(-1, snapshot.stats.selectedIndex)
-        }
-        return
-      }
-
-      worker?.postMessage({ type: 'pointerleave' })
-    },
+    // Hover is owned by overlay/app-layer state. Runtime no longer mutates
+    // scene flags for pointer hover transitions.
+    clearHover: () => {},
     destroy,
     dispatchCommand: (command) => {
       if (command.type === 'viewport.zoomIn') {
@@ -339,13 +339,23 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     panViewport,
     postPointer: (type, pointer, modifiers) => {
       if (!sabSupported) {
-        const hoveredIndex = hitTestSnapshot(snapshot.document, snapshot.shapes, pointer, allowFrameSelection)
         if (type === 'pointerdown') {
-          updateLocalHoverSelection(hoveredIndex, hoveredIndex)
+          const selectedIndex = hitTestSnapshot(
+            snapshot.document,
+            snapshot.shapes,
+            pointer,
+            allowFrameSelection,
+            strictStrokeHitTest,
+          )
+          updateLocalHoverSelection(snapshot.stats.hoveredIndex, selectedIndex)
           return
         }
+        // Ignore pointermove hover mutation in no-SAB fallback as well.
+        return
+      }
 
-        updateLocalHoverSelection(hoveredIndex, snapshot.stats.selectedIndex)
+      if (type === 'pointermove') {
+        // Keep worker scene stable on hover; overlay handles hover affordance.
         return
       }
 
@@ -376,6 +386,7 @@ function hitTestSnapshot(
   shapes: SceneShapeSnapshot[],
   pointer: PointerState,
   allowFrameSelection = true,
+  strictStrokeHitTest = false,
 ) {
   const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
   for (let index = shapes.length - 1; index >= 0; index -= 1) {
@@ -390,13 +401,18 @@ function hitTestSnapshot(
     }
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideClipShape(pointer, clipSource, {tolerance: 1.5})) {
+      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+        tolerance: 1.5,
+        shapeById,
+      })) {
         continue
       }
     }
-    if (isPointInsideShapeHitArea(pointer, source, {
+    if (isPointInsideEngineShapeHitArea(pointer, source, {
       allowFrameSelection,
       tolerance: HIT_TEST_TOLERANCE,
+      strictStrokeHitTest,
+      shapeById,
     })) {
       return index
     }
