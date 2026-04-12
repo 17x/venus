@@ -3,23 +3,23 @@ export {
   type CanvasRuntimeController,
   type CanvasRuntimeControllerOptions,
   type CanvasRuntimeSnapshot,
-} from './runtime/createCanvasRuntimeController.ts'
+} from './core/createCanvasRuntimeController.ts'
 export {
   createCanvasEditorInstance,
   type CanvasEditorInstance,
   type CanvasEditorInstanceOptions,
-} from './runtime/createCanvasEditorInstance.ts'
+} from './core/createCanvasEditorInstance.ts'
 export {
   createCanvasViewerController,
   type CanvasViewerController,
   type CanvasViewerControllerOptions,
   type CanvasViewerSnapshot,
-} from './runtime/createCanvasViewerController.ts'
+} from './core/createCanvasViewerController.ts'
 export {
   createCanvasViewerInstance,
   type CanvasViewerInstance,
   type CanvasViewerInstanceOptions,
-} from './runtime/createCanvasViewerInstance.ts'
+} from './core/createCanvasViewerInstance.ts'
 export {
   createCanvasModuleRunner,
   type CanvasEditorModulePointerEvent,
@@ -27,7 +27,7 @@ export {
   type CanvasModuleRunner,
   type CanvasRuntimeModule,
   type CanvasViewerModulePointerEvent,
-} from './runtime/modules.ts'
+} from './core/modules.ts'
 export {
   createCanvasElementRegistry,
   type CanvasElementBehavior,
@@ -56,8 +56,6 @@ export {
   createEngineAnimationController as createAnimationController,
   createSystemEngineClock as createSystemRuntimeClock,
 } from '@venus/engine'
-export type { ViewportGestureBindingOptions } from './gesture/index.ts'
-export { bindViewportGestures } from './gesture/index.ts'
 export type {
   ZoomInputSource,
   ZoomWheelResult,
@@ -83,7 +81,3 @@ export {
   type Mat3,
   type Point2D,
 } from './viewport/matrix.ts'
-export {
-  applyViewportPreviewTransform,
-  resolveViewportPreviewOverscan,
-} from './viewport/preview.ts'

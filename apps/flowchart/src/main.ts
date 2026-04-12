@@ -1,1 +1,1 @@
-export {bootstrapFlowchartEditor} from './app/bootstrap.ts'
+export const a = ()=>{}

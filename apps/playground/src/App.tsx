@@ -1,159 +1,134 @@
 import * as React from 'react'
+import {nid, type DocumentNode, type EditorDocument} from '@venus/document-core'
+import type {EditorRuntimeCommand} from '@venus/runtime/worker'
 import {
-  createCanvas2DEngineRenderer,
-  createEngineAnimationController,
-  createEngineLoop,
-  createSystemEngineClock,
-  type EngineBackend,
-  type EngineRenderStats,
-  type EngineSceneSnapshot,
-} from '@venus/engine'
-import {
-  applyMatrixToPoint,
   createCanvasEditorInstance,
-  createCanvasViewerInstance,
   type CanvasRuntimeSnapshot,
-  type CanvasViewerSnapshot,
-  type CanvasViewportState,
 } from '@venus/runtime'
-import {
-  buildSelectionHandlesFromBounds,
-  collectResizeTransformTargets,
-  createMarqueeState,
-  createSelectionDragController,
-  createTransformBatchCommand,
-  createTransformPreviewShape,
-  createTransformSessionShape,
-  createTransformSessionManager,
-  getMarqueeNormalizedBounds,
-  pickSelectionHandleAtPoint,
-  resolveMarqueeBounds,
-  resolveMarqueeSelection,
-  resolveMoveSnapPreview,
-  resolveSnapGuideLines,
-  resolveTransformPreviewRuntimeState,
-  updateMarqueeState,
-  type MarqueeBounds,
-  type MarqueeApplyMode,
-  type MarqueeSelectionMode,
-  type MarqueeState,
-  type SnapGuide,
-} from '@venus/runtime-interaction'
+import {resolveRuntimeZoomPresetScale} from '@venus/runtime/interaction'
 import {
   Canvas2DRenderer,
   CanvasSelectionOverlay,
   CanvasViewport,
-  defaultCanvas2DLodConfig,
   useCanvas2DRenderDiagnostics,
-  useTransformPreviewCommitState,
-  type CanvasOverlayProps,
-  type Canvas2DLodConfig,
-  type CanvasRenderLodState,
-  type CanvasRenderer,
-} from '@venus/runtime-react'
-import {createDefaultEditorModules} from '@venus/runtime-presets'
-import {
-  convertDrawPointsToBezierPoints,
-  getBoundingRectFromBezierPoints,
-  getNormalizedBoundsFromBox,
-  isPointInsideRotatedBounds,
-  isPointInsideShapeHitArea,
-  nid,
-  type Point,
-} from '@venus/document-core'
-import type {EditorRuntimeCommand} from '@venus/editor-worker'
-import type {HistorySummary} from '@venus/editor-worker'
-import type {EditorDocument} from '@venus/document-core'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
+} from './runtime/canvasAdapter.tsx'
+import {createDefaultEditorModules} from '@venus/runtime/presets'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
 import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
 
-const STRESS_SHAPE_COUNT = 100_000
-const LARGE_STRESS_SHAPE_COUNT = 50_000
+type PlaygroundDocumentPreset =
+  | 'demo'
+  | 'medium-stress'
+  | 'large-stress'
+  | 'stress'
+  | 'extreme-stress'
+  | 'image-heavy'
+  | 'image-heavy-large'
+
+interface PlaygroundDocumentSelection {
+  preset: PlaygroundDocumentPreset
+  revision: number
+}
+
 const MEDIUM_STRESS_SHAPE_COUNT = 10_000
+const LARGE_STRESS_SHAPE_COUNT = 50_000
+const STRESS_SHAPE_COUNT = 100_000
 const EXTREME_STRESS_SHAPE_COUNT = 1_000_000
-const SHAPE_TYPE_ORDER = ['frame', 'group', 'rectangle', 'ellipse', 'polygon', 'star', 'lineSegment', 'path', 'text', 'image'] as const
-type PlaygroundRuntimeMode = 'editor' | 'viewer'
-type PlaygroundAbilityTab = 'engine' | 'runtime' | 'interaction' | 'document'
-type PlaygroundDocumentMode = 'demo' | 'medium-stress' | 'large-stress' | 'stress' | 'extreme-stress' | 'image-heavy' | 'image-heavy-large'
-type PlaygroundEditorSnapshot = CanvasRuntimeSnapshot<EditorDocument>
-type PlaygroundViewerSnapshot = CanvasViewerSnapshot<EditorDocument>
-type PlaygroundSnapshot = PlaygroundEditorSnapshot | PlaygroundViewerSnapshot
-const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
-const ENGINE_PREVIEW_WIDTH = 300
-const ENGINE_PREVIEW_HEIGHT = 188
-const ENGINE_PREVIEW_IMAGE_ASSET_ID = 'engine.preview.image'
-const PLAYGROUND_ABILITY_TABS: Array<{id: PlaygroundAbilityTab; label: string}> = [
-  {id: 'engine', label: 'Engine'},
-  {id: 'runtime', label: 'Runtime'},
-  {id: 'interaction', label: 'Interaction'},
-  {id: 'document', label: 'Document'},
+const PLAYGROUND_SCENE_BUTTONS: Array<{
+  label: string
+  preset: PlaygroundDocumentPreset
+}> = [
+  {label: 'Demo', preset: 'demo'},
+  {label: '10k', preset: 'medium-stress'},
+  {label: '50k', preset: 'large-stress'},
+  {label: '100k', preset: 'stress'},
+  {label: '1000k', preset: 'extreme-stress'},
+  {label: '10k Img+', preset: 'image-heavy'},
+  {label: '50k Img+', preset: 'image-heavy-large'},
 ]
+
+function cloneDocument(document: EditorDocument): EditorDocument {
+  return structuredClone(document)
+}
+
+function resolveDocument(selection: PlaygroundDocumentSelection): EditorDocument {
+  switch (selection.preset) {
+    case 'medium-stress':
+      return createStressDocument(MEDIUM_STRESS_SHAPE_COUNT)
+    case 'large-stress':
+      return createStressDocument(LARGE_STRESS_SHAPE_COUNT)
+    case 'stress':
+      return createStressDocument(STRESS_SHAPE_COUNT)
+    case 'extreme-stress':
+      return createStressDocument(EXTREME_STRESS_SHAPE_COUNT)
+    case 'image-heavy':
+      return createStressDocument(MEDIUM_STRESS_SHAPE_COUNT, {imageDensity: 'high'})
+    case 'image-heavy-large':
+      return createStressDocument(LARGE_STRESS_SHAPE_COUNT, {imageDensity: 'high'})
+    case 'demo':
+    default:
+      return cloneDocument(MOCK_DOCUMENT)
+  }
+}
 
 function createGeneratedImageDataUrl(label: string, width: number, height: number) {
   const hue = Math.floor(Math.random() * 360)
-  const accentHue = (hue + 42) % 360
+  const accentHue = (hue + 36) % 360
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="hsl(${hue} 78% 72%)" />
-          <stop offset="100%" stop-color="hsl(${accentHue} 82% 58%)" />
+          <stop offset="0%" stop-color="hsl(${hue} 76% 70%)" />
+          <stop offset="100%" stop-color="hsl(${accentHue} 82% 54%)" />
         </linearGradient>
       </defs>
-      <rect width="${width}" height="${height}" rx="28" fill="url(#bg)" />
-      <circle cx="${Math.round(width * 0.78)}" cy="${Math.round(height * 0.28)}" r="${Math.round(Math.min(width, height) * 0.18)}" fill="rgba(255,255,255,0.28)" />
-      <path d="M0 ${Math.round(height * 0.7)} C ${Math.round(width * 0.22)} ${Math.round(height * 0.48)}, ${Math.round(width * 0.48)} ${Math.round(height * 0.95)}, ${width} ${Math.round(height * 0.62)} L ${width} ${height} L 0 ${height} Z" fill="rgba(15,23,42,0.14)" />
-      <text x="28" y="${Math.round(height * 0.45)}" font-family="Arial, sans-serif" font-size="${Math.max(18, Math.round(width * 0.12))}" font-weight="700" fill="white">${label}</text>
-      <text x="28" y="${Math.round(height * 0.68)}" font-family="Arial, sans-serif" font-size="${Math.max(12, Math.round(width * 0.06))}" fill="rgba(255,255,255,0.88)">Generated in playground</text>
+      <rect width="${width}" height="${height}" rx="24" fill="url(#bg)" />
+      <circle cx="${Math.round(width * 0.78)}" cy="${Math.round(height * 0.28)}" r="${Math.round(Math.min(width, height) * 0.15)}" fill="rgba(255,255,255,0.24)" />
+      <path d="M0 ${Math.round(height * 0.7)} C ${Math.round(width * 0.2)} ${Math.round(height * 0.48)}, ${Math.round(width * 0.48)} ${Math.round(height * 0.92)}, ${width} ${Math.round(height * 0.64)} L ${width} ${height} L 0 ${height} Z" fill="rgba(15,23,42,0.16)" />
+      <text x="24" y="${Math.round(height * 0.46)}" font-family="Arial, sans-serif" font-size="${Math.max(18, Math.round(width * 0.11))}" font-weight="700" fill="white">${label}</text>
     </svg>
   `.trim()
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-function createStarPoints(x: number, y: number, width: number, height: number) {
-  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
-  const centerX = bounds.minX + bounds.width / 2
-  const centerY = bounds.minY + bounds.height / 2
-  const outerRadius = Math.min(bounds.width, bounds.height) / 2
-  const innerRadius = outerRadius * 0.46
-
-  return Array.from({length: 10}, (_, index) => {
-    const angle = -Math.PI / 2 + (Math.PI / 5) * index
-    const radius = index % 2 === 0 ? outerRadius : innerRadius
-    return {
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius,
-    }
-  })
-}
-
-function createMockBezierPoints(x: number, y: number, width: number, height: number): Point[] {
-  return [
-    {x, y: y + height * 0.72},
-    {x: x + width * 0.22, y: y + height * 0.18},
-    {x: x + width * 0.48, y: y + height * 0.86},
-    {x: x + width * 0.74, y: y + height * 0.28},
-    {x: x + width, y: y + height * 0.66},
-  ]
-}
-
-function createRandomMockShape() {
+function createRandomShape(): DocumentNode {
   const x = 80 + Math.round(Math.random() * 720)
   const y = 80 + Math.round(Math.random() * 420)
-  const width = 120 + Math.round(Math.random() * 100)
-  const height = 90 + Math.round(Math.random() * 80)
+  const width = 120 + Math.round(Math.random() * 120)
+  const height = 80 + Math.round(Math.random() * 100)
+  const roll = Math.random()
 
-  if (Math.random() < 0.35) {
-    const imageWidth = 180 + Math.round(Math.random() * 140)
-    const imageHeight = 120 + Math.round(Math.random() * 100)
+  if (roll < 0.34) {
+    return {
+      id: nid(),
+      type: 'rectangle',
+      name: 'Rectangle',
+      x,
+      y,
+      width,
+      height,
+      fill: {
+        enabled: true,
+        color: '#f8fafc',
+      },
+      stroke: {
+        enabled: true,
+        color: '#0f172a',
+        weight: 1,
+      },
+    }
+  }
+
+  if (roll < 0.67) {
+    const imageWidth = 180 + Math.round(Math.random() * 120)
+    const imageHeight = 120 + Math.round(Math.random() * 80)
     const label = `Mock ${Math.floor(Math.random() * 100)}`
 
     return {
       id: nid(),
-      type: 'image' as const,
+      type: 'image',
       name: label,
       assetUrl: createGeneratedImageDataUrl(label, imageWidth, imageHeight),
       x,
@@ -163,159 +138,63 @@ function createRandomMockShape() {
     }
   }
 
-  const shapeRoll = Math.random()
-  const shapeType =
-    shapeRoll < 0.2 ? 'polygon' as const :
-      shapeRoll < 0.38 ? 'star' as const :
-        shapeRoll < 0.56 ? 'path' as const :
-          'rectangle' as const
-
-  if (shapeType === 'path') {
-    const points = createMockBezierPoints(x, y, width, height)
-    const path = convertDrawPointsToBezierPoints(points, 0.24)
-    const bounds = getBoundingRectFromBezierPoints(path.points)
-
-    return {
-      id: nid(),
-      type: 'path' as const,
-      name: `Bezier ${Math.floor(Math.random() * 100)}`,
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-      points,
-      bezierPoints: path.points,
-    }
-  }
-
   return {
     id: nid(),
-    type: shapeType,
-    name: `Shape ${Math.floor(Math.random() * 100)}`,
+    type: 'text',
+    name: 'Text',
+    text: 'Playground',
     x,
     y,
-    width,
-    height,
-    points: shapeType === 'polygon'
-      ? [
-          {x: x + width * 0.5, y},
-          {x: x + width, y: y + height * 0.34},
-          {x: x + width * 0.82, y: y + height},
-          {x: x + width * 0.18, y: y + height},
-          {x, y: y + height * 0.34},
-        ]
-      : shapeType === 'star'
-        ? createStarPoints(x, y, width, height)
-      : undefined,
+    width: 220,
+    height: 42,
   }
 }
 
-function formatMetric(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1)
-}
-
-function summarizeShapeTypes(document: EditorDocument) {
+function formatShapeSummary(document: EditorDocument) {
   const counts = new Map<string, number>()
   document.shapes.forEach((shape) => {
     counts.set(shape.type, (counts.get(shape.type) ?? 0) + 1)
   })
 
-  return SHAPE_TYPE_ORDER
-    .map((type) => ({
-      type,
-      count: counts.get(type) ?? 0,
-    }))
-    .filter((item) => item.count > 0)
-}
-
-function formatSelectionNames(document: EditorDocument, selectedIds: string[]) {
-  if (selectedIds.length === 0) {
-    return 'None'
-  }
-
-  const names = selectedIds
-    .map((id) => document.shapes.find((shape) => shape.id === id)?.name)
-    .filter((name): name is string => Boolean(name))
-
-  if (names.length === 0) {
-    return `${selectedIds.length} selected`
-  }
-  if (names.length <= 3) {
-    return names.join(', ')
-  }
-
-  return `${names.slice(0, 3).join(', ')} +${names.length - 3}`
-}
-
-function hasSelectedAncestorInDocument(
-  document: EditorDocument,
-  shapeId: string,
-  selectedIds: Set<string>,
-) {
-  const byId = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  let current = byId.get(shapeId)
-  while (current?.parentId) {
-    if (selectedIds.has(current.parentId)) {
-      return true
-    }
-    current = byId.get(current.parentId)
-  }
-  return false
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 6)
+    .map(([type, count]) => `${type}:${count}`)
+    .join('  ')
 }
 
 function App() {
-  const [runtimeMode, setRuntimeMode] = React.useState<PlaygroundRuntimeMode>('editor')
-  const [documentMode, setDocumentMode] = React.useState<PlaygroundDocumentMode>('demo')
-  const [mediumStressRevision, setMediumStressRevision] = React.useState(0)
-  const [largeStressRevision, setLargeStressRevision] = React.useState(0)
-  const [stressRevision, setStressRevision] = React.useState(0)
-  const [extremeStressRevision, setExtremeStressRevision] = React.useState(0)
-  const [imageHeavyRevision, setImageHeavyRevision] = React.useState(0)
-  const [imageHeavyLargeRevision, setImageHeavyLargeRevision] = React.useState(0)
-  const activeDocument = React.useMemo(() => {
-    switch (documentMode) {
-      case 'medium-stress':
-        return createStressDocument(MEDIUM_STRESS_SHAPE_COUNT)
-      case 'large-stress':
-        return createStressDocument(LARGE_STRESS_SHAPE_COUNT)
-      case 'stress':
-        return createStressDocument(STRESS_SHAPE_COUNT)
-      case 'extreme-stress':
-        return createStressDocument(EXTREME_STRESS_SHAPE_COUNT)
-      case 'image-heavy':
-        return createStressDocument(MEDIUM_STRESS_SHAPE_COUNT, {imageDensity: 'high'})
-      case 'image-heavy-large':
-        return createStressDocument(LARGE_STRESS_SHAPE_COUNT, {imageDensity: 'high'})
-      case 'demo':
-      default:
-        return MOCK_DOCUMENT
-    }
-  }, [
-    documentMode,
-    mediumStressRevision,
-    largeStressRevision,
-    stressRevision,
-    extremeStressRevision,
-    imageHeavyRevision,
-    imageHeavyLargeRevision,
-  ])
-  const createWorker = React.useCallback(
-    () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
-    [],
+  const [selection, setSelection] = React.useState<PlaygroundDocumentSelection>({
+    preset: 'demo',
+    revision: 0,
+  })
+  const document = React.useMemo(
+    () => resolveDocument(selection),
+    [selection],
   )
+  const runtimeModules = React.useMemo(() => createDefaultEditorModules({
+    selection: {
+      allowFrameSelection: false,
+      input: {
+        singleClick: 'replace',
+        shiftClick: 'add',
+        metaOrCtrlClick: 'toggle',
+        altClick: 'subtract',
+      },
+      marquee: {
+        enabled: true,
+        defaultMatchMode: 'contain',
+        shiftMatchMode: 'contain',
+      },
+    },
+  }), [])
   const editorInstance = React.useMemo(() => createCanvasEditorInstance({
-    capacity: activeDocument.shapes.length + 16,
-    createWorker,
-    document: activeDocument,
+    capacity: Math.max(256, document.shapes.length + 8),
+    createWorker: () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
+    document,
     allowFrameSelection: false,
-    modules: createDefaultEditorModules<PlaygroundEditorSnapshot>(),
-  }), [activeDocument, createWorker])
-  const viewerInstance = React.useMemo(() => createCanvasViewerInstance({
-    document: activeDocument,
-    enableHitTest: true,
-    hoverOnPointerMove: true,
-    selectOnPointerDown: true,
-  }), [activeDocument])
+    modules: runtimeModules,
+  }), [document, runtimeModules])
 
   React.useEffect(() => {
     editorInstance.start()
@@ -324,1582 +203,163 @@ function App() {
     }
   }, [editorInstance])
 
-  React.useEffect(() => {
-    viewerInstance.start()
-    return () => {
-      viewerInstance.destroy()
-    }
-  }, [viewerInstance])
-
-  const editorSnapshot = React.useSyncExternalStore(
+  const snapshot = React.useSyncExternalStore(
     editorInstance.subscribe,
     editorInstance.getSnapshot,
     editorInstance.getSnapshot,
-  )
-  const viewerSnapshot = React.useSyncExternalStore(
-    viewerInstance.subscribe,
-    viewerInstance.getSnapshot,
-    viewerInstance.getSnapshot,
-  )
-  const activeSnapshot: PlaygroundSnapshot = runtimeMode === 'editor'
-    ? editorSnapshot
-    : viewerSnapshot
-  const activeController = runtimeMode === 'editor' ? editorInstance : viewerInstance
-  const activeDocumentShapes = activeSnapshot.document.shapes
-  const [renderLodState, setRenderLodState] = React.useState<CanvasRenderLodState | null>(null)
-  const {
-    preview: dragPreview,
-    previewRef: dragPreviewRef,
-    setPreview: setDragPreviewState,
-    clearPreview: clearDragPreview,
-    markCommitPending: markDragPreviewCommitPending,
-  } = useTransformPreviewCommitState({
-    documentShapes: activeDocumentShapes,
-  })
-  const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
-  const [snapGuides, setSnapGuides] = React.useState<SnapGuide[]>([])
-  const [snappingEnabled, setSnappingEnabled] = React.useState(true)
-  const [lastMarqueeSelectionName, setLastMarqueeSelectionName] = React.useState('None')
+  ) as CanvasRuntimeSnapshot<EditorDocument>
 
-  const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
-    if (command.type === 'snapping.pause') {
-      setSnappingEnabled(false)
-      setSnapGuides([])
-      return
-    }
-    if (command.type === 'snapping.resume') {
-      setSnappingEnabled(true)
-      return
-    }
-    activeController.dispatchCommand(command)
-  }, [activeController])
-  const handleLoadDemo = React.useCallback(() => {
-    setDocumentMode('demo')
-  }, [])
-  const handleLoadStress = React.useCallback(() => {
-    setStressRevision((current) => current + 1)
-    setDocumentMode('stress')
-  }, [])
-  const handleLoadExtremeStress = React.useCallback(() => {
-    setExtremeStressRevision((current) => current + 1)
-    setDocumentMode('extreme-stress')
-  }, [])
-  const handleLoadMediumStress = React.useCallback(() => {
-    setMediumStressRevision((current) => current + 1)
-    setDocumentMode('medium-stress')
-  }, [])
-  const handleLoadLargeStress = React.useCallback(() => {
-    setLargeStressRevision((current) => current + 1)
-    setDocumentMode('large-stress')
-  }, [])
-  const handleLoadImageHeavy = React.useCallback(() => {
-    setImageHeavyRevision((current) => current + 1)
-    setDocumentMode('image-heavy')
-  }, [])
-  const handleLoadImageHeavyLarge = React.useCallback(() => {
-    setImageHeavyLargeRevision((current) => current + 1)
-    setDocumentMode('image-heavy-large')
-  }, [])
-  const dragControllerRef = React.useRef(createSelectionDragController({
-    allowFrameSelection: false,
-  }))
-  const transformManagerRef = React.useRef(createTransformSessionManager())
-  const marqueeAppliedSignatureRef = React.useRef('')
-
-  React.useEffect(() => {
-    clearDragPreview()
-    setMarquee(null)
-    setSnapGuides([])
-    dragControllerRef.current.clear()
-    transformManagerRef.current.cancel()
-  }, [clearDragPreview, runtimeMode])
-
-  React.useEffect(() => {
-    if (!snappingEnabled) {
-      setSnapGuides([])
-    }
-  }, [snappingEnabled])
-
-  const resolveSelectedBounds = React.useCallback((snapshot: PlaygroundSnapshot) => {
-    const selectedNodes = snapshot.shapes
-      .filter((shape) => shape.isSelected)
-      .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
-      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
-    if (selectedNodes.length === 0) {
-      return null
-    }
-
-    const first = selectedNodes[0]
-    const initial = getMarqueeNormalizedBounds(first.x, first.y, first.width, first.height)
-    return selectedNodes
-      .slice(1)
-      .map((shape) => getMarqueeNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
-      .reduce((acc, item) => ({
-        minX: Math.min(acc.minX, item.minX),
-        minY: Math.min(acc.minY, item.minY),
-        maxX: Math.max(acc.maxX, item.maxX),
-        maxY: Math.max(acc.maxY, item.maxY),
-      }), initial)
-  }, [])
-
-  const resolveMarqueeSelectionIds = React.useCallback((nextMarquee: MarqueeState) => {
-    const snapshot = editorInstance.getSnapshot()
-    const bounds = resolveMarqueeBounds(nextMarquee)
-    return resolveMarqueeSelection(snapshot.document.shapes, bounds, {
-      matchMode: 'contain',
-      excludeShape: (shape) => shape.type === 'frame',
-    })
-  }, [editorInstance])
-
-  const applyMarqueeSelectionWhileMoving = React.useCallback((nextMarquee: MarqueeState) => {
-    if (nextMarquee.applyMode !== 'while-pointer-move') {
-      return
-    }
-
-    const selectedIds = resolveMarqueeSelectionIds(nextMarquee)
-    const signature = `${nextMarquee.mode}:${selectedIds.join(',')}`
-    if (signature === marqueeAppliedSignatureRef.current) {
-      return
-    }
-
-    marqueeAppliedSignatureRef.current = signature
-    editorInstance.dispatchCommand({
-      type: 'selection.set',
-      shapeIds: selectedIds,
-      mode: nextMarquee.mode,
-    })
-  }, [editorInstance, resolveMarqueeSelectionIds])
-
-  const handlePointerMove = React.useCallback((pointer: { x: number; y: number }) => {
-    if (runtimeMode !== 'editor') {
-      setSnapGuides([])
-      viewerInstance.postPointer('pointermove', pointer)
-      return
-    }
-
-    const transformSession = transformManagerRef.current.getSession()
-    if (transformSession) {
-      editorInstance.clearHover()
-      const preview = transformManagerRef.current.update(pointer)
-      if (preview) {
-        const transformSession = transformManagerRef.current.getSession()
-        const maybeSnapped = transformSession?.handle === 'move'
-          ? snappingEnabled
-            ? resolveMoveSnapPreview(preview, editorInstance.getSnapshot().document)
-            : {preview, guides: [] as SnapGuide[]}
-          : {preview, guides: [] as SnapGuide[]}
-        setSnapGuides(maybeSnapped.guides)
-        setDragPreviewState({
-          shapes: maybeSnapped.preview.shapes.map((shape) => ({
-            shapeId: shape.shapeId,
-            x: shape.x,
-            y: shape.y,
-            width: shape.width,
-            height: shape.height,
-            rotation: shape.rotation,
-          })),
-        })
-      }
-      return
-    }
-
-    if (marquee) {
-      setSnapGuides([])
-      editorInstance.clearHover()
-      setMarquee((current) => {
-        if (!current) {
-          return current
-        }
-        const nextMarquee = updateMarqueeState(current, pointer)
-        applyMarqueeSelectionWhileMoving(nextMarquee)
-        return nextMarquee
-      })
-      return
-    }
-
-    const snapshot = editorInstance.getSnapshot()
-    const dragMove = dragControllerRef.current.pointerMove(pointer, {
-      document: snapshot.document,
-      shapes: snapshot.shapes,
-    })
-    if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
-      editorInstance.clearHover()
-      if (dragMove.phase === 'started') {
-        const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
-        const dragShapes = dragShapeIds
-          .map((id) => snapshot.document.shapes.find((shape) => shape.id === id))
-          .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
-
-        if (dragShapes.length > 0) {
-          transformManagerRef.current.start({
-            shapeIds: dragShapes.map((shape) => shape.id),
-            shapes: dragShapes.map((shape) => createTransformSessionShape(shape)),
-            handle: 'move',
-            pointer: dragMove.session.start,
-            startBounds: dragMove.session.bounds,
-          })
-          setDragPreviewState({
-            shapes: dragShapes.map((shape) => createTransformPreviewShape(shape)),
-          })
-        }
-      }
-
-      const preview = transformManagerRef.current.update(pointer)
-      if (preview) {
-        const transformSession = transformManagerRef.current.getSession()
-        const maybeSnapped = transformSession?.handle === 'move'
-          ? snappingEnabled
-            ? resolveMoveSnapPreview(preview, editorInstance.getSnapshot().document)
-            : {preview, guides: [] as SnapGuide[]}
-          : {preview, guides: [] as SnapGuide[]}
-        setSnapGuides(maybeSnapped.guides)
-        setDragPreviewState({
-          shapes: maybeSnapped.preview.shapes.map((shape) => ({
-            shapeId: shape.shapeId,
-            x: shape.x,
-            y: shape.y,
-            width: shape.width,
-            height: shape.height,
-            rotation: shape.rotation,
-            flipX: shape.flipX,
-            flipY: shape.flipY,
-          })),
-        })
-      }
-      return
-    }
-
-    if (dragMove.phase === 'none') {
-      setSnapGuides([])
-      setDragPreviewState(null)
-    }
-    if (dragMove.phase === 'pending') {
-      editorInstance.clearHover()
-      return
-    }
-
-    editorInstance.postPointer('pointermove', pointer)
-  }, [
-    applyMarqueeSelectionWhileMoving,
-    editorInstance,
-    marquee,
-    runtimeMode,
-    setDragPreviewState,
-    snappingEnabled,
-    viewerInstance,
-  ])
-  const handlePointerDown = React.useCallback((
-    pointer: { x: number; y: number },
-    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
-  ) => {
-    if (runtimeMode !== 'editor') {
-      viewerInstance.postPointer('pointerdown', pointer)
-      return
-    }
-
-    const snapshot = editorInstance.getSnapshot()
-    const selectedNodes = snapshot.shapes
-      .filter((shape) => shape.isSelected)
-      .map((shape) => snapshot.document.shapes.find((item) => item.id === shape.id))
-      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
-    const selectedBounds = resolveSelectedBounds(snapshot)
-
-    if (selectedBounds && selectedNodes.length > 0) {
-      const singleSelectedRotation = selectedNodes.length === 1
-        ? (selectedNodes[0].rotation ?? 0)
-        : 0
-      const handles = buildSelectionHandlesFromBounds(selectedBounds, {
-        rotateOffset: 28,
-        rotateDegrees: singleSelectedRotation,
-      })
-      const handle = pickSelectionHandleAtPoint(pointer, handles, 6)
-      if (handle) {
-        const resizeTargets = handle.kind === 'rotate'
-          ? selectedNodes
-          : collectResizeTransformTargets(selectedNodes, snapshot.document)
-        dragControllerRef.current.clear()
-        transformManagerRef.current.start({
-          shapeIds: selectedNodes.map((shape) => shape.id),
-          shapes: resizeTargets.map((shape) => createTransformSessionShape(shape)),
-          handle: handle.kind,
-          pointer,
-          startBounds: selectedBounds,
-        })
-        setDragPreviewState({
-          shapes: resizeTargets.map((shape) => createTransformPreviewShape(shape)),
-        })
-        return
-      }
-
-      if (
-        isPointInsideRotatedBounds(pointer, selectedBounds, singleSelectedRotation) &&
-        !selectedNodes.some((shape) => isPointInsideShapeHitArea(pointer, shape, {tolerance: 6}))
-      ) {
-        dragControllerRef.current.clear()
-        editorInstance.dispatchCommand({
-          type: 'selection.set',
-          shapeIds: [],
-          mode: 'replace',
-        })
-        return
-      }
-    }
-
-    const hoveredShape = snapshot.stats.hoveredIndex >= 0
-      ? snapshot.shapes[snapshot.stats.hoveredIndex] ?? null
-      : null
-    const hasHit = dragControllerRef.current.pointerDown(pointer, {
-      document: snapshot.document,
-      shapes: snapshot.shapes,
-    }, modifiers, {
-      hitShapeId: hoveredShape?.id ?? null,
-    })
-
-    if (!hasHit) {
-      dragControllerRef.current.clear()
-      const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
-        ? 'add'
-        : modifiers?.altKey
-          ? 'remove'
-        : (modifiers?.metaKey || modifiers?.ctrlKey)
-          ? 'toggle'
-          : 'replace'
-      editorInstance.clearHover()
-      marqueeAppliedSignatureRef.current = ''
-      setMarquee(createMarqueeState(pointer, marqueeMode, {
-        applyMode: DEFAULT_MARQUEE_APPLY_MODE,
-      }))
-      return
-    }
-
-    const isPlainClick = !modifiers?.shiftKey && !modifiers?.metaKey && !modifiers?.ctrlKey && !modifiers?.altKey
-    const selectedIdSet = new Set(selectedNodes.map((shape) => shape.id))
-    const preserveGroupDragSelection = !!(
-      isPlainClick &&
-      hoveredShape &&
-      (
-        selectedIdSet.has(hoveredShape.id) ||
-        hasSelectedAncestorInDocument(snapshot.document, hoveredShape.id, selectedIdSet)
-      )
-    )
-
-    if (!preserveGroupDragSelection) {
-      editorInstance.postPointer('pointerdown', pointer, modifiers)
-    }
-  }, [editorInstance, resolveSelectedBounds, runtimeMode, viewerInstance])
-  const handlePointerUp = React.useCallback(() => {
-    if (runtimeMode !== 'editor') {
-      return
-    }
-
-    dragControllerRef.current.pointerUp()
-    setSnapGuides([])
-    if (marquee) {
-      const snapshot = editorInstance.getSnapshot()
-      const selectedIds = resolveMarqueeSelectionIds(marquee)
-      editorInstance.dispatchCommand({
-        type: 'selection.set',
-        shapeIds: selectedIds,
-        mode: marquee.mode,
-      })
-      marqueeAppliedSignatureRef.current = ''
-      setLastMarqueeSelectionName(formatSelectionNames(snapshot.document, selectedIds))
-      dragControllerRef.current.clear()
-      setMarquee(null)
-      return
-    }
-
-    const transformSession = transformManagerRef.current.commit()
-    if (!transformSession) {
-      clearDragPreview()
-      return
-    }
-
-    const snapshot = editorInstance.getSnapshot()
-    const preview = dragPreviewRef.current
-    if (!preview) {
-      clearDragPreview()
-      return
-    }
-
-    const transformCommand = createTransformBatchCommand(snapshot.document.shapes, preview)
-    if (!transformCommand) {
-      clearDragPreview()
-      return
-    }
-    editorInstance.dispatchCommand(transformCommand)
-    markDragPreviewCommitPending()
-  }, [
-    applyMarqueeSelectionWhileMoving,
-    clearDragPreview,
-    dragPreviewRef,
-    editorInstance,
-    markDragPreviewCommitPending,
-    marquee,
-    resolveMarqueeSelectionIds,
-    runtimeMode,
-  ])
-  const handlePointerLeave = React.useCallback(() => {
-    clearDragPreview()
-    setMarquee(null)
-    setSnapGuides([])
-    dragControllerRef.current.clear()
-    transformManagerRef.current.cancel()
-    activeController.clearHover()
-  }, [activeController, clearDragPreview])
-  const marqueeBounds = React.useMemo<MarqueeBounds | null>(
-    () => marquee ? resolveMarqueeBounds(marquee) : null,
-    [marquee],
-  )
-  const activeHistory = runtimeMode === 'editor' ? editorSnapshot.history : null
-  const activeReady = runtimeMode === 'editor' ? editorSnapshot.ready : viewerSnapshot.ready
-  const activeSabSupported = runtimeMode === 'editor' ? editorSnapshot.sabSupported : false
-  const selectedShape = activeSnapshot.stats.selectedIndex >= 0
-    ? activeSnapshot.shapes[activeSnapshot.stats.selectedIndex] ?? null
-    : null
-  const selectedNode = selectedShape
-    ? activeSnapshot.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
-    : null
-  const selectedLabel = selectedShape ? `${selectedShape.name} (${selectedShape.type})` : 'None'
-  const scaleLabel = activeSnapshot.viewport.scale.toFixed(2)
-  const typeSummary = React.useMemo(() => summarizeShapeTypes(activeSnapshot.document), [activeSnapshot.document])
-
-  return (
-    <main className="playground-shell">
-      <PlaygroundSidebar
-        runtimeMode={runtimeMode}
-        document={activeSnapshot.document}
-        stats={activeSnapshot.stats}
-        viewport={activeSnapshot.viewport}
-        ready={activeReady}
-        sabSupported={activeSabSupported}
-        history={activeHistory}
-        selectedShape={selectedShape}
-        selectedNode={selectedNode}
-        selectedLabel={selectedLabel}
-        scaleLabel={scaleLabel}
-        lastMarqueeSelectionName={lastMarqueeSelectionName}
-        typeSummary={typeSummary}
-        documentMode={documentMode}
-        snappingEnabled={snappingEnabled}
-        renderLodState={renderLodState}
-        onSetRuntimeMode={setRuntimeMode}
-        onLoadDemo={handleLoadDemo}
-        onLoadMediumStress={handleLoadMediumStress}
-        onLoadLargeStress={handleLoadLargeStress}
-        onLoadStress={handleLoadStress}
-        onLoadExtremeStress={handleLoadExtremeStress}
-        onLoadImageHeavy={handleLoadImageHeavy}
-        onLoadImageHeavyLarge={handleLoadImageHeavyLarge}
-        onDispatch={dispatch}
-      />
-
-      <PlaygroundStage
-        runtimeMode={runtimeMode}
-        document={activeSnapshot.document}
-        shapes={activeSnapshot.shapes}
-        stats={activeSnapshot.stats}
-        viewport={activeSnapshot.viewport}
-        canvasLodConfig={defaultCanvas2DLodConfig}
-        onRenderLodChange={setRenderLodState}
-        onDispatch={dispatch}
-        dragPreview={dragPreview}
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
-        marqueeBounds={marqueeBounds}
-        snapGuides={snapGuides}
-        onViewportChange={activeController.setViewport}
-        onViewportPan={activeController.panViewport}
-        onViewportResize={activeController.resizeViewport}
-        onViewportZoom={activeController.zoomViewport}
-      />
-    </main>
-  )
-}
-
-const PlaygroundSidebar = React.memo(function PlaygroundSidebar({
-  runtimeMode,
-  document,
-  stats,
-  viewport,
-  ready,
-  sabSupported,
-  history,
-  selectedShape,
-  selectedNode,
-  selectedLabel,
-  scaleLabel,
-  lastMarqueeSelectionName,
-  typeSummary,
-  documentMode,
-  snappingEnabled,
-  renderLodState,
-  onSetRuntimeMode,
-  onLoadDemo,
-  onLoadMediumStress,
-  onLoadLargeStress,
-  onLoadStress,
-  onLoadExtremeStress,
-  onLoadImageHeavy,
-  onLoadImageHeavyLarge,
-  onDispatch,
-}: {
-  runtimeMode: PlaygroundRuntimeMode
-  document: EditorDocument
-  stats: PlaygroundSnapshot['stats']
-  viewport: CanvasViewportState
-  ready: boolean
-  sabSupported: boolean
-  history: HistorySummary | null
-  selectedShape: SceneShapeSnapshot | null
-  selectedNode: EditorDocument['shapes'][number] | null
-  selectedLabel: string
-  scaleLabel: string
-  lastMarqueeSelectionName: string
-  typeSummary: Array<{type: string; count: number}>
-  documentMode: PlaygroundDocumentMode
-  snappingEnabled: boolean
-  renderLodState: CanvasRenderLodState | null
-  onSetRuntimeMode: (mode: PlaygroundRuntimeMode) => void
-  onLoadDemo: () => void
-  onLoadMediumStress: () => void
-  onLoadLargeStress: () => void
-  onLoadStress: () => void
-  onLoadExtremeStress: () => void
-  onLoadImageHeavy: () => void
-  onLoadImageHeavyLarge: () => void
-  onDispatch: (command: EditorRuntimeCommand) => void
-}) {
-  const [activeAbilityTab, setActiveAbilityTab] = React.useState<PlaygroundAbilityTab>('engine')
-
-  return (
-    <aside className="playground-panel">
-      <div className="panel-block">
-        <span className="panel-label">Abilities</span>
-        <div className="ability-tabs" role="tablist" aria-label="Playground abilities">
-          {PLAYGROUND_ABILITY_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeAbilityTab === tab.id}
-              className={`ability-tab ${activeAbilityTab === tab.id ? 'is-active' : ''}`}
-              onClick={() => setActiveAbilityTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <RuntimeIntroBlock
-        documentMode={documentMode}
-        runtimeMode={runtimeMode}
-        onSetRuntimeMode={onSetRuntimeMode}
-      />
-
-      {activeAbilityTab === 'engine' && (
-        <>
-          <EngineStandaloneBlock />
-          <LodBlock renderLodState={renderLodState} />
-          <RendererDiagnosticsPanel />
-        </>
-      )}
-
-      {activeAbilityTab === 'runtime' && (
-        <>
-          <ViewportBlock
-            ready={ready}
-            sabSupported={sabSupported}
-            scaleLabel={scaleLabel}
-            selectedLabel={selectedLabel}
-            viewport={viewport}
-          />
-          {history ? <HistoryBlock history={history} /> : null}
-        </>
-      )}
-
-      {activeAbilityTab === 'interaction' && (
-        <>
-          <CommandsBlock
-            onLoadDemo={onLoadDemo}
-            onLoadMediumStress={onLoadMediumStress}
-            onLoadLargeStress={onLoadLargeStress}
-            onLoadStress={onLoadStress}
-            onLoadExtremeStress={onLoadExtremeStress}
-            onLoadImageHeavy={onLoadImageHeavy}
-            onLoadImageHeavyLarge={onLoadImageHeavyLarge}
-            runtimeMode={runtimeMode}
-            snappingEnabled={snappingEnabled}
-            lastMarqueeSelectionName={lastMarqueeSelectionName}
-            onDispatch={onDispatch}
-          />
-          <SelectionBlock selectedShape={selectedShape} selectedNode={selectedNode} />
-        </>
-      )}
-
-      {activeAbilityTab === 'document' && (
-        <DocumentBlock
-          documentMode={documentMode}
-          documentName={document.name}
-          documentWidth={document.width}
-          documentHeight={document.height}
-          documentShapeCount={document.shapes.length}
-          snapshotShapeCount={stats.shapeCount}
-          version={stats.version}
-          typeSummary={typeSummary}
-        />
-      )}
-    </aside>
-  )
-})
-
-const RuntimeIntroBlock = React.memo(function RuntimeIntroBlock({
-  documentMode,
-  runtimeMode,
-  onSetRuntimeMode,
-}: {
-  documentMode: PlaygroundDocumentMode
-  runtimeMode: PlaygroundRuntimeMode
-  onSetRuntimeMode: (mode: PlaygroundRuntimeMode) => void
-}) {
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Runtime</span>
-      <strong className="panel-title">
-        {runtimeMode === 'editor' ? 'Editor + Worker + Canvas2D' : 'Viewer + Canvas2D'}
-      </strong>
-      <p className="panel-copy">
-        Switch runtime mode to compare full editing and viewer-only paths.
-      </p>
-      <div className="runtime-mode-tabs" role="tablist" aria-label="Runtime mode">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={runtimeMode === 'editor'}
-          className={`runtime-mode-tab ${runtimeMode === 'editor' ? 'is-active' : ''}`}
-          onClick={() => onSetRuntimeMode('editor')}
-        >
-          Editor
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={runtimeMode === 'viewer'}
-          className={`runtime-mode-tab ${runtimeMode === 'viewer' ? 'is-active' : ''}`}
-          onClick={() => onSetRuntimeMode('viewer')}
-        >
-          Viewer
-        </button>
-      </div>
-      <div className="panel-badges">
-        <span className="panel-badge">{runtimeMode}</span>
-        <span className="panel-badge">{documentMode}</span>
-        <span className="panel-badge">canvas2d</span>
-      </div>
-    </div>
-  )
-})
-
-const EngineStandaloneBlock = React.memo(function EngineStandaloneBlock() {
-  const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
-  const [backend, setBackend] = React.useState<EngineBackend>('canvas2d')
-  const [running, setRunning] = React.useState(false)
-  const [stats, setStats] = React.useState<EngineRenderStats | null>(null)
-  const imageAssetUrl = React.useMemo(
-    () => createGeneratedImageDataUrl('Engine', 420, 260),
+  const renderDiagnostics = useCanvas2DRenderDiagnostics()
+  const overlayRenderer = React.useMemo(
+    () => function PlaygroundOverlay(props: Parameters<typeof CanvasSelectionOverlay>[0]) {
+      return <CanvasSelectionOverlay {...props} />
+    },
     [],
   )
-  const [imageAsset, setImageAsset] = React.useState<HTMLImageElement | null>(null)
-  const webglAvailable = React.useMemo(() => {
-    if (typeof document === 'undefined') {
-      return false
-    }
 
-    const probe = document.createElement('canvas')
-    return Boolean(probe.getContext('webgl2') || probe.getContext('webgl'))
-  }, [])
-
-  React.useEffect(() => {
-    const image = new Image()
-    image.onload = () => setImageAsset(image)
-    image.src = imageAssetUrl
-    return () => {
-      setImageAsset(null)
-    }
-  }, [imageAssetUrl])
-
-  React.useEffect(() => {
-    if (backend === 'webgl') {
-      setRunning(false)
-      setStats(null)
+  const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
+    if (command.type === 'viewport.fit') {
+      editorInstance.fitViewport()
       return
     }
 
-    const canvas = canvasRef.current
-    if (!canvas) {
-      return
-    }
-
-    let disposed = false
-    const clock = createSystemEngineClock()
-    const animations = createEngineAnimationController()
-    let progress = 0
-
-    const restartAnimation = (from: number, to: number) => {
-      animations.start({
-        from,
-        to,
-        duration: 1800,
-        easing: 'easeInOut',
-        onUpdate: (value) => {
-          progress = value
-        },
-        onComplete: () => {
-          if (disposed) {
-            return
-          }
-          restartAnimation(to, from)
-        },
-      })
-    }
-
-    restartAnimation(0, 1)
-
-    const renderer = createCanvas2DEngineRenderer({
-      canvas,
-      clearColor: '#070d1a',
-      enableCulling: true,
-    })
-
-    const loop = createEngineLoop({
-      clock,
-      renderer,
-      beforeRender: (frame) => {
-        animations.tick(frame)
-      },
-      resolveFrame: () => ({
-        scene: buildEngineStandaloneScene(progress),
-        viewport: {
-          viewportWidth: ENGINE_PREVIEW_WIDTH,
-          viewportHeight: ENGINE_PREVIEW_HEIGHT,
-          scale: 1,
-          offsetX: 0,
-          offsetY: 0,
-          matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
-        },
-        context: {
-          quality: 'full',
-          loader: {
-            resolveImage: (assetId) => {
-              if (assetId === ENGINE_PREVIEW_IMAGE_ASSET_ID) {
-                return imageAsset
-              }
-              return null
-            },
-          },
-        },
-      }),
-      onStats: (nextStats) => {
-        setStats(nextStats)
-      },
-    })
-
-    loop.start()
-    setRunning(true)
-
-    return () => {
-      disposed = true
-      loop.stop()
-      animations.stopAll()
-      setRunning(false)
-    }
-  }, [backend, imageAsset])
-
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Engine Standalone</span>
-      <strong className="panel-title">Independent Render Loop</strong>
-      <p className="panel-copy">
-        This preview runs on <code>@venus/engine</code> only: scene model, clock, animation, and renderer loop.
-      </p>
-
-      <div className="engine-backend-tabs" role="tablist" aria-label="Engine backend">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={backend === 'canvas2d'}
-          className={`runtime-mode-tab ${backend === 'canvas2d' ? 'is-active' : ''}`}
-          onClick={() => setBackend('canvas2d')}
-        >
-          canvas2d
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={backend === 'webgl'}
-          className={`runtime-mode-tab ${backend === 'webgl' ? 'is-active' : ''}`}
-          onClick={() => setBackend('webgl')}
-        >
-          webgl
-        </button>
-      </div>
-
-      <div className="panel-badges">
-        <span className="panel-badge">{backend}</span>
-        <span className="panel-badge">{running ? 'running' : 'idle'}</span>
-        <span className="panel-badge">{webglAvailable ? 'webgl-ready' : 'webgl-unavailable'}</span>
-      </div>
-
-      {backend === 'webgl' ? (
-        <p className="panel-copy">
-          WebGL backend is reserved in engine contracts and the switch is available, while the concrete renderer is next.
-        </p>
-      ) : (
-        <canvas
-          ref={canvasRef}
-          className="engine-standalone-canvas"
-          width={ENGINE_PREVIEW_WIDTH}
-          height={ENGINE_PREVIEW_HEIGHT}
-        />
-      )}
-
-      <div className="panel-row">
-        <span>draw / visible</span>
-        <strong>{stats ? `${stats.drawCount} / ${stats.visibleCount}` : '-'}</strong>
-      </div>
-      <div className="panel-row">
-        <span>cull / cache</span>
-        <strong>{stats ? `${stats.culledCount} / ${stats.cacheHits}` : '-'}</strong>
-      </div>
-      <div className="panel-row">
-        <span>frame ms</span>
-        <strong>{stats ? stats.frameMs.toFixed(2) : '-'}</strong>
-      </div>
-    </div>
-  )
-})
-
-function buildEngineStandaloneScene(progress: number): EngineSceneSnapshot {
-  const clamped = Math.max(0, Math.min(1, progress))
-  const headlineX = 22 + clamped * 90
-  const glowX = 36 + clamped * 140
-
-  return {
-    revision: `engine.demo.${Math.round(clamped * 1000)}`,
-    width: ENGINE_PREVIEW_WIDTH,
-    height: ENGINE_PREVIEW_HEIGHT,
-    nodes: [
-      {
-        id: 'engine.demo.image',
-        type: 'image',
-        x: 18,
-        y: 56,
-        width: 264,
-        height: 116,
-        assetId: ENGINE_PREVIEW_IMAGE_ASSET_ID,
-        clip: {
-          clipShape: {
-            kind: 'rect',
-            rect: {
-              x: 18,
-              y: 56,
-              width: 264,
-              height: 116,
-            },
-            radius: 14,
-          },
-        },
-      },
-      {
-        id: 'engine.demo.title',
-        type: 'text',
-        x: headlineX,
-        y: 18,
-        text: 'Venus Engine',
-        runs: [
-          {
-            text: 'Venus ',
-            style: {
-              fill: '#38bdf8',
-              fontWeight: 700,
-            },
-          },
-          {
-            text: 'Engine',
-            style: {
-              fill: '#f8fafc',
-              fontWeight: 800,
-            },
-          },
-        ],
-        style: {
-          fontFamily: 'IBM Plex Sans, sans-serif',
-          fontSize: 24,
-          fontWeight: 700,
-          fill: '#f8fafc',
-        },
-      },
-      {
-        id: 'engine.demo.subtitle',
-        type: 'text',
-        x: 22,
-        y: 40,
-        text: 'text runs + clipped image + loop',
-        style: {
-          fontFamily: 'IBM Plex Sans, sans-serif',
-          fontSize: 12,
-          fill: '#cbd5e1',
-        },
-      },
-      {
-        id: 'engine.demo.glow',
-        type: 'text',
-        x: glowX,
-        y: 142,
-        text: 'render tick',
-        style: {
-          fontFamily: 'IBM Plex Sans, sans-serif',
-          fontSize: 12,
-          fill: '#22d3ee',
-        },
-      },
-    ],
-  }
-}
-
-const LodBlock = React.memo(function LodBlock({
-  renderLodState,
-}: {
-  renderLodState: CanvasRenderLodState | null
-}) {
-  return (
-    <div className="panel-block">
-      <span className="panel-label">LOD</span>
-      <div className="panel-row">
-        <span>profile</span>
-        <strong>balanced</strong>
-      </div>
-      <div className="panel-row">
-        <span>level</span>
-        <strong>{renderLodState ? renderLodState.level : '-'}</strong>
-      </div>
-      <div className="panel-row">
-        <span>mode</span>
-        <strong>{renderLodState ? renderLodState.renderQuality : '-'}</strong>
-      </div>
-      <div className="panel-row">
-        <span>images</span>
-        <strong>{renderLodState ? renderLodState.imageCount : '-'}</strong>
-      </div>
-    </div>
-  )
-})
-
-const DocumentBlock = React.memo(function DocumentBlock({
-  documentMode,
-  documentName,
-  documentWidth,
-  documentHeight,
-  documentShapeCount,
-  snapshotShapeCount,
-  version,
-  typeSummary,
-}: {
-  documentMode: string
-  documentName: string
-  documentWidth: number
-  documentHeight: number
-  documentShapeCount: number
-  snapshotShapeCount: number
-  version: number
-  typeSummary: Array<{type: string; count: number}>
-}) {
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Document</span>
-      <strong>{documentName}</strong>
-      <div className="panel-stat-grid">
-        <div className="panel-stat-card">
-          <span>mode</span>
-          <strong>{documentMode}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>size</span>
-          <strong>{formatMetric(documentWidth)} x {formatMetric(documentHeight)}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>nodes</span>
-          <strong>{documentShapeCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>snapshot</span>
-          <strong>{snapshotShapeCount}</strong>
-        </div>
-      </div>
-      <div className="panel-row">
-        <span>version</span>
-        <strong>{version}</strong>
-      </div>
-      <div className="panel-type-list">
-        {typeSummary.map((item) => (
-          <div key={item.type} className="panel-type-chip">
-            <span>{item.type}</span>
-            <strong>{item.count}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-})
-
-const ViewportBlock = React.memo(function ViewportBlock({
-  ready,
-  sabSupported,
-  scaleLabel,
-  selectedLabel,
-  viewport,
-}: {
-  ready: boolean
-  sabSupported: boolean
-  scaleLabel: string
-  selectedLabel: string
-  viewport: CanvasViewportState
-}) {
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Viewport</span>
-      <div className="panel-stat-grid">
-        <div className="panel-stat-card">
-          <span>ready</span>
-          <strong>{String(ready)}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>SAB</span>
-          <strong>{String(sabSupported)}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>scale</span>
-          <strong>{scaleLabel}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>viewport</span>
-          <strong>{formatMetric(viewport.viewportWidth)} x {formatMetric(viewport.viewportHeight)}</strong>
-        </div>
-      </div>
-      <div className="panel-list-rows">
-        <div className="panel-row">
-          <span>translate</span>
-          <strong>{formatMetric(viewport.matrix[2])}, {formatMetric(viewport.matrix[5])}</strong>
-        </div>
-        <div className="panel-row">
-          <span>selected</span>
-          <strong>{selectedLabel}</strong>
-        </div>
-      </div>
-    </div>
-  )
-})
-
-const SelectionBlock = React.memo(function SelectionBlock({
-  selectedShape,
-  selectedNode,
-}: {
-  selectedShape: SceneShapeSnapshot | null
-  selectedNode: EditorDocument['shapes'][number] | null
-}) {
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Selection</span>
-      {!selectedShape || !selectedNode ? (
-        <p className="panel-copy">No active selection.</p>
-      ) : (
-        <>
-          <strong>{selectedNode.name}</strong>
-          <div className="panel-stat-grid">
-            <div className="panel-stat-card">
-              <span>type</span>
-              <strong>{selectedNode.type}</strong>
-            </div>
-            <div className="panel-stat-card">
-              <span>flags</span>
-              <strong>{selectedShape.isSelected ? 'selected' : 'idle'}</strong>
-            </div>
-            <div className="panel-stat-card">
-              <span>origin</span>
-              <strong>{formatMetric(selectedNode.x)}, {formatMetric(selectedNode.y)}</strong>
-            </div>
-            <div className="panel-stat-card">
-              <span>size</span>
-              <strong>{formatMetric(selectedNode.width)} x {formatMetric(selectedNode.height)}</strong>
-            </div>
-          </div>
-          <div className="panel-list-rows">
-            <div className="panel-row">
-              <span>id</span>
-              <strong>{selectedNode.id}</strong>
-            </div>
-            {selectedNode.text && (
-              <div className="panel-row">
-                <span>text</span>
-                <strong>{selectedNode.text}</strong>
-              </div>
-            )}
-            {selectedNode.assetUrl && (
-              <div className="panel-row">
-                <span>asset</span>
-                <strong>embedded image</strong>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  )
-})
-
-const CommandsBlock = React.memo(function CommandsBlock({
-  onLoadDemo,
-  onLoadMediumStress,
-  onLoadLargeStress,
-  onLoadStress,
-  onLoadExtremeStress,
-  onLoadImageHeavy,
-  onLoadImageHeavyLarge,
-  runtimeMode,
-  snappingEnabled,
-  lastMarqueeSelectionName,
-  onDispatch,
-}: {
-  onLoadDemo: () => void
-  onLoadMediumStress: () => void
-  onLoadLargeStress: () => void
-  onLoadStress: () => void
-  onLoadExtremeStress: () => void
-  onLoadImageHeavy: () => void
-  onLoadImageHeavyLarge: () => void
-  runtimeMode: PlaygroundRuntimeMode
-  snappingEnabled: boolean
-  lastMarqueeSelectionName: string
-  onDispatch: (command: EditorRuntimeCommand) => void
-}) {
-  const editingEnabled = runtimeMode === 'editor'
-
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Commands</span>
-      <div className="panel-actions">
-        <button onClick={onLoadDemo}>Demo Scene</button>
-        <button onClick={onLoadMediumStress}>10k Scene</button>
-        <button onClick={onLoadLargeStress}>50k Scene</button>
-        <button onClick={onLoadStress}>100k Scene</button>
-        <button onClick={onLoadExtremeStress}>1000k Scene</button>
-        <button onClick={onLoadImageHeavy}>10k Img+</button>
-        <button onClick={onLoadImageHeavyLarge}>50k Img+</button>
-        <button onClick={() => onDispatch({type: 'viewport.fit'})}>Fit</button>
-        <button onClick={() => onDispatch({type: 'viewport.zoomIn'})}>Zoom In</button>
-        <button onClick={() => onDispatch({type: 'viewport.zoomOut'})}>Zoom Out</button>
-        <button
-          disabled={!editingEnabled}
-          onClick={() => onDispatch({type: 'shape.insert', shape: createRandomMockShape()})}
-        >
-          Insert Mock
-        </button>
-        <button disabled={!editingEnabled} onClick={() => onDispatch({type: 'history.undo'})}>Undo</button>
-        <button disabled={!editingEnabled} onClick={() => onDispatch({type: 'history.redo'})}>Redo</button>
-        <button disabled={!editingEnabled} onClick={() => onDispatch({type: 'selection.delete'})}>Delete Selected</button>
-        <button
-          disabled={!editingEnabled || !snappingEnabled}
-          onClick={() => onDispatch({type: 'snapping.pause'})}
-        >
-          Pause Snap
-        </button>
-        <button
-          disabled={!editingEnabled || snappingEnabled}
-          onClick={() => onDispatch({type: 'snapping.resume'})}
-        >
-          Resume Snap
-        </button>
-      </div>
-      <div className="panel-row">
-        <span>last marquee</span>
-        <strong>{lastMarqueeSelectionName}</strong>
-      </div>
-    </div>
-  )
-})
-
-const HistoryBlock = React.memo(function HistoryBlock({
-  history,
-}: {
-  history: HistorySummary
-}) {
-  return (
-    <div className="panel-block">
-      <span className="panel-label">History</span>
-      <ul className="panel-list">
-        <li>entries: {history.entries.length}</li>
-        <li>cursor: {history.cursor}</li>
-        <li>canUndo: {String(history.canUndo)}</li>
-        <li>canRedo: {String(history.canRedo)}</li>
-      </ul>
-    </div>
-  )
-})
-
-const PlaygroundStage = React.memo(function PlaygroundStage({
-  runtimeMode,
-  document,
-  shapes,
-  stats,
-  viewport,
-  canvasLodConfig,
-  onRenderLodChange,
-  onDispatch,
-  dragPreview,
-  onPointerMove,
-  onPointerDown,
-  onPointerUp,
-  onPointerLeave,
-  marqueeBounds,
-  snapGuides,
-  onViewportChange,
-  onViewportPan,
-  onViewportResize,
-  onViewportZoom,
-}: {
-  runtimeMode: PlaygroundRuntimeMode
-  document: EditorDocument
-  shapes: SceneShapeSnapshot[]
-  stats: PlaygroundSnapshot['stats']
-  viewport: CanvasViewportState
-  canvasLodConfig: Canvas2DLodConfig
-  onRenderLodChange: (lodState: CanvasRenderLodState) => void
-  onDispatch: (command: EditorRuntimeCommand) => void
-  dragPreview: {
-    shapes: Array<{
-      shapeId: string
-      x: number
-      y: number
-      width: number
-      height: number
-      rotation?: number
-    }>
-  } | null
-  onPointerMove: (pointer: { x: number; y: number }) => void
-  onPointerDown: (
-    pointer: { x: number; y: number },
-    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
-  ) => void
-  onPointerUp: VoidFunction
-  onPointerLeave: VoidFunction
-  marqueeBounds: MarqueeBounds | null
-  snapGuides: SnapGuide[]
-  onViewportChange: (viewport: CanvasViewportState) => void
-  onViewportPan: (deltaX: number, deltaY: number) => void
-  onViewportResize: (width: number, height: number) => void
-  onViewportZoom: (nextScale: number, anchor?: { x: number; y: number }) => void
-}) {
-  const stageRef = React.useRef<HTMLElement | null>(null)
-  const contextMenuRef = React.useRef<HTMLDivElement | null>(null)
-  const [showContextMenu, setShowContextMenu] = React.useState(false)
-  const [contextMenuPosition, setContextMenuPosition] = React.useState<{x: number; y: number}>({x: 0, y: 0})
-  const [resolvedContextMenuPosition, setResolvedContextMenuPosition] = React.useState<{x: number; y: number}>({
-    x: 0,
-    y: 0,
-  })
-  const previewState = React.useMemo(() => resolveTransformPreviewRuntimeState(
-    document,
-    shapes,
-    dragPreview?.shapes ?? null,
-  ), [document, dragPreview, shapes])
-  const renderDocument = previewState.previewDocument
-  const renderShapes = previewState.previewShapes
-
-  const renderer = React.useMemo<CanvasRenderer>(() => {
-    const Canvas2DWithLod: CanvasRenderer = (props) => (
-      <Canvas2DRenderer {...props} lodConfig={canvasLodConfig} />
-    )
-
-    return Canvas2DWithLod
-  }, [canvasLodConfig])
-  const overlayRenderer = React.useMemo(() => {
-    const activeMarqueeBounds = marqueeBounds
-    const activeSnapGuides = snapGuides
-
-    return function PlaygroundOverlay(props: CanvasOverlayProps) {
-      const marqueePolygon = activeMarqueeBounds
-        ? [
-            {x: activeMarqueeBounds.minX, y: activeMarqueeBounds.minY},
-            {x: activeMarqueeBounds.maxX, y: activeMarqueeBounds.minY},
-            {x: activeMarqueeBounds.maxX, y: activeMarqueeBounds.maxY},
-            {x: activeMarqueeBounds.minX, y: activeMarqueeBounds.maxY},
-          ].map((point) => applyMatrixToPoint(props.viewport.matrix, point))
-        : null
-      const snapLines = resolveSnapGuideLines({
-        guides: activeSnapGuides,
-        documentWidth: props.document.width,
-        documentHeight: props.document.height,
-        matrix: props.viewport.matrix,
-      })
-
-      return (
-        <>
-          <CanvasSelectionOverlay {...props} />
-          {snapLines.length > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                overflow: 'hidden',
-              }}
-            >
-              <svg
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                }}
-                width="100%"
-                height="100%"
-              >
-                {snapLines.map((line) => (
-                  <line
-                    key={line.id}
-                    x1={line.x1}
-                    y1={line.y1}
-                    x2={line.x2}
-                    y2={line.y2}
-                    stroke="rgba(248, 113, 113, 0.95)"
-                    strokeWidth={1}
-                    strokeDasharray="5 3"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-              </svg>
-            </div>
-          )}
-          {marqueePolygon && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                overflow: 'hidden',
-              }}
-            >
-              <svg
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                }}
-                width="100%"
-                height="100%"
-              >
-                <polygon
-                  points={marqueePolygon.map((point) => `${point.x},${point.y}`).join(' ')}
-                  fill="rgba(37, 99, 235, 0.12)"
-                  stroke="rgba(37, 99, 235, 0.95)"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
-                  strokeDasharray="4 3"
-                />
-              </svg>
-            </div>
-          )}
-        </>
+    if (command.type === 'viewport.zoomIn' || command.type === 'viewport.zoomOut') {
+      const nextScale = resolveRuntimeZoomPresetScale(
+        editorInstance.getSnapshot().viewport.scale,
+        command.type === 'viewport.zoomIn' ? 'in' : 'out',
       )
-    }
-  }, [marqueeBounds, snapGuides])
-
-  React.useLayoutEffect(() => {
-    if (!showContextMenu) {
+      if (nextScale !== null) {
+        editorInstance.zoomViewport(nextScale)
+      }
       return
     }
 
-    const menu = contextMenuRef.current
-    const stage = stageRef.current
-    if (!menu || !stage) {
-      setResolvedContextMenuPosition(contextMenuPosition)
-      return
-    }
+    editorInstance.dispatchCommand(command)
+  }, [editorInstance])
 
-    const menuWidth = menu.offsetWidth
-    const menuHeight = menu.offsetHeight
-    const maxX = Math.max(0, stage.clientWidth - menuWidth - 4)
-    const maxY = Math.max(0, stage.clientHeight - menuHeight - 4)
-
-    setResolvedContextMenuPosition({
-      x: Math.min(Math.max(0, contextMenuPosition.x), maxX),
-      y: Math.min(Math.max(0, contextMenuPosition.y), maxY),
-    })
-  }, [contextMenuPosition, showContextMenu])
-
-  React.useEffect(() => {
-    if (!showContextMenu) {
-      return
-    }
-    const close = () => setShowContextMenu(false)
-    window.addEventListener('pointerdown', close)
-    return () => {
-      window.removeEventListener('pointerdown', close)
-    }
-  }, [showContextMenu])
+  const selectedShape = snapshot.stats.selectedIndex >= 0
+    ? snapshot.shapes[snapshot.stats.selectedIndex] ?? null
+    : null
+  const panelClass = 'flex flex-col gap-2 rounded-xl border border-slate-700/35 bg-slate-950/55 p-3 backdrop-blur'
+  const controlButtonClass = 'cursor-pointer rounded-lg border border-slate-500/25 bg-slate-800/75 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/55 hover:bg-cyan-500/20 active:scale-[0.99]'
 
   return (
-    <section
-      ref={stageRef}
-      className="playground-stage"
-      onContextMenu={(event) => {
-        event.preventDefault()
-        const rect = stageRef.current?.getBoundingClientRect()
-        if (!rect) {
-          return
-        }
-        setContextMenuPosition({
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
-        })
-        setShowContextMenu(true)
-      }}
-    >
-      <CanvasViewport
-        document={renderDocument}
-        renderer={renderer}
-        overlayRenderer={overlayRenderer}
-        shapes={renderShapes}
-        stats={stats}
-        viewport={viewport}
-        onRenderLodChange={onRenderLodChange}
-        onPointerMove={onPointerMove}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerLeave}
-        onViewportChange={onViewportChange}
-        onViewportPan={onViewportPan}
-        onViewportResize={onViewportResize}
-        onViewportZoom={onViewportZoom}
-      />
-      {showContextMenu && (
-        <div
-          ref={contextMenuRef}
-          style={{
-            position: 'absolute',
-            left: resolvedContextMenuPosition.x,
-            top: resolvedContextMenuPosition.y,
-            background: '#ffffff',
-            border: '1px solid #d1d5db',
-            borderRadius: 6,
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.14)',
-            zIndex: 40,
-            minWidth: 120,
-            overflow: 'hidden',
-          }}
-          onPointerDown={(event) => {
-            event.stopPropagation()
-          }}
-        >
-          <ContextActionButton
-            label="Fit"
-            onClick={() => {
-              onDispatch({type: 'viewport.fit'})
-              setShowContextMenu(false)
-            }}
-          />
-          <ContextActionButton
-            label="Zoom In"
-            onClick={() => {
-              onDispatch({type: 'viewport.zoomIn'})
-              setShowContextMenu(false)
-            }}
-          />
-          <ContextActionButton
-            label="Zoom Out"
-            onClick={() => {
-              onDispatch({type: 'viewport.zoomOut'})
-              setShowContextMenu(false)
-            }}
-          />
-          <ContextActionButton
-            label="Delete Selection"
-            disabled={runtimeMode !== 'editor'}
-            onClick={() => {
-              onDispatch({type: 'selection.delete'})
-              setShowContextMenu(false)
-            }}
-          />
+    <main className="relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_88%_-10%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_12%_0%,rgba(56,189,248,0.12),transparent_26%),linear-gradient(180deg,rgba(15,23,42,0.98),rgba(2,6,23,1))] text-slate-100">
+      <header className="border-b border-slate-700/35 bg-slate-950/55 px-4 py-3 backdrop-blur-md sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <strong className="block text-sm font-semibold uppercase tracking-[0.08em] text-cyan-200">Runtime Playground</strong>
+            <p className="truncate text-xs text-slate-300/75">Canvas2D runtime chain: runtime-react -&gt; runtime -&gt; runtime/worker -&gt; engine</p>
+          </div>
+          <span className="rounded-full border border-cyan-300/35 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-cyan-100">diagnostics</span>
         </div>
-      )}
-    </section>
-  )
-})
+      </header>
 
-function ContextActionButton({
-  label,
-  disabled = false,
-  onClick,
-}: {
-  label: string
-  disabled?: boolean
-  onClick: VoidFunction
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        width: '100%',
-        border: 0,
-        background: disabled ? 'rgba(148, 163, 184, 0.12)' : 'transparent',
-        textAlign: 'left',
-        padding: '8px 10px',
-        fontSize: 12,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-      }}
-      onMouseEnter={(event) => {
-        if (disabled) {
-          return
-        }
-        event.currentTarget.style.background = '#f3f4f6'
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.background = disabled ? 'rgba(148, 163, 184, 0.12)' : 'transparent'
-      }}
-    >
-      {label}
-    </button>
-  )
-}
+      <div className="grid min-h-0 flex-1 min-w-0 grid-rows-[minmax(0,auto)_minmax(0,1fr)] lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
+        <aside className="min-h-0 min-w-0 overflow-y-auto border-b border-slate-700/35 bg-slate-950/45 p-3 lg:border-r lg:border-b-0">
+          <div className="flex min-h-0 min-w-0 flex-col gap-3">
+            <section className={panelClass}>
+          <div className="flex flex-col gap-1">
+            <strong className="text-[13px] uppercase tracking-[0.04em] text-slate-50">Scenes</strong>
+            <span className="text-xs text-slate-200/70">Switch document presets</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {PLAYGROUND_SCENE_BUTTONS.map((item) => (
+              <button
+                key={item.preset}
+                type="button"
+                className={[
+                  'cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition text-left',
+                  'border-slate-500/20 bg-slate-800/75 text-slate-200 hover:border-sky-400/45 hover:bg-sky-500/18',
+                  selection.preset === item.preset
+                    ? 'border-sky-400/70 bg-sky-400/22 text-sky-50'
+                    : '',
+                ].join(' ')}
+                onClick={() => {
+                  setSelection((current) => ({
+                    preset: item.preset,
+                    revision: current.preset === item.preset ? current.revision + 1 : 0,
+                  }))
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+            </section>
 
-function RendererDiagnosticsPanel() {
-  const canvas2dDiagnostics = useCanvas2DRenderDiagnostics()
+            <section className={panelClass}>
+          <div className="flex flex-col gap-1">
+            <strong className="text-[13px] uppercase tracking-[0.04em] text-slate-50">Commands</strong>
+            <span className="text-xs text-slate-200/70">Drive runtime state without product UI</span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'viewport.fit'})}>Fit</button>
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'viewport.zoomOut'})}>-</button>
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'viewport.zoomIn'})}>+</button>
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'shape.insert', shape: createRandomShape()})}>Insert</button>
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'history.undo'})}>Undo</button>
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'history.redo'})}>Redo</button>
+            <button className={controlButtonClass} type="button" onClick={() => dispatch({type: 'selection.delete'})}>Delete</button>
+          </div>
+            </section>
 
-  return (
-    <div className="panel-block">
-      <span className="panel-label">Renderer Cache</span>
-      <div className="panel-stat-grid">
-        <div className="panel-stat-card">
-          <span>backend</span>
-          <strong>canvas2d</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>draws</span>
-          <strong>{canvas2dDiagnostics.drawCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>visible</span>
-          <strong>{canvas2dDiagnostics.visibleShapeCount}</strong>
-        </div>
-        <div className="panel-stat-card">
-          <span>draw</span>
-          <strong>{canvas2dDiagnostics.drawMs.toFixed(1)}ms</strong>
-        </div>
+            <section className={[panelClass, 'min-h-0 flex-1'].join(' ')}>
+          <div className="flex flex-col gap-1">
+            <strong className="text-[13px] uppercase tracking-[0.04em] text-slate-50">Runtime</strong>
+            <span className="text-xs text-slate-200/70">Lightweight diagnostics for the current scene</span>
+          </div>
+          <div className="flex flex-wrap gap-2 overflow-auto text-sm text-slate-200/85">
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">preset</strong> {selection.preset}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">scale</strong> {snapshot.viewport.scale.toFixed(2)}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">shapes</strong> {snapshot.stats.shapeCount}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">selected</strong> {selectedShape?.name ?? 'none'}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">renderer</strong> draw {renderDiagnostics.drawCount} / visible {renderDiagnostics.visibleShapeCount}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">draw</strong> {renderDiagnostics.drawMs.toFixed(1)}ms</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">cache</strong> {renderDiagnostics.cacheHitCount}/{renderDiagnostics.cacheMissCount} {renderDiagnostics.cacheMode}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">history</strong> {snapshot.history.cursor + 1}/{snapshot.history.entries.length}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">doc</strong> {snapshot.document.width}x{snapshot.document.height}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">summary</strong> {formatShapeSummary(snapshot.document)}</span>
+          </div>
+            </section>
+          </div>
+        </aside>
+
+        <section className="min-h-0 min-w-0 p-3">
+          <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[24px] border border-slate-700/35 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.1),transparent_35%),linear-gradient(180deg,rgba(15,23,42,0.86),rgba(2,6,23,0.96))] shadow-[0_28px_90px_rgba(2,6,23,0.45)]">
+            <div className="border-b border-slate-700/35 px-5 py-3 text-xs text-slate-300/80">
+              <span className="font-semibold uppercase tracking-[0.08em] text-cyan-200">Stage</span>
+              <span className="ml-2">Viewport + Selection Overlay</span>
+            </div>
+            <div className="min-h-0 min-w-0">
+            <CanvasViewport
+              document={snapshot.document}
+              renderer={Canvas2DRenderer}
+              overlayRenderer={overlayRenderer}
+              shapes={snapshot.shapes}
+              stats={snapshot.stats}
+              viewport={snapshot.viewport}
+              onPointerMove={(pointer) => {
+                editorInstance.postPointer('pointermove', pointer)
+              }}
+              onPointerDown={(pointer, modifiers) => {
+                editorInstance.postPointer('pointerdown', pointer, modifiers)
+              }}
+              onPointerUp={() => {}}
+              onPointerLeave={() => {
+                editorInstance.clearHover()
+              }}
+              onViewportChange={editorInstance.setViewport}
+              onViewportPan={editorInstance.panViewport}
+              onViewportResize={editorInstance.resizeViewport}
+              onViewportZoom={editorInstance.zoomViewport}
+              onRenderLodChange={() => {}}
+            />
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   )
 }
 

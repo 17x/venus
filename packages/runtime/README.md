@@ -9,14 +9,13 @@ worker/renderer packages.
 
 Primary chain:
 
-`apps/* -> @venus/runtime -> @venus/editor-worker + @venus/shared-memory -> renderer packages`
+`apps/* -> @venus/runtime -> @venus/runtime/worker + @venus/shared-memory -> renderer packages`
 
 ## Owns
 
 - worker bridge and lifecycle
 - editor/viewer runtime controllers
 - viewport state and matrix math
-- gesture/input plumbing
 - frame-time and animation primitives
 - extensibility contracts
 
@@ -41,16 +40,13 @@ Primary chain:
 - `createCanvasModuleRunner`
 - `createCanvasElementRegistry`
 
-### Viewport and gesture
+### Viewport and math
 
-- `bindViewportGestures`
 - `resolveViewportState`
 - `panViewportState`
 - `zoomViewportState`
 - `fitViewportToDocument`
 - `applyMatrixToPoint`
-- `applyViewportPreviewTransform`
-- `resolveViewportPreviewOverscan`
 
 ### Time and animation bridge
 
@@ -99,6 +95,6 @@ clock.cancelFrame(frame)
 ## Boundary Rules
 
 - Keep this package framework-agnostic
-- Put policy defaults in `@venus/runtime-presets`
-- Put shared interaction algorithms in `@venus/runtime-interaction`
+- Put policy defaults in `@venus/runtime/presets`
+- Put shared interaction algorithms in `@venus/runtime/interaction`
 - Keep persisted document semantics in `packages/file-format`

@@ -1,10 +1,8 @@
 /// <reference lib="webworker" />
 
 import {
-  applyEngineScenePatch,
-  createMutableEngineSceneState,
-} from '../scene/patch.ts'
-import { hitTestEngineSceneState } from '../scene/hitTest.ts'
+  createEngineSceneStore,
+} from '../scene/store.ts'
 import type {
   EngineWorkerMessage,
   EngineWorkerResponseMessage,
@@ -23,7 +21,7 @@ import {
  * - shared-memory request slot + signal message
  */
 export function bindEngineWorkerScope(scope: DedicatedWorkerGlobalScope) {
-  const sceneState = createMutableEngineSceneState()
+  const sceneStore = createEngineSceneStore()
   let mode: 'worker-postmessage' | 'worker-shared-memory' = 'worker-postmessage'
   let sharedViews: ReturnType<typeof attachSharedHitTestViews> | null = null
 
@@ -37,10 +35,7 @@ export function bindEngineWorkerScope(scope: DedicatedWorkerGlobalScope) {
     if (message.type === 'engine.init') {
       mode = message.mode
       if (message.scene) {
-        sceneState.revision = message.scene.revision
-        sceneState.width = message.scene.width
-        sceneState.height = message.scene.height
-        sceneState.nodes = [...message.scene.nodes]
+        sceneStore.loadScene(message.scene)
       }
       if (message.sharedHitTestBuffer) {
         sharedViews = attachSharedHitTestViews(message.sharedHitTestBuffer)
@@ -53,13 +48,17 @@ export function bindEngineWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     if (message.type === 'engine.scene.patch') {
-      applyEngineScenePatch(sceneState, message.patch)
+      sceneStore.applyScenePatch(message.patch)
+      return
+    }
+
+    if (message.type === 'engine.scene.patch.batch') {
+      sceneStore.applyScenePatchBatch(message.batch)
       return
     }
 
     if (message.type === 'engine.hittest.request') {
-      const result = hitTestEngineSceneState(
-        sceneState,
+      const result = sceneStore.hitTest(
         message.request.point,
         message.request.tolerance ?? 0,
       )
@@ -82,7 +81,7 @@ export function bindEngineWorkerScope(scope: DedicatedWorkerGlobalScope) {
       }
 
       const request = readSharedHitTestRequest(sharedViews)
-      const result = hitTestEngineSceneState(sceneState, request.point, request.tolerance)
+      const result = sceneStore.hitTest(request.point, request.tolerance)
       writeSharedHitTestResponse(sharedViews, request.requestToken, result?.index ?? -1)
       post({
         type: 'engine.hittest.signal.response',
@@ -92,7 +91,12 @@ export function bindEngineWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     if (message.type === 'engine.dispose') {
-      sceneState.nodes = []
+      sceneStore.loadScene({
+        revision: 0,
+        width: 0,
+        height: 0,
+        nodes: [],
+      })
       sharedViews = null
       return
     }

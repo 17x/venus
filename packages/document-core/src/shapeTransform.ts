@@ -28,8 +28,8 @@ export interface ShapeTransformRecord {
 
 export interface ShapeTransformBatchItem {
   id: string
-  from: ShapeTransformRecord
-  to: ShapeTransformRecord
+  fromMatrix: MatrixFirstNodeTransform
+  toMatrix: MatrixFirstNodeTransform
 }
 
 export interface ShapeTransformBatchCommand {
@@ -235,13 +235,26 @@ export function createMatrixFirstNodeTransform(source: BoxTransformSource): Matr
  * transform fields. Uses normalized bounds for legacy box semantics.
  */
 export function toLegacyShapeTransformRecord(
-  transform: Pick<MatrixFirstNodeTransform, 'bounds' | 'rotation' | 'flipX' | 'flipY'>,
+  transform: Pick<MatrixFirstNodeTransform, 'bounds' | 'rotation' | 'flipX' | 'flipY' | 'width' | 'height'>,
 ): ShapeTransformRecord {
+  // Prefer explicit width/height from matrix payload so signed extents survive
+  // compatibility conversion (bounds alone are always normalized positive size).
+  const width = typeof transform.width === 'number'
+    ? transform.width
+    : (transform.bounds.maxX - transform.bounds.minX)
+  const height = typeof transform.height === 'number'
+    ? transform.height
+    : (transform.bounds.maxY - transform.bounds.minY)
+  // Preserve legacy anchor semantics:
+  // negative width/height are anchored at maxX/maxY respectively.
+  const x = width >= 0 ? transform.bounds.minX : transform.bounds.maxX
+  const y = height >= 0 ? transform.bounds.minY : transform.bounds.maxY
+
   return {
-    x: transform.bounds.minX,
-    y: transform.bounds.minY,
-    width: transform.bounds.maxX - transform.bounds.minX,
-    height: transform.bounds.maxY - transform.bounds.minY,
+    x,
+    y,
+    width,
+    height,
     rotation: transform.rotation,
     flipX: transform.flipX,
     flipY: transform.flipY,

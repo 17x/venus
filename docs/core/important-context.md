@@ -2,7 +2,7 @@
 
 ## Runtime Chain
 
-- `apps/*` -> `@venus/runtime` + `@venus/runtime-interaction` + `@venus/runtime-react` -> `@venus/editor-worker` + `@venus/shared-memory` -> `@venus/engine` (Canvas2D via runtime-react).
+- `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`.
 
 ## Model Truth
 
@@ -19,7 +19,7 @@
 ## Renderer Direction
 
 - Canvas2D is the current default/stable path for active app work.
-- Runtime apps consume Canvas2D through `@venus/runtime-react` + `@venus/engine`.
+- Runtime apps consume Canvas2D through app-layer renderer wiring over `@venus/engine`.
 
 ## Shared Memory Note
 

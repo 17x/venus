@@ -1,16 +1,16 @@
 import type * as React from 'react'
 import type {ToolName} from '@venus/document-core'
 import type {CanvasViewportState} from '@venus/runtime'
+import type {useCanvasRuntime} from '@venus/runtime/react'
 import type {
-  CanvasOverlayRenderer,
-  CanvasRenderer,
-  useCanvasRuntime,
-} from '@venus/runtime-react'
+  CanvasOverlayRenderer as CanvasOverlayRendererCompat,
+  CanvasRenderer as CanvasRendererCompat,
+} from '../runtime/canvasAdapter.tsx'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../components/statusBar/StatusBar.tsx'
 import type {createEditorDocumentFromFile} from '../adapters/fileDocument.ts'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
-import type {HistorySummary} from '@venus/editor-worker'
+import type {HistorySummary} from '@venus/runtime/worker'
 
 export interface VisionFileAsset {
   id: string
@@ -63,8 +63,8 @@ export interface EditorDocumentState {
 
 export interface EditorRuntimeState {
   canvas: {
-    Renderer: CanvasRenderer
-    OverlayRenderer?: CanvasOverlayRenderer
+    Renderer: CanvasRendererCompat
+    OverlayRenderer?: CanvasOverlayRendererCompat
     document: ReturnType<typeof createEditorDocumentFromFile>
     shapes: SceneShapeSnapshot[]
     stats: ReturnType<typeof useCanvasRuntime>['stats']

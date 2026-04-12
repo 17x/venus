@@ -68,6 +68,15 @@ function isPointInsideNode(
     }
     case 'group':
       return false
+    case 'shape':
+      return isPointInsideRect(
+        localPoint,
+        node.x,
+        node.y,
+        node.width,
+        node.height,
+        tolerance,
+      )
     default:
       return false
   }
