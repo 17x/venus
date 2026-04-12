@@ -42,3 +42,11 @@ Package-scoped note for the React adapter layer over the Venus runtime stack.
   behavior keeps one stable canvas2d path and warns once when `webgl` is
   requested, so app/runtime wiring can adopt backend selection before the WebGL
   renderer implementation lands.
+
+### 2026-04-12
+
+- Added `useDefaultCanvasRuntime(...)` in
+  `packages/runtime/src/react/useDefaultCanvasRuntime.ts` to centralize
+  editor-runtime boot wiring with default runtime preset modules.
+- Vector editor runtime now consumes this shared hook instead of assembling
+  default modules inside app-local hook code.

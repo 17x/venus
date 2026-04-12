@@ -23,6 +23,8 @@ export interface EngineRenderStats {
   culledCount: number
   cacheHits: number
   cacheMisses: number
+  frameReuseHits: number
+  frameReuseMisses: number
   frameMs: number
 }
 

@@ -28,11 +28,29 @@ export type {
   EngineWorldMatrix,
 } from './renderer/plan.ts'
 export type {
+  BuildEngineReplayTilesOptions,
+  EngineReplayTile,
+} from './renderer/replay.ts'
+export type {
+  CreateEngineReplayCoordinatorOptions,
+  EngineReplayCancelRequest,
+  EngineReplayDoneEvent,
+  EngineReplayErrorEvent,
+  EngineReplayRenderRequest,
+  EngineReplayStartEvent,
+  EngineReplayTileEvent,
+  EngineReplayViewportState,
+  EngineReplayWorkerEvent,
+  EngineReplayWorkerMessage,
+} from './renderer/replayWorker.ts'
+export type {
   EngineRenderInstanceBatch,
   EngineRenderInstanceView,
 } from './renderer/instances.ts'
 export { prepareEngineRenderPlan } from './renderer/plan.ts'
 export { prepareEngineRenderInstanceView } from './renderer/instances.ts'
+export { buildEngineReplayTiles } from './renderer/replay.ts'
+export { createEngineReplayCoordinator } from './renderer/replayWorker.ts'
 export { createCanvas2DEngineRenderer } from './renderer/canvas2d.ts'
 export { createWebGLEngineRenderer } from './renderer/webgl.ts'
 export type { Mat3, Point2D } from './math/matrix.ts'
@@ -87,12 +105,17 @@ export { createSystemEngineClock } from './time/index.ts'
 export type { EngineRuntime } from './runtime/types.ts'
 export type { EngineLoopController } from './runtime/createEngineLoop.ts'
 export type {
+  CreateEngineRenderSchedulerOptions,
+  EngineRenderScheduler,
+} from './runtime/renderScheduler.ts'
+export type {
   CreateEngineOptions,
   Engine,
   EngineRuntimeDiagnostics,
 } from './runtime/createEngine.ts'
 export { createEngine } from './runtime/createEngine.ts'
 export { createEngineLoop } from './runtime/createEngineLoop.ts'
+export { createEngineRenderScheduler } from './runtime/renderScheduler.ts'
 export type {
   EngineWorkerCapabilities,
   EngineWorkerEnvironment,
@@ -161,6 +184,48 @@ export {
   resolveEngineMoveSnapPreview,
   resolveEngineMoveSnapPreview as resolveMoveSnapPreview,
 } from './interaction/snapping.ts'
+export type {
+  EngineEditorBezierPoint,
+  EngineEditorHitTestNode,
+  EngineEditorNodeType,
+  EngineEditorPoint,
+  EngineClipHitTestOptions,
+  EngineShapeHitTestOptions,
+} from './interaction/hitTest.ts'
+export {
+  isPointInsideEngineClipShape,
+  isPointInsideEngineShapeHitArea,
+} from './interaction/hitTest.ts'
+export type {
+  AffineMatrix,
+  BoxTransformSource,
+  MatrixFirstNodeTransform,
+  NormalizedBounds,
+  NormalizedBoundsLike,
+  Point,
+  ResolvedNodeTransform,
+  ResolvedShapeTransformRecord,
+  ShapeTransformBatchCommand,
+  ShapeTransformBatchItem,
+  ShapeTransformRecord,
+} from './interaction/shapeTransform.ts'
+export {
+  applyAffineMatrixToPoint,
+  createAffineMatrixAroundPoint,
+  createMatrixFirstNodeTransform,
+  createShapeTransformRecord,
+  doNormalizedBoundsOverlap,
+  getNormalizedBoundsFromBox,
+  hasResolvedNodeTransformEffect,
+  intersectNormalizedBounds,
+  invertAffineMatrix,
+  isPointInsideRotatedBounds,
+  resolveNodeTransform,
+  resolveShapeTransformRecord,
+  toLegacyShapeTransformRecord,
+  toResolvedNodeCssTransform,
+  toResolvedNodeSvgTransform,
+} from './interaction/shapeTransform.ts'
 export type {
   EngineCanvasViewportState,
   EngineViewportFitDocumentLike,

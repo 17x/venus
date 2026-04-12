@@ -56,7 +56,7 @@ export type CanvasRuntimeStore<TDocument extends EditorDocument> = CanvasSnapsho
 export function useCanvasRuntimeStore<TDocument extends EditorDocument>(
   options: CanvasEditorInstanceOptions<TDocument>,
 ) {
-  const {capacity, createWorker, document, allowFrameSelection, elements, modules} = options
+  const {capacity, createWorker, document, allowFrameSelection, strictStrokeHitTest, elements, modules} = options
   const controller = React.useMemo(
     // Use the editor-instance runtime path so app hooks can consume optional
     // runtime modules (for example runtime-presets) without rewriting app code.
@@ -65,10 +65,11 @@ export function useCanvasRuntimeStore<TDocument extends EditorDocument>(
       createWorker,
       document,
       allowFrameSelection,
+      strictStrokeHitTest,
       elements,
       modules,
     }),
-    [capacity, createWorker, document, allowFrameSelection, elements, modules],
+    [capacity, createWorker, document, allowFrameSelection, strictStrokeHitTest, elements, modules],
   )
   const store = React.useMemo<CanvasRuntimeStore<TDocument>>(
     () => ({

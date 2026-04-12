@@ -1,16 +1,20 @@
 import {createElement, useCallback, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@venus/ui'
 import {
-  doNormalizedBoundsOverlap,
-  getNormalizedBoundsFromBox,
-  isPointInsideRotatedBounds,
-  isPointInsideShapeHitArea,
   nid,
   type ToolName,
 } from '@venus/document-core'
 import {
   applyMatrixToPoint,
 } from '@venus/runtime'
+import {
+  doNormalizedBoundsOverlap,
+  getNormalizedBoundsFromBox,
+  type EngineBackend,
+  isPointInsideEngineClipShape,
+  isPointInsideRotatedBounds,
+  isPointInsideEngineShapeHitArea,
+} from '@venus/engine'
 import {
   createTransformBatchCommand,
   createTransformPreviewShape,
@@ -31,12 +35,10 @@ import {
   type SnapGuide,
 } from '@venus/runtime/interaction'
 import {
-  useCanvasRuntime,
+  useDefaultCanvasRuntime,
   useTransformPreviewCommitState,
 } from '@venus/runtime/react'
 import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
-import type {EngineBackend} from '@venus/engine'
-import {createDefaultEditorModules} from '@venus/runtime/presets'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../components/statusBar/StatusBar.tsx'
@@ -180,6 +182,48 @@ function hasSelectedAncestorInDocument(
   return false
 }
 
+function resolveHoveredShapeIdAtPoint(
+  document: import('@venus/document-core').EditorDocument,
+  snapshots: import('@venus/shared-memory').SceneShapeSnapshot[],
+  pointer: {x: number; y: number},
+) {
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+
+  for (let index = snapshots.length - 1; index >= 0; index -= 1) {
+    const snapshot = snapshots[index]
+    const source = document.shapes[index] ?? shapeById.get(snapshot?.id ?? '')
+    if (!snapshot || !source) {
+      continue
+    }
+
+    if (source.type === 'frame') {
+      continue
+    }
+    if (source.type === 'image' && source.clipPathId) {
+      continue
+    }
+    if (source.clipPathId) {
+      const clipSource = shapeById.get(source.clipPathId)
+      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+        tolerance: 1.5,
+        shapeById,
+      })) {
+        continue
+      }
+    }
+
+    if (isPointInsideEngineShapeHitArea(pointer, source, {
+      allowFrameSelection: false,
+      tolerance: 6,
+      shapeById,
+    })) {
+      return source.id
+    }
+  }
+
+  return null
+}
+
 const useEditorRuntime = (options?: {
   onContextMenu?: (position: {x: number; y: number}) => void
 }) => {
@@ -205,6 +249,7 @@ const useEditorRuntime = (options?: {
   const [pasteSerial, setPasteSerial] = useState(0)
   const [activeTransformHandle, setActiveTransformHandle] = useState<HandleKind | null>(null)
   const [marquee, setMarquee] = useState<MarqueeState | null>(null)
+  const [hoveredShapeId, setHoveredShapeId] = useState<string | null>(null)
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   const [snappingEnabled, setSnappingEnabled] = useState(true)
   const contextRootRef = useRef<HTMLDivElement>(null)
@@ -219,7 +264,11 @@ const useEditorRuntime = (options?: {
     () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
   )
-  const runtimeModules = useMemo(() => createDefaultEditorModules({
+  const canvasRuntime = useDefaultCanvasRuntime({
+    capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
+    createWorker,
+    document,
+    allowFrameSelection: false,
     selection: {
       allowFrameSelection: false,
       input: {
@@ -234,24 +283,14 @@ const useEditorRuntime = (options?: {
         shiftMatchMode: 'contain',
       },
     },
-  }), [])
-  // Keep runtime boot options referentially stable so viewport updates do not
-  // accidentally recreate the controller layer.
-  const runtimeOptions = useMemo(() => ({
-    capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
-    createWorker,
-    document,
-    allowFrameSelection: false,
-    modules: runtimeModules,
-  }), [createWorker, document, runtimeModules])
-  const canvasRuntime = useCanvasRuntime(runtimeOptions)
+  })
   const preferredEngineBackend = useMemo<EngineBackend>(() => {
     if (typeof window === 'undefined') {
-      return 'canvas2d'
+      return 'webgl'
     }
 
     const requested = new URLSearchParams(window.location.search).get('engineBackend')
-    return requested === 'webgl' ? 'webgl' : 'canvas2d'
+    return requested === 'canvas2d' ? 'canvas2d' : 'webgl'
   }, [])
   const RuntimeRenderer = useMemo(() => {
     return function RuntimeCanvasRenderer(props: Parameters<typeof Canvas2DRenderer>[0]) {
@@ -303,6 +342,7 @@ const useEditorRuntime = (options?: {
   }, [marquee])
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
+    const overlayHoveredShapeId = hoveredShapeId
     const hideSelectionChrome = activeTransformHandle !== null
     const overlaySnapGuides = snapGuides
     return function Overlay(
@@ -310,12 +350,13 @@ const useEditorRuntime = (options?: {
     ) {
       return createElement(InteractionOverlay, {
         ...props,
+        hoveredShapeId: overlayHoveredShapeId,
         marqueeBounds: overlayMarquee,
         hideSelectionChrome,
         snapGuides: overlaySnapGuides,
       })
     }
-  }, [activeTransformHandle, marqueeBounds, snapGuides])
+  }, [activeTransformHandle, hoveredShapeId, marqueeBounds, snapGuides])
 
   const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
     previewDocument.shapes,
@@ -1020,7 +1061,7 @@ const useEditorRuntime = (options?: {
         worldPointRef.current?.set(point)
         const transformSession = transformManagerRef.current.getSession()
         if (transformSession) {
-          canvasRuntime.clearHover()
+          setHoveredShapeId(null)
           const preview = transformManagerRef.current.update(point)
           if (preview) {
             const maybeSnapped = transformSession.handle === 'move'
@@ -1035,7 +1076,7 @@ const useEditorRuntime = (options?: {
         }
         if (marquee) {
           setSnapGuides([])
-          canvasRuntime.clearHover()
+          setHoveredShapeId(null)
           setMarquee((current) => {
             if (!current) {
               return current
@@ -1053,11 +1094,11 @@ const useEditorRuntime = (options?: {
           })
           if (dragMove.phase === 'pending') {
             setSnapGuides([])
-            canvasRuntime.clearHover()
+            setHoveredShapeId(null)
             return
           }
           if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
-            canvasRuntime.clearHover()
+            setHoveredShapeId(null)
             if (dragMove.phase === 'started') {
               const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
               const dragShapes = dragShapeIds
@@ -1095,13 +1136,17 @@ const useEditorRuntime = (options?: {
           setSnapGuides([])
         }
         if (penTool.handlePointerMove(point)) {
+          setHoveredShapeId(null)
           setSnapGuides([])
           return
         }
         setSnapGuides([])
-        canvasRuntime.postPointer('pointermove', point)
+        // Keep hover purely in overlay state so pointermove does not mutate
+        // runtime scene flags or trigger render invalidation.
+        setHoveredShapeId(resolveHoveredShapeIdAtPoint(previewDocument, canvasRuntime.shapes, point))
       },
       onPointerDown: (point, modifiers) => {
+        setHoveredShapeId(null)
         if (currentTool === 'zoomIn' || currentTool === 'zoomOut') {
           handleZoom(currentTool === 'zoomIn', point)
           return
@@ -1150,7 +1195,10 @@ const useEditorRuntime = (options?: {
             selectedBounds &&
             selectedNodes.length > 0 &&
             isPointInsideRotatedBounds(point, selectedBounds, singleSelectedRotation) &&
-            !selectedNodes.some((shape) => isPointInsideShapeHitArea(point, shape, {tolerance: handleTolerance}))
+            !selectedNodes.some((shape) => isPointInsideEngineShapeHitArea(point, shape, {
+              tolerance: handleTolerance,
+              shapeById: new Map(previewDocument.shapes.map((item) => [item.id, item])),
+            }))
           ) {
             selectionDragControllerRef.current.clear()
             handleCommand({
@@ -1161,8 +1209,8 @@ const useEditorRuntime = (options?: {
             return
           }
 
-          const hoveredShape = canvasRuntime.stats.hoveredIndex >= 0
-            ? canvasRuntime.shapes[canvasRuntime.stats.hoveredIndex] ?? null
+          const hoveredShape = hoveredShapeId
+            ? canvasRuntime.shapes.find((shape) => shape.id === hoveredShapeId) ?? null
             : null
           const hasHit = selectionDragControllerRef.current.pointerDown(point, {
             document: previewDocument,
@@ -1203,7 +1251,7 @@ const useEditorRuntime = (options?: {
             : (modifiers?.metaKey || modifiers?.ctrlKey)
               ? 'toggle'
               : 'replace'
-          canvasRuntime.clearHover()
+          setHoveredShapeId(null)
           marqueeAppliedSignatureRef.current = ''
           setMarquee(createMarqueeState(point, marqueeMode, {
             applyMode: DEFAULT_MARQUEE_APPLY_MODE,
@@ -1229,6 +1277,7 @@ const useEditorRuntime = (options?: {
         canvasRuntime.postPointer('pointerdown', point, modifiers)
       },
       onPointerUp: () => {
+        setHoveredShapeId(null)
         selectionDragControllerRef.current.pointerUp()
         setSnapGuides([])
         setActiveTransformHandle(null)
@@ -1282,7 +1331,7 @@ const useEditorRuntime = (options?: {
         selectionDragControllerRef.current.clear()
         setMarquee(null)
         penTool.clearDraft()
-        canvasRuntime.clearHover()
+        setHoveredShapeId(null)
       },
       onViewportChange: canvasRuntime.setViewport,
       onViewportPan: canvasRuntime.panViewport,

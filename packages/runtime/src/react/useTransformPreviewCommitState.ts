@@ -1,5 +1,5 @@
 import * as React from 'react'
-import {createShapeTransformRecord, type BoxTransformSource} from '@venus/document-core'
+import {createShapeTransformRecord, type BoxTransformSource} from '@venus/engine'
 import type {TransformPreviewShape} from '@venus/runtime/interaction'
 
 type TransformPreviewState<T extends TransformPreviewShape> = {

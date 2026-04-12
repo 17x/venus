@@ -1,13 +1,13 @@
 import {
   convertDrawPointsToBezierPoints,
   getBoundingRectFromBezierPoints,
-  getNormalizedBoundsFromBox,
   nid,
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,
   type Point,
 } from '@venus/document-core'
+import {getNormalizedBoundsFromBox} from '@venus/engine'
 
 const RANDOM_SEED = 424242
 const IMAGE_VARIANT_COUNT = 24

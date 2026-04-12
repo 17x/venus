@@ -12,6 +12,20 @@ Package-scoped note for the framework-agnostic Venus runtime core.
 
 ## Recent Updates
 
+### 2026-04-12
+
+- Added optional strict stroke-only shape hit testing across runtime worker and
+  main-thread fallback paths. New runtime option
+  `strictStrokeHitTest` flows through init interaction config to worker hit
+  filtering and `@venus/engine` shape hit-area checks.
+- Hover ownership moved out of runtime scene flags and into overlay/app-layer
+  state. Pointer-move hover updates now avoid worker/main-thread scene flag
+  mutation paths so hover does not trigger scene-update invalidations.
+- Runtime/viewer/interaction/app hit-test callsites now consume
+  `@venus/engine` interaction helpers (`isPointInsideEngineShapeHitArea`,
+  `isPointInsideEngineClipShape`), keeping geometric hit rules centralized in
+  engine.
+
 ### 2026-04-10
 
 - Added the initial `packages/runtime` split from the old shared runtime

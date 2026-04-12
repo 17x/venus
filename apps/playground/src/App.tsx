@@ -1,18 +1,15 @@
 import * as React from 'react'
 import {nid, type DocumentNode, type EditorDocument} from '@venus/document-core'
 import type {EditorRuntimeCommand} from '@venus/runtime/worker'
-import {
-  createCanvasEditorInstance,
-  type CanvasRuntimeSnapshot,
-} from '@venus/runtime'
 import {resolveRuntimeZoomPresetScale} from '@venus/runtime/interaction'
+import {useDefaultCanvasRuntime} from '@venus/runtime/react'
 import {
   Canvas2DRenderer,
   CanvasSelectionOverlay,
   CanvasViewport,
   useCanvas2DRenderDiagnostics,
 } from './runtime/canvasAdapter.tsx'
-import {createDefaultEditorModules} from '@venus/runtime/presets'
+import type {EngineBackend} from '@venus/engine'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
 import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
@@ -172,7 +169,17 @@ function App() {
     () => resolveDocument(selection),
     [selection],
   )
-  const runtimeModules = React.useMemo(() => createDefaultEditorModules({
+  const [strictStrokeHitTest, setStrictStrokeHitTest] = React.useState(false)
+  const createWorker = React.useCallback(
+    () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
+    [],
+  )
+  const runtime = useDefaultCanvasRuntime({
+    capacity: Math.max(256, document.shapes.length + 8),
+    createWorker,
+    document,
+    allowFrameSelection: false,
+    strictStrokeHitTest,
     selection: {
       allowFrameSelection: false,
       input: {
@@ -187,27 +194,23 @@ function App() {
         shiftMatchMode: 'contain',
       },
     },
-  }), [])
-  const editorInstance = React.useMemo(() => createCanvasEditorInstance({
-    capacity: Math.max(256, document.shapes.length + 8),
-    createWorker: () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
-    document,
-    allowFrameSelection: false,
-    modules: runtimeModules,
-  }), [document, runtimeModules])
-
-  React.useEffect(() => {
-    editorInstance.start()
-    return () => {
-      editorInstance.destroy()
+    snappingPreset: 'bounds',
+  })
+  const [preferredEngineBackend, setPreferredEngineBackend] = React.useState<EngineBackend>(() => {
+    if (typeof window === 'undefined') {
+      return 'webgl'
     }
-  }, [editorInstance])
 
-  const snapshot = React.useSyncExternalStore(
-    editorInstance.subscribe,
-    editorInstance.getSnapshot,
-    editorInstance.getSnapshot,
-  ) as CanvasRuntimeSnapshot<EditorDocument>
+    const requested = new URLSearchParams(window.location.search).get('engineBackend')
+    return requested === 'canvas2d' ? 'canvas2d' : 'webgl'
+  })
+  const runtimeRenderer = React.useMemo(
+    () => function PlaygroundRuntimeRenderer(props: Parameters<typeof Canvas2DRenderer>[0]) {
+      return <Canvas2DRenderer {...props} backend={preferredEngineBackend} />
+    },
+    [preferredEngineBackend],
+  )
+  const snapshot = runtime
 
   const renderDiagnostics = useCanvas2DRenderDiagnostics()
   const overlayRenderer = React.useMemo(
@@ -219,23 +222,23 @@ function App() {
 
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
     if (command.type === 'viewport.fit') {
-      editorInstance.fitViewport()
+      runtime.fitViewport()
       return
     }
 
     if (command.type === 'viewport.zoomIn' || command.type === 'viewport.zoomOut') {
       const nextScale = resolveRuntimeZoomPresetScale(
-        editorInstance.getSnapshot().viewport.scale,
+        runtime.viewport.scale,
         command.type === 'viewport.zoomIn' ? 'in' : 'out',
       )
       if (nextScale !== null) {
-        editorInstance.zoomViewport(nextScale)
+        runtime.zoomViewport(nextScale)
       }
       return
     }
 
-    editorInstance.dispatchCommand(command)
-  }, [editorInstance])
+    runtime.dispatchCommand(command)
+  }, [runtime])
 
   const selectedShape = snapshot.stats.selectedIndex >= 0
     ? snapshot.shapes[snapshot.stats.selectedIndex] ?? null
@@ -290,6 +293,65 @@ function App() {
 
             <section className={panelClass}>
           <div className="flex flex-col gap-1">
+            <strong className="text-[13px] uppercase tracking-[0.04em] text-slate-50">Renderer</strong>
+            <span className="text-xs text-slate-200/70">Switch backend request mode and hit-test strategy</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(['webgl', 'canvas2d'] as EngineBackend[]).map((backend) => (
+              <button
+                key={backend}
+                type="button"
+                className={[
+                  'cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition text-left',
+                  'border-slate-500/20 bg-slate-800/75 text-slate-200 hover:border-cyan-400/45 hover:bg-cyan-500/18',
+                  preferredEngineBackend === backend
+                    ? 'border-cyan-400/70 bg-cyan-400/22 text-cyan-50'
+                    : '',
+                ].join(' ')}
+                onClick={() => {
+                  setPreferredEngineBackend(backend)
+                }}
+              >
+                {backend}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              className={[
+                'cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition text-left',
+                'border-slate-500/20 bg-slate-800/75 text-slate-200 hover:border-cyan-400/45 hover:bg-cyan-500/18',
+                strictStrokeHitTest
+                  ? 'border-cyan-400/70 bg-cyan-400/22 text-cyan-50'
+                  : '',
+              ].join(' ')}
+              onClick={() => {
+                setStrictStrokeHitTest(true)
+              }}
+            >
+              stroke-only hit
+            </button>
+            <button
+              type="button"
+              className={[
+                'cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition text-left',
+                'border-slate-500/20 bg-slate-800/75 text-slate-200 hover:border-cyan-400/45 hover:bg-cyan-500/18',
+                !strictStrokeHitTest
+                  ? 'border-cyan-400/70 bg-cyan-400/22 text-cyan-50'
+                  : '',
+              ].join(' ')}
+              onClick={() => {
+                setStrictStrokeHitTest(false)
+              }}
+            >
+              fill+stroke hit
+            </button>
+          </div>
+            </section>
+
+            <section className={panelClass}>
+          <div className="flex flex-col gap-1">
             <strong className="text-[13px] uppercase tracking-[0.04em] text-slate-50">Commands</strong>
             <span className="text-xs text-slate-200/70">Drive runtime state without product UI</span>
           </div>
@@ -311,12 +373,15 @@ function App() {
           </div>
           <div className="flex flex-wrap gap-2 overflow-auto text-sm text-slate-200/85">
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">preset</strong> {selection.preset}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">backend</strong> {preferredEngineBackend}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">hit test</strong> {strictStrokeHitTest ? 'stroke-only' : 'fill+stroke'}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">scale</strong> {snapshot.viewport.scale.toFixed(2)}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">shapes</strong> {snapshot.stats.shapeCount}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">selected</strong> {selectedShape?.name ?? 'none'}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">renderer</strong> draw {renderDiagnostics.drawCount} / visible {renderDiagnostics.visibleShapeCount}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">draw</strong> {renderDiagnostics.drawMs.toFixed(1)}ms</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">cache</strong> {renderDiagnostics.cacheHitCount}/{renderDiagnostics.cacheMissCount} {renderDiagnostics.cacheMode}</span>
+            <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">frame reuse</strong> {renderDiagnostics.frameReuseHitCount}/{renderDiagnostics.frameReuseMissCount}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">history</strong> {snapshot.history.cursor + 1}/{snapshot.history.entries.length}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">doc</strong> {snapshot.document.width}x{snapshot.document.height}</span>
             <span className="rounded-lg bg-slate-800/60 px-2.5 py-1.5"><strong className="mr-1.5 text-[11px] uppercase tracking-[0.08em] text-sky-300">summary</strong> {formatShapeSummary(snapshot.document)}</span>
@@ -334,25 +399,25 @@ function App() {
             <div className="min-h-0 min-w-0">
             <CanvasViewport
               document={snapshot.document}
-              renderer={Canvas2DRenderer}
+              renderer={runtimeRenderer}
               overlayRenderer={overlayRenderer}
               shapes={snapshot.shapes}
               stats={snapshot.stats}
               viewport={snapshot.viewport}
               onPointerMove={(pointer) => {
-                editorInstance.postPointer('pointermove', pointer)
+                runtime.postPointer('pointermove', pointer)
               }}
               onPointerDown={(pointer, modifiers) => {
-                editorInstance.postPointer('pointerdown', pointer, modifiers)
+                runtime.postPointer('pointerdown', pointer, modifiers)
               }}
               onPointerUp={() => {}}
               onPointerLeave={() => {
-                editorInstance.clearHover()
+                runtime.clearHover()
               }}
-              onViewportChange={editorInstance.setViewport}
-              onViewportPan={editorInstance.panViewport}
-              onViewportResize={editorInstance.resizeViewport}
-              onViewportZoom={editorInstance.zoomViewport}
+              onViewportChange={runtime.setViewport}
+              onViewportPan={runtime.panViewport}
+              onViewportResize={runtime.resizeViewport}
+              onViewportZoom={runtime.zoomViewport}
               onRenderLodChange={() => {}}
             />
             </div>

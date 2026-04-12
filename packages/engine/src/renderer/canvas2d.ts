@@ -32,12 +32,36 @@ interface RenderCounters {
   culledCount: number
   cacheHits: number
   cacheMisses: number
+  frameReuseHits: number
+  frameReuseMisses: number
 }
 
 interface PreparedNodeEntry {
   node: EngineRenderableNode
   worldBounds: EngineRect | null
   worldMatrix: EngineWorldMatrix
+}
+
+const MAX_FRAME_REUSE_SHIFT_PX = 220
+const MAX_FRAME_REUSE_SCALE_STEP = 1.2
+
+interface FrameReuseSnapshot {
+  revision: string | number
+  scale: number
+  offsetX: number
+  offsetY: number
+  viewportWidth: number
+  viewportHeight: number
+  pixelRatio: number
+  canvasWidth: number
+  canvasHeight: number
+  visibleCount: number
+  culledCount: number
+}
+
+interface ReuseCacheSurface {
+  canvas: HTMLCanvasElement | OffscreenCanvas
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 }
 
 /**
@@ -64,6 +88,8 @@ export function createCanvas2DEngineRenderer(
     preparedNodesRef: PreparedNodeEntry[]
     map: Map<string, EngineRect>
   } | null = null
+  let frameReuseSurface: ReuseCacheSurface | null = null
+  let frameReuseSnapshot: FrameReuseSnapshot | null = null
 
   const resolveWorldBoundsByIdCached = (
     preparedNodes: PreparedNodeEntry[],
@@ -105,6 +131,44 @@ export function createCanvas2DEngineRenderer(
         culledCount: 0,
         cacheHits: 0,
         cacheMisses: 0,
+        frameReuseHits: 0,
+        frameReuseMisses: 0,
+      }
+
+      const pixelRatio = frame.context.pixelRatio ?? 1
+      const reused = tryReuseInteractiveFrame(
+        context,
+        options.canvas,
+        frame,
+        pixelRatio,
+        frameReuseSurface,
+        frameReuseSnapshot,
+      )
+
+      if (reused.reused) {
+        counters.cacheHits += 1
+        counters.frameReuseHits += 1
+        counters.visibleCount = reused.visibleCount
+        counters.culledCount = reused.culledCount
+        // Keep reuse cache anchored to the last true redraw frame. Re-caching a
+        // transformed intermediate frame compounds interpolation/rounding errors
+        // and can drift slightly against the eventual full redraw result.
+
+        return {
+          drawCount: counters.drawCount,
+          visibleCount: counters.visibleCount,
+          culledCount: counters.culledCount,
+          cacheHits: counters.cacheHits,
+          cacheMisses: counters.cacheMisses,
+          frameReuseHits: counters.frameReuseHits,
+          frameReuseMisses: counters.frameReuseMisses,
+          frameMs: performance.now() - startAt,
+        }
+      }
+
+      if (frame.context.quality === 'interactive') {
+        counters.cacheMisses += 1
+        counters.frameReuseMisses += 1
       }
 
       const plan = prepareEngineRenderPlan(frame)
@@ -112,7 +176,7 @@ export function createCanvas2DEngineRenderer(
       const worldBoundsById = resolveWorldBoundsByIdCached(plan.preparedNodes)
       const preparedNodeById = buildPreparedNodeMap(plan.preparedNodes)
       clearCanvas(context, options.canvas, clearColor)
-      applyViewportMatrix(context, frame.viewport.matrix, frame.context.pixelRatio ?? 1)
+      applyViewportMatrix(context, frame.viewport.matrix, pixelRatio)
       context.imageSmoothingEnabled = imageSmoothing
       context.imageSmoothingQuality = imageSmoothingQuality
 
@@ -136,16 +200,143 @@ export function createCanvas2DEngineRenderer(
       counters.visibleCount = plan.stats.visibleCount
       counters.culledCount = plan.stats.culledCount
 
+      frameReuseSurface = ensureReuseSurface(frameReuseSurface, options.canvas.width, options.canvas.height)
+      if (frameReuseSurface) {
+        copyCanvasIntoSurface(options.canvas, frameReuseSurface)
+      }
+      frameReuseSnapshot = {
+        revision: frame.scene.revision,
+        scale: frame.viewport.scale,
+        offsetX: frame.viewport.offsetX,
+        offsetY: frame.viewport.offsetY,
+        viewportWidth: frame.viewport.viewportWidth,
+        viewportHeight: frame.viewport.viewportHeight,
+        pixelRatio,
+        canvasWidth: options.canvas.width,
+        canvasHeight: options.canvas.height,
+        visibleCount: counters.visibleCount,
+        culledCount: counters.culledCount,
+      }
+
       return {
         drawCount: counters.drawCount,
         visibleCount: counters.visibleCount,
         culledCount: counters.culledCount,
         cacheHits: counters.cacheHits,
         cacheMisses: counters.cacheMisses,
+        frameReuseHits: counters.frameReuseHits,
+        frameReuseMisses: counters.frameReuseMisses,
         frameMs: performance.now() - startAt,
       }
     },
   }
+}
+
+function tryReuseInteractiveFrame(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  canvas: HTMLCanvasElement | OffscreenCanvas,
+  frame: EngineRenderFrame,
+  pixelRatio: number,
+  surface: ReuseCacheSurface | null,
+  snapshot: FrameReuseSnapshot | null,
+): {reused: boolean; visibleCount: number; culledCount: number} {
+  if (!surface || !snapshot || frame.context.quality !== 'interactive') {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  if (
+    snapshot.revision !== frame.scene.revision ||
+    snapshot.viewportWidth !== frame.viewport.viewportWidth ||
+    snapshot.viewportHeight !== frame.viewport.viewportHeight ||
+    snapshot.pixelRatio !== pixelRatio ||
+    snapshot.canvasWidth !== canvas.width ||
+    snapshot.canvasHeight !== canvas.height
+  ) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  const scaleRatio = frame.viewport.scale / snapshot.scale
+  if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  if (scaleRatio > MAX_FRAME_REUSE_SCALE_STEP || scaleRatio < 1 / MAX_FRAME_REUSE_SCALE_STEP) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  const nextOffsetXPx = frame.viewport.offsetX * pixelRatio
+  const nextOffsetYPx = frame.viewport.offsetY * pixelRatio
+  const previousOffsetXPx = snapshot.offsetX * pixelRatio
+  const previousOffsetYPx = snapshot.offsetY * pixelRatio
+  const deltaX = nextOffsetXPx - scaleRatio * previousOffsetXPx
+  const deltaY = nextOffsetYPx - scaleRatio * previousOffsetYPx
+  if (Math.abs(deltaX) > MAX_FRAME_REUSE_SHIFT_PX || Math.abs(deltaY) > MAX_FRAME_REUSE_SHIFT_PX) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  context.setTransform(1, 0, 0, 1, 0, 0)
+  context.clearRect(0, 0, canvas.width, canvas.height)
+  context.setTransform(scaleRatio, 0, 0, scaleRatio, deltaX, deltaY)
+  context.drawImage(surface.canvas as CanvasImageSource, 0, 0)
+
+  return {
+    reused: true,
+    visibleCount: snapshot.visibleCount,
+    culledCount: snapshot.culledCount,
+  }
+}
+
+function ensureReuseSurface(
+  surface: ReuseCacheSurface | null,
+  width: number,
+  height: number,
+): ReuseCacheSurface | null {
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+
+  if (surface && surface.canvas.width === width && surface.canvas.height === height) {
+    return surface
+  }
+
+  const nextCanvas = createReuseCanvas(width, height)
+  if (!nextCanvas) {
+    return null
+  }
+
+  const nextContext = nextCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+  if (!nextContext) {
+    return null
+  }
+
+  return {
+    canvas: nextCanvas,
+    context: nextContext,
+  }
+}
+
+function createReuseCanvas(width: number, height: number) {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height)
+  }
+
+  if (typeof document !== 'undefined') {
+    const element = document.createElement('canvas')
+    element.width = width
+    element.height = height
+    return element
+  }
+
+  return null
+}
+
+function copyCanvasIntoSurface(
+  source: HTMLCanvasElement | OffscreenCanvas,
+  surface: ReuseCacheSurface,
+) {
+  surface.context.setTransform(1, 0, 0, 1, 0, 0)
+  surface.context.clearRect(0, 0, surface.canvas.width, surface.canvas.height)
+  surface.context.drawImage(source as CanvasImageSource, 0, 0)
 }
 
 function clearCanvas(
