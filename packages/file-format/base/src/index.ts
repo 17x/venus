@@ -1,15 +1,4 @@
-export {
-  LATEST_SCHEMA_VERSION,
-  upgradeSceneToLatest,
-} from '../migrations/index.ts'
 export {parseRuntimeSceneToEditorDocument} from './parseRuntimeScene.ts'
-export {
-  createFileFormatTransformMetadataEntries,
-  resolveLegacyShapeTransformFromFileFormat,
-  resolveMatrixFirstTransformFromFileFormat,
-  type FileFormatTransformSource,
-  type GeometryBoundsLike,
-} from './transformAdapters.ts'
 export type {
   RuntimeFeatureKindV4,
   RuntimeFeatureKindV5,
@@ -25,9 +14,5 @@ export type {
   RuntimePathV4,
   RuntimeSceneAny,
   RuntimeSceneLatest,
-  RuntimeSceneV1,
-  RuntimeSceneV2,
-  RuntimeSceneV3,
-  RuntimeSceneV4,
   RuntimeSceneV5,
-} from '../migrations/types.ts'
+} from './types.ts'

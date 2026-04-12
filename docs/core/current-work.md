@@ -31,6 +31,8 @@ context starts, or work needs to resume after switching topics.
   - keep `@venus/engine` root exports intentionally small; treat worker
     bridge/protocol internals as non-public unless a new cross-package
     contract is explicitly required
+  - file-format base model direction is now JSON-first; avoid reintroducing
+    FlatBuffer schema/migration ownership into active runtime iteration paths
 
 - `vector-editor-web`
   Focus on product-facing editor functionality first.
@@ -45,8 +47,8 @@ context starts, or work needs to resume after switching topics.
     (shared matrix-sensitive regression runbook)
   - `docs/core/matrix-first-runtime-rfc.md`
     (Phase-5 matrix-first runtime contract draft)
-  - `packages/file-format/base/src/transformAdapters.ts`
-    (matrix-first <-> file-format transform compatibility adapter layer)
+  - `packages/file-format/base/src/parseRuntimeScene.ts`
+    (transform compatibility parse path from metadata + node matrix)
   - `apps/vector-editor-web/src/adapters/fileFormatScene.ts`
     (vector export now emits transform metadata through shared transform
     adapters instead of app-local key assembly)
@@ -84,6 +86,11 @@ context starts, or work needs to resume after switching topics.
   `10k / 50k / 100k / Img+` scenes.
 
 ## Paused
+
+- `mindmap-editor`
+  App is intentionally cleared to a minimal placeholder shell and is not an
+  active maintenance target right now.
+  Reason: current priority is the vector editor and shared engine/runtime work.
 
 - `runtime-react`
   Broad runtime selector migration is paused.

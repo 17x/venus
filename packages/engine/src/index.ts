@@ -27,36 +27,56 @@ export type {
   EnginePreparedNode,
   EngineWorldMatrix,
 } from './renderer/plan.ts'
+export type {
+  EngineRenderInstanceBatch,
+  EngineRenderInstanceView,
+} from './renderer/instances.ts'
 export { prepareEngineRenderPlan } from './renderer/plan.ts'
+export { prepareEngineRenderInstanceView } from './renderer/instances.ts'
 export { createCanvas2DEngineRenderer } from './renderer/canvas2d.ts'
+export { createWebGLEngineRenderer } from './renderer/webgl.ts'
 export type { Mat3, Point2D } from './math/matrix.ts'
 export { applyMatrixToPoint } from './math/matrix.ts'
 export type {
   EngineClipShape,
   EngineGroupNode,
   EngineImageNode,
+  EngineBezierPoint,
   EngineNodeBase,
   EngineNodeId,
   EnginePoint,
   EngineRect,
   EngineRenderableNode,
   EngineSceneSnapshot,
+  EngineShapeNode,
   EngineTextNode,
   EngineTextRun,
   EngineTextStyle,
   EngineTransform2D,
 } from './scene/types.ts'
+export type { EngineSceneBufferLayout } from './scene/buffer.ts'
 export type {
+  CreateEngineSceneStoreOptions,
+  EngineSceneStore,
+  EngineSceneStoreDiagnostics,
+  EngineSceneStoreTransaction,
+} from './scene/store.ts'
+export type {
+  EngineSceneDirtyKind,
   EngineScenePatch,
+  EngineScenePatchApplyResult,
+  EngineScenePatchBatch,
   MutableEngineSceneState,
 } from './scene/patch.ts'
 export type { EngineHitTestResult } from './scene/hitTest.ts'
 export {
   applyEngineScenePatch,
+  applyEngineScenePatchBatch,
   createMutableEngineSceneState,
   flattenEngineSceneNodes,
   resolveNodeByFlattenedIndex,
 } from './scene/patch.ts'
+export { createEngineSceneStore } from './scene/store.ts'
 export { hitTestEngineSceneState } from './scene/hitTest.ts'
 export type {
   EngineClock,
@@ -66,6 +86,12 @@ export type {
 export { createSystemEngineClock } from './time/index.ts'
 export type { EngineRuntime } from './runtime/types.ts'
 export type { EngineLoopController } from './runtime/createEngineLoop.ts'
+export type {
+  CreateEngineOptions,
+  Engine,
+  EngineRuntimeDiagnostics,
+} from './runtime/createEngine.ts'
+export { createEngine } from './runtime/createEngine.ts'
 export { createEngineLoop } from './runtime/createEngineLoop.ts'
 export type {
   EngineWorkerCapabilities,

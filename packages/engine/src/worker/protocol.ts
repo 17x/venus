@@ -1,9 +1,9 @@
 import type { EnginePoint, EngineSceneSnapshot } from '../scene/types.ts'
 import type { EngineHitTestResult } from '../scene/hitTest.ts'
-import type { EngineScenePatch } from '../scene/patch.ts'
+import type { EngineScenePatch, EngineScenePatchBatch } from '../scene/patch.ts'
 
 export type { EngineHitTestResult } from '../scene/hitTest.ts'
-export type { EngineScenePatch } from '../scene/patch.ts'
+export type { EngineScenePatch, EngineScenePatchBatch } from '../scene/patch.ts'
 
 export interface EngineHitTestRequest {
   requestId: number
@@ -23,6 +23,11 @@ export interface EngineWorkerScenePatchMessage {
   patch: EngineScenePatch
 }
 
+export interface EngineWorkerScenePatchBatchMessage {
+  type: 'engine.scene.patch.batch'
+  batch: EngineScenePatchBatch
+}
+
 export interface EngineWorkerHitTestMessage {
   type: 'engine.hittest.request'
   request: EngineHitTestRequest
@@ -40,6 +45,7 @@ export interface EngineWorkerDisposeMessage {
 export type EngineWorkerMessage =
   | EngineWorkerInitMessage
   | EngineWorkerScenePatchMessage
+  | EngineWorkerScenePatchBatchMessage
   | EngineWorkerHitTestMessage
   | EngineWorkerSharedHitTestSignalMessage
   | EngineWorkerDisposeMessage

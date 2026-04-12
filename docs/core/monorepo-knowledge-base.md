@@ -68,6 +68,63 @@ Knowledge` when they become long-term guidance.
 
 ## Recent Updates
 
+### 2026-04-12
+
+- `@venus/file-format/base` document model contracts are now JSON-first in
+  `packages/file-format/base/src/types.ts`; parser/adapter exports no longer
+  depend on `base/migrations/*` type re-exports.
+- Legacy FlatBuffer artifacts were cleaned from active file-format maintenance:
+  `packages/file-format/base/migrations` and versioned
+  `packages/file-format/*/schemas` directories were removed.
+- `@venus/file-format` package surface was slimmed to base-only ownership:
+  root exports now keep `./base` only, `mindmap/streamline` protocol submodules
+  were removed, and base parser path dropped legacy `node.features` fallback.
+- `document-core` node model comments were updated to keep persisted adapter
+  metadata semantics format-agnostic instead of file-format-layer specific.
+
+- `@venus/engine` now exposes a high-level default-first facade:
+  `createEngine(...)` (`packages/engine/src/runtime/createEngine.ts`).
+  This API groups optional details under `performance` / `render` /
+  `resource` / `debug`, while keeping mutation ownership batch-first through
+  `applyScenePatchBatch(...)` and `transaction(...)`.
+- Engine render defaults now include clarity-oriented output settings:
+  Canvas2D render path consumes `pixelRatio` from engine render context and
+  `createEngine(...)` now sizes backing store by DPR (`auto`, capped by
+  `maxPixelRatio`), while built-in WebGL renderer requests antialias context
+  attributes by default.
+- Engine facade now exposes runtime DPR switching via
+  `engine.setDpr(number | 'auto', {maxDpr?})`, so apps can tune clarity/perf
+  tradeoffs during interaction without recreating renderer instances.
+- `@venus/engine` now exports `createWebGLEngineRenderer(...)`
+  (`packages/engine/src/renderer/webgl.ts`) as a built-in WebGL renderer entry.
+  The current implementation intentionally reuses the same
+  `prepareEngineRenderPlan(...)` + `prepareEngineRenderInstanceView(...)`
+  front-half optimization path as Canvas2D and keeps commit-stage behavior to
+  a minimal clear skeleton while draw-program/upload wiring is still in
+  progress.
+- Canvas2D clip-by-node-id hot path in `@venus/engine` no longer rebuilds a
+  full scene node-id map per frame. Clip target resolution now reads directly
+  from prepared `worldBoundsById`, reducing duplicate traversal work before
+  draw commit.
+- `@venus/engine` scene contract now includes a generic shape node
+  (`EngineShapeNode`, `shape: rect/ellipse/line`). Buffer/index/hit-test/render
+  paths were updated so engine can directly render common geometric primitives
+  in addition to text/image/group.
+- Engine shape rendering coverage now also includes `polygon` and `path` via
+  point/bezier geometry fields on `EngineShapeNode`, and active app adapters
+  map document node geometry (`points` / `bezierPoints`) into engine scene
+  nodes with computed bounds to avoid zero-size fallback rendering.
+- `apps/vector-editor-web` and `apps/playground` canvas adapter renderers now
+  create and drive an engine instance via `createEngine(...)`, adapting
+  document/runtime snapshots into engine scene nodes. This removes duplicated
+  per-app draw-loop logic and aligns both surfaces with the same engine entry.
+- Engine-scene mapping in vector/playground adapters now follows document-model
+  transform semantics more closely: source `DocumentNode` transforms are
+  resolved via `resolveNodeTransform(...)` and applied to engine node matrices,
+  while shape adapters now cover `star -> polygon` and closed-path detection for
+  `points`/`bezierPoints` geometry so rendering aligns with document semantics
+  instead of snapshot-only box fallbacks.
+
 ### 2026-04-11
 
 - Added unified runtime namespace import aliases through `@venus/runtime`
@@ -156,6 +213,46 @@ Knowledge` when they become long-term guidance.
   that bitmap directly on canvas, and both `vector-editor-web` status bar and
   `playground` diagnostics now expose renderer cache hit/miss counters so the
   no-CSS-preview path can be evaluated on `10k / 50k / 100k` scenes.
+
+- `@venus/engine` scene mutation now has a batch-first execution direction:
+  mutable scene state keeps an incrementally maintained `nodeMap` and coarse
+  `spatialIndex`, `applyEngineScenePatchBatch(...)` returns dirty summaries
+  (`structure/geometry/transform/style/resource`), and engine worker bridge
+  now exposes `applyScenePatchBatch(...)` plus `transaction(...)` so future
+  Canvas2D/WebGL backends can consume merged scene updates instead of
+  high-frequency single-node writes.
+- `@venus/engine` now also exposes `createEngineSceneStore(...)` as the
+  runtime-facing scene-state entry point. The intended ownership split is now:
+  runtime provides full-scene initialization and later batch patches, while
+  engine owns the render-facing scene state, node lookup, coarse spatial index,
+  hit-test surface, and later buffer-backed storage evolution.
+- The engine scene-store path is now wired through the worker and renderer
+  stack as well: worker bridge and worker scope both use
+  `createEngineSceneStore(...)`, scene snapshots carry metadata versions
+  (`planVersion`, `bufferVersion`, dirty/removed ids), render-plan caching now
+  keys off `planVersion`, and engine owns a first-pass node buffer layout
+  skeleton (`ids`, `kind`, `parent`, `dirty`, `bounds`, `transform`, `order`)
+  that future Canvas2D/WebGL backends can share.
+- That buffer layout is no longer rewritten blindly on every patch: scene store
+  now attempts dirty-node incremental buffer sync for non-structural updates,
+  and shared scene snapshots expose the typed `bufferLayout` reference through
+  `scene.metadata` so renderers can progressively consume engine-owned buffer
+  data instead of relying only on raw scene revision.
+- Engine render planning now actually consumes those scene-store buffers:
+  `prepareEngineRenderPlan(...)` prefers `bufferLayout` fields
+  (`parentIndices`/`transform`/`bounds`/`order`) for prepared-node traversal,
+  culling, and draw ordering, while keeping an object-tree fallback for
+  mismatch safety. This keeps Canvas2D stable and gives WebGL a shared,
+  backend-agnostic planning input surface.
+- Canvas2D renderer now also consumes `bufferLayout.bounds` for local text/image
+  draw geometry where available, and engine now exposes
+  `prepareEngineRenderInstanceView(...)` as a typed-array instance bridge
+  (indices/transforms/bounds/batches) to align upcoming WebGL work with the
+  same scene-store buffers.
+
+- `apps/mindmap-editor` is currently intentionally cleared to a minimal
+  placeholder page and should not be treated as an active runtime integration
+  surface until that product line resumes.
 
 - Removed monorepo config/runtime references to `@venus/renderer-canvas` and
   `@venus/renderer-skia` (`tsconfig` references, alias wiring, scaffold app
@@ -344,17 +441,14 @@ Knowledge` when they become long-term guidance.
   `document-core` scaffold adapters (`MatrixFirstNodeTransform`,
   `createMatrixFirstNodeTransform`, `toLegacyShapeTransformRecord`).
 
-- Added file-format transform compatibility adapter layer at
-  `packages/file-format/base/src/transformAdapters.ts` and routed runtime-scene
-  transform parsing through it, providing shared legacy + matrix-first transform
-  resolution and matrix-first metadata serialization helpers.
+- Added file-format transform compatibility flow in base parser/export adapters:
+  runtime-scene parsing resolves transform from metadata + node matrix, and
+  export adapters serialize canonical transform metadata keys for compatibility.
 
 - Vector file export (`apps/vector-editor-web/src/adapters/fileFormatScene.ts`)
-  now emits transform metadata through the shared file-format adapters
-  (`createMatrixFirstNodeTransform` +
-  `createFileFormatTransformMetadataEntries`) instead of app-local manual
-  transform key assembly, tightening persisted/runtime transform boundary
-  consistency.
+  emits canonical transform metadata keys through shared adapter logic instead
+  of app-local ad-hoc transform key assembly, tightening persisted/runtime
+  transform boundary consistency.
 
 - `renderer-skia` now derives scene revision keys from a pure scene hash
   (`computeSceneRevision`) instead of mutating refs during render. This keeps
@@ -560,6 +654,11 @@ Knowledge` when they become long-term guidance.
   worker history transaction (multi `move/resize/rotate` patches in one entry),
   so one undo restores the complete multi-select transform instead of stepping
   shape-by-shape.
+
+- `shape.transform.batch` collaboration/runtime payloads are now matrix-first:
+  `fromMatrix/toMatrix` is the canonical wire contract for transform batches,
+  and worker ingest resolves legacy patch derivation from matrix payloads
+  instead of relying on decomposed `from/to` transport fields.
 
 - Added safe zoom de-flicker path in `runtime` gestures: wheel-zoom commits
   are now coalesced with `requestAnimationFrame` into per-frame viewport

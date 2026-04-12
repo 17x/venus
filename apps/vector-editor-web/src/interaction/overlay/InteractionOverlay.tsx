@@ -3,7 +3,6 @@ import {applyMatrixToPoint} from '@venus/runtime'
 import {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
-  getNormalizedBoundsFromBox,
   resolveNodeTransform,
   toResolvedNodeSvgTransform,
   type EditorDocument,
@@ -14,6 +13,9 @@ import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'
 import type {InteractionBounds} from '../types.ts'
+
+const SELECTED_STROKE_WIDTH = 1
+const HOVER_STROKE_WIDTH = 1
 
 interface InteractionOverlayProps {
   document: EditorDocument
@@ -58,17 +60,29 @@ export function InteractionOverlay({
     () => selection.hoverId ? document.shapes.find((shape) => shape.id === selection.hoverId) : null,
     [document.shapes, selection.hoverId],
   )
-  const hoveredPolygon = useMemo(() => {
-    if (!hovered || selection.selectedIds.includes(hovered.id)) {
+  const hoveredSnapshot = useMemo(
+    () => selection.hoverId ? shapes.find((shape) => shape.id === selection.hoverId) ?? null : null,
+    [selection.hoverId, shapes],
+  )
+  const hoveredShape = useMemo(
+    () => {
+      if (!hovered || !hoveredSnapshot) {
+        return null
+      }
+      if (hoveredSnapshot.isSelected || selection.selectedIds.includes(hovered.id)) {
+        return null
+      }
+      return hovered
+    },
+    [hovered, hoveredSnapshot, selection.selectedIds],
+  )
+  const hoveredCenterScreen = useMemo(() => {
+    if (!hoveredShape || hoveredShape.type === 'path') {
       return null
     }
-    const bounds = getNormalizedBoundsFromBox(hovered.x, hovered.y, hovered.width, hovered.height)
-    const rotation = resolveNodeTransform(hovered).rotation
-    return projectPolygon(
-      buildRectPolygon(bounds, rotation),
-      viewport.matrix,
-    )
-  }, [hovered, selection.selectedIds, viewport.matrix])
+    const center = resolveNodeTransform(hoveredShape).center
+    return projectPoint(center, viewport.matrix)
+  }, [hoveredShape, viewport.matrix])
   const selectedShapes = useMemo(
     () => selection.selectedIds
       .map((id) => document.shapes.find((shape) => shape.id === id))
@@ -80,11 +94,8 @@ export function InteractionOverlay({
       return null
     }
     const rotation = singleSelectedShape?.rotation ?? 0
-    return projectPolygon(
-      buildRectPolygon(selection.selectedBounds, rotation),
-      viewport.matrix,
-    )
-  }, [hideSelectionChrome, selection.selectedBounds, singleSelectedShape?.rotation, viewport.matrix])
+    return buildRectPolygon(selection.selectedBounds, rotation)
+  }, [hideSelectionChrome, selection.selectedBounds, singleSelectedShape?.rotation])
   const screenHandles = useMemo(
     () => handles.map((handle) => ({
       ...handle,
@@ -124,25 +135,27 @@ export function InteractionOverlay({
         height="100%"
       >
         <g transform={`matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`}>
+          {hoveredShape && renderHoveredShapeStroke(hoveredShape)}
           {selectedShapes.map((shape) => renderSelectedShapeStroke(shape))}
+
+          {selectedPolygon && (
+            <polygon
+              points={toSvgPoints(selectedPolygon)}
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth={SELECTED_STROKE_WIDTH}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
         </g>
 
-        {hoveredPolygon && (
-          <polygon
-            points={toSvgPoints(hoveredPolygon)}
-            fill="none"
-            stroke="rgba(14, 165, 233, 0.9)"
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-            strokeDasharray="4 3"
-          />
-        )}
-
-        {selectedPolygon && (
-          <polygon
-            points={toSvgPoints(selectedPolygon)}
-            fill="none"
-            stroke="#2563eb"
+        {hoveredCenterScreen && (
+          <circle
+            cx={hoveredCenterScreen.x}
+            cy={hoveredCenterScreen.y}
+            r={4}
+            fill="rgba(14, 165, 233, 0.95)"
+            stroke="rgba(14, 165, 233, 0.95)"
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />
@@ -159,7 +172,7 @@ export function InteractionOverlay({
             ry={handle.kind === 'rotate' ? handleSize / 2 : 2}
             fill="#ffffff"
             stroke="#2563eb"
-            strokeWidth={1}
+            strokeWidth={SELECTED_STROKE_WIDTH}
             vectorEffect="non-scaling-stroke"
           />
         ))}
@@ -194,7 +207,7 @@ export function InteractionOverlay({
 
 function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
   const strokeColor = '#2563eb'
-  const strokeWidth = 1
+  const strokeWidth = SELECTED_STROKE_WIDTH
   const common = {
     fill: 'none',
     stroke: strokeColor,
@@ -265,6 +278,89 @@ function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
   return (
     <rect
       key={`selected-stroke:${shape.id}`}
+      x={shape.x}
+      y={shape.y}
+      width={shape.width}
+      height={shape.height}
+      transform={transform}
+      {...common}
+    />
+  )
+}
+
+function renderHoveredShapeStroke(shape: EditorDocument['shapes'][number]) {
+  const strokeColor = 'rgba(14, 165, 233, 0.9)'
+  const strokeWidth = HOVER_STROKE_WIDTH
+  const common = {
+    fill: 'none',
+    stroke: strokeColor,
+    strokeWidth,
+    vectorEffect: 'non-scaling-stroke' as const,
+  }
+  const transformState = resolveNodeTransform(shape)
+  const transform = toResolvedNodeSvgTransform(transformState)
+
+  if (shape.type === 'group') {
+    return null
+  }
+
+  if (shape.type === 'ellipse') {
+    return (
+      <ellipse
+        key={`hover-stroke:${shape.id}`}
+        cx={transformState.center.x}
+        cy={transformState.center.y}
+        rx={transformState.bounds.width / 2}
+        ry={transformState.bounds.height / 2}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if ((shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length >= 3) {
+    return (
+      <polygon
+        key={`hover-stroke:${shape.id}`}
+        points={shape.points.map((point) => `${point.x},${point.y}`).join(' ')}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'lineSegment') {
+    return (
+      <line
+        key={`hover-stroke:${shape.id}`}
+        x1={shape.x}
+        y1={shape.y}
+        x2={shape.x + shape.width}
+        y2={shape.y + shape.height}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'path') {
+    const d = buildPathStrokeD(shape)
+    if (!d) {
+      return null
+    }
+    return (
+      <path
+        key={`hover-stroke:${shape.id}`}
+        d={d}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  return (
+    <rect
+      key={`hover-stroke:${shape.id}`}
       x={shape.x}
       y={shape.y}
       width={shape.width}

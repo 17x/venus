@@ -4,3 +4,4 @@ export { createHistoryModule, DEFAULT_HISTORY_CONFIG, isHistoryCommand, type Can
 export { createProtocolModule, DEFAULT_PROTOCOL_CONFIG, type CanvasProtocolConfig, type CanvasProtocolModule, } from './protocol.ts';
 export { createDefaultEditorModules, createDefaultRuntimeModules, } from './defaultEditorModules.ts';
 export { createPresetAnimationController, EASING_PRESET_EMPHASIS, EASING_PRESET_LINEAR, EASING_PRESET_STANDARD, resolvePresetEasing, type CubicBezierTuple, type PresetAnimationControllerOptions, type PresetEasing, } from './easing.ts';
+export { buildDocumentImageAssetUrlMap, createEngineSceneFromRuntimeSnapshot, type CreateEngineSceneFromRuntimeSnapshotOptions, } from './engineSceneAdapter.ts';

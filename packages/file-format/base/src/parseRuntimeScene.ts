@@ -8,10 +8,10 @@ import {
 } from '@venus/document-core'
 import type {
   RuntimeFeatureEntryV5,
+  RuntimeNodeFeatureV5,
   RuntimePathV4,
   RuntimeSceneLatest,
-} from '../migrations/types.ts'
-import {resolveLegacyShapeTransformFromFileFormat} from './transformAdapters.ts'
+} from './types.ts'
 
 /**
  * Standard parser from the normalized file-format runtime scene into the
@@ -56,7 +56,7 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const geometryBounds = (shapeType === 'path' || shapeType === 'polygon' || shapeType === 'star')
     ? (bezierBounds ?? pointBounds)
     : null
-  const transform = resolveLegacyShapeTransformFromFileFormat({
+  const transform = resolveNodeTransform({
     metadata,
     nodeTransform: node.transform,
     geometryBounds,
@@ -178,26 +178,6 @@ function resolveShapeType(
     return nodeKind
   }
 
-  if (node.type === 'FRAME') {
-    return 'frame'
-  }
-
-  if (node.type === 'GROUP') {
-    return 'group'
-  }
-
-  if (node.type === 'TEXT') {
-    return 'text'
-  }
-
-  if (node.type === 'VECTOR') {
-    return 'path'
-  }
-
-  if (node.type === 'IMAGE') {
-    return 'image'
-  }
-
   return 'rectangle'
 }
 
@@ -217,51 +197,28 @@ function getMetadataMap(entries: RuntimeFeatureEntryV5[]) {
 }
 
 function getVectorFeature(node: RuntimeSceneLatest['nodes'][number]) {
-  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'VECTOR')
-  if (entry?.feature.kind === 'VECTOR') {
-    return entry.feature
-  }
-
-  const legacyFeature = node.features.find((feature) => feature.kind === 'VECTOR')
-  if (legacyFeature?.kind === 'VECTOR') {
-    return legacyFeature
-  }
-
-  return null
+  return getFeature(node, 'VECTOR')
 }
 
 function getTextFeature(node: RuntimeSceneLatest['nodes'][number]) {
-  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'TEXT')
-  if (entry?.feature.kind === 'TEXT') {
-    return entry.feature
-  }
-
-  const legacyFeature = node.features.find((feature) => feature.kind === 'TEXT')
-  if (legacyFeature?.kind === 'TEXT') {
-    return legacyFeature
-  }
-
-  return null
+  return getFeature(node, 'TEXT')
 }
 
 function getImageFeature(node: RuntimeSceneLatest['nodes'][number]) {
-  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'IMAGE')
-  if (entry?.feature.kind === 'IMAGE') {
-    return entry.feature
-  }
-
-  const legacyFeature = node.features.find((feature) => feature.kind === 'IMAGE')
-  if (legacyFeature?.kind === 'IMAGE') {
-    return legacyFeature
-  }
-
-  return null
+  return getFeature(node, 'IMAGE')
 }
 
 function getClipFeature(node: RuntimeSceneLatest['nodes'][number]) {
-  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === 'CLIP')
-  if (entry?.feature.kind === 'CLIP') {
-    return entry.feature
+  return getFeature(node, 'CLIP')
+}
+
+function getFeature<TKind extends RuntimeNodeFeatureV5['kind']>(
+  node: RuntimeSceneLatest['nodes'][number],
+  kind: TKind,
+): Extract<RuntimeNodeFeatureV5, {kind: TKind}> | null {
+  const entry = node.featureEntries.find((featureEntry) => featureEntry.feature.kind === kind)
+  if (entry?.feature.kind === kind) {
+    return entry.feature as Extract<RuntimeNodeFeatureV5, {kind: TKind}>
   }
 
   return null
@@ -409,6 +366,29 @@ function readArrowhead(metadata: Map<string, string>, key: string): StrokeArrowh
     return value
   }
   return undefined
+}
+
+function resolveNodeTransform(source: {
+  metadata: Map<string, string>
+  nodeTransform: RuntimeSceneLatest['nodes'][number]['transform']
+  geometryBounds?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  } | null
+}) {
+  const geometryBounds = source.geometryBounds ?? null
+
+  return {
+    x: geometryBounds?.x ?? readNumber(source.metadata, 'x') ?? source.nodeTransform.m02,
+    y: geometryBounds?.y ?? readNumber(source.metadata, 'y') ?? source.nodeTransform.m12,
+    width: geometryBounds?.width ?? readNumber(source.metadata, 'width') ?? 0,
+    height: geometryBounds?.height ?? readNumber(source.metadata, 'height') ?? 0,
+    rotation: readNumber(source.metadata, 'rotation') ?? 0,
+    flipX: readBoolean(source.metadata, 'flipX') ?? false,
+    flipY: readBoolean(source.metadata, 'flipY') ?? false,
+  }
 }
 
 function deriveGroupBoundsFromChildren(shapes: DocumentNode[]) {

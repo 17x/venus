@@ -1,8 +1,7 @@
 import type {RuntimeFeatureEntryV5, RuntimePathCommandV4, RuntimePathV4, RuntimeSceneLatest} from '@venus/file-format/base'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
-import {createMatrixFirstNodeTransform, getBoundingRectFromBezierPoints} from '@venus/document-core'
-import {createFileFormatTransformMetadataEntries} from '@venus/file-format/base'
+import {getBoundingRectFromBezierPoints} from '@venus/document-core'
 
 type ElementHierarchyMeta = {
   parentId?: string | null
@@ -66,7 +65,6 @@ function createPageFrameNode(file: VisionFileType): RuntimeSceneLatest['nodes'][
     type: 'FRAME',
     transform: createTranslationMatrix(0, 0),
     children: [],
-    features: [],
     name: file.name,
     parentId: null,
     featureEntries: [
@@ -97,17 +95,15 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
   const rotation = Number(element.rotation ?? 0)
   const flipX = Boolean(element.flipX)
   const flipY = Boolean(element.flipY)
-  const transformMetadataEntries = createFileFormatTransformMetadataEntries(
-    createMatrixFirstNodeTransform({
-      x,
-      y,
-      width,
-      height,
-      rotation,
-      flipX,
-      flipY,
-    }),
-  )
+  const transformMetadataEntries = createTransformMetadataEntries({
+    x,
+    y,
+    width,
+    height,
+    rotation,
+    flipX,
+    flipY,
+  })
   const metadataValues: Record<string, string | number | boolean> = {
     shapeType: type,
   }
@@ -234,7 +230,6 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     type: resolveRuntimeNodeType(type),
     transform: createTranslationMatrix(x, y),
     children: [],
-    features: [],
     name: String(element.name ?? type),
     parentId: typeof parentIdMeta === 'string' ? parentIdMeta : null,
     featureEntries,
@@ -502,6 +497,26 @@ function createMetadataEntry(
       ],
     },
   }
+}
+
+function createTransformMetadataEntries(transform: {
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  flipX: boolean
+  flipY: boolean
+}) {
+  return [
+    {key: 'x', value: String(transform.x)},
+    {key: 'y', value: String(transform.y)},
+    {key: 'width', value: String(transform.width)},
+    {key: 'height', value: String(transform.height)},
+    {key: 'rotation', value: String(transform.rotation)},
+    {key: 'flipX', value: String(transform.flipX)},
+    {key: 'flipY', value: String(transform.flipY)},
+  ]
 }
 
 function createTranslationMatrix(x: number, y: number) {

@@ -1,8 +1,13 @@
 import * as React from 'react'
-import type {EditorDocument} from '@venus/document-core'
+import {type EditorDocument} from '@venus/document-core'
 import {bindViewportGestures, type ViewportGestureBindingOptions} from '@venus/runtime/interaction'
+import {
+  buildDocumentImageAssetUrlMap,
+  createEngineSceneFromRuntimeSnapshot,
+} from '@venus/runtime/presets'
 import type {CanvasViewportState} from '@venus/runtime'
 import type {SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
+import {createEngine, type Engine} from '@venus/engine'
 
 export interface CanvasRendererProps {
   document: EditorDocument
@@ -163,9 +168,28 @@ export function CanvasViewport({
 export function Canvas2DRenderer({
   document,
   shapes,
+  stats,
   viewport,
+  backend = 'canvas2d',
 }: CanvasRendererProps & {backend?: 'canvas2d' | 'webgl'}) {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+  const engineRef = React.useRef<Engine | null>(null)
+  const assetUrlByIdRef = React.useRef<Map<string, string>>(new Map())
+  const imageCacheRef = React.useRef<Map<string, HTMLImageElement>>(new Map())
+  const engineScene = React.useMemo(
+    () => createEngineSceneFromRuntimeSnapshot({
+      document,
+      shapes,
+      revision: stats.version,
+      backgroundFill: '#ffffff',
+      backgroundStroke: '#d0d7de',
+    }),
+    [document, shapes, stats.version],
+  )
+
+  React.useEffect(() => {
+    assetUrlByIdRef.current = buildDocumentImageAssetUrlMap(document)
+  }, [document])
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -173,68 +197,77 @@ export function Canvas2DRenderer({
       return
     }
 
-    const context = canvas.getContext('2d')
-    if (!context) {
+    // WebGL renderer is currently a plan/instance skeleton and does not commit
+    // actual draw calls yet, so app surfaces should stay on Canvas2D for now.
+    const resolvedBackend = backend === 'webgl'
+      ? 'canvas2d'
+      : backend
+    const engine = createEngine({
+      canvas,
+      backend: resolvedBackend,
+      performance: {
+        culling: false,
+      },
+      render: {
+        quality: 'full',
+        canvasClearColor: '#f3f4f6',
+      },
+      resource: {
+        loader: {
+          resolveImage: (assetId) => {
+            const src = assetUrlByIdRef.current.get(assetId)
+            if (!src) {
+              return null
+            }
+
+            const cached = imageCacheRef.current.get(src)
+            if (cached) {
+              return cached.complete && cached.naturalWidth > 0
+                ? cached
+                : null
+            }
+
+            const image = new Image()
+            image.decoding = 'async'
+            image.src = src
+            imageCacheRef.current.set(src, image)
+            return null
+          },
+        },
+      },
+    })
+    engineRef.current = engine
+
+    return () => {
+      engineRef.current = null
+      engine.dispose()
+    }
+  }, [backend])
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    const engine = engineRef.current
+    if (!canvas || !engine) {
       return
     }
 
     const width = Math.max(1, Math.floor(viewport.viewportWidth))
     const height = Math.max(1, Math.floor(viewport.viewportHeight))
-    const dpr = window.devicePixelRatio || 1
-    const targetWidth = Math.max(1, Math.floor(width * dpr))
-    const targetHeight = Math.max(1, Math.floor(height * dpr))
-
-    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-      canvas.width = targetWidth
-      canvas.height = targetHeight
-    }
-
-    context.setTransform(1, 0, 0, 1, 0, 0)
-    context.clearRect(0, 0, canvas.width, canvas.height)
-    context.fillStyle = '#f3f4f6'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-
-    context.save()
-    context.scale(dpr, dpr)
-    context.translate(viewport.matrix[2], viewport.matrix[5])
-    context.scale(viewport.matrix[0], viewport.matrix[4])
-
-    context.fillStyle = '#ffffff'
-    context.strokeStyle = '#d0d7de'
-    context.lineWidth = 1
-    context.fillRect(0, 0, document.width, document.height)
-    context.strokeRect(0, 0, document.width, document.height)
-
-    shapes.forEach((shape) => {
-      context.save()
-      context.strokeStyle = shape.isSelected ? '#2563eb' : '#1f2937'
-      context.lineWidth = shape.isSelected ? 2 : 1
-      context.fillStyle = shape.isHovered ? 'rgba(37,99,235,0.12)' : 'rgba(17,24,39,0.05)'
-
-      if (shape.type === 'ellipse') {
-        const cx = shape.x + shape.width / 2
-        const cy = shape.y + shape.height / 2
-        context.beginPath()
-        context.ellipse(cx, cy, Math.abs(shape.width) / 2, Math.abs(shape.height) / 2, 0, 0, Math.PI * 2)
-        context.fill()
-        context.stroke()
-      } else if (shape.type === 'lineSegment') {
-        context.beginPath()
-        context.moveTo(shape.x, shape.y)
-        context.lineTo(shape.x + shape.width, shape.y + shape.height)
-        context.stroke()
-      } else {
-        context.beginPath()
-        context.rect(shape.x, shape.y, shape.width, shape.height)
-        context.fill()
-        context.stroke()
-      }
-
-      context.restore()
+    engine.resize(width, height)
+    engine.setViewport({
+      viewportWidth: width,
+      viewportHeight: height,
+      offsetX: viewport.offsetX,
+      offsetY: viewport.offsetY,
+      scale: viewport.scale,
     })
+    engine.loadScene(engineScene)
+    void engine.renderFrame()
+  }, [engineScene, viewport])
 
-    context.restore()
-  }, [document.height, document.width, shapes, viewport])
+  React.useEffect(() => {
+    imageCacheRef.current.clear()
+  }, [document.id])
 
   return (
     <canvas

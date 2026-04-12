@@ -1,10 +1,8 @@
 import type { EnginePoint, EngineSceneSnapshot } from '../../scene/types.ts'
+import {resolveNodeByFlattenedIndex} from '../../scene/patch.ts'
 import {
-  applyEngineScenePatch,
-  createMutableEngineSceneState,
-  resolveNodeByFlattenedIndex,
-} from '../../scene/patch.ts'
-import { hitTestEngineSceneState } from '../../scene/hitTest.ts'
+  createEngineSceneStore,
+} from '../../scene/store.ts'
 import type {
   EngineWorkerMode,
   EngineWorkerModeResolution,
@@ -14,6 +12,7 @@ import { resolveEngineWorkerMode } from '../capabilities.ts'
 import type {
   EngineHitTestResult,
   EngineScenePatch,
+  EngineScenePatchBatch,
   EngineWorkerResponseMessage,
 } from '../protocol.ts'
 import {
@@ -34,6 +33,12 @@ export interface EngineWorkerBridge {
   resolution: EngineWorkerModeResolution
   start(): Promise<void>
   applyScenePatch(patch: EngineScenePatch): void
+  // Preferred public write path. Callers should batch scene edits before they
+  // cross the main-thread/worker boundary.
+  applyScenePatchBatch(batch: EngineScenePatchBatch): void
+  // Transaction is a convenience wrapper that records many patch writes and
+  // flushes them as one batch message.
+  transaction(run: (queue: {applyScenePatch(patch: EngineScenePatch): void}) => void): void
   hitTest(point: EnginePoint, tolerance?: number): Promise<EngineHitTestResult | null>
   dispose(): void
 }
@@ -49,7 +54,9 @@ export interface EngineWorkerBridge {
 export function createEngineWorkerBridge(
   options: EngineWorkerBridgeOptions = {},
 ): EngineWorkerBridge {
-  const sceneState = createMutableEngineSceneState(options.initialScene)
+  const sceneStore = createEngineSceneStore({
+    initialScene: options.initialScene,
+  })
   const pendingHitTests = new Map<number, (value: EngineHitTestResult | null) => void>()
   const requestedMode = resolveEngineWorkerMode(options)
   const resolution = resolveBridgeMode(requestedMode, options)
@@ -91,7 +98,10 @@ export function createEngineWorkerBridge(
         return
       }
 
-      const hitNode = resolveNodeByFlattenedIndex(sceneState.nodes, sharedResult.hitIndex)
+      const hitNode = resolveNodeByFlattenedIndex(
+        sceneStore.getSnapshot().nodes,
+        sharedResult.hitIndex,
+      )
       if (!hitNode) {
         resolve(null)
         return
@@ -133,10 +143,11 @@ export function createEngineWorkerBridge(
       type: 'engine.init',
       mode: mode === 'worker-shared-memory' ? 'worker-shared-memory' : 'worker-postmessage',
       scene: {
-        revision: sceneState.revision,
-        width: sceneState.width,
-        height: sceneState.height,
-        nodes: sceneState.nodes,
+        revision: sceneStore.getSnapshot().revision,
+        width: sceneStore.getSnapshot().width,
+        height: sceneStore.getSnapshot().height,
+        nodes: sceneStore.getSnapshot().nodes,
+        metadata: sceneStore.getSnapshot().metadata,
       },
     }
 
@@ -150,21 +161,44 @@ export function createEngineWorkerBridge(
     started = true
   }
 
-  const applyPatch = (patch: EngineScenePatch) => {
-    applyEngineScenePatch(sceneState, patch)
+  const applyPatchBatch = (batch: EngineScenePatchBatch) => {
+    sceneStore.applyScenePatchBatch(batch)
     if (!worker || mode === 'main-thread') {
       return
     }
 
     worker.postMessage({
-      type: 'engine.scene.patch',
-      patch,
+      type: 'engine.scene.patch.batch',
+      batch,
+    })
+  }
+
+  const applyPatch = (patch: EngineScenePatch) => {
+    applyPatchBatch({
+      patches: [patch],
+    })
+  }
+
+  const transaction = (run: (queue: {applyScenePatch(patch: EngineScenePatch): void}) => void) => {
+    const patches: EngineScenePatch[] = []
+    run({
+      applyScenePatch(patch) {
+        patches.push(patch)
+      },
+    })
+
+    if (patches.length === 0) {
+      return
+    }
+
+    applyPatchBatch({
+      patches,
     })
   }
 
   const hitTest = async (point: EnginePoint, tolerance = 0) => {
     if (mode === 'main-thread' || !worker) {
-      return hitTestEngineSceneState(sceneState, point, tolerance)
+      return sceneStore.hitTest(point, tolerance)
     }
 
     const requestId = nextRequestId
@@ -219,6 +253,8 @@ export function createEngineWorkerBridge(
     resolution,
     start,
     applyScenePatch: applyPatch,
+    applyScenePatchBatch: applyPatchBatch,
+    transaction,
     hitTest,
     dispose,
   }

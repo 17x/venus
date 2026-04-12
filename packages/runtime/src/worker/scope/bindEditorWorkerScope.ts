@@ -10,9 +10,11 @@ import {
   intersectNormalizedBounds,
   isPointInsideClipShape,
   isPointInsideShapeHitArea,
+  toLegacyShapeTransformRecord,
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,
+  type MatrixFirstNodeTransform,
   type ShapeTransformRecord,
 } from '@venus/document-core'
 import {
@@ -640,10 +642,14 @@ function createLocalHistoryEntry(
       if (!shape) {
         return
       }
+      const resolved = resolveTransformBatchItemToLegacy(item)
+      if (!resolved) {
+        return
+      }
       touchedShapes += 1
 
-      const forwardPatches = createTransformPatches(shape, item.from, item.to)
-      const backwardPatches = createTransformPatches(shape, item.to, item.from)
+      const forwardPatches = createTransformPatches(shape, resolved.from, resolved.to)
+      const backwardPatches = createTransformPatches(shape, resolved.to, resolved.from)
 
       forward.push(...forwardPatches)
       backwardPatches.forEach((patch) => {
@@ -2073,27 +2079,15 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
 
   if (command.type === 'shape.transform.batch') {
     return {
-      transforms: command.transforms.map((item) => ({
-        id: item.id,
-        from: {
-          x: item.from.x,
-          y: item.from.y,
-          width: item.from.width,
-          height: item.from.height,
-          rotation: item.from.rotation,
-          flipX: item.from.flipX,
-          flipY: item.from.flipY,
-        },
-        to: {
-          x: item.to.x,
-          y: item.to.y,
-          width: item.to.width,
-          height: item.to.height,
-          rotation: item.to.rotation,
-          flipX: item.to.flipX,
-          flipY: item.to.flipY,
-        },
-      })),
+      transforms: command.transforms
+        .map((item) => {
+          return {
+            id: item.id,
+            fromMatrix: item.fromMatrix,
+            toMatrix: item.toMatrix,
+          }
+        })
+        .filter((item): item is {id: string; fromMatrix: MatrixFirstNodeTransform; toMatrix: MatrixFirstNodeTransform} => item !== null),
     }
   }
 
@@ -2212,6 +2206,33 @@ type ParsedTransformBatchItem = {
   to: ShapeTransformRecord & {flipX: boolean; flipY: boolean}
 }
 
+function resolveTransformBatchItemToLegacy(item: {
+  fromMatrix: MatrixFirstNodeTransform
+  toMatrix: MatrixFirstNodeTransform
+}) {
+  // History patch vocabulary is still decomposed (move/resize/rotate/flip).
+  // Convert matrix-first command payload into legacy records at this boundary.
+  const from = toLegacyShapeTransformRecord(item.fromMatrix)
+  const to = toLegacyShapeTransformRecord(item.toMatrix)
+
+  if (!from || !to) {
+    return null
+  }
+
+  return {
+    from: {
+      ...from,
+      flipX: !!from.flipX,
+      flipY: !!from.flipY,
+    },
+    to: {
+      ...to,
+      flipX: !!to.flipX,
+      flipY: !!to.flipY,
+    },
+  }
+}
+
 function createTransformPatches(
   shape: DocumentNode,
   from: ShapeTransformRecord,
@@ -2290,66 +2311,84 @@ function asTransformBatch(value: unknown) {
       }
       const record = item as Record<string, unknown>
       const id = asString(record.id)
-      const from = record.from && typeof record.from === 'object'
-        ? record.from as Record<string, unknown>
+      const fromMatrix = record.fromMatrix && typeof record.fromMatrix === 'object'
+        ? asMatrixFirstTransform(record.fromMatrix as Record<string, unknown>)
         : null
-      const to = record.to && typeof record.to === 'object'
-        ? record.to as Record<string, unknown>
+      const toMatrix = record.toMatrix && typeof record.toMatrix === 'object'
+        ? asMatrixFirstTransform(record.toMatrix as Record<string, unknown>)
         : null
-      if (!id || !from || !to) {
-        return null
-      }
-      const fromX = asNumber(from.x)
-      const fromY = asNumber(from.y)
-      const fromWidth = asNumber(from.width)
-      const fromHeight = asNumber(from.height)
-      const fromRotation = asNumber(from.rotation)
-      const fromFlipX = asBoolean(from.flipX)
-      const fromFlipY = asBoolean(from.flipY)
-      const toX = asNumber(to.x)
-      const toY = asNumber(to.y)
-      const toWidth = asNumber(to.width)
-      const toHeight = asNumber(to.height)
-      const toRotation = asNumber(to.rotation)
-      const toFlipX = asBoolean(to.flipX)
-      const toFlipY = asBoolean(to.flipY)
-      if (
-        fromX === null ||
-        fromY === null ||
-        fromWidth === null ||
-        fromHeight === null ||
-        fromRotation === null ||
-        toX === null ||
-        toY === null ||
-        toWidth === null ||
-        toHeight === null ||
-        toRotation === null
-      ) {
+      // Matrix fields are required on the wire after matrix-first migration.
+      if (!id || !fromMatrix || !toMatrix) {
         return null
       }
       return {
         id,
-        from: {
-          x: fromX,
-          y: fromY,
-          width: fromWidth,
-          height: fromHeight,
-          rotation: fromRotation,
-          flipX: fromFlipX ?? false,
-          flipY: fromFlipY ?? false,
-        },
-        to: {
-          x: toX,
-          y: toY,
-          width: toWidth,
-          height: toHeight,
-          rotation: toRotation,
-          flipX: toFlipX ?? false,
-          flipY: toFlipY ?? false,
-        },
+        from: toLegacyShapeTransformRecord(fromMatrix),
+        to: toLegacyShapeTransformRecord(toMatrix),
       }
     })
     .filter((item): item is ParsedTransformBatchItem => item !== null)
+}
+
+function asMatrixFirstTransform(value: Record<string, unknown>): MatrixFirstNodeTransform | null {
+  const bounds = value.bounds && typeof value.bounds === 'object'
+    ? value.bounds as Record<string, unknown>
+    : null
+  const minX = bounds ? asNumber(bounds.minX) : null
+  const minY = bounds ? asNumber(bounds.minY) : null
+  const maxX = bounds ? asNumber(bounds.maxX) : null
+  const maxY = bounds ? asNumber(bounds.maxY) : null
+  const rotation = asNumber(value.rotation)
+  const flipX = asBoolean(value.flipX)
+  const flipY = asBoolean(value.flipY)
+
+  if (
+    minX === null ||
+    minY === null ||
+    maxX === null ||
+    maxY === null ||
+    rotation === null
+  ) {
+    return null
+  }
+
+  const matrix = Array.isArray(value.matrix) && value.matrix.length === 9
+    ? value.matrix.map((entry) => asNumber(entry)).filter((entry): entry is number => entry !== null)
+    : null
+
+  if (!matrix || matrix.length !== 9) {
+    return null
+  }
+
+  const center = value.center && typeof value.center === 'object'
+    ? value.center as Record<string, unknown>
+    : null
+  const centerX = center ? asNumber(center.x) : null
+  const centerY = center ? asNumber(center.y) : null
+
+  return {
+    matrix: [
+      matrix[0], matrix[1], matrix[2],
+      matrix[3], matrix[4], matrix[5],
+    ],
+    bounds: {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+    },
+    center: {
+      x: centerX ?? (minX + maxX) / 2,
+      y: centerY ?? (minY + maxY) / 2,
+    },
+    width: asNumber(value.width) ?? (maxX - minX),
+    height: asNumber(value.height) ?? (maxY - minY),
+    rotation,
+    flipX: flipX ?? false,
+    flipY: flipY ?? false,
+  }
 }
 
 function asDocumentNodeList(value: unknown) {
