@@ -1,4 +1,4 @@
-import type {SceneSelectionMode} from '@venus/shared-memory'
+import type {SceneSelectionMode} from '@venus/runtime/shared-memory'
 
 export function resolvePointerSelectionMode(
   modifiers?: {shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean},

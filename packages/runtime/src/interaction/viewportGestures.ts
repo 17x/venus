@@ -8,7 +8,7 @@ import {
   zoomEngineViewportState,
   type EngineCanvasViewportState,
 } from '@venus/engine'
-import type { PointerState } from '@venus/shared-memory'
+import type { PointerState } from '@venus/runtime/shared-memory'
 import { resolveRuntimeZoomGestureScale } from './zoomPresets.ts'
 
 const POINTER_SUPPRESS_AFTER_WHEEL_MS = 180

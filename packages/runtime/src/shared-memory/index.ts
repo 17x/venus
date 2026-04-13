@@ -1,4 +1,4 @@
-import {getNormalizedBoundsFromBox, type EditorDocument, type ShapeType} from '@venus/document-core'
+import {type EditorDocument, type ShapeType} from '@venus/document-core'
 
 export interface PointerState {
   x: number
@@ -65,19 +65,6 @@ const TYPE_TO_KIND: Record<ShapeType, number> = {
   lineSegment: 8,
   path: 9,
   image: 10,
-}
-
-const KIND_TO_TYPE: Record<number, ShapeType> = {
-  1: 'frame',
-  2: 'group',
-  3: 'rectangle',
-  4: 'ellipse',
-  5: 'polygon',
-  6: 'star',
-  7: 'text',
-  8: 'lineSegment',
-  9: 'path',
-  10: 'image',
 }
 
 /**
@@ -440,104 +427,6 @@ export function setSelectedShapes(
 }
 
 /**
- * Performs hit-testing against shapes stored in shared memory.
- *
- * Strategy:
- * - Scan from end to start to prefer visually top-most shapes
- * - First do AABB (bounding-box) test
- * - For ellipse types, apply an additional normalized ellipse test
- * - For line/path types, apply segment-distance checks
- *
- * Returns:
- * - shape index when hit
- * - -1 when nothing is hit
- */
-export function hitTestScene(scene: SceneMemory, pointer: PointerState) {
-  // Iterate from the end to approximate top-most hit when draw order matches index order.
-  const count = scene.meta[MetaIndex.ShapeCount]
-
-  for (let index = count - 1; index >= 0; index -= 1) {
-    const geometryOffset = index * GEOMETRY_STRIDE
-    const x = scene.geometry[geometryOffset]
-    const y = scene.geometry[geometryOffset + 1]
-    const width = scene.geometry[geometryOffset + 2]
-    const height = scene.geometry[geometryOffset + 3]
-    const bounds = getNormalizedBounds(x, y, width, height)
-
-    const inBounds =
-      pointer.x >= bounds.minX &&
-      pointer.x <= bounds.maxX &&
-      pointer.y >= bounds.minY &&
-      pointer.y <= bounds.maxY
-
-    if (!inBounds) {
-      continue
-    }
-
-    const type = KIND_TO_TYPE[scene.kind[index]]
-    if (type === 'ellipse') {
-      const radiusX = Math.abs(width) / 2
-      const radiusY = Math.abs(height) / 2
-      const centerX = bounds.minX + radiusX
-      const centerY = bounds.minY + radiusY
-      const normalized =
-        ((pointer.x - centerX) * (pointer.x - centerX)) / (radiusX * radiusX) +
-        ((pointer.y - centerY) * (pointer.y - centerY)) / (radiusY * radiusY)
-
-      if (normalized > 1) {
-        continue
-      }
-    }
-
-    if (type === 'lineSegment') {
-      const lineHit = isPointNearLineSegment(pointer, {
-        x1: x,
-        y1: y,
-        x2: x + width,
-        y2: y + height,
-      })
-
-      if (!lineHit) {
-        continue
-      }
-    }
-
-    if (type === 'path') {
-      const lineHit = isPointNearLineSegment(pointer, {
-        x1: x,
-        y1: y,
-        x2: x + width,
-        y2: y + height,
-      })
-
-      if (!lineHit) {
-        continue
-      }
-    }
-
-    return index
-  }
-
-  return -1
-}
-
-function getNormalizedBounds(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
-
-  return {
-    minX: bounds.minX,
-    maxX: bounds.maxX,
-    minY: bounds.minY,
-    maxY: bounds.maxY,
-  }
-}
-
-/**
  * Reads compact scene-level reactive stats from shared memory.
  * Useful for fast UI synchronization without materializing full shape snapshots.
  */
@@ -704,34 +593,3 @@ function findTopmostSelectedIndex(flags: Uint8Array, count: number) {
   return -1
 }
 
-function isPointNearLineSegment(
-  pointer: PointerState,
-  line: {x1: number; y1: number; x2: number; y2: number},
-  tolerance = 6,
-) {
-  const dx = line.x2 - line.x1
-  const dy = line.y2 - line.y1
-  const lengthSquared = dx * dx + dy * dy
-
-  if (lengthSquared === 0) {
-    const distanceSquared =
-      (pointer.x - line.x1) * (pointer.x - line.x1) +
-      (pointer.y - line.y1) * (pointer.y - line.y1)
-    return distanceSquared <= tolerance * tolerance
-  }
-
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      ((pointer.x - line.x1) * dx + (pointer.y - line.y1) * dy) / lengthSquared,
-    ),
-  )
-  const nearestX = line.x1 + t * dx
-  const nearestY = line.y1 + t * dy
-  const distanceSquared =
-    (pointer.x - nearestX) * (pointer.x - nearestX) +
-    (pointer.y - nearestY) * (pointer.y - nearestY)
-
-  return distanceSquared <= tolerance * tolerance
-}

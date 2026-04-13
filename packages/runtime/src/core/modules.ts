@@ -1,5 +1,5 @@
 import type {EditorRuntimeCommand} from '../worker/index.ts'
-import type {PointerState} from '@venus/shared-memory'
+import type {PointerState} from '@venus/runtime/shared-memory'
 
 export interface CanvasEditorModulePointerEvent {
   type: 'pointermove' | 'pointerdown'

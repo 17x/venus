@@ -6,7 +6,7 @@ import {
   reorderShapeInScene,
   setSelectedShape,
   type SceneMemory,
-} from '@venus/shared-memory'
+} from '@venus/runtime/shared-memory'
 import type {HistoryPatch} from '../history.ts'
 import type {WorkerSpatialIndex} from './types.ts'
 import {findShapeById} from './model.ts'

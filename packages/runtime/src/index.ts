@@ -153,3 +153,4 @@ export {
   type Mat3,
   type Point2D,
 } from './viewport/matrix.ts'
+export * from './shared-memory/index.ts'

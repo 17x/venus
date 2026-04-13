@@ -9,7 +9,7 @@ import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../components/statusBar/StatusBar.tsx'
 import type {createEditorDocumentFromFile} from '../adapters/fileDocument.ts'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
+import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 import type {HistorySummary} from '@venus/runtime/worker'
 
 export interface VisionFileAsset {

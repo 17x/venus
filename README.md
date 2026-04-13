@@ -23,7 +23,7 @@ The current active stack focuses on `vector-editor-web` and `playground`.
     - engine bridge submodule: `@venus/runtime/engine`
     - presets submodule: `@venus/runtime/presets`
   - `@venus/runtime/worker`: command execution and scene mutation in worker
-  - `@venus/shared-memory`: SAB layout and scene snapshot helpers
+  - `@venus/runtime/shared-memory`: SAB layout and scene snapshot helpers
   - `@venus/file-format`: schema and runtime format adapters
 - `docs/*`: architecture and design docs
 
@@ -89,7 +89,7 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime Data Flow
 
-`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`
+`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`
 
 - UI and product actions stay in app layer.
 - Worker owns scene mutation and command execution.

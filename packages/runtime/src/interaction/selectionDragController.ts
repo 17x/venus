@@ -4,7 +4,7 @@ import {
 import {
   getNormalizedBoundsFromBox,
 } from '@venus/engine'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
+import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 import {hasSelectedAncestorInDocument} from './selectionHierarchy.ts'
 import {resolveTopHitShapeId} from './shapeHitTest.ts'
 

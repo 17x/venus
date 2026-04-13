@@ -21,7 +21,7 @@ import {
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
 } from '@venus/runtime/presets'
-import type {SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
+import type {SceneShapeSnapshot, SceneStats} from '@venus/runtime/shared-memory'
 
 export interface CanvasRendererProps {
   document: EditorDocument

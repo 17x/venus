@@ -11,8 +11,7 @@
   },
   "references": [
     { "path": "../engine/tsconfig.json" },
-    { "path": "../document-core/tsconfig.json" },
-    { "path": "../shared-memory/tsconfig.json" }
+    { "path": "../document-core/tsconfig.json" }
   ],
   "include": ["src"]
 }

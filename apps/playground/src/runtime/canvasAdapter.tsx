@@ -20,7 +20,7 @@ import {
   type EngineReplayWorkerEvent,
 } from '@venus/runtime/engine'
 import {bindViewportGestures, resolveCanvasLodProfile} from '@venus/runtime/interaction'
-import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
+import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/runtime/shared-memory'
 import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,

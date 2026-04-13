@@ -1,6 +1,6 @@
 import { type EditorDocument } from '@venus/document-core'
 import type {EditorRuntimeCommand} from '../worker/index.ts'
-import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
+import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/runtime/shared-memory'
 import type {Point2D} from '../viewport/matrix.ts'
 import {resolveTopHitShapeId} from '../interaction/shapeHitTest.ts'
 import {

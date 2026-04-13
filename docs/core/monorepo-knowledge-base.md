@@ -34,7 +34,7 @@ Knowledge` when they become long-term guidance.
 - Main interactive chain:
   `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` +
   app-local runtime bridge -> `@venus/runtime/worker` +
-  `@venus/shared-memory` -> `@venus/engine` (Canvas2D renderer wired from app layer)
+  `@venus/runtime/shared-memory` -> `@venus/engine` (Canvas2D renderer wired from app layer)
 
 ### File And Model Truth
 
@@ -76,6 +76,14 @@ Knowledge` when they become long-term guidance.
 ## Recent Updates
 
 ### 2026-04-13
+
+- Merged shared-memory ownership into runtime subpath
+  `@venus/runtime/shared-memory`
+  (`packages/runtime/src/shared-memory/index.ts`) and removed standalone
+  `packages/shared-memory` package/project references.
+- Runtime chain docs/config now use:
+  `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` ->
+  `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`.
 
 - Removed `packages/file-format` after migrating runtime scene type contracts
   and `parseRuntimeSceneToEditorDocument(...)` into

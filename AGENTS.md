@@ -45,7 +45,7 @@ Current priority areas:
 Primary runtime chain:
 
 ```text
-apps/* -> @venus/runtime + @venus/runtime/interaction -> @venus/runtime/worker + @venus/shared-memory -> @venus/engine
+apps/* -> @venus/runtime + @venus/runtime/interaction -> @venus/runtime/worker + @venus/runtime/shared-memory -> @venus/engine
 ```
 
 ## Architecture Rules

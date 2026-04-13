@@ -4,7 +4,7 @@
 
 Venus uses a layered architecture to keep boundaries clear and performance stable:
 
-`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine` (Canvas2D via app-local runtime bridges)
+`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine` (Canvas2D via app-local runtime bridges)
 
 Detailed boundary contract for execution ownership:
 `docs/runtime-engine-responsibility-split.md`
@@ -49,7 +49,7 @@ Detailed boundary contract for execution ownership:
 
 - Worker protocol, command execution, history, collaboration state, and engine mechanism dispatch.
 
-### `@venus/shared-memory`
+### `@venus/runtime/shared-memory`
 
 - SharedArrayBuffer layout and snapshot read/write helpers.
 

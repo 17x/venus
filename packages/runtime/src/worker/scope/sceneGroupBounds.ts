@@ -1,6 +1,6 @@
 import type {DocumentNode, EditorDocument} from '@venus/document-core'
 import {getNormalizedBoundsFromBox} from '@venus/engine'
-import {incrementSceneVersion, type SceneMemory} from '@venus/shared-memory'
+import {incrementSceneVersion, type SceneMemory} from '@venus/runtime/shared-memory'
 import type {WorkerSpatialIndex} from './types.ts'
 import {updateSpatialShape, writeRuntimeShapeToScene} from './sceneSpatial.ts'
 

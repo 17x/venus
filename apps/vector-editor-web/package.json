@@ -14,7 +14,6 @@
     "@tailwindcss/vite": "4.2.2",
     "@venus/document-core": "workspace:*",
     "@venus/runtime": "workspace:*",
-    "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",
     "i18next": "^24.2.3",
     "react": "^19.2.4",

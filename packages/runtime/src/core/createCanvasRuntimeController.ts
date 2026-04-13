@@ -20,7 +20,7 @@ import {
   type SceneMemory,
   type SceneShapeSnapshot,
   type SceneStats,
-} from '@venus/shared-memory'
+} from '@venus/runtime/shared-memory'
 import type {Point2D} from '../viewport/matrix.ts'
 import {
   DEFAULT_VIEWPORT,
