@@ -30,6 +30,9 @@ remains the editor runtime bridge.
 ## Public API Policy
 
 - Root export (`@venus/engine`) is the stable app/runtime-facing API surface.
+- Root export keeps canonical `Engine*` mechanism names.
+- Legacy non-prefixed aliases are available only via
+  `@venus/engine/compat` as a migration bridge.
 - Low-level worker bridge/protocol implementation stays internal to the package
   for now so consumer API remains small.
 - Runtime/app layers should use `resolveEngineWorkerMode(...)` instead of

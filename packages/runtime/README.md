@@ -62,34 +62,34 @@ migrate incrementally without an immediate import-surface break.
 import {
   createAnimationController,
   createSystemRuntimeClock,
-} from '@venus/runtime'
+} from "@venus/runtime";
 
-const clock = createSystemRuntimeClock()
-const animations = createAnimationController()
+const clock = createSystemRuntimeClock();
+const animations = createAnimationController();
 
 const id = animations.start({
   from: 1,
   to: 1.15,
   duration: 140,
-  easing: 'easeOut',
+  easing: "easeOut",
   onUpdate: (scale) => {
     // apply scale to viewport or interaction preview state
   },
-})
+});
 
-let frame = 0
+let frame = 0;
 const tick = () => {
   frame = clock.requestFrame((info) => {
-    animations.tick(info)
-    tick()
-  })
-}
+    animations.tick(info);
+    tick();
+  });
+};
 
-tick()
+tick();
 
 // later:
-animations.stop(id)
-clock.cancelFrame(frame)
+animations.stop(id);
+clock.cancelFrame(frame);
 ```
 
 ## Boundary Rules
@@ -97,4 +97,4 @@ clock.cancelFrame(frame)
 - Keep this package framework-agnostic
 - Put policy defaults in `@venus/runtime/presets`
 - Put shared interaction algorithms in `@venus/runtime/interaction`
-- Keep persisted document semantics in `packages/file-format`
+- Keep persisted document semantics in `@venus/document-core`

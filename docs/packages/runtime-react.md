@@ -1,5 +1,8 @@
 # `@venus/runtime/react`
 
+Archived legacy note: runtime-react source and subpath were removed from active
+runtime package exports. Keep this file only as migration-era context.
+
 Package-scoped note for the React adapter layer over the Venus runtime stack.
 
 ## Stable Knowledge

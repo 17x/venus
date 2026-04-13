@@ -11,19 +11,23 @@ import {
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
   type EngineBackend,
-  isPointInsideEngineClipShape,
-  isPointInsideRotatedBounds,
-  isPointInsideEngineShapeHitArea,
-} from '@venus/engine'
+} from '@venus/runtime/engine'
 import {
   createTransformBatchCommand,
   createTransformPreviewShape,
   createTransformSessionShape,
+  createMarqueeSelectionApplyController,
   createMarqueeState,
-  resolveMoveSnapPreview,
   collectResizeTransformTargets,
   createSelectionDragController,
-  pickSelectionHandleAtPoint,
+  resolveTopHitShapeId,
+  resolveDragStartTransformPayload,
+  resolvePointerUpMarqueeSelection,
+  resolvePointerUpTransformCommit,
+  resolveSelectionHandleHitAtPoint,
+  resolveSnappedTransformPreview,
+  shouldPreserveGroupDragSelection,
+  shouldClearSelectionOnPointerDown,
   resolveTransformPreviewRuntimeState,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
@@ -34,10 +38,6 @@ import {
   type MarqueeSelectionMode,
   type SnapGuide,
 } from '@venus/runtime/interaction'
-import {
-  useDefaultCanvasRuntime,
-  useTransformPreviewCommitState,
-} from '@venus/runtime/react'
 import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
@@ -53,7 +53,6 @@ import {
   offsetElementPosition,
 } from './editorRuntimeHelpers.ts'
 import {
-  buildSelectionHandles,
   buildSelectionState,
   createTransformSessionManager,
   InteractionOverlay,
@@ -63,6 +62,8 @@ import type {InteractionBounds, TransformPreview} from '../interaction/index.ts'
 import {deriveEditorUIState} from './deriveEditorUIState.ts'
 import {useEditorDocument} from './useEditorDocument.ts'
 import {usePenTool} from './usePenTool.ts'
+import {useCanvasRuntimeBridge} from './useCanvasRuntimeBridge.ts'
+import {useTransformPreviewCommitBridge} from './useTransformPreviewCommitBridge.ts'
 import type {
   EditorDocumentState,
   EditorExecutor,
@@ -166,64 +167,6 @@ function formatSelectionNames(
   return `${names.slice(0, 3).join(', ')} +${names.length - 3}`
 }
 
-function hasSelectedAncestorInDocument(
-  document: import('@venus/document-core').EditorDocument,
-  shapeId: string,
-  selectedIds: Set<string>,
-) {
-  const byId = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  let current = byId.get(shapeId)
-  while (current?.parentId) {
-    if (selectedIds.has(current.parentId)) {
-      return true
-    }
-    current = byId.get(current.parentId)
-  }
-  return false
-}
-
-function resolveHoveredShapeIdAtPoint(
-  document: import('@venus/document-core').EditorDocument,
-  snapshots: import('@venus/shared-memory').SceneShapeSnapshot[],
-  pointer: {x: number; y: number},
-) {
-  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
-
-  for (let index = snapshots.length - 1; index >= 0; index -= 1) {
-    const snapshot = snapshots[index]
-    const source = document.shapes[index] ?? shapeById.get(snapshot?.id ?? '')
-    if (!snapshot || !source) {
-      continue
-    }
-
-    if (source.type === 'frame') {
-      continue
-    }
-    if (source.type === 'image' && source.clipPathId) {
-      continue
-    }
-    if (source.clipPathId) {
-      const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
-        tolerance: 1.5,
-        shapeById,
-      })) {
-        continue
-      }
-    }
-
-    if (isPointInsideEngineShapeHitArea(pointer, source, {
-      allowFrameSelection: false,
-      tolerance: 6,
-      shapeById,
-    })) {
-      return source.id
-    }
-  }
-
-  return null
-}
-
 const useEditorRuntime = (options?: {
   onContextMenu?: (position: {x: number; y: number}) => void
 }) => {
@@ -259,12 +202,16 @@ const useEditorRuntime = (options?: {
   const selectionDragControllerRef = useRef(createSelectionDragController({
     allowFrameSelection: false,
   }))
-  const marqueeAppliedSignatureRef = useRef('')
+  const marqueeApplyControllerRef = useRef(createMarqueeSelectionApplyController())
   const createWorker = useCallback(
     () => new Worker(new URL('../editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
   )
-  const canvasRuntime = useDefaultCanvasRuntime({
+  const {
+    runtime: canvasRuntime,
+    interactions: defaultCanvasInteractions,
+    presentation: runtimePresentation,
+  } = useCanvasRuntimeBridge({
     capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
     createWorker,
     document,
@@ -283,6 +230,17 @@ const useEditorRuntime = (options?: {
         shiftMatchMode: 'contain',
       },
     },
+    presentation: {
+      marquee: {
+        fill: 'rgba(37, 99, 235, 0.12)',
+        stroke: 'rgba(37, 99, 235, 0.95)',
+      },
+      overlay: {
+        selectionStroke: '#2563eb',
+        hoverStroke: 'rgba(14, 165, 233, 0.9)',
+      },
+    },
+    onContextMenu,
   })
   const preferredEngineBackend = useMemo<EngineBackend>(() => {
     if (typeof window === 'undefined') {
@@ -305,7 +263,7 @@ const useEditorRuntime = (options?: {
     setPreview: setTransformPreview,
     clearPreview: clearTransformPreview,
     markCommitPending: markTransformPreviewCommitPending,
-  } = useTransformPreviewCommitState<TransformPreview['shapes'][number]>({
+  } = useTransformPreviewCommitBridge<TransformPreview['shapes'][number]>({
     documentShapes: canvasRuntime.document.shapes,
   })
   const {add} = useNotification()
@@ -313,6 +271,10 @@ const useEditorRuntime = (options?: {
   const selectedShape = canvasRuntime.stats.selectedIndex >= 0
     ? canvasRuntime.shapes[canvasRuntime.stats.selectedIndex] ?? null
     : null
+  const runtimeShapeById = useMemo(
+    () => new Map(canvasRuntime.shapes.map((shape) => [shape.id, shape])),
+    [canvasRuntime.shapes],
+  )
   const selectedShapeIds = useMemo(
     () => canvasRuntime.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
     [canvasRuntime.shapes],
@@ -329,6 +291,10 @@ const useEditorRuntime = (options?: {
   ), [canvasRuntime.document, canvasRuntime.shapes, transformPreview])
   const previewDocument = previewState.previewDocument
   const previewShapes = previewState.previewShapes
+  const previewShapeById = useMemo(
+    () => new Map(previewDocument.shapes.map((shape) => [shape.id, shape])),
+    [previewDocument.shapes],
+  )
 
   const selectionState = useMemo(
     () => buildSelectionState(previewDocument, previewShapes),
@@ -354,9 +320,10 @@ const useEditorRuntime = (options?: {
         marqueeBounds: overlayMarquee,
         hideSelectionChrome,
         snapGuides: overlaySnapGuides,
+        presentation: runtimePresentation,
       })
     }
-  }, [activeTransformHandle, hoveredShapeId, marqueeBounds, snapGuides])
+  }, [activeTransformHandle, hoveredShapeId, marqueeBounds, runtimePresentation, snapGuides])
 
   const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
     previewDocument.shapes,
@@ -368,21 +335,15 @@ const useEditorRuntime = (options?: {
   ), [previewDocument.shapes])
 
   const applyMarqueeSelectionWhileMoving = useCallback((nextMarquee: MarqueeState) => {
-    if (nextMarquee.applyMode !== 'while-pointer-move') {
-      return
-    }
-
     const selectedIds = resolveMarqueeSelectionIds(nextMarquee)
-    const signature = `${nextMarquee.mode}:${selectedIds.join(',')}`
-    if (signature === marqueeAppliedSignatureRef.current) {
-      return
-    }
-
-    marqueeAppliedSignatureRef.current = signature
-    canvasRuntime.dispatchCommand({
-      type: 'selection.set',
-      shapeIds: selectedIds,
-      mode: nextMarquee.mode,
+    marqueeApplyControllerRef.current.applyWhileMoving({
+      marquee: nextMarquee,
+      selectedIds,
+      dispatchSelection: (shapeIds, mode) => canvasRuntime.dispatchCommand({
+        type: 'selection.set',
+        shapeIds,
+        mode,
+      }),
     })
   }, [canvasRuntime, resolveMarqueeSelectionIds])
 
@@ -1064,11 +1025,11 @@ const useEditorRuntime = (options?: {
           setHoveredShapeId(null)
           const preview = transformManagerRef.current.update(point)
           if (preview) {
-            const maybeSnapped = transformSession.handle === 'move'
-              ? snappingEnabled
-                ? resolveMoveSnapPreview(preview, previewDocument)
-                : {preview, guides: [] as SnapGuide[]}
-              : {preview, guides: [] as SnapGuide[]}
+            const maybeSnapped = resolveSnappedTransformPreview(preview, {
+              handle: transformSession.handle,
+              snappingEnabled,
+              previewDocument,
+            })
             setSnapGuides(maybeSnapped.guides)
             setTransformPreview(maybeSnapped.preview)
           }
@@ -1100,22 +1061,18 @@ const useEditorRuntime = (options?: {
           if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
             setHoveredShapeId(null)
             if (dragMove.phase === 'started') {
-              const dragShapeIds = dragMove.session.shapes.map((shape) => shape.shapeId)
-              const dragShapes = dragShapeIds
-                .map((id) => previewDocument.shapes.find((shape) => shape.id === id))
-                .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
-
-              if (dragShapes.length > 0) {
+              const dragStart = resolveDragStartTransformPayload(dragMove.session, previewShapeById)
+              if (dragStart) {
                 transformManagerRef.current.start({
-                  shapeIds: dragShapes.map((shape) => shape.id),
-                  shapes: dragShapes.map((shape) => createTransformSessionShape(shape)),
+                  shapeIds: dragStart.shapeIds,
+                  shapes: dragStart.sessionShapes,
                   handle: 'move',
-                  pointer: dragMove.session.start,
-                  startBounds: dragMove.session.bounds,
+                  pointer: dragStart.pointer,
+                  startBounds: dragStart.startBounds,
                 })
                 setActiveTransformHandle('move')
                 setTransformPreview({
-                  shapes: dragShapes.map((shape) => createTransformPreviewShape(shape)),
+                  shapes: dragStart.previewShapes,
                 })
               }
             }
@@ -1123,11 +1080,11 @@ const useEditorRuntime = (options?: {
             const preview = transformManagerRef.current.update(point)
             if (preview) {
               const transformSession = transformManagerRef.current.getSession()
-              const maybeSnapped = transformSession?.handle === 'move'
-                ? snappingEnabled
-                  ? resolveMoveSnapPreview(preview, previewDocument)
-                  : {preview, guides: [] as SnapGuide[]}
-                : {preview, guides: [] as SnapGuide[]}
+              const maybeSnapped = resolveSnappedTransformPreview(preview, {
+                handle: transformSession?.handle,
+                snappingEnabled,
+                previewDocument,
+              })
               setSnapGuides(maybeSnapped.guides)
               setTransformPreview(maybeSnapped.preview)
             }
@@ -1143,7 +1100,12 @@ const useEditorRuntime = (options?: {
         setSnapGuides([])
         // Keep hover purely in overlay state so pointermove does not mutate
         // runtime scene flags or trigger render invalidation.
-        setHoveredShapeId(resolveHoveredShapeIdAtPoint(previewDocument, canvasRuntime.shapes, point))
+        setHoveredShapeId(resolveTopHitShapeId(previewDocument, canvasRuntime.shapes, point, {
+          allowFrameSelection: false,
+          tolerance: 6,
+          excludeClipBoundImage: true,
+          clipTolerance: 1.5,
+        }))
       },
       onPointerDown: (point, modifiers) => {
         setHoveredShapeId(null)
@@ -1153,26 +1115,22 @@ const useEditorRuntime = (options?: {
         }
 
         if (currentTool === 'selector' || currentTool === 'dselector') {
-          const selectedNodes = selectedShapeIds
-            .map((id) => previewDocument.shapes.find((shape) => shape.id === id))
-            .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
-          const selectedBounds = selectionState.selectedBounds
-          const singleSelectedRotation = selectedNodes.length === 1
-            ? (selectedNodes[0].rotation ?? 0)
-            : 0
-          const handles = buildSelectionHandles({
-            selectedIds: selectionState.selectedIds,
-            hoverId: null,
-            selectedBounds,
-          }, {
-            rotateOffset: 28,
-            rotateDegrees: singleSelectedRotation,
-          })
           const handleTolerance = 6
-          const handle = pickSelectionHandleAtPoint(point, handles, handleTolerance)
+          const {
+            selectedNodes,
+            selectedBounds,
+            singleSelectedRotation,
+            handle,
+          } = resolveSelectionHandleHitAtPoint({
+            point,
+            selectedShapeIds,
+            shapeById: previewShapeById,
+            selectedBounds: selectionState.selectedBounds,
+            handleTolerance,
+          })
 
           if (handle && selectedBounds && selectedNodes.length > 0) {
-            const resizeTargets = handle.kind === 'move' || handle.kind === 'rotate'
+            const resizeTargets = handle.kind === 'rotate'
               ? selectedNodes
               : collectResizeTransformTargets(selectedNodes, previewDocument)
             selectionDragControllerRef.current.clear()
@@ -1191,15 +1149,13 @@ const useEditorRuntime = (options?: {
             return
           }
 
-          if (
-            selectedBounds &&
-            selectedNodes.length > 0 &&
-            isPointInsideRotatedBounds(point, selectedBounds, singleSelectedRotation) &&
-            !selectedNodes.some((shape) => isPointInsideEngineShapeHitArea(point, shape, {
-              tolerance: handleTolerance,
-              shapeById: new Map(previewDocument.shapes.map((item) => [item.id, item])),
-            }))
-          ) {
+          if (shouldClearSelectionOnPointerDown(point, {
+            selectedBounds,
+            selectedNodes,
+            singleSelectedRotation,
+            shapeById: previewShapeById,
+            tolerance: handleTolerance,
+          })) {
             selectionDragControllerRef.current.clear()
             handleCommand({
               type: 'selection.set',
@@ -1210,7 +1166,7 @@ const useEditorRuntime = (options?: {
           }
 
           const hoveredShape = hoveredShapeId
-            ? canvasRuntime.shapes.find((shape) => shape.id === hoveredShapeId) ?? null
+            ? runtimeShapeById.get(hoveredShapeId) ?? null
             : null
           const hasHit = selectionDragControllerRef.current.pointerDown(point, {
             document: previewDocument,
@@ -1221,23 +1177,15 @@ const useEditorRuntime = (options?: {
 
           if (hasHit) {
             setSnapGuides([])
-            const isPlainClick =
-              !modifiers?.shiftKey &&
-              !modifiers?.metaKey &&
-              !modifiers?.ctrlKey &&
-              !modifiers?.altKey
-            const selectedIdSet = new Set(selectedNodes.map((shape) => shape.id))
-            const preserveGroupDragSelection = !!(
-              isPlainClick &&
-              hoveredShape &&
-              (
-                selectedIdSet.has(hoveredShape.id) ||
-                hasSelectedAncestorInDocument(previewDocument, hoveredShape.id, selectedIdSet)
-              )
-            )
+            const preserveGroupDragSelection = shouldPreserveGroupDragSelection({
+              modifiers,
+              hoveredShapeId: hoveredShape?.id ?? null,
+              selectedNodes,
+              shapeById: previewShapeById,
+            })
 
             if (!preserveGroupDragSelection) {
-              canvasRuntime.postPointer('pointerdown', point, modifiers)
+              defaultCanvasInteractions.onPointerDown(point, modifiers)
             }
             return
           }
@@ -1252,7 +1200,7 @@ const useEditorRuntime = (options?: {
               ? 'toggle'
               : 'replace'
           setHoveredShapeId(null)
-          marqueeAppliedSignatureRef.current = ''
+          marqueeApplyControllerRef.current.reset()
           setMarquee(createMarqueeState(point, marqueeMode, {
             applyMode: DEFAULT_MARQUEE_APPLY_MODE,
           }))
@@ -1274,49 +1222,50 @@ const useEditorRuntime = (options?: {
 
         selectionDragControllerRef.current.clear()
         setSnapGuides([])
-        canvasRuntime.postPointer('pointerdown', point, modifiers)
+        defaultCanvasInteractions.onPointerDown(point, modifiers)
       },
       onPointerUp: () => {
         setHoveredShapeId(null)
         selectionDragControllerRef.current.pointerUp()
         setSnapGuides([])
         setActiveTransformHandle(null)
-        const transformSession = transformManagerRef.current.commit()
-        if (transformSession) {
-          if (transformSession.shapeIds.length > 0) {
+        const pointerUpTransform = resolvePointerUpTransformCommit(
+          transformManagerRef.current.commit(),
+          transformPreview,
+          canvasRuntime.document.shapes,
+        )
+        if (pointerUpTransform) {
+          if (pointerUpTransform.selectionShapeIds.length > 0) {
             handleCommand({
               type: 'selection.set',
-              shapeIds: transformSession.shapeIds,
+              shapeIds: pointerUpTransform.selectionShapeIds,
               mode: 'replace',
             })
           }
-          const preview = transformPreview
 
-          if (preview) {
-            const transformCommand = createTransformBatchCommand(canvasRuntime.document.shapes, preview)
-            if (transformCommand) {
-              // Commit all drag/resize/rotate transforms as one command so
-              // undo/redo stays atomic for both single and multi selection.
-              handleCommand(transformCommand)
-              markTransformPreviewCommitPending()
-            } else {
-              clearTransformPreview()
-            }
+          if (pointerUpTransform.transformCommand) {
+            // Commit all drag/resize/rotate transforms as one command so
+            // undo/redo stays atomic for both single and multi selection.
+            handleCommand(pointerUpTransform.transformCommand)
+            markTransformPreviewCommitPending()
           } else {
             clearTransformPreview()
           }
           return
         }
 
-        if (marquee) {
-          const selectedIds = resolveMarqueeSelectionIds(marquee)
+        const pointerUpMarquee = resolvePointerUpMarqueeSelection(marquee, previewDocument.shapes, {
+          matchMode: 'contain',
+          excludeShape: (shape) => shape.type === 'frame',
+        })
+        if (pointerUpMarquee) {
           handleCommand({
             type: 'selection.set',
-            shapeIds: selectedIds,
-            mode: marquee.mode,
+            shapeIds: pointerUpMarquee.shapeIds,
+            mode: pointerUpMarquee.mode,
           })
-          marqueeAppliedSignatureRef.current = ''
-          add(`Selection: ${formatSelectionNames(previewDocument, selectedIds)}`, 'info')
+          marqueeApplyControllerRef.current.reset()
+          add(`Selection: ${formatSelectionNames(previewDocument, pointerUpMarquee.shapeIds)}`, 'info')
           setMarquee(null)
           return
         }
@@ -1330,18 +1279,15 @@ const useEditorRuntime = (options?: {
         setActiveTransformHandle(null)
         selectionDragControllerRef.current.clear()
         setMarquee(null)
+        marqueeApplyControllerRef.current.reset()
         penTool.clearDraft()
         setHoveredShapeId(null)
       },
-      onViewportChange: canvasRuntime.setViewport,
-      onViewportPan: canvasRuntime.panViewport,
-      onViewportResize: canvasRuntime.resizeViewport,
-      onViewportZoom: (nextScale, anchor) => {
-        canvasRuntime.zoomViewport(nextScale, anchor)
-      },
-      onContextMenu: (position) => {
-        onContextMenu?.(applyMatrixToPoint(canvasRuntime.viewport.inverseMatrix, position))
-      },
+      onViewportChange: defaultCanvasInteractions.onViewportChange,
+      onViewportPan: defaultCanvasInteractions.onViewportPan,
+      onViewportResize: defaultCanvasInteractions.onViewportResize,
+      onViewportZoom: defaultCanvasInteractions.onViewportZoom,
+      onContextMenu: defaultCanvasInteractions.onContextMenu,
     },
     currentTool,
     focused,

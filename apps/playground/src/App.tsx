@@ -1,15 +1,39 @@
 import * as React from 'react'
 import {nid, type DocumentNode, type EditorDocument} from '@venus/document-core'
+import {createTransformPreviewCommitController} from '@venus/runtime'
+import type {EngineBackend} from '@venus/runtime/engine'
 import type {EditorRuntimeCommand} from '@venus/runtime/worker'
-import {resolveRuntimeZoomPresetScale} from '@venus/runtime/interaction'
-import {useDefaultCanvasRuntime} from '@venus/runtime/react'
+import {
+  createMarqueeState,
+  createSelectionDragController,
+  collectResizeTransformTargets,
+  createMarqueeSelectionApplyController,
+  createTransformPreviewShape,
+  createTransformSessionManager,
+  createTransformSessionShape,
+  resolveDragStartTransformPayload,
+  resolveMarqueeBounds,
+  resolveMarqueeSelection,
+  resolvePointerUpTransformCommit,
+  resolvePointerUpMarqueeSelection,
+  resolveRuntimeZoomPresetScale,
+  resolveSelectionHandleHitAtPoint,
+  resolveSingleSelectedRotation,
+  shouldClearSelectionOnPointerDown,
+  shouldPreserveGroupDragSelection,
+  resolveTransformPreviewRuntimeState,
+  updateMarqueeState,
+  type MarqueeState,
+  type MarqueeSelectionMode,
+  type TransformPreview,
+} from '@venus/runtime/interaction'
+import {usePlaygroundRuntimeBridge} from './runtime/usePlaygroundRuntimeBridge.ts'
 import {
   Canvas2DRenderer,
   CanvasSelectionOverlay,
   CanvasViewport,
   useCanvas2DRenderDiagnostics,
 } from './runtime/canvasAdapter.tsx'
-import type {EngineBackend} from '@venus/engine'
 import {MOCK_DOCUMENT} from './mockDocument.ts'
 import {createStressDocument} from './sceneGenerator.ts'
 import './index.css'
@@ -32,6 +56,7 @@ const MEDIUM_STRESS_SHAPE_COUNT = 10_000
 const LARGE_STRESS_SHAPE_COUNT = 50_000
 const STRESS_SHAPE_COUNT = 100_000
 const EXTREME_STRESS_SHAPE_COUNT = 1_000_000
+const DEFAULT_MARQUEE_APPLY_MODE: MarqueeState['applyMode'] = 'while-pointer-move'
 const PLAYGROUND_SCENE_BUTTONS: Array<{
   label: string
   preset: PlaygroundDocumentPreset
@@ -160,6 +185,32 @@ function formatShapeSummary(document: EditorDocument) {
     .join('  ')
 }
 
+function resolveSelectedBounds(shapes: EditorDocument['shapes']) {
+  if (shapes.length === 0) {
+    return null
+  }
+
+  return shapes.reduce<{minX: number; minY: number; maxX: number; maxY: number} | null>((acc, shape) => {
+    const bounds = {
+      minX: Math.min(shape.x, shape.x + shape.width),
+      minY: Math.min(shape.y, shape.y + shape.height),
+      maxX: Math.max(shape.x, shape.x + shape.width),
+      maxY: Math.max(shape.y, shape.y + shape.height),
+    }
+
+    if (!acc) {
+      return bounds
+    }
+
+    return {
+      minX: Math.min(acc.minX, bounds.minX),
+      minY: Math.min(acc.minY, bounds.minY),
+      maxX: Math.max(acc.maxX, bounds.maxX),
+      maxY: Math.max(acc.maxY, bounds.maxY),
+    }
+  }, null)
+}
+
 function App() {
   const [selection, setSelection] = React.useState<PlaygroundDocumentSelection>({
     preset: 'demo',
@@ -170,33 +221,61 @@ function App() {
     [selection],
   )
   const [strictStrokeHitTest, setStrictStrokeHitTest] = React.useState(false)
+  const selectionConfig = React.useMemo(() => ({
+    allowFrameSelection: false,
+    input: {
+      singleClick: 'replace' as const,
+      shiftClick: 'add' as const,
+      metaOrCtrlClick: 'toggle' as const,
+      altClick: 'subtract' as const,
+    },
+    marquee: {
+      enabled: true,
+      defaultMatchMode: 'contain' as const,
+      shiftMatchMode: 'contain' as const,
+    },
+  }), [])
+  const hoverResolveOptions = React.useMemo(() => ({
+    allowFrameSelection: false,
+    tolerance: 6,
+    excludeClipBoundImage: true,
+    clipTolerance: 1.5,
+  }), [])
+  const presentationPatch = React.useMemo(() => ({
+    marquee: {
+      fill: 'rgba(56, 189, 248, 0.12)',
+      stroke: 'rgba(14, 165, 233, 0.95)',
+      strokeDasharray: '6 3',
+    },
+    overlay: {
+      selectionStroke: '#0ea5e9',
+      hoverStroke: 'rgba(16, 185, 129, 0.92)',
+      handleStroke: '#0ea5e9',
+    },
+  }), [])
   const createWorker = React.useCallback(
     () => new Worker(new URL('./editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
   )
-  const runtime = useDefaultCanvasRuntime({
+  const {
+    runtime,
+    interactions: canvasInteractions,
+    presentation,
+    hoveredShapeId,
+    updateHover,
+    clearHover,
+  } = usePlaygroundRuntimeBridge({
     capacity: Math.max(256, document.shapes.length + 8),
     createWorker,
     document,
     allowFrameSelection: false,
     strictStrokeHitTest,
-    selection: {
-      allowFrameSelection: false,
-      input: {
-        singleClick: 'replace',
-        shiftClick: 'add',
-        metaOrCtrlClick: 'toggle',
-        altClick: 'subtract',
-      },
-      marquee: {
-        enabled: true,
-        defaultMatchMode: 'contain',
-        shiftMatchMode: 'contain',
-      },
-    },
+    selection: selectionConfig,
     snappingPreset: 'bounds',
+    hoverResolveOptions,
+    presentation: presentationPatch,
   })
-  const [preferredEngineBackend, setPreferredEngineBackend] = React.useState<EngineBackend>(() => {
+  const [preferredEngineBackend] = React.useState<EngineBackend>(() => {
     if (typeof window === 'undefined') {
       return 'webgl'
     }
@@ -211,15 +290,97 @@ function App() {
     [preferredEngineBackend],
   )
   const snapshot = runtime
+  const transformManagerRef = React.useRef(createTransformSessionManager())
+  const transformPreviewCommitRef = React.useRef(
+    createTransformPreviewCommitController<TransformPreview['shapes'][number]>(),
+  )
+  const selectionDragControllerRef = React.useRef(createSelectionDragController({
+    allowFrameSelection: false,
+  }))
+  const marqueeApplyControllerRef = React.useRef(createMarqueeSelectionApplyController())
+  const [transformPreview, setTransformPreviewState] = React.useState<TransformPreview | null>(null)
+  const [marquee, setMarquee] = React.useState<MarqueeState | null>(null)
+  const setTransformPreview = React.useCallback((next: TransformPreview | null) => {
+    transformPreviewCommitRef.current.setPreview(next)
+    setTransformPreviewState(next)
+  }, [])
+  const clearTransformPreview = React.useCallback(() => {
+    transformPreviewCommitRef.current.clearPreview()
+    setTransformPreviewState(null)
+  }, [])
+  const markTransformPreviewCommitPending = React.useCallback(() => {
+    transformPreviewCommitRef.current.markCommitPending()
+  }, [])
+
+  const selectedShapeIds = React.useMemo(
+    () => snapshot.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
+    [snapshot.shapes],
+  )
+  const previewState = React.useMemo(
+    () => resolveTransformPreviewRuntimeState(
+      snapshot.document,
+      snapshot.shapes,
+      transformPreview?.shapes ?? null,
+    ),
+    [snapshot.document, snapshot.shapes, transformPreview],
+  )
+  React.useEffect(() => {
+    if (transformPreviewCommitRef.current.syncIfCommitted(snapshot.document.shapes)) {
+      clearTransformPreview()
+    }
+  }, [clearTransformPreview, snapshot.document.shapes])
+  const previewShapeById = React.useMemo(
+    () => new Map(previewState.previewDocument.shapes.map((shape) => [shape.id, shape])),
+    [previewState.previewDocument.shapes],
+  )
+  const selectedNodes = React.useMemo(
+    () => selectedShapeIds
+      .map((id) => previewShapeById.get(id))
+      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape)),
+    [previewShapeById, selectedShapeIds],
+  )
+  const selectedBounds = React.useMemo(
+    () => resolveSelectedBounds(selectedNodes),
+    [selectedNodes],
+  )
+  const singleSelectedRotation = React.useMemo(
+    () => resolveSingleSelectedRotation(selectedNodes),
+    [selectedNodes],
+  )
+
+  const applyMarqueeSelectionWhileMoving = React.useCallback((nextMarquee: MarqueeState) => {
+    const selectedIds = resolveMarqueeSelection(
+      previewState.previewDocument.shapes,
+      resolveMarqueeBounds(nextMarquee),
+      {
+        matchMode: 'contain',
+        excludeShape: (shape) => shape.type === 'frame',
+      },
+    )
+    marqueeApplyControllerRef.current.applyWhileMoving({
+      marquee: nextMarquee,
+      selectedIds,
+      dispatchSelection: (shapeIds, mode) => runtime.dispatchCommand({
+        type: 'selection.set',
+        shapeIds,
+        mode,
+      }),
+    })
+  }, [previewState.previewDocument.shapes, runtime])
 
   const renderDiagnostics = useCanvas2DRenderDiagnostics()
   const overlayRenderer = React.useMemo(
     () => function PlaygroundOverlay(props: Parameters<typeof CanvasSelectionOverlay>[0]) {
-      return <CanvasSelectionOverlay {...props} />
+      return (
+        <CanvasSelectionOverlay
+          {...props}
+          hoveredShapeId={hoveredShapeId}
+          presentation={presentation}
+        />
+      )
     },
-    [],
+    [hoveredShapeId, presentation],
   )
-
   const dispatch = React.useCallback((command: EditorRuntimeCommand) => {
     if (command.type === 'viewport.fit') {
       runtime.fitViewport()
@@ -239,6 +400,237 @@ function App() {
 
     runtime.dispatchCommand(command)
   }, [runtime])
+
+  const handlePointerDown = React.useCallback((
+    pointer: {x: number; y: number},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
+  ) => {
+    clearHover()
+
+    const hit = resolveSelectionHandleHitAtPoint({
+      point: pointer,
+      selectedShapeIds,
+      shapeById: previewShapeById,
+      selectedBounds,
+      handleTolerance: 6,
+    })
+
+    if (hit.handle && hit.selectedBounds && hit.selectedNodes.length > 0) {
+      const targets = hit.handle.kind === 'rotate'
+        ? hit.selectedNodes
+        : collectResizeTransformTargets(hit.selectedNodes, previewState.previewDocument)
+
+      selectionDragControllerRef.current.clear()
+      transformManagerRef.current.start({
+        shapeIds: targets.map((shape) => shape.id),
+        shapes: targets.map((shape) => createTransformSessionShape(shape)),
+        handle: hit.handle.kind,
+        pointer,
+        startBounds: hit.selectedBounds,
+      })
+      setTransformPreview({
+        shapes: targets.map((shape) => createTransformPreviewShape(shape)),
+      })
+      return
+    }
+
+    if (shouldClearSelectionOnPointerDown(pointer, {
+      selectedBounds,
+      selectedNodes,
+      singleSelectedRotation,
+      shapeById: previewShapeById,
+      tolerance: 6,
+    })) {
+      selectionDragControllerRef.current.clear()
+      runtime.dispatchCommand({
+        type: 'selection.set',
+        shapeIds: [],
+        mode: 'replace',
+      })
+      return
+    }
+
+    const hoveredShape = hoveredShapeId
+      ? snapshot.shapes.find((shape) => shape.id === hoveredShapeId) ?? null
+      : null
+    const hasDragHit = selectionDragControllerRef.current.pointerDown(pointer, {
+      document: previewState.previewDocument,
+      shapes: snapshot.shapes,
+    }, modifiers, {
+      hitShapeId: hoveredShape?.id ?? null,
+    })
+    if (hasDragHit) {
+      marqueeApplyControllerRef.current.reset()
+      setMarquee(null)
+      const preserveGroupDragSelection = shouldPreserveGroupDragSelection({
+        modifiers,
+        hoveredShapeId: hoveredShape?.id ?? null,
+        selectedNodes,
+        shapeById: previewShapeById,
+      })
+      if (!preserveGroupDragSelection) {
+        canvasInteractions.onPointerDown(pointer, modifiers)
+      }
+      return
+    }
+
+    selectionDragControllerRef.current.clear()
+    const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
+      ? 'add'
+      : modifiers?.altKey
+        ? 'remove'
+        : (modifiers?.metaKey || modifiers?.ctrlKey)
+          ? 'toggle'
+          : 'replace'
+    marqueeApplyControllerRef.current.reset()
+    setMarquee(createMarqueeState(pointer, marqueeMode, {
+      applyMode: DEFAULT_MARQUEE_APPLY_MODE,
+    }))
+    return
+
+  }, [
+    canvasInteractions,
+    clearHover,
+    previewShapeById,
+    previewState.previewDocument,
+    snapshot.shapes,
+    selectedBounds,
+    selectedShapeIds,
+    selectedNodes,
+    singleSelectedRotation,
+    hoveredShapeId,
+  ])
+
+  const handlePointerMove = React.useCallback((pointer: {x: number; y: number}) => {
+    const preview = transformManagerRef.current.update(pointer)
+    if (preview) {
+      clearHover()
+      setTransformPreview(preview)
+      return
+    }
+
+    if (marquee) {
+      clearHover()
+      setMarquee((current) => {
+        if (!current) {
+          return current
+        }
+
+        const nextMarquee = updateMarqueeState(current, pointer)
+        applyMarqueeSelectionWhileMoving(nextMarquee)
+        return nextMarquee
+      })
+      return
+    }
+
+    const dragMove = selectionDragControllerRef.current.pointerMove(pointer, {
+      document: previewState.previewDocument,
+      shapes: snapshot.shapes,
+    })
+    if (dragMove.phase === 'pending') {
+      clearHover()
+      return
+    }
+    if ((dragMove.phase === 'started' || dragMove.phase === 'dragging') && dragMove.session) {
+      clearHover()
+      if (dragMove.phase === 'started') {
+        const dragStart = resolveDragStartTransformPayload(dragMove.session, previewShapeById)
+        if (dragStart) {
+          transformManagerRef.current.start({
+            shapeIds: dragStart.shapeIds,
+            shapes: dragStart.sessionShapes,
+            handle: 'move',
+            pointer: dragStart.pointer,
+            startBounds: dragStart.startBounds,
+          })
+          setTransformPreview({
+            shapes: dragStart.previewShapes,
+          })
+        }
+      }
+
+      const dragPreview = transformManagerRef.current.update(pointer)
+      if (dragPreview) {
+        setTransformPreview(dragPreview)
+      }
+      return
+    }
+
+    updateHover(pointer)
+  }, [
+    applyMarqueeSelectionWhileMoving,
+    clearHover,
+    marquee,
+    previewShapeById,
+    previewState.previewDocument,
+    snapshot.shapes,
+    updateHover,
+  ])
+
+  const handlePointerUp = React.useCallback(() => {
+    clearHover()
+    selectionDragControllerRef.current.pointerUp()
+
+    const transformCommit = resolvePointerUpTransformCommit(
+      transformManagerRef.current.commit(),
+      transformPreview,
+      snapshot.document.shapes,
+    )
+
+    if (transformCommit) {
+      if (transformCommit.selectionShapeIds.length > 0) {
+        runtime.dispatchCommand({
+          type: 'selection.set',
+          shapeIds: transformCommit.selectionShapeIds,
+          mode: 'replace',
+        })
+      }
+      if (transformCommit.transformCommand) {
+        runtime.dispatchCommand(transformCommit.transformCommand)
+        markTransformPreviewCommitPending()
+      } else {
+        clearTransformPreview()
+      }
+      return
+    }
+
+    const pointerUpMarquee = resolvePointerUpMarqueeSelection(marquee, previewState.previewDocument.shapes, {
+      matchMode: 'contain',
+      excludeShape: (shape) => shape.type === 'frame',
+    })
+    if (pointerUpMarquee) {
+      runtime.dispatchCommand({
+        type: 'selection.set',
+        shapeIds: pointerUpMarquee.shapeIds,
+        mode: pointerUpMarquee.mode,
+      })
+      marqueeApplyControllerRef.current.reset()
+      setMarquee(null)
+      return
+    }
+
+    canvasInteractions.onPointerUp()
+  }, [
+    canvasInteractions,
+    clearHover,
+    marquee,
+    previewState.previewDocument.shapes,
+    runtime,
+    snapshot.document.shapes,
+    clearTransformPreview,
+    markTransformPreviewCommitPending,
+    transformPreview,
+  ])
+
+  const handlePointerLeave = React.useCallback(() => {
+    transformManagerRef.current.cancel()
+    selectionDragControllerRef.current.clear()
+    clearTransformPreview()
+    setMarquee(null)
+    marqueeApplyControllerRef.current.reset()
+    clearHover()
+    canvasInteractions.onPointerLeave()
+  }, [canvasInteractions, clearHover, clearTransformPreview])
 
   const selectedShape = snapshot.stats.selectedIndex >= 0
     ? snapshot.shapes[snapshot.stats.selectedIndex] ?? null
@@ -296,7 +688,7 @@ function App() {
             <strong className="text-[13px] uppercase tracking-[0.04em] text-slate-50">Renderer</strong>
             <span className="text-xs text-slate-200/70">Switch backend request mode and hit-test strategy</span>
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          {/* <div className="grid grid-cols-2 gap-1.5">
             {(['webgl', 'canvas2d'] as EngineBackend[]).map((backend) => (
               <button
                 key={backend}
@@ -315,7 +707,7 @@ function App() {
                 {backend}
               </button>
             ))}
-          </div>
+          </div> */}
           <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
@@ -398,26 +790,20 @@ function App() {
             </div>
             <div className="min-h-0 min-w-0">
             <CanvasViewport
-              document={snapshot.document}
+              document={previewState.previewDocument}
               renderer={runtimeRenderer}
               overlayRenderer={overlayRenderer}
-              shapes={snapshot.shapes}
+              shapes={previewState.previewShapes}
               stats={snapshot.stats}
               viewport={snapshot.viewport}
-              onPointerMove={(pointer) => {
-                runtime.postPointer('pointermove', pointer)
-              }}
-              onPointerDown={(pointer, modifiers) => {
-                runtime.postPointer('pointerdown', pointer, modifiers)
-              }}
-              onPointerUp={() => {}}
-              onPointerLeave={() => {
-                runtime.clearHover()
-              }}
-              onViewportChange={runtime.setViewport}
-              onViewportPan={runtime.panViewport}
-              onViewportResize={runtime.resizeViewport}
-              onViewportZoom={runtime.zoomViewport}
+              onPointerMove={handlePointerMove}
+              onPointerDown={handlePointerDown}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerLeave}
+              onViewportChange={canvasInteractions.onViewportChange}
+              onViewportPan={canvasInteractions.onViewportPan}
+              onViewportResize={canvasInteractions.onViewportResize}
+              onViewportZoom={canvasInteractions.onViewportZoom}
               onRenderLodChange={() => {}}
             />
             </div>

@@ -11,7 +11,7 @@ runtime storage is still decomposed.
 - Shared runtime chain:
   - `@venus/runtime`
   - `@venus/runtime/interaction`
-  - `@venus/runtime/react`
+  - app-local runtime bridge
   - `@venus/runtime/worker`
   - `@venus/document-core`
 

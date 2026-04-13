@@ -10,7 +10,7 @@ Package-scoped note for shared editor interaction algorithms.
   Core mechanism helpers (for example marquee/handle/snapping primitives) may
   live in `@venus/engine` and be wrapped here for compatibility.
 - Keep product-specific tool behavior in app layers and keep framework glue in
-  `runtime-react`.
+  app-local runtime bridge files.
 
 ## Recent Updates
 

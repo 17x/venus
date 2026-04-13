@@ -5,6 +5,78 @@ export {
   type CanvasRuntimeSnapshot,
 } from './core/createCanvasRuntimeController.ts'
 export {
+  createCanvasRuntimeKit,
+  type CanvasRuntimeKit,
+  type CanvasRuntimeKitEngineBridge,
+  type CanvasRuntimeKitEventMap,
+  type CanvasRuntimeKitRenderRequest,
+  type CanvasRuntimeLayerRegistration,
+  type CreateCanvasRuntimeKitOptions,
+} from './core/createCanvasRuntimeKit.ts'
+export {
+  createDefaultCanvasRuntimeInstanceOptions,
+  resolveDefaultCanvasRuntimeModules,
+  type DefaultCanvasRuntimeOptions,
+} from './core/defaultRuntime.ts'
+export {
+  createTransformPreviewCommitController,
+  isTransformPreviewSynced,
+  type DocumentShapeGeometry,
+  type TransformPreviewCommitController,
+  type TransformPreviewState,
+} from './core/transformPreviewCommitController.ts'
+export {
+  createSharedCanvasRuntimeConfig,
+  type SharedCanvasRuntimeOptions,
+} from './core/sharedRuntime.ts'
+export {
+  createCanvasSnapshotStore,
+  selectCanvasSnapshot,
+  type CanvasSnapshotStore,
+} from './core/snapshotStore.ts'
+export {
+  createCanvasRuntimeApi,
+  DEFAULT_CANVAS_PRESENTATION_CONFIG,
+  type CanvasMarqueePresentationConfig,
+  type CanvasOverlayPresentationConfig,
+  type CanvasPresentationConfig,
+  type CanvasPresentationConfigPatch,
+  type CanvasRuntimeApi,
+  type CanvasRuntimeApiOptions,
+} from './core/createCanvasRuntimeApi.ts'
+export {
+  createDefaultCanvasRuntimeApi,
+  type DefaultCanvasRuntimeApiOptions,
+} from './core/defaultRuntimeApi.ts'
+export {
+  createCanvasTsRuntime,
+  createCanvasTsRuntime as createTsRuntime,
+  type CanvasTsRuntime,
+  type CanvasTsRuntime as TsRuntime,
+  type CanvasTsRuntimeEventMap,
+  type CanvasTsRuntimeEventMap as TsRuntimeEventMap,
+  type CanvasTsRuntimeInboundMessage,
+  type CanvasTsRuntimeInboundMessage as TsRuntimeInboundMessage,
+  type CanvasTsRuntimeNetworkBridge,
+  type CanvasTsRuntimeNetworkBridge as TsRuntimeNetworkBridge,
+  type CanvasTsRuntimeOutboundMessage,
+  type CanvasTsRuntimeOutboundMessage as TsRuntimeOutboundMessage,
+  type CreateCanvasTsRuntimeOptions,
+  type CreateCanvasTsRuntimeOptions as CreateTsRuntimeOptions,
+} from './core/createCanvasTsRuntime.ts'
+export {
+  createRuntimeGestureInterpreter,
+  createRuntimeGestureInterpreter as createGestureInterpreter,
+  type RuntimeGestureInterpreter,
+  type RuntimeGestureInterpreter as GestureInterpreter,
+  type RuntimeGestureInterpreterOptions,
+  type RuntimeGestureInterpreterOptions as GestureInterpreterOptions,
+  type RuntimeGesturePointerInput,
+  type RuntimeGesturePointerInput as GesturePointerInput,
+  type RuntimeGestureWheelInput,
+  type RuntimeGestureWheelInput as GestureWheelInput,
+} from './gesture/createRuntimeGestureInterpreter.ts'
+export {
   createCanvasEditorInstance,
   type CanvasEditorInstance,
   type CanvasEditorInstanceOptions,

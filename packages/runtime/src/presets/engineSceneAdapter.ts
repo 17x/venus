@@ -20,15 +20,6 @@ export interface CreateEngineSceneFromRuntimeSnapshotOptions {
 export function createEngineSceneFromRuntimeSnapshot(
   options: CreateEngineSceneFromRuntimeSnapshotOptions,
 ): EngineSceneSnapshot {
-  const shapeFlags = new Map(
-    options.shapes.map((shape) => [
-      shape.id,
-      {
-        isHovered: shape.isHovered,
-        isSelected: shape.isSelected,
-      },
-    ]),
-  )
   const documentShapeById = new Map(options.document.shapes.map((shape) => [shape.id, shape]))
   const nodes: EngineRenderableNode[] = [{
     id: '__doc_background__',
@@ -47,8 +38,7 @@ export function createEngineSceneFromRuntimeSnapshot(
     const sourceShape = documentShapeById.get(shape.id)
     const sourceBounds = resolveSourceShapeBounds(sourceShape)
     const sourceTransform = resolveSourceShapeTransform(sourceShape)
-    const flags = shapeFlags.get(shape.id)
-    const paint = resolveShapePaint(sourceShape, flags)
+    const paint = resolveShapePaint(sourceShape)
 
     if (shape.type === 'image') {
       const clipPathId = sourceShape?.clipPathId
@@ -268,9 +258,7 @@ function resolveShapePointBounds(
 
 function resolveShapePaint(
   sourceShape: EditorDocument['shapes'][number] | undefined,
-  flags: {isHovered: boolean; isSelected: boolean} | undefined,
 ) {
-  const selectedStroke = flags?.isSelected ? '#2563eb' : undefined
   const baseStroke = sourceShape?.stroke?.enabled === false
     ? 'transparent'
     : sourceShape?.stroke?.color ?? '#1f2937'
@@ -282,8 +270,8 @@ function resolveShapePaint(
   return {
     // Hover highlight is rendered by overlay chrome; keep node paint stable.
     fill: baseFill,
-    stroke: selectedStroke ?? baseStroke,
-    strokeWidth: flags?.isSelected ? Math.max(2, baseStrokeWidth) : baseStrokeWidth,
+    stroke: baseStroke,
+    strokeWidth: baseStrokeWidth,
   }
 }
 

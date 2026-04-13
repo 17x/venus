@@ -1,21 +1,27 @@
 import * as React from 'react'
 import {type EditorDocument} from '@venus/document-core'
-import {bindViewportGestures, type ViewportGestureBindingOptions} from '@venus/runtime/interaction'
+import type {CanvasViewportState} from '@venus/runtime'
+import type {
+  Engine,
+  EngineRenderScheduler,
+  EngineReplayRenderRequest,
+  EngineReplayWorkerEvent,
+} from '@venus/runtime/engine'
+import {
+  createEngine,
+  createEngineRenderScheduler,
+} from '@venus/runtime/engine'
+import {
+  bindViewportGestures,
+  resolveCanvasLodProfile,
+  type ViewportGestureBindingOptions,
+} from '@venus/runtime/interaction'
 import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
 } from '@venus/runtime/presets'
-import type {CanvasViewportState} from '@venus/runtime'
 import type {SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
-import {
-  createEngine,
-  createEngineRenderScheduler,
-  type Engine,
-  type EngineRenderScheduler,
-  type EngineReplayRenderRequest,
-  type EngineReplayWorkerEvent,
-} from '@venus/engine'
 
 export interface CanvasRendererProps {
   document: EditorDocument
@@ -35,28 +41,6 @@ export interface CanvasOverlayProps {
 
 export type CanvasRenderer = React.ComponentType<CanvasRendererProps>
 export type CanvasOverlayRenderer = React.ComponentType<CanvasOverlayProps>
-
-function resolveCanvasLodProfile(options: {
-  shapeCount: number
-  imageCount: number
-  scale: number
-}): {lodLevel: 0 | 1 | 2 | 3; renderQuality: 'full' | 'interactive'} {
-  let lodLevel: 0 | 1 | 2 | 3 =
-    options.shapeCount >= 50_000 || options.imageCount >= 1_000
-      ? 2
-      : options.shapeCount >= 10_000 || options.imageCount >= 250
-        ? 1
-        : 0
-
-  if (options.scale < 0.35 && lodLevel < 3) {
-    lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
-  }
-
-  return {
-    lodLevel,
-    renderQuality: lodLevel >= 2 ? 'interactive' : 'full',
-  }
-}
 
 interface CanvasViewportProps {
   document: EditorDocument

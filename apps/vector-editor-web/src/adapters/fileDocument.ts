@@ -1,5 +1,5 @@
 import type {BezierPoint, DocumentNode, EditorDocument, ShapeType} from '@venus/document-core'
-import {parseRuntimeSceneToEditorDocument} from '@venus/file-format/base'
+import {parseRuntimeSceneToEditorDocument} from '@venus/document-core'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
 import {createRuntimeSceneFromVisionFile} from './fileFormatScene.ts'

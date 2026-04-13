@@ -13,7 +13,6 @@
   "dependencies": {
     "@tailwindcss/vite": "4.2.2",
     "@venus/document-core": "workspace:*",
-    "@venus/file-format": "workspace:*",
     "@venus/runtime": "workspace:*",
     "@venus/shared-memory": "workspace:*",
     "@venus/ui": "workspace:*",

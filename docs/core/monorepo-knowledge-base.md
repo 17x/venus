@@ -22,7 +22,7 @@ Knowledge` when they become long-term guidance.
 ### Monorepo Shape
 
 - `apps/*` contains runnable product surfaces and diagnostics apps.
-- `packages/*` contains shared runtime, worker, renderer, file-format, and
+- `packages/*` contains shared runtime, worker, renderer, and
   document primitives.
 - `docs/*` contains project standards, handoff notes, and architecture context.
 - Package-scoped knowledge notes now live under `docs/packages/*`
@@ -33,23 +33,30 @@ Knowledge` when they become long-term guidance.
 
 - Main interactive chain:
   `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` +
-  `@venus/runtime/react` -> `@venus/runtime/worker` +
-  `@venus/shared-memory` -> `@venus/engine` (Canvas2D renderer in runtime-react)
+  app-local runtime bridge -> `@venus/runtime/worker` +
+  `@venus/shared-memory` -> `@venus/engine` (Canvas2D renderer wired from app layer)
 
 ### File And Model Truth
 
-- Treat `packages/file-format` as the canonical persisted scene/document model.
-- Prefer the file-format `node + feature` structure when reasoning about
-  geometry, text, image, and serialization semantics.
+- Treat `@venus/document-core` as the canonical persisted scene/document model.
+- Prefer the JSON runtime scene `node + feature` structure in
+  `@venus/document-core` when reasoning about geometry, text, image, and
+  serialization semantics.
 - Treat `@venus/document-core` `DocumentNode` as a flattened runtime adapter,
-  not the only source of truth.
+  while runtime scene contracts remain the canonical persistence format.
 
 ### Current Renderer Direction
 
 - `Canvas2D` is the current default/stable development renderer for active app
   work.
-- Runtime app surfaces consume Canvas2D via `@venus/runtime/react` +
-  `@venus/engine`.
+- Runtime app surfaces consume Canvas2D via app-local runtime bridges over
+  `@venus/runtime` + `@venus/engine`.
+
+### Historical Notes
+
+- Some older `Recent Updates` entries still reference `@venus/runtime/react` as
+  migration-era context; treat those mentions as historical unless a newer note
+  overrides them.
 
 ### Legacy Reference Code
 
@@ -68,7 +75,59 @@ Knowledge` when they become long-term guidance.
 
 ## Recent Updates
 
+### 2026-04-13
+
+- Removed `packages/file-format` after migrating runtime scene type contracts
+  and `parseRuntimeSceneToEditorDocument(...)` into
+  `packages/document-core/src/runtimeSceneTypes.ts` and
+  `packages/document-core/src/parseRuntimeScene.ts`.
+- Active app adapters now import runtime scene parser/types from
+  `@venus/document-core`, and workspace alias/tsconfig/package references to
+  `@venus/file-format` were removed.
+
+- Added framework-agnostic runtime facade
+  `createCanvasRuntimeKit(...)`
+  (`packages/runtime/src/core/createCanvasRuntimeKit.ts`) to formalize the TS
+  runtime layer above controller primitives:
+  runtime events, gesture-to-viewport API, overlay/dynamic layer registration,
+  and render-request coalescing for batch-heavy updates.
+- Added app-facing shared React entry
+  `useSharedCanvasRuntime(...)`
+  (`packages/runtime/src/react/useSharedCanvasRuntime.ts`) and migrated
+  `apps/vector-editor-web` + `apps/playground` to this single runtime wiring
+  path, reducing cross-surface interaction drift.
+
+- Added architecture boundary contract doc
+  `docs/runtime-engine-responsibility-split.md` to define clear ownership
+  between `@venus/engine`, `@venus/runtime*`, and app layers.
+- The new doc locks the direction:
+  mechanism in engine, interaction/runtime policy in `runtime` family, and
+  product behavior in app surfaces (`vector-editor-web`, `playground`).
+- `docs/architecture.md` now links to this detailed boundary contract so future
+  implementation/review work can use one stable source for responsibility
+  checks.
+- App/runtime boundary was tightened for active app surfaces:
+  `apps/vector-editor-web` and `apps/playground` no longer import
+  `@venus/engine` directly in active source files. Runtime-facing engine
+  mechanism access now routes through runtime bridge subpath
+  `@venus/runtime/engine` (`packages/runtime/src/engine.ts`).
+
 ### 2026-04-12
+
+- `@venus/runtime/react` now exposes a shared baseline interaction hook:
+  `useDefaultCanvasInteractions(...)`
+  (`packages/runtime/src/react/useDefaultCanvasInteractions.ts`).
+  It centralizes default pointer dispatch, hover clear on leave, viewport
+  handlers, and context-menu world-coordinate mapping so app shells can reuse
+  one wiring path instead of duplicating per-surface glue.
+- `apps/playground` now consumes that hook for `CanvasViewport` interaction
+  bindings, and `apps/vector-editor-web` reuses the same shared handlers for
+  viewport/context-menu + pointerdown fallback dispatch.
+
+- Architecture boundary wording was corrected across core docs to remove
+  ambiguity: hit-testing and render-path optimization mechanisms are
+  engine-owned (`@venus/engine`), while runtime/worker layers orchestrate
+  protocol/command/history flow and dispatch to engine mechanisms.
 
 - Engine backend request default in app-level API wiring is now `webgl`
   (with explicit `canvas2d` override):

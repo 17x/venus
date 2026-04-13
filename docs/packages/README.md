@@ -18,9 +18,7 @@ architecture changes can be recorded closer to the code they affect.
 
 - `document-core.md`
 - `engine.md`
-- `file-format.md`
 - `runtime.md`
 - `runtime-interaction.md`
-- `runtime-react.md`
 - `runtime-presets.md`
 - `ui.md`

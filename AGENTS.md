@@ -23,7 +23,7 @@ Also read:
 
 If docs conflict, prefer the newer core standards and root README over older notes.
 Canvas2D is the current active renderer path for vector and playground iteration;
-runtime apps consume it through `@venus/runtime/react` + `@venus/engine`.
+runtime apps consume it through app-local bridges over `@venus/runtime` + `@venus/engine`.
 
 ## Project Shape
 
@@ -31,7 +31,7 @@ Venus is a `pnpm` monorepo for composable canvas editor products such as vector,
 flowchart, mindmap, and whiteboard editors.
 
 - `apps/*`: runnable editor apps and diagnostics surfaces.
-- `packages/*`: shared runtime, worker, renderer, file-format, document, and UI
+- `packages/*`: shared runtime, worker, renderer, document, and UI
   infrastructure.
 - `docs/*`: architecture notes, standards, and handoff context.
 
@@ -45,7 +45,7 @@ Current priority areas:
 Primary runtime chain:
 
 ```text
-apps/* -> @venus/runtime + @venus/runtime/interaction + @venus/runtime/react -> @venus/runtime/worker + @venus/shared-memory -> @venus/engine
+apps/* -> @venus/runtime + @venus/runtime/interaction -> @venus/runtime/worker + @venus/shared-memory -> @venus/engine
 ```
 
 ## Architecture Rules
@@ -58,12 +58,11 @@ apps/* -> @venus/runtime + @venus/runtime/interaction + @venus/runtime/react -> 
   state.
 - Treat `@venus/runtime` as the bridge between app UI and worker/renderer
   packages, not as a product-specific UI layer.
-- Treat `packages/file-format` as the source of truth for persisted
-  scene/document semantics.
-- Prefer the file-format `node + feature` model when reasoning about geometry,
-  content, image, serialization, or document compatibility behavior.
-- Treat `@venus/document-core` runtime nodes as adapters where they differ from
-  persisted file-format semantics.
+- Treat `@venus/document-core` as the source of truth for persisted
+  scene/document semantics and runtime adapter contracts.
+- Prefer the JSON runtime scene `node + feature` model in
+  `@venus/document-core` when reasoning about geometry, content, image,
+  serialization, or document compatibility behavior.
 
 ## Code Style
 

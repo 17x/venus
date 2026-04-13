@@ -47,7 +47,7 @@ export interface TransformPreview {
 
 export type TransformBatchItem = ShapeTransformBatchItem
 
-interface TransformShapeSource {
+export interface TransformShapeSource {
   id: string
   x: number
   y: number
@@ -57,6 +57,7 @@ interface TransformShapeSource {
   flipX?: boolean
   flipY?: boolean
 }
+export type {ShapeTransformBatchCommand}
 
 export interface TransformSession {
   shapeIds: string[]

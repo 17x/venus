@@ -27,6 +27,24 @@ export {
   transformPoints,
 } from './geometry.ts'
 export {nid} from './nid.ts'
+export {parseRuntimeSceneToEditorDocument} from './parseRuntimeScene.ts'
+export type {
+  RuntimeFeatureKindV4,
+  RuntimeFeatureKindV5,
+  RuntimeFeatureEntryV5,
+  RuntimeEditorProductV5,
+  RuntimeNodeFeature,
+  RuntimeNodeFeatureV4,
+  RuntimeNodeFeatureV5,
+  RuntimeNodeType,
+  RuntimeNodeTypeV4,
+  RuntimeNodeTypeV5,
+  RuntimePathCommandV4,
+  RuntimePathV4,
+  RuntimeSceneAny,
+  RuntimeSceneLatest,
+  RuntimeSceneV5,
+} from './runtimeSceneTypes.ts'
 export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
 export {Unit, type UnitType} from './unit.ts'
 

@@ -12,6 +12,16 @@ helpers.
 
 ## Recent Updates
 
+### 2026-04-13
+
+- Runtime scene ownership moved into `@venus/document-core`.
+  `src/runtimeSceneTypes.ts` now defines the persisted JSON runtime scene
+  contracts (`RuntimeSceneLatest` and related feature/node aliases), and
+  `src/parseRuntimeScene.ts` now provides
+  `parseRuntimeSceneToEditorDocument(...)`.
+- `packages/file-format` was removed after active adapters and config surfaces
+  were migrated to import parser/types from `@venus/document-core` directly.
+
 ### 2026-04-12
 
 - Editor/runtime shape-transform and hit-test mechanisms are now engine-owned.

@@ -6,7 +6,7 @@ import {
   type ToolId,
   type ToolName,
 } from '@venus/document-core'
-import {getNormalizedBoundsFromBox} from '@venus/engine'
+import {getNormalizedBoundsFromBox} from '@venus/runtime/engine'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {HistorySummary} from '@venus/runtime/worker'
 import type {HistoryNodeLike} from './useEditorRuntime.types.ts'

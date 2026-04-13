@@ -2,11 +2,11 @@ import {
   type EditorDocument,
 } from '@venus/document-core'
 import {
-  getNormalizedBounds,
-  isPointInsideEngineClipShape,
-  isPointInsideEngineShapeHitArea,
+  getNormalizedBoundsFromBox,
 } from '@venus/engine'
 import type {SceneShapeSnapshot} from '@venus/shared-memory'
+import {hasSelectedAncestorInDocument} from './selectionHierarchy.ts'
+import {resolveTopHitShapeId} from './shapeHitTest.ts'
 
 export interface SelectionDragModifiers {
   shiftKey?: boolean
@@ -83,21 +83,29 @@ export function createSelectionDragController(options?: {
 
       let hitShape = null as SceneShapeSnapshot | null
       const hintedId = options?.hitShapeId ?? null
-      const shapeById = new Map(snapshot.document.shapes.map((item) => [item.id, item]))
+      const shapeSnapshotById = new Map(snapshot.shapes.map((shape) => [shape.id, shape]))
       if (hintedId) {
-        const hintedShape = snapshot.shapes.find((shape) => shape.id === hintedId) ?? null
-        const hintedSource = hintedShape ? shapeById.get(hintedShape.id) : undefined
-        if (
-          hintedShape &&
-          hintedSource &&
-          isShapeHitAtPointer(hintedShape, hintedSource, pointer, lineHitTolerance, allowFrameSelection, shapeById)
-        ) {
+        const hintedShape = shapeSnapshotById.get(hintedId) ?? null
+        const hintedHitId = hintedShape
+          ? resolveTopHitShapeId(snapshot.document, [hintedShape], pointer, {
+            allowFrameSelection,
+            tolerance: lineHitTolerance,
+            excludeClipBoundImage: true,
+            clipTolerance: lineHitTolerance,
+          })
+          : null
+        if (hintedHitId && hintedShape) {
           hitShape = hintedShape
         }
       }
       if (!hitShape) {
-        const hitIndex = hitTestSnapshot(snapshot, pointer, lineHitTolerance, allowFrameSelection)
-        hitShape = hitIndex >= 0 ? snapshot.shapes[hitIndex] : null
+        const hitShapeId = resolveTopHitShapeId(snapshot.document, snapshot.shapes, pointer, {
+          allowFrameSelection,
+          tolerance: lineHitTolerance,
+          excludeClipBoundImage: true,
+          clipTolerance: lineHitTolerance,
+        })
+        hitShape = hitShapeId ? shapeSnapshotById.get(hitShapeId) ?? null : null
       }
       pending = hitShape && !hasModifier
         ? {
@@ -124,7 +132,11 @@ export function createSelectionDragController(options?: {
         const selectedIdSet = new Set(selectedIds)
         const dragIds = (
           selectedIdSet.has(pending.shapeId) ||
-          hasSelectedAncestor(pending.shapeId, selectedIdSet, snapshot.document)
+          hasSelectedAncestorInDocument(
+            new Map(snapshot.document.shapes.map((shape) => [shape.id, shape])),
+            pending.shapeId,
+            selectedIdSet,
+          )
         )
           ? selectedIds
           : [pending.shapeId]
@@ -148,9 +160,9 @@ export function createSelectionDragController(options?: {
         }
 
         const first = dragShapes[0]
-        const firstBounds = getNormalizedBounds(first.x, first.y, first.width, first.height)
+        const firstBounds = getNormalizedBoundsFromBox(first.x, first.y, first.width, first.height)
         const bounds = dragShapes
-          .map((shape) => getNormalizedBounds(shape.x, shape.y, shape.width, shape.height))
+          .map((shape) => getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height))
           .reduce<{minX: number; minY: number; maxX: number; maxY: number}>(
             (acc, boundsItem) => ({
               minX: Math.min(acc.minX, boundsItem.minX),
@@ -210,71 +222,4 @@ export function createSelectionDragController(options?: {
       return session
     },
   }
-}
-
-function hasSelectedAncestor(
-  shapeId: string,
-  selectedIds: Set<string>,
-  document: EditorDocument,
-) {
-  const byId = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  let current = byId.get(shapeId)
-  while (current?.parentId) {
-    if (selectedIds.has(current.parentId)) {
-      return true
-    }
-    current = byId.get(current.parentId)
-  }
-  return false
-}
-
-function hitTestSnapshot(
-  snapshot: SelectionDragSnapshot,
-  pointer: {x: number; y: number},
-  lineHitTolerance: number,
-  allowFrameSelection: boolean,
-) {
-  const {document, shapes} = snapshot
-  const shapeById = new Map(document.shapes.map((item) => [item.id, item]))
-  for (let index = shapes.length - 1; index >= 0; index -= 1) {
-    const shape = shapes[index]
-    const source = shapeById.get(shape.id)
-    if (!source) {
-      continue
-    }
-    if (isShapeHitAtPointer(shape, source, pointer, lineHitTolerance, allowFrameSelection, shapeById)) {
-      return index
-    }
-  }
-
-  return -1
-}
-
-function isShapeHitAtPointer(
-  _shape: SceneShapeSnapshot,
-  source: EditorDocument['shapes'][number],
-  pointer: {x: number; y: number},
-  lineHitTolerance: number,
-  allowFrameSelection: boolean,
-  shapeById: Map<string, EditorDocument['shapes'][number]>,
-) {
-  if (source.type === 'image' && source.clipPathId) {
-    return false
-  }
-
-  if (source.clipPathId) {
-    const clipSource = shapeById.get(source.clipPathId)
-    if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
-      tolerance: lineHitTolerance,
-      shapeById,
-    })) {
-      return false
-    }
-  }
-
-  return isPointInsideEngineShapeHitArea(pointer, source, {
-    allowFrameSelection,
-    tolerance: lineHitTolerance,
-    shapeById,
-  })
 }

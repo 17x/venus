@@ -1,11 +1,16 @@
 import {useMemo} from 'react'
-import {applyMatrixToPoint} from '@venus/runtime'
+import {
+  applyMatrixToPoint,
+  DEFAULT_CANVAS_PRESENTATION_CONFIG,
+  type CanvasPresentationConfig,
+} from '@venus/runtime'
 import {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
+  getNormalizedBoundsFromBox,
   resolveNodeTransform,
   toResolvedNodeSvgTransform,
-} from '@venus/engine'
+} from '@venus/runtime/engine'
 import type {EditorDocument} from '@venus/document-core'
 import {resolveSnapGuideLines, type SnapGuide} from '@venus/runtime/interaction'
 import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
@@ -13,9 +18,6 @@ import type {SceneShapeSnapshot} from '@venus/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'
 import type {InteractionBounds} from '../types.ts'
-
-const SELECTED_STROKE_WIDTH = 1
-const HOVER_STROKE_WIDTH = 1
 
 interface InteractionOverlayProps {
   document: EditorDocument
@@ -25,6 +27,7 @@ interface InteractionOverlayProps {
   marqueeBounds?: InteractionBounds | null
   hideSelectionChrome?: boolean
   snapGuides?: SnapGuide[]
+  presentation?: CanvasPresentationConfig
 }
 
 export function InteractionOverlay({
@@ -35,8 +38,9 @@ export function InteractionOverlay({
   marqueeBounds = null,
   hideSelectionChrome = false,
   snapGuides = [],
+  presentation = DEFAULT_CANVAS_PRESENTATION_CONFIG,
 }: InteractionOverlayProps) {
-  const handleSize = 8
+  const handleSize = presentation.overlay.handleSize
   const halfHandleSize = handleSize / 2
   const selection = useMemo(
     () => buildSelectionState(document, shapes),
@@ -95,9 +99,18 @@ export function InteractionOverlay({
     if (!selection.selectedBounds || hideSelectionChrome) {
       return null
     }
-    const rotation = singleSelectedShape?.rotation ?? 0
-    return buildRectPolygon(selection.selectedBounds, rotation)
-  }, [hideSelectionChrome, selection.selectedBounds, singleSelectedShape?.rotation])
+    return buildRectPolygon(selection.selectedBounds, {
+      rotationDegrees: singleSelectedShape?.rotation ?? 0,
+      flipX: singleSelectedShape?.flipX ?? false,
+      flipY: singleSelectedShape?.flipY ?? false,
+    })
+  }, [
+    hideSelectionChrome,
+    selection.selectedBounds,
+    singleSelectedShape?.flipX,
+    singleSelectedShape?.flipY,
+    singleSelectedShape?.rotation,
+  ])
   const screenHandles = useMemo(
     () => handles.map((handle) => ({
       ...handle,
@@ -106,7 +119,9 @@ export function InteractionOverlay({
     [handles, viewport.matrix],
   )
   const marqueePolygon = useMemo(
-    () => marqueeBounds ? projectPolygon(buildRectPolygon(marqueeBounds, 0), viewport.matrix) : null,
+    () => marqueeBounds
+      ? projectPolygon(buildRectPolygon(marqueeBounds, {rotationDegrees: 0}), viewport.matrix)
+      : null,
     [marqueeBounds, viewport.matrix],
   )
   const snapLines = useMemo(
@@ -118,9 +133,29 @@ export function InteractionOverlay({
     }),
     [document.height, document.width, snapGuides, viewport.matrix],
   )
+  const staticShapeAnchors = useMemo(() => {
+    const anchors: Array<{key: string; tone: 'selected' | 'hover'; shapeId: string}> = []
+    selectedShapes.forEach((shape) => {
+      anchors.push({
+        key: `selected-stroke:${shape.id}`,
+        tone: 'selected',
+        shapeId: shape.id,
+      })
+    })
+    if (hoveredShape) {
+      anchors.push({
+        key: `hover-stroke:${hoveredShape.id}`,
+        tone: 'hover',
+        shapeId: hoveredShape.id,
+      })
+    }
+    return anchors
+  }, [hoveredShape, selectedShapes])
 
   return (
     <div
+      role="region"
+      aria-label="interaction-overlay-layer"
       style={{
         position: 'absolute',
         inset: 0,
@@ -129,6 +164,8 @@ export function InteractionOverlay({
       }}
     >
       <svg
+        role="img"
+        aria-label="interaction-overlay-svg"
         style={{
           position: 'absolute',
           inset: 0,
@@ -136,16 +173,23 @@ export function InteractionOverlay({
         width="100%"
         height="100%"
       >
-        <g transform={`matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`}>
-          {hoveredShape && renderHoveredShapeStroke(hoveredShape)}
-          {selectedShapes.map((shape) => renderSelectedShapeStroke(shape))}
+        <g
+          role="group"
+          aria-label="interaction-overlay-world-group"
+          transform={`matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`}
+        >
+          {hoveredShape && renderHoveredShapeStroke(hoveredShape, presentation)}
+          {selectedShapes.map((shape) => renderSelectedShapeStroke(shape, presentation))}
 
           {selectedPolygon && (
             <polygon
+              role="presentation"
               points={toSvgPoints(selectedPolygon)}
               fill="none"
-              stroke="#2563eb"
-              strokeWidth={SELECTED_STROKE_WIDTH}
+              stroke={presentation.overlay.selectionStroke}
+              strokeWidth={presentation.overlay.selectionStrokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
           )}
@@ -153,11 +197,12 @@ export function InteractionOverlay({
 
         {hoveredCenterScreen && (
           <circle
+            role="presentation"
             cx={hoveredCenterScreen.x}
             cy={hoveredCenterScreen.y}
             r={4}
-            fill="rgba(14, 165, 233, 0.95)"
-            stroke="rgba(14, 165, 233, 0.95)"
+            fill={presentation.overlay.hoverCenterFill}
+            stroke={presentation.overlay.hoverCenterStroke}
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />
@@ -165,6 +210,7 @@ export function InteractionOverlay({
 
         {!hideSelectionChrome && screenHandles.map((handle) => (
           <rect
+            role="presentation"
             key={handle.id}
             x={handle.x - halfHandleSize}
             y={handle.y - halfHandleSize}
@@ -172,48 +218,69 @@ export function InteractionOverlay({
             height={handleSize}
             rx={handle.kind === 'rotate' ? handleSize / 2 : 2}
             ry={handle.kind === 'rotate' ? handleSize / 2 : 2}
-            fill="#ffffff"
-            stroke="#2563eb"
-            strokeWidth={SELECTED_STROKE_WIDTH}
+            fill={presentation.overlay.handleFill}
+            stroke={presentation.overlay.handleStroke}
+            strokeWidth={presentation.overlay.selectionStrokeWidth}
             vectorEffect="non-scaling-stroke"
           />
         ))}
 
         {marqueePolygon && (
           <polygon
+            role="presentation"
             points={toSvgPoints(marqueePolygon)}
-            fill="rgba(37, 99, 235, 0.12)"
-            stroke="rgba(37, 99, 235, 0.95)"
-            strokeWidth={1}
+            fill={presentation.marquee.fill}
+            stroke={presentation.marquee.stroke}
+            strokeWidth={presentation.marquee.strokeWidth}
             vectorEffect="non-scaling-stroke"
-            strokeDasharray="4 3"
+            strokeDasharray={presentation.marquee.strokeDasharray}
           />
         )}
         {snapLines.map((line) => (
           <line
+            role="presentation"
             key={line.id}
             x1={line.x1}
             y1={line.y1}
             x2={line.x2}
             y2={line.y2}
-            stroke="rgba(248, 113, 113, 0.95)"
+            stroke={presentation.overlay.snapGuideStroke}
             strokeWidth={1}
-            strokeDasharray="5 3"
+            strokeDasharray={presentation.overlay.snapGuideDasharray}
             vectorEffect="non-scaling-stroke"
           />
         ))}
+
+        <g role="group" aria-label="interaction-overlay-static-anchors">
+          {staticShapeAnchors.map((anchor) => (
+            <g
+              key={`static-anchor:${anchor.key}`}
+              role="presentation"
+              data-overlay-layer="static"
+              data-overlay-tone={anchor.tone}
+              data-overlay-shape-id={anchor.shapeId}
+              data-overlay-for={anchor.key}
+            />
+          ))}
+        </g>
       </svg>
     </div>
   )
 }
 
-function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
-  const strokeColor = '#2563eb'
-  const strokeWidth = SELECTED_STROKE_WIDTH
+function renderSelectedShapeStroke(
+  shape: EditorDocument['shapes'][number],
+  presentation: CanvasPresentationConfig,
+) {
+  const strokeColor = presentation.overlay.selectionStroke
+  const strokeWidth = presentation.overlay.selectionStrokeWidth
   const common = {
+    role: 'presentation' as const,
     fill: 'none',
     stroke: strokeColor,
     strokeWidth,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
     vectorEffect: 'non-scaling-stroke' as const,
   }
   const transformState = resolveNodeTransform(shape)
@@ -275,6 +342,20 @@ function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
         {...common}
       />
     )
+  }
+
+  if (shape.type === 'rectangle' || shape.type === 'frame') {
+    const roundedRectD = buildRoundedRectStrokeD(shape)
+    if (roundedRectD) {
+      return (
+        <path
+          key={`selected-stroke:${shape.id}`}
+          d={roundedRectD}
+          transform={transform}
+          {...common}
+        />
+      )
+    }
   }
 
   return (
@@ -290,13 +371,19 @@ function renderSelectedShapeStroke(shape: EditorDocument['shapes'][number]) {
   )
 }
 
-function renderHoveredShapeStroke(shape: EditorDocument['shapes'][number]) {
-  const strokeColor = 'rgba(14, 165, 233, 0.9)'
-  const strokeWidth = HOVER_STROKE_WIDTH
+function renderHoveredShapeStroke(
+  shape: EditorDocument['shapes'][number],
+  presentation: CanvasPresentationConfig,
+) {
+  const strokeColor = presentation.overlay.hoverStroke
+  const strokeWidth = presentation.overlay.selectionStrokeWidth
   const common = {
+    role: 'presentation' as const,
     fill: 'none',
     stroke: strokeColor,
     strokeWidth,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
     vectorEffect: 'non-scaling-stroke' as const,
   }
   const transformState = resolveNodeTransform(shape)
@@ -358,6 +445,20 @@ function renderHoveredShapeStroke(shape: EditorDocument['shapes'][number]) {
         {...common}
       />
     )
+  }
+
+  if (shape.type === 'rectangle' || shape.type === 'frame') {
+    const roundedRectD = buildRoundedRectStrokeD(shape)
+    if (roundedRectD) {
+      return (
+        <path
+          key={`hover-stroke:${shape.id}`}
+          d={roundedRectD}
+          transform={transform}
+          {...common}
+        />
+      )
+    }
   }
 
   return (
@@ -395,10 +496,100 @@ function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {
   return null
 }
 
+function buildRoundedRectStrokeD(shape: EditorDocument['shapes'][number]) {
+  const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+  const width = Math.max(0, bounds.width)
+  const height = Math.max(0, bounds.height)
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+
+  const radii = resolveRoundedRectCornerRadii(shape, bounds)
+  const hasRoundedCorners = radii.topLeft > 0 || radii.topRight > 0 || radii.bottomRight > 0 || radii.bottomLeft > 0
+  if (!hasRoundedCorners) {
+    return null
+  }
+
+  const minX = bounds.minX
+  const minY = bounds.minY
+  const maxX = bounds.maxX
+  const maxY = bounds.maxY
+
+  return [
+    `M ${minX + radii.topLeft} ${minY}`,
+    `L ${maxX - radii.topRight} ${minY}`,
+    `A ${radii.topRight} ${radii.topRight} 0 0 1 ${maxX} ${minY + radii.topRight}`,
+    `L ${maxX} ${maxY - radii.bottomRight}`,
+    `A ${radii.bottomRight} ${radii.bottomRight} 0 0 1 ${maxX - radii.bottomRight} ${maxY}`,
+    `L ${minX + radii.bottomLeft} ${maxY}`,
+    `A ${radii.bottomLeft} ${radii.bottomLeft} 0 0 1 ${minX} ${maxY - radii.bottomLeft}`,
+    `L ${minX} ${minY + radii.topLeft}`,
+    `A ${radii.topLeft} ${radii.topLeft} 0 0 1 ${minX + radii.topLeft} ${minY}`,
+    'Z',
+  ].join(' ')
+}
+
+interface RoundedRectCornerRadii {
+  topLeft: number
+  topRight: number
+  bottomRight: number
+  bottomLeft: number
+}
+
+function resolveRoundedRectCornerRadii(
+  shape: Pick<EditorDocument['shapes'][number], 'cornerRadius' | 'cornerRadii'>,
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+): RoundedRectCornerRadii {
+  const width = Math.max(0, bounds.maxX - bounds.minX)
+  const height = Math.max(0, bounds.maxY - bounds.minY)
+  const fallback = Math.max(0, shape.cornerRadius ?? 0)
+  const requested: RoundedRectCornerRadii = {
+    topLeft: Math.max(0, shape.cornerRadii?.topLeft ?? fallback),
+    topRight: Math.max(0, shape.cornerRadii?.topRight ?? fallback),
+    bottomRight: Math.max(0, shape.cornerRadii?.bottomRight ?? fallback),
+    bottomLeft: Math.max(0, shape.cornerRadii?.bottomLeft ?? fallback),
+  }
+
+  if (width <= 0 || height <= 0) {
+    return {
+      topLeft: 0,
+      topRight: 0,
+      bottomRight: 0,
+      bottomLeft: 0,
+    }
+  }
+
+  const horizontalTop = requested.topLeft + requested.topRight
+  const horizontalBottom = requested.bottomLeft + requested.bottomRight
+  const verticalLeft = requested.topLeft + requested.bottomLeft
+  const verticalRight = requested.topRight + requested.bottomRight
+  const scale = Math.min(
+    1,
+    horizontalTop > 0 ? width / horizontalTop : 1,
+    horizontalBottom > 0 ? width / horizontalBottom : 1,
+    verticalLeft > 0 ? height / verticalLeft : 1,
+    verticalRight > 0 ? height / verticalRight : 1,
+  )
+
+  return {
+    topLeft: requested.topLeft * scale,
+    topRight: requested.topRight * scale,
+    bottomRight: requested.bottomRight * scale,
+    bottomLeft: requested.bottomLeft * scale,
+  }
+}
+
 function buildRectPolygon(
   bounds: {minX: number; minY: number; maxX: number; maxY: number},
-  rotationDegrees: number,
+  options: {
+    rotationDegrees: number
+    flipX?: boolean
+    flipY?: boolean
+  },
 ) {
+  const rotationDegrees = options.rotationDegrees
+  const flipX = options.flipX ? -1 : 1
+  const flipY = options.flipY ? -1 : 1
   const centerX = (bounds.minX + bounds.maxX) / 2
   const centerY = (bounds.minY + bounds.maxY) / 2
   const corners = [
@@ -407,12 +598,16 @@ function buildRectPolygon(
     {x: bounds.maxX, y: bounds.maxY},
     {x: bounds.minX, y: bounds.maxY},
   ]
-  if (Math.abs(rotationDegrees) <= 0.0001) {
+  if (Math.abs(rotationDegrees) <= 0.0001 && flipX === 1 && flipY === 1) {
     return corners
   }
   const matrix = createAffineMatrixAroundPoint(
     {x: centerX, y: centerY},
-    {rotationDegrees},
+    {
+      rotationDegrees,
+      scaleX: flipX,
+      scaleY: flipY,
+    },
   )
   return corners.map((point) => applyAffineMatrixToPoint(matrix, point))
 }
