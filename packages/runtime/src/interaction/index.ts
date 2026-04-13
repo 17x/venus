@@ -1,3 +1,4 @@
+// Zoom policy
 export {
   RUNTIME_ZOOM_PRESETS,
   resolveRuntimeZoomGestureScale,
@@ -6,6 +7,14 @@ export {
   type RuntimeZoomInputSource,
   type RuntimeZoomPreset,
 } from './zoomPresets.ts'
+export {
+  resolveEngineCanvasLodProfile as resolveCanvasLodProfile,
+} from '@venus/engine'
+export type {
+  EngineCanvasLodProfile as CanvasLodProfile,
+  EngineCanvasLodProfileInput as CanvasLodProfileInput,
+} from '@venus/engine'
+// Marquee selection
 export {
   createMarqueeState,
   updateMarqueeState,
@@ -23,6 +32,11 @@ export {
   type MarqueeState,
 } from './marqueeSelection.ts'
 export {
+  createMarqueeSelectionApplyController,
+  type MarqueeSelectionApplyController,
+} from './marqueeApplyController.ts'
+// Selection handles
+export {
   buildSelectionHandlesFromBounds,
   pickSelectionHandleAtPoint,
   type SelectionHandle,
@@ -31,6 +45,7 @@ export {
   type SelectionHandlePoint,
 } from './selectionHandles.ts'
 export { collectResizeTransformTargets } from './transformTargets.ts'
+// Snapping
 export {
   resolveMoveSnapPreview,
   type MoveSnapOptions,
@@ -39,10 +54,18 @@ export {
   resolveSnapGuideLines,
   type SnapGuideLine,
 } from './snapping.ts'
+// Viewport gestures
 export {
   bindViewportGestures,
   type ViewportGestureBindingOptions,
 } from './viewportGestures.ts'
+export {
+  createDefaultCanvasInteractions,
+  type CreateDefaultCanvasInteractionsOptions,
+  type DefaultCanvasInteractionRuntime,
+  type DefaultCanvasInteractions,
+} from './defaultInteractions.ts'
+// Transform preview
 export {
   applyTransformPreviewGeometryToShape,
   buildGroupAwareTransformPreviewMap,
@@ -52,6 +75,7 @@ export {
   type TransformPreviewRuntimeSnapshot,
   resolveTransformPreviewRuntimeState,
 } from './transformPreview.ts'
+// Drag session
 export {
   createSelectionDragController,
   type SelectionDragController,
@@ -61,6 +85,54 @@ export {
   type SelectionDragShapeState,
   type SelectionDragSnapshot,
 } from './selectionDragController.ts'
+export { hasSelectedAncestorInDocument } from './selectionHierarchy.ts'
+// Hit test
+export {
+  resolveTopHitShapeId,
+  type ResolveTopHitShapeIdOptions,
+} from './shapeHitTest.ts'
+// Overlay hover
+export {
+  resolveHoverShape,
+  resolveHoverShape as resolveOverlayHoverShapeId,
+  resolveHoverShape as resolveOverlayHoverShapeIdCompat,
+} from './overlay/hover.ts'
+export type {
+  ResolveHoverShapeOptions,
+  ResolveHoverShapeOptions as ResolveOverlayHoverShapeIdOptions,
+  ResolveHoverShapeOptions as ResolveOverlayHoverShapeIdCompatOptions,
+} from './overlay/hover.ts'
+// Selection policies
+export {
+  shouldClearSelectionOnPointerDown,
+  shouldPreserveGroupDragSelection,
+  type ShouldClearSelectionOnPointerDownOptions,
+  type ShouldPreserveGroupDragSelectionOptions,
+} from './selectionPointerPolicy.ts'
+export {
+  resolveSelectedNodesByIds,
+  resolveSingleSelectedRotation,
+} from './selectionResolve.ts'
+// Handle resolve
+export {
+  resolveSelectionHandleHitAtPoint,
+  type ResolveSelectionHandleHitOptions,
+  type ResolveSelectionHandleHitResult,
+} from './selectionHandleResolve.ts'
+// Transform resolve helpers
+export {
+  resolveDragStartTransformPayload,
+  resolveSnappedTransformPreview,
+  type DragStartTransformPayload,
+} from './transformPreviewResolve.ts'
+// Pointer-up commits
+export {
+  resolvePointerUpTransformCommit,
+  resolvePointerUpMarqueeSelection,
+  type PointerUpTransformCommitResult,
+  type PointerUpMarqueeSelectionResult,
+} from './pointerUpResolve.ts'
+// Transform session core
 export {
   buildTransformBatch,
   createTransformBatchCommand,

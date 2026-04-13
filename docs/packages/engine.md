@@ -10,6 +10,28 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
 
 ## Recent Updates
 
+### 2026-04-13
+
+- Narrowed `@venus/engine` root exports to canonical mechanism names only in
+  `packages/engine/src/index.ts` (for example `createEngineMarqueeState`,
+  `buildEngineSelectionHandlesFromBounds`, `DEFAULT_ENGINE_VIEWPORT`,
+  `handleEngineZoomWheel`).
+- Added engine-owned canvas LOD profile helper in
+  `packages/engine/src/interaction/lodProfile.ts`
+  (`resolveEngineCanvasLodProfile(...)`) and exported it from `@venus/engine`
+  root so runtime/app layers can share one LOD policy owner.
+- Added compatibility subpath `@venus/engine/compat`
+  (`packages/engine/src/compat.ts`) for legacy non-prefixed aliases
+  (`createMarqueeState`, `buildSelectionHandlesFromBounds`,
+  `DEFAULT_VIEWPORT`, `handleZoomWheel`, etc.) so migration can be explicit and
+  incremental.
+- Updated runtime/app callsites that still used root alias exports to canonical
+  mechanism names:
+  `packages/runtime/src/interaction/selectionDragController.ts` now uses
+  `getNormalizedBoundsFromBox(...)`, and
+  `apps/playground/src/runtime/canvasAdapter.tsx` now uses
+  `buildEngineSelectionHandlesFromBounds(...)`.
+
 ### 2026-04-12
 
 - Added high-level engine facade API in
@@ -113,14 +135,14 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
   `@venus/runtime` consumers can adopt engine APIs incrementally.
 - Added standalone usability primitives:
   `createCanvas2DEngineRenderer` and `createEngineLoop`, so engine can now run
-  a scene/viewport render loop without requiring `@venus/runtime/react`.
+  a scene/viewport render loop without requiring legacy runtime React adapters.
 - Extended `createEngineLoop` with a frame-level `beforeRender(frame)` hook so
   animation controllers or other frame-driven state can tick inside one shared
   engine loop boundary.
 - Added a standalone `@venus/engine` demo block in `apps/playground` `Engine`
   tab (canvas2d backend live path + webgl reserved entry), demonstrating
   independent usage of engine scene contracts, frame clock, animation
-  controller, and loop APIs without `@venus/runtime/react`.
+  controller, and loop APIs without legacy runtime React adapters.
 - Added built-in engine worker capability detection and fallback mode
   resolution (`main-thread`, `worker-postmessage`,
   `worker-shared-memory`) so runtime/app layers can reuse one policy from the

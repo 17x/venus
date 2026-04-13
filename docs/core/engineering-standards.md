@@ -1,5 +1,8 @@
 # Venus Engineering Standards
 
+For actionable naming, file-size, API style, readability, and maintainability
+checks, use `docs/core/code-style-checklist.md` together with this document.
+
 ## How To Work
 
 - Read the local code before changing architecture-sensitive paths
@@ -28,11 +31,11 @@
 - Use strict typing to model the domain instead of bypassing errors with assertions or ignore comments
 - Prefer extending existing `@venus/*` modules over creating parallel helpers in app code
 - Preserve the repository's existing import and formatting style, including extension-bearing local imports where already used
-- Treat `packages/file-format` as the source of truth for persisted scene/document
+- Treat `@venus/document-core` as the source of truth for persisted scene/document
   semantics; describe runtime or app-only structures as adapters, not competing
   canonical models
-- Prefer the file-format `node + feature` model when reasoning about geometry,
-  content, and serialization behavior
+- Prefer the JSON runtime scene `node + feature` model in `@venus/document-core`
+  when reasoning about geometry, content, and serialization behavior
 - Keep framework code out of framework-agnostic runtime packages; runtime core packages must not depend on React, Vue, or another UI framework
 - Separate mechanism from policy: runtime core owns lifecycle, transport, viewport state, and shared contracts, while presets and app layers own opinionated behavior
 - Keep renderer mechanism contracts in `@venus/engine` (renderer adapters,
@@ -42,7 +45,6 @@
 - When organizing runtime code, prefer the `runtime-*` family split:
   `@venus/runtime` for portable runtime core,
   `@venus/runtime/interaction` for shared editing interaction algorithms,
-  `@venus/runtime/react` for React adapters,
   and `@venus/runtime/presets` for default behavior packs
 
 ## Safety Rules

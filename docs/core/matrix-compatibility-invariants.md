@@ -15,12 +15,12 @@ incrementally centralized.
   over package-local trig/rotate/flip math.
 - Shared SVG/CSS rotate/flip transform string assembly belongs here.
 
-## `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react`
+## `@venus/runtime` + `@venus/runtime/interaction` + app-local runtime bridge
 
 - `@venus/runtime` acts as the framework-agnostic app/runtime bridge.
 - `@venus/runtime/interaction` owns transform session, handle geometry,
   preview map, and commit payload shaping so they are not copied in app layers.
-- `@venus/runtime/react` owns the React adapter surfaces only.
+- React adapter ownership lives in app-local runtime bridge files.
 - Interaction paths must consume `document-core` transform compatibility
   helpers rather than re-deriving center/bounds/matrix ad hoc.
 - `shape.transform.batch` command payload construction is shared through
@@ -37,7 +37,7 @@ incrementally centralized.
 - Runtime mutation remains decomposed for now; matrix-first node storage is not
   yet active.
 
-## Canvas2D Renderer (`@venus/runtime/react` + `@venus/engine`)
+## Canvas2D Renderer (app bridge + `@venus/engine`)
 
 - Renderer consumes resolved transform compatibility state from
   `document-core`; it should not become an alternate source of transform truth.

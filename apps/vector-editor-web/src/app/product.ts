@@ -8,6 +8,6 @@ export const vectorEditorDescriptor = {
     renderer: '@venus/engine',
     model: '@venus/document-core',
     sharedMemory: '@venus/shared-memory',
-    protocol: '@venus/file-format',
+    protocol: '@venus/document-core',
   },
 } as const

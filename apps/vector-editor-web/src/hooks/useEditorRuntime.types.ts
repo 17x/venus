@@ -1,11 +1,11 @@
 import type * as React from 'react'
 import type {ToolName} from '@venus/document-core'
 import type {CanvasViewportState} from '@venus/runtime'
-import type {useCanvasRuntime} from '@venus/runtime/react'
 import type {
   CanvasOverlayRenderer as CanvasOverlayRendererCompat,
   CanvasRenderer as CanvasRendererCompat,
 } from '../runtime/canvasAdapter.tsx'
+import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../components/statusBar/StatusBar.tsx'
 import type {createEditorDocumentFromFile} from '../adapters/fileDocument.ts'
@@ -67,8 +67,8 @@ export interface EditorRuntimeState {
     OverlayRenderer?: CanvasOverlayRendererCompat
     document: ReturnType<typeof createEditorDocumentFromFile>
     shapes: SceneShapeSnapshot[]
-    stats: ReturnType<typeof useCanvasRuntime>['stats']
-    viewport: ReturnType<typeof useCanvasRuntime>['viewport']
+    stats: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['stats']
+    viewport: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['viewport']
     ready: boolean
     onPointerMove: (point: {x: number; y: number}) => void
     onPointerDown: (

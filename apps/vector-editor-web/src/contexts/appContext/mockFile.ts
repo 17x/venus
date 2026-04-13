@@ -3,7 +3,7 @@ import {
   type BezierPoint,
   type Point,
 } from '@venus/document-core'
-import {getNormalizedBoundsFromBox} from '@venus/engine'
+import {getNormalizedBoundsFromBox} from '@venus/runtime/engine'
 import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
 
 function createMockImageDataUrl() {

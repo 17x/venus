@@ -7,7 +7,7 @@ import {
   type EditorDocument,
   type Point,
 } from '@venus/document-core'
-import {getNormalizedBoundsFromBox} from '@venus/engine'
+import {getNormalizedBoundsFromBox} from '@venus/runtime/engine'
 
 const RANDOM_SEED = 424242
 const IMAGE_VARIANT_COUNT = 24

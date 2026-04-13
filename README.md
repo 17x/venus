@@ -7,7 +7,7 @@ The current active stack focuses on `vector-editor-web` and `playground`.
 
 - Vector App Demo:
   [https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
-- Playground: [https://lucasischow.github.io/demos/venus/playground/](https://lucasischow.github.io/demos/venus/playground/)
+- Playground: [https://venus-pla.pages.dev/](https://venus-pla.pages.dev/)
 
 ## Workspace Layout
 
@@ -20,7 +20,7 @@ The current active stack focuses on `vector-editor-web` and `playground`.
   - `@venus/runtime`: consolidated runtime package
     - core runtime/controller: `@venus/runtime`
     - interaction submodule: `@venus/runtime/interaction`
-    - react submodule: `@venus/runtime/react`
+    - engine bridge submodule: `@venus/runtime/engine`
     - presets submodule: `@venus/runtime/presets`
   - `@venus/runtime/worker`: command execution and scene mutation in worker
   - `@venus/shared-memory`: SAB layout and scene snapshot helpers
@@ -89,7 +89,7 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime Data Flow
 
-`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`
+`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`
 
 - UI and product actions stay in app layer.
 - Worker owns scene mutation and command execution.

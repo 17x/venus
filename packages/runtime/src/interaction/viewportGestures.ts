@@ -3,9 +3,9 @@ import {
   accumulateEngineWheelPanOffset,
   applyMatrixToPoint,
   createEngineViewportPanOrigin,
-  handleZoomWheel,
-  resetZoomSession,
-  zoomViewportState,
+  handleEngineZoomWheel,
+  resetEngineZoomSession,
+  zoomEngineViewportState,
   type EngineCanvasViewportState,
 } from '@venus/engine'
 import type { PointerState } from '@venus/shared-memory'
@@ -16,6 +16,7 @@ const POINTER_SUPPRESS_AFTER_WHEEL_MS = 180
 export interface ViewportGestureBindingOptions {
   element: HTMLElement
   getViewportState: () => EngineCanvasViewportState
+  coalescePointerMove?: boolean
   onPointerMove?: (pointer: PointerState) => void
   onPointerDown?: (
     pointer: PointerState,
@@ -39,6 +40,7 @@ export interface ViewportGestureBindingOptions {
 export function bindViewportGestures({
   element,
   getViewportState,
+  coalescePointerMove = true,
   onPointerMove,
   onPointerDown,
   onPointerUp,
@@ -47,7 +49,7 @@ export function bindViewportGestures({
   onZoomCommitViewport,
   onPanCommit,
 }: ViewportGestureBindingOptions) {
-  let zoomSession = resetZoomSession()
+  let zoomSession = resetEngineZoomSession()
   let panOffset = {x: 0, y: 0}
   let panOrigin: {x: number; y: number; pointerId: number} | null = null
   let latestPointerClient: {x: number; y: number} | null = null
@@ -106,7 +108,7 @@ export function bindViewportGestures({
       }
 
       const rect = element.getBoundingClientRect()
-      const nextZoom = handleZoomWheel(zoomSession, {
+      const nextZoom = handleEngineZoomWheel(zoomSession, {
         clientX: event.clientX - rect.left,
         clientY: event.clientY - rect.top,
         ctrlKey: event.ctrlKey,
@@ -125,7 +127,7 @@ export function bindViewportGestures({
       }
       zoomSettleTimeout = window.setTimeout(() => {
         zoomSettleTimeout = null
-        zoomSession = resetZoomSession()
+        zoomSession = resetEngineZoomSession()
         onZoomingChange?.(false)
       }, nextZoom.settleDelay)
 
@@ -137,7 +139,7 @@ export function bindViewportGestures({
         proposedScale,
         nextZoom.source,
       )
-      const nextViewport = zoomViewportState(
+      const nextViewport = zoomEngineViewportState(
         commitBaseViewport,
         resolvedScale,
         nextZoom.anchor,
@@ -221,6 +223,11 @@ export function bindViewportGestures({
     latestPointerClient = {
       x: event.clientX,
       y: event.clientY,
+    }
+
+    if (!coalescePointerMove) {
+      onPointerMove?.(resolveWorldPointer(latestPointerClient.x, latestPointerClient.y))
+      return
     }
 
     if (pointerFrame === null) {

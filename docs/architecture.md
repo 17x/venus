@@ -4,12 +4,16 @@
 
 Venus uses a layered architecture to keep boundaries clear and performance stable:
 
-`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine` (Canvas2D via runtime-react)
+`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine` (Canvas2D via app-local runtime bridges)
+
+Detailed boundary contract for execution ownership:
+`docs/runtime-engine-responsibility-split.md`
 
 ## Principles
 
 - Keep product UI and orchestration in app layers.
-- Keep command execution, hit-testing, history, and indexing in worker/runtime layers.
+- Keep command execution and protocol/history orchestration in worker/runtime layers.
+- Keep hit-testing and render-optimization mechanisms in `@venus/engine`.
 - Use SharedArrayBuffer for hot runtime data transport.
 - Keep renderer focused on snapshot + viewport consumption.
 - Treat file format and runtime model as decoupled layers.
@@ -19,6 +23,7 @@ Venus uses a layered architecture to keep boundaries clear and performance stabl
 ### `@venus/document-core`
 
 - Shared document/runtime adapter types and geometry primitives.
+- Persisted JSON scene contracts and runtime-scene parsing adapters.
 
 ### `@venus/runtime`
 
@@ -29,30 +34,28 @@ Venus uses a layered architecture to keep boundaries clear and performance stabl
 - Renderer contracts and backend capability surface.
 - Render node contracts for text, text runs, image, and clipping.
 - Frame clock and lightweight animation mechanism shared by renderer/runtime integrations.
+- Hit-testing mechanisms and render hot-path optimization primitives.
 
 ### `@venus/runtime/interaction`
 
 - Shared interaction algorithms: marquee, snapping, selection handles, transform sessions.
 
-### `@venus/runtime/react`
+### App-Local React Bridges
 
-- React adapters (`useCanvasRuntime`, `useCanvasViewer`, `CanvasViewport`) and renderer contracts.
+- Active apps keep React-specific glue in app-local bridge files.
+- Shared runtime package stays framework-agnostic.
 
 ### `@venus/runtime/worker`
 
-- Worker protocol, command execution, hit-testing integration, history, collaboration state.
+- Worker protocol, command execution, history, collaboration state, and engine mechanism dispatch.
 
 ### `@venus/shared-memory`
 
 - SharedArrayBuffer layout and snapshot read/write helpers.
 
-### `@venus/file-format`
-
-- Persisted schema, migrations, runtime-scene parsing adapters.
-
 ### Renderer Integration
 
-- Active app surfaces consume Canvas2D renderer from `@venus/runtime/react`.
+- Active app surfaces consume Canvas2D through app-layer runtime bridges.
 - The renderer mechanism contract and backend primitives live in `@venus/engine`.
 
 ## App Roles
@@ -79,7 +82,7 @@ Venus uses a layered architecture to keep boundaries clear and performance stabl
 
 1. `CanvasViewport` captures pointer input.
 2. Runtime forwards pointer to worker.
-3. Worker resolves hover/selection hit results.
+3. Worker/runtime route pointer context to engine-owned hit-test mechanisms.
 4. Snapshot flags update and render refreshes.
 
 ### Viewport Flow

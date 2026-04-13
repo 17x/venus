@@ -6,14 +6,13 @@ Use the current runtime package family to ship an extensible mindmap editor with
 
 ## Recommended Approach
 
-- Reuse `@venus/runtime` and `@venus/runtime/react` for lifecycle/viewport/worker bridge.
+- Reuse `@venus/runtime` and `@venus/runtime/interaction` with an app-local React bridge for lifecycle/viewport/worker integration.
 - Keep mindmap semantics (topic/edge/fold/layout) in app + worker command layers.
-- Start with Canvas2D renderer from `@venus/runtime/react` (engine-backed).
+- Start with Canvas2D renderer wired from app layer over `@venus/runtime/engine` (engine-backed).
 
 ## What Runtime Packages Own
 
 - `@venus/runtime`: lifecycle, viewport, command bridge, worker transport
-- `@venus/runtime/react`: React hooks/components (`useCanvasRuntime`, `useCanvasViewer`, `CanvasViewport`)
 - `@venus/runtime/interaction`: shared editing interaction algorithms
 
 ## What They Do Not Own
@@ -25,7 +24,7 @@ Use the current runtime package family to ship an extensible mindmap editor with
 
 ## Viewer Mode
 
-`useCanvasViewer` is suitable for read-only mindmap surfaces:
+`createCanvasViewerController` is suitable for read-only mindmap surfaces:
 
 - document preview
 - embedded read-only pages
@@ -35,7 +34,7 @@ Viewer mode handles viewport commands and optional hit-testing, but ignores shap
 
 ## Suggested Mindmap Delivery Steps
 
-1. Build app shell with `useCanvasRuntime` + `CanvasViewport` + Canvas2D renderer.
+1. Build app shell with `createDefaultCanvasRuntimeApi` + app-local `CanvasViewport` + Canvas2D renderer.
 2. Add mindmap document/command adapters in app layer.
 3. Extend worker with topic commands (`insert`, `rename`, `move`, `delete`).
 4. Add edge rendering/hit behavior.

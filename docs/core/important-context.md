@@ -2,18 +2,19 @@
 
 ## Runtime Chain
 
-- `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` + `@venus/runtime/react` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`.
+- `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`.
 
 ## Model Truth
 
-- Persisted scene/document semantics: `packages/file-format`.
+- Persisted scene/document semantics: `@venus/document-core`.
 - Runtime adapter model: `@venus/document-core` (`DocumentNode`).
-- Prefer `node + feature` semantics for compatibility reasoning.
+- Prefer JSON runtime scene `node + feature` semantics for compatibility reasoning.
 
 ## Layer Boundaries
 
 - App layer: product UI and orchestration.
-- Worker/runtime layer: command execution, hit-testing, history, protocol flow.
+- Worker/runtime layer: command execution, history, protocol flow, and engine mechanism orchestration.
+- Engine layer: hit-testing and render-optimization mechanisms.
 - Renderer layer: consume snapshot + viewport only.
 
 ## Renderer Direction
@@ -24,4 +25,4 @@
 ## Shared Memory Note
 
 - SharedArrayBuffer is runtime transport, not persistence format.
-- Save/export document state through adapters/file-format, not SAB memory.
+- Save/export document state through document adapters in `@venus/document-core`, not SAB memory.

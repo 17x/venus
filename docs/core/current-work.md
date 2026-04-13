@@ -15,23 +15,35 @@ context starts, or work needs to resume after switching topics.
 
 ## In Progress
 
+- `runtime-engine responsibility hardening`
+  Focus on keeping mechanism/policy/product boundaries stable during active
+  feature work.
+  Current direction:
+  - use `docs/runtime-engine-responsibility-split.md` as the ownership checklist
+    before landing runtime/engine/app changes
+  - keep engine as mechanism owner (render/hit-test/math/index/scheduler)
+  - keep runtime family as policy/orchestration owner
+  - keep app surfaces as product behavior/UI owner
+  - route new large-scene updates through shared batch patch/transaction paths
+    before adding app-local performance branches
+
 - `runtime` package direction
   Focus on stabilizing the consolidated runtime namespace and boundaries.
   Current direction:
   - runtime family is physically consolidated in `packages/runtime` with
-    subpath exports (`@venus/runtime/interaction`, `@venus/runtime/react`,
+    subpath exports (`@venus/runtime/interaction`,
     `@venus/runtime/presets`, `@venus/runtime/worker`)
   - standalone `editor-worker` package has been merged into
     `packages/runtime/src/worker`
-  - keep `@venus/runtime` framework-agnostic, with React adapters and presets
-    implemented as runtime submodules rather than separate packages
+  - keep `@venus/runtime` framework-agnostic and API-object-first; app-level
+    React glue stays in app-local bridge files
   - keep worker acceleration policy in `@venus/engine` with explicit fallback
     modes (`main-thread` / `worker-postmessage` / `worker-shared-memory`)
     so runtime/app layers do not duplicate SAB checks
   - keep `@venus/engine` root exports intentionally small; treat worker
     bridge/protocol internals as non-public unless a new cross-package
     contract is explicitly required
-  - file-format base model direction is now JSON-first; avoid reintroducing
+  - document-core runtime scene model direction is now JSON-first; avoid reintroducing
     FlatBuffer schema/migration ownership into active runtime iteration paths
 
 - `vector-editor-web`
@@ -47,7 +59,7 @@ context starts, or work needs to resume after switching topics.
     (shared matrix-sensitive regression runbook)
   - `docs/core/matrix-first-runtime-rfc.md`
     (Phase-5 matrix-first runtime contract draft)
-  - `packages/file-format/base/src/parseRuntimeScene.ts`
+  - `packages/document-core/src/parseRuntimeScene.ts`
     (transform compatibility parse path from metadata + node matrix)
   - `apps/vector-editor-web/src/adapters/fileFormatScene.ts`
     (vector export now emits transform metadata through shared transform
@@ -93,11 +105,10 @@ context starts, or work needs to resume after switching topics.
   Reason: current priority is the vector editor and shared engine/runtime work.
 
 - `runtime-react`
-  Broad runtime selector migration is paused.
-  Reason: the runtime snapshot is mutable, so selector caching needs to be
-  introduced carefully and incrementally.
-  Safe status: selector helpers exist, but the core `useCanvasRuntime` and
-  `useCanvasViewer` hooks remain on the stable subscription path.
+  Legacy runtime-react hook surface has been retired from `packages/runtime`.
+  Reason: active apps now integrate through framework-agnostic runtime API
+  objects + app-local React bridges.
+  Safe status: no active app source path depends on `@venus/runtime/react`.
 
 - `vector-editor-web`
   Deeper freehand drawing workflow work is paused.
@@ -127,26 +138,18 @@ context starts, or work needs to resume after switching topics.
   - add targeted interaction regression checks for mixed rotate/scale/move
     batches
 
-- `runtime-react`
-  Continue pushing the numeric LOD path and viewport bitmap cache before trying
-  larger renderer architecture changes. The current scheduler + skip-small-shapes
-  path is in place and should be tuned/measured first.
-
-- `runtime-react`
-  If `50k+` and `100k` scenes remain too heavy after LOD tuning and viewport
-  bitmap caching, prefer evaluating layer caching / tile caching / GPU-backed
-  rendering instead of bringing back DOM preview transforms.
-
-- `runtime-react`
-  Revisit selector-based subscriptions only in isolated app surfaces first,
-  then expand after behavior is verified.
+- `runtime`
+  Continue pushing numeric LOD and viewport bitmap cache paths through app-local
+  renderer adapters and framework-agnostic runtime APIs before larger renderer
+  architecture changes.
 
 ## Avoid Repeating
 
 - Do not assume runtime snapshots are immutable.
 - When optimizing viewport interactions, verify both `playground` and
   `vector-editor-web` before treating the result as stable.
-- For model/geometry questions, check `packages/file-format` first and defer to
-  its `node + feature` structure before inventing runtime-only terminology.
+- For model/geometry questions, check `@venus/document-core` runtime scene
+  contracts first and defer to its `node + feature` structure before inventing
+  runtime-only terminology.
 - SAB with Atomic
 - offscreen render for canvas

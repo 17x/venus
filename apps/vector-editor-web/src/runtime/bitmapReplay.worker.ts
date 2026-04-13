@@ -6,7 +6,7 @@ import {
   type Engine,
   type EngineReplayRenderRequest,
   type EngineReplayWorkerMessage,
-} from '@venus/engine'
+} from '@venus/runtime/engine'
 import {
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
@@ -76,4 +76,3 @@ function ensureReplayEngine(width: number, height: number) {
 
   return replayEngine
 }
-

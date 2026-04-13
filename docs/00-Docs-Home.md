@@ -26,10 +26,8 @@ aliases:
 
 - [[packages/README]]
 - [[packages/document-core]]
-- [[packages/file-format]]
 - [[packages/runtime]]
 - [[packages/runtime-interaction]]
-- [[packages/runtime-react]]
 - [[packages/runtime-presets]]
 - [[packages/ui]]
 

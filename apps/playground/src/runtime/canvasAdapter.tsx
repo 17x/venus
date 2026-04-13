@@ -1,22 +1,31 @@
 import * as React from 'react'
+import {
+  applyMatrixToPoint,
+  DEFAULT_CANVAS_PRESENTATION_CONFIG,
+  type CanvasPresentationConfig,
+} from '@venus/runtime'
+import type {CanvasViewportState} from '@venus/runtime'
 import type {EditorDocument} from '@venus/document-core'
-import {bindViewportGestures} from '@venus/runtime/interaction'
+import {
+  buildEngineSelectionHandlesFromBounds,
+  createAffineMatrixAroundPoint,
+  createEngine,
+  createEngineRenderScheduler,
+  getNormalizedBoundsFromBox,
+  resolveNodeTransform,
+  toResolvedNodeSvgTransform,
+  type Engine,
+  type EngineRenderScheduler,
+  type EngineReplayRenderRequest,
+  type EngineReplayWorkerEvent,
+} from '@venus/runtime/engine'
+import {bindViewportGestures, resolveCanvasLodProfile} from '@venus/runtime/interaction'
+import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
 import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
 } from '@venus/runtime/presets'
-import type {CanvasViewportState} from '@venus/runtime'
-import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
-import {
-  createEngine,
-  createEngineRenderScheduler,
-  getNormalizedBoundsFromBox,
-  type Engine,
-  type EngineRenderScheduler,
-  type EngineReplayRenderRequest,
-  type EngineReplayWorkerEvent,
-} from '@venus/engine'
 
 export interface CanvasRendererProps {
   document: EditorDocument
@@ -32,32 +41,12 @@ export interface CanvasOverlayProps {
   shapes: SceneShapeSnapshot[]
   stats: SceneStats
   viewport: CanvasViewportState
+  hoveredShapeId?: string | null
+  presentation?: CanvasPresentationConfig
 }
 
 export type CanvasRenderer = React.ComponentType<CanvasRendererProps>
 export type CanvasOverlayRenderer = React.ComponentType<CanvasOverlayProps>
-
-function resolveCanvasLodProfile(options: {
-  shapeCount: number
-  imageCount: number
-  scale: number
-}): {lodLevel: 0 | 1 | 2 | 3; renderQuality: 'full' | 'interactive'} {
-  let lodLevel: 0 | 1 | 2 | 3 =
-    options.shapeCount >= 50_000 || options.imageCount >= 1_000
-      ? 2
-      : options.shapeCount >= 10_000 || options.imageCount >= 250
-        ? 1
-        : 0
-
-  if (options.scale < 0.35 && lodLevel < 3) {
-    lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
-  }
-
-  return {
-    lodLevel,
-    renderQuality: lodLevel >= 2 ? 'interactive' : 'full',
-  }
-}
 
 export interface Canvas2DRenderDiagnostics {
   drawCount: number
@@ -211,6 +200,7 @@ export function CanvasViewport({
     return bindViewportGestures({
       element: node,
       getViewportState: () => viewportStateRef.current,
+      coalescePointerMove: false,
       onPointerMove: (pointer) => onPointerMoveRef.current?.(pointer),
       onPointerDown: (pointer, modifiers) => onPointerDownRef.current?.(pointer, modifiers),
       onPointerUp: () => onPointerUpRef.current?.(),
@@ -225,6 +215,7 @@ export function CanvasViewport({
         if (current.scale !== targetViewport.scale) {
           onViewportZoomRef.current?.(targetViewport.scale)
         }
+
         const deltaX = targetViewport.offsetX - current.offsetX
         const deltaY = targetViewport.offsetY - current.offsetY
         if (deltaX !== 0 || deltaY !== 0) {
@@ -822,68 +813,396 @@ export function Canvas2DRenderer({
 }
 
 export function CanvasSelectionOverlay({
+  document,
   shapes,
   viewport,
+  hoveredShapeId,
+  presentation = DEFAULT_CANVAS_PRESENTATION_CONFIG,
 }: CanvasOverlayProps) {
+  const selectionState = React.useMemo(
+    () => buildPlaygroundSelectionState(shapes),
+    [shapes],
+  )
   const selectedShapes = React.useMemo(
-    () => shapes.filter((shape) => shape.isSelected),
-    [shapes],
+    () => selectionState.selectedIds
+      .map((id) => document.shapes.find((shape) => shape.id === id))
+      .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape)),
+    [document.shapes, selectionState.selectedIds],
   )
-  const hoveredShape = React.useMemo(
-    () => shapes.find((shape) => shape.isHovered) ?? null,
-    [shapes],
+  const singleSelectedShape = React.useMemo(
+    () => selectedShapes.length === 1 ? selectedShapes[0] : null,
+    [selectedShapes],
   )
+  const hoveredShape = React.useMemo(() => {
+    if (!hoveredShapeId) {
+      return null
+    }
+
+    const shape = document.shapes.find((item) => item.id === hoveredShapeId) ?? null
+    if (!shape || selectionState.selectedIds.includes(shape.id)) {
+      return null
+    }
+    return shape
+  }, [document.shapes, hoveredShapeId, selectionState.selectedIds])
+  const selectedPolygon = React.useMemo(() => {
+    if (!selectionState.selectedBounds) {
+      return null
+    }
+
+    const rotation = singleSelectedShape?.rotation ?? 0
+    return buildRectPolygon(selectionState.selectedBounds, rotation)
+  }, [selectionState.selectedBounds, singleSelectedShape?.rotation])
+  const handles = React.useMemo(() => {
+    if (!selectionState.selectedBounds) {
+      return []
+    }
+
+    return buildEngineSelectionHandlesFromBounds(selectionState.selectedBounds, {
+      rotateDegrees: singleSelectedShape?.rotation ?? 0,
+      rotateOffset: 28,
+    })
+  }, [selectionState.selectedBounds, singleSelectedShape?.rotation])
+  const screenHandles = React.useMemo(
+    () => handles.map((handle) => ({
+      ...handle,
+      ...applyMatrixToPoint(viewport.matrix, handle),
+    })),
+    [handles, viewport.matrix],
+  )
+  const handleSize = presentation.overlay.handleSize
+  const halfHandleSize = handleSize / 2
 
   return (
-    <svg
+    <div
+      role="region"
+      aria-label="playground-overlay-layer"
       style={{
         position: 'absolute',
         inset: 0,
-        width: '100%',
-        height: '100%',
         pointerEvents: 'none',
+        overflow: 'hidden',
       }}
     >
-      {selectedShapes.map((shape) => {
-        const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
-        const x = bounds.minX * viewport.matrix[0] + viewport.matrix[2]
-        const y = bounds.minY * viewport.matrix[4] + viewport.matrix[5]
-        const width = (bounds.maxX - bounds.minX) * viewport.matrix[0]
-        const height = (bounds.maxY - bounds.minY) * viewport.matrix[4]
-        return (
+      <svg
+        role="img"
+        aria-label="playground-overlay-svg"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+        }}
+      >
+        <g
+          role="group"
+          aria-label="playground-overlay-world-group"
+          transform={`matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`}
+        >
+          {hoveredShape && renderPlaygroundShapeStroke(hoveredShape, 'hover', presentation)}
+          {selectedShapes.map((shape) => renderPlaygroundShapeStroke(shape, 'selected', presentation))}
+
+          {selectedPolygon && (
+            <polygon
+              role="presentation"
+              points={toSvgPoints(selectedPolygon)}
+              fill="none"
+              stroke={presentation.overlay.selectionStroke}
+              strokeWidth={presentation.overlay.selectionStrokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </g>
+
+        {screenHandles.map((handle) => (
           <rect
-            key={`selected:${shape.id}`}
-            x={x}
-            y={y}
-            width={width}
-            height={height}
-            fill="none"
-            stroke="#2563eb"
-            strokeWidth={1}
+            role="presentation"
+            key={handle.id}
+            x={handle.x - halfHandleSize}
+            y={handle.y - halfHandleSize}
+            width={handleSize}
+            height={handleSize}
+            rx={handle.kind === 'rotate' ? handleSize / 2 : 2}
+            ry={handle.kind === 'rotate' ? handleSize / 2 : 2}
+            fill={presentation.overlay.handleFill}
+            stroke={presentation.overlay.handleStroke}
+            strokeWidth={presentation.overlay.selectionStrokeWidth}
             vectorEffect="non-scaling-stroke"
           />
-        )
-      })}
-      {hoveredShape && !hoveredShape.isSelected && (() => {
-        const bounds = getNormalizedBoundsFromBox(hoveredShape.x, hoveredShape.y, hoveredShape.width, hoveredShape.height)
-        const x = bounds.minX * viewport.matrix[0] + viewport.matrix[2]
-        const y = bounds.minY * viewport.matrix[4] + viewport.matrix[5]
-        const width = (bounds.maxX - bounds.minX) * viewport.matrix[0]
-        const height = (bounds.maxY - bounds.minY) * viewport.matrix[4]
-        return (
-          <rect
-            x={x}
-            y={y}
-            width={width}
-            height={height}
-            fill="none"
-            stroke="rgba(14,165,233,0.9)"
-            strokeWidth={1}
-            strokeDasharray="4 3"
-            vectorEffect="non-scaling-stroke"
-          />
-        )
-      })()}
-    </svg>
+        ))}
+      </svg>
+    </div>
   )
+}
+
+function buildPlaygroundSelectionState(snapshots: SceneShapeSnapshot[]) {
+  const selectedIds = snapshots.filter((shape) => shape.isSelected).map((shape) => shape.id)
+  const selectedSnapshots = snapshots.filter((shape) => shape.isSelected)
+
+  let selectedBounds: {minX: number; minY: number; maxX: number; maxY: number} | null = null
+  selectedSnapshots.forEach((snapshot) => {
+    const bounds = getNormalizedBoundsFromBox(snapshot.x, snapshot.y, snapshot.width, snapshot.height)
+
+    selectedBounds = selectedBounds
+      ? {
+          minX: Math.min(selectedBounds.minX, bounds.minX),
+          minY: Math.min(selectedBounds.minY, bounds.minY),
+          maxX: Math.max(selectedBounds.maxX, bounds.maxX),
+          maxY: Math.max(selectedBounds.maxY, bounds.maxY),
+        }
+      : {
+          minX: bounds.minX,
+          minY: bounds.minY,
+          maxX: bounds.maxX,
+          maxY: bounds.maxY,
+        }
+  })
+
+  return {
+    selectedIds,
+    selectedBounds,
+  }
+}
+
+function renderPlaygroundShapeStroke(
+  shape: EditorDocument['shapes'][number],
+  tone: 'selected' | 'hover',
+  presentation: CanvasPresentationConfig,
+) {
+  if (shape.type === 'group') {
+    return null
+  }
+
+  const common = {
+    role: 'presentation' as const,
+    fill: 'none',
+    stroke: tone === 'selected'
+      ? presentation.overlay.selectionStroke
+      : presentation.overlay.hoverStroke,
+    strokeWidth: presentation.overlay.selectionStrokeWidth,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    vectorEffect: 'non-scaling-stroke' as const,
+  }
+  const key = `${tone}-stroke:${shape.id}`
+  const transformState = resolveNodeTransform(shape)
+  const transform = toResolvedNodeSvgTransform(transformState)
+
+  if (shape.type === 'ellipse') {
+    return (
+      <ellipse
+        key={key}
+        cx={transformState.center.x}
+        cy={transformState.center.y}
+        rx={transformState.bounds.width / 2}
+        ry={transformState.bounds.height / 2}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if ((shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length >= 3) {
+    return (
+      <polygon
+        key={key}
+        points={shape.points.map((point) => `${point.x},${point.y}`).join(' ')}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'lineSegment') {
+    return (
+      <line
+        key={key}
+        x1={shape.x}
+        y1={shape.y}
+        x2={shape.x + shape.width}
+        y2={shape.y + shape.height}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'path') {
+    const d = buildPlaygroundPathStrokeD(shape)
+    if (!d) {
+      return null
+    }
+    return (
+      <path
+        key={key}
+        d={d}
+        transform={transform}
+        {...common}
+      />
+    )
+  }
+
+  if (shape.type === 'rectangle' || shape.type === 'frame') {
+    const roundedRectD = buildPlaygroundRoundedRectStrokeD(shape)
+    if (roundedRectD) {
+      return (
+        <path
+          key={key}
+          d={roundedRectD}
+          transform={transform}
+          {...common}
+        />
+      )
+    }
+  }
+
+  return (
+    <rect
+      key={key}
+      x={shape.x}
+      y={shape.y}
+      width={shape.width}
+      height={shape.height}
+      transform={transform}
+      {...common}
+    />
+  )
+}
+
+function buildPlaygroundPathStrokeD(shape: EditorDocument['shapes'][number]) {
+  if (shape.bezierPoints && shape.bezierPoints.length > 1) {
+    const first = shape.bezierPoints[0]
+    let d = `M ${first.anchor.x} ${first.anchor.y}`
+    for (let index = 0; index < shape.bezierPoints.length - 1; index += 1) {
+      const current = shape.bezierPoints[index]
+      const next = shape.bezierPoints[index + 1]
+      const cp1 = current.cp2 ?? current.anchor
+      const cp2 = next.cp1 ?? next.anchor
+      d += ` C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${next.anchor.x} ${next.anchor.y}`
+    }
+    return d
+  }
+
+  if (shape.points && shape.points.length > 1) {
+    const [first, ...rest] = shape.points
+    return `M ${first.x} ${first.y} ${rest.map((point) => `L ${point.x} ${point.y}`).join(' ')}`
+  }
+
+  return null
+}
+
+function buildPlaygroundRoundedRectStrokeD(shape: EditorDocument['shapes'][number]) {
+  const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+  const width = Math.max(0, bounds.width)
+  const height = Math.max(0, bounds.height)
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+
+  const radii = resolvePlaygroundRoundedRectCornerRadii(shape, bounds)
+  const hasRoundedCorners = radii.topLeft > 0 || radii.topRight > 0 || radii.bottomRight > 0 || radii.bottomLeft > 0
+  if (!hasRoundedCorners) {
+    return null
+  }
+
+  const minX = bounds.minX
+  const minY = bounds.minY
+  const maxX = bounds.maxX
+  const maxY = bounds.maxY
+
+  return [
+    `M ${minX + radii.topLeft} ${minY}`,
+    `L ${maxX - radii.topRight} ${minY}`,
+    `A ${radii.topRight} ${radii.topRight} 0 0 1 ${maxX} ${minY + radii.topRight}`,
+    `L ${maxX} ${maxY - radii.bottomRight}`,
+    `A ${radii.bottomRight} ${radii.bottomRight} 0 0 1 ${maxX - radii.bottomRight} ${maxY}`,
+    `L ${minX + radii.bottomLeft} ${maxY}`,
+    `A ${radii.bottomLeft} ${radii.bottomLeft} 0 0 1 ${minX} ${maxY - radii.bottomLeft}`,
+    `L ${minX} ${minY + radii.topLeft}`,
+    `A ${radii.topLeft} ${radii.topLeft} 0 0 1 ${minX + radii.topLeft} ${minY}`,
+    'Z',
+  ].join(' ')
+}
+
+interface PlaygroundRoundedRectCornerRadii {
+  topLeft: number
+  topRight: number
+  bottomRight: number
+  bottomLeft: number
+}
+
+function resolvePlaygroundRoundedRectCornerRadii(
+  shape: Pick<EditorDocument['shapes'][number], 'cornerRadius' | 'cornerRadii'>,
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+): PlaygroundRoundedRectCornerRadii {
+  const width = Math.max(0, bounds.maxX - bounds.minX)
+  const height = Math.max(0, bounds.maxY - bounds.minY)
+  const fallback = Math.max(0, shape.cornerRadius ?? 0)
+  const requested: PlaygroundRoundedRectCornerRadii = {
+    topLeft: Math.max(0, shape.cornerRadii?.topLeft ?? fallback),
+    topRight: Math.max(0, shape.cornerRadii?.topRight ?? fallback),
+    bottomRight: Math.max(0, shape.cornerRadii?.bottomRight ?? fallback),
+    bottomLeft: Math.max(0, shape.cornerRadii?.bottomLeft ?? fallback),
+  }
+
+  if (width <= 0 || height <= 0) {
+    return {
+      topLeft: 0,
+      topRight: 0,
+      bottomRight: 0,
+      bottomLeft: 0,
+    }
+  }
+
+  const horizontalTop = requested.topLeft + requested.topRight
+  const horizontalBottom = requested.bottomLeft + requested.bottomRight
+  const verticalLeft = requested.topLeft + requested.bottomLeft
+  const verticalRight = requested.topRight + requested.bottomRight
+  const scale = Math.min(
+    1,
+    horizontalTop > 0 ? width / horizontalTop : 1,
+    horizontalBottom > 0 ? width / horizontalBottom : 1,
+    verticalLeft > 0 ? height / verticalLeft : 1,
+    verticalRight > 0 ? height / verticalRight : 1,
+  )
+
+  return {
+    topLeft: requested.topLeft * scale,
+    topRight: requested.topRight * scale,
+    bottomRight: requested.bottomRight * scale,
+    bottomLeft: requested.bottomLeft * scale,
+  }
+}
+
+function buildRectPolygon(
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+  rotationDegrees: number,
+) {
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerY = (bounds.minY + bounds.maxY) / 2
+  const corners = [
+    {x: bounds.minX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.maxY},
+    {x: bounds.minX, y: bounds.maxY},
+  ]
+  if (Math.abs(rotationDegrees) <= 0.0001) {
+    return corners
+  }
+
+  const matrix = createAffineMatrixAroundPoint(
+    {x: centerX, y: centerY},
+    {rotationDegrees},
+  )
+
+  return corners.map((point) => ({
+    x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],
+    y: matrix[1] * point.x + matrix[3] * point.y + matrix[5],
+  }))
+}
+
+function toSvgPoints(points: Array<{x: number; y: number}>) {
+  return points.map((point) => `${point.x},${point.y}`).join(' ')
 }

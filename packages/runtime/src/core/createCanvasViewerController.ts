@@ -1,8 +1,8 @@
 import { type EditorDocument } from '@venus/document-core'
-import { isPointInsideEngineClipShape, isPointInsideEngineShapeHitArea } from '@venus/engine'
 import type {EditorRuntimeCommand} from '../worker/index.ts'
 import type {PointerState, SceneShapeSnapshot, SceneStats} from '@venus/shared-memory'
 import type {Point2D} from '../viewport/matrix.ts'
+import {resolveTopHitShapeId} from '../interaction/shapeHitTest.ts'
 import {
   DEFAULT_VIEWPORT,
   fitViewportToDocument,
@@ -222,29 +222,15 @@ function hitTestDocument(
   shapes: SceneShapeSnapshot[],
   pointer: PointerState,
 ) {
-  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  for (let index = shapes.length - 1; index >= 0; index -= 1) {
-    const shape = shapes[index]
-    const source = document.shapes[index] ?? shapeById.get(shape?.id ?? '')
-    if (!shape || !source) {
-      continue
-    }
-    if (source.type === 'image' && source.clipPathId) {
-      continue
-    }
-    if (source.clipPathId) {
-      const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
-        tolerance: 1.5,
-        shapeById,
-      })) {
-        continue
-      }
-    }
-    if (isPointInsideEngineShapeHitArea(pointer, source, {tolerance: 6, shapeById})) {
-      return index
-    }
+  const hitShapeId = resolveTopHitShapeId(document, shapes, pointer, {
+    allowFrameSelection: true,
+    tolerance: 6,
+    excludeClipBoundImage: true,
+    clipTolerance: 1.5,
+  })
+  if (!hitShapeId) {
+    return -1
   }
 
-  return -1
+  return shapes.findIndex((shape) => shape.id === hitShapeId)
 }

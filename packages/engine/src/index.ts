@@ -145,17 +145,11 @@ export type {
 export {
   containsEngineBounds,
   createEngineMarqueeState,
-  createEngineMarqueeState as createMarqueeState,
   getEngineNormalizedBounds,
-  getEngineNormalizedBounds as getNormalizedBounds,
   intersectsEngineBounds,
-  intersectsEngineBounds as intersectsBounds,
   resolveEngineMarqueeBounds,
-  resolveEngineMarqueeBounds as resolveMarqueeBounds,
   resolveEngineMarqueeSelection,
-  resolveEngineMarqueeSelection as resolveMarqueeSelection,
   updateEngineMarqueeState,
-  updateEngineMarqueeState as updateMarqueeState,
 } from './interaction/marquee.ts'
 export type {
   EngineSelectionHandle,
@@ -165,9 +159,7 @@ export type {
 } from './interaction/selectionHandles.ts'
 export {
   buildEngineSelectionHandlesFromBounds,
-  buildEngineSelectionHandlesFromBounds as buildSelectionHandlesFromBounds,
   pickEngineSelectionHandleAtPoint,
-  pickEngineSelectionHandleAtPoint as pickSelectionHandleAtPoint,
 } from './interaction/selectionHandles.ts'
 export type {
   EngineMoveSnapOptions,
@@ -182,8 +174,12 @@ export type {
 export {
   resolveEngineSnapGuideLines,
   resolveEngineMoveSnapPreview,
-  resolveEngineMoveSnapPreview as resolveMoveSnapPreview,
 } from './interaction/snapping.ts'
+export type {
+  EngineCanvasLodProfile,
+  EngineCanvasLodProfileInput,
+} from './interaction/lodProfile.ts'
+export { resolveEngineCanvasLodProfile } from './interaction/lodProfile.ts'
 export type {
   EngineEditorBezierPoint,
   EngineEditorHitTestNode,
@@ -232,19 +228,12 @@ export type {
 } from './interaction/viewport.ts'
 export {
   DEFAULT_ENGINE_VIEWPORT,
-  DEFAULT_ENGINE_VIEWPORT as DEFAULT_VIEWPORT,
   clampEngineViewportScale,
-  clampEngineViewportScale as clampViewportScale,
   fitEngineViewportToDocument,
-  fitEngineViewportToDocument as fitViewportToDocument,
   panEngineViewportState,
-  panEngineViewportState as panViewportState,
   resolveEngineViewportState,
-  resolveEngineViewportState as resolveViewportState,
   resizeEngineViewportState,
-  resizeEngineViewportState as resizeViewportState,
   zoomEngineViewportState,
-  zoomEngineViewportState as zoomViewportState,
 } from './interaction/viewport.ts'
 export type {
   EngineViewportPanOffset,
@@ -264,16 +253,10 @@ export type {
 } from './interaction/zoom.ts'
 export {
   DEFAULT_ENGINE_ZOOM_SESSION,
-  DEFAULT_ENGINE_ZOOM_SESSION as DEFAULT_ZOOM_SESSION,
   accumulateEngineZoomSession,
   detectEngineZoomInputSource,
-  detectEngineZoomInputSource as detectZoomInputSource,
   getEngineZoomSettleDelay,
-  getEngineZoomSettleDelay as getZoomSettleDelay,
   handleEngineZoomWheel,
-  handleEngineZoomWheel as handleZoomWheel,
   normalizeEngineZoomDelta,
-  normalizeEngineZoomDelta as normalizeZoomDelta,
   resetEngineZoomSession,
-  resetEngineZoomSession as resetZoomSession,
 } from './interaction/zoom.ts'

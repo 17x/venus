@@ -37,6 +37,13 @@ export interface EngineEditorHitTestNode {
   clipPathId?: string
   fill?: {enabled?: boolean}
   stroke?: {enabled?: boolean}
+  cornerRadius?: number
+  cornerRadii?: {
+    topLeft?: number
+    topRight?: number
+    bottomRight?: number
+    bottomLeft?: number
+  }
   points?: EngineEditorPoint[]
   bezierPoints?: EngineEditorBezierPoint[]
   schema?: {sourceFeatureKinds?: string[]}
@@ -70,7 +77,11 @@ export function isPointInsideEngineClipShape(
 
   if (clipSource.type === 'rectangle' || clipSource.type === 'frame' || clipSource.type === 'group') {
     const bounds = getNormalizedBoundsFromBox(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
-    return isPointInsideBounds(testPointer, bounds)
+    const cornerRadii = resolveRoundedRectCornerRadii(clipSource, bounds)
+    const hasRoundedCorners = cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 || cornerRadii.bottomRight > 0 || cornerRadii.bottomLeft > 0
+    return hasRoundedCorners
+      ? isPointInsideRoundedRect(testPointer, bounds, cornerRadii)
+      : isPointInsideBounds(testPointer, bounds)
   }
 
   if (clipSource.type === 'ellipse') {
@@ -145,11 +156,23 @@ export function isPointInsideEngineShapeHitArea(
 
   if (shape.type === 'rectangle' || shape.type === 'frame') {
     const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+    const cornerRadii = resolveRoundedRectCornerRadii(shape, bounds)
+    const hasRoundedCorners = cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 || cornerRadii.bottomRight > 0 || cornerRadii.bottomLeft > 0
     const hasStrokeArea = hasShapeStrokeHitArea(shape)
+    const hasFillArea = hasShapeFillHitArea(shape)
+    const fillHit = hasFillArea && (
+      hasRoundedCorners
+        ? isPointInsideRoundedRect(testPointer, bounds, cornerRadii)
+        : isPointInsideBounds(testPointer, bounds)
+    )
     const strokeOnly = strictStrokeHitTest && hasStrokeArea
     return (
-      (hasStrokeArea && isPointNearRectEdge(testPointer, bounds, tolerance)) ||
-      (!strokeOnly && hasShapeFillHitArea(shape) && isPointInsideBounds(testPointer, bounds))
+      (hasStrokeArea && (
+        hasRoundedCorners
+          ? isPointNearRoundedRectEdge(testPointer, bounds, cornerRadii, tolerance)
+          : isPointNearRectEdge(testPointer, bounds, tolerance)
+      )) ||
+      (!strokeOnly && fillHit)
     )
   }
 
@@ -459,6 +482,146 @@ function isPointNearRectEdge(
   }
 
   return !isPointInsideBounds(pointer, inner)
+}
+
+interface RoundedRectCornerRadii {
+  topLeft: number
+  topRight: number
+  bottomRight: number
+  bottomLeft: number
+}
+
+function resolveRoundedRectCornerRadii(
+  shape: Pick<EngineEditorHitTestNode, 'cornerRadius' | 'cornerRadii'>,
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+): RoundedRectCornerRadii {
+  const width = Math.max(0, bounds.maxX - bounds.minX)
+  const height = Math.max(0, bounds.maxY - bounds.minY)
+  const fallback = Math.max(0, shape.cornerRadius ?? 0)
+  const requested: RoundedRectCornerRadii = {
+    topLeft: Math.max(0, shape.cornerRadii?.topLeft ?? fallback),
+    topRight: Math.max(0, shape.cornerRadii?.topRight ?? fallback),
+    bottomRight: Math.max(0, shape.cornerRadii?.bottomRight ?? fallback),
+    bottomLeft: Math.max(0, shape.cornerRadii?.bottomLeft ?? fallback),
+  }
+
+  if (width <= 0 || height <= 0) {
+    return {
+      topLeft: 0,
+      topRight: 0,
+      bottomRight: 0,
+      bottomLeft: 0,
+    }
+  }
+
+  const horizontalTop = requested.topLeft + requested.topRight
+  const horizontalBottom = requested.bottomLeft + requested.bottomRight
+  const verticalLeft = requested.topLeft + requested.bottomLeft
+  const verticalRight = requested.topRight + requested.bottomRight
+  const scale = Math.min(
+    1,
+    horizontalTop > 0 ? width / horizontalTop : 1,
+    horizontalBottom > 0 ? width / horizontalBottom : 1,
+    verticalLeft > 0 ? height / verticalLeft : 1,
+    verticalRight > 0 ? height / verticalRight : 1,
+  )
+
+  return {
+    topLeft: requested.topLeft * scale,
+    topRight: requested.topRight * scale,
+    bottomRight: requested.bottomRight * scale,
+    bottomLeft: requested.bottomLeft * scale,
+  }
+}
+
+function isPointInsideRoundedRect(
+  pointer: EngineEditorPoint,
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+  radii: RoundedRectCornerRadii,
+) {
+  if (!isPointInsideBounds(pointer, bounds)) {
+    return false
+  }
+
+  const {topLeft, topRight, bottomRight, bottomLeft} = radii
+  const nearLeft = pointer.x < bounds.minX + topLeft
+  const nearRight = pointer.x > bounds.maxX - topRight
+  const nearTop = pointer.y < bounds.minY + topLeft
+  const nearTopRight = pointer.y < bounds.minY + topRight
+  const nearBottom = pointer.y > bounds.maxY - bottomLeft
+  const nearBottomRight = pointer.y > bounds.maxY - bottomRight
+
+  if (topLeft > 0 && nearLeft && nearTop) {
+    const centerX = bounds.minX + topLeft
+    const centerY = bounds.minY + topLeft
+    return Math.hypot(pointer.x - centerX, pointer.y - centerY) <= topLeft
+  }
+
+  if (topRight > 0 && nearRight && nearTopRight) {
+    const centerX = bounds.maxX - topRight
+    const centerY = bounds.minY + topRight
+    return Math.hypot(pointer.x - centerX, pointer.y - centerY) <= topRight
+  }
+
+  if (bottomRight > 0 && pointer.x > bounds.maxX - bottomRight && nearBottomRight) {
+    const centerX = bounds.maxX - bottomRight
+    const centerY = bounds.maxY - bottomRight
+    return Math.hypot(pointer.x - centerX, pointer.y - centerY) <= bottomRight
+  }
+
+  if (bottomLeft > 0 && pointer.x < bounds.minX + bottomLeft && nearBottom) {
+    const centerX = bounds.minX + bottomLeft
+    const centerY = bounds.maxY - bottomLeft
+    return Math.hypot(pointer.x - centerX, pointer.y - centerY) <= bottomLeft
+  }
+
+  return true
+}
+
+function isPointNearRoundedRectEdge(
+  pointer: EngineEditorPoint,
+  bounds: {minX: number; minY: number; maxX: number; maxY: number},
+  radii: RoundedRectCornerRadii,
+  tolerance: number,
+) {
+  const safeTolerance = Math.max(0, tolerance)
+  const outerBounds = {
+    minX: bounds.minX - safeTolerance,
+    minY: bounds.minY - safeTolerance,
+    maxX: bounds.maxX + safeTolerance,
+    maxY: bounds.maxY + safeTolerance,
+  }
+  const outerRadii: RoundedRectCornerRadii = {
+    topLeft: radii.topLeft + safeTolerance,
+    topRight: radii.topRight + safeTolerance,
+    bottomRight: radii.bottomRight + safeTolerance,
+    bottomLeft: radii.bottomLeft + safeTolerance,
+  }
+
+  if (!isPointInsideRoundedRect(pointer, outerBounds, outerRadii)) {
+    return false
+  }
+
+  const innerBounds = {
+    minX: bounds.minX + safeTolerance,
+    minY: bounds.minY + safeTolerance,
+    maxX: bounds.maxX - safeTolerance,
+    maxY: bounds.maxY - safeTolerance,
+  }
+  if (innerBounds.minX > innerBounds.maxX || innerBounds.minY > innerBounds.maxY) {
+    return true
+  }
+
+  // Keep rounded-rect stroke hit as an annulus (outer shape minus inner shape)
+  // so corner cutouts are respected in strict stroke-only mode.
+  const innerRadii: RoundedRectCornerRadii = {
+    topLeft: Math.max(0, radii.topLeft - safeTolerance),
+    topRight: Math.max(0, radii.topRight - safeTolerance),
+    bottomRight: Math.max(0, radii.bottomRight - safeTolerance),
+    bottomLeft: Math.max(0, radii.bottomLeft - safeTolerance),
+  }
+
+  return !isPointInsideRoundedRect(pointer, innerBounds, innerRadii)
 }
 
 function isPointNearLineSegment(

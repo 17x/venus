@@ -2,7 +2,6 @@ import ZoomSelect from './ZoomSelect.tsx'
 import {FC, Ref, useImperativeHandle, useState} from 'react'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
 import {EDITOR_TEXT_STATUS_CLASS} from '../editorChrome/editorTypography.ts'
-// import {useCanvas2DRenderDiagnostics} from '@venus/runtime/react'
 
 export interface PointRef {
   set: (point: { x: number, y: number }) => void
@@ -16,7 +15,6 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
                                                                                                      worldScale,
                                                                                                    }) => {
   const [worldPoint, setWorldPoint] = useState({x: 0, y: 0})
-  // const diagnostics = useCanvas2DRenderDiagnostics()
 
   useImperativeHandle(ref, () => {
     return {
