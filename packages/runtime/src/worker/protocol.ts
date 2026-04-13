@@ -2,7 +2,7 @@ import type { DocumentNode, EditorDocument, ToolId } from '@venus/document-core'
 import type { ShapeTransformBatchCommand } from '@venus/engine'
 import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
 import type { HistorySummary } from './history.ts'
-import type { PointerState } from '@venus/shared-memory'
+import type { PointerState } from '@venus/runtime/shared-memory'
 
 /**
  * Shared worker protocol for the current vector editor runtime.

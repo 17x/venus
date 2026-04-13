@@ -14,7 +14,7 @@ import {
 import type {EditorDocument} from '@venus/document-core'
 import {resolveSnapGuideLines, type SnapGuide} from '@venus/runtime/interaction'
 import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
+import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'
 import type {InteractionBounds} from '../types.ts'

@@ -1,5 +1,5 @@
 import type {EditorDocument} from '@venus/document-core'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
+import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 import {
   resolveTopHitShapeId,
   type ResolveTopHitShapeIdOptions,

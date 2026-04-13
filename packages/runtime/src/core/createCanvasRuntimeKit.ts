@@ -1,5 +1,5 @@
 import type {EditorDocument} from '@venus/document-core'
-import type {PointerState} from '@venus/shared-memory'
+import type {PointerState} from '@venus/runtime/shared-memory'
 import {applyMatrixToPoint, type Point2D} from '../viewport/matrix.ts'
 import type {CanvasViewportState} from '../viewport/types.ts'
 import {

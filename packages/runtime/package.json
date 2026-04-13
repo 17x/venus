@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./engine": "./src/engine.ts",
+    "./shared-memory": "./src/shared-memory/index.ts",
     "./worker": "./src/worker/index.ts",
     "./interaction": "./src/interaction/index.ts",
     "./presets": "./src/presets/index.ts",
@@ -17,7 +18,6 @@
   },
   "dependencies": {
     "@venus/engine": "workspace:*",
-    "@venus/document-core": "workspace:*",
-    "@venus/shared-memory": "workspace:*"
+    "@venus/document-core": "workspace:*"
   }
 }

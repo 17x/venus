@@ -44,7 +44,7 @@ incrementally centralized.
 - Shape draw transforms and preview overlays should align with the same
   resolved center/rotation/flip interpretation used by interaction/hit-test.
 
-## `@venus/shared-memory`
+## `@venus/runtime/shared-memory`
 
 - Shared-memory scene geometry currently stores decomposed scalar fields.
 - Bounds/hit/indexing logic should normalize box semantics consistently when

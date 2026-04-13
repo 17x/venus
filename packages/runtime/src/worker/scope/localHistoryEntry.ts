@@ -1,5 +1,5 @@
 import type {DocumentNode, EditorDocument} from '@venus/document-core'
-import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@venus/shared-memory'
+import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@venus/runtime/shared-memory'
 import type {HistoryEntry, HistoryPatch} from '../history.ts'
 import type {EditorRuntimeCommand} from '../protocol.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'

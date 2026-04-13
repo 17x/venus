@@ -1,6 +1,6 @@
 import type {EditorDocument} from '@venus/document-core'
 import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
-import type {SceneShapeSnapshot} from '@venus/shared-memory'
+import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 
 export interface CreateEngineSceneFromRuntimeSnapshotOptions {
   document: EditorDocument

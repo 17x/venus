@@ -90,7 +90,6 @@ pnpm exec tsc -b \
   packages/engine/tsconfig.json \
   packages/runtime/tsconfig.json \
   packages/runtime/worker/tsconfig.json \
-  packages/shared-memory/tsconfig.json \
   apps/vector-editor-web/tsconfig.app.json \
   apps/playground/tsconfig.app.json \
   --pretty false

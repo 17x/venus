@@ -26,7 +26,7 @@
       "@venus/runtime/presets/*": ["packages/runtime/src/presets/*.ts"],
       "@venus/runtime/engine": ["packages/runtime/src/engine.ts"],
       "@venus/runtime": ["packages/runtime/src/index.ts"],
-      "@venus/shared-memory": ["packages/shared-memory/src/index.ts"],
+      "@venus/runtime/shared-memory": ["packages/runtime/src/shared-memory/index.ts"],
       "@venus/ui": ["packages/ui/src/index.ts"],
       "@venus/ui/*": ["packages/ui/src/*"],
       "react": ["apps/vector-editor-web/node_modules/@types/react/index.d.ts"],

@@ -16,7 +16,7 @@ Treat the current system as a layered runtime:
 
 `apps/vector-editor-web` or `apps/playground`
 -> `@venus/runtime` + `@venus/runtime/interaction`
--> `@venus/runtime/worker` + `@venus/shared-memory`
+-> `@venus/runtime/worker` + `@venus/runtime/shared-memory`
 -> `@venus/engine` (Canvas2D renderer consumed by app layer)
 
 Planned package direction for the active runtime family:

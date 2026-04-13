@@ -1,6 +1,6 @@
 import type {EditorDocument} from '@venus/document-core'
 import type {EditorRuntimeCommand} from '../worker/index.ts'
-import type {PointerState} from '@venus/shared-memory'
+import type {PointerState} from '@venus/runtime/shared-memory'
 import {createCanvasElementRegistry, type CanvasElementBehavior, type CanvasElementRegistry} from '../extensibility/elements.ts'
 import {
   createCanvasRuntimeController,

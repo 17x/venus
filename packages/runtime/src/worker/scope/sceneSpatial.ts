@@ -7,7 +7,7 @@ import {
 import {
   writeShapeToScene,
   type SceneMemory,
-} from '@venus/shared-memory'
+} from '@venus/runtime/shared-memory'
 import type {WorkerSpatialIndex} from './types.ts'
 import {
   findShapeById,

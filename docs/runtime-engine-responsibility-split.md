@@ -8,7 +8,7 @@ ship new editor capabilities without ownership drift.
 
 Current target chain:
 
-`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/shared-memory` -> `@venus/engine`
+`apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`
 
 ## Layer Responsibilities
 

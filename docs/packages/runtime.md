@@ -14,6 +14,14 @@ Package-scoped note for the framework-agnostic Venus runtime core.
 
 ### 2026-04-13
 
+- Shared memory transport ownership moved into runtime subpath
+  `@venus/runtime/shared-memory`
+  (`packages/runtime/src/shared-memory/index.ts`), and the standalone
+  `packages/shared-memory` package was removed.
+- Runtime/app source imports now consume shared memory types/helpers from the
+  runtime subpath so the active runtime chain no longer depends on a separate
+  workspace package.
+
 - Added framework-agnostic runtime API object entrypoints:
   `createCanvasRuntimeApi(...)`
   (`packages/runtime/src/core/createCanvasRuntimeApi.ts`) and

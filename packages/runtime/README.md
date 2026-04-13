@@ -9,7 +9,7 @@ worker/renderer packages.
 
 Primary chain:
 
-`apps/* -> @venus/runtime -> @venus/runtime/worker + @venus/shared-memory -> renderer packages`
+`apps/* -> @venus/runtime -> @venus/runtime/worker + @venus/runtime/shared-memory -> renderer packages`
 
 ## Owns
 

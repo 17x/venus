@@ -1,6 +1,6 @@
 import type {CollaborationOperation} from '../collaboration.ts'
 import type {EditorDocument} from '@venus/document-core'
-import {readSceneStats, type SceneMemory} from '@venus/shared-memory'
+import {readSceneStats, type SceneMemory} from '@venus/runtime/shared-memory'
 import type {HistoryPatch} from '../history.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
 import {

@@ -1,5 +1,5 @@
 import type {EditorDocument} from '@venus/document-core'
-import type {PointerState} from '@venus/shared-memory'
+import type {PointerState} from '@venus/runtime/shared-memory'
 import type {EditorRuntimeCommand, CollaborationOperation} from '../worker/index.ts'
 import {
   createCanvasRuntimeKit,
