@@ -9,6 +9,9 @@ Venus uses a layered architecture to keep boundaries clear and performance stabl
 Detailed boundary contract for execution ownership:
 `docs/runtime-engine-responsibility-split.md`
 
+Detailed vector editor architecture, module map, data flows, gap analysis, and migration plan:
+`docs/vector-editor-architecture.md`
+
 ## Principles
 
 - Keep product UI and orchestration in app layers.

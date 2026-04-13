@@ -10,7 +10,9 @@ export type {
   InteractionBounds,
   InteractionHandle,
   InteractionPoint,
+  PathSubSelection,
   SelectionState,
+  SegmentType,
   TransformPreview,
   TransformSession,
 } from './types.ts'

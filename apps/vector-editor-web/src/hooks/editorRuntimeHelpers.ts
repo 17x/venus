@@ -144,6 +144,119 @@ export function createShapeElementFromTool(
   return null
 }
 
+export function isDragCreateTool(toolName: ToolName) {
+  return toolName === 'rectangle' ||
+    toolName === 'ellipse' ||
+    toolName === 'lineSegment' ||
+    toolName === 'polygon' ||
+    toolName === 'star' ||
+    toolName === 'text'
+}
+
+export function createShapeElementFromDrag(
+  toolName: ToolName,
+  start: {x: number; y: number},
+  end: {x: number; y: number},
+): ElementProps | null {
+  const bounds = getNormalizedBoundsFromBox(start.x, start.y, end.x - start.x, end.y - start.y)
+  const width = Math.max(1, bounds.width)
+  const height = Math.max(1, bounds.height)
+  const x = bounds.minX
+  const y = bounds.minY
+
+  if (toolName === 'rectangle') {
+    return {
+      id: nid(),
+      type: 'rectangle',
+      name: 'Rectangle',
+      x,
+      y,
+      width,
+      height,
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'ellipse') {
+    return {
+      id: nid(),
+      type: 'ellipse',
+      name: 'Ellipse',
+      x,
+      y,
+      width,
+      height,
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'lineSegment') {
+    return {
+      id: nid(),
+      type: 'lineSegment',
+      name: 'Line',
+      x: start.x,
+      y: start.y,
+      width: end.x - start.x,
+      height: end.y - start.y,
+      points: [
+        {x: start.x, y: start.y},
+        {x: end.x, y: end.y},
+      ],
+      fill: {enabled: false, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 2},
+    }
+  }
+
+  if (toolName === 'polygon') {
+    return {
+      id: nid(),
+      type: 'polygon',
+      name: 'Polygon',
+      x,
+      y,
+      width,
+      height,
+      points: createPolygonPoints(x, y, width, height),
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'star') {
+    return {
+      id: nid(),
+      type: 'star',
+      name: 'Star',
+      x,
+      y,
+      width,
+      height,
+      points: createStarPoints(x, y, width, height),
+      fill: {enabled: true, color: '#ffffff'},
+      stroke: {enabled: true, color: '#111827', weight: 1},
+    }
+  }
+
+  if (toolName === 'text') {
+    return {
+      id: nid(),
+      type: 'text',
+      name: 'Text',
+      x,
+      y,
+      width,
+      height,
+      fill: {enabled: false, color: '#ffffff'},
+      stroke: {enabled: false, color: '#111827', weight: 0},
+    }
+  }
+
+  return null
+}
+
 export function buildSelectedProps(shape: DocumentNode | null): ElementProps | null {
   if (!shape) {
     return null
@@ -423,7 +536,7 @@ function simplifyDrawPoints(
   return simplified
 }
 
-export function createPathElement(points: Array<{x: number; y: number}>): ElementProps {
+export function createPencilPathElement(points: Array<{x: number; y: number}>): ElementProps {
   // Freehand input is intentionally simplified before bezier conversion so the
   // resulting path stays editable and visually smoother instead of preserving
   // every noisy pointer sample.
@@ -458,3 +571,46 @@ export function createPathElement(points: Array<{x: number; y: number}>): Elemen
     },
   }
 }
+
+export function createPolylinePathElement(points: Array<{x: number; y: number}>): ElementProps {
+  const normalizedPoints = points.map((point) => ({...point}))
+  const bounds = normalizedPoints.reduce(
+    (acc, point) => ({
+      minX: Math.min(acc.minX, point.x),
+      minY: Math.min(acc.minY, point.y),
+      maxX: Math.max(acc.maxX, point.x),
+      maxY: Math.max(acc.maxY, point.y),
+    }),
+    {
+      minX: normalizedPoints[0].x,
+      minY: normalizedPoints[0].y,
+      maxX: normalizedPoints[0].x,
+      maxY: normalizedPoints[0].y,
+    },
+  )
+
+  return {
+    id: nid(),
+    type: 'path',
+    name: 'Path',
+    x: bounds.minX,
+    y: bounds.minY,
+    width: Math.max(1, bounds.maxX - bounds.minX),
+    height: Math.max(1, bounds.maxY - bounds.minY),
+    points: normalizedPoints,
+    bezierPoints: undefined,
+    rotation: 0,
+    opacity: 1,
+    fill: {
+      enabled: false,
+      color: '#ffffff',
+    },
+    stroke: {
+      enabled: true,
+      color: '#000000',
+      weight: 1,
+    },
+  }
+}
+
+export const createPathElement = createPencilPathElement

@@ -20,7 +20,7 @@ export type { EngineSceneDirtyKind, EngineScenePatch, EngineScenePatchApplyResul
 export type { EngineHitTestResult } from './scene/hitTest.ts';
 export { applyEngineScenePatch, applyEngineScenePatchBatch, createMutableEngineSceneState, flattenEngineSceneNodes, resolveNodeByFlattenedIndex, } from './scene/patch.ts';
 export { createEngineSceneStore } from './scene/store.ts';
-export { hitTestEngineSceneState } from './scene/hitTest.ts';
+export { hitTestEngineSceneState, hitTestEngineSceneStateAll } from './scene/hitTest.ts';
 export type { EngineClock, EngineFrameHandle, EngineFrameInfo, } from './time/index.ts';
 export { createSystemEngineClock } from './time/index.ts';
 export type { EngineRuntime } from './runtime/types.ts';

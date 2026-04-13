@@ -40,10 +40,28 @@ export const ContextMenu: FC<ContextMenuProps> = ({
   const groupClass = 'absolute bg-white shadow-lg rounded-md border border-gray-200 py-1 z-50'
   useEffect(() => {
     const noSelectedElement = selectedIds.length === 0
+    const canGroup = selectedIds.length >= 2
+    const canUngroup = selectedIds.length >= 1
+    const canAlign = selectedIds.length >= 2
     const ITEMS: MenuItemType[] = [
       {id: 'copy', editorActionCode: 'element-copy', disabled: noSelectedElement},
       {id: 'paste', editorActionCode: 'element-paste', disabled: copiedItems.length === 0},
       {id: 'duplicate', editorActionCode: 'element-duplicate', disabled: noSelectedElement},
+      {id: 'groupNodes', editorActionCode: 'group-nodes', disabled: !canGroup},
+      {id: 'ungroupNodes', editorActionCode: 'ungroup-nodes', disabled: !canUngroup},
+      {id: 'convertToPath', editorActionCode: 'convert-to-path', disabled: noSelectedElement},
+      {
+        id: 'align',
+        disabled: !canAlign,
+        children: [
+          {id: 'alignLeft', editorActionCode: 'align-left', disabled: !canAlign},
+          {id: 'alignCenterHorizontal', editorActionCode: 'align-center-horizontal', disabled: !canAlign},
+          {id: 'alignRight', editorActionCode: 'align-right', disabled: !canAlign},
+          {id: 'alignTop', editorActionCode: 'align-top', disabled: !canAlign},
+          {id: 'alignMiddle', editorActionCode: 'align-middle', disabled: !canAlign},
+          {id: 'alignBottom', editorActionCode: 'align-bottom', disabled: !canAlign},
+        ],
+      },
       {id: 'maskWithShape', editorActionCode: 'image-mask-with-shape', disabled: noSelectedElement},
       {id: 'clearMask', editorActionCode: 'image-clear-mask', disabled: noSelectedElement},
       {id: 'delete', editorActionCode: 'element-delete', disabled: noSelectedElement, divide: true},

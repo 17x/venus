@@ -10,6 +10,8 @@ type ElementHierarchyMeta = {
   childIds?: string[]
 }
 
+type ElementTextRun = NonNullable<DocumentNode['textRuns']>[number]
+
 function resolveArrowhead(value: unknown): DocumentNode['strokeStartArrowhead'] {
   if (
     value === 'none' ||
@@ -206,6 +208,7 @@ function toDocumentShape(
     flipX: Boolean(element.flipX),
     flipY: Boolean(element.flipY),
     text: resolveTextContent(element),
+    textRuns: resolveTextRuns(element),
     assetId: typeof element.asset === 'string' ? element.asset : undefined,
     clipPathId: typeof element.clipPathId === 'string' ? element.clipPathId : undefined,
     clipRule: element.clipRule === 'evenodd' ? 'evenodd' : element.clipPathId ? 'nonzero' : undefined,
@@ -291,6 +294,14 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       flipX: shape.flipX ?? false,
       flipY: shape.flipY ?? false,
       opacity: 1,
+      text: shape.text,
+      textRuns: shape.textRuns ? shape.textRuns.map((run) => ({
+        start: run.start,
+        end: run.end,
+        style: run.style
+          ? {...run.style}
+          : undefined,
+      })) : undefined,
       fill: shape.fill
         ? {...shape.fill}
         : {
@@ -317,7 +328,90 @@ function resolveTextContent(element: ElementProps) {
     return undefined
   }
 
+  if (typeof element.text === 'string') {
+    return element.text
+  }
+
   return String(element.name ?? 'Text')
+}
+
+function resolveTextRuns(element: ElementProps): DocumentNode['textRuns'] {
+  if (element.type !== 'text') {
+    return undefined
+  }
+
+  const candidate = (element as ElementProps & {textRuns?: unknown}).textRuns
+  if (!Array.isArray(candidate) || candidate.length === 0) {
+    return undefined
+  }
+
+  return candidate
+    .map((run) => toTextRun(run))
+    .filter((run): run is ElementTextRun => run !== null)
+}
+
+function toTextRun(value: unknown): ElementTextRun | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const run = value as {
+    start?: unknown
+    end?: unknown
+    style?: {
+      color?: unknown
+      fontFamily?: unknown
+      fontSize?: unknown
+      fontWeight?: unknown
+      letterSpacing?: unknown
+      lineHeight?: unknown
+      textAlign?: unknown
+      verticalAlign?: unknown
+      shadow?: {
+        color?: unknown
+        offsetX?: unknown
+        offsetY?: unknown
+        blur?: unknown
+      }
+    }
+  }
+
+  if (typeof run.start !== 'number' || typeof run.end !== 'number') {
+    return null
+  }
+
+  const style = run.style && typeof run.style === 'object'
+    ? {
+        color: typeof run.style.color === 'string' ? run.style.color : undefined,
+        fontFamily: typeof run.style.fontFamily === 'string' ? run.style.fontFamily : undefined,
+        fontSize: typeof run.style.fontSize === 'number' ? run.style.fontSize : undefined,
+        fontWeight: typeof run.style.fontWeight === 'number' ? run.style.fontWeight : undefined,
+        letterSpacing: typeof run.style.letterSpacing === 'number' ? run.style.letterSpacing : undefined,
+        lineHeight: typeof run.style.lineHeight === 'number' ? run.style.lineHeight : undefined,
+        textAlign: resolveTextAlign(run.style.textAlign),
+        verticalAlign: resolveVerticalAlign(run.style.verticalAlign),
+      }
+    : undefined
+
+  return {
+    start: Math.max(0, Math.floor(run.start)),
+    end: Math.max(0, Math.floor(run.end)),
+    style,
+  }
+}
+
+function resolveTextAlign(value: unknown): 'left' | 'center' | 'right' | undefined {
+  if (value === 'left' || value === 'center' || value === 'right') {
+    return value
+  }
+  return undefined
+}
+
+function resolveVerticalAlign(value: unknown): 'top' | 'middle' | 'bottom' | undefined {
+  if (value === 'top' || value === 'middle' || value === 'bottom') {
+    return value
+  }
+  return undefined
 }
 
 function toPoint(value: unknown) {

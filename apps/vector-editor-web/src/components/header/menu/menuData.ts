@@ -1,129 +1,86 @@
 import {MenuItemType} from './type'
 
-export const fileMenu: MenuItemType = {
-  id: 'file',
-  disabled: false,
-  children: [
-    {id: 'newFile', disabled: false},
-    {id: 'openFile', disabled: false},
-    {id: 'saveFile', disabled: false},
-    {id: 'saveAs', disabled: false},
-    // {id: 'importFile', disabled: false},
+export function createHeaderMenuData(options: {
+  selectedIds: string[]
+  copiedCount: number
+  needSave: boolean
+  historyStatus: {
+    hasPrev: boolean
+    hasNext: boolean
+  }
+}): MenuItemType[] {
+  const noSelectedElement = options.selectedIds.length === 0
+  const canGroup = options.selectedIds.length >= 2
+  const canAlign = options.selectedIds.length >= 2
+  const canDistribute = options.selectedIds.length >= 3
+
+  return [
     {
-      id: 'exportFile',
+      id: 'file',
       disabled: false,
       children: [
-        {id: 'exportFile_png', disabled: false},
-        {id: 'exportFile_pdf', disabled: false},
-        {id: 'exportFile_csv', disabled: false},
+        {id: 'newFile', action: 'newFile', disabled: false},
+        {id: 'saveFile', action: 'saveFile', disabled: !options.needSave},
+        {id: 'print', action: 'print', disabled: false},
+        {id: 'closeFile', action: 'closeFile', disabled: false},
       ],
     },
-    {id: 'print', disabled: false},
-    {id: 'closeFile', disabled: false},
-  ],
-}
-
-export const editMenu: MenuItemType = {
-  id: 'edit',
-  disabled: false,
-  children: [
-    {id: 'undo', editorActionCode: 'history-undo', disabled: false},
-    {id: 'redo', editorActionCode: 'history-redo', disabled: false},
-    {id: 'cut', disabled: false},
-    {id: 'copy', disabled: false},
-    {id: 'paste', disabled: false},
     {
-      id: 'delete', editorActionCode: 'element-delete',
+      id: 'edit',
       disabled: false,
+      children: [
+        {id: 'undo', editorActionCode: 'history-undo', disabled: !options.historyStatus.hasPrev},
+        {id: 'redo', editorActionCode: 'history-redo', disabled: !options.historyStatus.hasNext},
+        {id: 'cut', editorActionCode: 'element-cut', disabled: noSelectedElement},
+        {id: 'copy', editorActionCode: 'element-copy', disabled: noSelectedElement},
+        {id: 'paste', editorActionCode: 'element-paste', disabled: options.copiedCount === 0},
+        {id: 'duplicate', editorActionCode: 'element-duplicate', disabled: noSelectedElement},
+        {id: 'delete', editorActionCode: 'element-delete', disabled: noSelectedElement},
+        {id: 'selectAll', editorActionCode: 'selection-all', disabled: false},
+      ],
     },
-    {id: 'duplicate', disabled: false},
-    {id: 'selectAll', disabled: false},
-    {id: 'findReplace', disabled: false},
-  ],
+    {
+      id: 'shape',
+      disabled: false,
+      children: [
+        {id: 'groupNodes', editorActionCode: 'group-nodes', disabled: !canGroup},
+        {id: 'ungroupNodes', editorActionCode: 'ungroup-nodes', disabled: noSelectedElement},
+        {id: 'convertToPath', editorActionCode: 'convert-to-path', disabled: noSelectedElement},
+        {
+          id: 'align',
+          disabled: !canAlign,
+          children: [
+            {id: 'alignLeft', editorActionCode: 'align-left', disabled: !canAlign},
+            {id: 'alignCenterHorizontal', editorActionCode: 'align-center-horizontal', disabled: !canAlign},
+            {id: 'alignRight', editorActionCode: 'align-right', disabled: !canAlign},
+            {id: 'alignTop', editorActionCode: 'align-top', disabled: !canAlign},
+            {id: 'alignMiddle', editorActionCode: 'align-middle', disabled: !canAlign},
+            {id: 'alignBottom', editorActionCode: 'align-bottom', disabled: !canAlign},
+          ],
+        },
+        {
+          id: 'distribute',
+          disabled: !canDistribute,
+          children: [
+            {id: 'distributeHorizontal', editorActionCode: 'distribute-horizontal', disabled: !canDistribute},
+            {id: 'distributeVertical', editorActionCode: 'distribute-vertical', disabled: !canDistribute},
+          ],
+        },
+        {id: 'maskWithShape', editorActionCode: 'image-mask-with-shape', disabled: noSelectedElement},
+        {id: 'clearMask', editorActionCode: 'image-clear-mask', disabled: noSelectedElement},
+      ],
+    },
+    {
+      id: 'layer',
+      disabled: false,
+      children: [
+        {id: 'bringForward', editorActionCode: 'element-layer', editorActionData: 'up', disabled: noSelectedElement, icon: 'layerUp'},
+        {id: 'sendBackward', editorActionCode: 'element-layer', editorActionData: 'down', disabled: noSelectedElement, icon: 'layerDown'},
+        {id: 'bringToFront', editorActionCode: 'element-layer', editorActionData: 'top', disabled: noSelectedElement, icon: 'layerTop'},
+        {id: 'sendToBack', editorActionCode: 'element-layer', editorActionData: 'bottom', disabled: noSelectedElement, icon: 'layerBottom'},
+        {id: 'duplicateLayer', editorActionCode: 'element-duplicate', disabled: noSelectedElement},
+        {id: 'deleteLayer', editorActionCode: 'element-delete', disabled: noSelectedElement},
+      ],
+    },
+  ]
 }
-
-export const viewMenu: MenuItemType = {
-  id: 'view',
-  disabled: false,
-  children: [
-    {id: 'zoomIn', disabled: false},
-    {id: 'zoomOut', disabled: false},
-    {id: 'fitToScreen', disabled: false},
-    {id: 'toggleGrid', disabled: false},
-    {id: 'toggleGuides', disabled: false},
-    {id: 'fullscreenMode', disabled: false},
-  ],
-}
-
-export const shapeMenu: MenuItemType = {
-  id: 'shape',
-  disabled: false,
-  children: [
-    {id: 'addNode', disabled: false},
-    {id: 'deleteNode', disabled: false},
-    {id: 'moveNode', disabled: false},
-    {id: 'resizeNode', disabled: false},
-    {id: 'rotateNode', disabled: false},
-    {id: 'changeNodeColor', disabled: false},
-    {id: 'changeNodeBorder', disabled: false},
-    {id: 'changeNodeText', disabled: false},
-    {id: 'groupNodes', disabled: false},
-    {id: 'ungroupNodes', disabled: false},
-    {id: 'lockNode', disabled: false},
-    {id: 'unlockNode', disabled: false},
-  ],
-}
-
-export const connectionMenu: MenuItemType = {
-  id: 'connection',
-  disabled: false,
-  children: [
-    {id: 'addEdge', disabled: false},
-    {id: 'deleteEdge', disabled: false},
-    {id: 'changeEdgeStyle', disabled: false},
-    {id: 'changeEdgeColor', disabled: false},
-    {id: 'changeEdgeLabel', disabled: false},
-    {id: 'reverseEdge', disabled: false},
-  ],
-}
-
-export const textMenu: MenuItemType = {
-  id: 'text',
-  disabled: false,
-  children: [
-    {id: 'addText', disabled: false},
-    {id: 'editText', disabled: false},
-    {id: 'changeFont', disabled: false},
-    {id: 'changeFontSize', disabled: false},
-    {id: 'changeFontColor', disabled: false},
-    {id: 'boldText', disabled: false},
-    {id: 'italicText', disabled: false},
-    {id: 'underlineText', disabled: false},
-    {id: 'alignText', disabled: false},
-  ],
-}
-
-export const layerMenu: MenuItemType = {
-  id: 'layer',
-  disabled: false,
-  children: [
-    {id: 'bringForward', editorActionCode: 'element-layer', editorActionData: 'up', disabled: false, icon: 'layerUp'},
-    {id: 'sendBackward', editorActionCode: 'element-layer', editorActionData: 'down', disabled: false, icon: 'layerDown'},
-    {id: 'bringToFront', editorActionCode: 'element-layer', editorActionData: 'top', disabled: false, icon: 'layerTop'},
-    {id: 'sendToBack', editorActionCode: 'element-layer', editorActionData: 'bottom', disabled: false, icon: 'layerBottom'},
-    {id: 'duplicateLayer', editorActionCode: 'element-duplicate', disabled: false},
-    {id: 'deleteLayer', editorActionCode: 'element-delete', disabled: false},
-    {id: 'toggleLayerVisibility', disabled: false},
-  ],
-}
-
-export default [
-  fileMenu,
-  editMenu,
-  viewMenu,
-  layerMenu,
-  // shapeMenu,
-  // connectionMenu,
-  // textMenu,
-  // layerMenu,
-]

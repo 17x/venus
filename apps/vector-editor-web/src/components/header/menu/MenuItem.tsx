@@ -10,11 +10,13 @@ import {EDITOR_TEXT_MENU_CLASS} from '../../editorChrome/editorTypography.ts'
 interface MenuItemProps {
   menu: MenuItemType
   executeAction: EditorExecutor
+  onActionComplete?: VoidFunction
 }
 
 const MenuItem: React.FC<MenuItemProps> = ({
                                              menu,
                                              executeAction,
+                                             onActionComplete,
                                            }) => {
   const {t} = useTranslation()
   const [subOpen, setSubOpen] = useState<boolean>(false)
@@ -30,6 +32,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
     } else {
       executeAction(action)
     }
+    onActionComplete?.()
     setSubOpen(false)
   }
 
@@ -42,6 +45,9 @@ const MenuItem: React.FC<MenuItemProps> = ({
   )}
               onClick={() => handleClick()}
               onMouseOver={(e) => {
+                if (menu.disabled) {
+                  return
+                }
                 setSubOpen(true)
                 e.preventDefault()
                 // e.stopPropagation()
@@ -63,7 +69,14 @@ const MenuItem: React.FC<MenuItemProps> = ({
       hasChildren && subOpen &&
         <div className={'absolute left-full top-0 z-50 w-auto min-w-50 overflow-hidden rounded border border-gray-200 bg-white py-1 shadow-lg'}>
           {
-            menu.children!.map((subItem) => <MenuItem menu={subItem} executeAction={executeAction} key={subItem.id}/>)
+            menu.children!.map((subItem) => (
+              <MenuItem
+                menu={subItem}
+                executeAction={executeAction}
+                onActionComplete={onActionComplete}
+                key={subItem.id}
+              />
+            ))
           }
         </div>
     }

@@ -1,6 +1,26 @@
 {
   "ui": {
     "languageSelectorLabel": "Language",
+    "template": {
+      "generateButtonLabel": "Generate Template",
+      "generateButtonTooltip": "Generate built-in template presets",
+      "pickerTitle": "Template Presets",
+      "pickerSubtitle": "Choose a built-in preset to quickly create demo scenes or stress-test files.",
+      "presetDetails": "Preset Details",
+      "categoryLabel": "Category",
+      "targetElementsLabel": "Target Elements",
+      "seedLabel": "Seed (optional)",
+      "seedPlaceholder": "e.g. 20260413",
+      "seedHint": "Use seed for deterministic generation and reproducible debugging.",
+      "randomizeSeed": "Random",
+      "actionsHint": "Selected preset will be created as a new file.",
+      "cancelButton": "Cancel",
+      "category": {
+        "simpleDemo": "Simple Demo",
+        "mixedLarge": "Large Mixed Stress",
+        "imageHeavy": "Image Heavy Stress"
+      }
+    },
     "toolbar": {
       "selector": "Selector",
       "directSelector": "Direct Selector",
@@ -10,9 +30,19 @@
       "polygon": "Polygon",
       "star": "Star",
       "text": "Text",
+      "path": "Path",
       "pencil": "Pencil",
       "hand": "Hand",
-      "zoom": "Zoom"
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out"
+    },
+    "quickStyle": {
+      "fill": "Fill",
+      "stroke": "Stroke",
+      "fillTooltip": "Apply fill color",
+      "strokeTooltip": "Apply stroke color",
+      "strokeWidthDownTooltip": "Decrease stroke width",
+      "strokeWidthUpTooltip": "Increase stroke width"
     }
   }
 }

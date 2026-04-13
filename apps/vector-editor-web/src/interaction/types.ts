@@ -68,11 +68,49 @@ export interface TransformSession {
   current: InteractionPoint
 }
 
-export type DraftPrimitiveType = 'rectangle' | 'ellipse' | 'lineSegment' | 'path' | 'polygon' | 'star'
+export type DraftPrimitiveType = 'rectangle' | 'ellipse' | 'lineSegment' | 'path' | 'polygon' | 'star' | 'text'
 
 export interface DraftPrimitive {
   id: string
   type: DraftPrimitiveType
   points: InteractionPoint[]
   bounds: InteractionBounds
+}
+
+export type SegmentType = 'line' | 'curve'
+
+export interface PathHandlePoint {
+  x: number
+  y: number
+}
+
+export interface PathAnchorPoint {
+  index: number
+  x: number
+  y: number
+  segmentType: SegmentType
+  inHandle?: PathHandlePoint
+  outHandle?: PathHandlePoint
+}
+
+export interface PathSegmentSelection {
+  index: number
+  segmentType: SegmentType
+  x: number
+  y: number
+}
+
+export interface PathHandleSelection {
+  anchorIndex: number
+  handleType: 'inHandle' | 'outHandle'
+  x: number
+  y: number
+}
+
+export interface PathSubSelection {
+  shapeId: string
+  hitType: 'anchorPoint' | 'segment' | 'inHandle' | 'outHandle'
+  anchorPoint?: PathAnchorPoint
+  segment?: PathSegmentSelection
+  handlePoint?: PathHandleSelection
 }

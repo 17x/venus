@@ -1,6 +1,7 @@
 import type * as React from 'react'
 import type {ToolName} from '@venus/document-core'
 import type {CanvasViewportState} from '@venus/runtime'
+import type {RuntimeEditingMode} from '@venus/runtime'
 import type {
   CanvasOverlayRenderer as CanvasOverlayRendererCompat,
   CanvasRenderer as CanvasRendererCompat,
@@ -84,6 +85,7 @@ export interface EditorRuntimeState {
     onContextMenu: (position: {x: number; y: number}) => void
   }
   currentTool: ToolName
+  editingMode: RuntimeEditingMode
   focused: boolean
   history: HistorySummary
   selectedShape: SceneShapeSnapshot | null

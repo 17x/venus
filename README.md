@@ -30,7 +30,7 @@ The current active stack focuses on `vector-editor-web` and `playground`.
 ## Docs And Skills
 
 - Docs home (Obsidian):
-  - [`docs/00-Docs-Home.md`](/Users/yahone/projects/venus/docs/00-Docs-Home.md)
+  - [`docs/00-Docs-Home.md`](./docs/00-Docs-Home.md)
 - Team-shared Codex skills (repo-local):
   - `.codex/skills`
 - Sync repo skills into your local Codex home when needed:
@@ -99,8 +99,8 @@ pnpm --dir apps/vector-editor-web dev
 
 - TypeScript project references are enabled via root `tsconfig.json`.
 - Vite is pinned through `pnpm.overrides` in root `package.json`.
-- Architecture doc: [./docs/architecture.md](/Users/yahone/projects/venus/docs/architecture.md)
+- Architecture doc: [./docs/architecture.md](./docs/architecture.md)
 
 ## License
 
-MIT. See [LICENSE](/Users/yahone/projects/venus/LICENSE).
+MIT. See [LICENSE](./LICENSE).

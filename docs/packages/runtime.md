@@ -14,6 +14,14 @@ Package-scoped note for the framework-agnostic Venus runtime core.
 
 ### 2026-04-13
 
+- Runtime preset adapter `createEngineSceneFromRuntimeSnapshot(...)`
+  (`packages/runtime/src/presets/engineSceneAdapter.ts`) now maps document
+  model node kinds and render semantics more completely into engine scene
+  nodes: explicit `group` handling, type-driven shape mapping,
+  and clip forwarding (`clipPathId` + `clipRule`) across image/text/shape
+  nodes when clip source exists. This keeps WebGL-mode scene input aligned with
+  document-model render contracts instead of image-only clip transfer.
+
 - Shared memory transport ownership moved into runtime subpath
   `@venus/runtime/shared-memory`
   (`packages/runtime/src/shared-memory/index.ts`), and the standalone

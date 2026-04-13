@@ -109,6 +109,18 @@ export type HistoryPatch =
       nextClipRule?: 'nonzero' | 'evenodd'
     }
   | {
+      type: 'set-shape-parent'
+      shapeId: string
+      prevParentId?: string | null
+      nextParentId?: string | null
+    }
+  | {
+      type: 'set-group-children'
+      groupId: string
+      prevChildIds?: string[]
+      nextChildIds?: string[]
+    }
+  | {
       type: 'reorder-shape'
       shapeId: string
       fromIndex: number
@@ -121,6 +133,8 @@ export type HistoryPatch =
         id: string
         type: string
         name: string
+        parentId?: string | null
+        childIds?: string[]
         text?: string
         assetId?: string
         assetUrl?: string
@@ -173,6 +187,8 @@ export type HistoryPatch =
         id: string
         type: string
         name: string
+        parentId?: string | null
+        childIds?: string[]
         text?: string
         assetId?: string
         assetUrl?: string

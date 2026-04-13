@@ -174,6 +174,50 @@
     "label": "Ungroup Nodes",
     "tooltip": "Ungroup the selected nodes"
   },
+  "convertToPath": {
+    "label": "Convert to Path",
+    "tooltip": "Convert selected shapes into editable path geometry"
+  },
+  "align": {
+    "label": "Align",
+    "tooltip": "Align selected shapes"
+  },
+  "alignLeft": {
+    "label": "Align Left",
+    "tooltip": "Align selected shapes to the left edge"
+  },
+  "alignCenterHorizontal": {
+    "label": "Align Horizontal Center",
+    "tooltip": "Align selected shapes to a shared horizontal center"
+  },
+  "alignRight": {
+    "label": "Align Right",
+    "tooltip": "Align selected shapes to the right edge"
+  },
+  "alignTop": {
+    "label": "Align Top",
+    "tooltip": "Align selected shapes to the top edge"
+  },
+  "alignMiddle": {
+    "label": "Align Vertical Center",
+    "tooltip": "Align selected shapes to a shared vertical center"
+  },
+  "alignBottom": {
+    "label": "Align Bottom",
+    "tooltip": "Align selected shapes to the bottom edge"
+  },
+  "distribute": {
+    "label": "Distribute",
+    "tooltip": "Distribute spacing between selected shapes"
+  },
+  "distributeHorizontal": {
+    "label": "Distribute Horizontal",
+    "tooltip": "Evenly distribute selected shapes by horizontal center"
+  },
+  "distributeVertical": {
+    "label": "Distribute Vertical",
+    "tooltip": "Evenly distribute selected shapes by vertical center"
+  },
   "maskWithShape": {
     "label": "Mask with Shape",
     "tooltip": "Use the current selection and one overlapping closed shape or image to create a mask"

@@ -59,6 +59,10 @@ export interface RuntimeTextRun {
   color: unknown
   letterSpacing: number
   lineHeight: number
+  shadowColor?: unknown
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowBlur?: number
 }
 
 export interface RuntimeTextFeature {

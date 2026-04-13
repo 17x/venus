@@ -455,11 +455,7 @@ export function Canvas2DRenderer({
       return
     }
 
-    // WebGL renderer is currently a plan/instance skeleton and does not commit
-    // actual draw calls yet, so app surfaces should stay on Canvas2D for now.
-    const resolvedBackend = backend === 'webgl'
-      ? 'canvas2d'
-      : backend
+    const resolvedBackend = backend
     const engine = createEngine({
       canvas,
       backend: resolvedBackend,

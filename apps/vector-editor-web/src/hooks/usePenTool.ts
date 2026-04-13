@@ -1,7 +1,12 @@
 import {useCallback, useRef} from 'react'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {ToolName} from '@venus/document-core'
-import {appendPenPoint, createPathElement, isPenTool} from './editorRuntimeHelpers.ts'
+import {
+  appendPenPoint,
+  createPencilPathElement,
+  createPolylinePathElement,
+  isPenTool,
+} from './editorRuntimeHelpers.ts'
 
 interface PenDraftState {
   points: Array<{x: number; y: number}>
@@ -13,8 +18,9 @@ interface PenDraftState {
 export function usePenTool(options: {
   currentTool: ToolName
   insertElement: (element: ElementProps) => void
+  onDraftPointsChange?: (points: Array<{x: number; y: number}> | null) => void
 }) {
-  const {currentTool, insertElement} = options
+  const {currentTool, insertElement, onDraftPointsChange} = options
   const penDraftRef = useRef<PenDraftState | null>(null)
 
   const handlePointerMove = useCallback((point: {x: number; y: number}) => {
@@ -22,9 +28,11 @@ export function usePenTool(options: {
       return false
     }
 
-    appendPenPoint(penDraftRef.current, point)
+    const minDistance = currentTool === 'path' ? 8 : 3
+    appendPenPoint(penDraftRef.current, point, minDistance)
+    onDraftPointsChange?.(penDraftRef.current.points.map((item) => ({...item})))
     return true
-  }, [currentTool])
+  }, [currentTool, onDraftPointsChange])
 
   const handlePointerDown = useCallback((point: {x: number; y: number}) => {
     if (!isPenTool(currentTool)) {
@@ -34,12 +42,14 @@ export function usePenTool(options: {
     penDraftRef.current = {
       points: [point],
     }
+    onDraftPointsChange?.([{...point}])
     return true
-  }, [currentTool])
+  }, [currentTool, onDraftPointsChange])
 
   const handlePointerUp = useCallback(() => {
     const draft = penDraftRef.current
     penDraftRef.current = null
+    onDraftPointsChange?.(null)
 
     if (!draft || draft.points.length < 2 || !isPenTool(currentTool)) {
       return
@@ -51,12 +61,19 @@ export function usePenTool(options: {
       return
     }
 
-    insertElement(createPathElement(draft.points))
-  }, [currentTool, insertElement])
+    if (currentTool === 'path') {
+      // Path tool keeps literal anchors so users can continue node-level editing.
+      insertElement(createPolylinePathElement(draft.points))
+      return
+    }
+
+    insertElement(createPencilPathElement(draft.points))
+  }, [currentTool, insertElement, onDraftPointsChange])
 
   const clearDraft = useCallback(() => {
     penDraftRef.current = null
-  }, [])
+    onDraftPointsChange?.(null)
+  }, [onDraftPointsChange])
 
   return {
     handlePointerMove,

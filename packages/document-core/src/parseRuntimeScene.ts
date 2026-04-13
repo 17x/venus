@@ -97,6 +97,18 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
         fontWeight: run.fontWeight,
         letterSpacing: run.letterSpacing,
         lineHeight: run.lineHeight,
+        shadow:
+          typeof run.shadowColor === 'string' ||
+          typeof run.shadowOffsetX === 'number' ||
+          typeof run.shadowOffsetY === 'number' ||
+          typeof run.shadowBlur === 'number'
+            ? {
+                color: typeof run.shadowColor === 'string' ? run.shadowColor : undefined,
+                offsetX: typeof run.shadowOffsetX === 'number' ? run.shadowOffsetX : undefined,
+                offsetY: typeof run.shadowOffsetY === 'number' ? run.shadowOffsetY : undefined,
+                blur: typeof run.shadowBlur === 'number' ? run.shadowBlur : undefined,
+              }
+            : undefined,
       },
     })),
     assetId: imageFeature ? resolveImageAssetId(imageFeature) : undefined,

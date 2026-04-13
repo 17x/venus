@@ -80,7 +80,7 @@ function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
             props.onMinimize?.()
           }}
         >
-          <LuMinus size={12}/>
+            <span>&minus;</span>
         </Button>}
     </div>
   )

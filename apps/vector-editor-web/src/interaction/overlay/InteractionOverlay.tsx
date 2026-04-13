@@ -17,7 +17,7 @@ import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
 import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'
-import type {InteractionBounds} from '../types.ts'
+import type {DraftPrimitive, InteractionBounds, PathSubSelection} from '../types.ts'
 
 interface InteractionOverlayProps {
   document: EditorDocument
@@ -27,6 +27,10 @@ interface InteractionOverlayProps {
   marqueeBounds?: InteractionBounds | null
   hideSelectionChrome?: boolean
   snapGuides?: SnapGuide[]
+  pathSubSelection?: PathSubSelection | null
+  pathSubSelectionHover?: PathSubSelection | null
+  draftPrimitive?: DraftPrimitive | null
+  penDraftPoints?: Array<{x: number; y: number}> | null
   presentation?: CanvasPresentationConfig
 }
 
@@ -38,6 +42,10 @@ export function InteractionOverlay({
   marqueeBounds = null,
   hideSelectionChrome = false,
   snapGuides = [],
+  pathSubSelection = null,
+  pathSubSelectionHover = null,
+  draftPrimitive = null,
+  penDraftPoints = null,
   presentation = DEFAULT_CANVAS_PRESENTATION_CONFIG,
 }: InteractionOverlayProps) {
   const handleSize = presentation.overlay.handleSize
@@ -95,8 +103,12 @@ export function InteractionOverlay({
       .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape)),
     [document.shapes, selection.selectedIds],
   )
+  const shouldHideSelectionPolygon = useMemo(
+    () => selectedShapes.length === 1 && selectedShapes[0].type === 'image' && Boolean(selectedShapes[0].clipPathId),
+    [selectedShapes],
+  )
   const selectedPolygon = useMemo(() => {
-    if (!selection.selectedBounds || hideSelectionChrome) {
+    if (!selection.selectedBounds || hideSelectionChrome || shouldHideSelectionPolygon) {
       return null
     }
     return buildRectPolygon(selection.selectedBounds, {
@@ -107,6 +119,7 @@ export function InteractionOverlay({
   }, [
     hideSelectionChrome,
     selection.selectedBounds,
+    shouldHideSelectionPolygon,
     singleSelectedShape?.flipX,
     singleSelectedShape?.flipY,
     singleSelectedShape?.rotation,
@@ -127,11 +140,11 @@ export function InteractionOverlay({
   const snapLines = useMemo(
     () => resolveSnapGuideLines({
       guides: snapGuides,
-      documentWidth: document.width,
-      documentHeight: document.height,
+      shapes: document.shapes,
+      movingShapeIds: selection.selectedIds,
       matrix: viewport.matrix,
     }),
-    [document.height, document.width, snapGuides, viewport.matrix],
+    [document.shapes, selection.selectedIds, snapGuides, viewport.matrix],
   )
   const staticShapeAnchors = useMemo(() => {
     const anchors: Array<{key: string; tone: 'selected' | 'hover'; shapeId: string}> = []
@@ -151,6 +164,76 @@ export function InteractionOverlay({
     }
     return anchors
   }, [hoveredShape, selectedShapes])
+  const activePathSubSelection = pathSubSelectionHover ?? pathSubSelection
+  const activePathShape = useMemo(() => {
+    if (!activePathSubSelection) {
+      return null
+    }
+    const shape = document.shapes.find((item) => item.id === activePathSubSelection.shapeId)
+    if (!shape || shape.type !== 'path') {
+      return null
+    }
+    return shape
+  }, [activePathSubSelection, document.shapes])
+  const activePathAnchors = useMemo(() => {
+    if (!activePathShape) {
+      return [] as Array<{x: number; y: number}>
+    }
+    if (Array.isArray(activePathShape.bezierPoints) && activePathShape.bezierPoints.length > 0) {
+      return activePathShape.bezierPoints.map((point) => ({
+        x: point.anchor.x,
+        y: point.anchor.y,
+      }))
+    }
+    return (activePathShape.points ?? []).map((point) => ({x: point.x, y: point.y}))
+  }, [activePathShape])
+  const activePathHandleLinks = useMemo(() => {
+    if (!activePathShape || !Array.isArray(activePathShape.bezierPoints)) {
+      return [] as Array<{anchor: {x: number; y: number}; handle: {x: number; y: number}; handleType: 'inHandle' | 'outHandle'; anchorIndex: number}>
+    }
+
+    return activePathShape.bezierPoints.flatMap((point, anchorIndex) => {
+      const links: Array<{anchor: {x: number; y: number}; handle: {x: number; y: number}; handleType: 'inHandle' | 'outHandle'; anchorIndex: number}> = []
+      if (point.cp1) {
+        const override =
+          activePathSubSelection?.hitType === 'inHandle' &&
+          activePathSubSelection.handlePoint?.anchorIndex === anchorIndex
+            ? activePathSubSelection.handlePoint
+            : null
+        links.push({
+          anchor: {x: point.anchor.x, y: point.anchor.y},
+          handle: override ? {x: override.x, y: override.y} : {x: point.cp1.x, y: point.cp1.y},
+          handleType: 'inHandle',
+          anchorIndex,
+        })
+      }
+      if (point.cp2) {
+        const override =
+          activePathSubSelection?.hitType === 'outHandle' &&
+          activePathSubSelection.handlePoint?.anchorIndex === anchorIndex
+            ? activePathSubSelection.handlePoint
+            : null
+        links.push({
+          anchor: {x: point.anchor.x, y: point.anchor.y},
+          handle: override ? {x: override.x, y: override.y} : {x: point.cp2.x, y: point.cp2.y},
+          handleType: 'outHandle',
+          anchorIndex,
+        })
+      }
+      return links
+    })
+  }, [activePathShape, activePathSubSelection])
+  const highlightedSegment = useMemo(() => {
+    if (!activePathSubSelection || activePathSubSelection.hitType !== 'segment' || !activePathSubSelection.segment || activePathAnchors.length < 2) {
+      return null
+    }
+    const from = activePathAnchors[activePathSubSelection.segment.index]
+    const to = activePathAnchors[activePathSubSelection.segment.index + 1]
+    if (!from || !to) {
+      return null
+    }
+    return {from, to}
+  }, [activePathAnchors, activePathSubSelection])
 
   return (
     <div
@@ -180,6 +263,83 @@ export function InteractionOverlay({
         >
           {hoveredShape && renderHoveredShapeStroke(hoveredShape, presentation)}
           {selectedShapes.map((shape) => renderSelectedShapeStroke(shape, presentation))}
+          {draftPrimitive && renderDraftPrimitive(draftPrimitive, presentation)}
+          {penDraftPoints && penDraftPoints.length >= 2 && (
+            <polyline
+              role="presentation"
+              points={toSvgPoints(penDraftPoints)}
+              fill="none"
+              stroke={presentation.overlay.selectionStroke}
+              strokeWidth={presentation.overlay.selectionStrokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="6 4"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {highlightedSegment && (
+            <line
+              role="presentation"
+              x1={highlightedSegment.from.x}
+              y1={highlightedSegment.from.y}
+              x2={highlightedSegment.to.x}
+              y2={highlightedSegment.to.y}
+              stroke={presentation.overlay.hoverStroke}
+              strokeWidth={presentation.overlay.selectionStrokeWidth + 0.5}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {activePathAnchors.map((anchor, index) => {
+            const selectedAnchor = activePathSubSelection?.hitType === 'anchorPoint' && activePathSubSelection.anchorPoint?.index === index
+            return (
+              <circle
+                role="presentation"
+                key={`path-anchor:${activePathShape?.id}:${index}`}
+                cx={anchor.x}
+                cy={anchor.y}
+                r={selectedAnchor ? 4 : 3}
+                fill={selectedAnchor ? presentation.overlay.selectionStroke : '#ffffff'}
+                stroke={selectedAnchor ? '#ffffff' : presentation.overlay.hoverStroke}
+                strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
+              />
+            )
+          })}
+
+          {activePathHandleLinks.map((link) => {
+            const selectedHandle =
+              activePathSubSelection?.hitType === link.handleType &&
+              activePathSubSelection.handlePoint?.anchorIndex === link.anchorIndex
+
+            return (
+              <g key={`path-handle:${activePathShape?.id}:${link.anchorIndex}:${link.handleType}`}>
+                <line
+                  role="presentation"
+                  x1={link.anchor.x}
+                  y1={link.anchor.y}
+                  x2={link.handle.x}
+                  y2={link.handle.y}
+                  stroke={presentation.overlay.hoverStroke}
+                  strokeWidth={1}
+                  strokeDasharray="3 2"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <circle
+                  role="presentation"
+                  cx={link.handle.x}
+                  cy={link.handle.y}
+                  r={selectedHandle ? 4 : 3}
+                  fill={selectedHandle ? presentation.overlay.selectionStroke : '#ffffff'}
+                  stroke={presentation.overlay.hoverStroke}
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
+              </g>
+            )
+          })}
 
           {selectedPolygon && (
             <polygon
@@ -268,6 +428,129 @@ export function InteractionOverlay({
   )
 }
 
+function renderDraftPrimitive(
+  draftPrimitive: DraftPrimitive,
+  presentation: CanvasPresentationConfig,
+) {
+  const stroke = presentation.overlay.selectionStroke
+  const strokeWidth = presentation.overlay.selectionStrokeWidth
+  const fill = 'rgba(56, 189, 248, 0.08)'
+  const bounds = draftPrimitive.bounds
+  const width = Math.max(1, bounds.maxX - bounds.minX)
+  const height = Math.max(1, bounds.maxY - bounds.minY)
+
+  if (draftPrimitive.type === 'lineSegment') {
+    const from = draftPrimitive.points[0] ?? {x: bounds.minX, y: bounds.minY}
+    const to = draftPrimitive.points[draftPrimitive.points.length - 1] ?? {x: bounds.maxX, y: bounds.maxY}
+    return (
+      <line
+        role="presentation"
+        x1={from.x}
+        y1={from.y}
+        x2={to.x}
+        y2={to.y}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    )
+  }
+
+  if (draftPrimitive.type === 'ellipse') {
+    return (
+      <ellipse
+        role="presentation"
+        cx={bounds.minX + width / 2}
+        cy={bounds.minY + height / 2}
+        rx={width / 2}
+        ry={height / 2}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray="6 4"
+        vectorEffect="non-scaling-stroke"
+      />
+    )
+  }
+
+  if (draftPrimitive.type === 'polygon') {
+    const points = buildDraftPolygonPoints(bounds.minX, bounds.minY, width, height)
+    return (
+      <polygon
+        role="presentation"
+        points={toSvgPoints(points)}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray="6 4"
+        vectorEffect="non-scaling-stroke"
+      />
+    )
+  }
+
+  if (draftPrimitive.type === 'star') {
+    const points = buildDraftStarPoints(bounds.minX, bounds.minY, width, height)
+    return (
+      <polygon
+        role="presentation"
+        points={toSvgPoints(points)}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray="6 4"
+        vectorEffect="non-scaling-stroke"
+      />
+    )
+  }
+
+  return (
+    <rect
+      role="presentation"
+      x={bounds.minX}
+      y={bounds.minY}
+      width={width}
+      height={height}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeDasharray="6 4"
+      vectorEffect="non-scaling-stroke"
+    />
+  )
+}
+
+function buildDraftPolygonPoints(x: number, y: number, width: number, height: number) {
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const radius = Math.min(width, height) / 2
+  const sides = 5
+
+  return Array.from({length: sides}, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / sides
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    }
+  })
+}
+
+function buildDraftStarPoints(x: number, y: number, width: number, height: number) {
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const outerRadius = Math.min(width, height) / 2
+  const innerRadius = outerRadius * 0.46
+
+  return Array.from({length: 10}, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI / 5) * index
+    const radius = index % 2 === 0 ? outerRadius : innerRadius
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    }
+  })
+}
+
 function renderSelectedShapeStroke(
   shape: EditorDocument['shapes'][number],
   presentation: CanvasPresentationConfig,
@@ -287,6 +570,11 @@ function renderSelectedShapeStroke(
   const transform = toResolvedNodeSvgTransform(transformState)
 
   if (shape.type === 'group') {
+    return null
+  }
+
+  if (shape.type === 'image' && shape.clipPathId) {
+    // Masked images already expose clip-shape chrome; suppress host bounds box to avoid duplicate selection frames.
     return null
   }
 
@@ -316,13 +604,18 @@ function renderSelectedShapeStroke(
   }
 
   if (shape.type === 'lineSegment') {
+    const points = Array.isArray(shape.points) && shape.points.length >= 2
+      ? shape.points
+      : null
+    const start = points ? points[0] : {x: shape.x, y: shape.y}
+    const end = points ? points[points.length - 1] : {x: shape.x + shape.width, y: shape.y + shape.height}
     return (
       <line
         key={`selected-stroke:${shape.id}`}
-        x1={shape.x}
-        y1={shape.y}
-        x2={shape.x + shape.width}
-        y2={shape.y + shape.height}
+        x1={start.x}
+        y1={start.y}
+        x2={end.x}
+        y2={end.y}
         transform={transform}
         {...common}
       />
@@ -393,6 +686,10 @@ function renderHoveredShapeStroke(
     return null
   }
 
+  if (shape.type === 'image' && shape.clipPathId) {
+    return null
+  }
+
   if (shape.type === 'ellipse') {
     return (
       <ellipse
@@ -419,13 +716,18 @@ function renderHoveredShapeStroke(
   }
 
   if (shape.type === 'lineSegment') {
+    const points = Array.isArray(shape.points) && shape.points.length >= 2
+      ? shape.points
+      : null
+    const start = points ? points[0] : {x: shape.x, y: shape.y}
+    const end = points ? points[points.length - 1] : {x: shape.x + shape.width, y: shape.y + shape.height}
     return (
       <line
         key={`hover-stroke:${shape.id}`}
-        x1={shape.x}
-        y1={shape.y}
-        x2={shape.x + shape.width}
-        y2={shape.y + shape.height}
+        x1={start.x}
+        y1={start.y}
+        x2={end.x}
+        y2={end.y}
         transform={transform}
         {...common}
       />

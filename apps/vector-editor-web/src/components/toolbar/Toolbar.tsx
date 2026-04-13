@@ -1,7 +1,17 @@
 import React from 'react'
 import {cn, Tooltip} from '@venus/ui'
 import {ToolName} from '@venus/document-core'
-import {LuCircle, LuHand, LuPentagon, LuPencilLine, LuRectangleHorizontal, LuStar, LuZoomIn} from 'react-icons/lu'
+import {
+  LuCircle,
+  LuHand,
+  LuPentagon,
+  LuPenTool,
+  LuPencilLine,
+  LuRectangleHorizontal,
+  LuStar,
+  LuZoomIn,
+  LuZoomOut,
+} from 'react-icons/lu'
 import {lineSeg, mousePointer} from '../../assets/svg/icons.tsx'
 import {useTranslation} from 'react-i18next'
 import {
@@ -54,6 +64,11 @@ const toolList = [
     toolName: 'text',
   },
   {
+    labelKey: 'toolbar.path',
+    icon: <LuPenTool size={CHROME_ICON_SIZE}/>,
+    toolName: 'path',
+  },
+  {
     labelKey: 'toolbar.pencil',
     icon: <LuPencilLine size={CHROME_ICON_SIZE}/>,
     toolName: 'pencil',
@@ -64,9 +79,14 @@ const toolList = [
     toolName: 'panning',
   },
   {
-    labelKey: 'toolbar.zoom',
+    labelKey: 'toolbar.zoomIn',
     icon: <LuZoomIn size={CHROME_ICON_SIZE}/>,
     toolName: 'zoomIn',
+  },
+  {
+    labelKey: 'toolbar.zoomOut',
+    icon: <LuZoomOut size={CHROME_ICON_SIZE}/>,
+    toolName: 'zoomOut',
   },
 ] as const
 

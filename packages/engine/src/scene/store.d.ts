@@ -32,6 +32,10 @@ export interface EngineSceneStore {
         x: number;
         y: number;
     }, tolerance?: number): EngineHitTestResult | null;
+    hitTestAll(point: {
+        x: number;
+        y: number;
+    }, tolerance?: number): EngineHitTestResult[];
     getNode(nodeId: EngineNodeId): EngineRenderableNode | null;
     getSnapshot(): EngineSceneSnapshot;
     getMutableState(): MutableEngineSceneState;

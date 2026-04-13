@@ -1,10 +1,11 @@
 import MenuBar from './menu/Menu.tsx'
 import ShortcutBar from './shortcutBar/ShortcutBar.tsx'
 import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import type {SelectedElementProps} from '../../hooks/useEditorRuntime.types.ts'
 
 const Header: React.FC<{
   executeAction: EditorExecutor
-  saveFile: VoidFunction
+  onOpenTemplatePresetPicker: VoidFunction
   needSave: boolean
   historyStatus: {
     id: number
@@ -12,14 +13,22 @@ const Header: React.FC<{
     hasNext: boolean
   }
   selectedIds: string[]
-}> = ({executeAction, saveFile, needSave, historyStatus, selectedIds}) => {
+  selectedProps: SelectedElementProps | null
+  copiedCount: number
+}> = ({executeAction, onOpenTemplatePresetPicker, needSave, historyStatus, selectedIds, selectedProps, copiedCount}) => {
   return <header>
-    <MenuBar executeAction={executeAction}/>
+    <MenuBar
+      executeAction={executeAction}
+      selectedIds={selectedIds}
+      copiedCount={copiedCount}
+      needSave={needSave}
+      historyStatus={historyStatus}
+    />
     <ShortcutBar executeAction={executeAction}
-                 saveFile={saveFile}
-                 needSave={needSave}
+                 onOpenTemplatePresetPicker={onOpenTemplatePresetPicker}
                  historyStatus={historyStatus}
-                 selectedIds={selectedIds}/>
+                 selectedIds={selectedIds}
+                 selectedProps={selectedProps}/>
   </header>
 }
 export default Header

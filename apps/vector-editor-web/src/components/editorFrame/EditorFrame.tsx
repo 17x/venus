@@ -1,5 +1,6 @@
 import {type KeyboardEvent, type ReactNode, useRef, useState} from 'react'
 import CreateFile from '../createFile/CreateFile.tsx'
+import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import LanguageSwitcher from '../language/languageSwitcher.tsx'
 import Header from '../header/Header.tsx'
 import Toolbar from '../toolbar/Toolbar.tsx'
@@ -22,6 +23,7 @@ import {
   CHROME_RAIL_ITEM_CONTAINER_CLASS,
 } from '../editorChrome/chromeIconStyles.ts'
 import {EDITOR_ROOT_CLASS} from '../editorChrome/editorTypography.ts'
+import {generateTemplateFile} from '../../features/templatePresets/generators.ts'
 
 type InspectorPanelId = 'properties' | 'layers' | 'history'
 
@@ -36,6 +38,7 @@ const INSPECTOR_PANEL_META: Array<{
 ]
 
 const EditorFrame = () => {
+  const [showTemplatePresetPicker, setShowTemplatePresetPicker] = useState(false)
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0})
   const [contextMenuPastePosition, setContextMenuPastePosition] = useState({x: 0, y: 0})
@@ -68,7 +71,6 @@ const EditorFrame = () => {
   const {
     setShowPrint,
     executeAction,
-    saveFile,
     createFile,
     handleCreating,
     setCurrentTool,
@@ -132,10 +134,14 @@ const EditorFrame = () => {
              tabIndex={0}
              className={'outline-0 bg-white'}>
           <Header executeAction={executeAction}
-                  saveFile={saveFile}
+                  onOpenTemplatePresetPicker={() => {
+                    setShowTemplatePresetPicker(true)
+                  }}
                   needSave={hasUnsavedChanges}
                   historyStatus={historyStatus}
-                  selectedIds={selectedIds}/>
+                  selectedIds={selectedIds}
+                  selectedProps={selectedProps}
+                  copiedCount={copiedItems.length}/>
 
           <Row ovh fh>
             <Toolbar tool={currentTool} setTool={setCurrentTool}/>
@@ -278,6 +284,19 @@ const EditorFrame = () => {
                       handleCreating(false)
                     }
                   }}/>}
+
+    {showTemplatePresetPicker &&
+      <TemplatePresetPicker
+        bg={'#00000080'}
+        onClose={() => {
+          setShowTemplatePresetPicker(false)
+        }}
+        onGenerate={(presetId, seed) => {
+          const generatedFile = generateTemplateFile(presetId, {seed})
+          createFile(generatedFile)
+          setShowTemplatePresetPicker(false)
+        }}
+      />}
 
   </div>
 }

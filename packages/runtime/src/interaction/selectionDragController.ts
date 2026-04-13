@@ -45,6 +45,7 @@ export interface SelectionDragController {
     modifiers?: SelectionDragModifiers,
     options?: {
       hitShapeId?: string | null
+      preferGroupSelection?: boolean
     },
   ) => boolean
   pointerMove: (pointer: {x: number; y: number}, snapshot: SelectionDragSnapshot) => SelectionDragMoveResult
@@ -83,6 +84,7 @@ export function createSelectionDragController(options?: {
 
       let hitShape = null as SceneShapeSnapshot | null
       const hintedId = options?.hitShapeId ?? null
+      const preferGroupSelection = options?.preferGroupSelection ?? false
       const shapeSnapshotById = new Map(snapshot.shapes.map((shape) => [shape.id, shape]))
       if (hintedId) {
         const hintedShape = shapeSnapshotById.get(hintedId) ?? null
@@ -92,6 +94,7 @@ export function createSelectionDragController(options?: {
             tolerance: lineHitTolerance,
             excludeClipBoundImage: true,
             clipTolerance: lineHitTolerance,
+            preferGroupSelection,
           })
           : null
         if (hintedHitId && hintedShape) {
@@ -104,6 +107,7 @@ export function createSelectionDragController(options?: {
           tolerance: lineHitTolerance,
           excludeClipBoundImage: true,
           clipTolerance: lineHitTolerance,
+          preferGroupSelection,
         })
         hitShape = hitShapeId ? shapeSnapshotById.get(hitShapeId) ?? null : null
       }
@@ -127,19 +131,25 @@ export function createSelectionDragController(options?: {
         }
 
         const selectedIds = snapshot.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id)
+        const shapeById = new Map(snapshot.document.shapes.map((shape) => [shape.id, shape]))
+        const selectedExpandedSet = new Set(selectedIds)
+        selectedIds.forEach((shapeId) => {
+          collectDescendantShapeIds(shapeById, shapeId, selectedExpandedSet)
+          collectClipLinkedShapeIds(shapeById, shapeId, selectedExpandedSet)
+        })
         // Drag follows the selected set when hit shape is selected; otherwise
         // it drags the hit shape only (single-shape takeover).
-        const selectedIdSet = new Set(selectedIds)
+        const selectedIdSet = selectedExpandedSet
         const dragIds = (
           selectedIdSet.has(pending.shapeId) ||
           hasSelectedAncestorInDocument(
-            new Map(snapshot.document.shapes.map((shape) => [shape.id, shape])),
+            shapeById,
             pending.shapeId,
             selectedIdSet,
           )
         )
-          ? selectedIds
-          : [pending.shapeId]
+          ? Array.from(selectedIdSet)
+          : resolveSingleDragIds(shapeById, pending.shapeId)
         const dragShapes = dragIds
           .map((id) => snapshot.document.shapes.find((shape) => shape.id === id))
           .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
@@ -222,4 +232,54 @@ export function createSelectionDragController(options?: {
       return session
     },
   }
+}
+
+function collectDescendantShapeIds(
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+  shapeId: string,
+  out: Set<string>,
+) {
+  const shape = shapeById.get(shapeId)
+  if (!shape || !Array.isArray(shape.childIds)) {
+    return
+  }
+
+  shape.childIds.forEach((childId) => {
+    if (out.has(childId)) {
+      return
+    }
+    out.add(childId)
+    collectDescendantShapeIds(shapeById, childId, out)
+  })
+}
+
+function collectClipLinkedShapeIds(
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+  shapeId: string,
+  out: Set<string>,
+) {
+  const shape = shapeById.get(shapeId)
+  if (!shape) {
+    return
+  }
+
+  if (shape.type === 'image' && shape.clipPathId && shapeById.has(shape.clipPathId)) {
+    out.add(shape.clipPathId)
+  }
+
+  shapeById.forEach((candidate) => {
+    if (candidate.type === 'image' && candidate.clipPathId === shape.id) {
+      out.add(candidate.id)
+    }
+  })
+}
+
+function resolveSingleDragIds(
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+  shapeId: string,
+) {
+  const ids = new Set<string>([shapeId])
+  collectDescendantShapeIds(shapeById, shapeId, ids)
+  collectClipLinkedShapeIds(shapeById, shapeId, ids)
+  return Array.from(ids)
 }

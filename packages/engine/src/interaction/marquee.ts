@@ -28,6 +28,7 @@ export interface EngineMarqueeSelectableShape {
   width: number
   height: number
   type?: string
+  points?: Array<{x: number; y: number}>
 }
 
 export function createEngineMarqueeState(
@@ -78,6 +79,12 @@ export function resolveEngineMarqueeSelection(
   return shapes
     .filter((shape) => !excludeShape?.(shape))
     .filter((shape) => {
+      if ((shape.type === 'polygon' || shape.type === 'star' || shape.type === 'path') && Array.isArray(shape.points) && shape.points.length > 0) {
+        return matchMode === 'contain'
+          ? shape.points.every((point) => isPointInsideBounds(point, bounds))
+          : shape.points.some((point) => isPointInsideBounds(point, bounds))
+      }
+
       const shapeBounds = getEngineNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
       return matchMode === 'contain'
         ? containsEngineBounds(bounds, shapeBounds)
@@ -123,5 +130,17 @@ export function containsEngineBounds(
     target.maxX <= container.maxX &&
     target.minY >= container.minY &&
     target.maxY <= container.maxY
+  )
+}
+
+function isPointInsideBounds(
+  point: {x: number; y: number},
+  bounds: EngineMarqueeBounds,
+) {
+  return (
+    point.x >= bounds.minX &&
+    point.x <= bounds.maxX &&
+    point.y >= bounds.minY &&
+    point.y <= bounds.maxY
   )
 }

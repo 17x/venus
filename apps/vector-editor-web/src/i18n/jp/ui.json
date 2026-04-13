@@ -1,6 +1,26 @@
 {
   "ui": {
     "languageSelectorLabel": "言語",
+    "template": {
+      "generateButtonLabel": "テンプレート生成",
+      "generateButtonTooltip": "組み込みテンプレートプリセットを生成",
+      "pickerTitle": "テンプレートプリセット",
+      "pickerSubtitle": "組み込みプリセットを選択して、デモシーンや性能テスト用ファイルをすばやく作成します。",
+      "presetDetails": "プリセット詳細",
+      "categoryLabel": "カテゴリ",
+      "targetElementsLabel": "目標要素数",
+      "seedLabel": "シード（任意）",
+      "seedPlaceholder": "例: 20260413",
+      "seedHint": "シードを使うと再現可能な生成結果でデバッグできます。",
+      "randomizeSeed": "ランダム",
+      "actionsHint": "選択したプリセットは新規ファイルとして作成されます。",
+      "cancelButton": "キャンセル",
+      "category": {
+        "simpleDemo": "シンプルデモ",
+        "mixedLarge": "大規模ミックス負荷",
+        "imageHeavy": "画像高密度負荷"
+      }
+    },
     "toolbar": {
       "selector": "選択",
       "directSelector": "ダイレクト選択",
@@ -10,9 +30,19 @@
       "polygon": "多角形",
       "star": "星",
       "text": "テキスト",
+      "path": "パス",
       "pencil": "鉛筆",
       "hand": "手のひら",
-      "zoom": "ズーム"
+      "zoomIn": "ズームイン",
+      "zoomOut": "ズームアウト"
+    },
+    "quickStyle": {
+      "fill": "塗り",
+      "stroke": "線",
+      "fillTooltip": "塗り色を適用",
+      "strokeTooltip": "線色を適用",
+      "strokeWidthDownTooltip": "線幅を小さくする",
+      "strokeWidthUpTooltip": "線幅を大きくする"
     }
   }
 }

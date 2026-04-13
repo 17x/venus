@@ -82,6 +82,7 @@ export interface TextStyle {
   lineHeight?: number
   textAlign?: 'left' | 'center' | 'right'
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  shadow?: ShapeShadowStyle
 }
 
 export interface TextRun {
