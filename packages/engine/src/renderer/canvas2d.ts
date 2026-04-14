@@ -443,36 +443,95 @@ function drawTextNode(
   localRect: {x: number; y: number; width: number; height: number} | null,
 ) {
   context.textBaseline = 'top'
-  const lineHeight = node.style.lineHeight ?? node.style.fontSize
+  const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
   const originX = resolveTextAnchorX(node, localRect)
-  const originY = resolveTextAnchorY(node, localRect, lineHeight)
+  const lineLayouts = resolveTextLineLayouts(node)
+  const totalHeight = lineLayouts.reduce((sum, line) => sum + line.lineHeight, 0)
+  const originY = resolveTextAnchorY(node, localRect, totalHeight)
 
-  const baseText = node.text ?? ''
-  if (node.runs && node.runs.length > 0) {
+  let cursorY = originY
+  for (const line of lineLayouts) {
     let cursorX = originX
-    const baselineY = originY
-    for (const run of node.runs) {
-      applyTextStyle(context, {
+    const baselineY = cursorY
+    for (const segment of line.segments) {
+      const segmentStyle: EngineTextStyle = {
         ...node.style,
-        ...run.style,
+        ...segment.style,
+      }
+
+      applyTextStyle(context, segmentStyle)
+      const segmentShadow = segment.style?.shadow
+      if (segmentShadow) {
+        applyTextShadow(context, segmentShadow)
+      }
+
+      cursorX = drawTextSpan(context, segment.text, cursorX, baselineY, {
+        fill: segment.style?.fill ?? node.style.fill,
+        stroke: segment.style?.stroke ?? node.style.stroke,
+        strokeWidth: segment.style?.strokeWidth ?? node.style.strokeWidth,
+        letterSpacing: segment.style?.letterSpacing ?? node.style.letterSpacing,
       })
-      cursorX = drawTextSpan(context, run.text, cursorX, baselineY, {
-        fill: run.style?.fill ?? node.style.fill,
-        stroke: run.style?.stroke ?? node.style.stroke,
-        strokeWidth: run.style?.strokeWidth ?? node.style.strokeWidth,
-        letterSpacing: run.style?.letterSpacing ?? node.style.letterSpacing,
-      })
+
+      if (segmentShadow) {
+        resetTextShadow(context)
+      }
     }
-    return
+
+    cursorY += line.lineHeight || defaultLineHeight
+  }
+}
+
+function resolveTextLineLayouts(node: EngineTextNode) {
+  if (node.runs && node.runs.length > 0) {
+    return splitRunLines(node)
   }
 
-  applyTextStyle(context, node.style)
-  void drawTextSpan(context, baseText, originX, originY, {
-    fill: node.style.fill,
-    stroke: node.style.stroke,
-    strokeWidth: node.style.strokeWidth,
-    letterSpacing: node.style.letterSpacing,
-  })
+  const lineHeight = node.style.lineHeight ?? node.style.fontSize
+  const content = node.text ?? ''
+  const lines = content.split('\n')
+  if (lines.length === 0) {
+    return [{lineHeight, segments: [{text: '', style: undefined}]}]
+  }
+
+  return lines.map((line) => ({
+    lineHeight,
+    segments: [{text: line, style: undefined}],
+  }))
+}
+
+function splitRunLines(node: EngineTextNode) {
+  const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
+  const lines: Array<{lineHeight: number; segments: Array<{text: string; style?: Partial<EngineTextStyle>}>}> = [
+    {
+      lineHeight: defaultLineHeight,
+      segments: [],
+    },
+  ]
+
+  for (const run of node.runs ?? []) {
+    const parts = run.text.split('\n')
+    const runLineHeight = run.style?.lineHeight ?? defaultLineHeight
+
+    parts.forEach((part, index) => {
+      const currentLine = lines[lines.length - 1]
+      if (part.length > 0 || currentLine.segments.length === 0) {
+        currentLine.segments.push({
+          text: part,
+          style: run.style,
+        })
+      }
+      currentLine.lineHeight = Math.max(currentLine.lineHeight, runLineHeight)
+
+      if (index < parts.length - 1) {
+        lines.push({
+          lineHeight: defaultLineHeight,
+          segments: [],
+        })
+      }
+    })
+  }
+
+  return lines
 }
 
 function resolveTextAnchorX(
@@ -668,6 +727,15 @@ function appendShapePath(
   }
 
   if (node.shape === 'line') {
+    if (Array.isArray(node.points) && node.points.length >= 2) {
+      // Line nodes keep absolute anchors; using rect diagonal can flip direction and shift the rendered segment.
+      const start = node.points[0]
+      const end = node.points[node.points.length - 1]
+      context.moveTo(start.x, start.y)
+      context.lineTo(end.x, end.y)
+      return true
+    }
+
     context.moveTo(rect.x, rect.y)
     context.lineTo(rect.x + rect.width, rect.y + rect.height)
     return true
@@ -796,6 +864,17 @@ function resolveShapeEndpointSegment(
   rect: {x: number; y: number; width: number; height: number},
 ) {
   if (node.shape === 'line') {
+    if (Array.isArray(node.points) && node.points.length >= 2) {
+      const start = node.points[0]
+      const end = node.points[node.points.length - 1]
+      return {
+        start,
+        next: end,
+        previous: start,
+        end,
+      }
+    }
+
     const start = {x: rect.x, y: rect.y}
     const end = {x: rect.x + rect.width, y: rect.y + rect.height}
     return {
@@ -1166,6 +1245,25 @@ function applyTextStyle(
   context.font = `${fontStyle} ${fontWeight} ${style.fontSize}px ${style.fontFamily}`
   context.fillStyle = style.fill ?? '#111111'
   context.textAlign = resolveCanvasTextAlign(style.align)
+}
+
+function applyTextShadow(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  shadow: NonNullable<EngineTextStyle['shadow']>,
+) {
+  context.shadowColor = shadow.color ?? 'rgba(0,0,0,0)'
+  context.shadowBlur = shadow.blur ?? 0
+  context.shadowOffsetX = shadow.offsetX ?? 0
+  context.shadowOffsetY = shadow.offsetY ?? 0
+}
+
+function resetTextShadow(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+) {
+  context.shadowColor = 'rgba(0,0,0,0)'
+  context.shadowBlur = 0
+  context.shadowOffsetX = 0
+  context.shadowOffsetY = 0
 }
 
 function resolveCanvasTextAlign(

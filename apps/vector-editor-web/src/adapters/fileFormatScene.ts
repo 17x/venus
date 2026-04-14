@@ -8,6 +8,27 @@ type ElementHierarchyMeta = {
   childIds?: string[]
 }
 
+type ElementTextRunStyle = {
+  color?: string
+  fontFamily?: string
+  fontSize?: number
+  fontWeight?: number
+  letterSpacing?: number
+  lineHeight?: number
+  shadow?: {
+    color?: string
+    offsetX?: number
+    offsetY?: number
+    blur?: number
+  }
+}
+
+type ElementTextRun = {
+  start: number
+  end: number
+  style?: ElementTextRunStyle
+}
+
 function resolveArrowhead(value: unknown) {
   if (
     value === 'none' ||
@@ -189,14 +210,15 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
   }
 
   if (type === 'text') {
-    const content = String(element.name ?? 'Text')
+    const content = resolveTextContent(element)
+    const textRuns = resolveTextRuns(element, content)
     featureEntries.push({
       id: `${element.id}:text`,
       role: 'content',
       feature: {
         kind: 'TEXT',
         text: content,
-        runs: [],
+        runs: textRuns,
       },
     })
   }
@@ -236,6 +258,62 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     nodeKind: type,
     isVisible: element.show !== false,
     isLocked: false,
+  }
+}
+
+function resolveTextContent(element: ElementProps) {
+  if (typeof element.text === 'string') {
+    return element.text
+  }
+
+  return String(element.name ?? 'Text')
+}
+
+function resolveTextRuns(
+  element: ElementProps,
+  text: string,
+) {
+  const candidate = (element as ElementProps & {textRuns?: unknown}).textRuns
+  if (!Array.isArray(candidate) || candidate.length === 0) {
+    return []
+  }
+
+  const textLength = text.length
+
+  return candidate
+    .map((run) => normalizeTextRun(run, textLength))
+    .filter((run): run is NonNullable<ReturnType<typeof normalizeTextRun>> => run !== null)
+}
+
+function normalizeTextRun(value: unknown, textLength: number) {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const run = value as ElementTextRun
+  if (typeof run.start !== 'number' || typeof run.end !== 'number') {
+    return null
+  }
+
+  const start = Math.max(0, Math.min(textLength, Math.floor(run.start)))
+  const end = Math.max(start, Math.min(textLength, Math.floor(run.end)))
+  const style = run.style && typeof run.style === 'object'
+    ? run.style
+    : undefined
+
+  return {
+    start,
+    end,
+    color: style?.color ?? '#111111',
+    fontFamily: style?.fontFamily ?? 'Arial, sans-serif',
+    fontSize: typeof style?.fontSize === 'number' ? style.fontSize : 16,
+    fontWeight: typeof style?.fontWeight === 'number' ? style.fontWeight : 400,
+    letterSpacing: typeof style?.letterSpacing === 'number' ? style.letterSpacing : 0,
+    lineHeight: typeof style?.lineHeight === 'number' ? style.lineHeight : 20,
+    shadowColor: typeof style?.shadow?.color === 'string' ? style.shadow.color : undefined,
+    shadowOffsetX: typeof style?.shadow?.offsetX === 'number' ? style.shadow.offsetX : undefined,
+    shadowOffsetY: typeof style?.shadow?.offsetY === 'number' ? style.shadow.offsetY : undefined,
+    shadowBlur: typeof style?.shadow?.blur === 'number' ? style.shadow.blur : undefined,
   }
 }
 

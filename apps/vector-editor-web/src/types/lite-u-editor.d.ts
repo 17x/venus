@@ -28,6 +28,31 @@ declare module '@lite-u/editor/types' {
     bottomLeft?: number
   }
 
+  export interface TextShadow {
+    color?: string
+    offsetX?: number
+    offsetY?: number
+    blur?: number
+  }
+
+  export interface TextStyle {
+    color?: string
+    fontFamily?: string
+    fontSize?: number
+    fontWeight?: number
+    letterSpacing?: number
+    lineHeight?: number
+    textAlign?: 'left' | 'center' | 'right'
+    verticalAlign?: 'top' | 'middle' | 'bottom'
+    shadow?: TextShadow
+  }
+
+  export interface TextRun {
+    start: number
+    end: number
+    style?: TextStyle
+  }
+
   export interface ElementProps {
     id: UID
     type: string
@@ -54,6 +79,8 @@ declare module '@lite-u/editor/types' {
     ellipseStartAngle?: number
     ellipseEndAngle?: number
     asset?: string
+    text?: string
+    textRuns?: TextRun[]
     [key: string]: unknown
   }
 

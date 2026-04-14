@@ -111,6 +111,13 @@ export function createEngineWorkerBridge(
         index: sharedResult.hitIndex,
         nodeId: hitNode.id,
         nodeType: hitNode.type,
+        hitType: 'shape-body',
+        score: 0,
+        zOrder: sharedResult.hitIndex,
+        hitPoint: {
+          x: 0,
+          y: 0,
+        },
       })
     }
   }

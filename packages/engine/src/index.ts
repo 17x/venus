@@ -95,7 +95,7 @@ export {
   resolveNodeByFlattenedIndex,
 } from './scene/patch.ts'
 export { createEngineSceneStore } from './scene/store.ts'
-export { hitTestEngineSceneState } from './scene/hitTest.ts'
+export { hitTestEngineSceneState, hitTestEngineSceneStateAll } from './scene/hitTest.ts'
 export type {
   EngineClock,
   EngineFrameHandle,

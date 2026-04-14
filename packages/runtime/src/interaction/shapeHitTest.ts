@@ -8,6 +8,7 @@ export interface ResolveTopHitShapeIdOptions {
   strictStrokeHitTest?: boolean
   excludeClipBoundImage?: boolean
   clipTolerance?: number
+  preferGroupSelection?: boolean
 }
 
 export function resolveTopHitShapeId(
@@ -21,6 +22,7 @@ export function resolveTopHitShapeId(
   const tolerance = options?.tolerance ?? 6
   const clipTolerance = options?.clipTolerance ?? 1.5
   const excludeClipBoundImage = options?.excludeClipBoundImage ?? true
+  const preferGroupSelection = options?.preferGroupSelection ?? false
 
   for (let index = snapshots.length - 1; index >= 0; index -= 1) {
     const snapshot = snapshots[index]
@@ -49,9 +51,33 @@ export function resolveTopHitShapeId(
       strictStrokeHitTest: options?.strictStrokeHitTest,
       shapeById,
     })) {
-      return source.id
+      return preferGroupSelection
+        ? resolveTopmostGroupAncestorId(source.id, shapeById)
+        : source.id
     }
   }
 
   return null
+}
+
+function resolveTopmostGroupAncestorId(
+  shapeId: string,
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+) {
+  let current = shapeById.get(shapeId)
+  let resolvedId = shapeId
+
+  while (current?.parentId) {
+    const parent = shapeById.get(current.parentId)
+    if (!parent) {
+      break
+    }
+
+    if (parent.type === 'group') {
+      resolvedId = parent.id
+    }
+    current = parent
+  }
+
+  return resolvedId
 }

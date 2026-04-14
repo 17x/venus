@@ -15,6 +15,58 @@ context starts, or work needs to resume after switching topics.
 
 ## In Progress
 
+- `vector editor architecture buildout`
+  Focus on filling structural gaps in the vector/runtime/engine stack.
+  Reference doc: `docs/vector-editor-architecture.md`
+  Recently landed:
+  - command registry (`packages/runtime/src/commands/registry.ts`)
+  - hit-test adapter (`packages/runtime/src/interaction/hitTestAdapter.ts`)
+  - tool registry (`apps/vector-editor-web/src/tools/registry.ts`)
+  - editing mode controller (`apps/vector-editor-web/src/state/editingMode.ts`)
+  - template test metadata enrichment (13 presets with regression/benchmark flags)
+  - runtime tool lifecycle registry (`packages/runtime/src/tools/registry.ts`) and
+    runtime editing mode controller (`packages/runtime/src/editing-modes/controller.ts`)
+  - useEditorRuntime lifecycle wiring (tool activation + pointer-driven mode transitions)
+  - engine multi-hit API (`hitTestEngineSceneStateAll`) and scene-store `hitTestAll`
+  - worker hit-test candidate path (`hitTestDocumentCandidates`) with top-hit compatibility
+  - toolbar/path/zoomOut coverage and shortcut baseline update (P path, N pencil, Shift+Z zoomOut)
+  - initial useEditorRuntime decomposition via `hooks/runtime/tooling.ts`
+  - worker command dispatch moved to registry-style handlers in
+    `packages/runtime/src/worker/scope/operations.ts` for explicit
+    command routing (`selection.set`, `history.undo`, `history.redo`)
+  - local/remote group command baseline:
+    `shape.group` / `shape.ungroup` protocol + history patch support,
+    including reversible parent/child graph updates
+  - fixed known type issues in
+    `packages/ui/src/components/ui/modal.tsx` and
+    `apps/vector-editor-web/src/components/createFile/TemplatePresetPicker.tsx`
+  - vector action wiring now includes group/ungroup product entry points:
+    top menu, context menu, and shortcuts (`Cmd/Ctrl+G`, `Cmd/Ctrl+Shift+G`)
+  - selector vs dselector hit semantics are now explicitly separated in worker:
+    selector prefers group-level hit targets, while cmd/ctrl modifier supports
+    deep hit-through and dselector keeps deep selection semantics
+  - worker `tool.select` protocol now accepts optional `toolName` for
+    product-level interaction semantics without leaking UI behavior into engine
+  - worker command dispatch now bridges runtime command descriptors through
+    `createWorkerLocalCommandDispatcher` (`commandDispatchRegistry.ts`),
+    replacing direct ad-hoc map execution for handled commands
+  - dselector path sub-selection baseline landed:
+    `PathSubSelection` types + point hit resolution for anchor/segment +
+    overlay feedback in `InteractionOverlay`
+  - useEditorRuntime decomposition advanced with extracted runtime modules:
+    `hooks/runtime/groupActions.ts` and `hooks/runtime/pathSubSelection.ts`
+  - shape convert/align baseline landed end-to-end for 18.2 workstream:
+    `shape.convert-to-path` and `shape.align` now flow through
+    protocol -> local history -> scene patch apply -> collaboration replay,
+    with vector menu/context/shortcut-bar entry wiring
+    Next steps:
+  - bridge runtime command registry descriptors into worker handler registration
+    for the full command surface (current dispatcher bridge covers handled
+    local commands and descriptor cataloging)
+  - continue splitting useEditorRuntime into action/pointer/history modules
+  - introduce path sub-selection data model (anchor/segment/handle) for dselector
+  - map candidate-level hit semantics into runtime hit-test adapter and product rules
+
 - `runtime-engine responsibility hardening`
   Focus on keeping mechanism/policy/product boundaries stable during active
   feature work.

@@ -5,6 +5,10 @@ export interface EngineHitTestResult {
   index: number
   nodeId: string
   nodeType: EngineRenderableNode['type']
+  hitType: 'shape-body'
+  score: number
+  zOrder: number
+  hitPoint: EnginePoint
 }
 
 type Matrix2D = readonly [number, number, number, number, number, number]
@@ -15,21 +19,36 @@ export function hitTestEngineSceneState(
   point: EnginePoint,
   tolerance = 0,
 ): EngineHitTestResult | null {
+  const results = hitTestEngineSceneStateAll(state, point, tolerance)
+  return results[0] ?? null
+}
+
+export function hitTestEngineSceneStateAll(
+  state: MutableEngineSceneState,
+  point: EnginePoint,
+  tolerance = 0,
+): EngineHitTestResult[] {
   const flattened = flattenNodesWithWorldTransform(state.nodes)
+  const hits: EngineHitTestResult[] = []
+
   for (let index = flattened.length - 1; index >= 0; index -= 1) {
     const entry = flattened[index]
     if (!isPointInsideNode(point, entry.node, entry.worldMatrix, tolerance)) {
       continue
     }
 
-    return {
+    hits.push({
       index,
       nodeId: entry.node.id,
       nodeType: entry.node.type,
-    }
+      hitType: 'shape-body',
+      score: flattened.length - index,
+      zOrder: index,
+      hitPoint: point,
+    })
   }
 
-  return null
+  return hits
 }
 
 function isPointInsideNode(

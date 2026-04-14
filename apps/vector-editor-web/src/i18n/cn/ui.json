@@ -1,6 +1,26 @@
 {
   "ui": {
     "languageSelectorLabel": "语言",
+    "template": {
+      "generateButtonLabel": "生成模板",
+      "generateButtonTooltip": "生成内置模板预设",
+      "pickerTitle": "模板预设",
+      "pickerSubtitle": "选择一个内置预设，快速创建示例场景或性能压测文件。",
+      "presetDetails": "预设详情",
+      "categoryLabel": "分类",
+      "targetElementsLabel": "目标元素数",
+      "seedLabel": "随机种子（可选）",
+      "seedPlaceholder": "例如 20260413",
+      "seedHint": "使用种子可得到可复现的生成结果，便于调试。",
+      "randomizeSeed": "随机",
+      "actionsHint": "当前预设将作为新文件创建。",
+      "cancelButton": "取消",
+      "category": {
+        "simpleDemo": "简单示例",
+        "mixedLarge": "大规模混合压测",
+        "imageHeavy": "图片密集压测"
+      }
+    },
     "toolbar": {
       "selector": "选择",
       "directSelector": "直接选择",
@@ -10,9 +30,19 @@
       "polygon": "多边形",
       "star": "星形",
       "text": "文本",
+      "path": "路径",
       "pencil": "铅笔",
       "hand": "抓手",
-      "zoom": "缩放"
+      "zoomIn": "放大",
+      "zoomOut": "缩小"
+    },
+    "quickStyle": {
+      "fill": "填充",
+      "stroke": "描边",
+      "fillTooltip": "应用填充颜色",
+      "strokeTooltip": "应用描边颜色",
+      "strokeWidthDownTooltip": "减小描边宽度",
+      "strokeWidthUpTooltip": "增大描边宽度"
     }
   }
 }

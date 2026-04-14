@@ -218,13 +218,13 @@ function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
           type="button"
           aria-label={`Minimize ${props.title}`}
           title={`Minimize ${props.title}`}
-          className={'inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
+          className={'bg-amber-600 inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
           onClick={(event) => {
             event.stopPropagation()
             props.onMinimize?.()
           }}
         >
-          <LuMinus size={12}/>
+            <span>&minus;</span>
         </Button>}
     </div>
   )

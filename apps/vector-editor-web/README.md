@@ -41,13 +41,13 @@ Key points:
 ## Important Files
 
 - App entry:
-  - [src/App.tsx](/Users/yahone/projects/venus/apps/vector-editor-web/src/App.tsx)
+  - [src/App.tsx](./apps/vector-editor-web/src/App.tsx)
 - Runtime orchestration:
-  - [src/hooks/useEditorRuntime.ts](/Users/yahone/projects/venus/apps/vector-editor-web/src/hooks/useEditorRuntime.ts)
+  - [src/hooks/useEditorRuntime.ts](./apps/vector-editor-web/src/hooks/useEditorRuntime.ts)
 - Main frame:
-  - [src/components/editorFrame/EditorFrame.tsx](/Users/yahone/projects/venus/apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx)
+  - [src/components/editorFrame/EditorFrame.tsx](./apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx)
 - File/document adapter:
-  - [src/adapters/fileDocument.ts](/Users/yahone/projects/venus/apps/vector-editor-web/src/adapters/fileDocument.ts)
+  - [src/adapters/fileDocument.ts](./apps/vector-editor-web/src/adapters/fileDocument.ts)
 
 ## Performance Debugging
 

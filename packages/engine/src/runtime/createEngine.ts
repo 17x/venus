@@ -123,7 +123,7 @@ export interface Engine {
  * - optional render/resource/debug tuning grouped by concern
  */
 export function createEngine(options: CreateEngineOptions): Engine {
-  const backend = options.backend ?? 'canvas2d'
+  const backend = options.backend ?? 'webgl'
   let maxPixelRatio = options.render?.maxPixelRatio ?? 2
   let pixelRatio = resolveEnginePixelRatio(
     options.render?.dpr ?? options.render?.pixelRatio,

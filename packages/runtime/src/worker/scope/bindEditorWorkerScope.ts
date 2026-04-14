@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import {createCollaborationManager} from '../collaboration.ts'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument, ToolName} from '@venus/document-core'
 import {createHistoryManager} from '../history.ts'
 import {createEngineSpatialIndex} from '@venus/engine'
 import {
@@ -17,7 +17,7 @@ import type {
   SceneUpdateMessage,
 } from '../protocol.ts'
 import {resolvePointerSelectionMode} from './pointerSelection.ts'
-import {hitTestDocument} from './hitTest.ts'
+import {hitTestDocumentCandidates} from './hitTest.ts'
 import {cloneDocument} from './model.ts'
 import {rebuildSpatialIndex, syncClippedImageRuntimeGeometry} from './scenePatches.ts'
 import {handleLocalCommand, handleRemoteOperation} from './operations.ts'
@@ -31,6 +31,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let documentState: EditorDocument | null = null
   let allowFrameSelection = true
   let strictStrokeHitTest = false
+  let currentToolName: ToolName = 'selector'
 
   const spatialIndex = createEngineSpatialIndex<{
     shapeId: string
@@ -106,6 +107,9 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     if (message.type === 'command') {
+      if (message.command.type === 'tool.select') {
+        currentToolName = message.command.toolName ?? (message.command.tool === 'select' ? 'selector' : currentToolName)
+      }
       const updateKind = handleLocalCommand(
         message.command,
         scene,
@@ -127,10 +131,12 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
       return
     }
 
-    const targetIndex = hitTestDocument(documentState, spatialIndex, message.pointer, {
+    const hitCandidates = hitTestDocumentCandidates(documentState, spatialIndex, message.pointer, {
       allowFrameSelection,
       strictStrokeHitTest,
+      preferGroupSelection: currentToolName === 'selector' && !(message.modifiers?.metaKey || message.modifiers?.ctrlKey),
     })
+    const targetIndex = hitCandidates[0]?.index ?? -1
     const selectionMode = resolvePointerSelectionMode(message.modifiers)
     const selectionChanged =
       targetIndex < 0

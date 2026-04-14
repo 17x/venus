@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument, ShapeType} from '@venus/document-core'
 import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
 import type {SceneShapeSnapshot} from '@venus/runtime/shared-memory'
 
@@ -39,9 +39,20 @@ export function createEngineSceneFromRuntimeSnapshot(
     const sourceBounds = resolveSourceShapeBounds(sourceShape)
     const sourceTransform = resolveSourceShapeTransform(sourceShape)
     const paint = resolveShapePaint(sourceShape)
+    const sourceType = sourceShape?.type ?? shape.type
+    const clip = resolveNodeClip(sourceShape, documentShapeById)
 
-    if (shape.type === 'image') {
-      const clipPathId = sourceShape?.clipPathId
+    if (sourceType === 'group') {
+      nodes.push({
+        id: shape.id,
+        type: 'group',
+        children: [],
+        transform: sourceTransform,
+      })
+      return
+    }
+
+    if (sourceType === 'image') {
       const hasImageSource = Boolean(sourceShape?.assetId || sourceShape?.assetUrl)
       if (!hasImageSource) {
         nodes.push({
@@ -53,6 +64,7 @@ export function createEngineSceneFromRuntimeSnapshot(
           width: sourceBounds?.width ?? shape.width,
           height: sourceBounds?.height ?? shape.height,
           transform: sourceTransform,
+          clip,
           fill: paint.fill,
           stroke: paint.stroke,
           strokeWidth: paint.strokeWidth,
@@ -70,17 +82,12 @@ export function createEngineSceneFromRuntimeSnapshot(
         transform: sourceTransform,
         shadow: resolveNodeShadow(sourceShape),
         assetId: sourceShape?.assetId ?? sourceShape?.id ?? shape.id,
-        clip: clipPathId && documentShapeById.has(clipPathId)
-          ? {
-            clipNodeId: clipPathId,
-            rule: sourceShape?.clipRule,
-          }
-          : undefined,
+        clip,
       })
       return
     }
 
-    if (shape.type === 'text') {
+    if (sourceType === 'text') {
       nodes.push({
         id: shape.id,
         type: 'text',
@@ -90,40 +97,48 @@ export function createEngineSceneFromRuntimeSnapshot(
         height: sourceBounds?.height ?? shape.height,
         transform: sourceTransform,
         shadow: resolveNodeShadow(sourceShape),
+        clip,
         text: sourceShape?.text ?? shape.name ?? 'Text',
-        runs: sourceShape?.textRuns?.map((run) => ({
-          text: (sourceShape.text ?? '').slice(run.start, run.end),
-          style: {
+        runs: sourceShape?.textRuns?.map((run) => {
+          const style = {
             fill: run.style?.color,
             fontFamily: run.style?.fontFamily,
             fontSize: run.style?.fontSize,
             fontWeight: run.style?.fontWeight,
             lineHeight: run.style?.lineHeight,
             letterSpacing: run.style?.letterSpacing,
-            align: run.style?.textAlign === 'center'
-              ? 'center'
-              : run.style?.textAlign === 'right'
-                ? 'end'
-                : run.style?.textAlign === 'left'
-                  ? 'start'
-                  : undefined,
+            align: resolveEngineTextAlign(run.style?.textAlign),
             verticalAlign: run.style?.verticalAlign,
-          },
-        })),
-        style: {
-          fontFamily: sourceShape?.textRuns?.[0]?.style?.fontFamily ?? 'Arial, sans-serif',
-          fontSize: sourceShape?.textRuns?.[0]?.style?.fontSize ?? 16,
-          fontWeight: sourceShape?.textRuns?.[0]?.style?.fontWeight,
-          lineHeight: sourceShape?.textRuns?.[0]?.style?.lineHeight,
-          letterSpacing: sourceShape?.textRuns?.[0]?.style?.letterSpacing,
-          fill: sourceShape?.textRuns?.[0]?.style?.color ?? '#111111',
-          align: sourceShape?.textRuns?.[0]?.style?.textAlign === 'center'
-            ? 'center'
-            : sourceShape?.textRuns?.[0]?.style?.textAlign === 'right'
-              ? 'end'
-              : 'start',
-          verticalAlign: sourceShape?.textRuns?.[0]?.style?.verticalAlign,
-        },
+          }
+          const shadow = readRunShadow(run.style)
+          if (shadow) {
+            // Keep shadow transport compatible even before all type surfaces are refreshed.
+            ;(style as Record<string, unknown>).shadow = shadow
+          }
+
+          return {
+            text: (sourceShape.text ?? '').slice(run.start, run.end),
+            style,
+          }
+        }),
+        style: (() => {
+          const firstRun = sourceShape?.textRuns?.[0]
+          const style = {
+            fontFamily: firstRun?.style?.fontFamily ?? 'Arial, sans-serif',
+            fontSize: firstRun?.style?.fontSize ?? 16,
+            fontWeight: firstRun?.style?.fontWeight,
+            lineHeight: firstRun?.style?.lineHeight,
+            letterSpacing: firstRun?.style?.letterSpacing,
+            fill: firstRun?.style?.color ?? '#111111',
+            align: resolveEngineTextAlign(firstRun?.style?.textAlign) ?? 'start',
+            verticalAlign: firstRun?.style?.verticalAlign,
+          }
+          const shadow = readRunShadow(firstRun?.style)
+          if (shadow) {
+            ;(style as Record<string, unknown>).shadow = shadow
+          }
+          return style
+        })(),
       })
       return
     }
@@ -131,7 +146,7 @@ export function createEngineSceneFromRuntimeSnapshot(
     nodes.push({
       id: shape.id,
       type: 'shape',
-      shape: resolveEngineShapeKind(shape.type),
+      shape: resolveEngineShapeKind(sourceType),
       ...resolveEngineShapeGeometry(shape, sourceShape, sourceBounds),
       cornerRadius: sourceShape?.cornerRadius,
       cornerRadii: sourceShape?.cornerRadii
@@ -147,6 +162,7 @@ export function createEngineSceneFromRuntimeSnapshot(
       strokeStartArrowhead: sourceShape?.strokeStartArrowhead,
       strokeEndArrowhead: sourceShape?.strokeEndArrowhead,
       shadow: resolveNodeShadow(sourceShape),
+      clip,
       transform: sourceTransform,
       fill: paint.fill,
       stroke: paint.stroke,
@@ -180,7 +196,7 @@ export function buildDocumentImageAssetUrlMap(document: EditorDocument) {
   return map
 }
 
-function resolveEngineShapeKind(type: SceneShapeSnapshot['type']): 'rect' | 'ellipse' | 'line' | 'polygon' | 'path' {
+function resolveEngineShapeKind(type: ShapeType): 'rect' | 'ellipse' | 'line' | 'polygon' | 'path' {
   if (type === 'ellipse') {
     return 'ellipse'
   }
@@ -193,6 +209,12 @@ function resolveEngineShapeKind(type: SceneShapeSnapshot['type']): 'rect' | 'ell
   if (type === 'path') {
     return 'path'
   }
+  if (type === 'group') {
+    return 'rect'
+  }
+  if (type === 'frame') {
+    return 'rect'
+  }
   return 'rect'
 }
 
@@ -201,12 +223,26 @@ function resolveEngineShapeGeometry(
   sourceShape: EditorDocument['shapes'][number] | undefined,
   sourceBounds: {x: number; y: number; width: number; height: number} | null,
 ) {
-  const points = sourceShape?.points?.map((point) => ({x: point.x, y: point.y})) ?? undefined
+  const rawPoints = sourceShape?.points?.map((point) => ({x: point.x, y: point.y})) ?? undefined
   const bezierPoints = sourceShape?.bezierPoints?.map((point) => ({
     anchor: {x: point.anchor.x, y: point.anchor.y},
     cp1: point.cp1 ? {x: point.cp1.x, y: point.cp1.y} : point.cp1,
     cp2: point.cp2 ? {x: point.cp2.x, y: point.cp2.y} : point.cp2,
   })) ?? undefined
+  const fallbackRect = sourceBounds ?? {
+    x: snapshotShape.x,
+    y: snapshotShape.y,
+    width: snapshotShape.width,
+    height: snapshotShape.height,
+  }
+  const points = (
+    sourceShape?.type === 'lineSegment' && (!rawPoints || rawPoints.length < 2)
+      ? [
+        {x: fallbackRect.x, y: fallbackRect.y},
+        {x: fallbackRect.x + fallbackRect.width, y: fallbackRect.y + fallbackRect.height},
+      ]
+      : rawPoints
+  )
   const bounds = resolveShapePointBounds(points, bezierPoints)
 
   return {
@@ -320,6 +356,58 @@ function resolveNodeShadow(
   }
 }
 
+function resolveNodeClip(
+  sourceShape: EditorDocument['shapes'][number] | undefined,
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+) {
+  if (!sourceShape?.clipPathId) {
+    return undefined
+  }
+
+  if (!shapeById.has(sourceShape.clipPathId) || sourceShape.clipPathId === sourceShape.id) {
+    return undefined
+  }
+
+  return {
+    clipNodeId: sourceShape.clipPathId,
+    rule: sourceShape.clipRule,
+  }
+}
+
+function readRunShadow(style: unknown) {
+  if (!style || typeof style !== 'object') {
+    return undefined
+  }
+
+  const shadow = (style as {shadow?: unknown}).shadow
+  if (!shadow || typeof shadow !== 'object') {
+    return undefined
+  }
+
+  const value = shadow as {
+    color?: unknown
+    offsetX?: unknown
+    offsetY?: unknown
+    blur?: unknown
+  }
+
+  const color = typeof value.color === 'string' ? value.color : undefined
+  const offsetX = typeof value.offsetX === 'number' ? value.offsetX : undefined
+  const offsetY = typeof value.offsetY === 'number' ? value.offsetY : undefined
+  const blur = typeof value.blur === 'number' ? value.blur : undefined
+
+  if (color === undefined && offsetX === undefined && offsetY === undefined && blur === undefined) {
+    return undefined
+  }
+
+  return {
+    color,
+    offsetX,
+    offsetY,
+    blur,
+  }
+}
+
 function resolveSourceShapeBounds(
   sourceShape: EditorDocument['shapes'][number] | undefined,
 ) {
@@ -334,6 +422,19 @@ function resolveSourceShapeBounds(
     width: resolved.bounds.width,
     height: resolved.bounds.height,
   }
+}
+
+function resolveEngineTextAlign(value: unknown): 'start' | 'center' | 'end' | undefined {
+  if (value === 'left') {
+    return 'start'
+  }
+  if (value === 'center') {
+    return 'center'
+  }
+  if (value === 'right') {
+    return 'end'
+  }
+  return undefined
 }
 
 function resolveSourceShapeTransform(

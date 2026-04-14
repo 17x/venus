@@ -9,6 +9,16 @@ const LINE_HIT_TOLERANCE = 6
 const PATH_HIT_TOLERANCE = 6
 const POLYGON_EDGE_HIT_TOLERANCE = 6
 
+export interface WorkerHitTestCandidate {
+  index: number
+  shapeId: string
+  shapeType: DocumentNode['type']
+  hitType: 'shape-body'
+  score: number
+  zOrder: number
+  hitPoint: {x: number; y: number}
+}
+
 export function hitTestDocument(
   document: EditorDocument,
   spatialIndex: WorkerSpatialIndex,
@@ -18,8 +28,23 @@ export function hitTestDocument(
     strictStrokeHitTest?: boolean
   },
 ) {
+  const candidates = hitTestDocumentCandidates(document, spatialIndex, pointer, options)
+  return candidates[0]?.index ?? -1
+}
+
+export function hitTestDocumentCandidates(
+  document: EditorDocument,
+  spatialIndex: WorkerSpatialIndex,
+  pointer: {x: number; y: number},
+  options?: {
+    allowFrameSelection?: boolean
+    strictStrokeHitTest?: boolean
+    preferGroupSelection?: boolean
+  },
+) {
   const allowFrameSelection = options?.allowFrameSelection ?? true
   const strictStrokeHitTest = options?.strictStrokeHitTest ?? false
+  const preferGroupSelection = options?.preferGroupSelection ?? false
   const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
   const candidates = spatialIndex.search({
     minX: pointer.x - PATH_HIT_TOLERANCE,
@@ -29,6 +54,7 @@ export function hitTestDocument(
   })
 
   const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
+  const hits: WorkerHitTestCandidate[] = []
 
   for (const candidate of sortedCandidates) {
     const shape = shapeById.get(candidate.meta.shapeId)
@@ -61,10 +87,26 @@ export function hitTestDocument(
       continue
     }
 
-    return document.shapes.findIndex((item) => item.id === shape.id)
+    const resolvedShape = preferGroupSelection
+      ? resolveSelectableShape(shape, shapeById)
+      : shape
+    const shapeIndex = document.shapes.findIndex((item) => item.id === resolvedShape.id)
+    if (shapeIndex < 0) {
+      continue
+    }
+
+    hits.push({
+      index: shapeIndex,
+      shapeId: resolvedShape.id,
+      shapeType: resolvedShape.type,
+      hitType: 'shape-body',
+      score: sortedCandidates.length - hits.length,
+      zOrder: candidate.meta.order,
+      hitPoint: pointer,
+    })
   }
 
-  return -1
+  return hits
 }
 
 function isPointInsideClipSource(
@@ -76,4 +118,21 @@ function isPointInsideClipSource(
     tolerance: 1.5,
     shapeById,
   })
+}
+
+function resolveSelectableShape(shape: DocumentNode, shapeById: Map<string, DocumentNode>) {
+  let current: DocumentNode = shape
+
+  while (current.parentId) {
+    const parent = shapeById.get(current.parentId)
+    if (!parent) {
+      break
+    }
+    if (parent.type === 'group') {
+      return parent
+    }
+    current = parent
+  }
+
+  return shape
 }

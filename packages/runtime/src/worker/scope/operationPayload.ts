@@ -12,7 +12,7 @@ export function createLocalOperation(command: EditorRuntimeCommand, actorId: str
 }
 
 function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperation['payload'] {
-  if (command.type === 'tool.select') return {tool: command.tool}
+  if (command.type === 'tool.select') return {tool: command.tool, toolName: command.toolName}
   if (command.type === 'shape.move') return {shapeId: command.shapeId, x: command.x, y: command.y}
   if (command.type === 'shape.rename') return {shapeId: command.shapeId, name: command.name, text: command.text}
   if (command.type === 'shape.resize') return {shapeId: command.shapeId, width: command.width, height: command.height}
@@ -45,5 +45,10 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
   if (command.type === 'shape.insert') return {shape: command.shape, index: command.index}
   if (command.type === 'shape.insert.batch') return {shapes: command.shapes, index: command.index}
   if (command.type === 'shape.remove') return {shapeId: command.shapeId}
+  if (command.type === 'shape.group') return {shapeIds: command.shapeIds, groupId: command.groupId, name: command.name}
+  if (command.type === 'shape.ungroup') return {groupId: command.groupId}
+  if (command.type === 'shape.convert-to-path') return {shapeIds: command.shapeIds}
+  if (command.type === 'shape.align') return {shapeIds: command.shapeIds, mode: command.mode, reference: command.reference}
+  if (command.type === 'shape.distribute') return {shapeIds: command.shapeIds, mode: command.mode}
   return undefined
 }

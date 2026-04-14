@@ -1,12 +1,27 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import {nid, type DocumentNode, type EditorDocument} from '@venus/document-core'
 import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@venus/runtime/shared-memory'
 import type {HistoryEntry, HistoryPatch} from '../history.ts'
 import type {EditorRuntimeCommand} from '../protocol.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
+import {convertShapeToPathShape, createAlignMovePatches, createDistributeMovePatches} from './shapeCommandHelpers.ts'
 import {createTransformPatches, resolveTransformBatchItemToLegacy} from './transformSerde.ts'
 
 function createLogOnlyEntry(id: string, label: string): Omit<HistoryEntry, 'source'> {
   return {id, label, forward: [], backward: []}
+}
+
+function getNodeBounds(nodes: DocumentNode[]) {
+  const minX = Math.min(...nodes.map((node) => node.x))
+  const minY = Math.min(...nodes.map((node) => node.y))
+  const maxX = Math.max(...nodes.map((node) => node.x + node.width))
+  const maxY = Math.max(...nodes.map((node) => node.y + node.height))
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
 }
 
 export function createLocalHistoryEntry(
@@ -192,6 +207,268 @@ export function createLocalHistoryEntry(
       label: `Remove ${shape.name}`,
       forward: [{type: 'remove-shape', index, shape}],
       backward: [{type: 'insert-shape', index, shape}],
+    }
+  }
+
+  if (command.type === 'shape.group') {
+    const selectedShapeIds = command.shapeIds && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    const selectedShapes = selectedShapeIds
+      .map((shapeId) => findShapeById(document, shapeId))
+      .filter((shape): shape is DocumentNode => shape !== null)
+    if (selectedShapes.length < 2) return createLogOnlyEntry(command.type, 'Group Noop')
+
+    const selectedIndices = selectedShapes
+      .map((shape) => ({shape, index: document.shapes.findIndex((item) => item.id === shape.id)}))
+      .filter((item) => item.index >= 0)
+      .sort((left, right) => left.index - right.index)
+    if (selectedIndices.length < 2) return createLogOnlyEntry(command.type, 'Group Noop')
+
+    const firstParentId = selectedIndices[0].shape.parentId ?? null
+    const commonParentId = selectedIndices.every((item) => (item.shape.parentId ?? null) === firstParentId)
+      ? firstParentId
+      : null
+    const parentGroup = commonParentId ? findShapeById(document, commonParentId) : null
+    const parentPrevChildIds = parentGroup?.childIds?.slice()
+    const selectedIdSet = new Set(selectedIndices.map((item) => item.shape.id))
+    const affectedParentGroups = document.shapes
+      .filter((shape): shape is DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
+      .map((group) => ({
+        groupId: group.id,
+        prevChildIds: group.childIds?.slice() ?? [],
+        nextChildIds: (group.childIds ?? []).filter((childId) => !selectedIdSet.has(childId)),
+      }))
+    const groupId = command.groupId ?? `group-${nid()}`
+    const groupedShapeIds = selectedIndices.map((item) => item.shape.id)
+    const bounds = getNodeBounds(selectedIndices.map((item) => item.shape))
+    const insertIndex = selectedIndices[selectedIndices.length - 1].index + 1
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+
+    const groupShape: DocumentNode = {
+      id: groupId,
+      type: 'group',
+      name: command.name ?? 'Group',
+      parentId: commonParentId,
+      childIds: groupedShapeIds,
+      ...bounds,
+    }
+
+    const forward: HistoryPatch[] = [
+      {type: 'insert-shape', index: insertIndex, shape: groupShape},
+      {type: 'set-group-children', groupId, prevChildIds: undefined, nextChildIds: groupedShapeIds.slice()},
+    ]
+    const backward: HistoryPatch[] = [
+      {type: 'set-group-children', groupId, prevChildIds: groupedShapeIds.slice(), nextChildIds: undefined},
+      {type: 'remove-shape', index: insertIndex, shape: groupShape},
+    ]
+
+    affectedParentGroups.forEach((groupPatch) => {
+      forward.push({
+        type: 'set-group-children',
+        groupId: groupPatch.groupId,
+        prevChildIds: groupPatch.prevChildIds,
+        nextChildIds: groupPatch.nextChildIds,
+      })
+      backward.unshift({
+        type: 'set-group-children',
+        groupId: groupPatch.groupId,
+        prevChildIds: groupPatch.nextChildIds,
+        nextChildIds: groupPatch.prevChildIds,
+      })
+    })
+
+    if (parentGroup && Array.isArray(parentPrevChildIds)) {
+      const nextParentChildIds = parentPrevChildIds.filter((id) => !groupedShapeIds.includes(id))
+      nextParentChildIds.push(groupId)
+      forward.push({
+        type: 'set-group-children',
+        groupId: parentGroup.id,
+        prevChildIds: parentPrevChildIds,
+        nextChildIds: nextParentChildIds,
+      })
+      backward.unshift({
+        type: 'set-group-children',
+        groupId: parentGroup.id,
+        prevChildIds: nextParentChildIds,
+        nextChildIds: parentPrevChildIds,
+      })
+    }
+
+    selectedIndices.forEach(({shape}) => {
+      forward.push({type: 'set-shape-parent', shapeId: shape.id, prevParentId: shape.parentId, nextParentId: groupId})
+      backward.unshift({type: 'set-shape-parent', shapeId: shape.id, prevParentId: groupId, nextParentId: shape.parentId})
+    })
+
+    forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: insertIndex})
+    backward.unshift({type: 'set-selected-index', prev: insertIndex, next: previousSelectedIndex})
+
+    return {
+      id: `shape.group.${groupId}`,
+      label: `Group ${selectedIndices.length} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.ungroup') {
+    const selectedPrimaryIndex = readSceneStats(scene).selectedIndex
+    const selectedPrimary = selectedPrimaryIndex >= 0 ? document.shapes[selectedPrimaryIndex] : undefined
+    const targetGroupId = command.groupId ?? (selectedPrimary?.type === 'group' ? selectedPrimary.id : undefined)
+    const groupShape = targetGroupId ? findShapeById(document, targetGroupId) : null
+    if (!groupShape || groupShape.type !== 'group') return createLogOnlyEntry(command.type, 'Ungroup Missing Group')
+
+    const groupIndex = document.shapes.findIndex((item) => item.id === groupShape.id)
+    if (groupIndex < 0) return createLogOnlyEntry(command.type, 'Ungroup Missing Group')
+
+    const childIds = (groupShape.childIds ?? []).filter((childId) => findShapeById(document, childId) !== null)
+    if (childIds.length === 0) return createLogOnlyEntry(command.type, 'Ungroup Empty Group')
+
+    const parentGroup = groupShape.parentId ? findShapeById(document, groupShape.parentId) : null
+    const parentPrevChildIds = parentGroup?.childIds?.slice()
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+
+    if (parentGroup && Array.isArray(parentPrevChildIds)) {
+      const nextParentChildIds: string[] = []
+      parentPrevChildIds.forEach((id) => {
+        if (id === groupShape.id) {
+          nextParentChildIds.push(...childIds)
+        } else {
+          nextParentChildIds.push(id)
+        }
+      })
+
+      forward.push({
+        type: 'set-group-children',
+        groupId: parentGroup.id,
+        prevChildIds: parentPrevChildIds,
+        nextChildIds: nextParentChildIds,
+      })
+      backward.unshift({
+        type: 'set-group-children',
+        groupId: parentGroup.id,
+        prevChildIds: nextParentChildIds,
+        nextChildIds: parentPrevChildIds,
+      })
+    }
+
+    childIds.forEach((childId) => {
+      forward.push({type: 'set-shape-parent', shapeId: childId, prevParentId: groupShape.id, nextParentId: groupShape.parentId})
+      backward.unshift({type: 'set-shape-parent', shapeId: childId, prevParentId: groupShape.parentId, nextParentId: groupShape.id})
+    })
+
+    forward.push({type: 'set-group-children', groupId: groupShape.id, prevChildIds: groupShape.childIds?.slice(), nextChildIds: []})
+    forward.push({type: 'remove-shape', index: groupIndex, shape: groupShape})
+    forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: -1})
+
+    backward.unshift({type: 'set-selected-index', prev: -1, next: previousSelectedIndex})
+    backward.unshift({type: 'insert-shape', index: groupIndex, shape: groupShape})
+    backward.unshift({type: 'set-group-children', groupId: groupShape.id, prevChildIds: [], nextChildIds: groupShape.childIds?.slice()})
+
+    return {
+      id: `shape.ungroup.${groupShape.id}`,
+      label: `Ungroup ${groupShape.name}`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.convert-to-path') {
+    const candidateIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+
+    const targetShapes = candidateIds
+      .map((shapeId) => ({
+        shape: findShapeById(document, shapeId),
+        index: document.shapes.findIndex((item) => item.id === shapeId),
+      }))
+      .filter((item): item is {shape: DocumentNode; index: number} => item.shape !== null && item.index >= 0)
+
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+    let convertedCount = 0
+
+    targetShapes.forEach(({shape, index}) => {
+      const converted = convertShapeToPathShape(shape)
+      if (!converted) return
+      convertedCount += 1
+      forward.push({type: 'remove-shape', index, shape})
+      forward.push({type: 'insert-shape', index, shape: converted})
+      backward.push({type: 'remove-shape', index, shape: converted})
+      backward.push({type: 'insert-shape', index, shape})
+    })
+
+    if (convertedCount === 0) return createLogOnlyEntry(command.type, 'Convert To Path Noop')
+    return {
+      id: `shape.convert-to-path.${Date.now()}`,
+      label: `Convert ${convertedCount} Shapes to Path`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.align') {
+    const shapeIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+
+    const forward = createAlignMovePatches(document, shapeIds, command.mode, command.reference ?? 'selection')
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Align Noop')
+    const backward = forward
+      .slice()
+      .reverse()
+      .map((patch) => ({
+        type: 'move-shape' as const,
+        shapeId: patch.shapeId,
+        prevX: patch.nextX,
+        prevY: patch.nextY,
+        nextX: patch.prevX,
+        nextY: patch.prevY,
+      }))
+
+    return {
+      id: `shape.align.${command.mode}.${Date.now()}`,
+      label: `Align ${forward.length} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.distribute') {
+    const shapeIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+
+    const forward = createDistributeMovePatches(document, shapeIds, command.mode)
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Distribute Noop')
+    const backward = forward
+      .slice()
+      .reverse()
+      .map((patch) => ({
+        type: 'move-shape' as const,
+        shapeId: patch.shapeId,
+        prevX: patch.nextX,
+        prevY: patch.nextY,
+        nextX: patch.prevX,
+        nextY: patch.prevY,
+      }))
+
+    return {
+      id: `shape.distribute.${command.mode}.${Date.now()}`,
+      label: `Distribute ${forward.length} Shapes`,
+      forward,
+      backward,
     }
   }
 

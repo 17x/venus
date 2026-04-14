@@ -69,6 +69,12 @@ export interface EngineTextStyle {
   strokeWidth?: number
   align?: 'start' | 'center' | 'end'
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  shadow?: {
+    color?: string
+    offsetX?: number
+    offsetY?: number
+    blur?: number
+  }
 }
 
 export interface EngineTextRun {

@@ -174,6 +174,50 @@
     "label": "ノードのグループ化を解除",
     "tooltip": "選択したノードのグループ化を解除"
   },
+  "convertToPath": {
+    "label": "パスに変換",
+    "tooltip": "選択した図形を編集可能なパスに変換"
+  },
+  "align": {
+    "label": "整列",
+    "tooltip": "選択した図形を整列"
+  },
+  "alignLeft": {
+    "label": "左揃え",
+    "tooltip": "選択した図形を左端に揃える"
+  },
+  "alignCenterHorizontal": {
+    "label": "水平方向中央揃え",
+    "tooltip": "選択した図形を共通の水平中心に揃える"
+  },
+  "alignRight": {
+    "label": "右揃え",
+    "tooltip": "選択した図形を右端に揃える"
+  },
+  "alignTop": {
+    "label": "上揃え",
+    "tooltip": "選択した図形を上端に揃える"
+  },
+  "alignMiddle": {
+    "label": "垂直方向中央揃え",
+    "tooltip": "選択した図形を共通の垂直中心に揃える"
+  },
+  "alignBottom": {
+    "label": "下揃え",
+    "tooltip": "選択した図形を下端に揃える"
+  },
+  "distribute": {
+    "label": "分布",
+    "tooltip": "選択した図形の間隔を均等に分布"
+  },
+  "distributeHorizontal": {
+    "label": "水平方向に分布",
+    "tooltip": "選択した図形を水平中心で均等に分布"
+  },
+  "distributeVertical": {
+    "label": "垂直方向に分布",
+    "tooltip": "選択した図形を垂直中心で均等に分布"
+  },
   "maskWithShape": {
     "label": "図形でマスク",
     "tooltip": "現在の選択と重なっている単一の閉じた図形または画像でマスクを作成"

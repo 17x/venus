@@ -4,6 +4,13 @@ import {readSceneStats, type SceneMemory} from '@venus/runtime/shared-memory'
 import type {HistoryPatch} from '../history.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
 import {
+  convertShapeToPathShape,
+  createAlignMovePatches,
+  createDistributeMovePatches,
+  type ShapeAlignMode,
+  type ShapeAlignReference,
+} from './shapeCommandHelpers.ts'
+import {
   asBooleanOrNull,
   asClipRuleValue,
   asCornerRadiiValue,
@@ -19,6 +26,43 @@ import {
   asTransformBatch,
   createTransformPatches,
 } from './transformSerde.ts'
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
+}
+
+function asAlignMode(value: unknown): ShapeAlignMode | null {
+  if (value === 'left' || value === 'hcenter' || value === 'right' || value === 'top' || value === 'vcenter' || value === 'bottom') {
+    return value
+  }
+  return null
+}
+
+function asAlignReference(value: unknown): ShapeAlignReference {
+  return value === 'first' ? 'first' : 'selection'
+}
+
+function asDistributeMode(value: unknown): 'hspace' | 'vspace' | null {
+  if (value === 'hspace' || value === 'vspace') {
+    return value
+  }
+  return null
+}
+
+function getNodeBounds(nodes: import('@venus/document-core').DocumentNode[]) {
+  const minX = Math.min(...nodes.map((node) => node.x))
+  const minY = Math.min(...nodes.map((node) => node.y))
+  const maxX = Math.max(...nodes.map((node) => node.x + node.width))
+  const maxY = Math.max(...nodes.map((node) => node.y + node.height))
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
+}
 
 export function createRemotePatches(operation: CollaborationOperation, scene: SceneMemory, document: EditorDocument): HistoryPatch[] {
   if (operation.type === 'selection.delete') {
@@ -161,6 +205,155 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape || toIndex === null) return []
     return [{type: 'reorder-shape', shapeId: shape.id, fromIndex: document.shapes.findIndex((item) => item.id === shape.id), toIndex}]
+  }
+
+  if (operation.type === 'shape.group') {
+    const selectedShapeIds = asStringArray(operation.payload?.shapeIds)
+    const groupId = asStringOrNull(operation.payload?.groupId)
+    const groupName = asStringOrNull(operation.payload?.name) ?? 'Group'
+    if (selectedShapeIds.length < 2 || groupId === null) return []
+
+    const selectedShapes = selectedShapeIds
+      .map((shapeId) => findShapeById(document, shapeId))
+      .filter((shape): shape is import('@venus/document-core').DocumentNode => shape !== null)
+    if (selectedShapes.length < 2) return []
+
+    const selectedIndices = selectedShapes
+      .map((shape) => ({shape, index: document.shapes.findIndex((item) => item.id === shape.id)}))
+      .filter((item) => item.index >= 0)
+      .sort((left, right) => left.index - right.index)
+    if (selectedIndices.length < 2) return []
+
+    const firstParentId = selectedIndices[0].shape.parentId ?? null
+    const commonParentId = selectedIndices.every((item) => (item.shape.parentId ?? null) === firstParentId)
+      ? firstParentId
+      : null
+    const parentGroup = commonParentId ? findShapeById(document, commonParentId) : null
+    const parentPrevChildIds = parentGroup?.childIds?.slice()
+    const selectedIdSet = new Set(selectedIndices.map((item) => item.shape.id))
+    const affectedParentGroups = document.shapes
+      .filter((shape): shape is import('@venus/document-core').DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
+      .map((group) => ({
+        groupId: group.id,
+        prevChildIds: group.childIds?.slice() ?? [],
+        nextChildIds: (group.childIds ?? []).filter((childId) => !selectedIdSet.has(childId)),
+      }))
+    const groupedShapeIds = selectedIndices.map((item) => item.shape.id)
+    const bounds = getNodeBounds(selectedIndices.map((item) => item.shape))
+    const insertIndex = selectedIndices[selectedIndices.length - 1].index + 1
+
+    const patches: HistoryPatch[] = [
+      {
+        type: 'insert-shape',
+        index: insertIndex,
+        shape: {
+          id: groupId,
+          type: 'group',
+          name: groupName,
+          parentId: commonParentId,
+          childIds: groupedShapeIds,
+          ...bounds,
+        },
+      },
+      {type: 'set-group-children', groupId, prevChildIds: undefined, nextChildIds: groupedShapeIds.slice()},
+    ]
+
+    affectedParentGroups.forEach((groupPatch) => {
+      patches.push({
+        type: 'set-group-children',
+        groupId: groupPatch.groupId,
+        prevChildIds: groupPatch.prevChildIds,
+        nextChildIds: groupPatch.nextChildIds,
+      })
+    })
+
+    if (parentGroup && Array.isArray(parentPrevChildIds)) {
+      const nextParentChildIds = parentPrevChildIds.filter((id) => !groupedShapeIds.includes(id))
+      nextParentChildIds.push(groupId)
+      patches.push({
+        type: 'set-group-children',
+        groupId: parentGroup.id,
+        prevChildIds: parentPrevChildIds,
+        nextChildIds: nextParentChildIds,
+      })
+    }
+
+    selectedIndices.forEach(({shape}) => {
+      patches.push({type: 'set-shape-parent', shapeId: shape.id, prevParentId: shape.parentId, nextParentId: groupId})
+    })
+    return patches
+  }
+
+  if (operation.type === 'shape.ungroup') {
+    const groupId = asStringOrNull(operation.payload?.groupId)
+    if (groupId === null) return []
+
+    const groupShape = findShapeById(document, groupId)
+    if (!groupShape || groupShape.type !== 'group') return []
+    const groupIndex = document.shapes.findIndex((item) => item.id === groupShape.id)
+    if (groupIndex < 0) return []
+
+    const childIds = (groupShape.childIds ?? []).filter((childId) => findShapeById(document, childId) !== null)
+    const patches: HistoryPatch[] = []
+    const parentGroup = groupShape.parentId ? findShapeById(document, groupShape.parentId) : null
+    const parentPrevChildIds = parentGroup?.childIds?.slice()
+
+    if (parentGroup && Array.isArray(parentPrevChildIds)) {
+      const nextParentChildIds: string[] = []
+      parentPrevChildIds.forEach((id) => {
+        if (id === groupShape.id) {
+          nextParentChildIds.push(...childIds)
+        } else {
+          nextParentChildIds.push(id)
+        }
+      })
+      patches.push({
+        type: 'set-group-children',
+        groupId: parentGroup.id,
+        prevChildIds: parentPrevChildIds,
+        nextChildIds: nextParentChildIds,
+      })
+    }
+
+    childIds.forEach((childId) => {
+      patches.push({type: 'set-shape-parent', shapeId: childId, prevParentId: groupShape.id, nextParentId: groupShape.parentId})
+    })
+
+    patches.push({type: 'set-group-children', groupId: groupShape.id, prevChildIds: groupShape.childIds?.slice(), nextChildIds: []})
+    patches.push({type: 'remove-shape', index: groupIndex, shape: groupShape})
+    return patches
+  }
+
+  if (operation.type === 'shape.convert-to-path') {
+    const shapeIds = asStringArray(operation.payload?.shapeIds)
+    if (shapeIds.length === 0) return []
+
+    const patches: HistoryPatch[] = []
+    shapeIds.forEach((shapeId) => {
+      const shape = findShapeById(document, shapeId)
+      if (!shape) return
+      const converted = convertShapeToPathShape(shape)
+      if (!converted) return
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      if (index < 0) return
+      patches.push({type: 'remove-shape', index, shape})
+      patches.push({type: 'insert-shape', index, shape: converted})
+    })
+    return patches
+  }
+
+  if (operation.type === 'shape.align') {
+    const shapeIds = asStringArray(operation.payload?.shapeIds)
+    const mode = asAlignMode(operation.payload?.mode)
+    if (shapeIds.length < 2 || mode === null) return []
+    return createAlignMovePatches(document, shapeIds, mode, asAlignReference(operation.payload?.reference))
+  }
+
+  if (operation.type === 'shape.distribute') {
+    const shapeIds = asStringArray(operation.payload?.shapeIds)
+    const mode = asDistributeMode(operation.payload?.mode)
+    if (shapeIds.length < 3 || mode === null) return []
+    return createDistributeMovePatches(document, shapeIds, mode)
   }
 
   return []

@@ -51,6 +51,8 @@ Knowledge` when they become long-term guidance.
   work.
 - Runtime app surfaces consume Canvas2D via app-local runtime bridges over
   `@venus/runtime` + `@venus/engine`.
+- `createEngine(...)` now defaults to `webgl`; use explicit
+  `backend: 'canvas2d'` when Canvas2D fallback behavior is required.
 
 ### Historical Notes
 
@@ -75,7 +77,240 @@ Knowledge` when they become long-term guidance.
 
 ## Recent Updates
 
+### 2026-04-14
+
+- Vector interaction follow-up fixed transform preview + snap visibility regressions:
+  - `packages/runtime/src/interaction/snapping.ts` connector-line resolution
+    now correctly skips non-matching static candidates instead of aborting the
+    entire guide scan early, restoring visible snap guides during move/resize
+    interactions.
+  - `packages/runtime/src/interaction/transformPreview.ts` now remaps
+    `lineSegment` points during preview and upgrades clip-bound image preview
+    propagation from translation-only to transform-aware follow behavior
+    (move/scale/rotate/flip relative to clip source).
+  - `apps/vector-editor-web/src/hooks/useEditorRuntime.ts` now projects
+    direct-selector path-handle drag into a live preview document so curve edits
+    render immediately during pointer move before commit.
+  - `apps/vector-editor-web/src/contexts/appContext/mockFile.ts` default mock
+    scene was expanded with a roadmap group, milestone ellipses, and connector
+    line to strengthen baseline interaction coverage.
+
+- Vector launch polish follow-up landed for line accuracy + top controls modularity:
+  - `packages/engine/src/renderer/canvas2d.ts` line rendering now prioritizes
+    explicit `node.points` anchors for `line` nodes instead of always drawing
+    the bounding-rect diagonal, fixing visible position drift for reverse
+    diagonal segments.
+  - `apps/vector-editor-web/src/components/header/shortcutBar/ShortcutBar.tsx`
+    shortcut controls moved to icon-first UI (lucide/shadcn-style set), and
+    stroke width quick control switched from +/- step buttons to an explicit
+    width select list.
+  - `apps/vector-editor-web/src/components/styleControls/ColorSwatchPicker.tsx`
+    introduced as a standalone swatch-picker module so color control UI can be
+    replaced independently from shortcut-bar action wiring.
+  - `apps/vector-editor-web/src/contexts/appContext/mockFile.ts` default scene
+    was fully regenerated with a cleaner composition and an intentional
+    reverse-diagonal line sample for render-position regression checks.
+
+- Vector launch-polish baseline expanded across runtime + app UI:
+  - `packages/runtime/src/worker/protocol.ts` now supports
+    `shape.distribute` (`hspace` / `vspace`) and worker history/collab wiring
+    was added in `localHistoryEntry.ts`, `remotePatches.ts`, and
+    `operationPayload.ts`.
+  - Grouping parent/child graph updates were hardened for mixed-parent
+    selections so redo/undo no longer leaves stale parent `childIds` when
+    selected nodes are regrouped.
+  - `apps/vector-editor-web` header surfaces now expose full align + distribute
+    actions, remove shortcut-bar save action, and add quick fill/stroke/stroke
+    width controls under the menu bar.
+  - Path/pencil behavior was split in `usePenTool.ts` +
+    `editorRuntimeHelpers.ts`: pencil keeps smoothed bezier conversion while
+    path commits literal polyline anchors for node editing.
+  - Masked-image selection chrome now avoids double framing in
+    `InteractionOverlay.tsx` by suppressing aggregate polygon rendering for
+    single clipped-image selection.
+
+- Runtime lifecycle infrastructure was expanded and wired into active vector
+  paths:
+  - `packages/runtime/src/tools/registry.ts`
+    (`createRuntimeToolRegistry`) now defines runtime-owned tool lifecycle
+    hooks (`onEnter/onExit/pointer/key/cancel/cursor/overlay/status`).
+  - `packages/runtime/src/editing-modes/controller.ts`
+    (`createRuntimeEditingModeController`) now defines runtime-owned explicit
+    editing modes and transition events.
+  - `apps/vector-editor-web/src/hooks/useEditorRuntime.ts` now activates
+    runtime tool handlers and drives editing mode transitions from pointer
+    lifecycle (selecting/directSelecting/marquee/dragging/resizing/rotating/
+    drawing/panning/zooming/idle).
+
+- Engine + worker hit-test path now has multi-hit foundations:
+  - `packages/engine/src/scene/hitTest.ts` adds
+    `hitTestEngineSceneStateAll(...)` returning ordered hit candidates.
+  - `packages/engine/src/scene/store.ts` adds `hitTestAll(...)`.
+  - `packages/runtime/src/worker/scope/hitTest.ts` adds
+    `hitTestDocumentCandidates(...)` with candidate metadata.
+  - `packages/runtime/src/worker/scope/bindEditorWorkerScope.ts` now consumes
+    candidate list and keeps top-hit selection compatibility.
+
+- Toolbar/tooling product baseline was expanded in vector:
+  - `apps/vector-editor-web/src/components/toolbar/Toolbar.tsx` now includes
+    `path` and `zoomOut` tools (13 total core tools).
+  - `apps/vector-editor-web/src/constants/actions.ts` tool shortcuts updated
+    toward Illustrator baseline: `P` path, `N` pencil, `Shift+Z` zoom out,
+    while preserving existing tool entries.
+  - i18n keys updated in `apps/vector-editor-web/src/i18n/*/ui.json` for
+    `toolbar.path`, `toolbar.zoomIn`, `toolbar.zoomOut`.
+
+- Typecheck status after this batch:
+  no new command/history errors introduced by these changes.
+
+- Known type issues in
+  `packages/ui/src/components/ui/modal.tsx` and
+  `apps/vector-editor-web/src/components/createFile/TemplatePresetPicker.tsx`
+  were resolved (missing `ReactNode` import and unused template picker symbols).
+
+- Worker command/history baseline was advanced:
+  - `packages/runtime/src/worker/scope/operations.ts` now uses
+    registry-style dispatch handlers for explicit command routing.
+  - `packages/runtime/src/worker/protocol.ts` adds `shape.group` /
+    `shape.ungroup` command types.
+  - `packages/runtime/src/worker/history.ts` adds
+    `set-shape-parent` and `set-group-children` patch types.
+  - `packages/runtime/src/worker/scope/localHistoryEntry.ts`,
+    `packages/runtime/src/worker/scope/scenePatches.ts`, and
+    `packages/runtime/src/worker/scope/remotePatches.ts` now support reversible
+    group/ungroup parent-child graph updates for undo/redo and collaboration
+    replay.
+
+- Product entry wiring for group semantics was connected in vector:
+  - `apps/vector-editor-web/src/hooks/useEditorRuntime.ts` now handles
+    `group-nodes` / `ungroup-nodes` actions and dispatches
+    `shape.group` / `shape.ungroup` commands.
+  - `apps/vector-editor-web/src/constants/actions.ts` adds
+    `Cmd/Ctrl+G` and `Cmd/Ctrl+Shift+G` shortcuts.
+  - `apps/vector-editor-web/src/components/contextMenu/ContextMenu.tsx` and
+    `apps/vector-editor-web/src/components/header/menu/menuData.ts` now expose
+    group/ungroup entries.
+
+- Worker hit-test interpretation now encodes selector-vs-dselector semantics:
+  - `packages/runtime/src/worker/scope/hitTest.ts` supports
+    `preferGroupSelection` and resolves selectable group ancestors.
+  - `packages/runtime/src/worker/scope/bindEditorWorkerScope.ts` tracks
+    `toolName` from `tool.select` and applies group-preferred selection for
+    selector while preserving deep selection for dselector or cmd/ctrl
+    modifiers.
+  - `packages/runtime/src/worker/protocol.ts` extends `tool.select` with
+    optional `toolName` to keep product interaction policy in runtime layer.
+
+- Worker local command handling now uses a descriptor-bridged dispatcher:
+  - `packages/runtime/src/worker/scope/commandDispatchRegistry.ts` reuses
+    runtime command registry descriptors as a shared catalog while binding
+    worker-local command handlers.
+  - `packages/runtime/src/worker/scope/operations.ts` now dispatches through
+    this registry-style bridge before falling back to patch-history command
+    processing.
+
+- dselector path sub-selection baseline is now available:
+  - `apps/vector-editor-web/src/interaction/types.ts` adds
+    `anchorPoint`, `segment`, `segmentType`, handle placeholders, and
+    `pathSubSelection` data structures.
+  - `apps/vector-editor-web/src/hooks/runtime/pathSubSelection.ts` resolves
+    anchor/segment hits for selected path nodes.
+  - `apps/vector-editor-web/src/interaction/overlay/InteractionOverlay.tsx`
+    renders anchor + segment feedback for current dselector sub-selection.
+
+- `useEditorRuntime.ts` decomposition progressed with extracted runtime modules:
+  - `apps/vector-editor-web/src/hooks/runtime/groupActions.ts`
+  - `apps/vector-editor-web/src/hooks/runtime/pathSubSelection.ts`
+
+- 18.2 convert + align baseline landed across runtime and vector:
+  - `packages/runtime/src/worker/protocol.ts` adds
+    `shape.convert-to-path` and `shape.align` command contracts.
+  - `packages/runtime/src/worker/scope/localHistoryEntry.ts` and
+    `packages/runtime/src/worker/scope/remotePatches.ts` now build/apply
+    reversible patches for path conversion and multi-shape alignment.
+  - `packages/runtime/src/worker/scope/shapeCommandHelpers.ts` centralizes
+    non-obvious geometry conversion + alignment patch generation logic.
+  - `apps/vector-editor-web` now exposes convert/align entry points through
+    header menu, context menu, and shortcut bar.
+
+- Added `docs/vector-editor-architecture.md` — comprehensive vector editor
+  architecture document covering layer responsibilities, module map, data flows,
+  command system design, hittest design, snapping design, overlay design,
+  viewport control, 50K+ performance strategy, template/test strategy, gap
+  analysis with priorities, and phased migration plan.
+
+- Added runtime command registry (`packages/runtime/src/commands/registry.ts`):
+  formal `CommandRegistry` with typed `CommandHandler` / `CommandDescriptor` /
+  `CommandExecutionContext` contracts. Provides extensible command registration,
+  validation, and undo payload tracking. Not yet wired into active worker
+  command dispatch path; integration is Phase 2 work.
+
+- Added runtime hit-test adapter
+  (`packages/runtime/src/interaction/hitTestAdapter.ts`): bridges engine-level
+  hit-test results into product-consumable `RuntimeHitTestResult` with
+  multi-candidate ranking, lock/hidden/isolation filtering, and product kind
+  classification. Designed for future multi-hit engine API; currently wraps
+  single-result API.
+
+- Added vector tool registry (`apps/vector-editor-web/src/tools/registry.ts`):
+  extensible `ToolRegistry` with `ToolHandler` lifecycle (activate/deactivate,
+  pointer events, cancel, cursor). Allows new tools to register via registry
+  instead of modifying monolithic `useEditorRuntime`.
+
+- Added vector editing mode controller
+  (`apps/vector-editor-web/src/state/editingMode.ts`): explicit state machine
+  for editing modes (idle, selecting, marquee, dragging, resizing, rotating,
+  drawing, text-editing, path-editing, group-isolation) with lifecycle
+  listeners and convenience queries for shortcut suppression and pan gating.
+
+- Template presets enriched with test metadata: `scale`, `capabilities`,
+  `interactionScenarios`, `performanceNotes`, `regression`, `benchmark` flags.
+  Five new test-focused presets added (text-dense, deep-groups, overlap-heavy,
+  sparse-large, transform-batch). Total: 13 presets across 3 categories.
+
+- `AGENTS.md` refined: reduced redundancy, preserved all key constraints,
+  added `docs/vector-editor-architecture.md` to Load First checklist, added
+  explicit three-layer rule section and package role summary.
+
 ### 2026-04-13
+
+- Vector fake-data/template -> document adapter -> runtime scene -> engine text
+  render chain now preserves rich text payload (`text` + `textRuns`) including
+  per-run font metrics and optional run shadow metadata. This closes the prior
+  gap where `fileFormatScene` emitted `TEXT.runs: []` and dropped mixed-run
+  styling during template-driven file creation.
+- Canvas2D text rendering now supports explicit newline (`\n`) multi-line
+  output for both plain text and run-based text, and run-level shadow styling
+  is applied during draw commit. Vector canvas adapter now uses
+  capability-aware backend fallback: when rich text fidelity is required,
+  requested `webgl` falls back to `canvas2d`; otherwise requested backend is
+  preserved.
+
+- `apps/vector-editor-web` now includes a built-in template generation feature
+  for user onboarding and renderer/performance debugging. A new
+  "Generate Template" shortcut-bar button opens a preset picker modal with
+  deterministic seed support and creates full `VisionFileType` files directly
+  through existing `createFile(...)` flow.
+- Template generation internals are modular under
+  `apps/vector-editor-web/src/features/templatePresets/*`
+  (preset type/registry, seeded RNG, and separate generators for simple demos,
+  mixed large scenes: 10K/50K/100K, and image-heavy scenes: 1K/10K).
+
+- `@venus/engine` `createEngine(...)` default backend switched to `webgl`
+  in `packages/engine/src/runtime/createEngine.ts`, keeping `canvas2d` as an
+  explicit opt-in backend.
+- `@venus/engine` WebGL path now includes engine-owned packet/resource
+  preparation internals:
+  `packages/engine/src/renderer/webgl.ts` compiles
+  `prepareEngineRenderPlan(...)` + `prepareEngineRenderInstanceView(...)` into
+  render packets via `compileEngineWebGLPacketPlan(...)`
+  (`packages/engine/src/renderer/webglPackets.ts`) and tracks frame-level
+  buffer/texture budgets with LRU-eviction hooks via
+  `createEngineWebGLResourceBudgetTracker(...)`
+  (`packages/engine/src/renderer/webglResources.ts`).
+  Packet commit now runs concrete `shape` / `text` / `image` draws and hooks
+  image-texture uploads through runtime loader sources.
+  This moves WebGL backend direction forward without changing app-layer wiring.
 
 - Merged shared-memory ownership into runtime subpath
   `@venus/runtime/shared-memory`

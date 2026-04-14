@@ -224,10 +224,42 @@ export function applyPatches(
       return
     }
 
+    if (patch.type === 'set-shape-parent') {
+      const shape = findShapeById(document, patch.shapeId)
+      if (!shape) {
+        return
+      }
+
+      shape.parentId = patch.nextParentId
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      writeRuntimeShapeToScene(scene, document, index, shape)
+      incrementSceneVersion(scene)
+      changedShapeIds.add(shape.id)
+      needsGroupBoundsSync = true
+      return
+    }
+
+    if (patch.type === 'set-group-children') {
+      const group = findShapeById(document, patch.groupId)
+      if (!group || group.type !== 'group') {
+        return
+      }
+
+      group.childIds = patch.nextChildIds?.slice()
+      const index = document.shapes.findIndex((item) => item.id === group.id)
+      writeRuntimeShapeToScene(scene, document, index, group)
+      incrementSceneVersion(scene)
+      changedShapeIds.add(group.id)
+      needsGroupBoundsSync = true
+      return
+    }
+
     if (patch.type === 'insert-shape') {
       document.shapes.splice(patch.index, 0, {
         ...patch.shape,
         type: patch.shape.type as import('@venus/document-core').DocumentNode['type'],
+        parentId: patch.shape.parentId,
+        childIds: patch.shape.childIds?.slice(),
         text: patch.shape.text,
         assetId: patch.shape.assetId,
         assetUrl: patch.shape.assetUrl,

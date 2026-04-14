@@ -12,6 +12,33 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
 
 ### 2026-04-13
 
+- WebGL renderer now supports a strict app-level WebGL mode without runtime
+  backend fallback. To keep document-model rendering complete during active
+  WebGL feature-parity work, `packages/engine/src/renderer/webgl.ts` now uses
+  a model-complete Canvas2D raster stage composed through WebGL texture commit
+  in the same backend instance. This keeps offset/scale mapping and model
+  fidelity stable while packet-native GPU paths continue to evolve.
+
+- `createEngine(...)` default backend in
+  `packages/engine/src/runtime/createEngine.ts` is now `webgl`
+  (Canvas2D remains available via explicit `backend: 'canvas2d'`).
+- WebGL renderer internals in `packages/engine/src/renderer/webgl.ts` now run a
+  packetized frame pipeline instead of the prior clear-only skeleton:
+  shared render plan -> instance view -> WebGL render packets.
+- WebGL packet commit now executes concrete draw passes for
+  `shape` / `text` / `image` packets using a shared quad pipeline; image
+  packets resolve and upload texture resources through runtime loader hooks.
+- Added `packages/engine/src/renderer/webglPackets.ts` with
+  `compileEngineWebGLPacketPlan(...)`, so backend commit stages consume
+  render-oriented packets rather than reinterpreting scene/business nodes.
+- Added `packages/engine/src/renderer/webglResources.ts` with
+  `createEngineWebGLResourceBudgetTracker(...)` to establish explicit frame
+  budget accounting (buffer bytes, texture bytes, overflow tracking, LRU-ready
+  eviction hooks) ahead of full texture/upload wiring.
+- This keeps the architecture aligned with engine-direction constraints:
+  mechanism in engine, packet/resource ownership in renderer internals, and no
+  app-level changes required.
+
 - Narrowed `@venus/engine` root exports to canonical mechanism names only in
   `packages/engine/src/index.ts` (for example `createEngineMarqueeState`,
   `buildEngineSelectionHandlesFromBounds`, `DEFAULT_ENGINE_VIEWPORT`,
@@ -55,8 +82,8 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
   `packages/engine/src/renderer/webgl.ts` and exported it from
   `@venus/engine` root. Current implementation intentionally reuses the shared
   `prepareEngineRenderPlan(...)` + `prepareEngineRenderInstanceView(...)`
-  front-half pipeline and performs a minimal clear commit, so upcoming WebGL
-  draw-program work can focus on upload/commit without duplicating traversal.
+  front-half pipeline and now executes packet-level draw commits via a shared
+  quad pipeline, with initial texture upload + residency tracking hooks.
 - Reduced Canvas2D hot-path overhead in
   `packages/engine/src/renderer/canvas2d.ts`: clip-by-node-id now resolves
   against prepared `worldBoundsById` directly, removing per-frame full-scene

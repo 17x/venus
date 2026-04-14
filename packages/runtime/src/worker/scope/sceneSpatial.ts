@@ -103,6 +103,13 @@ export function applyShapeMoveDelta(
   shape.x += deltaX
   shape.y += deltaY
 
+  if (shape.type === 'lineSegment' && shape.points) {
+    shape.points = shape.points.map((point) => ({
+      x: point.x + deltaX,
+      y: point.y + deltaY,
+    }))
+  }
+
   if ((shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points) {
     shape.points = shape.points.map((point) => ({
       x: point.x + deltaX,

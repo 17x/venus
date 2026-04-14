@@ -77,6 +77,23 @@ export {
   type RuntimeGestureWheelInput as GestureWheelInput,
 } from './gesture/createRuntimeGestureInterpreter.ts'
 export {
+  createRuntimeToolRegistry,
+  type RuntimeToolHandler,
+  type RuntimeToolHandlerContext,
+  type RuntimeToolKeyboardEvent,
+  type RuntimeToolOverlayData,
+  type RuntimeToolPointerEvent,
+  type RuntimeToolRegistry,
+  type RuntimeToolStatusHint,
+} from './tools/index.ts'
+export {
+  createRuntimeEditingModeController,
+  type RuntimeEditingMode,
+  type RuntimeEditingModeController,
+  type RuntimeEditingModeListener,
+  type RuntimeEditingModeTransition,
+} from './editing-modes/index.ts'
+export {
   createCanvasEditorInstance,
   type CanvasEditorInstance,
   type CanvasEditorInstanceOptions,

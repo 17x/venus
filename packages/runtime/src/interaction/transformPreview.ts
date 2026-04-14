@@ -48,6 +48,7 @@ export function buildGroupAwareTransformPreviewMap(
   options?: BuildTransformPreviewMapOptions,
 ) {
   const previewById = new Map(previewShapes.map((shape) => [shape.shapeId, shape] as const))
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape] as const))
   const childrenByParent = new Map<string, string[]>()
   const includeClipBoundImagePreview = !!options?.includeClipBoundImagePreview
   const runtimeShapeById = new Map((options?.runtimeShapes ?? []).map((shape) => [shape.id, shape]))
@@ -117,13 +118,8 @@ export function buildGroupAwareTransformPreviewMap(
 
   if (includeClipBoundImagePreview) {
     for (const previewShape of previewShapes) {
-      const source = document.shapes.find((shape) => shape.id === previewShape.shapeId)
+      const source = shapeById.get(previewShape.shapeId)
       if (!source) {
-        continue
-      }
-      const deltaX = previewShape.x - source.x
-      const deltaY = previewShape.y - source.y
-      if (Math.abs(deltaX) <= 0.0001 && Math.abs(deltaY) <= 0.0001) {
         continue
       }
 
@@ -132,21 +128,12 @@ export function buildGroupAwareTransformPreviewMap(
         if (previewById.has(imageId)) {
           return
         }
-        const image = document.shapes.find((shape) => shape.id === imageId)
+        const image = shapeById.get(imageId)
         if (!image) {
           return
         }
         const runtimeShape = runtimeShapeById.get(image.id)
-        previewById.set(image.id, {
-          shapeId: image.id,
-          x: (runtimeShape?.x ?? image.x) + deltaX,
-          y: (runtimeShape?.y ?? image.y) + deltaY,
-          width: runtimeShape?.width ?? image.width,
-          height: runtimeShape?.height ?? image.height,
-          rotation: runtimeShape?.rotation ?? image.rotation ?? 0,
-          flipX: image.flipX,
-          flipY: image.flipY,
-        })
+        previewById.set(image.id, resolveClipBoundImagePreview(image, source, previewShape, runtimeShape))
       })
     }
   }
@@ -193,7 +180,12 @@ export function applyTransformPreviewGeometryToShape(
     flipX: typeof preview.flipX === 'boolean' ? preview.flipX : shape.flipX,
     flipY: typeof preview.flipY === 'boolean' ? preview.flipY : shape.flipY,
     points:
-      (shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points
+      (
+        shape.type === 'path' ||
+        shape.type === 'polygon' ||
+        shape.type === 'star' ||
+        shape.type === 'lineSegment'
+      ) && shape.points
         ? shape.points.map((point) => remapPoint(point, source, target))
         : shape.points,
     bezierPoints:
@@ -276,5 +268,81 @@ function remapPoint(
   return {
     x: target.x + (point.x - source.x) * scaleX,
     y: target.y + (point.y - source.y) * scaleY,
+  }
+}
+
+function resolveClipBoundImagePreview(
+  image: DocumentNode,
+  clipSource: DocumentNode,
+  clipPreview: TransformPreviewGeometry,
+  runtimeShape?: TransformPreviewRuntimeShape,
+): TransformPreviewGeometry {
+  const baseX = runtimeShape?.x ?? image.x
+  const baseY = runtimeShape?.y ?? image.y
+  const baseWidth = Math.max(1, runtimeShape?.width ?? image.width)
+  const baseHeight = Math.max(1, runtimeShape?.height ?? image.height)
+  const baseRotation = runtimeShape?.rotation ?? image.rotation ?? 0
+
+  const sourceCenter = {
+    x: clipSource.x + clipSource.width / 2,
+    y: clipSource.y + clipSource.height / 2,
+  }
+  const targetCenter = {
+    x: clipPreview.x + clipPreview.width / 2,
+    y: clipPreview.y + clipPreview.height / 2,
+  }
+  const baseCenter = {
+    x: baseX + baseWidth / 2,
+    y: baseY + baseHeight / 2,
+  }
+
+  const scaleX = clipSource.width === 0 ? 1 : clipPreview.width / clipSource.width
+  const scaleY = clipSource.height === 0 ? 1 : clipPreview.height / clipSource.height
+  const sourceRotation = clipSource.rotation ?? 0
+  const targetRotation = typeof clipPreview.rotation === 'number' ? clipPreview.rotation : sourceRotation
+  const rotationDelta = targetRotation - sourceRotation
+  const sourceFlipX = !!clipSource.flipX
+  const sourceFlipY = !!clipSource.flipY
+  const targetFlipX = typeof clipPreview.flipX === 'boolean' ? clipPreview.flipX : sourceFlipX
+  const targetFlipY = typeof clipPreview.flipY === 'boolean' ? clipPreview.flipY : sourceFlipY
+
+  const reflectedOffset = {
+    x: targetFlipX !== sourceFlipX ? -(baseCenter.x - sourceCenter.x) : (baseCenter.x - sourceCenter.x),
+    y: targetFlipY !== sourceFlipY ? -(baseCenter.y - sourceCenter.y) : (baseCenter.y - sourceCenter.y),
+  }
+  const scaledOffset = {
+    x: reflectedOffset.x * scaleX,
+    y: reflectedOffset.y * scaleY,
+  }
+  const rotatedOffset = rotateVector(scaledOffset, rotationDelta)
+  const nextCenter = {
+    x: targetCenter.x + rotatedOffset.x,
+    y: targetCenter.y + rotatedOffset.y,
+  }
+  const nextWidth = Math.max(1, baseWidth * Math.abs(scaleX))
+  const nextHeight = Math.max(1, baseHeight * Math.abs(scaleY))
+
+  return {
+    shapeId: image.id,
+    x: nextCenter.x - nextWidth / 2,
+    y: nextCenter.y - nextHeight / 2,
+    width: nextWidth,
+    height: nextHeight,
+    rotation: baseRotation + rotationDelta,
+    flipX: image.flipX,
+    flipY: image.flipY,
+  }
+}
+
+function rotateVector(point: {x: number; y: number}, degrees: number) {
+  if (Math.abs(degrees) <= 0.0001) {
+    return point
+  }
+  const radians = (degrees * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  return {
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos,
   }
 }

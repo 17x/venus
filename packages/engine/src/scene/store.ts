@@ -1,4 +1,8 @@
-import {hitTestEngineSceneState, type EngineHitTestResult} from './hitTest.ts'
+import {
+  hitTestEngineSceneState,
+  hitTestEngineSceneStateAll,
+  type EngineHitTestResult,
+} from './hitTest.ts'
 import {
   applyEngineScenePatch,
   applyEngineScenePatchBatch,
@@ -48,6 +52,7 @@ export interface EngineSceneStore {
   ): EngineScenePatchApplyResult | null
   query(bounds: EngineRect): EngineNodeId[]
   hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
+  hitTestAll(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult[]
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
   getSnapshot(): EngineSceneSnapshot
   getMutableState(): MutableEngineSceneState
@@ -214,6 +219,9 @@ export function createEngineSceneStore(
     },
     hitTest(point, tolerance = 0) {
       return hitTestEngineSceneState(state, point, tolerance)
+    },
+    hitTestAll(point, tolerance = 0) {
+      return hitTestEngineSceneStateAll(state, point, tolerance)
     },
     getNode(nodeId) {
       return state.nodeMap.get(nodeId) ?? null

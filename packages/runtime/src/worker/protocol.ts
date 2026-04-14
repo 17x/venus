@@ -1,4 +1,4 @@
-import type { DocumentNode, EditorDocument, ToolId } from '@venus/document-core'
+import type { DocumentNode, EditorDocument, ToolId, ToolName } from '@venus/document-core'
 import type { ShapeTransformBatchCommand } from '@venus/engine'
 import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
 import type { HistorySummary } from './history.ts'
@@ -72,7 +72,7 @@ export type EditorRuntimeCommand =
       shapeIds?: string[]
       mode?: 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
     }
-  | { type: 'tool.select'; tool: ToolId }
+  | { type: 'tool.select'; tool: ToolId; toolName?: ToolName }
   | { type: 'shape.rename'; shapeId: string; name: string; text?: string }
   | { type: 'shape.move'; shapeId: string; x: number; y: number }
   | { type: 'shape.resize'; shapeId: string; width: number; height: number }
@@ -105,6 +105,20 @@ export type EditorRuntimeCommand =
   | { type: 'shape.insert'; shape: DocumentNode; index?: number }
   | { type: 'shape.insert.batch'; shapes: DocumentNode[]; index?: number }
   | { type: 'shape.remove'; shapeId: string }
+  | { type: 'shape.group'; shapeIds?: string[]; groupId?: string; name?: string }
+  | { type: 'shape.ungroup'; groupId?: string }
+  | { type: 'shape.convert-to-path'; shapeIds?: string[] }
+  | {
+      type: 'shape.align'
+      shapeIds?: string[]
+      mode: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom'
+      reference?: 'selection' | 'first'
+    }
+  | {
+      type: 'shape.distribute'
+      shapeIds?: string[]
+      mode: 'hspace' | 'vspace'
+    }
 
 export interface SceneUpdateMessage {
   type: 'scene-ready' | 'scene-update'

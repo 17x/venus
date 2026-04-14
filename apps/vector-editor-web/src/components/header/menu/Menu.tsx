@@ -1,17 +1,31 @@
 import React, {useEffect, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import MenuItem from './MenuItem.tsx'
-import MenuData from './menuData.ts'
+import {createHeaderMenuData} from './menuData.ts'
 import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
 import {Button, cn} from '@venus/ui'
 import {EDITOR_TEXT_MENU_CLASS} from '../../editorChrome/editorTypography.ts'
 
-const MenuBar: React.FC<{ executeAction: EditorExecutor }> = ({executeAction}) => {
+const MenuBar: React.FC<{
+  executeAction: EditorExecutor
+  selectedIds: string[]
+  copiedCount: number
+  needSave: boolean
+  historyStatus: {
+    hasPrev: boolean
+    hasNext: boolean
+  }
+}> = ({executeAction, selectedIds, copiedCount, needSave, historyStatus}) => {
   const [open, setOpen] = useState<boolean>(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const {t} = useTranslation()
   const componentRef = useRef<HTMLDivElement>(null)
-  const actions = MenuData
+  const actions = createHeaderMenuData({
+    selectedIds,
+    copiedCount,
+    needSave,
+    historyStatus,
+  })
 
   useEffect(() => {
     const detectClose = (e: MouseEvent) => {
@@ -69,7 +83,15 @@ const MenuBar: React.FC<{ executeAction: EditorExecutor }> = ({executeAction}) =
                 <div className={'absolute left-0 top-full z-50 mt-1 min-w-50 overflow-hidden rounded border border-gray-200 bg-white py-1 shadow-lg'}>
                   {
                     menu.children?.map((child) => {
-                      return <MenuItem key={child.id} menu={child} executeAction={executeAction}/>
+                      return <MenuItem
+                        key={child.id}
+                        menu={child}
+                        executeAction={executeAction}
+                        onActionComplete={() => {
+                          setOpen(false)
+                          setOpenId(null)
+                        }}
+                      />
                     })
                   }</div>
             }
