@@ -71,7 +71,7 @@ context starts, or work needs to resume after switching topics.
   Focus on keeping mechanism/policy/product boundaries stable during active
   feature work.
   Current direction:
-  - use `docs/runtime-engine-responsibility-split.md` as the ownership checklist
+  - use `docs/architecture/layering.md` as the ownership checklist
     before landing runtime/engine/app changes
   - keep engine as mechanism owner (render/hit-test/math/index/scheduler)
   - keep runtime family as policy/orchestration owner
