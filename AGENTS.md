@@ -1,26 +1,28 @@
 # Venus Agent Instructions
 
 Repo-level entry point for AI coding agents.
-`docs/` is the documentation base; `docs/core/*` is the source of truth for standards.
+`docs/` is the documentation base. Canonical entrypoints are `docs/index.md` and `docs/ai/handoff.md`.
 
 ## Load First
 
 Before making changes, read:
 
-- `docs/core/project-context.md` — workspace layout, runtime chain, tooling baseline
-- `docs/core/engineering-standards.md` — code change rules, safety, validation
-- `docs/core/monorepo-knowledge-base.md` — durable repo knowledge
-- `docs/core/important-context.md` — layer boundaries, model truth, renderer direction
+- `00_README.md` — project entry and source-of-truth order
+- `STATE.md` — current phase, key facts, blockers, next step
+- `docs/index.md` — documentation map
+- `docs/architecture/overview.md` — architecture overview
+- `docs/architecture/layering.md` — layer ownership boundaries
+- `docs/engineering/coding-standards.md` — code change rules and validation
+- `docs/ai/handoff.md` — AI handoff and reading order
 
 Also read when relevant:
 
-- `docs/core/current-work.md` — when resuming or continuing active implementation
-- `docs/core/review-checklist.md` — for reviews, audits, and risk checks
-- `docs/architecture.md` — overall architecture and package responsibilities
+- `docs/core/current-work.md` — active implementation status details
+- `docs/core/review-checklist.md` — review and risk checklist
 - `docs/vector-editor-architecture.md` — vector editor module map, data flows, gaps, migration plan
-- `docs/runtime-engine-responsibility-split.md` — ownership boundary between engine/runtime/app
+- `docs/architecture/runtime.md` — runtime-specific integration notes
 
-If docs conflict, prefer newer core standards over older notes.
+If docs conflict, follow `docs/engineering/doc-versioning.md` priority order.
 
 ## Project Shape
 
@@ -79,7 +81,7 @@ directly depend on engine internals.
 ## Documentation
 
 - Update the closest module-level doc for meaningful changes
-- Fall back to `docs/core/monorepo-knowledge-base.md` if no narrower doc exists
+- Fall back to `docs/core/monorepo-knowledge-base.md` if no narrower domain doc exists
 - Update `docs/core/current-work.md` when a workstream changes direction
 - Keep notes factual: what changed, where, why
 

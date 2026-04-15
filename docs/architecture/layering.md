@@ -1,12 +1,11 @@
-# Runtime-Engine Responsibility Split
+# Layering And Responsibility Split
 
 ## Purpose
 
-This document defines the execution boundary between `@venus/engine`,
-`@venus/runtime*`, and app layers (`vector-editor-web`, `playground`) so we can
-ship new editor capabilities without ownership drift.
+Define and enforce the execution boundary between app, runtime family, and
+engine layers.
 
-Current target chain:
+Current chain:
 
 `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`
 
@@ -14,7 +13,7 @@ Current target chain:
 
 ### `@venus/engine` (mechanism owner)
 
-- Own render mechanism and backend capability (`canvas2d`, `webgl` request path).
+- Own render mechanism and backend capability.
 - Own geometry/math mechanism, matrix helpers, bounds, and spatial index.
 - Own hit-test mechanism and hit-test config contracts.
 - Own render scheduling primitives and scene patch apply mechanism.
@@ -53,7 +52,7 @@ Current target chain:
 
 - Own product UI orchestration and feature composition.
 - Own app-local React runtime bridge glue.
-- Consume runtime surfaces, do not bypass runtime to mutate worker/engine internals.
+- Consume runtime surfaces, do not bypass runtime to mutate worker or engine internals.
 - `playground` is diagnostics and stress verification bench.
 - `vector-editor-web` is product behavior target surface.
 
@@ -62,25 +61,22 @@ Current target chain:
 - Mechanism in engine, policy in runtime/interaction, product behavior in apps.
 - Runtime remains framework-agnostic. Framework adapters stay in app-local bridge files.
 - Persisted document truth stays in `@venus/document-core` runtime scene contracts (`node + feature`).
-- Runtime document structures are adapters for execution and rendering, not
-  persistence source-of-truth.
+- Runtime document structures are adapters, not persistence source-of-truth.
 
 ## API Boundary Rules
 
-- App -> runtime: command/interaction APIs only.
+- App -> runtime: command and interaction APIs only.
 - Runtime -> worker: typed protocol messages only.
-- Worker/runtime -> engine: mechanism APIs only (render/hit-test/math/index).
+- Worker/runtime -> engine: mechanism APIs only.
 - External network/collaboration transport belongs in runtime/worker integration
   layers, not in engine render mechanism.
 
-## Batch Update And Performance Direction
+## Performance Direction
 
-- Use one explicit batch mutation entry (`applyScenePatchBatch` /
-  transaction-like flow).
+- Use explicit batch mutation paths for large updates.
 - Support update-kind contracts so render invalidation scope stays controlled.
 - Keep input-priority render scheduling and request coalescing as default.
-- Preserve stable app/runtime API while optimizing internals (SAB, worker replay,
-  offscreen paths).
+- Preserve stable app/runtime APIs while optimizing internals.
 
 ## Anti-Patterns To Avoid
 
@@ -89,10 +85,8 @@ Current target chain:
 - App-layer direct writes into scene memory or engine internals.
 - Binding engine APIs to product-specific interaction semantics.
 
-## Work Start Plan
+## Review Checklist
 
-1. Use this document as the review baseline for new runtime/engine changes.
-2. For each new feature, confirm ownership before coding:
-   app vs runtime policy vs engine mechanism.
-3. Route new batch updates through shared patch/transaction paths first.
-4. Validate behavior in both `vector-editor-web` and `playground`.
+1. Confirm ownership before implementation: app vs runtime policy vs engine mechanism.
+2. Reject changes that bypass runtime to mutate engine internals directly.
+3. Validate behavior in both `vector-editor-web` and `playground` for boundary-sensitive changes.

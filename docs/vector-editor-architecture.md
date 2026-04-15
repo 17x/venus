@@ -659,7 +659,7 @@ When picking up this work:
 
 1. Read this document first for orientation
 2. Check `docs/core/current-work.md` for active workstream status
-3. Check `docs/runtime-engine-responsibility-split.md` for ownership boundaries
+3. Check `docs/architecture/layering.md` for ownership boundaries
 4. Runtime tool lifecycle + editing mode + engine multi-hit are now wired into active paths.
 5. `useEditorRuntime.ts` is still the highest-impact decomposition task; continue extracting pointer/action domains.
 6. Next priority: command registry integration into worker command dispatch with explicit undo contracts.

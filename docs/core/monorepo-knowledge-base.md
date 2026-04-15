@@ -341,12 +341,12 @@ Knowledge` when they become long-term guidance.
   path, reducing cross-surface interaction drift.
 
 - Added architecture boundary contract doc
-  `docs/runtime-engine-responsibility-split.md` to define clear ownership
+  `docs/architecture/layering.md` to define clear ownership
   between `@venus/engine`, `@venus/runtime*`, and app layers.
 - The new doc locks the direction:
   mechanism in engine, interaction/runtime policy in `runtime` family, and
   product behavior in app surfaces (`vector-editor-web`, `playground`).
-- `docs/architecture.md` now links to this detailed boundary contract so future
+- `docs/architecture/overview.md` now links to this detailed boundary contract so future
   implementation/review work can use one stable source for responsibility
   checks.
 - App/runtime boundary was tightened for active app surfaces:
@@ -614,13 +614,13 @@ Knowledge` when they become long-term guidance.
 
 - Standardized team skill ownership and docs navigation for monorepo use:
   team-shared Codex skills now live in repo-local `.codex/skills` (including
-  `doc`), with global docs entry at `docs/00-Docs-Home.md`. Codex docs now
+  `doc`), with global docs entry at `docs/index.md`. Codex docs now
   point to `.codex/skills` instead of carrying duplicated skill assets.
   Legacy duplicated skill copies under the previous docs path were removed to
   keep a single source of truth.
 
 - Added a global docs entrypoint for one shared Obsidian workflow:
-  `docs/00-Docs-Home.md`, plus key context at `docs/core/important-context.md`.
+  `docs/index.md`, plus key context at `docs/core/important-context.md`.
 
 - Removed the `packages/canvas-base` compatibility package after migrating app,
   renderer, manifest, alias, and TypeScript project references to the

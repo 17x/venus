@@ -1,39 +1,36 @@
 # Venus
 
-Venus is a composable canvas runtime monorepo for building multi-editor products (vector, flowchart, mindmap, whiteboard).
-The current active stack focuses on `vector-editor-web` and `playground`.
+Venus is a monorepo for a composable canvas runtime used to build multi-editor products such as vector editors, flowchart tools, mind maps, and whiteboards.
+The current active apps are `vector-editor-web` and `playground`.
 
-## Live Demo
+## Live demos
 
-- Vector App Demo:
-  [https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
+- Vector editor: [https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
 - Playground: [https://venus-pla.pages.dev/](https://venus-pla.pages.dev/)
 
-## Workspace Layout
+## Repo structure
 
-- `apps/*`: runnable apps
+- `apps/*`: runnable applications
   - `apps/vector-editor-web`: product-facing vector editor shell
-  - `apps/playground`: runtime and rendering stress playground
+  - `apps/playground`: runtime playground and rendering stress test app
 - `packages/*`: shared editor infrastructure
   - `@venus/document-core`: document model and core types
-  - `@venus/engine`: renderer contracts, scene render node model, frame clock, animation primitives
+  - `@venus/engine`: renderer contracts, scene render node model, frame clock, and animation primitives
   - `@venus/runtime`: consolidated runtime package
-    - core runtime/controller: `@venus/runtime`
-    - interaction submodule: `@venus/runtime/interaction`
-    - engine bridge submodule: `@venus/runtime/engine`
-    - presets submodule: `@venus/runtime/presets`
-  - `@venus/runtime/worker`: command execution and scene mutation in worker
-  - `@venus/runtime/shared-memory`: SAB layout and scene snapshot helpers
+    - `@venus/runtime`: core runtime and controller
+    - `@venus/runtime/interaction`: interaction layer
+    - `@venus/runtime/engine`: engine bridge
+    - `@venus/runtime/presets`: reusable presets
+  - `@venus/runtime/worker`: command execution and scene mutation in a worker
+  - `@venus/runtime/shared-memory`: SharedArrayBuffer layout and scene snapshot helpers
   - `@venus/file-format`: schema and runtime format adapters
-- `docs/*`: architecture and design docs
+- `docs/*`: architecture and design documentation
 
-## Docs And Skills
+## Documentation and team skills
 
-- Docs home (Obsidian):
-  - [`docs/00-Docs-Home.md`](./docs/00-Docs-Home.md)
-- Team-shared Codex skills (repo-local):
-  - `.codex/skills`
-- Sync repo skills into your local Codex home when needed:
+- Docs home: [`docs/index.md`](./docs/index.md)
+- Team-shared Codex skills: [`.codex/skills`](./.codex/skills)
+- Install team skills into your local Codex home when needed:
   - `./tooling/codex/install-team-skills.sh`
 
 ## Requirements
@@ -41,12 +38,13 @@ The current active stack focuses on `vector-editor-web` and `playground`.
 - Node.js 20+
 - `pnpm` 8.x
 
-## UI Packages
+## UI packages
 
-- `@venus/ui`: local shared UI package for vector editor chrome and reusable primitives.
-- shadcn-style component setup in `packages/ui/components.json`, with app-owned Tailwind CSS variables in `apps/vector-editor-web/src/index.css`.
-- Radix UI primitives in `@venus/ui` for dialog, select, scroll area, and tooltip behavior.
-- Tailwind CSS 4 for app and shared UI styling.
+- `@venus/ui`: shared local UI package for vector editor chrome and reusable primitives
+- shadcn-style component setup: `packages/ui/components.json`
+- App-owned Tailwind CSS variables: `apps/vector-editor-web/src/index.css`
+- Radix UI primitives in `@venus/ui` for dialog, select, scroll area, and tooltip behavior
+- Tailwind CSS 4 for both app and shared UI styling
 
 ## Install
 
@@ -54,19 +52,19 @@ The current active stack focuses on `vector-editor-web` and `playground`.
 pnpm install
 ```
 
-## Quick Start
+## Quick start
 
-From repo root:
+From the repo root:
 
 ```sh
 pnpm dev
 ```
 
-This runs `@venus/vector-editor-web`.
+This starts `@venus/vector-editor-web`.
 
-## Useful Commands
+## Common commands
 
-From repo root:
+From the repo root:
 
 ```sh
 pnpm dev
@@ -75,31 +73,31 @@ pnpm typecheck
 pnpm lint
 ```
 
-Run playground directly:
+Run the playground directly:
 
 ```sh
 pnpm --dir apps/playground dev
 ```
 
-Run vector app directly:
+Run the vector editor directly:
 
 ```sh
 pnpm --dir apps/vector-editor-web dev
 ```
 
-## Runtime Data Flow
+## Runtime data flow
 
 `vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`
 
-- UI and product actions stay in app layer.
-- Worker owns scene mutation and command execution.
-- Renderer consumes snapshot + viewport and currently draws with Canvas2D on the main active surfaces.
+- UI and product actions stay in the app layer.
+- The worker owns scene mutation and command execution.
+- The renderer consumes snapshots and viewport state, and currently renders with Canvas 2D on the active surfaces.
 
 ## Notes
 
-- TypeScript project references are enabled via root `tsconfig.json`.
-- Vite is pinned through `pnpm.overrides` in root `package.json`.
-- Architecture doc: [./docs/architecture.md](./docs/architecture.md)
+- TypeScript project references are enabled through the root `tsconfig.json`.
+- Vite is pinned through `pnpm.overrides` in the root `package.json`.
+- Architecture overview: [`docs/architecture/overview.md`](./docs/architecture/overview.md)
 
 ## License
 
