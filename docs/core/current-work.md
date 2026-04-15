@@ -55,6 +55,9 @@ context starts, or work needs to resume after switching topics.
     overlay feedback in `InteractionOverlay`
   - useEditorRuntime decomposition advanced with extracted runtime modules:
     `hooks/runtime/groupActions.ts` and `hooks/runtime/pathSubSelection.ts`
+  - useEditorRuntime action decomposition advanced with
+    `hooks/runtime/shapeActions.ts` so convert/align/distribute command routing
+    is moved out of the monolithic executor branch
   - shape convert/align baseline landed end-to-end for 18.2 workstream:
     `shape.convert-to-path` and `shape.align` now flow through
     protocol -> local history -> scene patch apply -> collaboration replay,

@@ -47,3 +47,15 @@ Checks:
 - duplicate knowledge across docs
 - missing index/handoff entry for new stable knowledge
 - stale document still linked as active source
+
+## Workflow E: Large Plan Normalization
+
+Goal: prevent task plans from becoming mixed source-of-truth documents.
+
+Steps:
+
+1. Keep task plan files execution-scoped.
+2. Route durable requirement and architecture content to canonical domain docs.
+3. Keep decision-level content in decisions docs and root decision summary.
+4. Update `STATE.md` and `06_TODO.md` with concise phase deltas.
+5. Add task plan entries to `docs/index.md` for navigation.

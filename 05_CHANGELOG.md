@@ -21,3 +21,11 @@
   - `docs/runtime-engine-responsibility-split.md` -> `docs/architecture/layering.md`
   - `docs/runtime-mindmap-guide.md` -> `docs/architecture/runtime.md`
 - Added ADR records for architecture boundary and documentation governance.
+- Normalized `docs/task/plan-2.md` from mixed mega-plan into execution-plan scope.
+- Normalized `docs/task/plan-1.md` from mixed mega-plan into execution-plan scope.
+- Synced plan routing deltas into `STATE.md` and `06_TODO.md`.
+- Added task-plan navigation entries in `docs/index.md`.
+- Added workflow `Workflow E: Large Plan Normalization` in `docs/ai/workflows.md`.
+- Started runtime decomposition development by extracting shape action dispatch
+  from `useEditorRuntime.ts` into
+  `apps/vector-editor-web/src/hooks/runtime/shapeActions.ts`.
