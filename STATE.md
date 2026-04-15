@@ -17,3 +17,4 @@
 ## Next Step
 
 - Continue vector capability delivery (`connector` then `boolean`) while keeping boundaries and docs synchronized.
+- Execute Plan 2 workstreams in order: runtime structuring -> hit-test capability -> product completion -> regression consistency.

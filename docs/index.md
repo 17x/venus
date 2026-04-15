@@ -21,8 +21,9 @@ Canonical entrypoint for project docs and Obsidian navigation.
 
 ## Product
 
-- [[product/prd]]
-- [[product/scope]]
+- [[01_PROJECT_BRIEF]]
+- [[02_PRD]]
+- [[03_SCOPE]]
 - [[product/figma-mapping]]
 
 ## Architecture
@@ -51,6 +52,11 @@ Canonical entrypoint for project docs and Obsidian navigation.
 
 - [[decisions/ADR-001-runtime-layer-boundary]]
 - [[decisions/ADR-002-documentation-governance]]
+
+## Task Plans
+
+- [[task/plan-1]]
+- [[task/plan-2]]
 
 ## Package Knowledge
 

@@ -1,3 +1,65 @@
+// --- Connector Tool Handler ---
+import type { ToolHandler, ToolMeta, ToolPointerEvent } from './registry.ts'
+import { nid } from '@venus/document-core'
+
+const connectorToolMeta: ToolMeta = {
+  name: 'connector' as any, // Extend ToolName union as needed
+  labelKey: 'tool.connector',
+  shortcut: 'c',
+  group: 'draw',
+  cursor: 'crosshair',
+}
+
+// Internal state for connector tool
+let connectorStart: { nodeId: string; anchor: { x: number; y: number } } | null = null
+
+const connectorToolHandler: ToolHandler = {
+  meta: connectorToolMeta,
+  onActivate() {
+    connectorStart = null
+  },
+  onDeactivate() {
+    connectorStart = null
+  },
+  /**
+   * Pointer down: first click sets source, second click sets target and dispatches command.
+   * This logic assumes hit-testing and node picking is handled elsewhere and available here.
+   */
+  onPointerDown(event: ToolPointerEvent) {
+    // TODO: Integrate with hit-test to get nodeId at event.worldX, event.worldY
+    const pickedNodeId = getNodeIdAt(event.worldX, event.worldY) // Placeholder
+    if (!pickedNodeId) return
+    if (!connectorStart) {
+      connectorStart = { nodeId: pickedNodeId, anchor: { x: event.worldX, y: event.worldY } }
+    } else {
+      // Second click: create connector
+      const params = {
+        sourceNodeId: connectorStart.nodeId,
+        targetNodeId: pickedNodeId,
+        sourceAnchor: connectorStart.anchor,
+        targetAnchor: { x: event.worldX, y: event.worldY },
+        connectorType: 'STRAIGHT',
+      }
+      dispatchCommand('connector.create', params)
+      connectorStart = null
+    }
+  },
+  onCancel() {
+    connectorStart = null
+  },
+}
+
+// Register connector tool in registry setup
+// registry.register(connectorToolHandler)
+
+// --- Placeholder functions for integration ---
+function getNodeIdAt(x: number, y: number): string | null {
+  // TODO: Integrate with hit-test system to return nodeId at (x, y)
+  return null
+}
+function dispatchCommand(type: string, params: any) {
+  // TODO: Integrate with runtime command dispatch system
+}
 import type { ToolName } from '@venus/document-core'
 
 // --- Tool handler types ---

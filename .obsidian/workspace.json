@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "4f8a4c842a9977d0",
+        "id": "a9aadc71d2b95a87",
         "type": "tabs",
         "children": [
           {
-            "id": "d3ed3ea3c8719c67",
+            "id": "cd6c7b6fe381cc71",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/task/plan-2.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "plan-2"
+              "title": "New tab"
             }
           }
         ]
@@ -94,7 +90,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/task/plan-2.md",
+                "file": "docs/index.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +100,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for plan-2"
+              "title": "Backlinks for index"
             }
           },
           {
@@ -113,12 +109,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "docs/task/plan-2.md",
+                "file": "docs/index.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from plan-2"
+              "title": "Outgoing links from index"
             }
           },
           {
@@ -156,13 +152,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "docs/task/plan-2.md",
+                "file": "docs/index.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of plan-2"
+              "title": "Outline of index"
             }
           }
         ]
@@ -183,33 +179,41 @@
       "bases:Create new base": false
     }
   },
-  "active": "d3ed3ea3c8719c67",
+  "active": "cd6c7b6fe381cc71",
   "lastOpenFiles": [
+    "Untitled 1.canvas",
+    "2026-04-15.md",
+    "Untitled.canvas",
+    "docs/index.md",
+    "docs/product/figma-mapping.md",
+    "docs/product/01_PROJECT_BRIEF.md",
+    "product/prd.md",
+    "product",
+    "06_TODO.md",
+    "05_CHANGELOG.md",
+    "04_DECISIONS.md",
+    "00_README.md",
     "docs/product/03_SCOPE.md",
     "docs/product/02_PRD.md",
-    "docs/product/01_PROJECT_BRIEF.md",
-    "docs/index.md",
+    "apps/vector-editor-web/src/hooks/runtime/shapeActions.ts",
     "docs/task/plan-1.md",
-    "docs/product/scope.md",
-    "docs/product/prd.md",
+    "docs/task/plan-2.md",
+    "docs/product",
     "docs/engineering/testing.md",
     "docs/engineering/release.md",
     "docs/engineering/doc-versioning.md",
     "docs/engineering/coding-standards.md",
-    "docs/core/engine-direction.md",
-    "docs/core/current-work.md",
-    "docs/core/code-style-checklist.md",
+    "docs/engineering",
+    "docs/decisions/ADR-002-documentation-governance.md",
+    "docs/decisions/ADR-001-runtime-layer-boundary.md",
+    "docs/decisions",
     "docs/architecture/runtime.md",
     "docs/architecture/overview.md",
     "docs/architecture/layering.md",
     "docs/architecture/data-flow.md",
-    "docs/ai/doc-update-rules.md",
-    "docs/packages/runtime-react.md",
-    "docs/packages/document-core.md",
-    "04_DECISIONS.md",
-    "05_CHANGELOG.md",
-    "AGENTS.md",
-    "README.md",
-    "STATE.md"
+    "docs/architecture",
+    "docs/ai/workflows.md",
+    "docs/ai/prompts.md",
+    "docs/ai"
   ]
 }

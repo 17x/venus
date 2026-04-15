@@ -85,6 +85,7 @@ import {
   handleGroupNodesAction,
   handleUngroupNodesAction,
 } from './runtime/groupActions.ts'
+import {handleShapeActions} from './runtime/shapeActions.ts'
 import {resolvePathSubSelectionAtPoint} from './runtime/pathSubSelection.ts'
 import type {
   EditorDocumentState,
@@ -221,19 +222,6 @@ export type {
 const SCENE_CAPACITY = 256
 const IMAGE_INSERT_VIEWPORT_RATIO = 0.82
 const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
-const ALIGN_ACTION_MODE_MAP = {
-  'align-left': 'left',
-  'align-center-horizontal': 'hcenter',
-  'align-right': 'right',
-  'align-top': 'top',
-  'align-middle': 'vcenter',
-  'align-bottom': 'bottom',
-} as const
-
-const DISTRIBUTE_ACTION_MODE_MAP = {
-  'distribute-horizontal': 'hspace',
-  'distribute-vertical': 'vspace',
-} as const
 
 function formatSelectionNames(
   document: import('@venus/document-core').EditorDocument,
@@ -768,41 +756,10 @@ const useEditorRuntime = (options?: {
       return
     }
 
-    if (type === 'convert-to-path' || type === 'convertToPath') {
-      if (selectedShapeIds.length === 0) {
-        return
-      }
-      handleCommand({
-        type: 'shape.convert-to-path',
-        shapeIds: selectedShapeIds,
-      })
-      return
-    }
-
-    if (type in ALIGN_ACTION_MODE_MAP) {
-      if (selectedShapeIds.length < 2) {
-        return
-      }
-
-      handleCommand({
-        type: 'shape.align',
-        shapeIds: selectedShapeIds,
-        mode: ALIGN_ACTION_MODE_MAP[type as keyof typeof ALIGN_ACTION_MODE_MAP],
-        reference: 'selection',
-      })
-      return
-    }
-
-    if (type in DISTRIBUTE_ACTION_MODE_MAP) {
-      if (selectedShapeIds.length < 3) {
-        return
-      }
-
-      handleCommand({
-        type: 'shape.distribute',
-        shapeIds: selectedShapeIds,
-        mode: DISTRIBUTE_ACTION_MODE_MAP[type as keyof typeof DISTRIBUTE_ACTION_MODE_MAP],
-      })
+    if (handleShapeActions(type, {
+      selectedShapeIds,
+      dispatchCommand: handleCommand,
+    })) {
       return
     }
 
