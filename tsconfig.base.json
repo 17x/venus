@@ -20,15 +20,6 @@
     "paths": {
       "@venus/document-core": ["packages/document-core/src/index.ts"],
       "@venus/engine": ["packages/engine/src/index.ts"],
-      "@venus/runtime/worker": ["packages/runtime/src/worker/index.ts"],
-      "@venus/runtime/interaction": ["packages/runtime/src/interaction/index.ts"],
-      "@venus/runtime/presets": ["packages/runtime/src/presets/index.ts"],
-      "@venus/runtime/presets/*": ["packages/runtime/src/presets/*.ts"],
-      "@venus/runtime/engine": ["packages/runtime/src/engine.ts"],
-      "@venus/runtime": ["packages/runtime/src/index.ts"],
-      "@venus/runtime/shared-memory": ["packages/runtime/src/shared-memory/index.ts"],
-      "@venus/ui": ["packages/ui/src/index.ts"],
-      "@venus/ui/*": ["packages/ui/src/*"],
       "react": ["apps/vector-editor-web/node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["apps/vector-editor-web/node_modules/@types/react/jsx-runtime.d.ts"]
     }

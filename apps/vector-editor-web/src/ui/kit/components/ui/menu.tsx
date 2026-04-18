@@ -1,0 +1,55 @@
+import {forwardRef, type CSSProperties} from 'react'
+import {Button, type ButtonProps} from './button.tsx'
+import {cn} from '../../lib/utils.ts'
+import {Tooltip} from './tooltip.tsx'
+
+export interface MenuItemProps extends ButtonProps {
+  xs?: boolean
+  s?: boolean
+  m?: boolean
+  l?: boolean
+  activeStyle?: CSSProperties
+  hoverStyle?: CSSProperties
+}
+
+export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function MenuItem(
+  {children, className, xs, s, l, style, ...props},
+  ref,
+) {
+  const resolvedTitle = props.title
+    ?? (typeof props['aria-label'] === 'string' ? props['aria-label'] : undefined)
+    ?? (typeof children === 'string' ? children : undefined)
+
+  const buttonNode = (
+    <Button
+      ref={ref}
+      type={props.type ?? 'button'}
+      variant={'ghost'}
+      role={'menuitem'}
+      className={cn(
+        'venus-ui-font venus-ui-hover-transition venus-ui-menu-item inline-flex w-full min-w-25 cursor-pointer select-none items-center justify-start whitespace-nowrap box-border rounded-[var(--venus-ui-radius-sm)] text-left outline-none',
+        'focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
+        'disabled:cursor-not-allowed disabled:opacity-45',
+        xs && 'h-6 px-1 text-[length:var(--venus-ui-font-size-xs)]',
+        s && 'h-7 px-2 text-[length:var(--venus-ui-font-size-xs)]',
+        !xs && !s && !l && 'h-[var(--venus-ui-menu-item-height)] px-[var(--venus-ui-space-2)] text-[length:var(--venus-ui-font-size-sm)]',
+        l && 'h-10 px-3 text-[length:var(--venus-ui-font-size-md)]',
+        className,
+      )}
+      style={style}
+      {...props}
+    >
+      {children}
+    </Button>
+  )
+
+  if (!resolvedTitle) {
+    return buttonNode
+  }
+
+  return (
+    <Tooltip title={resolvedTitle} asChild>
+      {buttonNode}
+    </Tooltip>
+  )
+})

@@ -103,6 +103,58 @@
     "label": "View",
     "tooltip": "Open the view menu"
   },
+  "preference": {
+    "label": "Preference",
+    "tooltip": "Open preference settings"
+  },
+  "language": {
+    "label": "Language",
+    "tooltip": "Change editor language"
+  },
+  "languageEnglish": {
+    "label": "English",
+    "tooltip": "Switch language to English"
+  },
+  "languageChinese": {
+    "label": "Chinese",
+    "tooltip": "Switch language to Chinese"
+  },
+  "languageJapanese": {
+    "label": "Japanese",
+    "tooltip": "Switch language to Japanese"
+  },
+  "theme": {
+    "label": "Theme",
+    "tooltip": "Change editor theme"
+  },
+  "themeSystem": {
+    "label": "System",
+    "tooltip": "Follow system color scheme"
+  },
+  "themeLight": {
+    "label": "Light",
+    "tooltip": "Use light theme"
+  },
+  "themeDark": {
+    "label": "Dark",
+    "tooltip": "Use dark theme"
+  },
+  "toggleGridOn": {
+    "label": "Show Grid",
+    "tooltip": "Turn on canvas grid"
+  },
+  "toggleGridOff": {
+    "label": "Hide Grid",
+    "tooltip": "Turn off canvas grid"
+  },
+  "toggleSnappingOn": {
+    "label": "Enable Snapping",
+    "tooltip": "Turn on snapping"
+  },
+  "toggleSnappingOff": {
+    "label": "Disable Snapping",
+    "tooltip": "Turn off snapping"
+  },
   "zoomIn": {
     "label": "Zoom In",
     "tooltip": "Zoom in on the document",

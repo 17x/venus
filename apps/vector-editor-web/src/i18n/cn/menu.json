@@ -103,6 +103,58 @@
     "label": "视图",
     "tooltip": "打开视图菜单"
   },
+  "preference": {
+    "label": "偏好设置",
+    "tooltip": "打开偏好设置"
+  },
+  "language": {
+    "label": "语言",
+    "tooltip": "切换编辑器语言"
+  },
+  "languageEnglish": {
+    "label": "英语",
+    "tooltip": "切换到英语"
+  },
+  "languageChinese": {
+    "label": "中文",
+    "tooltip": "切换到中文"
+  },
+  "languageJapanese": {
+    "label": "日语",
+    "tooltip": "切换到日语"
+  },
+  "theme": {
+    "label": "主题",
+    "tooltip": "切换编辑器主题"
+  },
+  "themeSystem": {
+    "label": "跟随系统",
+    "tooltip": "跟随系统配色"
+  },
+  "themeLight": {
+    "label": "浅色",
+    "tooltip": "使用浅色主题"
+  },
+  "themeDark": {
+    "label": "深色",
+    "tooltip": "使用深色主题"
+  },
+  "toggleGridOn": {
+    "label": "显示网格",
+    "tooltip": "开启画布网格"
+  },
+  "toggleGridOff": {
+    "label": "隐藏网格",
+    "tooltip": "关闭画布网格"
+  },
+  "toggleSnappingOn": {
+    "label": "启用吸附",
+    "tooltip": "开启吸附"
+  },
+  "toggleSnappingOff": {
+    "label": "禁用吸附",
+    "tooltip": "关闭吸附"
+  },
   "zoomIn": {
     "label": "放大",
     "tooltip": "放大文档",

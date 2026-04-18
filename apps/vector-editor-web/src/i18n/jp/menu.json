@@ -103,6 +103,58 @@
     "label": "表示",
     "tooltip": "表示メニューを開く"
   },
+  "preference": {
+    "label": "環境設定",
+    "tooltip": "環境設定を開く"
+  },
+  "language": {
+    "label": "言語",
+    "tooltip": "エディター言語を切り替える"
+  },
+  "languageEnglish": {
+    "label": "英語",
+    "tooltip": "英語に切り替える"
+  },
+  "languageChinese": {
+    "label": "中国語",
+    "tooltip": "中国語に切り替える"
+  },
+  "languageJapanese": {
+    "label": "日本語",
+    "tooltip": "日本語に切り替える"
+  },
+  "theme": {
+    "label": "テーマ",
+    "tooltip": "エディターのテーマを変更"
+  },
+  "themeSystem": {
+    "label": "システム",
+    "tooltip": "システムの配色に合わせる"
+  },
+  "themeLight": {
+    "label": "ライト",
+    "tooltip": "ライトテーマを使用"
+  },
+  "themeDark": {
+    "label": "ダーク",
+    "tooltip": "ダークテーマを使用"
+  },
+  "toggleGridOn": {
+    "label": "グリッドを表示",
+    "tooltip": "キャンバスグリッドを有効にする"
+  },
+  "toggleGridOff": {
+    "label": "グリッドを非表示",
+    "tooltip": "キャンバスグリッドを無効にする"
+  },
+  "toggleSnappingOn": {
+    "label": "スナップを有効化",
+    "tooltip": "スナップを有効にする"
+  },
+  "toggleSnappingOff": {
+    "label": "スナップを無効化",
+    "tooltip": "スナップを無効にする"
+  },
   "zoomIn": {
     "label": "拡大",
     "tooltip": "ドキュメントを拡大",

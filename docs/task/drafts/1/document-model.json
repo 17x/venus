@@ -1,0 +1,171 @@
+{
+  "version": "0.1.0",
+  "source": {
+    "kind": "html-snapshot",
+    "file": "docs/task/drafts/draft.txt",
+    "selectionContext": "Vector path"
+  },
+  "documentModel": {
+    "root": {
+      "id": "document",
+      "type": "Document",
+      "children": [
+        "scene",
+        "styles",
+        "exports"
+      ]
+    },
+    "entities": {
+      "scene": {
+        "type": "Scene",
+        "fields": {
+          "activeTab": "draw",
+          "zoomPercent": 51,
+          "selection": {
+            "nodeType": "vectorPath",
+            "nodeIds": []
+          }
+        }
+      },
+      "vectorNode": {
+        "type": "VectorNode",
+        "fields": {
+          "id": "string",
+          "nodeType": "vectorPath",
+          "transform": {
+            "x": "number",
+            "y": "number",
+            "width": "number",
+            "height": "number",
+            "rotationDeg": "number",
+            "flipX": "boolean",
+            "flipY": "boolean"
+          },
+          "constraints": {
+            "lockAspectRatio": "boolean"
+          },
+          "visibility": {
+            "hidden": "boolean",
+            "opacity": "number"
+          },
+          "appearance": {
+            "cornerRadius": "number",
+            "cornerSmoothingEnabled": "boolean",
+            "blendMode": "enum"
+          },
+          "fills": [
+            "paint"
+          ],
+          "strokes": [
+            "stroke"
+          ],
+          "effects": [
+            "effect"
+          ],
+          "exportSettings": [
+            "exportSetting"
+          ]
+        }
+      },
+      "paint": {
+        "type": "Paint",
+        "fields": {
+          "id": "string",
+          "kind": "enum(solid|gradient|image)",
+          "visible": "boolean",
+          "colorHex": "string",
+          "alpha": "number",
+          "summary": "string"
+        }
+      },
+      "stroke": {
+        "type": "Stroke",
+        "fields": {
+          "id": "string",
+          "paint": "paint",
+          "weight": "number",
+          "position": "enum(inside|center|outside)",
+          "join": "enum(miter|bevel|round)",
+          "endCap": "enum(none|square|round)",
+          "widthProfile": "enum(uniform|custom)",
+          "advanced": {
+            "dashPattern": "number[]",
+            "miterLimit": "number",
+            "alignToPixel": "boolean"
+          }
+        }
+      },
+      "brush": {
+        "type": "Brush",
+        "fields": {
+          "presetId": "string",
+          "name": "string",
+          "previewImage": "string",
+          "gap": "number",
+          "sizeJitter": "number",
+          "angularJitterDeg": "number"
+        }
+      },
+      "effect": {
+        "type": "Effect",
+        "fields": {
+          "id": "string",
+          "kind": "enum(dropShadow|innerShadow|layerBlur|backgroundBlur|other)",
+          "enabled": "boolean",
+          "params": "object"
+        }
+      },
+      "exportSetting": {
+        "type": "ExportSetting",
+        "fields": {
+          "id": "string",
+          "format": "enum(png|jpg|svg|pdf|webp)",
+          "scale": "number",
+          "suffix": "string",
+          "includeId": "boolean"
+        }
+      },
+      "styles": {
+        "type": "StyleBinding",
+        "fields": {
+          "fillStyleId": "string|null",
+          "strokeStyleId": "string|null",
+          "effectStyleId": "string|null",
+          "variableRefs": "string[]"
+        }
+      },
+      "exports": {
+        "type": "ExportCollection",
+        "fields": {
+          "items": [
+            "exportSetting"
+          ]
+        }
+      }
+    }
+  },
+  "fieldToPanelMapping": {
+    "transform.x": "Position/X-position",
+    "transform.y": "Position/Y-position",
+    "transform.width": "Dimensions/Width",
+    "transform.height": "Dimensions/Height",
+    "constraints.lockAspectRatio": "Dimensions/Lock aspect ratio",
+    "transform.rotationDeg": "Rotation",
+    "visibility.opacity": "Appearance/Opacity",
+    "visibility.hidden": "Appearance/Hide",
+    "appearance.cornerRadius": "Appearance/Corner radius",
+    "appearance.blendMode": "Appearance/Blend mode",
+    "fills": "Fill panel",
+    "strokes": "Stroke panel",
+    "strokes[*].weight": "Stroke/Weight",
+    "strokes[*].position": "Stroke/Position",
+    "strokes[*].join": "Stroke/Join",
+    "strokes[*].endCap": "Stroke/End points",
+    "strokes[*].widthProfile": "Stroke/Width profile",
+    "brush.gap": "Stroke/Brush/Gap",
+    "brush.sizeJitter": "Stroke/Brush/Size jitter",
+    "brush.angularJitterDeg": "Stroke/Brush/Angular jitter",
+    "effects": "Effects panel",
+    "exportSettings": "Export panel"
+  }
+}

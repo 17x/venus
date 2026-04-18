@@ -3,11 +3,11 @@ export const vectorEditorDescriptor = {
   title: 'Vector Editor Web',
   family: 'vector',
   stack: {
-    runtime: '@venus/runtime',
-    worker: '@venus/runtime/worker',
+    runtime: '@vector/runtime',
+    worker: '@vector/runtime/worker',
     renderer: '@venus/engine',
     model: '@venus/document-core',
-    sharedMemory: '@venus/runtime/shared-memory',
+    sharedMemory: '@vector/runtime/shared-memory',
     protocol: '@venus/document-core',
   },
 } as const

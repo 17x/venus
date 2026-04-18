@@ -26,6 +26,10 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[03_SCOPE]]
 - [[product/figma-mapping]]
 
+## Apps
+
+- [[apps-vector]]
+
 ## Architecture
 
 - [[architecture/overview]]
@@ -66,7 +70,6 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[packages/runtime]]
 - [[packages/runtime-interaction]]
 - [[packages/runtime-presets]]
-- [[packages/ui]]
 
 ## Legacy Core Notes
 

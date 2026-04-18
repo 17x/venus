@@ -4,12 +4,22 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["apps/vector-editor-web/src/*"],
+      "@vector/ui": ["apps/vector-editor-web/src/ui/index.ts"],
+      "@vector/runtime": ["apps/vector-editor-web/src/editor/runtime-local/index.ts"],
+      "@vector/runtime/engine": ["apps/vector-editor-web/src/editor/runtime-local/engine.ts"],
+      "@vector/runtime/interaction": ["apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts"],
+      "@vector/runtime/worker": ["apps/vector-editor-web/src/editor/runtime-local/worker/index.ts"],
+      "@vector/runtime/shared-memory": ["apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts"],
+      "@vector/runtime/presets": ["apps/vector-editor-web/src/editor/runtime-local/presets/index.ts"],
+      "@vector/runtime/presets/*": ["apps/vector-editor-web/src/editor/runtime-local/presets/*.ts"]
+    }
   },
   "references": [
     { "path": "../../packages/document-core/tsconfig.json" },
-    { "path": "../../packages/runtime/tsconfig.json" },
-    { "path": "../../packages/ui/tsconfig.json" }
+    { "path": "../../packages/engine/tsconfig.json" }
   ],
   "include": [
     "src/**/*.ts",

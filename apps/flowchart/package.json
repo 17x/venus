@@ -9,8 +9,6 @@
     "lint": "echo \"Scaffold only. Lint from monorepo root.\""
   },
   "dependencies": {
-    "@venus/document-core": "workspace:*",
-    "@venus/runtime": "workspace:*",
-    "@venus/ui": "workspace:*"
+    "@venus/document-core": "workspace:*"
   }
 }

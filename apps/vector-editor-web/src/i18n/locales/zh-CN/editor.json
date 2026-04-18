@@ -1,0 +1,30 @@
+{
+  "panel": {
+    "stroke": {
+      "position": "位置",
+      "weight": "粗细",
+      "cap": "端点",
+      "join": "拐角",
+      "options": "描边选项",
+      "alignment": "描边对齐"
+    },
+    "layout": {
+      "x": "X",
+      "y": "Y",
+      "width": "宽",
+      "height": "高",
+      "rotation": "旋转"
+    },
+    "appearance": {
+      "opacity": "不透明度",
+      "cornerRadius": "圆角"
+    },
+    "effects": {
+      "dropShadow": "投影",
+      "shadowColor": "投影颜色",
+      "shadowX": "投影 X",
+      "shadowY": "投影 Y",
+      "shadowBlur": "投影模糊"
+    }
+  }
+}

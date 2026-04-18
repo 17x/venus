@@ -15,6 +15,8 @@
       "randomizeSeed": "ランダム",
       "actionsHint": "選択したプリセットは新規ファイルとして作成されます。",
       "cancelButton": "キャンセル",
+      "applyButtonLabel": "適用",
+      "applyButtonTooltip": "選択したテンプレートを適用",
       "category": {
         "simpleDemo": "シンプルデモ",
         "mixedLarge": "大規模ミックス負荷",
@@ -43,6 +45,50 @@
       "strokeTooltip": "線色を適用",
       "strokeWidthDownTooltip": "線幅を小さくする",
       "strokeWidthUpTooltip": "線幅を大きくする"
+    },
+    "shell": {
+      "variantB": {
+        "nav": {
+          "mainMenu": "メインメニュー"
+        },
+        "assets": {
+          "templateTooltip": "テンプレートプリセットからファイルを作成"
+        },
+        "pages": {
+          "toggle": "ページセクションを切り替え"
+        },
+        "layers": {
+          "toggle": "レイヤーセクションを切り替え",
+          "expandGroup": "グループを展開",
+          "collapseGroup": "グループを折りたたむ"
+        },
+        "settings": {
+          "gridTooltip": "キャンバスグリッドの表示を切り替え",
+          "snappingTooltip": "スナップ動作を切り替え"
+        },
+        "shareTooltip": "現在のデザインを共有",
+        "zoomOut": "ズームアウト",
+        "zoomIn": "ズームイン",
+        "zoomReset": "ズームを100%にリセット",
+        "leftSidebar": {
+          "restore": "左パネルを復元"
+        },
+        "rightSidebar": {
+          "restore": "右パネルを復元"
+        }
+      }
+    },
+    "inspector": {
+      "page": {
+        "title": "ページ",
+        "background": "背景",
+        "visible": "表示",
+        "visibleToggle": "ページ背景の表示を切り替え",
+        "color": "色",
+        "colorPicker": "ページ背景色を選択",
+        "stylesExport": "スタイル / エクスポート",
+        "stylesExportHint": "ページのスタイルと書き出し設定はページコンテキストで表示されます。"
+      }
     }
   }
 }

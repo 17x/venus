@@ -1,0 +1,94 @@
+@layer components {
+  .venus-editor {
+    --venus-ui-font-family: "Inter", "Segoe UI", sans-serif;
+    --venus-ui-font-size-xs: 11px;
+    --venus-ui-font-size-sm: 12px;
+    --venus-ui-font-size-md: 14px;
+    --venus-ui-line-xs: 18px;
+    --venus-ui-line-sm: 18px;
+    --venus-ui-line-md: 18px;
+
+    --venus-ui-space-1: 4px;
+    --venus-ui-space-2: 8px;
+    --venus-ui-space-3: 12px;
+    --venus-ui-space-4: 16px;
+    --venus-ui-space-5: 20px;
+    --venus-ui-space-6: 24px;
+
+    --venus-ui-radius-sm: 6px;
+    --venus-ui-radius-md: 8px;
+    --venus-ui-radius-lg: 12px;
+
+    --venus-ui-border-width: 1px;
+    --venus-ui-border-color: #e6ebf2;
+    --venus-ui-border-color-strong: #d5dce6;
+
+    --venus-ui-color-primary: #6f8fc8;
+    --venus-ui-color-primary-hover: #5f80ba;
+    --venus-ui-color-secondary: #6b7280;
+    --venus-ui-color-secondary-hover: #5b6472;
+
+    --venus-ui-hover-bg: #f6f8fb;
+    --venus-ui-hover-bg-strong: #eef2f7;
+    --venus-ui-hover-speed: 140ms;
+    --venus-ui-menu-item-height: 30px;
+
+    --venus-ui-icon-size: 16px;
+    --venus-ui-button-icon-size: 18px;
+
+    --venus-editor-font-body: 12px;
+    --venus-editor-line-body: 18px;
+    --venus-editor-font-label: 11px;
+    --venus-editor-line-label: 18px;
+    --venus-editor-font-meta: 10px;
+    --venus-editor-line-meta: 18px;
+    --venus-editor-font-heading: 14px;
+    --venus-editor-line-heading: 18px;
+
+    --venus-shell-accent: #7f95bb;
+    --venus-shell-bg: #f8fafc;
+    --venus-shell-surface: #fdfefe;
+    --venus-shell-surface-muted: #f9fbfd;
+    --venus-shell-border: #e9edf3;
+    --venus-shell-border-soft: #eef2f6;
+    --venus-shell-divider: #edf1f5;
+    --venus-shell-text: #2d3748;
+    --venus-shell-text-muted: #8a94a6;
+    --venus-shell-hover: #f6f9fc;
+    --venus-shell-active-bg: #eef3fb;
+    --venus-shell-active-text: #5f7396;
+    --venus-shell-canvas-bg: #f4f7fb;
+    --venus-shell-focus-ring: rgba(127, 149, 187, 0.28);
+
+    font-size: var(--venus-editor-font-body);
+    line-height: var(--venus-editor-line-body);
+  }
+
+  .venus-editor[data-theme='dark'] {
+    --venus-ui-border-color: #334155;
+    --venus-ui-border-color-strong: #475569;
+
+    --venus-ui-color-primary: #7ea0df;
+    --venus-ui-color-primary-hover: #6d91d4;
+    --venus-ui-color-secondary: #64748b;
+    --venus-ui-color-secondary-hover: #71839d;
+
+    --venus-ui-hover-bg: #1f2937;
+    --venus-ui-hover-bg-strong: #111827;
+
+    --venus-shell-accent: #9fb4da;
+    --venus-shell-bg: #0f172a;
+    --venus-shell-surface: #111827;
+    --venus-shell-surface-muted: #0b1220;
+    --venus-shell-border: #233043;
+    --venus-shell-border-soft: #334155;
+    --venus-shell-divider: #1f2937;
+    --venus-shell-text: #e5e7eb;
+    --venus-shell-text-muted: #94a3b8;
+    --venus-shell-hover: #182235;
+    --venus-shell-active-bg: #1e293b;
+    --venus-shell-active-text: #dbeafe;
+    --venus-shell-canvas-bg: #0b1220;
+    --venus-shell-focus-ring: rgba(159, 180, 218, 0.42);
+  }
+}

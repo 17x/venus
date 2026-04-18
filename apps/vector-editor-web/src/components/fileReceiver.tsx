@@ -1,8 +1,8 @@
-import {Con, Drop, useNotification} from '@venus/ui'
-import readImageHelper from '../utilities/readImageHelper.ts'
+import {Con, Drop, useNotification} from '@vector/ui'
+import readImageHelper from '../shared/utilities/readImageHelper.ts'
 import {FC, ReactNode, useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import {EditorExecutor} from '../hooks/useEditorRuntime.ts'
+import {EditorExecutor} from '../editor/hooks/useEditorRuntime.ts'
 
 const FileReceiver: FC<{
   children: ReactNode

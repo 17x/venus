@@ -1,6 +1,6 @@
 import ZoomSelect from './ZoomSelect.tsx'
 import {FC, Ref, useImperativeHandle, useState} from 'react'
-import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
 import {EDITOR_TEXT_STATUS_CLASS} from '../editorChrome/editorTypography.ts'
 
 export interface PointRef {
@@ -24,7 +24,7 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
     }
   }, [])
 
-  return <div className={'flex h-7 w-full items-center justify-between border-t border-gray-200 bg-gray-50 px-2'}>
+  return <div className={'venus-shell-status flex h-7 w-full items-center justify-between border-t px-2'}>
     <ZoomSelect
       scale={worldScale}
       onChange={(newScale) => {
@@ -38,7 +38,7 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
         }
       }}
     />
-    <div className={`line-clamp-1 text-gray-500 ${EDITOR_TEXT_STATUS_CLASS}`}>
+    <div className={`line-clamp-1 venus-shell-text-muted ${EDITOR_TEXT_STATUS_CLASS}`}>
       {`dx:${worldPoint.x.toFixed(2)} dy:${worldPoint.y.toFixed(2)}`}
     </div>
   </div>

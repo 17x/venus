@@ -40,11 +40,10 @@ The current active apps are `vector-editor-web` and `playground`.
 
 ## UI packages
 
-- `@venus/ui`: shared local UI package for vector editor chrome and reusable primitives
-- shadcn-style component setup: `packages/ui/components.json`
-- App-owned Tailwind CSS variables: `apps/vector-editor-web/src/index.css`
-- Radix UI primitives in `@venus/ui` for dialog, select, scroll area, and tooltip behavior
-- Tailwind CSS 4 for both app and shared UI styling
+- App-owned UI package alias: `@vector/ui` -> `apps/vector-editor-web/src/ui/index.ts`
+- Foundation token/styles: `apps/vector-editor-web/src/ui/foundation/*`
+- Primitive components: `apps/vector-editor-web/src/ui/kit/components/ui/*`
+- Tailwind CSS 4 + Radix UI primitives in vector app UI layer
 
 ## Install
 

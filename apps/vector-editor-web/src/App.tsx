@@ -1,12 +1,14 @@
 import './components/comp.css'
 import './i18n/config.ts'
 import EditorFrame from './components/editorFrame/EditorFrame.tsx'
-import {LiteUIProvider} from '@venus/ui'
+import {LiteUIProvider, ThemeProvider} from '@vector/ui'
 
 function App() {
-  return <LiteUIProvider>
-    <EditorFrame/>
-  </LiteUIProvider>
+  return <ThemeProvider>
+    <LiteUIProvider>
+      <EditorFrame/>
+    </LiteUIProvider>
+  </ThemeProvider>
 }
 
 export default App

@@ -15,6 +15,8 @@
       "randomizeSeed": "随机",
       "actionsHint": "当前预设将作为新文件创建。",
       "cancelButton": "取消",
+      "applyButtonLabel": "应用",
+      "applyButtonTooltip": "应用当前选中的模板",
       "category": {
         "simpleDemo": "简单示例",
         "mixedLarge": "大规模混合压测",
@@ -43,6 +45,50 @@
       "strokeTooltip": "应用描边颜色",
       "strokeWidthDownTooltip": "减小描边宽度",
       "strokeWidthUpTooltip": "增大描边宽度"
+    },
+    "shell": {
+      "variantB": {
+        "nav": {
+          "mainMenu": "主菜单"
+        },
+        "assets": {
+          "templateTooltip": "通过模板预设创建文件"
+        },
+        "pages": {
+          "toggle": "切换页面分区"
+        },
+        "layers": {
+          "toggle": "切换图层分区",
+          "expandGroup": "展开分组",
+          "collapseGroup": "收起分组"
+        },
+        "settings": {
+          "gridTooltip": "切换画布网格显示",
+          "snappingTooltip": "切换吸附行为"
+        },
+        "shareTooltip": "共享当前设计",
+        "zoomOut": "缩小",
+        "zoomIn": "放大",
+        "zoomReset": "重置缩放到 100%",
+        "leftSidebar": {
+          "restore": "恢复左侧面板"
+        },
+        "rightSidebar": {
+          "restore": "恢复右侧面板"
+        }
+      }
+    },
+    "inspector": {
+      "page": {
+        "title": "页面",
+        "background": "背景",
+        "visible": "可见",
+        "visibleToggle": "切换页面背景可见性",
+        "color": "颜色",
+        "colorPicker": "选择页面背景颜色",
+        "stylesExport": "样式 / 导出",
+        "stylesExportHint": "页面样式与导出设置在页面上下文中展示。"
+      }
     }
   }
 }

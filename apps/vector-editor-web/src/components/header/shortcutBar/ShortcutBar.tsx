@@ -1,10 +1,10 @@
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from './Icons/LayerIcons.tsx'
 import {Fragment, ReactNode} from 'react'
 import {I18nHistoryDataItem} from '../../../i18n/type'
-import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
-import {Button, cn, IconButton, Select, SelectItem} from '@venus/ui'
+import {EditorExecutor} from '../../../editor/hooks/useEditorRuntime.ts'
+import {Button, cn, IconButton, Select, SelectItem} from '@vector/ui'
 import {useTranslation} from 'react-i18next'
-import type {SelectedElementProps} from '../../../hooks/useEditorRuntime.types.ts'
+import type {SelectedElementProps} from '../../../editor/hooks/useEditorRuntime.types.ts'
 import {
   CHROME_ICON_BUTTON_DISABLED_CLASS,
   CHROME_ICON_SIZE,
@@ -185,7 +185,7 @@ const ShortcutBar: React.FC<{
     },
   ]
 
-  return <div className={'border-b border-gray-200 bg-white'}>
+  return <div className={'venus-shell-toolbar border-b'}>
     <div className={'flex h-11 items-center gap-1 overflow-x-auto px-3 whitespace-nowrap'}>
       <Button
         type={'button'}
@@ -205,7 +205,7 @@ const ShortcutBar: React.FC<{
       >
         <WandSparkles size={18}/>
       </Button>
-      <div className={'mx-1 h-5 w-px bg-gray-200'}></div>
+      <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>
       {
         Object.values(actions).map((item) => {
           const {id, i18nKey, icon, disabled, divide} = item
@@ -235,11 +235,11 @@ const ShortcutBar: React.FC<{
                     )}>
               {icon}
             </IconButton>
-            {divide && <div className={'mx-1 h-5 w-px bg-gray-200'}></div>}
+            {divide && <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>}
           </Fragment>
         })
       }
-      <div className={'mx-1 h-5 w-px bg-gray-200'}></div>
+      <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>
       {shapeActions.map((item) => {
         const menuText = t(item.i18nKey, {returnObjects: true}) as I18nHistoryDataItem | string
         const tooltip = typeof menuText === 'string' ? item.id : menuText.tooltip
@@ -260,7 +260,7 @@ const ShortcutBar: React.FC<{
           {item.icon}
         </IconButton>
       })}
-      <div className={'mx-1 h-5 w-px bg-gray-200'}></div>
+      <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>
       <ColorSwatchPicker
         icon={<Palette size={14}/>} 
         label={t('ui.quickStyle.fill')}
@@ -279,7 +279,7 @@ const ShortcutBar: React.FC<{
       />
       <div className={'flex items-center gap-1'}>
         <span
-          className={'inline-flex size-7 items-center justify-center rounded border border-gray-300 text-gray-600'}
+          className={'venus-shell-control-chip venus-shell-text-muted inline-flex size-7 items-center justify-center rounded border'}
           title={t('ui.quickStyle.stroke')}
         >
           <SlidersHorizontal size={14}/>

@@ -1,0 +1,116 @@
+{
+  "version": "0.1.0",
+  "source": "docs/task/drafts/3/bottom-middle-floating-bar.txt",
+  "scope": "bottom-middle floating toolbelt",
+  "layoutModel": {
+    "root": "design-toolbelt-wrapper",
+    "regions": [
+      {
+        "id": "leftToolCarousel",
+        "role": "tool groups + overflow carousel",
+        "rows": [
+          "visibleCarouselRow",
+          "hiddenCarouselRow"
+        ]
+      },
+      {
+        "id": "modeSegmentedControl",
+        "role": "editor mode switch",
+        "options": [
+          "illustration(draw)",
+          "design",
+          "handoff(dev-mode)"
+        ]
+      }
+    ]
+  },
+  "toolGroups": [
+    {
+      "id": "moveGroup",
+      "primary": "Move",
+      "submenu": "Move tools",
+      "testIds": [
+        "Move-tool",
+        "SelectTools-chevron"
+      ]
+    },
+    {
+      "id": "frameGroup",
+      "primary": "Frame",
+      "submenu": "Region tools",
+      "testIds": [
+        "Frame-tool",
+        "FrameTools-chevron"
+      ]
+    },
+    {
+      "id": "shapeGroup",
+      "primary": "Rectangle",
+      "submenu": "Shape tools",
+      "testIds": [
+        "Rectangle-tool",
+        "ShapeTools-chevron"
+      ]
+    },
+    {
+      "id": "penGroup",
+      "primary": "Pen",
+      "submenu": "Creation tools",
+      "testIds": [
+        "Pen-tool",
+        "PenTools-chevron"
+      ]
+    },
+    {
+      "id": "singleTools",
+      "items": [
+        "Text",
+        "Comment",
+        "Actions"
+      ],
+      "testIds": [
+        "Text-tool",
+        "Comment-tool",
+        "Actions-tool"
+      ]
+    }
+  ],
+  "commandGroups": [
+    {
+      "group": "tools",
+      "commands": [
+        "tool.selectPrimary",
+        "tool.openSubmenu",
+        "tool.selectSubTool",
+        "tool.quickAction(actionsPalette)",
+        "tool.commentMode"
+      ]
+    },
+    {
+      "group": "mode",
+      "commands": [
+        "mode.switch(illustration|design|handoff)",
+        "mode.persistPreference"
+      ]
+    },
+    {
+      "group": "carousel",
+      "commands": [
+        "toolbelt.shiftRow",
+        "toolbelt.compactOverflow"
+      ]
+    }
+  ],
+  "stateSignals": {
+    "tool": "current selected tool",
+    "toolDisabled": "aria-disabled",
+    "toolPressed": "aria-pressed",
+    "mode": "data-active-mode",
+    "compact": "hidden/visible carousel rows"
+  },
+  "notes": [
+    "Bottom toolbelt introduces a stronger grouped-tool interaction than current app left rail.",
+    "Mode toggle aligns with your shell variant/dev handoff intent and can map to existing runtime editing-mode boundaries.",
+    "Submenu chevrons imply command routing for primary-vs-secondary tool selection and should be first-class in command schema."
+  ]
+}

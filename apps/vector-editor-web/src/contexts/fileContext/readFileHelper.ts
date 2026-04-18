@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
-import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
-import {waitImageSize} from '../../utilities/readImageHelper.ts'
+import {VisionFileType} from '../../editor/hooks/useEditorRuntime.ts'
+import {waitImageSize} from '../../shared/utilities/readImageHelper.ts'
 
 const normalizeFile = (fileJson: any): VisionFileType => {
   if (Array.isArray(fileJson.workspace)) {

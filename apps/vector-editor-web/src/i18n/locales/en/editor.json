@@ -1,0 +1,30 @@
+{
+  "panel": {
+    "stroke": {
+      "position": "Position",
+      "weight": "Weight",
+      "cap": "Cap",
+      "join": "Join",
+      "options": "Stroke options",
+      "alignment": "Stroke alignment"
+    },
+    "layout": {
+      "x": "X",
+      "y": "Y",
+      "width": "Width",
+      "height": "Height",
+      "rotation": "Rotation"
+    },
+    "appearance": {
+      "opacity": "Opacity",
+      "cornerRadius": "Corner radius"
+    },
+    "effects": {
+      "dropShadow": "Drop shadow",
+      "shadowColor": "Shadow color",
+      "shadowX": "Shadow X",
+      "shadowY": "Shadow Y",
+      "shadowBlur": "Shadow blur"
+    }
+  }
+}

@@ -1,10 +1,22 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React from 'react'
 import {useTranslation} from 'react-i18next'
-import MenuItem from './MenuItem.tsx'
 import {createHeaderMenuData} from './menuData.ts'
-import {EditorExecutor} from '../../../hooks/useEditorRuntime.ts'
-import {Button, cn} from '@venus/ui'
+import {EditorExecutor} from '../../../editor/hooks/useEditorRuntime.ts'
+import {
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  useTheme,
+} from '@vector/ui'
 import {EDITOR_TEXT_MENU_CLASS} from '../../editorChrome/editorTypography.ts'
+import type {MenuItemType} from './type'
+import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../shortcutBar/Icons/LayerIcons.tsx'
 
 const MenuBar: React.FC<{
   executeAction: EditorExecutor
@@ -16,89 +28,139 @@ const MenuBar: React.FC<{
     hasNext: boolean
   }
 }> = ({executeAction, selectedIds, copiedCount, needSave, historyStatus}) => {
-  const [open, setOpen] = useState<boolean>(false)
-  const [openId, setOpenId] = useState<string | null>(null)
-  const {t} = useTranslation()
-  const componentRef = useRef<HTMLDivElement>(null)
+  const {t, i18n} = useTranslation()
+  const {mode, setMode} = useTheme()
   const actions = createHeaderMenuData({
     selectedIds,
     copiedCount,
     needSave,
     historyStatus,
+    language: i18n.language === 'zh-CN' ? 'cn' : (i18n.language as 'en' | 'cn' | 'jp'),
+    canToggleGrid: false,
+    canToggleSnapping: false,
+    themeMode: mode,
   })
 
-  useEffect(() => {
-    const detectClose = (e: MouseEvent) => {
-      if (!componentRef.current?.contains(e.target as Node)) {
-        setOpen(false)
-        setOpenId(null)
-      }
+  const handleCustomAction = (menuItem: {id: string}) => {
+    switch (menuItem.id) {
+      case 'languageEnglish':
+        i18n.changeLanguage('en')
+        return true
+      case 'languageChinese':
+        i18n.changeLanguage('cn')
+        return true
+      case 'languageJapanese':
+        i18n.changeLanguage('jp')
+        return true
+      case 'themeSystem':
+        setMode('system')
+        return true
+      case 'themeLight':
+        setMode('light')
+        return true
+      case 'themeDark':
+        setMode('dark')
+        return true
+      default:
+        return false
+    }
+  }
+
+  const handleMenuAction = (menuItem: MenuItemType) => {
+    if (menuItem.disabled) {
+      return
     }
 
-    // console.log(MenuData)
-
-    window.addEventListener('click', detectClose)
-
-    return () => {
-      window.removeEventListener('click', detectClose)
+    if (handleCustomAction(menuItem)) {
+      return
     }
-  }, [])
 
-  // console.log('menu')
-  return <div className={cn('h-9 select-none border-gray-200 bg-white px-2 py-1', EDITOR_TEXT_MENU_CLASS)}>
-    <div ref={componentRef} className={'flex h-full items-center gap-1'}>
+    // Header menu rows can map to explicit runtime actions; fall back to legacy id dispatch.
+    const action = menuItem.editorActionCode ?? menuItem.action ?? menuItem.id
+    if (menuItem.editorActionData) {
+      executeAction(action, menuItem.editorActionData)
+      return
+    }
+    executeAction(action)
+  }
+
+  const renderMenuNodes = (items: MenuItemType[]) => {
+    return items.map((menuItem) => {
+      const hasChildren = !!menuItem.children?.length
+      const label = t(menuItem.id + '.label')
+      const tooltip = t(menuItem.id + '.tooltip', {defaultValue: label})
+      const icon = resolveMenuIcon(menuItem.icon ?? menuItem.id)
+
+      return (
+        <React.Fragment key={menuItem.id}>
+          {menuItem.divide && <DropdownMenuSeparator/>}
+          {hasChildren
+            ? <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn(EDITOR_TEXT_MENU_CLASS)}>
+                  <span className={'inline-flex items-center gap-2'}>
+                    {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
+                    <span>{label}</span>
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {renderMenuNodes(menuItem.children ?? [])}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            : <DropdownMenuItem
+                disabled={menuItem.disabled}
+                onClick={() => {
+                  handleMenuAction(menuItem)
+                }}
+                title={tooltip}
+                className={cn(EDITOR_TEXT_MENU_CLASS)}
+              >
+                <span className={'inline-flex items-center gap-2'}>
+                  {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
+                  <span>{label}</span>
+                </span>
+              </DropdownMenuItem>}
+        </React.Fragment>
+      )
+    })
+  }
+
+  return <div className={cn('venus-shell-menu h-9 select-none border-b px-2 py-1', EDITOR_TEXT_MENU_CLASS)}>
+    <div className={'flex h-full items-center gap-1'}>
       {
         actions.map((menu) => {
-          // console.log(menu.id)
-          // console.log(t(menu.id + '.label'))
-          return <div key={menu.id} className={'relative h-full'}>
-            <Button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={open && menu.id === openId}
+          return <DropdownMenu key={menu.id}>
+            <DropdownMenuTrigger
               className={cn(
-                'inline-flex h-full items-center rounded px-3 font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950',
+                'venus-shell-menu-button venus-shell-focusable inline-flex h-full items-center rounded px-3 font-medium',
                 EDITOR_TEXT_MENU_CLASS,
-                menu.id === openId && 'bg-gray-100 text-gray-950',
               )}
-              onMouseEnter={() => open && setOpenId(menu.id)}
-              onClick={() => {
-                if (openId !== menu.id) {
-                  setOpen(true)
-                  setOpenId(menu.id)
-                } else {
-                  setOpenId(null)
-                  setOpen(false)
-                }
-
-                // setOpen(!open)
-                // setOpenId(menu.id)
-              }}
-              title={t(menu.id + '.tooltip')}
+              title={t(menu.id + '.tooltip', {defaultValue: t(menu.id + '.label')})}
             >
               <span>{t(menu.id + '.label')}</span>
-            </Button>
-            {
-              open && menu.id === openId && menu.children!.length > 0 &&
-                <div className={'absolute left-0 top-full z-50 mt-1 min-w-50 overflow-hidden rounded border border-gray-200 bg-white py-1 shadow-lg'}>
-                  {
-                    menu.children?.map((child) => {
-                      return <MenuItem
-                        key={child.id}
-                        menu={child}
-                        executeAction={executeAction}
-                        onActionComplete={() => {
-                          setOpen(false)
-                          setOpenId(null)
-                        }}
-                      />
-                    })
-                  }</div>
-            }
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={'start'} sideOffset={4} className={'min-w-50'}>
+              {renderMenuNodes(menu.children ?? [])}
+            </DropdownMenuContent>
+          </DropdownMenu>
         })
-      }</div>
+      }
+    </div>
   </div>
 }
 
 export default MenuBar
+
+function resolveMenuIcon(icon: string) {
+  switch (icon) {
+    case 'layerUp':
+      return <LayerUp size={14}/>
+    case 'layerDown':
+      return <LayerDown size={14}/>
+    case 'layerTop':
+      return <LayerToTop size={14}/>
+    case 'layerBottom':
+      return <LayerToBottom size={14}/>
+    default:
+      return null
+  }
+}

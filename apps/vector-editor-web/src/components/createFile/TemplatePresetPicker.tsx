@@ -1,9 +1,10 @@
 import {useEffect, useMemo, useState, type FC} from 'react'
-import {Button, Modal, cn} from '@venus/ui'
+import {Button, Modal, cn} from '@vector/ui'
 import {TEMPLATE_PRESETS} from '../../features/templatePresets/presets.ts'
 import type {TemplatePresetDefinition} from '../../features/templatePresets/types.ts'
 import {useTranslation} from 'react-i18next'
 import {EDITOR_TEXT_BODY_CLASS} from '../editorChrome/editorTypography.ts'
+import {TEST_IDS} from '../../testing/testIds.ts'
 
 interface TemplatePresetPickerProps {
   bg: string
@@ -74,9 +75,10 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
         </header>
 
         <div className={'grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.25fr_0.75fr]'}>
-          <div className={'min-h-0 border-r border-gray-200 p-3'}>
-            <div className={'h-[calc(100%-44px)] overflow-auto pr-1'}>
-              <div className={'space-y-4'}>
+          <section className={'min-h-0 border-r border-gray-200 p-3'} data-testid={TEST_IDS.templatePicker.options}>
+            <h3 className={'mb-2 text-xs font-semibold text-gray-700'}>{t('ui.template.pickerTitle')}</h3>
+            <div className={'h-full overflow-auto pr-1'}>
+              <div className={'space-y-4'} role={'listbox'} aria-label={t('ui.template.pickerTitle')}>
                 {(['simple-demo', 'mixed-large', 'image-heavy'] as const).map((category) => {
                   const presets = groupedPresets[category]
                   if (presets.length === 0) {
@@ -87,38 +89,50 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                     <h3 className={'mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500'}>
                       {t(CATEGORY_LABELS[category])}
                     </h3>
-                    <div className={'space-y-2'}>
+                    <div className={'grid grid-cols-1 gap-2 sm:grid-cols-2'}>
                       {presets.map((preset) => {
                         const active = preset.id === activePreset?.id
 
-                        return <button
+                        return <Button
                           key={preset.id}
                           type={'button'}
+                          variant={active ? 'default' : 'outline'}
+                          role={'option'}
+                          aria-selected={active}
+                          data-testid={TEST_IDS.templatePicker.optionCard(preset.id)}
+                          data-state={active ? 'active' : 'inactive'}
                           onClick={() => setActivePresetId(preset.id)}
                           className={cn(
-                            'w-full rounded-lg border px-3 py-2.5 text-left transition-colors',
+                            'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left transition-colors',
                             active
-                              ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-100'
-                              : 'border-gray-200 bg-white hover:border-gray-400 hover:bg-gray-50',
+                              ? 'border-transparent'
+                              : 'hover:border-[var(--venus-ui-border-color-strong)]',
                           )}
                         >
-                          <div className={'flex items-center justify-between gap-2'}>
-                            <div className={'text-sm font-medium text-gray-900'}>{preset.label}</div>
+                          <div className={'w-full'}>
+                            <div className={'flex items-center justify-between gap-2'}>
+                              <div className={'text-sm font-medium text-gray-900'}>{preset.label}</div>
+                              <span className={'rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600'}>
+                                {preset.targetElementCount.toLocaleString()}
+                              </span>
+                            </div>
                             <span className={'rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600'}>
-                              {preset.targetElementCount.toLocaleString()}
+                              {t(CATEGORY_LABELS[preset.category])}
                             </span>
                           </div>
-                        </button>
+                        </Button>
                       })}
                     </div>
                   </section>
                 })}
               </div>
             </div>
-          </div>
+          </section>
 
-          <aside className={'min-h-0 overflow-auto p-3'}>
-            <div className={'rounded-lg border border-gray-200 bg-gray-50 p-3'}>
+          <section className={'min-h-0 flex flex-col p-3'} data-testid={TEST_IDS.templatePicker.details}>
+            <h3 className={'mb-2 text-xs font-semibold text-gray-700'}>{t('ui.template.categoryLabel')}</h3>
+            <div className={'scrollbar-custom min-h-0 flex-1 overflow-auto'}>
+              <div className={'rounded-lg border border-gray-200 bg-gray-50 p-3'}>
               <div className={'text-sm font-semibold text-gray-900'}>{activePreset.label}</div>
               <p className={'mt-1 text-xs text-gray-600'}>{activePreset.description}</p>
               <div className={'mt-2 text-xs text-gray-600'}>
@@ -128,42 +142,22 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                 {t('ui.template.targetElementsLabel')}: {activePreset.targetElementCount.toLocaleString()}
               </div>
             </div>
-
-            {/* <div className={'mt-3 rounded-lg border border-gray-200 p-3'}>
-              <label className={'text-xs font-medium text-gray-700'}>{t('ui.template.seedLabel')}</label>
-              <div className={'mt-2 flex items-center gap-2'}>
-                <Input
-                  className={EDITOR_TEXT_CONTROL_CLASS}
-                  value={seedInput}
-                  onChange={(event) => setSeedInput(event.target.value)}
-                  type={'number'}
-                  placeholder={t('ui.template.seedPlaceholder')}
-                />
-                <Button
-                  type={'button'}
-                  variant={'outline'}
-                  size={'sm'}
-                  onClick={() => setSeedInput(String(Math.floor(Math.random() * 100000)))}
-                >
-                  {t('ui.template.randomizeSeed')}
-                </Button>
-              </div>
-            </div> */}
-
-            <div className={'mt-4 flex items-center justify-end gap-2'}>
-              <Button type={'button'} variant={'outline'} onClick={onClose}>{t('ui.template.cancelButton')}</Button>
-              <Button
-                variant={'primary'}
-                className={'bg-blue-600 text-white hover:bg-blue-500'}
-                type={'button'}
-                onClick={() => {
-                  onGenerate(activePreset.id)
-                }}
-              >
-                {t('ui.template.generateButtonLabel')}
-              </Button>
             </div>
-          </aside>
+          </section>
+        </div>
+
+        <div className={'flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-4 py-3'} data-testid={TEST_IDS.templatePicker.footer}>
+          <Button type={'button'} variant={'outline'} title={t('ui.template.cancelButton')} onClick={onClose}>{t('ui.template.cancelButton')}</Button>
+          <Button
+            variant={'primary'}
+            type={'button'}
+            title={t('ui.template.applyButtonTooltip', {defaultValue: 'Apply selected template'})}
+            onClick={() => {
+              onGenerate(activePreset.id)
+            }}
+          >
+            {t('ui.template.applyButtonLabel', {defaultValue: 'Apply'})}
+          </Button>
         </div>
       </div>
     </div>
