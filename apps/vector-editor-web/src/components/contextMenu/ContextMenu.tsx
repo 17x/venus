@@ -1,13 +1,21 @@
-import {FC, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {FC, useEffect, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import {I18nHistoryDataItem} from '../../i18n/type'
-import {LuChevronRight} from 'react-icons/lu'
 import {MenuItemType} from '../header/menu/type'
-import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
+import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
 import {ElementProps} from '@lite-u/editor/types'
 import {Point} from '@venus/document-core'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
-import {Button} from '@venus/ui'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@vector/ui'
 import {EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 
 export interface ContextMenuProps {
@@ -35,9 +43,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
 }) => {
   const {t} = useTranslation()
   const [menuItems, setMenuItems] = useState<MenuItemType[]>([])
-  const [resolvedPosition, setResolvedPosition] = useState(position)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const groupClass = 'absolute bg-white shadow-lg rounded-md border border-gray-200 py-1 z-50'
+
   useEffect(() => {
     const noSelectedElement = selectedIds.length === 0
     const canGroup = selectedIds.length >= 2
@@ -80,35 +86,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
     ]
     // console.log(selectedIds)
     setMenuItems(ITEMS)
-
-    const remove = () => {
-      onClose()
-    }
-
-    window.addEventListener('click', remove)
-
-    return () => {
-      window.removeEventListener('click', remove)
-    }
   }, [selectedIds, position, copiedItems])
-
-  useLayoutEffect(() => {
-    const root = rootRef.current
-    const parent = root?.parentElement
-    if (!root || !parent) {
-      setResolvedPosition(position)
-      return
-    }
-
-    const menuWidth = root.offsetWidth
-    const menuHeight = root.offsetHeight
-    const maxX = Math.max(0, parent.clientWidth - menuWidth - 4)
-    const maxY = Math.max(0, parent.clientHeight - menuHeight - 4)
-    setResolvedPosition({
-      x: Math.min(Math.max(0, position.x), maxX),
-      y: Math.min(Math.max(0, position.y), maxY),
-    })
-  }, [position, menuItems.length])
 
   // console.log(9)
   const handleContextAction = (item: MenuItemType) => {
@@ -123,79 +101,74 @@ export const ContextMenu: FC<ContextMenuProps> = ({
     }
   }
 
-  const MenuItem: FC<{ item: MenuItemType, onMouseUp: VoidFunction }> = ({item, onMouseUp}) => {
+  const renderContextMenuItem = (item: MenuItemType) => {
     const menuText = t(item.id, {returnObjects: true}) as I18nHistoryDataItem
     const hasChildren = item.children && item.children.length > 0
+    const icon = resolveContextIcon(item.icon ?? item.id)
 
-    return <div className={'min-w-40 relative group'}
-                title={menuText.tooltip}>
-      <Button type={'button'}
-              disabled={item.disabled}
-              onMouseUp={onMouseUp}
-              className={`flex justify-between px-4 text-nowrap items-center py-1.5 w-full text-left hover:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed ${EDITOR_TEXT_MENU_CLASS}`}
-      >
-        <span className={'inline-flex items-center gap-2'}>
-          <span className={'inline-flex opacity-80'}>{resolveContextIcon(item.icon ?? item.id)}</span>
-          <span>{menuText.label}</span>
-        </span>
-        {hasChildren && <LuChevronRight/>}
-      </Button>
+    if (hasChildren) {
+      return <DropdownMenuSub key={item.id}>
+        <DropdownMenuSubTrigger disabled={item.disabled} className={EDITOR_TEXT_MENU_CLASS} title={menuText.tooltip}>
+          <span className={'inline-flex items-center gap-2'}>
+            {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
+            <span>{menuText.label}</span>
+          </span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {item.children?.map((childItem) => {
+            return renderContextMenuItem(childItem)
+          })}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    }
 
-      {
-        hasChildren &&
-          <div className={groupClass + ' z-60 group-hover:block hidden left-full top-0 border-l-0 rounded-none '}>
-            {
-              item.children!.map((child, childIndex) => {
-                return <MenuItem key={childIndex} item={child} onMouseUp={() => handleContextAction(child)}/>
-              })
-            }
-          </div>
-      }
-    </div>
+    return <DropdownMenuItem
+      key={item.id}
+      disabled={item.disabled}
+      title={menuText.tooltip}
+      className={EDITOR_TEXT_MENU_CLASS}
+      onClick={() => {
+        handleContextAction(item)
+        onClose()
+      }}
+    >
+      <span className={'inline-flex items-center gap-2'}>
+        {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
+        <span>{menuText.label}</span>
+      </span>
+    </DropdownMenuItem>
   }
 
   return (
     <div
-         ref={rootRef}
-         className={groupClass}
+         className={'absolute z-50'}
          onClick={(e) => {
            e.preventDefault()
            e.stopPropagation()
          }}
          style={{
-           top: resolvedPosition.y,
-           left: resolvedPosition.x,
+           top: position.y,
+           left: position.x,
          }}>
 
-      {
-        menuItems.map((item, index) => {
-          return <MenuItem key={index} item={item} onMouseUp={() => {
-            handleContextAction(item)
-            onClose()
-          }}/>
-
-          /*const showDivider = index === 2 || index === 4 || index === 7
-          const showChild = item.children && item.children.length > 0
-
-          return <div key={item.id} className={'relative group'}>
-            {showDivider && <div className="border-t border-gray-200 my-1"></div>}
-            <MenuItem item={item} onClick={() => {
-              // if (hasChildren) return
-              handleContextAction(item.id)
-            }}/>
-            {
-              showChild && <div
-                    className={groupClass + ' z-60 group-hover:block hidden left-full top-0 border-l-0 rounded-none '}>
-                {
-                  item.children.map((child, childIndex) => {
-                    return <MenuItem key={childIndex} item={child} onClick={() => handleContextAction(item.id)}/>
-                  })
-                }
-                </div>
-            }
-          </div>*/
-        })
-      }
+      <DropdownMenu open onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onClose()
+        }
+      }}>
+        {/* Anchor popup at pointer position while keeping menu fully keyboard accessible. */}
+        <DropdownMenuTrigger className={'size-px opacity-0 pointer-events-none'} aria-label={t('shell.variantB.nav.mainMenu', {defaultValue: 'Context menu'})}>
+          <span className={'sr-only'}>{t('shell.variantB.nav.mainMenu', {defaultValue: 'Context menu'})}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align={'start'} sideOffset={4} className={'min-w-40'}>
+          {menuItems.map((item) => {
+            return <div key={item.id}>
+              {item.divide && <DropdownMenuSeparator/>}
+              {renderContextMenuItem(item)}
+            </div>
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

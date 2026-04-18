@@ -1,4 +1,4 @@
-import type {VisionFileType} from '../../hooks/useEditorRuntime.types.ts'
+import type {VisionFileType} from '../../editor/hooks/useEditorRuntime.types.ts'
 
 export type TemplatePresetCategory = 'simple-demo' | 'mixed-large' | 'image-heavy'
 

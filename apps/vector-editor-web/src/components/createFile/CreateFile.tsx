@@ -1,11 +1,11 @@
 import {FC, FormEvent, useRef, useState} from 'react'
 import {convertUnit, UnitType} from '@venus/document-core'
-import uid from '../../utilities/Uid.ts'
-import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
-import {Button, Con, Flex, Input, Modal, P, Panel, Select, SelectItem, Title} from '@venus/ui'
+import uid from '../../shared/utilities/Uid.ts'
+import {VisionFileType} from '../../editor/hooks/useEditorRuntime.ts'
+import {Button, Con, Flex, Input, Modal, P, Select, SelectItem, Title} from '@vector/ui'
 import {PAGE_PRESETS} from './pagePresets.ts'
 import {useTranslation} from 'react-i18next'
-import {VISION_VERSION} from '../../constants/version.ts'
+import {VISION_VERSION} from '../../shared/constants/version.ts'
 import {
   EDITOR_HEADING_STYLE,
   EDITOR_TEXT_BODY_CLASS,
@@ -13,6 +13,7 @@ import {
   EDITOR_TEXT_HEADING_CLASS,
   EDITOR_TEXT_MENU_CLASS,
 } from '../editorChrome/editorTypography.ts'
+import {TEST_IDS} from '../../testing/testIds.ts'
 
 const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, onBgClick?: VoidFunction }> = ({bg = '#00000066', createFile, onBgClick}) => {
   const formRef = useRef<HTMLFormElement>(null)
@@ -81,8 +82,11 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
     zIndex: 1000,
   }} onBackdropClick={() => onBgClick && onBgClick()}>
     <Flex col w={'90%'} h={'90%'} ovh className={`shadow-md rounded-sm shadow-gray-600 ${EDITOR_TEXT_BODY_CLASS}`}>
-      <Panel head={t('createTitle')}>
-        <Flex alignItems={'stretch'} justifyContent={'center'} fh className={'p-4'}>
+      <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950 p-2'} role={'region'}>
+        <div className={'mb-2 flex items-center justify-between gap-2 text-slate-900'}>
+          <h2 data-testid={TEST_IDS.createFile.heading} className={'font-semibold'}>{t('createTitle')}</h2>
+        </div>
+        <Flex alignItems={'stretch'} justifyContent={'center'} fh className={'min-h-0 overflow-y-auto p-2'}>
 
           <Con p={4} bg={'white'}>
             <Title h2 className={EDITOR_TEXT_HEADING_CLASS} style={EDITOR_HEADING_STYLE}>Templates</Title>
@@ -189,8 +193,7 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
             </Flex>
           </Con>
         </Flex>
-
-      </Panel>
+      </section>
     </Flex>
   </Modal>
 }

@@ -3,7 +3,7 @@ import {
   type BezierPoint,
   type Point,
 } from '@venus/document-core'
-import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
+import {VisionFileType} from '../../editor/hooks/useEditorRuntime.ts'
 
 function createHeroImageDataUrl() {
   const svg = `

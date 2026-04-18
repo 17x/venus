@@ -1,23 +1,27 @@
-import {type ReactNode, useEffect, useState} from 'react'
+import {type ChangeEvent, type ReactNode, useEffect, useMemo, useState} from 'react'
+import {Button, Con, Select, SelectItem, Separator} from '@vector/ui'
 import {ProtectedInput} from './protectedInput.tsx'
-import {Button, Con, Panel} from '@venus/ui'
-import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
-import type {SelectedElementProps} from '../../hooks/useEditorRuntime.types.ts'
-import {LuMinus} from 'react-icons/lu'
+import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
+import type {SelectedElementProps} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {
-  EDITOR_PROPERTY_SECTION_CLASS,
   EDITOR_TEXT_CONTROL_CLASS,
   EDITOR_TEXT_PANEL_BODY_CLASS,
   EDITOR_TEXT_PANEL_HEADING_CLASS,
+  EDITOR_TEXT_PANEL_LABEL_CLASS,
 } from '../editorChrome/editorTypography.ts'
+import {useTranslation} from 'react-i18next'
+import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
+import {LuChevronRight, LuCircle, LuSettings2, LuSpline} from 'react-icons/lu'
 
 interface PropPanelProps {
   props?: SelectedElementProps
   executeAction: EditorExecutor
   onMinimize?: VoidFunction
+  onPatchElementProps?: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }
 
-const PropPanel = ({props, executeAction, onMinimize}: PropPanelProps) => {
+const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: PropPanelProps) => {
+  const {t} = useTranslation()
   const [localProps, setLocalProps] = useState(props)
 
   useEffect(() => {
@@ -25,68 +29,141 @@ const PropPanel = ({props, executeAction, onMinimize}: PropPanelProps) => {
   }, [props])
 
   return <Con flex={1} minH={0}>
-    <Panel xs head={<PanelHead title="Properties" onMinimize={onMinimize}/>}>
-      {localProps
-        ? <ShapePropsPanel props={localProps} executeAction={executeAction}/>
-        : <div className={`rounded border border-dashed border-gray-200 bg-gray-50 p-3 text-gray-500 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
-            Select an element to edit its properties.
-          </div>}
-    </Panel>
+    <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
+      <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
+        <PanelHead title={t('inspector.properties.title', 'Properties')} onMinimize={onMinimize}/>
+      </div>
+      <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 pb-1'}>
+        {localProps
+          ? <ShapePropsPanel
+              props={localProps}
+              executeAction={executeAction}
+              onPatchElementProps={onPatchElementProps}
+            />
+          : <div className={`rounded border border-dashed border-gray-200 bg-gray-50 p-3 text-gray-500 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+              {t('inspector.properties.empty', 'Select an element to edit its properties.')}
+            </div>}
+      </div>
+    </section>
   </Con>
 }
 
 export default PropPanel
 
 function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
+  const {t} = useTranslation()
   return (
     <div className={'flex w-full items-center justify-between gap-2'}>
-      <span>{props.title}</span>
+      <h2 className={'font-semibold'}>{props.title}</h2>
       {props.onMinimize &&
         <Button
           type="button"
-          aria-label={`Minimize ${props.title}`}
-          title={`Minimize ${props.title}`}
+          aria-label={t('inspector.minimizePanel', {title: props.title, defaultValue: `Minimize ${props.title}`})}
+          title={t('inspector.minimizePanel', {title: props.title, defaultValue: `Minimize ${props.title}`})}
           className={'inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
           onClick={(event) => {
             event.stopPropagation()
             props.onMinimize?.()
           }}
         >
-            <span>&minus;</span>
+          <span>&minus;</span>
         </Button>}
     </div>
   )
 }
 
-function PropertySection(props: {title: string, children: ReactNode}) {
+function GroupTitle(props: {title: string}) {
   return (
-    <section
-      className={[
-        `rounded border border-gray-200 bg-gray-50/80 p-2 shadow-sm ${EDITOR_PROPERTY_SECTION_CLASS}`,
-        '[&>div]:flex [&>div]:min-h-7 [&>div]:items-center [&>div]:justify-between [&>div]:gap-2',
-        '[&_input:not([type=color]):not([type=checkbox])]:h-6 [&_input:not([type=color]):not([type=checkbox])]:rounded [&_input:not([type=color]):not([type=checkbox])]:border [&_input:not([type=color]):not([type=checkbox])]:border-gray-200 [&_input:not([type=color]):not([type=checkbox])]:bg-white [&_input:not([type=color]):not([type=checkbox])]:px-2 [&_input:not([type=color]):not([type=checkbox])]:text-gray-900',
-        '[&_input[type=color]]:h-7 [&_input[type=color]]:w-9 [&_input[type=color]]:rounded [&_input[type=color]]:border [&_input[type=color]]:border-gray-200 [&_input[type=color]]:bg-white [&_input[type=color]]:p-1',
-        '[&_input[type=checkbox]]:size-4 [&_input[type=checkbox]]:accent-gray-900',
-      ].join(' ')}
-    >
-      <div className={`mb-1 border-b border-gray-200 pb-1 text-gray-500 ${EDITOR_TEXT_PANEL_HEADING_CLASS}`}>
-        {props.title}
-      </div>
-      {props.children}
-    </section>
+    <div className={`venus-prop-group-title ${EDITOR_TEXT_PANEL_HEADING_CLASS}`}>{props.title}</div>
   )
 }
 
-const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, executeAction: EditorExecutor }) => {
+function FieldRow(props: {label: string, children: ReactNode}) {
+  return (
+    <div className={'venus-prop-row'}>
+      <span className={EDITOR_TEXT_PANEL_LABEL_CLASS}>{props.label}</span>
+      <div className={'min-w-0'}>{props.children}</div>
+    </div>
+  )
+}
+
+function InlineIconAction(props: {label: string, icon: ReactNode}) {
+  return (
+    <Button
+      type={'button'}
+      variant={'ghost'}
+      size={'sm'}
+      aria-label={props.label}
+      title={props.label}
+      className={'venus-prop-icon-action'}
+    >
+      {props.icon}
+    </Button>
+  )
+}
+
+function PaintRow(props: {
+  label: string
+  enabled: boolean
+  color: string
+  onChangeEnabled: (enabled: boolean) => void
+  onChangeColor: (color: string) => void
+  children?: ReactNode
+}) {
+  return (
+    <div className={'flex flex-col gap-1.5'}>
+      <div className={'grid grid-cols-[74px_minmax(0,1fr)_24px] items-center gap-2'}>
+        <span className={EDITOR_TEXT_PANEL_LABEL_CLASS}>{props.label}</span>
+        <ProtectedInput
+          type={'color'}
+          value={props.color}
+          title={props.label}
+          onChange={(event) => {
+            props.onChangeColor(event.target.value)
+          }}
+        />
+        <ProtectedInput
+          type={'checkbox'}
+          checked={props.enabled}
+          title={`${props.label} enabled`}
+          onChange={(event) => {
+            props.onChangeEnabled(event.target.checked)
+          }}
+        />
+      </div>
+      {props.children}
+    </div>
+  )
+}
+
+const ShapePropsPanel = ({
+  props,
+  executeAction,
+  onPatchElementProps,
+}: {
+  props: SelectedElementProps
+  executeAction: EditorExecutor
+  onPatchElementProps?: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+}) => {
+  const {t} = useTranslation()
+  const [strokePosition, setStrokePosition] = useState('inside')
+  const [exportScale, setExportScale] = useState('1x')
+  const [exportFormat, setExportFormat] = useState('PNG')
+
   const fill = {
     enabled: props.fill?.enabled ?? true,
     color: props.fill?.color ?? '#000000',
   }
+
   const stroke = {
     enabled: props.stroke?.enabled ?? true,
     color: props.stroke?.color ?? '#000000',
     weight: props.stroke?.weight ?? 1,
+    cap: props.stroke?.cap ?? 'butt',
+    join: props.stroke?.join ?? 'miter',
+    dashed: props.stroke?.dashed ?? false,
   }
+
   const shadow = {
     enabled: props.shadow?.enabled ?? false,
     color: props.shadow?.color ?? '#000000',
@@ -94,449 +171,393 @@ const ShapePropsPanel = ({props, executeAction}: { props: SelectedElementProps, 
     offsetY: props.shadow?.offsetY ?? 0,
     blur: props.shadow?.blur ?? 8,
   }
-  const cornerRadii = {
-    topLeft: props.cornerRadii?.topLeft ?? props.cornerRadius ?? 0,
-    topRight: props.cornerRadii?.topRight ?? props.cornerRadius ?? 0,
-    bottomRight: props.cornerRadii?.bottomRight ?? props.cornerRadius ?? 0,
-    bottomLeft: props.cornerRadii?.bottomLeft ?? props.cornerRadius ?? 0,
-  }
-  const typeLabel = String(props.type ?? 'unknown')
+
+  const numericFieldNames = useMemo<Array<keyof SelectedElementProps>>(() => [
+    'x',
+    'y',
+    'width',
+    'height',
+    'rotation',
+    'r1',
+    'r2',
+    'cornerRadius',
+    'ellipseStartAngle',
+    'ellipseEndAngle',
+    'opacity',
+    'shadowOffsetX',
+    'shadowOffsetY',
+    'shadowBlur',
+  ], [])
 
   const patchElementProps = (nextProps: Partial<SelectedElementProps>) => {
+    if (onPatchElementProps) {
+      onPatchElementProps(props.id, nextProps as Record<string, unknown>, {
+        sourcePanel: 'properties-panel',
+        sourceControl: 'property-field-input',
+        commitType: 'final',
+      })
+      return
+    }
+
     executeAction('element-modify', [{
       id: props.id,
       props: nextProps,
     }])
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const keyName = e.target.name as Extract<keyof SelectedElementProps, string>
-    let newValue: string | number = e.target.value
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const keyName = event.target.name as Extract<keyof SelectedElementProps, string>
+    let nextValue: string | number = event.target.value
 
-    // @ts-ignore
-    if (['x', 'y', 'width', 'height', 'rotation', 'cornerRadius', 'ellipseStartAngle', 'ellipseEndAngle'].includes(keyName)) {
-      newValue = Number(newValue)
+    if (numericFieldNames.includes(keyName as keyof SelectedElementProps)) {
+      nextValue = Number(nextValue)
     }
 
-    patchElementProps({[keyName]: newValue} as Partial<SelectedElementProps>)
+    patchElementProps({[keyName]: nextValue} as Partial<SelectedElementProps>)
 
-    e.preventDefault()
-    e.stopPropagation()
+    event.preventDefault()
+    event.stopPropagation()
   }
 
-  return <div className={`z-30 flex flex-col gap-2 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
-    {/* Shape Properties Group */}
-    <PropertySection title="Identity">
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Type:</span>
-        <div className={`px-2 py-1 uppercase tracking-wide text-gray-700 bg-gray-100 rounded ${EDITOR_TEXT_CONTROL_CLASS}`}>
-          {typeLabel}
-        </div>
-      </div>
-      <div className="w-full h-full flex justify-between items-center gap-2">
-        <span>ID:</span>
-        <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`} title={props.id}>
-          {props.id}
-        </div>
-      </div>
-      {props.type === 'text' && (
-        <div className=" w-full h-full flex justify-between items-center gap-2">
-          <span>Text:</span>
-          <ProtectedInput
-            type="text"
-            name="name"
-            value={props.name ?? ''}
-            onChange={handleChange}
-            className="flex-1 min-w-0 py-1 text-black rounded"
-          />
-        </div>
-      )}
-      {props.type === 'image' && (
-        <>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Asset:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {props.imageMeta?.assetName ?? props.asset ?? 'Linked image'}
-            </div>
-          </div>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Source:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {props.imageMeta?.mimeType ?? 'image/*'}
-            </div>
-          </div>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Natural:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {props.imageMeta?.naturalWidth && props.imageMeta?.naturalHeight
-                ? `${props.imageMeta.naturalWidth} x ${props.imageMeta.naturalHeight}`
-                : 'Unknown'}
-            </div>
-          </div>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Clip:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {typeof props.clipPathId === 'string' ? props.clipPathId : 'None'}
-            </div>
-          </div>
-          <div className="w-full flex items-center gap-2 py-1">
-            <Button
-              type="button"
-              onClick={() => executeAction('image-mask-with-shape')}
-              className={`px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 ${EDITOR_TEXT_CONTROL_CLASS}`}
-            >
-              Mask with Shape
-            </Button>
-            <Button
-              type="button"
-              onClick={() => executeAction('image-clear-mask')}
-              className={`px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 ${EDITOR_TEXT_CONTROL_CLASS}`}
-            >
-              Clear Mask
-            </Button>
-          </div>
-        </>
-      )}
-      {props.schemaMeta && (
-        <>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Schema Node:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {props.schemaMeta.sourceNodeType ?? 'Unknown'}
-            </div>
-          </div>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Node Kind:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {props.schemaMeta.sourceNodeKind ?? 'Unknown'}
-            </div>
-          </div>
-          <div className="w-full h-full flex justify-between items-center gap-2">
-            <span>Features:</span>
-            <div className={`flex-1 min-w-0 text-right text-gray-600 truncate ${EDITOR_TEXT_CONTROL_CLASS}`}>
-              {props.schemaMeta.sourceFeatureKinds?.join(', ') ?? 'Unknown'}
-            </div>
-          </div>
-        </>
-      )}
-      <div className=" w-full h-full flex justify-between items-center">
-        <span className={''}>X:</span>
+  return (
+    <div className={`z-30 flex min-w-0 flex-col gap-2 overflow-x-hidden ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+      {/* <GroupTitle title={t('inspector.properties.sections.identity', 'Identity')}/>
+      <FieldRow label={t('inspector.properties.fields.type', 'Type')}>
+        <span className={'truncate text-gray-700 uppercase'}>{String(props.type ?? 'unknown')}</span>
+      </FieldRow>
+      <FieldRow label={t('inspector.properties.fields.id', 'ID')}>
+        <span className={'truncate text-gray-600'} title={props.id}>{props.id}</span>
+      </FieldRow> */}
+
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.layout', 'Layout')}/>
+      <div className={'venus-prop-grid-2'}>
         <ProtectedInput
-          type="number"
-          name="x"
+          type={'number'}
+          name={'x'}
           value={props.x ?? props.cx ?? 0}
+          title={t('inspector.properties.fields.x', 'X')}
           onChange={handleChange}
-          className="w-16  py-1 text-black rounded"
         />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span className={''}>Y:</span>
         <ProtectedInput
-          type="number"
-          name="y"
+          type={'number'}
+          name={'y'}
           value={props.y ?? props.cy ?? 0}
+          title={t('inspector.properties.fields.y', 'Y')}
           onChange={handleChange}
-          className="w-16  py-1 text-black rounded"
         />
       </div>
-      {
-        props.type === 'ellipse' && <>
-              <div className=" w-full h-full flex justify-between items-center">
-                  <span className={''}>r1:</span>
-                  <ProtectedInput
-                      type="number"
-                      name="r1"
-                      value={props.r1 ?? 0}
-                      onChange={handleChange}
-                      className="w-16  py-1 text-black rounded"
-                  />
-              </div>
-              <div className=" w-full h-full flex justify-between items-center">
-                  <span>r2:</span>
-                  <ProtectedInput
-                      type="number"
-                      name="r2"
-                      value={props.r2 ?? 0}
-                      onChange={handleChange}
-                      className="w-16  py-1 text-black rounded"
-                  />
-              </div>
-          </>
-      }
-      <div className=" w-full h-full flex justify-between items-center">
-        <span className={''}>Width:</span>
+
+      <div className={'venus-prop-grid-2'}>
         <ProtectedInput
-          type="number"
-          name="width"
+          type={'number'}
+          name={'width'}
           value={props.width ?? 0}
+          title={t('inspector.properties.fields.width', 'Width')}
           onChange={handleChange}
-          className="w-16  py-1 text-black rounded"
         />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Height:</span>
         <ProtectedInput
-          type="number"
-          name="height"
+          type={'number'}
+          name={'height'}
           value={props.height ?? 0}
+          title={t('inspector.properties.fields.height', 'Height')}
           onChange={handleChange}
-          className="w-16  py-1 text-black rounded"
         />
       </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Rotation:</span>
+      <div className={'grid grid-cols-[minmax(0,1fr)_24px] items-center gap-2'}>
         <ProtectedInput
-          type="number"
-          name="rotation"
+          type={'number'}
+          name={'rotation'}
           value={props.rotation ?? 0}
+          title={t('inspector.properties.fields.rotation', 'Rotation')}
           onChange={handleChange}
-          className="w-16  py-1 text-black rounded"
+        />
+        <InlineIconAction
+          label={t('inspector.properties.layout.constraint', {defaultValue: 'Aspect ratio constraint'})}
+          icon={<LuSettings2 size={14}/>}
         />
       </div>
-    </PropertySection>
 
-    {/* Fill and Line Properties Group */}
-    <PropertySection title="Fill and Stroke">
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Enable Fill</span>
-        <ProtectedInput
-          type="checkbox"
-          name="enableFill"
-          checked={fill.enabled}
-          onChange={(e) => {
-            // console.log(e.target.checked)
-            executeAction('element-modify', [{
-              id: props.id,
-              props: {
-                fill: {enabled: e.target.checked},
-              },
-            }])
-          }}
-          className="ml-2"
-        />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Fill Color:</span>
-        <ProtectedInput
-          type="color"
-          name="fillColor"
-          value={fill.color}
-          // onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            // console.log(e)
-            patchElementProps({
-              fill: {color: e.target.value},
-            })
-          }}
-          // onChange={handleChange}
-          className="w-10 h-10 p-1 rounded"
-        />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Enable Line</span>
-        <ProtectedInput
-          type="checkbox"
-          name="enableLine"
-          checked={stroke.enabled}
-          onChange={(e) => {
-            patchElementProps({
-              stroke: {enabled: e.target.checked},
-            })
-          }}
-          className="ml-2"
-        />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Line Color:</span>
-        <ProtectedInput
-          type="color"
-          name="lineColor"
-          value={stroke.color}
-          onChange={(e) => {
-            patchElementProps({
-              stroke: {color: e.target.value},
-            })
-          }}
-          className="w-10 h-10 p-1 rounded"
-        />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span className={''}>Line Width:</span>
-        <ProtectedInput
-          type="number"
-          name="lineWidth"
-          step={0.25}
-          value={stroke.weight}
-          onChange={(e)=>{
-            patchElementProps({
-              stroke: {weight: Number(e.target.value)},
-            })
-          }}
-          className="w-16  py-1 text-black rounded"
-        />
-      </div>
-    </PropertySection>
-
-    {(props.type === 'rectangle' || props.type === 'frame') && (
-      <PropertySection title="Corners">
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>Corner Radius:</span>
+      {props.type === 'ellipse' &&
+        <div className={'venus-prop-grid-2'}>
           <ProtectedInput
-            type="number"
-            name="cornerRadius"
-            value={props.cornerRadius ?? 0}
-            onChange={handleChange}
-            className="w-16  py-1 text-black rounded"
-          />
-        </div>
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>Corner TL:</span>
-          <ProtectedInput
-            type="number"
-            name="cornerTopLeft"
-            value={cornerRadii.topLeft}
-            onChange={(e) => patchElementProps({
-              cornerRadii: {topLeft: Number(e.target.value)},
-            })}
-            className="w-16 py-1 text-black rounded"
-          />
-        </div>
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>Corner TR:</span>
-          <ProtectedInput
-            type="number"
-            name="cornerTopRight"
-            value={cornerRadii.topRight}
-            onChange={(e) => patchElementProps({
-              cornerRadii: {topRight: Number(e.target.value)},
-            })}
-            className="w-16 py-1 text-black rounded"
-          />
-        </div>
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>Corner BR:</span>
-          <ProtectedInput
-            type="number"
-            name="cornerBottomRight"
-            value={cornerRadii.bottomRight}
-            onChange={(e) => patchElementProps({
-              cornerRadii: {bottomRight: Number(e.target.value)},
-            })}
-            className="w-16 py-1 text-black rounded"
-          />
-        </div>
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>Corner BL:</span>
-          <ProtectedInput
-            type="number"
-            name="cornerBottomLeft"
-            value={cornerRadii.bottomLeft}
-            onChange={(e) => patchElementProps({
-              cornerRadii: {bottomLeft: Number(e.target.value)},
-            })}
-            className="w-16 py-1 text-black rounded"
-          />
-        </div>
-      </PropertySection>
-    )}
-
-    {props.type === 'ellipse' && (
-      <PropertySection title="Ellipse">
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>Start Angle:</span>
-          <ProtectedInput
-            type="number"
-            name="ellipseStartAngle"
+            type={'number'}
+            name={'ellipseStartAngle'}
             value={props.ellipseStartAngle ?? 0}
+            title={t('inspector.properties.fields.startAngle', 'Start Angle')}
             onChange={handleChange}
-            className="w-16 py-1 text-black rounded"
           />
-        </div>
-        <div className=" w-full h-full flex justify-between items-center">
-          <span>End Angle:</span>
           <ProtectedInput
-            type="number"
-            name="ellipseEndAngle"
+            type={'number'}
+            name={'ellipseEndAngle'}
             value={props.ellipseEndAngle ?? 360}
+            title={t('inspector.properties.fields.endAngle', 'End Angle')}
             onChange={handleChange}
-            className="w-16 py-1 text-black rounded"
+          />
+        </div>}
+
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.appearance', 'Appearance')}/>
+      <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px] items-center gap-2'}>
+        <ProtectedInput
+          type={'number'}
+          name={'opacity'}
+          min={0}
+          max={1}
+          step={0.01}
+          value={props.opacity ?? 1}
+          title={t('inspector.properties.fields.opacity', 'Opacity')}
+          onChange={handleChange}
+        />
+        <ProtectedInput
+          type={'number'}
+          name={'cornerRadius'}
+          value={props.cornerRadius ?? 0}
+          title={t('inspector.properties.fields.cornerRadius', 'Corner Radius')}
+          onChange={handleChange}
+        />
+        <InlineIconAction
+          label={t('inspector.properties.appearance.radiusMode', {defaultValue: 'Radius mode'})}
+          icon={<LuCircle size={14}/>}
+        />
+      </div>
+
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.fill', 'Fill')}/>
+      <PaintRow
+        label={t('inspector.properties.fields.fillColor', 'Fill')}
+        enabled={fill.enabled}
+        color={fill.color}
+        onChangeEnabled={(enabled) => {
+          patchElementProps({fill: {enabled, color: fill.color}})
+        }}
+        onChangeColor={(color) => {
+          patchElementProps({fill: {color, enabled: fill.enabled}})
+        }}
+      />
+
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.stroke', 'Stroke')}/>
+      <PaintRow
+        label={t('inspector.properties.fields.lineColor', 'Stroke')}
+        enabled={stroke.enabled}
+        color={stroke.color}
+        onChangeEnabled={(enabled) => {
+          patchElementProps({stroke: {enabled, color: stroke.color, weight: stroke.weight, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
+        }}
+        onChangeColor={(color) => {
+          patchElementProps({stroke: {enabled: stroke.enabled, color, weight: stroke.weight, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
+        }}
+      >
+        <div className={'grid grid-cols-[minmax(0,1fr)_70px] gap-2'}>
+          <Select
+            className={EDITOR_TEXT_CONTROL_CLASS}
+            selectValue={strokePosition}
+            onSelectChange={(nextPosition) => {
+              setStrokePosition(String(nextPosition))
+            }}
+            placeholderResolver={(value) => String(value)}
+          >
+            <SelectItem value={'inside'}>Inside</SelectItem>
+            <SelectItem value={'center'}>Center</SelectItem>
+            <SelectItem value={'outside'}>Outside</SelectItem>
+          </Select>
+          <ProtectedInput
+            type={'number'}
+            value={stroke.weight}
+            step={0.25}
+            title={t('inspector.properties.fields.lineWidth', 'Line Width')}
+            onChange={(event) => {
+              patchElementProps({stroke: {weight: Number(event.target.value), enabled: stroke.enabled, color: stroke.color, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
+            }}
           />
         </div>
-      </PropertySection>
-    )}
+        <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px_24px] items-center gap-2'}>
+          <Select
+            className={EDITOR_TEXT_CONTROL_CLASS}
+            selectValue={stroke.cap}
+            onSelectChange={(nextCap) => {
+              patchElementProps({stroke: {...stroke, cap: String(nextCap)}})
+            }}
+            placeholderResolver={(value) => String(value)}
+          >
+            <SelectItem value={'butt'}>butt</SelectItem>
+            <SelectItem value={'round'}>round</SelectItem>
+            <SelectItem value={'square'}>square</SelectItem>
+          </Select>
+          <Select
+            className={EDITOR_TEXT_CONTROL_CLASS}
+            selectValue={stroke.join}
+            onSelectChange={(nextJoin) => {
+              patchElementProps({stroke: {...stroke, join: String(nextJoin)}})
+            }}
+            placeholderResolver={(value) => String(value)}
+          >
+            <SelectItem value={'miter'}>miter</SelectItem>
+            <SelectItem value={'round'}>round</SelectItem>
+            <SelectItem value={'bevel'}>bevel</SelectItem>
+          </Select>
+          <InlineIconAction
+            label={t('inspector.properties.stroke.options', {defaultValue: 'Stroke options'})}
+            icon={<LuSettings2 size={14}/>}
+          />
+          <InlineIconAction
+            label={t('inspector.properties.stroke.align', {defaultValue: 'Stroke alignment'})}
+            icon={<LuSpline size={14}/>}
+          />
+        </div>
+      </PaintRow>
 
-    {/* Appearance Group */}
-    <PropertySection title="Appearance">
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Shadow</span>
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.effects', 'Effects')}/>
+      <FieldRow label={t('inspector.properties.effects.dropShadow', {defaultValue: 'Drop shadow'})}>
         <ProtectedInput
-          type="checkbox"
-          name="shadowEnabled"
+          type={'checkbox'}
           checked={shadow.enabled}
-          onChange={(e) => patchElementProps({
-            shadow: {enabled: e.target.checked},
-          })}
-          className="ml-2"
+          title={t('inspector.properties.effects.toggleDropShadow', {defaultValue: 'Toggle drop shadow'})}
+          onChange={(event) => {
+            patchElementProps({shadow: {enabled: event.target.checked, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: shadow.blur}})
+          }}
         />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Shadow Color:</span>
+      </FieldRow>
+      <div className={'grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2'}>
+        <span className={EDITOR_TEXT_PANEL_LABEL_CLASS}>Color</span>
         <ProtectedInput
-          type="color"
-          name="shadowColor"
+          type={'color'}
           value={shadow.color}
-          onChange={(e) => patchElementProps({
-            shadow: {color: e.target.value},
-          })}
-          className="w-10 h-10 p-1 rounded"
+          title={t('inspector.properties.fields.shadowColor', 'Shadow Color')}
+          onChange={(event) => {
+            patchElementProps({shadow: {enabled: shadow.enabled, color: event.target.value, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: shadow.blur}})
+          }}
         />
       </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Shadow X:</span>
+      <div className={'venus-prop-grid-2'}>
         <ProtectedInput
-          type="number"
-          name="shadowOffsetX"
+          type={'number'}
           value={shadow.offsetX}
-          onChange={(e) => patchElementProps({
-            shadow: {offsetX: Number(e.target.value)},
-          })}
-          className="w-16 py-1 text-black rounded"
+          title={t('inspector.properties.fields.shadowX', 'Shadow X')}
+          onChange={(event) => {
+            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: Number(event.target.value), offsetY: shadow.offsetY, blur: shadow.blur}})
+          }}
         />
-      </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Shadow Y:</span>
         <ProtectedInput
-          type="number"
-          name="shadowOffsetY"
+          type={'number'}
           value={shadow.offsetY}
-          onChange={(e) => patchElementProps({
-            shadow: {offsetY: Number(e.target.value)},
-          })}
-          className="w-16 py-1 text-black rounded"
+          title={t('inspector.properties.fields.shadowY', 'Shadow Y')}
+          onChange={(event) => {
+            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: Number(event.target.value), blur: shadow.blur}})
+          }}
         />
       </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Shadow Blur:</span>
-        <ProtectedInput
-          type="number"
-          name="shadowBlur"
-          value={shadow.blur}
-          onChange={(e) => patchElementProps({
-            shadow: {blur: Number(e.target.value)},
-          })}
-          className="w-16 py-1 text-black rounded"
-        />
+      <ProtectedInput
+        type={'number'}
+        value={shadow.blur}
+        title={t('inspector.properties.fields.shadowBlur', 'Shadow Blur')}
+        onChange={(event) => {
+          patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: Number(event.target.value)}})
+        }}
+      />
+
+      {props.type === 'image' &&
+        <>
+          <Separator className={'my-0.5'}/>
+          <GroupTitle title={t('inspector.properties.sections.image', {defaultValue: 'Image'})}/>
+          <FieldRow label={t('inspector.properties.fields.asset', 'Asset')}>
+            <span className={'truncate text-gray-600'}>
+              {props.imageMeta?.assetName ?? props.asset ?? t('inspector.properties.values.linkedImage', 'Linked image')}
+            </span>
+          </FieldRow>
+          <FieldRow label={t('inspector.properties.fields.source', 'Source')}>
+            <span className={'truncate text-gray-600'}>
+              {props.imageMeta?.mimeType ?? t('inspector.properties.values.imageMimeFallback', 'image/*')}
+            </span>
+          </FieldRow>
+          <div className={'grid grid-cols-2 gap-2'}>
+            <Button
+              type={'button'}
+              variant={'outline'}
+              className={'h-6 text-xs'}
+              onClick={() => executeAction('image-mask-with-shape')}
+            >
+              {t('inspector.properties.actions.maskWithShape', 'Mask with Shape')}
+            </Button>
+            <Button
+              type={'button'}
+              variant={'outline'}
+              className={'h-6 text-xs'}
+              onClick={() => executeAction('image-clear-mask')}
+            >
+              {t('inspector.properties.actions.clearMask', 'Clear Mask')}
+            </Button>
+          </div>
+        </>}
+
+      {props.schemaMeta &&
+        <>
+          <Separator className={'my-0.5'}/>
+          <GroupTitle title={t('inspector.properties.sections.schema', {defaultValue: 'Schema'})}/>
+          <FieldRow label={t('inspector.properties.fields.schemaNode', 'Schema Node')}>
+            <span className={'truncate text-gray-600'}>{props.schemaMeta.sourceNodeType ?? '-'}</span>
+          </FieldRow>
+          <FieldRow label={t('inspector.properties.fields.nodeKind', 'Node Kind')}>
+            <span className={'truncate text-gray-600'}>{props.schemaMeta.sourceNodeKind ?? '-'}</span>
+          </FieldRow>
+          <FieldRow label={t('inspector.properties.fields.features', 'Features')}>
+            <span className={'truncate text-gray-600'}>{props.schemaMeta.sourceFeatureKinds?.join(', ') ?? '-'}</span>
+          </FieldRow>
+        </>}
+
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.export', 'Export')}/>
+      <div className={'venus-prop-grid-2'}>
+        <Select
+          className={EDITOR_TEXT_CONTROL_CLASS}
+          selectValue={exportScale}
+          onSelectChange={(nextScale) => {
+            setExportScale(String(nextScale))
+          }}
+          placeholderResolver={(value) => String(value)}
+        >
+          <SelectItem value={'1x'}>1x</SelectItem>
+          <SelectItem value={'2x'}>2x</SelectItem>
+          <SelectItem value={'3x'}>3x</SelectItem>
+        </Select>
+        <Select
+          className={EDITOR_TEXT_CONTROL_CLASS}
+          selectValue={exportFormat}
+          onSelectChange={(nextFormat) => {
+            setExportFormat(String(nextFormat))
+          }}
+          placeholderResolver={(value) => String(value)}
+        >
+          <SelectItem value={'PNG'}>PNG</SelectItem>
+          <SelectItem value={'JPG'}>JPG</SelectItem>
+          <SelectItem value={'SVG'}>SVG</SelectItem>
+        </Select>
       </div>
-      <div className=" w-full h-full flex justify-between items-center">
-        <span>Opacity:</span>
-        <ProtectedInput
-          type="number"
-          name="opacity"
-          value={props.opacity ?? 1}
-          onChange={handleChange}
-          className="w-16  py-1 text-black rounded"
-        />
-      </div>
-    </PropertySection>
-  </div>
+      <Button
+        type={'button'}
+        variant={'outline'}
+        className={'h-7 w-full justify-start text-xs'}
+        title={t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
+        onClick={() => {
+          executeAction('print')
+        }}
+      >
+        {t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
+      </Button>
+
+      <Separator className={'my-0.5'}/>
+      <GroupTitle title={t('inspector.properties.sections.preview', 'Preview')}/>
+      <Button
+        type={'button'}
+        variant={'ghost'}
+        className={'h-7 w-full justify-between px-1 text-xs'}
+        title={t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}
+      >
+        <span>{t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}</span>
+        <LuChevronRight size={14}/>
+      </Button>
+    </div>
+  )
 }

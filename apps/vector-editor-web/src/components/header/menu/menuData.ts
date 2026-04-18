@@ -8,6 +8,12 @@ export function createHeaderMenuData(options: {
     hasPrev: boolean
     hasNext: boolean
   }
+  language?: 'en' | 'cn' | 'jp' | 'zh-CN'
+  gridEnabled?: boolean
+  snappingEnabled?: boolean
+  canToggleGrid?: boolean
+  canToggleSnapping?: boolean
+  themeMode?: 'light' | 'dark' | 'system'
 }): MenuItemType[] {
   const noSelectedElement = options.selectedIds.length === 0
   const canGroup = options.selectedIds.length >= 2
@@ -37,6 +43,44 @@ export function createHeaderMenuData(options: {
         {id: 'duplicate', editorActionCode: 'element-duplicate', disabled: noSelectedElement},
         {id: 'delete', editorActionCode: 'element-delete', disabled: noSelectedElement},
         {id: 'selectAll', editorActionCode: 'selection-all', disabled: false},
+      ],
+    },
+    {
+      id: 'preference',
+      disabled: false,
+      children: [
+        {
+          id: 'language',
+          disabled: false,
+          children: [
+            {id: 'languageEnglish', disabled: options.language === 'en'},
+            {id: 'languageChinese', disabled: options.language === 'cn' || options.language === 'zh-CN'},
+            {id: 'languageJapanese', disabled: options.language === 'jp'},
+          ],
+        },
+        {
+          id: 'theme',
+          disabled: false,
+          children: [
+            {id: 'themeSystem', disabled: options.themeMode === 'system'},
+            {id: 'themeLight', disabled: options.themeMode === 'light'},
+            {id: 'themeDark', disabled: options.themeMode === 'dark'},
+          ],
+        },
+      ],
+    },
+    {
+      id: 'view',
+      disabled: false,
+      children: [
+        {
+          id: options.gridEnabled ? 'toggleGridOff' : 'toggleGridOn',
+          disabled: options.canToggleGrid === false,
+        },
+        {
+          id: options.snappingEnabled ? 'toggleSnappingOff' : 'toggleSnappingOn',
+          disabled: options.canToggleSnapping === false,
+        },
       ],
     },
     {

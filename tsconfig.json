@@ -3,12 +3,8 @@
   "references": [
     { "path": "./packages/document-core/tsconfig.json" },
     { "path": "./packages/engine/tsconfig.json" },
-    { "path": "./packages/runtime/tsconfig.json" },
-    { "path": "./packages/ui/tsconfig.json" },
     { "path": "./apps/mindmap-editor/tsconfig.app.json" },
     { "path": "./apps/mindmap-editor/tsconfig.node.json" },
-    { "path": "./apps/playground/tsconfig.app.json" },
-    { "path": "./apps/playground/tsconfig.node.json" },
     { "path": "./apps/vector-editor-web/tsconfig.app.json" },
     { "path": "./apps/vector-editor-web/tsconfig.node.json" }
   ]

@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import {VisionFileType} from '../../hooks/useEditorRuntime.ts'
+import {VisionFileType} from '../../editor/hooks/useEditorRuntime.ts'
 
 const saveFileHelper = (file: VisionFileType, exportedData?: Partial<VisionFileType>) => {
   const zip = new JSZip()

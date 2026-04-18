@@ -21,8 +21,8 @@ context starts, or work needs to resume after switching topics.
   Recently landed:
   - command registry (`packages/runtime/src/commands/registry.ts`)
   - hit-test adapter (`packages/runtime/src/interaction/hitTestAdapter.ts`)
-  - tool registry (`apps/vector-editor-web/src/tools/registry.ts`)
-  - editing mode controller (`apps/vector-editor-web/src/state/editingMode.ts`)
+  - tool registry (`apps/vector-editor-web/src/editor/tools/registry.ts`)
+  - editing mode controller (`apps/vector-editor-web/src/editor/state/editingMode.ts`)
   - template test metadata enrichment (13 presets with regression/benchmark flags)
   - runtime tool lifecycle registry (`packages/runtime/src/tools/registry.ts`) and
     runtime editing mode controller (`packages/runtime/src/editing-modes/controller.ts`)
@@ -30,7 +30,7 @@ context starts, or work needs to resume after switching topics.
   - engine multi-hit API (`hitTestEngineSceneStateAll`) and scene-store `hitTestAll`
   - worker hit-test candidate path (`hitTestDocumentCandidates`) with top-hit compatibility
   - toolbar/path/zoomOut coverage and shortcut baseline update (P path, N pencil, Shift+Z zoomOut)
-  - initial useEditorRuntime decomposition via `hooks/runtime/tooling.ts`
+  - initial useEditorRuntime decomposition via `editor/hooks/runtime/tooling.ts`
   - worker command dispatch moved to registry-style handlers in
     `packages/runtime/src/worker/scope/operations.ts` for explicit
     command routing (`selection.set`, `history.undo`, `history.redo`)
@@ -38,7 +38,7 @@ context starts, or work needs to resume after switching topics.
     `shape.group` / `shape.ungroup` protocol + history patch support,
     including reversible parent/child graph updates
   - fixed known type issues in
-    `packages/ui/src/components/ui/modal.tsx` and
+    `apps/vector-editor-web/src/ui/kit/components/ui/modal.tsx` and
     `apps/vector-editor-web/src/components/createFile/TemplatePresetPicker.tsx`
   - vector action wiring now includes group/ungroup product entry points:
     top menu, context menu, and shortcuts (`Cmd/Ctrl+G`, `Cmd/Ctrl+Shift+G`)
@@ -54,10 +54,24 @@ context starts, or work needs to resume after switching topics.
     `PathSubSelection` types + point hit resolution for anchor/segment +
     overlay feedback in `InteractionOverlay`
   - useEditorRuntime decomposition advanced with extracted runtime modules:
-    `hooks/runtime/groupActions.ts` and `hooks/runtime/pathSubSelection.ts`
+    `editor/hooks/runtime/groupActions.ts` and
+    `editor/hooks/runtime/pathSubSelection.ts`
   - useEditorRuntime action decomposition advanced with
-    `hooks/runtime/shapeActions.ts` so convert/align/distribute command routing
+    `editor/hooks/runtime/shapeActions.ts` so convert/align/distribute
+    command routing
     is moved out of the monolithic executor branch
+  - vector app now vendors shared UI primitives locally under
+    `apps/vector-editor-web/src/ui/kit/*` and resolves UI imports via
+    `@vector/ui` to keep product UI iteration in-app
+  - vector app now mirrors runtime source locally under
+    `apps/vector-editor-web/src/editor/runtime-local/*` and remaps
+    `@venus/runtime*` imports to app-local paths via
+    `apps/vector-editor-web/tsconfig.app.json` and
+    `apps/vector-editor-web/vite.config.ts`, so vector no longer depends on
+    runtime package distribution wiring for dev/build
+  - vector app source structure was grouped by domain to reduce top-level noise:
+    `src/editor/*` (runtime-facing editor modules) and
+    `src/shared/*` (constants/types/utilities)
   - shape convert/align baseline landed end-to-end for 18.2 workstream:
     `shape.convert-to-path` and `shape.align` now flow through
     protocol -> local history -> scene patch apply -> collaboration replay,
@@ -145,6 +159,14 @@ context starts, or work needs to resume after switching topics.
   - `runtime-interaction` now exposes shared transform session/preview shape builders,
     shifting the migration from helper cleanup toward package-boundary
     contracts for transform-sensitive app/runtime integration
+  - phase-1 vector-first localization now routes app interaction imports through
+    `apps/vector-editor-web/src/editor/interaction/runtime/index.ts`
+    instead of direct `@venus/runtime/interaction` imports at call sites
+  - zoom preset policy has a first app-local module at
+    `apps/vector-editor-web/src/editor/interaction/runtime/zoomPresets.ts`
+  - migration-safe passthrough wrappers are in place for
+    `selectionHandles`, `snapping`, and `viewportGestures` while planning
+    deeper local extraction without breaking runtime-engine boundaries
 
 - `playground`
   Use as the main render diagnostics bench for `Canvas2D`.

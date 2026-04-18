@@ -1,7 +1,7 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
-import {Button, Con, Panel} from '@venus/ui'
-import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
-import type {LayerItem} from '../../hooks/useEditorRuntime.types.ts'
+import {Button, Con} from '@vector/ui'
+import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
+import type {LayerItem} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
 import {useTranslation} from 'react-i18next'
 import type {I18nHistoryDataItem} from '../../i18n/type'
@@ -17,7 +17,6 @@ import {
   LuSpline,
   LuStar,
   LuType,
-  LuMinus,
 } from 'react-icons/lu'
 import {
   EDITOR_TEXT_LABEL_CLASS,
@@ -25,22 +24,66 @@ import {
 } from '../editorChrome/editorTypography.ts'
 import {CHROME_ICON_SIZE} from '../editorChrome/chromeIconStyles.ts'
 import {lineSeg} from '../../assets/svg/icons.tsx'
+import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
+import {TEST_IDS} from '../../testing/testIds.ts'
 
 interface LayerPanelProps {
   executeAction: EditorExecutor
   layerItems: LayerItem[]
   selectedIds: string[]
   onMinimize?: VoidFunction
+  onReorderLayers?: (direction: 'up' | 'down' | 'top' | 'bottom', meta: ShellCommandMeta) => void
+  onModifySelection?: (mode: 'replace' | 'toggle' | 'add', ids: string[], meta: ShellCommandMeta) => void
 }
 
 const ITEM_HEIGHT = 28
-export const LayerPanel = ({executeAction, layerItems, selectedIds, onMinimize}: LayerPanelProps) => {
+export const LayerPanel = ({
+  executeAction,
+  layerItems,
+  selectedIds,
+  onMinimize,
+  onReorderLayers,
+  onModifySelection,
+}: LayerPanelProps) => {
   const {t} = useTranslation()
+  const panelTitle = t('inspector.layer.title', 'Layer')
   const scrollRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [indexRange, setIndexRange] = useState([0, 10])
   const [lastClickedId, setLastClickedId] = useState<string | null>(null)
+  const reorderLayers = (direction: 'up' | 'down' | 'top' | 'bottom', sourceControl: string) => {
+    if (onReorderLayers) {
+      onReorderLayers(direction, {
+        sourcePanel: 'layer-panel',
+        sourceControl,
+        commitType: 'final',
+      })
+      return
+    }
+
+    executeAction('element-layer', direction)
+  }
+
+  const modifySelection = (
+    mode: 'replace' | 'toggle' | 'add',
+    ids: string[],
+    sourceControl: string,
+  ) => {
+    if (onModifySelection) {
+      onModifySelection(mode, ids, {
+        sourcePanel: 'layer-panel',
+        sourceControl,
+        commitType: 'final',
+      })
+      return
+    }
+
+    executeAction('selection-modify', {
+      mode,
+      idSet: new Set(ids),
+    })
+  }
   useEffect(() => {
     /*  const closestOne = selected[selected.length - 1]
 
@@ -81,8 +124,8 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds, onMinimize}:
         <div ref={selectedIds?.includes(item.id) ? targetRef : null}
              style={{height: ITEM_HEIGHT}}
              className={selectedIds?.includes(item.id)
-               ? 'cursor-pointer rounded bg-gray-900 text-white'
-               : 'cursor-pointer rounded bg-white text-gray-700 hover:bg-gray-100'}
+               ? `cursor-pointer rounded venus-shell-icon-active text-gray-900 ${EDITOR_TEXT_LABEL_CLASS}`
+               : `cursor-pointer rounded bg-white text-gray-700 hover:bg-gray-100 ${EDITOR_TEXT_LABEL_CLASS}`}
              onClick={(event) => {
                const isToggle = event.metaKey || event.ctrlKey
                if (event.shiftKey && lastClickedId) {
@@ -93,18 +136,12 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds, onMinimize}:
                  const rangeIds = layerItems
                    .slice(from, to + 1)
                    .map((candidate) => candidate.id)
-                 executeAction('selection-modify', {
-                   mode: isToggle ? 'add' : 'replace',
-                   idSet: new Set(rangeIds),
-                 })
+                 modifySelection(isToggle ? 'add' : 'replace', rangeIds, 'layer-row-range-select')
                  setLastClickedId(item.id)
                  return
                }
 
-               executeAction('selection-modify', {
-                 mode: isToggle ? 'toggle' : 'replace',
-                 idSet: new Set([item.id]),
-               })
+               modifySelection(isToggle ? 'toggle' : 'replace', [item.id], 'layer-row-select')
                setLastClickedId(item.id)
              }}
              id={`layer-element-${item.id}`}
@@ -113,22 +150,23 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds, onMinimize}:
             style={{
               paddingLeft: 8 + item.depth * 14,
               height: ITEM_HEIGHT,
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: '16px 16px minmax(0,1fr)',
               alignItems: 'center',
               gap: 6,
             }}
           >
-            <span className={EDITOR_TEXT_LABEL_CLASS} style={{opacity: 0.7, minWidth: 16}}>
+            <span className={EDITOR_TEXT_LABEL_CLASS} style={{opacity: 0.7}}>
               {item.isGroup ? '▾' : '•'}
             </span>
             <span
               aria-label={item.type}
               title={item.type}
-              className={'inline-flex size-4 shrink-0 items-center justify-center opacity-75'}
+              className={'inline-flex size-4 shrink-0 items-center justify-start opacity-75'}
             >
               <LayerTypeIcon type={item.type} isGroup={item.isGroup}/>
             </span>
-            <span>{item.name}</span>
+            <span className={'truncate'}>{item.name}</span>
           </div>
         </div>,
       )
@@ -136,32 +174,48 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds, onMinimize}:
   }
 
   return <Con flex={1} minH={0}>
-    <Panel head={<PanelHead title="Layer" onMinimize={onMinimize}/>}
-           xs>
-      <div className={`flex min-h-full flex-col gap-2 rounded bg-gray-50 p-1 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+    <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
+      <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
+        <h2 data-testid={TEST_IDS.layerPanel.heading} className={'font-semibold'}>{panelTitle}</h2>
+        {onMinimize &&
+          <Button
+            type="button"
+            aria-label={t('inspector.minimizePanel', {title: panelTitle, defaultValue: `Minimize ${panelTitle}`})}
+            title={t('inspector.minimizePanel', {title: panelTitle, defaultValue: `Minimize ${panelTitle}`})}
+            className={'inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onMinimize?.()
+            }}
+          >
+            <span>&minus;</span>
+          </Button>}
+      </div>
+      <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 pb-1'}>
+        <div className={`flex min-h-full flex-col gap-2 rounded bg-gray-50 p-1 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
         <div className={'grid grid-cols-4 gap-1 rounded border border-gray-200 bg-white p-1 shadow-sm'}>
           <LayerActionButton
             title={(t('bringForward', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
             disabled={selectedIds.length === 0}
-            onClick={() => executeAction('element-layer', 'up')}
+            onClick={() => reorderLayers('up', 'bring-forward')}
             icon={<LayerUp size={16}/>}
           />
           <LayerActionButton
             title={(t('sendBackward', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
             disabled={selectedIds.length === 0}
-            onClick={() => executeAction('element-layer', 'down')}
+            onClick={() => reorderLayers('down', 'send-backward')}
             icon={<LayerDown size={16}/>}
           />
           <LayerActionButton
             title={(t('bringToFront', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
             disabled={selectedIds.length === 0}
-            onClick={() => executeAction('element-layer', 'top')}
+            onClick={() => reorderLayers('top', 'bring-to-front')}
             icon={<LayerToTop size={16}/>}
           />
           <LayerActionButton
             title={(t('sendToBack', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
             disabled={selectedIds.length === 0}
-            onClick={() => executeAction('element-layer', 'bottom')}
+            onClick={() => reorderLayers('bottom', 'send-to-back')}
             icon={<LayerToBottom size={16}/>}
           />
         </div>
@@ -174,7 +228,8 @@ export const LayerPanel = ({executeAction, layerItems, selectedIds, onMinimize}:
           <div className={'z-20 flex w-full flex-col gap-1 sticky top-0 left-0'}>{arr}</div>
         </div>
       </div>
-    </Panel>
+      </div>
+    </section>
   </Con>
 }
 
@@ -207,27 +262,6 @@ function LayerTypeIcon(props: {type: string, isGroup?: boolean}) {
     default:
       return <LuComponent size={CHROME_ICON_SIZE}/>
   }
-}
-
-function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
-  return (
-    <div className={'flex w-full items-center justify-between gap-2'}>
-      <span>{props.title}</span>
-      {props.onMinimize &&
-        <Button
-          type="button"
-          aria-label={`Minimize ${props.title}`}
-          title={`Minimize ${props.title}`}
-          className={'bg-amber-600 inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
-          onClick={(event) => {
-            event.stopPropagation()
-            props.onMinimize?.()
-          }}
-        >
-            <span>&minus;</span>
-        </Button>}
-    </div>
-  )
 }
 
 function LayerActionButton(props: {

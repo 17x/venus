@@ -1,49 +1,69 @@
-import {type KeyboardEvent, type ReactNode, useRef, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import CreateFile from '../createFile/CreateFile.tsx'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
-import LanguageSwitcher from '../language/languageSwitcher.tsx'
-import Header from '../header/Header.tsx'
-import Toolbar from '../toolbar/Toolbar.tsx'
+import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
-import PropPanel from '../propPanel/PropPanel.tsx'
-import {LayerPanel} from '../layerPanel/LayerPanel.tsx'
-import {HistoryPanel} from '../historyPanel/HistoryPanel.tsx'
-import {StatusBar} from '../statusBar/StatusBar.tsx'
+import LeftSidebar from '../shell/LeftSidebar.tsx'
+import RightSidebar from '../shell/RightSidebar.tsx'
 import {Print} from '../print/print.tsx'
 import FileReceiver from '../fileReceiver.tsx'
-import {cn, Col, Row, Tooltip} from '@venus/ui'
-import useEditorRuntime from '../../hooks/useEditorRuntime.ts'
-import {applyMatrixToPoint} from '@venus/runtime'
-import {CanvasViewport} from '../../runtime/canvasAdapter.tsx'
-import {LuHistory, LuLayers, LuSettings} from 'react-icons/lu'
-import {
-  CHROME_ICON_SIZE,
-  CHROME_ICON_ITEM_ACTIVE_CLASS,
-  CHROME_ICON_ITEM_CLASS,
-  CHROME_RAIL_ITEM_CONTAINER_CLASS,
-} from '../editorChrome/chromeIconStyles.ts'
+import {Button, Col, useTheme} from '@vector/ui'
+import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
+import {applyMatrixToPoint} from '@vector/runtime'
+import {CanvasViewport} from '../../editor/runtime/canvasAdapter.tsx'
 import {EDITOR_ROOT_CLASS} from '../editorChrome/editorTypography.ts'
 import {generateTemplateFile} from '../../features/templatePresets/generators.ts'
+import {createShellCommandDispatch} from '../../editor/shell/commands/shellCommandDispatch.ts'
+import type {InspectorContext, InspectorPanelId} from '../../editor/shell/state/inspectorState.ts'
+import {
+  deserializeShellLayoutState,
+  serializeShellLayoutState,
+  SHELL_LAYOUT_STATE_STORAGE_KEY,
+} from '../../editor/shell/state/shellState.ts'
+import {
+  resolveToolbeltModeFromStorage,
+  TOOLBELT_MODE_STORAGE_KEY,
+  type ToolbeltMode,
+} from '../../editor/shell/state/toolbeltState.ts'
+import {LuPanelLeftClose, LuPanelRightClose} from 'react-icons/lu'
+import {useTranslation} from 'react-i18next'
 
-type InspectorPanelId = 'properties' | 'layers' | 'history'
-
-const INSPECTOR_PANEL_META: Array<{
-  id: InspectorPanelId
-  label: string
-  icon: ReactNode
-}> = [
-  {id: 'properties', label: 'Properties', icon: <LuSettings size={CHROME_ICON_SIZE}/>},
-  {id: 'layers', label: 'Layer', icon: <LuLayers size={CHROME_ICON_SIZE}/>},
-  {id: 'history', label: 'History', icon: <LuHistory size={CHROME_ICON_SIZE}/>},
-]
+const FIXED_LEFT_PANEL_WIDTH = 296
+const FIXED_RIGHT_PANEL_WIDTH = 240
 
 const EditorFrame = () => {
+  const {t} = useTranslation()
+  const {resolvedMode} = useTheme()
+  const initialLayoutState = deserializeShellLayoutState(
+    typeof window === 'undefined' ? null : window.localStorage.getItem(SHELL_LAYOUT_STATE_STORAGE_KEY),
+  )
   const [showTemplatePresetPicker, setShowTemplatePresetPicker] = useState(false)
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0})
   const [contextMenuPastePosition, setContextMenuPastePosition] = useState({x: 0, y: 0})
-  // The frame owns inspector visibility so minimized panels can unmount while the restore rail keeps a stable order.
-  const [minimizedInspectorPanels, setMinimizedInspectorPanels] = useState<Set<InspectorPanelId>>(() => new Set())
+  const [leftPanelMinimized, setLeftPanelMinimized] = useState(initialLayoutState.leftPanelMinimized)
+  const [rightPanelMinimized, setRightPanelMinimized] = useState(initialLayoutState.rightPanelMinimized)
+  const [toolbeltMode, setToolbeltMode] = useState<ToolbeltMode>(() => {
+    if (typeof window === 'undefined') {
+      return initialLayoutState.toolbeltMode
+    }
+
+    return resolveToolbeltModeFromStorage(window.localStorage.getItem(TOOLBELT_MODE_STORAGE_KEY))
+  })
+  // Keep minimized panel order deterministic for restoration and serialization.
+  const [minimizedInspectorPanels, setMinimizedInspectorPanels] = useState<Set<InspectorPanelId>>(
+    () => new Set(initialLayoutState.minimizedInspectorPanels),
+  )
+  const [inspectorContext, setInspectorContext] = useState<InspectorContext>(initialLayoutState.activeInspectorContext)
+  const [variantBSections, setVariantBSections] = useState(initialLayoutState.variantBSections)
+  const renderCountRef = useRef(0)
+  renderCountRef.current += 1
+  const [fps, setFps] = useState(0)
+  const [debugRuntimeStats, setDebugRuntimeStats] = useState({
+    sceneUpdates: 0,
+    sceneStableFrames: 0,
+    lastSceneVersion: -1,
+  })
   const stageHostRef = useRef<HTMLDivElement>(null)
   const runtime = useEditorRuntime()
 
@@ -64,6 +84,7 @@ const EditorFrame = () => {
     layerItems,
     selectedIds,
     selectedProps,
+    snappingEnabled,
     showCreateFile,
     showPrint,
     viewportScale,
@@ -74,9 +95,76 @@ const EditorFrame = () => {
     createFile,
     handleCreating,
     setCurrentTool,
+    setSnappingEnabled,
     pickHistory,
   } = commands
-  const {contextRootRef, worldPointRef, editorRef} = refs
+  const {contextRootRef, editorRef} = refs
+
+  useEffect(() => {
+    if (selectedProps) {
+      setInspectorContext('selection')
+    }
+  }, [selectedProps])
+
+  useEffect(() => {
+    setDebugRuntimeStats((current) => {
+      const stable = current.lastSceneVersion === canvas.stats.version
+      return {
+        sceneUpdates: current.sceneUpdates + 1,
+        sceneStableFrames: current.sceneStableFrames + (stable ? 1 : 0),
+        lastSceneVersion: canvas.stats.version,
+      }
+    })
+  }, [canvas.stats.version])
+
+  useEffect(() => {
+    let frameCount = 0
+    let rafId = 0
+    let sampleStart = performance.now()
+
+    const tick = (time: number) => {
+      frameCount += 1
+      const elapsed = time - sampleStart
+      if (elapsed >= 500) {
+        setFps((frameCount * 1000) / elapsed)
+        frameCount = 0
+        sampleStart = time
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+
+    rafId = window.requestAnimationFrame(tick)
+    return () => {
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const nextShellState = {
+      leftPanelWidth: FIXED_LEFT_PANEL_WIDTH,
+      rightPanelWidth: FIXED_RIGHT_PANEL_WIDTH,
+      leftPanelMinimized,
+      rightPanelMinimized,
+      minimizedInspectorPanels: Array.from(minimizedInspectorPanels),
+      activeInspectorContext: inspectorContext,
+      toolbeltMode,
+      variantBSections,
+    }
+
+    window.localStorage.setItem(SHELL_LAYOUT_STATE_STORAGE_KEY, serializeShellLayoutState(nextShellState))
+    window.localStorage.setItem(TOOLBELT_MODE_STORAGE_KEY, toolbeltMode)
+  }, [
+    leftPanelMinimized,
+    rightPanelMinimized,
+    inspectorContext,
+    minimizedInspectorPanels,
+    toolbeltMode,
+    variantBSections,
+  ])
 
   const resolveViewportPoint = (clientX: number, clientY: number) => {
     const rect = stageHostRef.current?.getBoundingClientRect()
@@ -94,180 +182,291 @@ const EditorFrame = () => {
     return applyMatrixToPoint(canvas.viewport.inverseMatrix, viewportPoint)
   }
 
-  const minimizeInspectorPanel = (panelId: InspectorPanelId) => {
-    setMinimizedInspectorPanels((current) => {
-      const next = new Set(current)
-      next.add(panelId)
-      return next
-    })
-  }
-
-  const toggleInspectorPanel = (panelId: InspectorPanelId) => {
-    setMinimizedInspectorPanels((current) => {
-      const next = new Set(current)
-      if (next.has(panelId)) {
-        next.delete(panelId)
-      } else {
-        next.add(panelId)
+  const dispatchShellCommand = createShellCommandDispatch({
+    onSetZoom(payload) {
+      executeAction('world-zoom', {
+        zoomTo: true,
+        zoomFactor: Math.max(0.1, payload.zoomPercent / 100),
+      })
+    },
+    onSetLeftTab(payload) {
+      setVariantBSections((current) => ({
+        ...current,
+        activeTab: payload.tab,
+      }))
+    },
+    onSetGrid(payload) {
+      setVariantBSections((current) => ({
+        ...current,
+        showGrid: payload.enabled,
+      }))
+    },
+    onSetSnapping(payload) {
+      setSnappingEnabled(payload.enabled)
+    },
+    onSelectTool(payload) {
+      setCurrentTool(payload.tool)
+    },
+    onSetMode(payload) {
+      setToolbeltMode(payload.mode)
+      if (payload.mode === 'handoff') {
+        setInspectorContext('page')
       }
-      return next
-    })
-  }
+    },
+    onToggleInspectorPanel(payload) {
+      setMinimizedInspectorPanels((current) => {
+        const next = new Set(current)
+        if (next.has(payload.panelId)) {
+          next.delete(payload.panelId)
+        } else {
+          next.add(payload.panelId)
+        }
+        return next
+      })
+    },
+    onSetInspectorContext(payload) {
+      setInspectorContext(payload.context)
+    },
+    onLayerReorder(payload) {
+      executeAction('element-layer', payload.direction)
+    },
+    onHistoryPick(payload) {
+      const targetHistory = historyItems.find((item) => item.id === payload.historyId)
+      if (!targetHistory) {
+        return
+      }
 
-  const isInspectorPanelMinimized = (panelId: InspectorPanelId) => minimizedInspectorPanels.has(panelId)
-  const hasVisibleInspectorPanels = minimizedInspectorPanels.size < INSPECTOR_PANEL_META.length
-  const handleInspectorPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>, panelId: InspectorPanelId) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      toggleInspectorPanel(panelId)
-    }
-  }
+      pickHistory(targetHistory)
+    },
+    onSelectionModify(payload) {
+      executeAction('selection-modify', {
+        mode: payload.mode,
+        idSet: new Set(payload.ids),
+      })
+    },
+    onElementModify(payload) {
+      executeAction('element-modify', [{
+        id: payload.elementId,
+        props: payload.patch,
+      }])
+    },
+  })
 
-  return <div className={`w-full h-full flex flex-col select-none ${EDITOR_ROOT_CLASS}`}>
-    <div className={'flex justify-end items-center border-b border-gray-200 bg-white'}>
-      <LanguageSwitcher/>
-    </div>
-
+  return <div data-theme={resolvedMode} className={`w-full h-full flex flex-col select-none venus-shell-root ${EDITOR_ROOT_CLASS}`}>
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
         <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
              tabIndex={0}
-             className={'outline-0 bg-white'}>
-          <Header executeAction={executeAction}
-                  onOpenTemplatePresetPicker={() => {
-                    setShowTemplatePresetPicker(true)
-                  }}
-                  needSave={hasUnsavedChanges}
-                  historyStatus={historyStatus}
-                  selectedIds={selectedIds}
-                  selectedProps={selectedProps}
-                  copiedCount={copiedItems.length}/>
-
-          <Row ovh fh>
-            <Toolbar tool={currentTool} setTool={setCurrentTool}/>
-            <FileReceiver executeAction={executeAction}
-                          resolveDropPosition={resolveViewportPoint}>
-              <Col
-                fw
-                fh
-                ovh
-                rela
-                flex={1}
+             className={'outline-0 venus-shell-canvas-frame'}>
+          <FileReceiver executeAction={executeAction}
+                        resolveDropPosition={resolveViewportPoint}>
+            <Col
+              fw
+              fh
+              ovh
+              rela
+              flex={1}
+            >
+              <div
+                ref={stageHostRef}
+                className={'relative overflow-hidden flex w-full h-full venus-shell-canvas-stage'}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  setShowContextMenu(true)
+                  const viewportPoint = resolveViewportPoint(event.clientX, event.clientY)
+                  const worldPoint = resolveWorldPoint(viewportPoint)
+                  setContextMenuPosition(viewportPoint)
+                  setContextMenuPastePosition(worldPoint)
+                  canvas.onContextMenu({
+                    x: viewportPoint.x,
+                    y: viewportPoint.y,
+                  })
+                }}
               >
-                <div
-                  ref={stageHostRef}
-                  className={'relative overflow-hidden flex w-full h-full'}
-                  onContextMenu={(event) => {
-                    event.preventDefault()
-                    setShowContextMenu(true)
-                    const viewportPoint = resolveViewportPoint(event.clientX, event.clientY)
-                    const worldPoint = resolveWorldPoint(viewportPoint)
-                    setContextMenuPosition(viewportPoint)
-                    setContextMenuPastePosition(worldPoint)
-                    canvas.onContextMenu({
-                      x: viewportPoint.x,
-                      y: viewportPoint.y,
-                    })
+                <CanvasViewport
+                  document={canvas.document}
+                  renderer={canvas.Renderer}
+                  overlayRenderer={canvas.OverlayRenderer}
+                  shapes={canvas.shapes}
+                  stats={canvas.stats}
+                  viewport={canvas.viewport}
+                  onPointerMove={canvas.onPointerMove}
+                  onPointerDown={canvas.onPointerDown}
+                  onPointerUp={canvas.onPointerUp}
+                  onPointerLeave={canvas.onPointerLeave}
+                  onViewportChange={canvas.onViewportChange}
+                  onViewportPan={canvas.onViewportPan}
+                  onViewportResize={canvas.onViewportResize}
+                  onViewportZoom={canvas.onViewportZoom}
+                />
+
+                <Toolbelt
+                  currentTool={currentTool}
+                  mode={toolbeltMode}
+                  onSelectTool={(tool, meta) => {
+                    dispatchShellCommand('tool.select', {tool}, meta)
                   }}
-                >
-                  <CanvasViewport
-                    document={canvas.document}
-                    renderer={canvas.Renderer}
-                    overlayRenderer={canvas.OverlayRenderer}
-                    shapes={canvas.shapes}
-                    stats={canvas.stats}
-                    viewport={canvas.viewport}
-                    onPointerMove={canvas.onPointerMove}
-                    onPointerDown={canvas.onPointerDown}
-                    onPointerUp={canvas.onPointerUp}
-                    onPointerLeave={canvas.onPointerLeave}
-                    onViewportChange={canvas.onViewportChange}
-                    onViewportPan={canvas.onViewportPan}
-                    onViewportResize={canvas.onViewportResize}
-                    onViewportZoom={canvas.onViewportZoom}
-                  />
+                  onSetMode={(mode, meta) => {
+                    dispatchShellCommand('tool.setMode', {mode}, meta)
+                  }}
+                />
+
+                <div className={'pointer-events-none absolute left-3 top-3 bottom-3 z-20 flex'}>
+                  {leftPanelMinimized
+                    ? <Button
+                        type={'button'}
+                        title={t('ui.shell.variantB.leftSidebar.restore', {defaultValue: 'Restore left panel'})}
+                        className={'venus-shell-toolbar-button venus-shell-plain-trigger pointer-events-auto inline-flex h-9 items-center gap-1 rounded px-2'}
+                        onClick={() => {
+                          setLeftPanelMinimized(false)
+                        }}
+                      >
+                        <LuPanelLeftClose size={14}/>
+                        <span className={'text-xs'}>{variantBSections.activeTab}</span>
+                      </Button>
+                    : <div className={'pointer-events-auto h-full overflow-hidden rounded-lg border shadow-xl'} style={{width: FIXED_LEFT_PANEL_WIDTH}}>
+                        <LeftSidebar
+                          onMinimize={() => {
+                            setLeftPanelMinimized(true)
+                          }}
+                          fileName={file?.name}
+                          layerItems={layerItems}
+                          selectedIds={selectedIds}
+                          assetCount={file?.assets?.length ?? 0}
+                          activeTab={variantBSections.activeTab}
+                          layersCollapsed={variantBSections.layersCollapsed}
+                          showGrid={variantBSections.showGrid}
+                          snappingEnabled={snappingEnabled}
+                          debugStats={{
+                            editorRenderCount: renderCountRef.current,
+                            sceneUpdateCount: debugRuntimeStats.sceneUpdates,
+                            fps,
+                            sceneVersion: canvas.stats.version,
+                            shapeCount: canvas.stats.shapeCount,
+                            selectedCount: selectedIds.length,
+                            viewportScale,
+                            cacheHitEstimate: debugRuntimeStats.sceneStableFrames,
+                            cacheMissEstimate: Math.max(0, debugRuntimeStats.sceneUpdates - debugRuntimeStats.sceneStableFrames),
+                            cacheHitRate: debugRuntimeStats.sceneUpdates > 0
+                              ? (debugRuntimeStats.sceneStableFrames / debugRuntimeStats.sceneUpdates) * 100
+                              : 0,
+                          }}
+                          onSetActiveTab={(tab) => {
+                            dispatchShellCommand('shell.setLeftTab', {tab}, {
+                              sourcePanel: 'left-sidebar',
+                              sourceControl: 'tab-switch',
+                              commitType: 'final',
+                            })
+                          }}
+                          onToggleLayers={() => {
+                            setVariantBSections((current) => ({
+                              ...current,
+                              layersCollapsed: !current.layersCollapsed,
+                            }))
+                          }}
+                          onToggleGrid={() => {
+                            dispatchShellCommand('shell.setGrid', {enabled: !variantBSections.showGrid}, {
+                              sourcePanel: 'left-sidebar',
+                              sourceControl: 'settings-grid-toggle',
+                              commitType: 'final',
+                            })
+                          }}
+                          onToggleSnapping={() => {
+                            dispatchShellCommand('shell.setSnapping', {enabled: !snappingEnabled}, {
+                              sourcePanel: 'left-sidebar',
+                              sourceControl: 'settings-snapping-toggle',
+                              commitType: 'final',
+                            })
+                          }}
+                          onOpenTemplatePicker={() => {
+                            setShowTemplatePresetPicker(true)
+                          }}
+                          executeMenuAction={executeAction}
+                          copiedCount={copiedItems.length}
+                          hasUnsavedChanges={hasUnsavedChanges}
+                          historyItems={historyItems}
+                          historyStatus={historyStatus}
+                          onPickHistory={(historyId, meta) => {
+                            dispatchShellCommand('history.pick', {historyId}, meta)
+                          }}
+                          onSelectLayers={(mode, ids, sourceControl) => {
+                            dispatchShellCommand('selection.modify', {mode, ids}, {
+                              sourcePanel: 'left-sidebar',
+                              sourceControl,
+                              commitType: 'final',
+                            })
+                          }}
+                        />
+                      </div>}
                 </div>
 
-                <StatusBar executeAction={executeAction}
-                           worldScale={viewportScale}
-                           ref={worldPointRef}/>
+                <div className={'pointer-events-none absolute right-3 top-3 bottom-3 z-20 flex'}>
+                  {rightPanelMinimized
+                    ? <Button
+                        type={'button'}
+                        title={t('ui.shell.variantB.rightSidebar.restore', {defaultValue: 'Restore right panel'})}
+                        className={'venus-shell-toolbar-button venus-shell-plain-trigger pointer-events-auto inline-flex h-9 items-center gap-1 rounded px-2'}
+                        onClick={() => {
+                          setRightPanelMinimized(false)
+                        }}
+                      >
+                        <LuPanelRightClose size={14}/>
+                        <span className={'text-xs'}>Inspector</span>
+                      </Button>
+                    : <div className={'pointer-events-auto h-full overflow-hidden rounded-lg border shadow-xl'} style={{width: FIXED_RIGHT_PANEL_WIDTH}}>
+                        <RightSidebar
+                          onMinimize={() => {
+                            setRightPanelMinimized(true)
+                          }}
+                          context={inspectorContext}
+                          selectedProps={selectedProps}
+                          zoomPercent={Math.max(1, Math.round(viewportScale * 100))}
+                          selectedCount={selectedIds.length}
+                          layerCount={layerItems.length}
+                          executeAction={executeAction}
+                          onSetZoom={(zoomPercent) => {
+                            dispatchShellCommand('shell.setZoom', {zoomPercent}, {
+                              sourcePanel: 'right-sidebar',
+                              sourceControl: 'zoom-chip',
+                              commitType: 'final',
+                            })
+                          }}
+                          onSetInspectorContext={(context) => {
+                            dispatchShellCommand('inspector.setContext', {context}, {
+                              sourcePanel: 'right-sidebar',
+                              sourceControl: 'context-switch',
+                              commitType: 'final',
+                            })
+                          }}
+                          onPatchElementProps={(elementId, patch, meta) => {
+                            dispatchShellCommand('element.modify', {elementId, patch}, meta)
+                          }}
+                        />
+                      </div>}
+                </div>
 
-                {showContextMenu &&
-                  <ContextMenu position={contextMenuPosition}
-                               pastePosition={contextMenuPastePosition}
-                               executeAction={executeAction}
-                               selectedIds={selectedIds}
-                               copiedItems={copiedItems}
-                               historyStatus={historyStatus}
-                               onClose={() => {
-                                 setShowContextMenu(false)
-                               }}/>}
-              </Col>
-            </FileReceiver>
+                {variantBSections.showGrid &&
+                  <div
+                    className={'pointer-events-none absolute inset-0 z-10'}
+                    style={{
+                      backgroundImage: 'linear-gradient(to right, rgba(15, 23, 42, 0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(15, 23, 42, 0.08) 1px, transparent 1px)',
+                      backgroundSize: `${Math.max(12, Math.round(24 * viewportScale))}px ${Math.max(12, Math.round(24 * viewportScale))}px`,
+                    }}
+                  />}
+              </div>
 
-            <div className={'flex h-full shrink-0 border-l border-gray-200 bg-gray-50'}>
-              {hasVisibleInspectorPanels &&
-                <aside
-                  className={'flex h-full w-64 flex-col gap-2 p-2'}
-                  aria-label="Inspector panels"
-                >
-                  {!isInspectorPanelMinimized('properties') &&
-                    <PropPanel
-                      props={selectedProps!}
-                      executeAction={executeAction}
-                      onMinimize={() => minimizeInspectorPanel('properties')}
-                    />}
-                  {!isInspectorPanelMinimized('layers') &&
-                    <LayerPanel
-                      executeAction={executeAction}
-                      layerItems={layerItems}
-                      selectedIds={selectedIds}
-                      onMinimize={() => minimizeInspectorPanel('layers')}
-                    />}
-                  {!isInspectorPanelMinimized('history') &&
-                    <HistoryPanel
-                      historyItems={historyItems}
-                      historyStatus={historyStatus}
-                      pickHistory={pickHistory}
-                      onMinimize={() => minimizeInspectorPanel('history')}
-                    />}
-                </aside>}
-              <aside
-                className={'relative flex h-full w-10 flex-col items-center gap-2 border-l border-gray-200 bg-gray-50 py-2'}
-                aria-label="Inspector panel shortcuts"
-              >
-                {INSPECTOR_PANEL_META.map((panel) => {
-                  const isMinimized = isInspectorPanelMinimized(panel.id)
-                  const isOpen = !isMinimized
-                  return (
-                    <Tooltip
-                      key={panel.id}
-                      placement={'l'}
-                      title={`${isMinimized ? 'Show' : 'Hide'} ${panel.label}`}
-                    >
-                      <div className={CHROME_RAIL_ITEM_CONTAINER_CLASS}>
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`${isMinimized ? 'Show' : 'Hide'} ${panel.label}`}
-                          aria-pressed={isOpen}
-                          className={cn(
-                            CHROME_ICON_ITEM_CLASS,
-                            'cursor-pointer',
-                            isOpen && CHROME_ICON_ITEM_ACTIVE_CLASS,
-                          )}
-                          onClick={() => toggleInspectorPanel(panel.id)}
-                          onKeyDown={(event) => handleInspectorPanelKeyDown(event, panel.id)}
-                        >
-                          {panel.icon}
-                        </div>
-                      </div>
-                    </Tooltip>
-                  )
-                })}
-              </aside>
-            </div>
-          </Row>
+              {showContextMenu &&
+                <ContextMenu position={contextMenuPosition}
+                             pastePosition={contextMenuPastePosition}
+                             executeAction={executeAction}
+                             selectedIds={selectedIds}
+                             copiedItems={copiedItems}
+                             historyStatus={historyStatus}
+                             onClose={() => {
+                               setShowContextMenu(false)
+                             }}/>}
+            </Col>
+          </FileReceiver>
         </Col>
       </>}
     </div>

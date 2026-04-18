@@ -1,6 +1,6 @@
 import React, {useEffect, useId, useRef, useState} from 'react'
-import {RUNTIME_ZOOM_PRESETS, type RuntimeZoomPreset} from '@venus/runtime/interaction'
-import {cn} from '@venus/ui'
+import {RUNTIME_ZOOM_PRESETS, type RuntimeZoomPreset} from '../../editor/interaction/runtime/index.ts'
+import {cn, Tooltip} from '@vector/ui'
 import {EDITOR_TEXT_CONTROL_CLASS, EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 import {LuChevronDown} from 'react-icons/lu'
 
@@ -137,22 +137,25 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
         }}
         onKeyDown={handleInputKeyDown}
       />
-      <button
-        type="button"
-        aria-label="Open zoom presets"
-        aria-haspopup="listbox"
-        aria-expanded={menuOpen}
-        aria-controls={menuId}
-        className={'flex h-full w-4 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-500'}
-        onMouseDown={(event) => {
-          event.preventDefault()
-        }}
-        onClick={() => {
-          setMenuOpen((open) => !open)
-        }}
-      >
-        <LuChevronDown size={11}/>
-      </button>
+      <Tooltip title={'Open zoom presets'} asChild>
+        <button
+          type="button"
+          aria-label="Open zoom presets"
+          title={'Open zoom presets'}
+          aria-haspopup="listbox"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          className={'flex h-full w-4 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-500'}
+          onMouseDown={(event) => {
+            event.preventDefault()
+          }}
+          onClick={() => {
+            setMenuOpen((open) => !open)
+          }}
+        >
+          <LuChevronDown size={11}/>
+        </button>
+      </Tooltip>
     </div>
 
     {menuOpen &&
@@ -165,26 +168,28 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
         {
           RUNTIME_ZOOM_PRESETS.map(({label, value}) => {
             const selected = value !== 'fit' && Math.abs(value - scale) < 0.0001
-            return <button
-              key={value}
-              type="button"
-              role="option"
-              aria-selected={selected}
-              className={cn(
-                'flex h-7 w-full cursor-pointer items-center justify-between px-3 text-left text-gray-700 hover:bg-gray-100',
-                EDITOR_TEXT_MENU_CLASS,
-                selected && 'bg-gray-100 font-medium text-gray-950',
-              )}
-              onMouseDown={(event) => {
-                event.preventDefault()
-              }}
-              onClick={() => {
-                selectZoomLevel(value)
-              }}
-            >
-              <span>{label}</span>
-              {selected && <span aria-hidden className={'size-1.5 rounded-full bg-gray-900'}/>}
-            </button>
+            return <Tooltip key={value} title={label} asChild>
+              <button
+                type="button"
+                role="option"
+                aria-selected={selected}
+                title={label}
+                className={cn(
+                  'flex h-7 w-full cursor-pointer items-center justify-between px-3 text-left text-gray-700 hover:bg-gray-100',
+                  EDITOR_TEXT_MENU_CLASS,
+                  selected && 'bg-gray-100 font-medium text-gray-950',
+                )}
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                }}
+                onClick={() => {
+                  selectZoomLevel(value)
+                }}
+              >
+                <span>{label}</span>
+                {selected && <span aria-hidden className={'size-1.5 rounded-full bg-gray-900'}/>}
+              </button>
+            </Tooltip>
           })
         }
       </div>}

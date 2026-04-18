@@ -22,3 +22,7 @@
 - Established root-level project governance documents
 - Introduced domain-based docs structure and routing rules
 - Normalized `docs/task/plan-2.md` to execution-plan scope with routing protocol
+- Migrated vector app UI usage from `@venus/ui` to in-app `@vector/ui`
+  (`apps/vector-editor-web/src/ui/kit/*`)
+- Grouped vector app source by domain via `src/editor/*` and `src/shared/*`
+  and rewired imports

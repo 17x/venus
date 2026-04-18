@@ -1,7 +1,7 @@
 import {Unit} from '@venus/document-core'
 import type {ElementProps, TextRun} from '@lite-u/editor/types'
-import {VISION_VERSION} from '../../constants/version.ts'
-import type {VisionFileAsset, VisionFileType} from '../../hooks/useEditorRuntime.types.ts'
+import {VISION_VERSION} from '../../shared/constants/version.ts'
+import type {VisionFileAsset, VisionFileType} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {createSeededRandom, type SeededRandom} from './seededRandom.ts'
 import {getTemplatePresetById} from './presets.ts'
 import type {

@@ -1,0 +1,234 @@
+{
+  "version": "0.1.0",
+  "source": "docs/task/drafts/draft.txt",
+  "layout": {
+    "root": {
+      "id": "properties-panel",
+      "type": "PanelContainer",
+      "children": [
+        "panel-header",
+        "tab-header",
+        "scroll-content"
+      ]
+    },
+    "nodes": {
+      "panel-header": {
+        "type": "Header",
+        "children": [
+          "multiplayer-tools",
+          "prototype-actions",
+          "share-button"
+        ]
+      },
+      "multiplayer-tools": {
+        "type": "ControlGroup",
+        "controls": [
+          "multiplayer-avatar",
+          "multiplayer-menu-trigger"
+        ]
+      },
+      "prototype-actions": {
+        "type": "ControlGroup",
+        "controls": [
+          "present-button",
+          "prototype-view-menu"
+        ]
+      },
+      "share-button": {
+        "type": "Button",
+        "label": "Share"
+      },
+      "tab-header": {
+        "type": "TabHeader",
+        "children": [
+          "tab-strip",
+          "zoom-control"
+        ]
+      },
+      "tab-strip": {
+        "type": "Tabs",
+        "tabs": [
+          "Draw"
+        ]
+      },
+      "zoom-control": {
+        "type": "DropdownButton",
+        "label": "51%"
+      },
+      "scroll-content": {
+        "type": "ScrollContainer",
+        "children": [
+          "selection-toolbar",
+          "selection-transform-panel",
+          "appearance-panel",
+          "fill-panel",
+          "stroke-panel",
+          "effects-panel",
+          "export-panel"
+        ]
+      },
+      "selection-toolbar": {
+        "type": "ToolbarRow",
+        "controls": [
+          "node-type-display",
+          "transform-modifier-group"
+        ]
+      },
+      "selection-transform-panel": {
+        "type": "SectionGroup",
+        "sections": [
+          {
+            "id": "alignment",
+            "type": "Fieldset",
+            "rows": [
+              "align-horizontal-row",
+              "align-vertical-row"
+            ]
+          },
+          {
+            "id": "position",
+            "type": "Fieldset",
+            "rows": [
+              "x-input-row",
+              "y-input-row"
+            ]
+          },
+          {
+            "id": "dimensions",
+            "type": "Fieldset",
+            "rows": [
+              "width-row",
+              "height-row",
+              "aspect-lock-row"
+            ]
+          },
+          {
+            "id": "rotation",
+            "type": "Fieldset",
+            "rows": [
+              "rotation-input-row",
+              "rotation-actions-row"
+            ]
+          }
+        ]
+      },
+      "appearance-panel": {
+        "type": "SectionGroup",
+        "title": "Appearance",
+        "sections": [
+          {
+            "id": "opacity",
+            "type": "SliderInputRow",
+            "aux": [
+              "visibility-toggle"
+            ]
+          },
+          {
+            "id": "corner-radius",
+            "type": "SliderInputRow",
+            "aux": [
+              "corner-smoothing-button"
+            ]
+          },
+          {
+            "id": "blend-mode",
+            "type": "SelectRow"
+          }
+        ]
+      },
+      "fill-panel": {
+        "type": "CollapsiblePanel",
+        "title": "Fill",
+        "headerControls": [
+          "apply-style-or-variable",
+          "add-fill",
+          "add-menu"
+        ],
+        "rows": [
+          "fill-paint-rows"
+        ]
+      },
+      "stroke-panel": {
+        "type": "CollapsiblePanel",
+        "title": "Stroke",
+        "headerControls": [
+          "apply-style-or-variable",
+          "add-stroke",
+          "add-menu"
+        ],
+        "rows": [
+          "stroke-paint-rows",
+          "stroke-weight-row",
+          "stroke-position-radio-row",
+          "stroke-join-radio-row",
+          "stroke-width-profile-row",
+          "stroke-advanced-row"
+        ],
+        "nestedPanels": [
+          "brush-panel"
+        ]
+      },
+      "brush-panel": {
+        "type": "NestedPanel",
+        "title": "Brush",
+        "rows": [
+          "brush-selector-row",
+          "gap-row",
+          "size-jitter-row",
+          "angular-jitter-row"
+        ]
+      },
+      "effects-panel": {
+        "type": "CollapsiblePanel",
+        "title": "Effects",
+        "headerControls": [
+          "apply-style",
+          "add-effect",
+          "add-menu"
+        ],
+        "rows": [
+          "effect-rows"
+        ]
+      },
+      "export-panel": {
+        "type": "CollapsiblePanel",
+        "title": "Export",
+        "headerControls": [
+          "add-export",
+          "add-menu"
+        ],
+        "rows": [
+          "export-setting-rows"
+        ]
+      }
+    }
+  },
+  "componentPrimitives": [
+    "CollapsiblePanel",
+    "Fieldset",
+    "SliderInputRow",
+    "ScrubbableInput",
+    "SegmentedIconButtonGroup",
+    "ToggleButton",
+    "Select",
+    "PaintRow",
+    "IconButton",
+    "DialogTriggerButton",
+    "DropdownMenuTrigger",
+    "NestedPanel",
+    "ScrollContainer"
+  ],
+  "panelOrder": [
+    "Selection Toolbar",
+    "Alignment",
+    "Position",
+    "Dimensions",
+    "Rotation",
+    "Appearance",
+    "Fill",
+    "Stroke",
+    "Brush",
+    "Effects",
+    "Export"
+  ]
+}

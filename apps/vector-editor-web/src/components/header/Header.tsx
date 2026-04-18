@@ -1,7 +1,7 @@
 import MenuBar from './menu/Menu.tsx'
 import ShortcutBar from './shortcutBar/ShortcutBar.tsx'
-import {EditorExecutor} from '../../hooks/useEditorRuntime.ts'
-import type {SelectedElementProps} from '../../hooks/useEditorRuntime.types.ts'
+import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
+import type {SelectedElementProps} from '../../editor/hooks/useEditorRuntime.types.ts'
 
 const Header: React.FC<{
   executeAction: EditorExecutor

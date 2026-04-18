@@ -1,5 +1,5 @@
 import React from 'react'
-import {cn, Tooltip} from '@venus/ui'
+import {cn, Tooltip} from '@vector/ui'
 import {ToolName} from '@venus/document-core'
 import {
   LuCircle,
@@ -100,7 +100,7 @@ const Toolbar: React.FC<{ tool: ToolName, setTool: (t: ToolName) => void }> = ({
     }
   }
 
-  return <aside className={'relative flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-200 bg-gray-50 py-2'}>
+  return <aside className={'venus-shell-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r py-2'}>
     {
       toolList.map(({toolName, labelKey, icon}) => {
         const active = toolName === tool

@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {Button, cn} from '@venus/ui'
+import {Button, cn} from '@vector/ui'
 import {type VectorLanguageCode, useVectorUiI18n} from '../../i18n/ui.ts'
 import {EDITOR_TEXT_MENU_CLASS, EDITOR_TEXT_META_CLASS} from '../editorChrome/editorTypography.ts'
 
@@ -45,9 +45,11 @@ const LanguageSwitcher = () => {
     <div ref={rootRef} className={cn('relative flex h-full items-center pr-2 select-none', EDITOR_TEXT_MENU_CLASS)}>
       <Button
         type="button"
+        variant={'ghost'}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={tUi('languageSelectorLabel')}
+        title={tUi('languageSelectorLabel')}
         className={cn(
           'inline-flex h-7 items-center gap-1.5 rounded border border-transparent px-3 font-medium text-gray-700 hover:border-gray-200 hover:bg-gray-100 hover:text-gray-950',
           EDITOR_TEXT_MENU_CLASS,
@@ -74,8 +76,10 @@ const LanguageSwitcher = () => {
               return <Button
                 key={langCode}
                 type="button"
+                variant={'ghost'}
                 role="menuitemradio"
                 aria-checked={isCurrent}
+                title={getLanguageLabel(langCode)}
                 className={cn(
                   'flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100',
                   EDITOR_TEXT_MENU_CLASS,

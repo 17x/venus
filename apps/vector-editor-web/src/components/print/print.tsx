@@ -1,5 +1,5 @@
 import {FC, RefObject, useEffect, useRef, useState} from 'react'
-import {Button} from '@venus/ui'
+import {Button} from '@vector/ui'
 
 export const Print: FC<{
   onClose: VoidFunction,

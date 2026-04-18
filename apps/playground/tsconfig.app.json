@@ -8,7 +8,6 @@
   },
   "references": [
     { "path": "../../packages/document-core/tsconfig.json" },
-    { "path": "../../packages/runtime/tsconfig.json" },
     { "path": "../../packages/engine/tsconfig.json" }
   ],
   "include": [
