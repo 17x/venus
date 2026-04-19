@@ -59,7 +59,7 @@ function ToolGroupButton(props: {
   const active = Boolean(props.active)
 
   return (
-    <div className={'inline-flex items-center overflow-hidden rounded-md border border-[var(--vector-shell-border)]'}>
+    <div className={'vector-shell-panel inline-flex items-center overflow-hidden rounded-md'}>
       <Tooltip placement={'t'} title={props.title} asChild>
         <Button
           type={'button'}
@@ -67,9 +67,8 @@ function ToolGroupButton(props: {
           aria-label={props.title}
           title={props.title}
           className={cn(
-            'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 text-[var(--vector-shell-text)]',
-            'hover:bg-[var(--vector-shell-hover)] hover:text-[var(--vector-shell-active-text)]',
-            active && 'vector-shell-icon-active text-[var(--vector-shell-active-text)]',
+            'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2',
+            active && 'vector-shell-icon-active',
           )}
           onClick={() => {
             if (props.selectedTool) {
@@ -87,9 +86,8 @@ function ToolGroupButton(props: {
             aria-label={props.title + ' menu'}
             title={props.title + ' menu'}
             className={cn(
-              'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center rounded-none border-0 border-l border-[var(--vector-shell-border)] bg-transparent px-1 text-[var(--vector-shell-text)]',
-              'hover:bg-[var(--vector-shell-hover)] hover:text-[var(--vector-shell-active-text)]',
-              active && 'vector-shell-icon-active text-[var(--vector-shell-active-text)]',
+              'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center rounded-none border-0 border-l border-slate-200 bg-transparent px-1 dark:border-slate-700',
+              active && 'vector-shell-icon-active',
             )}
           >
             <LuChevronUp size={12} className={'opacity-70'}/>
@@ -224,7 +222,7 @@ export default function Toolbelt(props: ToolbeltProps) {
       className={'pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2'}
       aria-label={'Application toolbar'}
     >
-      <div className={'pointer-events-auto flex items-center gap-2 rounded-xl border border-[var(--vector-shell-border)] bg-[color:color-mix(in_srgb,var(--vector-shell-surface)_92%,transparent)] px-2 py-1 shadow-lg backdrop-blur'}>
+      <div className={'vector-shell-panel pointer-events-auto flex items-center gap-2 rounded-xl bg-white/90 px-2 py-1 shadow-lg backdrop-blur dark:bg-slate-900/90'}>
         <div className={'flex items-center gap-1'}>
           <ToolGroupButton
             title={t('toolbelt.moveTools', {defaultValue: 'Select / Hand tools'})}
@@ -260,9 +258,8 @@ export default function Toolbelt(props: ToolbeltProps) {
               aria-label={textTool.label}
               title={textTool.label}
               className={cn(
-                'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center rounded border border-transparent bg-transparent px-2 text-[var(--vector-shell-text)]',
-                'hover:border-[var(--vector-ui-border-color-strong)] hover:text-[var(--vector-shell-active-text)]',
-                currentTool === 'text' && 'vector-shell-icon-active border-[color:color-mix(in_srgb,var(--vector-shell-active-text)_25%,var(--vector-shell-border))] text-[var(--vector-shell-active-text)]',
+                'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center rounded border border-transparent bg-transparent px-2',
+                currentTool === 'text' && 'vector-shell-icon-active',
               )}
               onClick={() => {
                 selectToolByGroup('text', 'group-text')

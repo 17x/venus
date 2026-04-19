@@ -87,7 +87,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             <TabsTrigger
               value={'design'}
               title={t('shell.variantB.tab.design', 'Design')}
-              className={'vector-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--vector-shell-active-text)] hover:text-[var(--vector-shell-active-text)]'}
+              className={'vector-shell-plain-trigger vector-shell-icon-active rounded px-2 py-1 text-xs font-semibold'}
             >
               {t('shell.variantB.tab.design', 'Design')}
             </TabsTrigger>
@@ -95,7 +95,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               value={'prototype'}
               title={t('shell.variantB.tab.prototype', 'Prototype')}
               disabled
-              className={'vector-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--vector-shell-text)] hover:text-[var(--vector-shell-active-text)]'}
+              className={'vector-shell-plain-trigger vector-shell-text-muted rounded px-2 py-1 text-xs'}
             >
               {t('shell.variantB.tab.prototype', 'Prototype')}
             </TabsTrigger>
@@ -114,10 +114,10 @@ export default function RightSidebar(props: RightSidebarProps) {
         </div>
       </div>
 
-      <Card className={'mx-2 mt-2 border-[color:var(--vector-shell-border-soft)] bg-slate-50/40 shadow-none'}>
+      <Card className={'mx-2 mt-2 border-slate-200 bg-slate-50/40 shadow-none'}>
         <CardContent className={'flex items-center justify-between px-2 py-1.5 text-[10px] text-slate-500'}>
           <span>{t('shell.variantB.meta.layers', {count: props.layerCount, defaultValue: `Layers: ${props.layerCount}`})}</span>
-          <Separator orientation={'vertical'} className={'mx-2 h-3 bg-[color:var(--vector-shell-divider)]'}/>
+          <Separator orientation={'vertical'} className={'mx-2 h-3 bg-slate-200'}/>
           <span>{t('shell.variantB.meta.selection', {count: props.selectedCount, defaultValue: `Selection: ${props.selectedCount}`})}</span>
         </CardContent>
       </Card>
@@ -136,8 +136,8 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.selection', 'Selection')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('selection')}
             className={props.context === 'selection'
-              ? 'vector-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--vector-shell-active-text)]'
-              : 'vector-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--vector-shell-text)] hover:text-[var(--vector-shell-active-text)]'}
+              ? 'vector-shell-plain-trigger vector-shell-icon-active rounded px-2 py-1 text-xs font-semibold'
+              : 'vector-shell-plain-trigger vector-shell-text-muted rounded px-2 py-1 text-xs'}
           >
             {t('shell.variantB.context.selection', 'Selection')}
           </TabsTrigger>
@@ -147,8 +147,8 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.page', 'Page')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('page')}
             className={props.context === 'page'
-              ? 'vector-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--vector-shell-active-text)]'
-              : 'vector-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--vector-shell-text)] hover:text-[var(--vector-shell-active-text)]'}
+              ? 'vector-shell-plain-trigger vector-shell-icon-active rounded px-2 py-1 text-xs font-semibold'
+              : 'vector-shell-plain-trigger vector-shell-text-muted rounded px-2 py-1 text-xs'}
           >
             {t('shell.variantB.context.page', 'Page')}
           </TabsTrigger>

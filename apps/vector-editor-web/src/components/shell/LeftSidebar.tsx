@@ -161,9 +161,9 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   title={tabItem.label}
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
-                    'w-90 vector-shell-plain-trigger vector-shell-toolbar-button inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent text-[var(--vector-shell-text)]',
-                    'data-active:bg-transparent data-active:border-transparent hover:border-[var(--vector-ui-border-color-strong)] hover:text-[var(--vector-shell-active-text)]',
-                    active && 'vector-shell-tab-active border-[color:color-mix(in_srgb,var(--vector-shell-active-text)_25%,var(--vector-shell-border))] bg-[color:color-mix(in_srgb,var(--vector-shell-active-text)_14%,transparent)] font-semibold text-[var(--vector-shell-active-text)]',
+                    'w-90 vector-shell-plain-trigger vector-shell-toolbar-button inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent',
+                    'data-active:bg-transparent data-active:border-transparent',
+                    active && 'vector-shell-tab-active vector-shell-icon-active font-semibold',
                   )}
                 >
                   <div className='flex flex-col w-90'>

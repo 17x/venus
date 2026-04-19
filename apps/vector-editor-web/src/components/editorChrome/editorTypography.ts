@@ -12,6 +12,6 @@ export const EDITOR_TEXT_PANEL_HEADING_CLASS = 'vector-editor-text-panel-heading
 export const EDITOR_PROPERTY_SECTION_CLASS = 'vector-editor-property-section'
 
 export const EDITOR_HEADING_STYLE = {
-  fontSize: 'var(--vector-editor-font-heading)',
-  lineHeight: 'var(--vector-editor-line-heading)',
+  fontSize: '14px',
+  lineHeight: '18px',
 }
