@@ -10,7 +10,7 @@ import {TEST_IDS} from '../../testing/testIds.ts'
 
 const SIDEBAR_ICON_SIZE = 14
 
-interface RightSidebarProps {
+export interface RightSidebarProps {
   context: InspectorContext
   selectedProps: SelectedElementProps | null
   zoomPercent: number
@@ -34,11 +34,11 @@ export default function RightSidebar(props: RightSidebarProps) {
   }
 
   return (
-    <aside className={'venus-shell-panel flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden border-l'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
+    <aside className={'vector-shell-panel flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden border-l'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
       <div className={'flex items-center justify-between border-b px-2.5 py-2'}>
         <div className={'flex items-center gap-2'}>
           <div className={'inline-flex size-7 items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-700'}>Y</div>
-          <span className={'venus-shell-text-muted text-xs'}>{t('shell.variantB.role', 'Design')}</span>
+          <span className={'vector-shell-text-muted text-xs'}>{t('shell.variantB.role', 'Design')}</span>
         </div>
         <div className={'flex items-center gap-1.5'}>
           <Tooltip title={t('shell.variantB.present', 'Present')} placement={'l'} asChild>
@@ -46,7 +46,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               type={'button'}
               variant={'ghost'}
               noTooltip
-              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-7 items-center justify-center rounded'}
+              className={'vector-shell-toolbar-button vector-shell-plain-trigger inline-flex size-7 items-center justify-center rounded'}
               aria-label={t('shell.variantB.present', 'Present')}
               title={t('shell.variantB.present', 'Present')}
             >
@@ -70,7 +70,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               type={'button'}
               variant={'ghost'}
               noTooltip
-              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-7 items-center justify-center rounded text-base leading-none'}
+              className={'vector-shell-toolbar-button vector-shell-plain-trigger inline-flex size-7 items-center justify-center rounded text-base leading-none'}
               aria-label={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')}
               title={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')}
               onClick={props.onMinimize}
@@ -87,7 +87,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             <TabsTrigger
               value={'design'}
               title={t('shell.variantB.tab.design', 'Design')}
-              className={'venus-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--venus-shell-active-text)] hover:text-[var(--venus-shell-active-text)]'}
+              className={'vector-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--vector-shell-active-text)] hover:text-[var(--vector-shell-active-text)]'}
             >
               {t('shell.variantB.tab.design', 'Design')}
             </TabsTrigger>
@@ -95,7 +95,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               value={'prototype'}
               title={t('shell.variantB.tab.prototype', 'Prototype')}
               disabled
-              className={'venus-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--venus-shell-text)] hover:text-[var(--venus-shell-active-text)]'}
+              className={'vector-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--vector-shell-text)] hover:text-[var(--vector-shell-active-text)]'}
             >
               {t('shell.variantB.tab.prototype', 'Prototype')}
             </TabsTrigger>
@@ -114,10 +114,10 @@ export default function RightSidebar(props: RightSidebarProps) {
         </div>
       </div>
 
-      <Card className={'mx-2 mt-2 border-[color:var(--venus-shell-border-soft)] bg-slate-50/40 shadow-none'}>
+      <Card className={'mx-2 mt-2 border-[color:var(--vector-shell-border-soft)] bg-slate-50/40 shadow-none'}>
         <CardContent className={'flex items-center justify-between px-2 py-1.5 text-[10px] text-slate-500'}>
           <span>{t('shell.variantB.meta.layers', {count: props.layerCount, defaultValue: `Layers: ${props.layerCount}`})}</span>
-          <Separator orientation={'vertical'} className={'mx-2 h-3 bg-[color:var(--venus-shell-divider)]'}/>
+          <Separator orientation={'vertical'} className={'mx-2 h-3 bg-[color:var(--vector-shell-divider)]'}/>
           <span>{t('shell.variantB.meta.selection', {count: props.selectedCount, defaultValue: `Selection: ${props.selectedCount}`})}</span>
         </CardContent>
       </Card>
@@ -136,8 +136,8 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.selection', 'Selection')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('selection')}
             className={props.context === 'selection'
-              ? 'venus-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--venus-shell-active-text)]'
-              : 'venus-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--venus-shell-text)] hover:text-[var(--venus-shell-active-text)]'}
+              ? 'vector-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--vector-shell-active-text)]'
+              : 'vector-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--vector-shell-text)] hover:text-[var(--vector-shell-active-text)]'}
           >
             {t('shell.variantB.context.selection', 'Selection')}
           </TabsTrigger>
@@ -147,8 +147,8 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.page', 'Page')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('page')}
             className={props.context === 'page'
-              ? 'venus-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--venus-shell-active-text)]'
-              : 'venus-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--venus-shell-text)] hover:text-[var(--venus-shell-active-text)]'}
+              ? 'vector-shell-plain-trigger rounded px-2 py-1 text-xs font-semibold text-[var(--vector-shell-active-text)]'
+              : 'vector-shell-plain-trigger rounded px-2 py-1 text-xs text-[var(--vector-shell-text)] hover:text-[var(--vector-shell-active-text)]'}
           >
             {t('shell.variantB.context.page', 'Page')}
           </TabsTrigger>

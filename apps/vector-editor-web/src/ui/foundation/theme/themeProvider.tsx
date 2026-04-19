@@ -3,7 +3,7 @@ import {createContext, type ReactNode, useContext, useEffect, useMemo, useState}
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type ResolvedThemeMode = 'light' | 'dark'
 
-const THEME_MODE_STORAGE_KEY = 'venus-editor-theme-mode'
+const THEME_MODE_STORAGE_KEY = 'vector-editor-theme-mode'
 
 interface ThemeContextValue {
   mode: ThemeMode

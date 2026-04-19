@@ -27,6 +27,7 @@ const FileReceiver: FC<{
                  setShowDropNotice(false)
 
                  readImageHelper(e.dataTransfer.files[0]).then(newAsset => {
+                   // Resolve drop coordinates against the canvas host so image insertion lands at the visible pointer position.
                    const position = resolveDropPosition
                      ? resolveDropPosition(e.clientX, e.clientY)
                      : {x: e.clientX, y: e.clientY}

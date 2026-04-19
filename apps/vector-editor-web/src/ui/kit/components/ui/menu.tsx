@@ -21,13 +21,13 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
     variant={'ghost'}
     role={'menuitem'}
     className={cn(
-      'venus-ui-font venus-ui-hover-transition venus-ui-menu-item inline-flex w-full min-w-25 cursor-pointer select-none items-center justify-start whitespace-nowrap box-border rounded-[var(--venus-ui-radius-sm)] text-left outline-none',
+      'vector-ui-font vector-ui-hover-transition vector-ui-menu-item inline-flex w-full min-w-25 cursor-pointer select-none items-center justify-start whitespace-nowrap box-border rounded-[var(--vector-ui-radius-sm)] text-left outline-none',
       'focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
       'disabled:cursor-not-allowed disabled:opacity-45',
-      xs && 'h-6 px-1 text-[length:var(--venus-ui-font-size-xs)]',
-      s && 'h-7 px-2 text-[length:var(--venus-ui-font-size-xs)]',
-      !xs && !s && !l && 'h-[var(--venus-ui-menu-item-height)] px-[var(--venus-ui-space-2)] text-[length:var(--venus-ui-font-size-sm)]',
-      l && 'h-10 px-3 text-[length:var(--venus-ui-font-size-md)]',
+      xs && 'h-6 px-1 text-[length:var(--vector-ui-font-size-xs)]',
+      s && 'h-7 px-2 text-[length:var(--vector-ui-font-size-xs)]',
+      !xs && !s && !l && 'h-[var(--vector-ui-menu-item-height)] px-[var(--vector-ui-space-2)] text-[length:var(--vector-ui-font-size-sm)]',
+      l && 'h-10 px-3 text-[length:var(--vector-ui-font-size-md)]',
       className,
     )}
     style={style}

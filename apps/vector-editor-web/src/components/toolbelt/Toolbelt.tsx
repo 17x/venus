@@ -59,7 +59,7 @@ function ToolGroupButton(props: {
   const active = Boolean(props.active)
 
   return (
-    <div className={'inline-flex items-center overflow-hidden rounded-md border border-[var(--venus-shell-border)]'}>
+    <div className={'inline-flex items-center overflow-hidden rounded-md border border-[var(--vector-shell-border)]'}>
       <Tooltip placement={'t'} title={props.title} asChild>
         <Button
           type={'button'}
@@ -67,9 +67,9 @@ function ToolGroupButton(props: {
           aria-label={props.title}
           title={props.title}
           className={cn(
-            'venus-shell-focusable venus-shell-toolbar-button inline-flex h-8 items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 text-[var(--venus-shell-text)]',
-            'hover:bg-[var(--venus-shell-hover)] hover:text-[var(--venus-shell-active-text)]',
-            active && 'venus-shell-icon-active text-[var(--venus-shell-active-text)]',
+            'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 text-[var(--vector-shell-text)]',
+            'hover:bg-[var(--vector-shell-hover)] hover:text-[var(--vector-shell-active-text)]',
+            active && 'vector-shell-icon-active text-[var(--vector-shell-active-text)]',
           )}
           onClick={() => {
             if (props.selectedTool) {
@@ -87,9 +87,9 @@ function ToolGroupButton(props: {
             aria-label={props.title + ' menu'}
             title={props.title + ' menu'}
             className={cn(
-              'venus-shell-focusable venus-shell-toolbar-button inline-flex h-8 items-center justify-center rounded-none border-0 border-l border-[var(--venus-shell-border)] bg-transparent px-1 text-[var(--venus-shell-text)]',
-              'hover:bg-[var(--venus-shell-hover)] hover:text-[var(--venus-shell-active-text)]',
-              active && 'venus-shell-icon-active text-[var(--venus-shell-active-text)]',
+              'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center rounded-none border-0 border-l border-[var(--vector-shell-border)] bg-transparent px-1 text-[var(--vector-shell-text)]',
+              'hover:bg-[var(--vector-shell-hover)] hover:text-[var(--vector-shell-active-text)]',
+              active && 'vector-shell-icon-active text-[var(--vector-shell-active-text)]',
             )}
           >
             <LuChevronUp size={12} className={'opacity-70'}/>
@@ -102,7 +102,7 @@ function ToolGroupButton(props: {
               key={tool.id}
               disabled={tool.disabled || !tool.tool}
               title={tool.label}
-              className={'venus-ui-menu-item'}
+              className={'vector-ui-menu-item'}
               onClick={() => {
                 if (tool.tool) {
                   props.onSelectTool(tool.tool, `group-${tool.id}`)
@@ -224,7 +224,7 @@ export default function Toolbelt(props: ToolbeltProps) {
       className={'pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2'}
       aria-label={'Application toolbar'}
     >
-      <div className={'pointer-events-auto flex items-center gap-2 rounded-xl border border-[var(--venus-shell-border)] bg-[color:color-mix(in_srgb,var(--venus-shell-surface)_92%,transparent)] px-2 py-1 shadow-lg backdrop-blur'}>
+      <div className={'pointer-events-auto flex items-center gap-2 rounded-xl border border-[var(--vector-shell-border)] bg-[color:color-mix(in_srgb,var(--vector-shell-surface)_92%,transparent)] px-2 py-1 shadow-lg backdrop-blur'}>
         <div className={'flex items-center gap-1'}>
           <ToolGroupButton
             title={t('toolbelt.moveTools', {defaultValue: 'Select / Hand tools'})}
@@ -260,9 +260,9 @@ export default function Toolbelt(props: ToolbeltProps) {
               aria-label={textTool.label}
               title={textTool.label}
               className={cn(
-                'venus-shell-focusable venus-shell-toolbar-button inline-flex h-8 items-center justify-center rounded border border-transparent bg-transparent px-2 text-[var(--venus-shell-text)]',
-                'hover:border-[var(--venus-ui-border-color-strong)] hover:text-[var(--venus-shell-active-text)]',
-                currentTool === 'text' && 'venus-shell-icon-active border-[color:color-mix(in_srgb,var(--venus-shell-active-text)_25%,var(--venus-shell-border))] text-[var(--venus-shell-active-text)]',
+                'vector-shell-focusable vector-shell-toolbar-button inline-flex h-8 items-center justify-center rounded border border-transparent bg-transparent px-2 text-[var(--vector-shell-text)]',
+                'hover:border-[var(--vector-ui-border-color-strong)] hover:text-[var(--vector-shell-active-text)]',
+                currentTool === 'text' && 'vector-shell-icon-active border-[color:color-mix(in_srgb,var(--vector-shell-active-text)_25%,var(--vector-shell-border))] text-[var(--vector-shell-active-text)]',
               )}
               onClick={() => {
                 selectToolByGroup('text', 'group-text')

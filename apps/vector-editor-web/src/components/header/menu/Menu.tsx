@@ -96,7 +96,7 @@ const MenuBar: React.FC<{
           {menuItem.divide && <DropdownMenuSeparator/>}
           {hasChildren
             ? <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn('venus-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}>
+                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn('vector-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}>
                   <span className={'inline-flex items-center gap-2'}>
                     {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
                     <span>{label}</span>
@@ -112,7 +112,7 @@ const MenuBar: React.FC<{
                   handleMenuAction(menuItem)
                 }}
                 title={tooltip}
-                className={cn('venus-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}
+                className={cn('vector-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}
               >
                 <span className={'inline-flex items-center gap-2'}>
                   {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
@@ -124,15 +124,15 @@ const MenuBar: React.FC<{
     })
   }
 
-  return <div className={cn('venus-shell-menu h-9 select-none border-b px-2 py-1', EDITOR_TEXT_MENU_CLASS)}>
+  return <div className={cn('vector-shell-menu h-9 select-none border-b px-2 py-1', EDITOR_TEXT_MENU_CLASS)}>
     <div className={'flex h-full items-center gap-1'}>
       {
         actions.map((menu) => {
           return <DropdownMenu key={menu.id}>
             <DropdownMenuTrigger
               className={cn(
-                'venus-shell-menu-button venus-shell-focusable inline-flex h-full items-center rounded px-3 font-medium',
-                'data-[state=open]:venus-shell-menu-button-active',
+                'vector-shell-menu-button vector-shell-focusable inline-flex h-full items-center rounded px-3 font-medium',
+                'data-[state=open]:vector-shell-menu-button-active',
                 EDITOR_TEXT_MENU_CLASS,
               )}
               title={t(menu.id + '.tooltip', {defaultValue: t(menu.id + '.label')})}

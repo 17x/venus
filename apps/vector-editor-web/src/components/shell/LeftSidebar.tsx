@@ -1,305 +1,24 @@
-import {
-  Button,
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  Input,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  Tooltip,
-  useTheme,
-} from '@vector/ui'
-import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
-import type {LayerItem} from '../../editor/hooks/useEditorRuntime.types.ts'
+import {Button, Tabs, TabsList, TabsTrigger, Tooltip, useTheme, cn} from '@vector/ui'
+import {useMemo, useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import {
-  LuBug,
-  LuChevronDown,
-  LuChevronRight,
-  LuCircle,
-  LuComponent,
-  LuFile,
-  LuFrame,
-  LuGroup,
-  LuImage,
-  LuPentagon,
-  LuRectangleHorizontal,
-  LuSearch,
-  LuShapes,
-  LuSpline,
-  LuStar,
-  LuHistory,
-  LuType,
-  LuBox,
-  LuMenu,
-  LuEye,
-  LuEyeOff,
-  LuLock,
-  LuLockOpen,
-  LuPanelLeftClose,
-} from 'react-icons/lu'
-import {lineSeg} from '../../assets/svg/icons.tsx'
-import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
+import {LuBug, LuPanelLeftClose} from 'react-icons/lu'
+import type {LayerItem} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {createHeaderMenuData} from '../header/menu/menuData.ts'
 import type {MenuItemType} from '../header/menu/type'
-import type {EditorExecutor} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {HistoryPanel} from '../historyPanel/HistoryPanel.tsx'
 import {TEST_IDS} from '../../testing/testIds.ts'
-import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
-import {EDITOR_TEXT_LABEL_CLASS} from '../editorChrome/editorTypography.ts'
-
-type LeftSidebarTab = 'file' | 'assets' | 'history' | 'debug'
-
-interface AssetLibraryCard {
-  id: string
-  title: string
-  subtitle: string
-  description: string
-}
-
-interface DebugStats {
-  editorRenderCount: number
-  sceneUpdateCount: number
-  fps: number
-  sceneVersion: number
-  shapeCount: number
-  selectedCount: number
-  viewportScale: number
-  cacheHitEstimate: number
-  cacheMissEstimate: number
-  cacheHitRate: number
-}
-
-interface LeftSidebarProps {
-  fileName?: string
-  layerItems: LayerItem[]
-  selectedIds: string[]
-  assetCount: number
-  activeTab: LeftSidebarTab
-  layersCollapsed: boolean
-  showGrid: boolean
-  snappingEnabled: boolean
-  debugStats: DebugStats
-  onMinimize: VoidFunction
-  onSetActiveTab: (tab: LeftSidebarTab) => void
-  onToggleLayers: VoidFunction
-  onToggleGrid: VoidFunction
-  onToggleSnapping: VoidFunction
-  onOpenTemplatePicker: VoidFunction
-  onOpenCreateFile: VoidFunction
-  executeMenuAction: EditorExecutor
-  copiedCount: number
-  hasUnsavedChanges: boolean
-  historyStatus: {
-    id: number
-    hasPrev: boolean
-    hasNext: boolean
-  }
-  historyItems: Array<{id: number; label?: string; data: {type: string}}>
-  onPickHistory: (historyId: number, meta: ShellCommandMeta) => void
-  onSelectLayers: (mode: 'replace' | 'toggle' | 'add', ids: string[], sourceControl: string) => void
-  onPatchLayers: (ids: string[], patch: Record<string, unknown>, sourceControl: string) => void
-}
-
-const SIDEBAR_ICON_SIZE = 16
-const SIDEBAR_GLYPH_SIZE = 14
-
-const ASSET_LIBRARY_CARDS: AssetLibraryCard[] = [
-  {
-    id: 'action-sheet',
-    title: 'Action Sheet',
-    subtitle: 'iOS and iPadOS 26 / Examples',
-    description: 'Use the action sheet pattern for contextual actions and one-step task handoff.',
-  },
-  {
-    id: 'activity-view',
-    title: 'Activity View',
-    subtitle: 'iOS and iPadOS 26 / Examples',
-    description: 'Switch variable modes and insertion presets before committing a reusable instance to canvas.',
-  },
-  {
-    id: 'alert',
-    title: 'Alert',
-    subtitle: 'iOS and iPadOS 26 / Examples',
-    description: 'Use alerts for concise, high-priority feedback with one primary and one dismissive action.',
-  },
-  {
-    id: 'color-picker',
-    title: 'Color Picker',
-    subtitle: 'iOS and iPadOS 26 / Examples',
-    description: 'Use palette and spectrum controls to expose variables while preserving contrast constraints.',
-  },
-]
-
-function LayerTypeGlyph(props: {type: string, isGroup?: boolean}) {
-  if (props.isGroup || props.type === 'group') {
-    return <LuGroup size={SIDEBAR_GLYPH_SIZE}/>
-  }
-
-  switch (props.type) {
-    case 'frame':
-      return <LuFrame size={SIDEBAR_GLYPH_SIZE}/>
-    case 'rectangle':
-      return <LuRectangleHorizontal size={SIDEBAR_GLYPH_SIZE}/>
-    case 'ellipse':
-      return <LuCircle size={SIDEBAR_GLYPH_SIZE}/>
-    case 'polygon':
-      return <LuPentagon size={SIDEBAR_GLYPH_SIZE}/>
-    case 'star':
-      return <LuStar size={SIDEBAR_GLYPH_SIZE}/>
-    case 'lineSegment':
-      return lineSeg(SIDEBAR_GLYPH_SIZE)
-    case 'path':
-      return <LuSpline size={SIDEBAR_GLYPH_SIZE}/>
-    case 'text':
-      return <LuType size={SIDEBAR_GLYPH_SIZE}/>
-    case 'image':
-      return <LuImage size={SIDEBAR_GLYPH_SIZE}/>
-    case 'box':
-      return <LuBox size={SIDEBAR_GLYPH_SIZE}/>
-    default:
-      return <LuComponent size={SIDEBAR_GLYPH_SIZE}/>
-  }
-}
-
-function SemanticTreeRow(props: {
-  label: string
-  active?: boolean
-  depth?: number
-  hasChildren?: boolean
-  expanded?: boolean
-  icon?: ReactNode
-  expandTooltip: string
-  collapseTooltip: string
-  isLocked?: boolean
-  isVisible?: boolean
-  onToggleChildren?: VoidFunction
-  onToggleLocked?: VoidFunction
-  onToggleVisible?: VoidFunction
-  onActivate: (isToggle: boolean) => void
-}) {
-  return (
-    <li role={'none'}>
-      <div
-        role={'treeitem'}
-        aria-selected={props.active}
-        aria-expanded={props.hasChildren ? props.expanded : undefined}
-        tabIndex={0}
-        className={cn(
-          `group/tree-row relative flex h-8 w-full min-w-0 items-center justify-start rounded px-1 text-left outline-none ${EDITOR_TEXT_LABEL_CLASS}`,
-          props.active ? 'venus-shell-icon-active' : 'venus-shell-toolbar-button venus-shell-text-muted',
-        )}
-        onClick={(event) => {
-          const isToggle = event.metaKey || event.ctrlKey
-          props.onActivate(isToggle)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            props.onActivate(false)
-          }
-        }}
-      >
-        <span
-          className={'grid min-w-0 w-full grid-cols-[16px_16px_minmax(0,1fr)] items-center gap-2'}
-          // Keep first-level subitems text-aligned with parent label instead of parent icon.
-          style={{paddingLeft: 8 + Math.max(0, (props.depth ?? 0) - 1) * 14}}
-        >
-          {props.hasChildren
-            ? <Tooltip placement='r' title={props.expanded ? props.collapseTooltip : props.expandTooltip} asChild>
-                <Button
-                  type={'button'}
-                  variant={'ghost'}
-                  noTooltip
-                  className={'inline-flex size-4 items-center justify-center rounded venus-shell-plain-trigger hover:text-[var(--venus-shell-active-text)]'}
-                  aria-label={props.expanded ? props.collapseTooltip : props.expandTooltip}
-                  title={props.expanded ? props.collapseTooltip : props.expandTooltip}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    props.onToggleChildren?.()
-                  }}
-                >
-                  {props.expanded ? <LuChevronDown size={12}/> : <LuChevronRight size={12}/>} 
-                </Button>
-              </Tooltip>
-            : <span className={'inline-flex size-4'} aria-hidden={true}/>} 
-          <span className={'inline-flex size-4 items-center justify-start venus-shell-text-muted'}>
-            {props.icon}
-          </span>
-          <span className={cn('truncate pr-2', props.isVisible === false && 'text-[var(--venus-shell-text-muted)] opacity-70')}>
-            {props.label}
-          </span>
-        </span>
-        <span className={'sticky right-0 ml-auto inline-flex items-center gap-1 bg-[var(--venus-shell-surface)] pr-1 pl-2'}>
-          <Tooltip
-            placement={'r'}
-            title={props.isLocked ? 'Unlock layer' : 'Lock layer'}
-            asChild
-          >
-            <Button
-              type={'button'}
-              variant={'ghost'}
-              noTooltip
-              className={cn(
-                'inline-flex size-5 items-center justify-center rounded venus-shell-plain-trigger',
-                props.isLocked
-                  ? 'venus-shell-text-muted'
-                  : 'opacity-0 transition-opacity group-hover/tree-row:opacity-100 group-focus-within/tree-row:opacity-100',
-              )}
-              aria-label={props.isLocked ? 'Unlock layer' : 'Lock layer'}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggleLocked?.()
-              }}
-            >
-              {props.isLocked ? <LuLock size={12}/> : <LuLockOpen size={12}/>}
-            </Button>
-          </Tooltip>
-          <Tooltip
-            placement={'r'}
-            title={props.isVisible === false ? 'Show layer' : 'Hide layer'}
-            asChild
-          >
-            <Button
-              type={'button'}
-              variant={'ghost'}
-              noTooltip
-              className={cn(
-                'inline-flex size-5 items-center justify-center rounded venus-shell-plain-trigger',
-                props.isLocked || props.isVisible === false
-                  ? 'venus-shell-text-muted opacity-100'
-                  : 'opacity-0 transition-opacity group-hover/tree-row:opacity-100 group-focus-within/tree-row:opacity-100',
-              )}
-              aria-label={props.isVisible === false ? 'Show layer' : 'Hide layer'}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggleVisible?.()
-              }}
-            >
-              {props.isVisible === false ? <LuEyeOff size={12}/> : <LuEye size={12}/>}
-            </Button>
-          </Tooltip>
-        </span>
-      </div>
-    </li>
-  )
-}
+import {LeftSidebarMenu} from './LeftSidebarMenu.tsx'
+import {LeftSidebarAssetsTab} from './LeftSidebarAssetsTab.tsx'
+import {LeftSidebarFileTab} from './LeftSidebarFileTab.tsx'
+import {createLeftSidebarTabItems, type LeftSidebarProps, type LeftSidebarTab, type TreeLayerItem, SIDEBAR_GLYPH_SIZE} from './LeftSidebarShared.tsx'
 
 export default function LeftSidebar(props: LeftSidebarProps) {
   const {t, i18n} = useTranslation()
   const {mode, setMode} = useTheme()
   const [layerFilter, setLayerFilter] = useState('')
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set())
-  const [activeAssetId, setActiveAssetId] = useState(ASSET_LIBRARY_CARDS[0]?.id ?? '')
+  const [activeAssetId, setActiveAssetId] = useState('action-sheet')
   const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null)
-  const menuRootRef = useRef<HTMLDivElement>(null)
 
   const topMenuActions = useMemo(() => {
     return createHeaderMenuData({
@@ -315,20 +34,6 @@ export default function LeftSidebar(props: LeftSidebarProps) {
       themeMode: mode,
     })
   }, [props.selectedIds, props.copiedCount, props.hasUnsavedChanges, props.historyStatus, i18n.language, props.showGrid, props.snappingEnabled, mode])
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        menuRootRef.current?.querySelector<HTMLElement>('[data-slot="dropdown-menu-trigger"]')?.focus()
-      }
-    }
-
-    window.addEventListener('keydown', closeOnEscape)
-
-    return () => {
-      window.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [])
 
   const handleTopMenuAction = (menuItem: MenuItemType) => {
     switch (menuItem.id) {
@@ -380,47 +85,6 @@ export default function LeftSidebar(props: LeftSidebarProps) {
     props.executeMenuAction(action)
   }
 
-  const renderTopMenuNodes = (menuItems: MenuItemType[]) => {
-    return menuItems.map((menuItem) => {
-      const hasChildren = !!menuItem.children?.length
-      const label = t(menuItem.id + '.label')
-      const tooltip = t(menuItem.id + '.tooltip', {defaultValue: label})
-      const icon = resolveMenuIcon(menuItem.icon ?? menuItem.id)
-
-      return (
-        <>
-          {menuItem.divide && <DropdownMenuSeparator/>}
-          {hasChildren
-            ? <DropdownMenuSub key={`sub-${menuItem.id}`}>
-                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn('venus-ui-menu-item', EDITOR_TEXT_LABEL_CLASS)}>
-                  <span className={'inline-flex items-center gap-2'}>
-                    {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
-                    <span>{label}</span>
-                  </span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className={'min-w-40'}>
-                  {renderTopMenuNodes(menuItem.children ?? [])}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            : <DropdownMenuItem
-                key={`item-${menuItem.id}`}
-                disabled={menuItem.disabled}
-                onClick={() => {
-                  executeTopMenuAction(menuItem)
-                }}
-                title={tooltip}
-                className={cn('venus-ui-menu-item', EDITOR_TEXT_LABEL_CLASS)}
-              >
-                <span className={'inline-flex items-center gap-2'}>
-                  {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
-                  <span>{label}</span>
-                </span>
-              </DropdownMenuItem>}
-        </>
-      )
-    })
-  }
-
   const normalizedFilter = layerFilter.trim().toLowerCase()
   const visibleLayerItems = useMemo(() => {
     if (!normalizedFilter) {
@@ -457,10 +121,6 @@ export default function LeftSidebar(props: LeftSidebarProps) {
     return rows
   }, [collapsedGroupIds, visibleLayerItems])
 
-  const activeAsset = useMemo(() => {
-    return ASSET_LIBRARY_CARDS.find((item) => item.id === activeAssetId) ?? ASSET_LIBRARY_CARDS[0]
-  }, [activeAssetId])
-
   const selectedLayerItems = useMemo(() => {
     if (props.selectedIds.length === 0) {
       return [] as LayerItem[]
@@ -473,39 +133,13 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   const selectedHasHidden = selectedLayerItems.some((item) => item.isVisible === false)
   const selectedHasLocked = selectedLayerItems.some((item) => item.isLocked === true)
 
-  const tabItems: Array<{id: LeftSidebarTab, label: string, icon: ReactNode}> = [
-    {id: 'file', label: t('shell.variantB.nav.file', 'File'), icon: <LuFile size={SIDEBAR_ICON_SIZE}/>},
-    {id: 'assets', label: t('shell.variantB.nav.assets', 'Assets'), icon: <LuShapes size={SIDEBAR_ICON_SIZE}/>},
-    {id: 'history', label: t('inspector.history.title', 'History'), icon: <LuHistory size={SIDEBAR_ICON_SIZE}/>},
-    {id: 'debug', label: t('shell.variantB.nav.debug', 'Debug'), icon: <LuBug size={SIDEBAR_ICON_SIZE}/>},
-  ]
+  const tabItems = createLeftSidebarTabItems(t)
+  const treeRows = treeLayerItems as TreeLayerItem[]
 
   return (
-    <aside className={'venus-shell-rail flex h-full w-[296px] shrink-0 border-r'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-      <nav className={'venus-shell-rail-thin flex w-14 shrink-0 flex-col items-center gap-1.5 border-r py-2.5'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
-        <div ref={menuRootRef} className={'relative mb-1 flex w-full justify-center border-b pb-2'}>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
-              title={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
-              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-8 items-center justify-center rounded data-[state=open]:venus-shell-toolbar-button-active'}
-            >
-              <LuMenu size={SIDEBAR_ICON_SIZE}/>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align={'start'} side={'right'} sideOffset={8} className={'min-w-40'}>
-              {topMenuActions.map((menu) => {
-                return <DropdownMenuSub key={menu.id}>
-                  <DropdownMenuSubTrigger disabled={menu.disabled} className={cn('venus-ui-menu-item', EDITOR_TEXT_LABEL_CLASS)}>
-                    {t(menu.id + '.label')}
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className={'min-w-40'}>
-                    {renderTopMenuNodes(menu.children ?? [])}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <aside className={'vector-shell-rail flex h-full w-[296px] shrink-0 border-r'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
+      <nav className={'vector-shell-rail-thin flex w-14 shrink-0 flex-col items-center gap-1.5 border-r py-2.5'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+        <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
 
         <Tabs
           orientation={'vertical'}
@@ -527,12 +161,17 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   title={tabItem.label}
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
-                    'venus-shell-plain-trigger venus-shell-toolbar-button inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent text-[var(--venus-shell-text)]',
-                    'data-active:bg-transparent data-active:border-transparent hover:border-[var(--venus-ui-border-color-strong)] hover:text-[var(--venus-shell-active-text)]',
-                    active && 'venus-shell-tab-active border-[color:color-mix(in_srgb,var(--venus-shell-active-text)_25%,var(--venus-shell-border))] bg-[color:color-mix(in_srgb,var(--venus-shell-active-text)_14%,transparent)] font-semibold text-[var(--venus-shell-active-text)]',
+                    'w-90 vector-shell-plain-trigger vector-shell-toolbar-button inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent text-[var(--vector-shell-text)]',
+                    'data-active:bg-transparent data-active:border-transparent hover:border-[var(--vector-ui-border-color-strong)] hover:text-[var(--vector-shell-active-text)]',
+                    active && 'vector-shell-tab-active border-[color:color-mix(in_srgb,var(--vector-shell-active-text)_25%,var(--vector-shell-border))] bg-[color:color-mix(in_srgb,var(--vector-shell-active-text)_14%,transparent)] font-semibold text-[var(--vector-shell-active-text)]',
                   )}
                 >
-                  {tabItem.icon}
+                  <div className='flex flex-col w-90'>
+                    <span>
+                      {tabItem.icon}
+                    </span>
+                    <span className='text-xs'>{tabItem.label}</span>
+                  </div>
                 </TabsTrigger>
               </Tooltip>
             })}
@@ -540,14 +179,14 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         </Tabs>
       </nav>
 
-      <section className={'venus-shell-panel flex min-w-0 w-[240px] flex-1 flex-col'}>
+      <section className={'vector-shell-panel flex min-w-0 w-[240px] flex-1 flex-col'}>
         <header className={'border-b px-3 py-2'}>
           <div className={'flex items-center justify-between gap-2'}>
             <h2 className={'truncate text-sm font-medium'}>{props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}</h2>
             <Button
               type={'button'}
               variant={'ghost'}
-              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-8 items-center justify-center rounded text-[11px]'}
+              className={'vector-shell-toolbar-button vector-shell-plain-trigger inline-flex size-8 items-center justify-center rounded text-[11px]'}
               aria-label={t('shell.variantB.leftSidebar.minimize', 'Minimize left panel')}
               title={t('shell.variantB.leftSidebar.minimize', 'Minimize left panel')}
               onClick={props.onMinimize}
@@ -555,287 +194,68 @@ export default function LeftSidebar(props: LeftSidebarProps) {
               <LuPanelLeftClose size={14}/>
             </Button>
           </div>
-          <p className={'venus-shell-text-muted mt-1 text-[11px]'}>{t('shell.variantB.fileSpace', 'Drafts')}</p>
+          <p className={'vector-shell-text-muted mt-1 text-[11px]'}>{t('shell.variantB.fileSpace', 'Drafts')}</p>
         </header>
 
         {props.activeTab === 'file' &&
-          <div id={'variant-b-tabpanel-file'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col'}>
-            <section className={'flex min-h-0 flex-1 flex-col p-2.5'}>
-              <div className={'mb-2 flex items-center justify-between'}>
-                <Tooltip placement={'r'} title={t('ui.shell.variantB.layers.toggle', {defaultValue: 'Toggle layers section'})} asChild>
-                  <Button
-                    type={'button'}
-                    variant={'ghost'}
-                    noTooltip
-                    className={'venus-shell-plain-trigger inline-flex w-full items-center justify-start gap-1 rounded px-1 text-xs font-semibold text-[var(--venus-shell-text)] hover:text-[var(--venus-shell-active-text)]'}
-                    title={t('ui.shell.variantB.layers.toggle', {defaultValue: 'Toggle layers section'})}
-                    onClick={props.onToggleLayers}
-                  >
-                    {props.layersCollapsed ? <LuChevronRight size={SIDEBAR_GLYPH_SIZE}/> : <LuChevronDown size={SIDEBAR_GLYPH_SIZE}/>} 
-                    {t('shell.variantB.layers.title', 'Layers')}
-                  </Button>
-                </Tooltip>
-              </div>
-
-              {!props.layersCollapsed &&
-                <div className={'mb-2'}>
-                  <label className={'sr-only'} htmlFor={'variant-b-layer-filter'}>
-                    {t('shell.variantB.layers.search', 'Search layers')}
-                  </label>
-                  <div className={'venus-shell-toolbar-button flex items-center gap-2 rounded border px-2 py-1'}>
-                    <LuSearch className={'venus-shell-text-muted'} size={12}/>
-                    <Input
-                      id={'variant-b-layer-filter'}
-                      type={'text'}
-                      s
-                      className={'h-6 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0'}
-                      placeholder={t('shell.variantB.layers.searchPlaceholder', 'Filter layers')}
-                      value={layerFilter}
-                      onChange={(event) => {
-                        setLayerFilter(event.target.value)
-                      }}
-                      onKeyDown={(event) => {
-                        event.stopPropagation()
-                      }}
-                    />
-                  </div>
-                </div>}
-
-              {!props.layersCollapsed &&
-                <div className={'mb-2 grid grid-cols-2 gap-1'}>
-                  <Button
-                    type={'button'}
-                    variant={'ghost'}
-                    noTooltip
-                    disabled={selectedLayerItems.length === 0}
-                    className={'h-7 justify-center text-[11px]'}
-                    title={selectedHasLocked ? t('ui.shell.variantB.layers.unlockSelected', {defaultValue: 'Unlock selected'}) : t('ui.shell.variantB.layers.lockSelected', {defaultValue: 'Lock selected'})}
-                    onClick={() => {
-                      props.onPatchLayers(
-                        selectedLayerItems.map((item) => item.id),
-                        {isLocked: !selectedHasLocked},
-                        'variant-b-layer-batch-lock',
-                      )
-                    }}
-                  >
-                    {selectedHasLocked ? t('ui.shell.variantB.layers.unlock', {defaultValue: 'Unlock'}) : t('ui.shell.variantB.layers.lock', {defaultValue: 'Lock'})}
-                  </Button>
-                  <Button
-                    type={'button'}
-                    variant={'ghost'}
-                    noTooltip
-                    disabled={selectedLayerItems.length === 0}
-                    className={'h-7 justify-center text-[11px]'}
-                    title={selectedHasHidden ? t('ui.shell.variantB.layers.showSelected', {defaultValue: 'Show selected'}) : t('ui.shell.variantB.layers.hideSelected', {defaultValue: 'Hide selected'})}
-                    onClick={() => {
-                      props.onPatchLayers(
-                        selectedLayerItems.map((item) => item.id),
-                        {isVisible: selectedHasHidden},
-                        'variant-b-layer-batch-visible',
-                      )
-                    }}
-                  >
-                    {selectedHasHidden ? t('ui.shell.variantB.layers.show', {defaultValue: 'Show'}) : t('ui.shell.variantB.layers.hide', {defaultValue: 'Hide'})}
-                  </Button>
-                </div>}
-
-              {!props.layersCollapsed &&
-                <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded border p-1'}>
-                  {visibleLayerItems.length === 0 &&
-                    <div className={'venus-shell-text-muted px-2 py-3 text-xs'}>
-                      {t('shell.variantB.layers.empty', 'No matching layers')}
-                    </div>}
-
-                  <ul role={'tree'} aria-label={t('shell.variantB.layers.title', 'Layers')} className={'flex min-w-0 flex-col gap-1'}>
-                    {treeLayerItems.map((item) => {
-                      const selected = props.selectedIds.includes(item.id)
-                      const expanded = !collapsedGroupIds.has(item.id)
-                      const isLocked = item.isLocked === true
-                      const isVisible = item.isVisible !== false
-
-                      return (
-                        <SemanticTreeRow
-                          key={item.id}
-                          label={item.name}
-                          depth={item.depth}
-                          active={selected}
-                          hasChildren={item.hasChildren}
-                          expanded={expanded}
-                          isLocked={isLocked}
-                          isVisible={isVisible}
-                          expandTooltip={t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})}
-                          collapseTooltip={t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})}
-                          onToggleChildren={item.hasChildren
-                            ? () => {
-                                setCollapsedGroupIds((current) => {
-                                  const next = new Set(current)
-                                  if (next.has(item.id)) {
-                                    next.delete(item.id)
-                                  } else {
-                                    next.add(item.id)
-                                  }
-                                  return next
-                                })
-                              }
-                            : undefined}
-                          onToggleLocked={() => {
-                            props.onPatchLayers([item.id], {isLocked: !isLocked}, 'variant-b-layer-row-lock')
-                          }}
-                          onToggleVisible={() => {
-                            props.onPatchLayers([item.id], {isVisible: !isVisible}, 'variant-b-layer-row-visible')
-                          }}
-                          icon={<LayerTypeGlyph type={item.type} isGroup={item.isGroup}/>}
-                          onActivate={(isToggle) => {
-                            props.onSelectLayers(isToggle ? 'toggle' : 'replace', [item.id], 'variant-b-layer-row-select')
-                          }}
-                        />
-                      )
-                    })}
-                  </ul>
-                </div>}
-            </section>
-          </div>}
+          <LeftSidebarFileTab
+            layerFilter={layerFilter}
+            layersCollapsed={props.layersCollapsed}
+            selectedIds={props.selectedIds}
+            selectedHasHidden={selectedHasHidden}
+            selectedHasLocked={selectedHasLocked}
+            selectedLayerItems={selectedLayerItems}
+            treeLayerItems={treeRows}
+            visibleLayerItems={visibleLayerItems}
+            collapsedGroupIds={collapsedGroupIds}
+            onLayerFilterChange={setLayerFilter}
+            onToggleLayers={props.onToggleLayers}
+            onToggleGroup={(layerId) => {
+              setCollapsedGroupIds((current) => {
+                const next = new Set(current)
+                if (next.has(layerId)) {
+                  next.delete(layerId)
+                } else {
+                  next.add(layerId)
+                }
+                return next
+              })
+            }}
+            onLockSelectionToggle={() => {
+              props.onPatchLayers(
+                selectedLayerItems.map((item) => item.id),
+                {isLocked: !selectedHasLocked},
+                'variant-b-layer-batch-lock',
+              )
+            }}
+            onVisibilitySelectionToggle={() => {
+              props.onPatchLayers(
+                selectedLayerItems.map((item) => item.id),
+                {isVisible: selectedHasHidden},
+                'variant-b-layer-batch-visible',
+              )
+            }}
+            onToggleLayerLocked={(layerId, nextLocked) => {
+              props.onPatchLayers([layerId], {isLocked: nextLocked}, 'variant-b-layer-row-lock')
+            }}
+            onToggleLayerVisible={(layerId, nextVisible) => {
+              props.onPatchLayers([layerId], {isVisible: nextVisible}, 'variant-b-layer-row-visible')
+            }}
+            onSelectLayer={(layerId, isToggle) => {
+              props.onSelectLayers(isToggle ? 'toggle' : 'replace', [layerId], 'variant-b-layer-row-select')
+            }}
+          />}
 
         {props.activeTab === 'assets' &&
-          <section id={'variant-b-tabpanel-assets'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col p-2.5'}>
-            <h3 className={'mb-2 inline-flex items-center gap-2 font-semibold text-sm'}>
-              <LuShapes size={SIDEBAR_GLYPH_SIZE}/>
-              {t('shell.variantB.assets.title', 'Assets')}
-            </h3>
-
-            <div className={'relative grid min-h-0 flex-1 grid-cols-[1.1fr_0.9fr] gap-2'}>
-              {hoveredAssetId &&
-                <div className={'pointer-events-none absolute left-2 right-2 top-1 z-40 rounded-md border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)]/95 px-2 py-1 shadow-lg backdrop-blur'}>
-                  <div className={'text-[10px] font-semibold text-[var(--venus-shell-text)]'}>
-                    {t('shell.variantB.assets.hoverHint', 'Tip: Double-click a card to create a new file quickly.')}
-                  </div>
-                </div>}
-              <div className={'scrollbar-custom min-h-0 overflow-y-auto pr-0.5'}>
-                <div className={'grid grid-cols-1 gap-2'}>
-                  {ASSET_LIBRARY_CARDS.map((card) => {
-                    const active = card.id === activeAsset.id
-                    const hovered = card.id === hoveredAssetId
-                    return (
-                      <article
-                        key={card.id}
-                        role={'button'}
-                        tabIndex={0}
-                        data-state={active ? 'active' : 'inactive'}
-                        className={cn(
-                          'group rounded-md border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] p-2 transition-all',
-                          active
-                            ? 'border-[var(--venus-shell-active-text)] bg-[var(--venus-shell-active-bg)]'
-                            : 'hover:-translate-y-[1px] hover:border-[var(--venus-ui-border-color-strong)] hover:shadow-sm',
-                          hovered && 'ring-1 ring-[color:color-mix(in_srgb,var(--venus-shell-active-text)_35%,transparent)]',
-                        )}
-                        onMouseEnter={() => {
-                          setActiveAssetId(card.id)
-                          setHoveredAssetId(card.id)
-                        }}
-                        onMouseLeave={() => {
-                          setHoveredAssetId((current) => (current === card.id ? null : current))
-                        }}
-                        onFocus={() => {
-                          setActiveAssetId(card.id)
-                          setHoveredAssetId(card.id)
-                        }}
-                        onBlur={() => {
-                          setHoveredAssetId((current) => (current === card.id ? null : current))
-                        }}
-                        onDoubleClick={() => {
-                          props.onOpenCreateFile()
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setActiveAssetId(card.id)
-                            props.onOpenCreateFile()
-                          }
-                        }}
-                      >
-                        <div className={'mb-1.5 rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface-muted)] p-1.5'}>
-                          <div className={'h-12 w-full rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)]'}/>
-                        </div>
-
-                        <div className={'text-xs font-medium text-[var(--venus-shell-text)]'}>{card.title}</div>
-                        <div className={'text-[10px] text-[var(--venus-shell-text-muted)]'}>{card.subtitle}</div>
-
-                        {(active || hovered) &&
-                          <div className={'mt-1.5 flex items-center justify-between gap-1'}>
-                            <p className={'line-clamp-2 text-[10px] text-[var(--venus-shell-text-muted)]'}>{card.description}</p>
-                            <div className={'flex items-center gap-1'}>
-                              <Button
-                                type={'button'}
-                                variant={'ghost'}
-                                size={'sm'}
-                                noTooltip
-                                title={t('ui.shell.variantB.assets.newFile', {defaultValue: 'New file'})}
-                                className={'h-6 shrink-0 px-1.5 text-[10px] font-semibold'}
-                                onClick={() => {
-                                  props.onOpenCreateFile()
-                                }}
-                              >
-                                {t('ui.shell.variantB.assets.newFile', {defaultValue: 'New'})}
-                              </Button>
-                              <Button
-                                type={'button'}
-                                variant={'ghost'}
-                                size={'sm'}
-                                noTooltip
-                                title={t('ui.shell.variantB.assets.useTemplate', {defaultValue: 'Use template'})}
-                                className={'h-6 shrink-0 px-1.5 text-[10px] font-semibold'}
-                                onClick={() => {
-                                  props.onOpenTemplatePicker()
-                                }}
-                              >
-                                +
-                              </Button>
-                            </div>
-                          </div>}
-                      </article>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <aside className={'flex min-h-0 flex-col rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] p-2'}>
-                <p className={'text-[11px] font-semibold text-[var(--venus-shell-text)]'}>{t('shell.variantB.assets.details', 'Details')}</p>
-                <p className={'text-[10px] text-[var(--venus-shell-text-muted)]'}>{activeAsset.subtitle}</p>
-
-                <div className={'mt-2 rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface-muted)] p-1.5'}>
-                  <div className={'h-20 w-full rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)]'}/>
-                </div>
-
-                <h4 className={'mt-2 text-xs font-semibold text-[var(--venus-shell-text)]'}>{activeAsset.title}</h4>
-                <p className={'mt-1 text-[11px] text-[var(--venus-shell-text-muted)]'}>{activeAsset.description}</p>
-
-                <div className={'mt-auto pt-2'}>
-                  <div className={'mb-2 flex items-center justify-between text-[10px] text-[var(--venus-shell-text-muted)]'}>
-                    <span>{t('shell.variantB.assets.total', 'Total Assets')}</span>
-                    <span className={'font-semibold text-[var(--venus-shell-text)]'}>{props.assetCount}</span>
-                  </div>
-                  <Button
-                    type={'button'}
-                    variant={'ghost'}
-                    title={t('ui.shell.variantB.assets.newFile', {defaultValue: 'Create new file'})}
-                    className={'mb-1 h-7 w-full justify-center border border-[var(--venus-ui-border-color)] text-xs font-semibold'}
-                    onClick={props.onOpenCreateFile}
-                  >
-                    {t('ui.shell.variantB.assets.newFile', {defaultValue: 'New file'})}
-                  </Button>
-                  <Button
-                    type={'button'}
-                    variant={'ghost'}
-                    title={t('ui.shell.variantB.assets.templateTooltip', {defaultValue: 'Create file from template preset'})}
-                    className={'h-7 w-full justify-center border border-[var(--venus-ui-border-color)] text-xs font-semibold'}
-                    onClick={props.onOpenTemplatePicker}
-                  >
-                    {t('ui.template.applyButtonLabel', {defaultValue: 'Add'})}
-                  </Button>
-                </div>
-              </aside>
-            </div>
-          </section>}
+          <LeftSidebarAssetsTab
+            activeAssetId={activeAssetId}
+            assetCount={props.assetCount}
+            hoveredAssetId={hoveredAssetId}
+            onHoverAsset={setHoveredAssetId}
+            onSelectAsset={setActiveAssetId}
+            onOpenCreateFile={props.onOpenCreateFile}
+            onOpenTemplatePicker={props.onOpenTemplatePicker}
+          />}
 
         {props.activeTab === 'history' &&
           <section id={'variant-b-tabpanel-history'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col p-2.5'}>
@@ -877,25 +297,10 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   )
 }
 
-function resolveMenuIcon(icon: string) {
-  switch (icon) {
-    case 'layerUp':
-      return <LayerUp size={14}/>
-    case 'layerDown':
-      return <LayerDown size={14}/>
-    case 'layerTop':
-      return <LayerToTop size={14}/>
-    case 'layerBottom':
-      return <LayerToBottom size={14}/>
-    default:
-      return null
-  }
-}
-
 function DebugRow(props: {label: string, value: string}) {
   return (
-    <div className={'venus-shell-toolbar-button flex items-center justify-between rounded border px-2 py-1.5 text-xs'}>
-      <span className={'venus-shell-text-muted'}>{props.label}</span>
+    <div className={'vector-shell-toolbar-button flex items-center justify-between rounded border px-2 py-1.5 text-xs'}>
+      <span className={'vector-shell-text-muted'}>{props.label}</span>
       <span className={'font-mono'}>{props.value}</span>
     </div>
   )

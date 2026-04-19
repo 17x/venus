@@ -158,15 +158,12 @@ export function CanvasViewport({
   }, [])
 
   return (
-    <section className="stage-shell" style={{width: '100%', height: '100%'}}>
+    <section className={'flex h-full w-full min-h-0 min-w-0'}>
       <div
         ref={viewportRef}
-        className="stage-viewport"
+        className={'relative h-full w-full min-h-0 min-w-0 overflow-hidden'}
         style={{
-          position: 'relative',
-          overflow: 'hidden',
-          width: '100%',
-          height: '100%',
+          background: 'radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 30%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)',
           touchAction: 'none',
           overscrollBehavior: 'none',
         }}

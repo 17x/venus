@@ -82,7 +82,7 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
     zIndex: 1000,
   }} onBackdropClick={() => onBgClick && onBgClick()}>
     <Flex col w={'90%'} h={'90%'} ovh className={`shadow-md rounded-sm shadow-gray-600 ${EDITOR_TEXT_BODY_CLASS}`}>
-      <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950 p-2'} role={'region'}>
+      <section className={'vector-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950 p-2'} role={'region'}>
         <div className={'mb-2 flex items-center justify-between gap-2 text-slate-900'}>
           <h2 data-testid={TEST_IDS.createFile.heading} className={'font-semibold'}>{t('createTitle')}</h2>
         </div>

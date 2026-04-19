@@ -124,8 +124,8 @@ export const LayerPanel = ({
         <div ref={selectedIds?.includes(item.id) ? targetRef : null}
              style={{height: ITEM_HEIGHT}}
              className={selectedIds?.includes(item.id)
-               ? `cursor-pointer rounded venus-shell-icon-active text-[var(--venus-shell-active-text)] ${EDITOR_TEXT_LABEL_CLASS}`
-               : `cursor-pointer rounded bg-[var(--venus-shell-surface)] text-[var(--venus-shell-text)] hover:bg-[var(--venus-shell-hover)] ${EDITOR_TEXT_LABEL_CLASS}`}
+               ? `cursor-pointer rounded vector-shell-icon-active text-[var(--vector-shell-active-text)] ${EDITOR_TEXT_LABEL_CLASS}`
+               : `cursor-pointer rounded bg-[var(--vector-shell-surface)] text-[var(--vector-shell-text)] hover:bg-[var(--vector-shell-hover)] ${EDITOR_TEXT_LABEL_CLASS}`}
              onClick={(event) => {
                const isToggle = event.metaKey || event.ctrlKey
                if (event.shiftKey && lastClickedId) {
@@ -174,7 +174,7 @@ export const LayerPanel = ({
   }
 
   return <Con flex={1} minH={0}>
-    <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
+    <section className={'vector-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
         <h2 data-testid={TEST_IDS.layerPanel.heading} className={'font-semibold'}>{panelTitle}</h2>
         {onMinimize &&
@@ -182,7 +182,7 @@ export const LayerPanel = ({
             type="button"
             aria-label={t('inspector.minimizePanel', {title: panelTitle, defaultValue: `Minimize ${panelTitle}`})}
             title={t('inspector.minimizePanel', {title: panelTitle, defaultValue: `Minimize ${panelTitle}`})}
-            className={'inline-flex size-5 items-center justify-center rounded text-[var(--venus-shell-text-muted)] hover:bg-[var(--venus-shell-hover)] hover:text-[var(--venus-shell-text)]'}
+            className={'inline-flex size-5 items-center justify-center rounded text-[var(--vector-shell-text-muted)] hover:bg-[var(--vector-shell-hover)] hover:text-[var(--vector-shell-text)]'}
             onClick={(event) => {
               event.stopPropagation()
               onMinimize?.()
@@ -192,8 +192,8 @@ export const LayerPanel = ({
           </Button>}
       </div>
       <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 pb-1'}>
-        <div className={`flex min-h-full flex-col gap-2 rounded bg-[var(--venus-shell-surface-muted)] p-1 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
-        <div className={'grid grid-cols-4 gap-1 rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] p-1 shadow-sm'}>
+        <div className={`flex min-h-full flex-col gap-2 rounded bg-[var(--vector-shell-surface-muted)] p-1 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+        <div className={'grid grid-cols-4 gap-1 rounded border border-[var(--vector-shell-border)] bg-[var(--vector-shell-surface)] p-1 shadow-sm'}>
           <LayerActionButton
             title={(t('bringForward', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
             disabled={selectedIds.length === 0}
@@ -221,7 +221,7 @@ export const LayerPanel = ({
         </div>
         <div ref={scrollRef}
              onScroll={handleScroll}
-             className={'relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] p-1 select-none'}>
+             className={'relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded border border-[var(--vector-shell-border)] bg-[var(--vector-shell-surface)] p-1 select-none'}>
           <div className={'absolute z-10 w-full top-0 left-0'} style={{
             height: layerItems.length * ITEM_HEIGHT,
           }}></div>
@@ -277,7 +277,7 @@ function LayerActionButton(props: {
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={'inline-flex h-7 w-full items-center justify-center rounded border border-transparent bg-[var(--venus-shell-surface-muted)] text-[var(--venus-shell-text)] hover:border-[var(--venus-shell-border)] hover:bg-[var(--venus-shell-hover)] disabled:opacity-40 disabled:hover:bg-[var(--venus-shell-surface-muted)]'}
+      className={'inline-flex h-7 w-full items-center justify-center rounded border border-transparent bg-[var(--vector-shell-surface-muted)] text-[var(--vector-shell-text)] hover:border-[var(--vector-shell-border)] hover:bg-[var(--vector-shell-hover)] disabled:opacity-40 disabled:hover:bg-[var(--vector-shell-surface-muted)]'}
     >
       {icon}
     </Button>

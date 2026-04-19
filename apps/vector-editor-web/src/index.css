@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "./ui/foundation/tokens.css";
-@import "./ui/foundation/semantic.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";

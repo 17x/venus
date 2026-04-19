@@ -7,7 +7,7 @@
     "dev": "pnpm vite",
     "build": "vite build --configLoader runner",
     "pnpm build": "pnpm run build",
-    "lint": "eslint .",
+    "lint": "eslint . && node ./scripts/ui-style-guard.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

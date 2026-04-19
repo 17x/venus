@@ -16,7 +16,8 @@ export interface ShellLayoutState {
   }
 }
 
-export const SHELL_LAYOUT_STATE_STORAGE_KEY = 'venus.shell.layoutState'
+export const SHELL_LAYOUT_STATE_STORAGE_KEY = 'vector.shell.layoutState'
+export const LEGACY_SHELL_LAYOUT_STATE_STORAGE_KEY = 'venus.shell.layoutState'
 
 const DEFAULT_LEFT_PANEL_WIDTH = 240
 const DEFAULT_RIGHT_PANEL_WIDTH = 256
@@ -81,4 +82,11 @@ export function deserializeShellLayoutState(raw: string | null | undefined): She
   } catch {
     return createDefaultShellLayoutState()
   }
+}
+
+export function readStoredShellLayoutState(storage: Storage): ShellLayoutState {
+  return deserializeShellLayoutState(
+    storage.getItem(SHELL_LAYOUT_STATE_STORAGE_KEY) ??
+    storage.getItem(LEGACY_SHELL_LAYOUT_STATE_STORAGE_KEY),
+  )
 }

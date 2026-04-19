@@ -108,7 +108,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
 
     if (hasChildren) {
       return <DropdownMenuSub key={item.id}>
-        <DropdownMenuSubTrigger disabled={item.disabled} className={`venus-ui-menu-item ${EDITOR_TEXT_MENU_CLASS}`} title={menuText.tooltip}>
+        <DropdownMenuSubTrigger disabled={item.disabled} className={`vector-ui-menu-item ${EDITOR_TEXT_MENU_CLASS}`} title={menuText.tooltip}>
           <span className={'inline-flex items-center gap-2'}>
             {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
             <span>{menuText.label}</span>
@@ -126,7 +126,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
       key={item.id}
       disabled={item.disabled}
       title={menuText.tooltip}
-      className={`venus-ui-menu-item ${EDITOR_TEXT_MENU_CLASS}`}
+      className={`vector-ui-menu-item ${EDITOR_TEXT_MENU_CLASS}`}
       onClick={() => {
         handleContextAction(item)
         onClose()

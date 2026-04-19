@@ -100,7 +100,7 @@ const Toolbar: React.FC<{ tool: ToolName, setTool: (t: ToolName) => void }> = ({
     }
   }
 
-  return <aside className={'venus-shell-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r py-2'}>
+  return <aside className={'vector-shell-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r py-2'}>
     {
       toolList.map(({toolName, labelKey, icon}) => {
         const active = toolName === tool

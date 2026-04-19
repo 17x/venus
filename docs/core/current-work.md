@@ -151,7 +151,13 @@ context starts, or work needs to resume after switching topics.
     threaded through panel -> runtime command -> worker -> renderer
   - shell semantic UI migration advanced:
     - dropdown/context/header/left menu surfaces now use semantic menu item
-      styling hooks (`venus-ui-menu-item`) with shadcn submenu structure
+      styling hooks (`vector-ui-menu-item`) with shadcn submenu structure
+    - left sidebar entry was decomposed into focused menu/file/assets modules
+      to keep shell view files within the 300-400 line file-size target and
+      make tab-specific behavior easier to maintain
+    - editor frame shell orchestration was split into stage-side panel chrome
+      and a dedicated shell command/menu hook so the main frame module stays
+      within the file-size rule while preserving runtime wiring behavior
     - left sidebar Find tab removed and shell tab unions normalized to
       `file | assets | history | debug`
     - left sidebar minimized state now preserves fixed panel width and
@@ -190,6 +196,13 @@ context starts, or work needs to resume after switching topics.
   - migration-safe passthrough wrappers are in place for
     `selectionHandles`, `snapping`, and `viewportGestures` while planning
     deeper local extraction without breaking runtime-engine boundaries
+  - runtime hook file-size cleanup advanced again:
+    `useEditorRuntimeExecuteAction.ts`,
+    `useEditorRuntimeCoreCallbacks.ts`, and
+    `useEditorRuntimePointerRelease.ts` now hold the extracted action,
+    core callback, and pointer-release lifecycle logic, while
+    `useEditorRuntimeCanvasInteractions.ts` is reduced below the hard
+    `>500` split threshold and build/lint remain green after the refactor
 
 - `playground`
   Use as the main render diagnostics bench for `Canvas2D`.

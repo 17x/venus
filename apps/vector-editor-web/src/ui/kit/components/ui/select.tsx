@@ -56,13 +56,13 @@ export function Select({
         <SelectTrigger
           size={size}
           className={cn(
-            'venus-ui-font venus-ui-hover-transition border-[var(--venus-ui-border-color)] bg-white text-left text-slate-900 shadow-xs hover:bg-[var(--venus-ui-hover-bg)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
+            'vector-ui-font vector-ui-hover-transition border-[var(--vector-ui-border-color)] bg-white text-left text-slate-900 shadow-xs hover:bg-[var(--vector-ui-hover-bg)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
             l && 'h-9',
           )}
         >
           <SelectValue>{placeholderResolver(selectValue)}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="border border-[var(--venus-ui-border-color)] bg-white p-1 shadow-md" alignItemWithTrigger>
+        <SelectContent className="border border-[var(--vector-ui-border-color)] bg-white p-1 shadow-md" alignItemWithTrigger>
           <SelectGroup style={itemStyle}>
             {children}
           </SelectGroup>
@@ -89,7 +89,7 @@ export function SelectItem({children, className, level = 0, style, value, ...pro
   return (
     <ShadcnSelectItem
       value={String(value)}
-      className={cn('venus-ui-font venus-ui-hover-transition', className)}
+      className={cn('vector-ui-font vector-ui-hover-transition', className)}
       style={resolvedStyle}
       {...props}
     >
