@@ -60,10 +60,10 @@ export default function InspectorHost(props: InspectorHostProps) {
   const isInspectorPanelMinimized = (panelId: InspectorPanelId) => minimizedPanels.has(panelId)
 
   return (
-    <div className={'venus-shell-rail flex h-full shrink-0 border-l'} data-testid={TEST_IDS.inspector.workspace}>
+    <div className={'flex h-full shrink-0 bg-slate-50 dark:bg-slate-950'} data-testid={TEST_IDS.inspector.workspace}>
       {hasVisibleInspectorPanels &&
         <aside
-          className={'venus-shell-panel flex h-full w-64 flex-col gap-2 border-r p-2'}
+          className={'flex h-full w-64 flex-col gap-2 bg-white p-2 dark:bg-slate-900'}
           aria-label={t('inspector.aria.panels', 'Inspector panels')}
           data-testid={TEST_IDS.inspector.panelStack}
         >
@@ -97,7 +97,7 @@ export default function InspectorHost(props: InspectorHostProps) {
         </aside>}
 
       <aside
-        className={'venus-shell-rail-thin relative flex h-full w-10 flex-col items-center gap-2 border-l py-2'}
+        className={'relative flex h-full w-10 flex-col items-center gap-2 bg-slate-50 py-2 dark:bg-slate-950'}
         aria-label={t('inspector.aria.shortcuts', 'Inspector panel shortcuts')}
         data-testid={TEST_IDS.inspector.shortcutRail}
       >

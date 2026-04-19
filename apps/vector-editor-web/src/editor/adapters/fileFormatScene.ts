@@ -73,33 +73,8 @@ export function createRuntimeSceneFromVisionFile(file: VisionFileType): RuntimeS
     product: 'VECTOR',
     editorKey: file.name,
     metadata: [],
-    nodes: [
-      createPageFrameNode(file),
-      ...rootNodes,
-    ],
-  }
-}
-
-function createPageFrameNode(file: VisionFileType): RuntimeSceneLatest['nodes'][number] {
-  return {
-    id: `${file.id}:page-frame`,
-    type: 'FRAME',
-    transform: createTranslationMatrix(0, 0),
-    children: [],
-    name: file.name,
-    parentId: null,
-    featureEntries: [
-      createMetadataEntry('page-metadata', {
-        shapeType: 'frame',
-        x: 0,
-        y: 0,
-        width: file.config.page.width,
-        height: file.config.page.height,
-      }),
-    ],
-    nodeKind: 'frame',
-    isVisible: true,
-    isLocked: false,
+    // Keep scene nodes source-of-truth from file elements; avoid injecting a synthetic frame.
+    nodes: rootNodes,
   }
 }
 

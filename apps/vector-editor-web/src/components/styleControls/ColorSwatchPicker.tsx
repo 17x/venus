@@ -39,14 +39,14 @@ const ColorSwatchPicker: React.FC<ColorSwatchPickerProps> = ({
         inputRef.current?.click()
       }}
       className={cn(
-        'size-8 shrink-0 rounded border border-gray-300 p-0 hover:bg-gray-100',
+        'size-8 shrink-0 rounded p-0 hover:bg-slate-100 dark:hover:bg-slate-800',
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
-      <span className={'inline-flex size-5 items-center justify-center text-gray-600'}>
+      <span className={'inline-flex size-5 items-center justify-center text-slate-500 dark:text-slate-400'}>
         {icon}
       </span>
-      <span className={'absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-gray-300'} style={{backgroundColor: resolvedValue}}></span>
+      <span className={'absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full'} style={{backgroundColor: resolvedValue}}></span>
     </IconButton>
     <input
       ref={inputRef}

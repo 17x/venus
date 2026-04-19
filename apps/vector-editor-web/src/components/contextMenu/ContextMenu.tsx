@@ -114,7 +114,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
             <span>{menuText.label}</span>
           </span>
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
+        <DropdownMenuSubContent className={'min-w-40'}>
           {item.children?.map((childItem) => {
             return renderContextMenuItem(childItem)
           })}

@@ -4,6 +4,7 @@ import {Input, cn} from '@vector/ui'
 export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props) => {
   const {className, onKeyDown, onKeyUp, onPaste, type, ...restProps} = props
 
+  // Keep inspector field interactions isolated from canvas/global shortcuts while still forwarding caller handlers.
   const stopPropagationHandlers = {
     onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
       event.stopPropagation()
@@ -24,7 +25,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
       <input
         {...restProps}
         type={'checkbox'}
-        className={cn('venus-prop-form-checkbox', className)}
+        className={cn('h-3.5 w-3.5 rounded accent-slate-900 dark:accent-slate-100', className)}
         {...stopPropagationHandlers}
       />
     )
@@ -35,7 +36,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
       <input
         {...restProps}
         type={'color'}
-        className={cn('venus-prop-form-color', className)}
+        className={cn('h-7 w-full rounded-md bg-white p-1 dark:bg-slate-900', className)}
         {...stopPropagationHandlers}
       />
     )
@@ -45,8 +46,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
     <Input
       {...restProps}
       type={type}
-      s
-      className={cn('venus-prop-form-control', className)}
+      className={cn('h-7 rounded-md bg-white text-[12px] leading-[18px] dark:bg-slate-900', className)}
       {...stopPropagationHandlers}
     />
   )

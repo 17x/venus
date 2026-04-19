@@ -1,5 +1,5 @@
 import type {ComponentProps} from 'react'
-import {Separator as ShadcnSeparator} from '@/components/ui/separator'
+import {Separator as ShadcnSeparator} from '@/ui/primitives/separator'
 import {cn} from '../../lib/utils.ts'
 
 interface SeparatorProps extends Omit<ComponentProps<typeof ShadcnSeparator>, 'orientation'> {

@@ -1,94 +1,110 @@
 @layer components {
-  .venus-editor {
-    --venus-ui-font-family: "Inter", "Segoe UI", sans-serif;
-    --venus-ui-font-size-xs: 11px;
-    --venus-ui-font-size-sm: 12px;
-    --venus-ui-font-size-md: 14px;
-    --venus-ui-line-xs: 18px;
-    --venus-ui-line-sm: 18px;
-    --venus-ui-line-md: 18px;
+  [data-vector-ui-root='true'] {
+    --vector-ui-font-family: "Inter", "Segoe UI", sans-serif;
+    --vector-ui-font-size-xs: 11px;
+    --vector-ui-font-size-sm: 12px;
+    --vector-ui-font-size-md: 14px;
+    --vector-ui-line-xs: 18px;
+    --vector-ui-line-sm: 18px;
+    --vector-ui-line-md: 18px;
 
-    --venus-ui-space-1: 4px;
-    --venus-ui-space-2: 8px;
-    --venus-ui-space-3: 12px;
-    --venus-ui-space-4: 16px;
-    --venus-ui-space-5: 20px;
-    --venus-ui-space-6: 24px;
+    --vector-ui-space-1: 4px;
+    --vector-ui-space-2: 8px;
+    --vector-ui-space-3: 12px;
+    --vector-ui-space-4: 16px;
+    --vector-ui-space-5: 20px;
+    --vector-ui-space-6: 24px;
 
-    --venus-ui-radius-sm: 6px;
-    --venus-ui-radius-md: 8px;
-    --venus-ui-radius-lg: 12px;
+    --vector-ui-radius-sm: 6px;
+    --vector-ui-radius-md: 8px;
+    --vector-ui-radius-lg: 12px;
 
-    --venus-ui-border-width: 1px;
-    --venus-ui-border-color: #e6ebf2;
-    --venus-ui-border-color-strong: #d5dce6;
+    --vector-ui-border-width: 1px;
+    --vector-ui-border-color: #d9e5f1;
+    --vector-ui-border-color-strong: #b7d1ea;
 
-    --venus-ui-color-primary: #6f8fc8;
-    --venus-ui-color-primary-hover: #5f80ba;
-    --venus-ui-color-secondary: #6b7280;
-    --venus-ui-color-secondary-hover: #5b6472;
+    --vector-ui-color-primary: #0066c0;
+    --vector-ui-color-primary-hover: #0057a4;
+    --vector-ui-color-primary-foreground: #ffffff;
+    --vector-ui-color-secondary: #3385cf;
+    --vector-ui-color-secondary-hover: #2678c5;
+    --vector-ui-color-secondary-foreground: #ffffff;
+    --vector-ui-color-tertiary: #d9ebf8;
+    --vector-ui-color-tertiary-hover: #c8e0f4;
+    --vector-ui-color-tertiary-foreground: #0f2a44;
+    --vector-ui-color-thirdly: var(--vector-ui-color-tertiary);
+    --vector-ui-color-thirdly-hover: var(--vector-ui-color-tertiary-hover);
+    --vector-ui-color-thirdly-foreground: var(--vector-ui-color-tertiary-foreground);
 
-    --venus-ui-hover-bg: #f6f8fb;
-    --venus-ui-hover-bg-strong: #eef2f7;
-    --venus-ui-hover-speed: 140ms;
-    --venus-ui-menu-item-height: 30px;
+    --vector-ui-hover-bg: #f5f5f5;
+    --vector-ui-hover-bg-strong: #ebebeb;
+    --vector-ui-hover-speed: 140ms;
+    --vector-ui-menu-item-height: 30px;
 
-    --venus-ui-icon-size: 16px;
-    --venus-ui-button-icon-size: 18px;
+    --vector-ui-icon-size: 16px;
+    --vector-ui-button-icon-size: 18px;
 
-    --venus-editor-font-body: 12px;
-    --venus-editor-line-body: 18px;
-    --venus-editor-font-label: 11px;
-    --venus-editor-line-label: 18px;
-    --venus-editor-font-meta: 10px;
-    --venus-editor-line-meta: 18px;
-    --venus-editor-font-heading: 14px;
-    --venus-editor-line-heading: 18px;
+    --vector-editor-font-body: 12px;
+    --vector-editor-line-body: 18px;
+    --vector-editor-font-label: 11px;
+    --vector-editor-line-label: 18px;
+    --vector-editor-font-meta: 10px;
+    --vector-editor-line-meta: 18px;
+    --vector-editor-font-heading: 14px;
+    --vector-editor-line-heading: 18px;
 
-    --venus-shell-accent: #7f95bb;
-    --venus-shell-bg: #f8fafc;
-    --venus-shell-surface: #fdfefe;
-    --venus-shell-surface-muted: #f9fbfd;
-    --venus-shell-border: #e9edf3;
-    --venus-shell-border-soft: #eef2f6;
-    --venus-shell-divider: #edf1f5;
-    --venus-shell-text: #2d3748;
-    --venus-shell-text-muted: #8a94a6;
-    --venus-shell-hover: #f6f9fc;
-    --venus-shell-active-bg: #eef3fb;
-    --venus-shell-active-text: #5f7396;
-    --venus-shell-canvas-bg: #f4f7fb;
-    --venus-shell-focus-ring: rgba(127, 149, 187, 0.28);
+    --vector-shell-accent: #0066c0;
+    --vector-shell-bg: #f7f9fc;
+    --vector-shell-surface: #fdfefe;
+    --vector-shell-surface-muted: #f2f6fb;
+    --vector-shell-border: #d9e5f1;
+    --vector-shell-border-soft: #e7eff7;
+    --vector-shell-divider: #e4edf6;
+    --vector-shell-text: #17324d;
+    --vector-shell-text-muted: #6d8095;
+    --vector-shell-hover: #f5f5f5;
+    --vector-shell-active-bg: #e7f1fb;
+    --vector-shell-active-text: #0066c0;
+    --vector-shell-canvas-bg: #f2f6fb;
+    --vector-shell-focus-ring: rgba(0, 102, 192, 0.24);
 
-    font-size: var(--venus-editor-font-body);
-    line-height: var(--venus-editor-line-body);
+    font-size: var(--vector-editor-font-body);
+    line-height: var(--vector-editor-line-body);
   }
 
-  .venus-editor[data-theme='dark'] {
-    --venus-ui-border-color: #334155;
-    --venus-ui-border-color-strong: #475569;
+  [data-vector-ui-root='true'][data-theme='dark'] {
+    --vector-ui-border-color: #26476a;
+    --vector-ui-border-color-strong: #3b628d;
 
-    --venus-ui-color-primary: #7ea0df;
-    --venus-ui-color-primary-hover: #6d91d4;
-    --venus-ui-color-secondary: #64748b;
-    --venus-ui-color-secondary-hover: #71839d;
+    --vector-ui-color-primary: #4d9ae0;
+    --vector-ui-color-primary-hover: #62a7e6;
+    --vector-ui-color-primary-foreground: #081522;
+    --vector-ui-color-secondary: #2f7fc7;
+    --vector-ui-color-secondary-hover: #4090d8;
+    --vector-ui-color-secondary-foreground: #eef6fc;
+    --vector-ui-color-tertiary: #173b5c;
+    --vector-ui-color-tertiary-hover: #20496f;
+    --vector-ui-color-tertiary-foreground: #d6e8f7;
+    --vector-ui-color-thirdly: var(--vector-ui-color-tertiary);
+    --vector-ui-color-thirdly-hover: var(--vector-ui-color-tertiary-hover);
+    --vector-ui-color-thirdly-foreground: var(--vector-ui-color-tertiary-foreground);
 
-    --venus-ui-hover-bg: #1f2937;
-    --venus-ui-hover-bg-strong: #111827;
+    --vector-ui-hover-bg: #1a2330;
+    --vector-ui-hover-bg-strong: #243041;
 
-    --venus-shell-accent: #9fb4da;
-    --venus-shell-bg: #0f172a;
-    --venus-shell-surface: #111827;
-    --venus-shell-surface-muted: #0b1220;
-    --venus-shell-border: #233043;
-    --venus-shell-border-soft: #334155;
-    --venus-shell-divider: #1f2937;
-    --venus-shell-text: #e5e7eb;
-    --venus-shell-text-muted: #94a3b8;
-    --venus-shell-hover: #182235;
-    --venus-shell-active-bg: #1e293b;
-    --venus-shell-active-text: #dbeafe;
-    --venus-shell-canvas-bg: #0b1220;
-    --venus-shell-focus-ring: rgba(159, 180, 218, 0.42);
+    --vector-shell-accent: #4d9ae0;
+    --vector-shell-bg: #09121d;
+    --vector-shell-surface: #0f1b29;
+    --vector-shell-surface-muted: #0b1521;
+    --vector-shell-border: #1f3650;
+    --vector-shell-border-soft: #284665;
+    --vector-shell-divider: #183049;
+    --vector-shell-text: #e7f0f8;
+    --vector-shell-text-muted: #91a8c0;
+    --vector-shell-hover: #1a2330;
+    --vector-shell-active-bg: #16314d;
+    --vector-shell-active-text: #8cc0f0;
+    --vector-shell-canvas-bg: #07111b;
+    --vector-shell-focus-ring: rgba(77, 154, 224, 0.34);
   }
 }

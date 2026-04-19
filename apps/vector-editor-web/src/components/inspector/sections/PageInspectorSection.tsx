@@ -8,13 +8,13 @@ import {TEST_IDS} from '../../../testing/testIds.ts'
 export function PageInspectorSection() {
   const {t} = useTranslation()
   return (
-    <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950 p-1'} role={'region'}>
+    <section className={'flex h-full w-full min-h-0 flex-col overflow-hidden p-1 text-[12px] leading-[18px] text-slate-950 dark:text-slate-100'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 text-xs text-slate-900'}>
         <h2 data-testid={TEST_IDS.pageInspector.heading} className={'font-semibold'}>
           {t('inspector.page.title', {defaultValue: 'Page'})}
         </h2>
       </div>
-      <div className={`flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+      <div className={`flex flex-col gap-2 rounded bg-gray-50 p-2 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
         <div className={`text-gray-500 ${EDITOR_TEXT_PANEL_HEADING_CLASS}`}>{t('inspector.page.background', {defaultValue: 'Background'})}</div>
         <div className={'flex items-center justify-between gap-2'}>
           <span>{t('inspector.page.visible', {defaultValue: 'Visible'})}</span>

@@ -3,8 +3,6 @@ import {parseRuntimeSceneToEditorDocument} from '@venus/document-core'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
 import {createRuntimeSceneFromVisionFile} from './fileFormatScene.ts'
-
-const PAGE_FRAME_SUFFIX = ':page-frame'
 type ElementHierarchyMeta = {
   parentId?: string | null
   childIds?: string[]
@@ -247,12 +245,7 @@ export function createEditorDocumentFromFile(file: VisionFileType): EditorDocume
   return {
     ...document,
     shapes: document.shapes.map((shape) => {
-      const nextShape = shape.id === `${file.id}:page-frame`
-        ? {
-            ...shape,
-            id: `${file.id}${PAGE_FRAME_SUFFIX}`,
-          }
-        : shape
+      const nextShape = shape
       if (!nextShape.assetId) {
         return nextShape
       }
@@ -267,7 +260,6 @@ export function createEditorDocumentFromFile(file: VisionFileType): EditorDocume
 
 export function createFileElementsFromDocument(document: EditorDocument): ElementProps[] {
   return document.shapes
-    .filter((shape) => !(shape.type === 'frame' && shape.id.endsWith(PAGE_FRAME_SUFFIX)))
     .map((shape, index) => ({
       id: shape.id,
       type: shape.type,

@@ -38,6 +38,8 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
     return TEMPLATE_PRESETS.find((preset) => preset.id === activePresetId) ?? TEMPLATE_PRESETS[0]
   }, [activePresetId])
 
+  const canApply = !!activePreset
+
   const groupedPresets = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     const filteredPresets = normalizedQuery
@@ -65,18 +67,19 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
       }
     }}
   >
-    <div className={cn('w-full h-[82vh] w-[95vw] max-w-[1160px] rounded-xl border border-gray-200 bg-white shadow-2xl', EDITOR_TEXT_BODY_CLASS)}>
+    <div className={cn('h-[82vh] w-[95vw] max-w-[1160px] rounded-xl bg-white dark:bg-slate-900', EDITOR_TEXT_BODY_CLASS)}>
       <div className={'flex h-full min-h-0 flex-col overflow-hidden'}>
-        <header className={'flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3'}>
+        <header className={'flex items-center justify-between gap-4 px-4 py-3'}>
           <div>
-            <h2 className={'text-sm font-semibold text-gray-900'}>{t('ui.template.pickerTitle')}</h2>
+            <h2 className={'text-sm font-semibold'}>{t('ui.template.pickerTitle')}</h2>
+            <p className={'mt-0.5 text-xs text-slate-500 dark:text-slate-400'}>{t('ui.template.pickerSubtitle')}</p>
           </div>
           <Button type={'button'} size={'sm'} variant={'ghost'} onClick={onClose}>{t('ui.template.cancelButton')}</Button>
         </header>
 
         <div className={'grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.25fr_0.75fr]'}>
-          <section className={'min-h-0 border-r border-gray-200 p-3'} data-testid={TEST_IDS.templatePicker.options}>
-            <h3 className={'mb-2 text-xs font-semibold text-gray-700'}>{t('ui.template.pickerTitle')}</h3>
+          <section className={'min-h-0 p-3'} data-testid={TEST_IDS.templatePicker.options}>
+            <h3 className={'mb-2 text-xs font-semibold'}>{t('ui.template.pickerTitle')}</h3>
             <div className={'h-full overflow-auto pr-1'}>
               <div className={'space-y-4'} role={'listbox'} aria-label={t('ui.template.pickerTitle')}>
                 {(['simple-demo', 'mixed-large', 'image-heavy'] as const).map((category) => {
@@ -86,7 +89,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                   }
 
                   return <section key={category}>
-                    <h3 className={'mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500'}>
+                    <h3 className={'mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'}>
                       {t(CATEGORY_LABELS[category])}
                     </h3>
                     <div className={'grid grid-cols-1 gap-2 sm:grid-cols-2'}>
@@ -105,18 +108,18 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                           className={cn(
                             'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left transition-colors',
                             active
-                              ? 'border-transparent'
-                              : 'hover:border-[var(--venus-ui-border-color-strong)]',
+                              ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50'
+                              : '',
                           )}
                         >
                           <div className={'w-full'}>
                             <div className={'flex items-center justify-between gap-2'}>
-                              <div className={'text-sm font-medium text-gray-900'}>{preset.label}</div>
-                              <span className={'rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600'}>
+                              <div className={'text-sm font-medium'}>{preset.label}</div>
+                              <span className={'rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400'}>
                                 {preset.targetElementCount.toLocaleString()}
                               </span>
                             </div>
-                            <span className={'rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600'}>
+                            <span className={'rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400'}>
                               {t(CATEGORY_LABELS[preset.category])}
                             </span>
                           </div>
@@ -130,30 +133,51 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
           </section>
 
           <section className={'min-h-0 flex flex-col p-3'} data-testid={TEST_IDS.templatePicker.details}>
-            <h3 className={'mb-2 text-xs font-semibold text-gray-700'}>{t('ui.template.categoryLabel')}</h3>
+            <h3 className={'mb-2 text-xs font-semibold'}>{t('ui.template.presetDetails')}</h3>
             <div className={'scrollbar-custom min-h-0 flex-1 overflow-auto'}>
-              <div className={'rounded-lg border border-gray-200 bg-gray-50 p-3'}>
-              <div className={'text-sm font-semibold text-gray-900'}>{activePreset.label}</div>
-              <p className={'mt-1 text-xs text-gray-600'}>{activePreset.description}</p>
-              <div className={'mt-2 text-xs text-gray-600'}>
-                {t('ui.template.categoryLabel')}: {t(CATEGORY_LABELS[activePreset.category])}
-              </div>
-              <div className={'text-xs text-gray-600'}>
-                {t('ui.template.targetElementsLabel')}: {activePreset.targetElementCount.toLocaleString()}
-              </div>
-            </div>
+              {activePreset
+                ? <div className={'rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60'}>
+                    <div className={'text-sm font-semibold'}>{activePreset.label}</div>
+                    <p className={'mt-1 text-xs text-slate-500 dark:text-slate-400'}>{activePreset.description}</p>
+                    <div className={'mt-2 text-xs text-slate-500 dark:text-slate-400'}>
+                      {t('ui.template.categoryLabel')}: {t(CATEGORY_LABELS[activePreset.category])}
+                    </div>
+                    <div className={'text-xs text-slate-500 dark:text-slate-400'}>
+                      {t('ui.template.targetElementsLabel')}: {activePreset.targetElementCount.toLocaleString()}
+                    </div>
+                    <div className={'pt-3'}>
+                      <Button
+                        type={'button'}
+                        variant={'outline'}
+                        className={'h-8 w-full justify-center text-xs font-semibold'}
+                        title={t('ui.template.applyButtonTooltip', {defaultValue: 'Apply selected template'})}
+                        onClick={() => {
+                          onGenerate(activePreset.id)
+                        }}
+                      >
+                        {t('ui.template.applyButtonLabel', {defaultValue: 'Apply'})}
+                      </Button>
+                    </div>
+                  </div>
+                : <div className={'rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900/60 dark:text-slate-400'}>
+                    {t('ui.template.actionsHint')}
+                  </div>}
             </div>
           </section>
         </div>
 
-        <div className={'flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-4 py-3'} data-testid={TEST_IDS.templatePicker.footer}>
+        {/* Keep action row fixed to the bottom so cancel/apply remain visible during long preset lists. */}
+        <div className={'flex shrink-0 items-center justify-end gap-2 px-4 py-3'} data-testid={TEST_IDS.templatePicker.footer}>
           <Button type={'button'} variant={'outline'} title={t('ui.template.cancelButton')} onClick={onClose}>{t('ui.template.cancelButton')}</Button>
           <Button
             variant={'primary'}
             type={'button'}
+            disabled={!canApply}
             title={t('ui.template.applyButtonTooltip', {defaultValue: 'Apply selected template'})}
             onClick={() => {
-              onGenerate(activePreset.id)
+              if (activePreset) {
+                onGenerate(activePreset.id)
+              }
             }}
           >
             {t('ui.template.applyButtonLabel', {defaultValue: 'Apply'})}

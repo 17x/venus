@@ -13,7 +13,8 @@ export interface ToolbeltState {
 
 export const DEFAULT_TOOLBELT_MODE: ToolbeltMode = 'draw'
 
-export const TOOLBELT_MODE_STORAGE_KEY = 'venus.shell.toolbeltMode'
+export const TOOLBELT_MODE_STORAGE_KEY = 'vector.shell.toolbeltMode'
+export const LEGACY_TOOLBELT_MODE_STORAGE_KEY = 'venus.shell.toolbeltMode'
 
 export function resolveToolbeltModeFromStorage(storageValue: string | null | undefined): ToolbeltMode {
   if (storageValue === 'design' || storageValue === 'handoff') {
@@ -21,6 +22,13 @@ export function resolveToolbeltModeFromStorage(storageValue: string | null | und
   }
 
   return DEFAULT_TOOLBELT_MODE
+}
+
+export function readStoredToolbeltMode(storage: Storage): ToolbeltMode {
+  return resolveToolbeltModeFromStorage(
+    storage.getItem(TOOLBELT_MODE_STORAGE_KEY) ??
+    storage.getItem(LEGACY_TOOLBELT_MODE_STORAGE_KEY),
+  )
 }
 
 export function resolveToolGroupForTool(tool: ToolName): ToolbeltGroupId {

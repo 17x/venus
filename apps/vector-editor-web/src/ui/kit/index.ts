@@ -39,7 +39,7 @@ export {
 	DropdownMenuSub,
 	DropdownMenuSubTrigger,
 	DropdownMenuSubContent,
-} from '../../components/ui/dropdown-menu.tsx'
+} from '../primitives/dropdown-menu.tsx'
 export {
 	ContextMenu,
 	ContextMenuTrigger,
@@ -56,8 +56,8 @@ export {
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
 	ContextMenuRadioGroup,
-} from '../../components/ui/context-menu.tsx'
-export {Tabs, TabsList, TabsTrigger, TabsContent} from '../../components/ui/tabs.tsx'
+} from '../primitives/context-menu.tsx'
+export {Tabs, TabsList, TabsTrigger, TabsContent} from '../primitives/tabs.tsx'
 export {
 	InputGroup,
 	InputGroupAddon,
@@ -65,7 +65,7 @@ export {
 	InputGroupText,
 	InputGroupInput,
 	InputGroupTextarea,
-} from '../../components/ui/input-group.tsx'
+} from '../primitives/input-group.tsx'
 export {Tooltip} from './components/ui/tooltip.tsx'
 export type {TooltipPlacement, TooltipProps} from './components/ui/tooltip.tsx'
 export {P, Paragraph, Title} from './components/ui/typography.tsx'

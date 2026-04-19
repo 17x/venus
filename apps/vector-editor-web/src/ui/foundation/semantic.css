@@ -1,60 +1,60 @@
 @layer components {
-  .venus-editor-text-body,
-  .venus-editor-text-menu,
-  .venus-editor-text-control,
-  .venus-editor-text-panel-body {
-    font-size: var(--venus-editor-font-body);
-    line-height: var(--venus-editor-line-body);
+  .vector-editor-text-body,
+  .vector-editor-text-menu,
+  .vector-editor-text-control,
+  .vector-editor-text-panel-body {
+    font-size: var(--vector-editor-font-body);
+    line-height: var(--vector-editor-line-body);
   }
 
-  .venus-editor-text-label,
-  .venus-editor-text-status,
-  .venus-editor-text-panel-label,
-  .venus-editor-text-panel-heading {
-    font-size: var(--venus-editor-font-label);
-    line-height: var(--venus-editor-line-label);
+  .vector-editor-text-label,
+  .vector-editor-text-status,
+  .vector-editor-text-panel-label,
+  .vector-editor-text-panel-heading {
+    font-size: var(--vector-editor-font-label);
+    line-height: var(--vector-editor-line-label);
   }
 
-  .venus-editor-text-meta {
-    font-size: var(--venus-editor-font-meta);
-    line-height: var(--venus-editor-line-meta);
+  .vector-editor-text-meta {
+    font-size: var(--vector-editor-font-meta);
+    line-height: var(--vector-editor-line-meta);
   }
 
-  .venus-editor-text-heading {
-    font-size: var(--venus-editor-font-heading);
-    line-height: var(--venus-editor-line-heading);
+  .vector-editor-text-heading {
+    font-size: var(--vector-editor-font-heading);
+    line-height: var(--vector-editor-line-heading);
     font-weight: 600;
   }
 
-  .venus-editor-text-panel-label {
+  .vector-editor-text-panel-label {
     font-weight: 500;
   }
 
-  .venus-editor-text-panel-heading {
+  .vector-editor-text-panel-heading {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.025em;
   }
 
-  .venus-editor-property-section > div > span:first-child {
-    font-size: var(--venus-editor-font-label);
-    line-height: var(--venus-editor-line-label);
+  .vector-editor-property-section > div > span:first-child {
+    font-size: var(--vector-editor-font-label);
+    line-height: var(--vector-editor-line-label);
     font-weight: 500;
     color: rgb(107 114 128);
   }
 
-  .venus-editor-property-section input:not([type=color]):not([type=checkbox]) {
-    font-size: var(--venus-editor-font-body);
-    line-height: var(--venus-editor-line-body);
+  .vector-editor-property-section input:not([type=color]):not([type=checkbox]) {
+    font-size: var(--vector-editor-font-body);
+    line-height: var(--vector-editor-line-body);
   }
 
-  .venus-prop-group-title {
+  .vector-prop-group-title {
     color: rgb(107 114 128);
     padding-bottom: 4px;
     margin-top: 2px;
   }
 
-  .venus-prop-row {
+  .vector-prop-row {
     display: grid;
     grid-template-columns: 74px minmax(0, 1fr);
     align-items: center;
@@ -62,224 +62,212 @@
     min-width: 0;
   }
 
-  .venus-prop-grid-2 {
+  .vector-prop-grid-2 {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px;
     min-width: 0;
   }
 
-  .venus-prop-form-control {
+  .vector-prop-form-control {
     width: 100%;
     min-width: 0;
     height: 26px !important;
-    font-size: var(--venus-editor-font-body) !important;
-    line-height: var(--venus-editor-line-body) !important;
+    font-size: var(--vector-editor-font-body) !important;
+    line-height: var(--vector-editor-line-body) !important;
   }
 
-  .venus-prop-form-color {
+  .vector-prop-form-color {
     width: 100%;
     min-width: 0;
     height: 26px;
-    border-radius: var(--venus-ui-radius-md);
-    border: var(--venus-ui-border-width) solid var(--venus-ui-border-color);
+    border-radius: var(--vector-ui-radius-md);
     background: white;
     padding: 3px;
   }
 
-  .venus-prop-form-checkbox {
+  .vector-prop-form-checkbox {
     width: 16px;
     height: 16px;
     accent-color: #334155;
     justify-self: end;
   }
 
-  .venus-prop-icon-action {
+  .vector-prop-icon-action {
     width: 24px;
     height: 24px;
     padding: 0;
     color: #4b5563;
   }
 
-  .venus-editor-icon-text {
+  .vector-editor-icon-text {
     font-size: 16px;
     line-height: 1;
   }
 
-  .venus-shell-root {
-    background: var(--venus-shell-bg);
-    color: var(--venus-shell-text);
+  .vector-shell-root {
+    background: var(--vector-shell-bg);
+    color: var(--vector-shell-text);
   }
 
-  .venus-shell-topbar,
-  .venus-shell-menu,
-  .venus-shell-toolbar,
-  .venus-shell-status,
-  .venus-shell-panel,
-  .venus-shell-rail,
-  .venus-shell-rail-thin,
-  .venus-shell-canvas-frame {
-    border-color: var(--venus-shell-border);
+  .vector-shell-topbar,
+  .vector-shell-menu,
+  .vector-shell-toolbar,
+  .vector-shell-status,
+  .vector-shell-panel,
+  .vector-shell-rail,
+  .vector-shell-rail-thin,
+  .vector-shell-canvas-frame {
+    border-color: var(--vector-shell-border);
   }
 
-  .venus-shell-topbar,
-  .venus-shell-menu,
-  .venus-shell-toolbar,
-  .venus-shell-status,
-  .venus-shell-canvas-frame,
-  .venus-shell-panel {
-    background: var(--venus-shell-surface);
+  .vector-shell-topbar,
+  .vector-shell-menu,
+  .vector-shell-toolbar,
+  .vector-shell-status,
+  .vector-shell-canvas-frame,
+  .vector-shell-panel {
+    background: var(--vector-shell-surface);
   }
 
-  .venus-shell-rail,
-  .venus-shell-rail-thin {
-    background: var(--venus-shell-surface-muted);
+  .vector-shell-rail,
+  .vector-shell-rail-thin {
+    background: var(--vector-shell-surface-muted);
   }
 
-  .venus-shell-canvas-stage {
-    background: var(--venus-shell-canvas-bg);
+  .vector-shell-canvas-stage {
+    background: var(--vector-shell-canvas-bg);
   }
 
-  .venus-shell-divider {
-    background: var(--venus-shell-divider);
+  .vector-shell-divider {
+    background: var(--vector-shell-divider);
   }
 
-  .venus-shell-text-muted {
-    color: var(--venus-shell-text-muted);
+  .vector-shell-text-muted {
+    color: var(--vector-shell-text-muted);
   }
 
-  .venus-shell-toolbar-button,
-  .venus-shell-menu-button,
-  .venus-shell-control-chip {
-    color: var(--venus-shell-text);
-    border-width: var(--venus-ui-border-width);
-    border-color: transparent;
+  .vector-shell-toolbar-button,
+  .vector-shell-menu-button,
+  .vector-shell-control-chip {
+    color: var(--vector-shell-text);
     background: transparent;
     transition:
-      background-color var(--venus-ui-hover-speed) ease,
-      border-color var(--venus-ui-hover-speed) ease,
-      color var(--venus-ui-hover-speed) ease;
+      background-color var(--vector-ui-hover-speed) ease,
+      color var(--vector-ui-hover-speed) ease;
   }
 
-  .venus-shell-menu-button:hover,
-  .venus-shell-toolbar-button:hover,
-  .venus-shell-control-chip:hover {
-    background: var(--venus-ui-hover-bg);
-    border-color: var(--venus-ui-border-color-strong);
+  .vector-shell-menu-button:hover,
+  .vector-shell-toolbar-button:hover,
+  .vector-shell-control-chip:hover {
+    background: var(--vector-ui-hover-bg);
   }
 
-  .venus-shell-menu-button-active,
-  .venus-shell-toolbar-button-active,
-  .venus-shell-icon-active {
-    background: var(--venus-shell-active-bg);
-    color: var(--venus-shell-active-text);
-    border-color: color-mix(in srgb, var(--venus-shell-active-text) 25%, var(--venus-shell-border));
+  .vector-shell-menu-button-active,
+  .vector-shell-toolbar-button-active,
+  .vector-shell-icon-active {
+    background: var(--vector-shell-active-bg);
+    color: var(--vector-shell-active-text);
   }
 
-  .venus-shell-tab-active {
-    background: color-mix(in srgb, var(--venus-shell-active-bg) 75%, var(--venus-shell-active-text) 25%);
-    border-color: color-mix(in srgb, var(--venus-shell-active-text) 35%, var(--venus-shell-border));
+  .vector-shell-tab-active {
+    background: color-mix(in srgb, var(--vector-shell-active-bg) 75%, var(--vector-shell-active-text) 25%);
   }
 
-  .venus-shell-plain-trigger {
-    border-color: transparent;
+  .vector-shell-plain-trigger {
     background: transparent;
   }
 
-  .venus-ui-menu-item {
-    height: var(--venus-ui-menu-item-height);
-    border: var(--venus-ui-border-width) solid transparent;
-    color: var(--venus-shell-text);
+  .vector-ui-menu-item {
+    height: var(--vector-ui-menu-item-height);
+    color: var(--vector-shell-text);
   }
 
-  .venus-ui-menu-item:hover {
-    background: var(--venus-ui-hover-bg);
-    border-color: var(--venus-shell-border-soft);
+  .vector-ui-menu-item:hover {
+    background: var(--vector-ui-hover-bg);
   }
 
-  .venus-shell-toolbar-button svg,
-  .venus-shell-menu-button svg,
-  .venus-shell-control-chip svg {
-    width: var(--venus-ui-icon-size);
-    height: var(--venus-ui-icon-size);
+  .vector-shell-toolbar-button svg,
+  .vector-shell-menu-button svg,
+  .vector-shell-control-chip svg {
+    width: var(--vector-ui-icon-size);
+    height: var(--vector-ui-icon-size);
   }
 
-  .venus-shell-focusable:focus-visible {
+  .vector-shell-focusable:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px var(--venus-shell-focus-ring);
+    box-shadow: 0 0 0 2px var(--vector-shell-focus-ring);
   }
 
-  .venus-ui-font {
-    font-family: var(--venus-ui-font-family);
-    font-size: var(--venus-ui-font-size-sm);
-    line-height: var(--venus-ui-line-sm);
+  .vector-ui-font {
+    font-family: var(--vector-ui-font-family);
+    font-size: var(--vector-ui-font-size-sm);
+    line-height: var(--vector-ui-line-sm);
   }
 
-  .venus-ui-hover-transition {
+  .vector-ui-hover-transition {
     transition:
-      background-color var(--venus-ui-hover-speed) ease,
-      border-color var(--venus-ui-hover-speed) ease,
-      color var(--venus-ui-hover-speed) ease,
-      box-shadow var(--venus-ui-hover-speed) ease;
+      background-color var(--vector-ui-hover-speed) ease,
+      color var(--vector-ui-hover-speed) ease;
   }
 
-  .venus-ui-control-border {
-    border-width: var(--venus-ui-border-width);
-    border-color: var(--venus-ui-border-color);
+  .vector-ui-control-border {
+    border-width: var(--vector-ui-border-width);
+    border-color: var(--vector-ui-border-color);
   }
 
-  .venus-ui-select-item {
-    --venus-ui-select-item-level: 0;
-    padding-left: calc(var(--venus-ui-space-5) + var(--venus-ui-select-item-level) * var(--venus-ui-space-4));
+  .vector-ui-select-item {
+    --vector-ui-select-item-level: 0;
+    padding-left: calc(var(--vector-ui-space-5) + var(--vector-ui-select-item-level) * var(--vector-ui-space-4));
   }
 
-  .venus-editor .border-gray-100,
-  .venus-editor .border-slate-100 {
-    border-color: color-mix(in srgb, var(--venus-shell-border-soft) 70%, white) !important;
+  [data-vector-ui-root='true'] .border-gray-100,
+  [data-vector-ui-root='true'] .border-slate-100 {
+    border-color: color-mix(in srgb, var(--vector-shell-border-soft) 70%, white) !important;
   }
 
-  .venus-editor .border-gray-200,
-  .venus-editor .border-slate-200 {
-    border-color: var(--venus-shell-border) !important;
+  [data-vector-ui-root='true'] .border-gray-200,
+  [data-vector-ui-root='true'] .border-slate-200 {
+    border-color: var(--vector-shell-border) !important;
   }
 
-  .venus-editor .border-gray-300,
-  .venus-editor .border-slate-300 {
-    border-color: var(--venus-shell-border-soft) !important;
+  [data-vector-ui-root='true'] .border-gray-300,
+  [data-vector-ui-root='true'] .border-slate-300 {
+    border-color: var(--vector-shell-border-soft) !important;
   }
 
-  .venus-editor .border-gray-400,
-  .venus-editor .border-slate-400,
-  .venus-editor .border-gray-500,
-  .venus-editor .border-slate-500,
-  .venus-editor .border-gray-600,
-  .venus-editor .border-slate-600,
-  .venus-editor .border-gray-700,
-  .venus-editor .border-slate-700,
-  .venus-editor .border-gray-900,
-  .venus-editor .border-slate-900 {
-    border-color: var(--venus-shell-border-soft) !important;
+  [data-vector-ui-root='true'] .border-gray-400,
+  [data-vector-ui-root='true'] .border-slate-400,
+  [data-vector-ui-root='true'] .border-gray-500,
+  [data-vector-ui-root='true'] .border-slate-500,
+  [data-vector-ui-root='true'] .border-gray-600,
+  [data-vector-ui-root='true'] .border-slate-600,
+  [data-vector-ui-root='true'] .border-gray-700,
+  [data-vector-ui-root='true'] .border-slate-700,
+  [data-vector-ui-root='true'] .border-gray-900,
+  [data-vector-ui-root='true'] .border-slate-900 {
+    border-color: var(--vector-shell-border-soft) !important;
   }
 
-  .venus-editor .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
-  .venus-editor .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
-    border-color: var(--venus-shell-divider) !important;
+  [data-vector-ui-root='true'] .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+  [data-vector-ui-root='true'] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--vector-shell-divider) !important;
   }
 
-  .venus-editor[data-theme='dark'] .venus-editor-property-section > div > span:first-child,
-  .venus-editor[data-theme='dark'] .venus-prop-group-title {
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-editor-property-section > div > span:first-child,
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-group-title {
     color: #94a3b8;
   }
 
-  .venus-editor[data-theme='dark'] .venus-prop-form-color {
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-form-color {
     background: #0f172a;
   }
 
-  .venus-editor[data-theme='dark'] .venus-prop-icon-action {
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-icon-action {
     color: #cbd5e1;
   }
 
-  .venus-editor[data-theme='dark'] .venus-prop-form-checkbox {
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-form-checkbox {
     accent-color: #93c5fd;
   }
 }

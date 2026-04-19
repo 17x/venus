@@ -47,15 +47,15 @@ export const Print: FC<{
   }
 
   return <div className={'fixed top-0 left-0 w-full h-full z-100 flex items-center justify-center'}>
-    <div className={'absolute top-0 left-0 w-full h-full bg-gray-400 opacity-70'} onClick={onClose}></div>
-    <div className={'flex w-[90%] h-[90%] bg-white rounded z-10 px-2 py-4'}>
+    <div className={'absolute top-0 left-0 w-full h-full bg-black/50'} onClick={onClose}></div>
+    <div className={'z-10 flex h-[90%] w-[90%] rounded bg-white px-2 py-4 dark:bg-slate-900'}>
       <div className={'w-[50%] flex items-center justify-center overflow-hidden'}>
-        <canvas ref={printPreviewCanvas} className={'max-w-full max-h-full border'}></canvas>
+        <canvas ref={printPreviewCanvas} className={'max-w-full max-h-full rounded'}></canvas>
       </div>
       <div className={'w-[50%] flex flex-col justify-between'}>
         <div></div>
         <div className={'w-full flex items-end'}>
-          <Button type={'button'} className={'border cursor-pointer'}
+          <Button type={'button'} title={'Print document'} variant={'outline'} className={'cursor-pointer'}
                   onClick={() => {
                     const printWindow = window.open('', '', 'width=600,height=600')
                     if (!printWindow) return

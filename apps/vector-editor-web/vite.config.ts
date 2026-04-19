@@ -3,7 +3,7 @@ import {defineConfig} from 'vite'
 import react, {reactCompilerPreset} from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
-import { analyzer } from 'vite-bundle-analyzer'
+// import { analyzer } from 'vite-bundle-analyzer'
 
 export default defineConfig({
   base: './',
@@ -36,6 +36,6 @@ export default defineConfig({
     react(),
     tailwindcss(),
     babel({presets: [reactCompilerPreset()]}),
-    analyzer()
+    // analyzer()
   ],
 })

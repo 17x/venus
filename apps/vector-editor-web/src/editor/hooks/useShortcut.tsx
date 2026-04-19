@@ -23,6 +23,7 @@ const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?:
   useEffect(() => {
     const shortcut1 = new Shortcut({
       shortcuts: data,
+      shouldHandleEvent: () => focused,
       callback: (id: string) => {
         if (!focused) return
 
@@ -57,6 +58,7 @@ const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?:
     const shortcut2 = new Shortcut({
       shortcuts: [{id: 'toggleTool', shortcut: 'space'}],
       upMode: true,
+      shouldHandleEvent: () => focused,
       callback: () => {
         if (lastToolRef.current) {
           executeAction('switch-tool', lastToolRef.current)
@@ -73,6 +75,19 @@ const useShortcut = (executeAction: EditorExecutor, handleZoom: (b: boolean, e?:
       // pluginRef.current = null
     }
   }, [currentTool, data, executeAction, focused, handleZoom, setCurrentTool])
+
+  useEffect(() => {
+    if (focused) {
+      return
+    }
+
+    // Prevent temporary space-to-pan state from getting stuck when focus moves
+    // out of the editor before keyup is captured.
+    if (lastToolRef.current) {
+      executeAction('switch-tool', lastToolRef.current)
+      lastToolRef.current = null
+    }
+  }, [executeAction, focused])
 }
 
 export default useShortcut

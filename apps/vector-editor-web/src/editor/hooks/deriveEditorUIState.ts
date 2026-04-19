@@ -14,7 +14,6 @@ export function deriveEditorUIState(options: {
   clipboard: ElementProps[]
   selectedNode: DocumentNode | null
   selectedIds: string[]
-  showCreateFile: boolean
   showPrint: boolean
 }): EditorUIState {
   const {
@@ -22,7 +21,6 @@ export function deriveEditorUIState(options: {
     clipboard,
     selectedNode,
     selectedIds,
-    showCreateFile,
     showPrint,
   } = options
 
@@ -40,7 +38,6 @@ export function deriveEditorUIState(options: {
     selectedProps: buildSelectedProps(selectedNode),
     // Runtime hook overrides this with the live snapping toggle state.
     snappingEnabled: true,
-    showCreateFile,
     showPrint,
     viewportScale: canvasRuntime.viewport.scale,
   }
@@ -70,10 +67,17 @@ function buildLayerItems(nodes: DocumentNode[]): LayerItem[] {
     }
 
     visited.add(node.id)
+    const layerFlags = node as DocumentNode & {
+      isVisible?: boolean
+      isLocked?: boolean
+    }
+
     flattened.push({
       id: node.id,
       name: node.text ?? node.name ?? node.id,
       show: true,
+      isVisible: layerFlags.isVisible !== false,
+      isLocked: layerFlags.isLocked === true,
       type: node.type,
       depth,
       isGroup: node.type === 'group',

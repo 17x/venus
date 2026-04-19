@@ -4,7 +4,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/ui/primitives/tooltip'
 import {cn} from '../../lib/utils.ts'
 
 export type TooltipPlacement = 't' | 'r' | 'b' | 'l' | 'tl' | 'tr' | 'bl' | 'br'
@@ -57,7 +57,7 @@ export function Tooltip({
     side={resolveSide(placement)}
     align={resolveAlign(placement)}
     sideOffset={6}
-    className="z-50 whitespace-nowrap rounded px-2 py-1 shadow"
+    className="z-50 whitespace-nowrap rounded px-2 py-1 shadow-none"
     style={{backgroundColor: bgColor, color: textColor, fontSize: 11, lineHeight: '14px'}}
   >
     {title}
@@ -67,7 +67,7 @@ export function Tooltip({
     return (
       <TooltipProvider delay={250}>
         <ShadcnTooltip>
-          <TooltipTrigger nativeButton={false} render={children as ReactElement} />
+          <TooltipTrigger render={children as ReactElement} />
           {contentNode}
         </ShadcnTooltip>
       </TooltipProvider>
@@ -77,7 +77,7 @@ export function Tooltip({
   return (
     <TooltipProvider delay={250}>
       <ShadcnTooltip>
-        <TooltipTrigger nativeButton={false}>
+        <TooltipTrigger>
           <div className={cn('inline-flex', className)} {...props}>
             {children as ReactElement}
           </div>

@@ -10,14 +10,14 @@ export interface ShellLayoutState {
   activeInspectorContext: InspectorContext
   toolbeltMode: ToolbeltMode
   variantBSections: {
-    activeTab: 'file' | 'assets' | 'search' | 'history' | 'debug'
+    activeTab: 'file' | 'assets' | 'history' | 'debug'
     showGrid: boolean
-    pagesCollapsed: boolean
     layersCollapsed: boolean
   }
 }
 
-export const SHELL_LAYOUT_STATE_STORAGE_KEY = 'venus.shell.layoutState'
+export const SHELL_LAYOUT_STATE_STORAGE_KEY = 'vector.shell.layoutState'
+export const LEGACY_SHELL_LAYOUT_STATE_STORAGE_KEY = 'venus.shell.layoutState'
 
 const DEFAULT_LEFT_PANEL_WIDTH = 240
 const DEFAULT_RIGHT_PANEL_WIDTH = 256
@@ -34,7 +34,6 @@ export function createDefaultShellLayoutState(): ShellLayoutState {
     variantBSections: {
       activeTab: 'file',
       showGrid: false,
-      pagesCollapsed: false,
       layersCollapsed: false,
     },
   }
@@ -58,13 +57,11 @@ export function normalizeShellLayoutState(input?: Partial<ShellLayoutState>): Sh
     // Keep this normalization backward-compatible with existing persisted state.
     variantBSections: {
       activeTab: input.variantBSections?.activeTab === 'assets' ||
-      input.variantBSections?.activeTab === 'search' ||
       input.variantBSections?.activeTab === 'history' ||
       input.variantBSections?.activeTab === 'debug'
         ? input.variantBSections.activeTab
         : 'file',
       showGrid: input.variantBSections?.showGrid === true,
-      pagesCollapsed: input.variantBSections?.pagesCollapsed === true,
       layersCollapsed: input.variantBSections?.layersCollapsed === true,
     },
   }
@@ -85,4 +82,11 @@ export function deserializeShellLayoutState(raw: string | null | undefined): She
   } catch {
     return createDefaultShellLayoutState()
   }
+}
+
+export function readStoredShellLayoutState(storage: Storage): ShellLayoutState {
+  return deserializeShellLayoutState(
+    storage.getItem(SHELL_LAYOUT_STATE_STORAGE_KEY) ??
+    storage.getItem(LEGACY_SHELL_LAYOUT_STATE_STORAGE_KEY),
+  )
 }

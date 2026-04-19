@@ -185,7 +185,7 @@ const ShortcutBar: React.FC<{
     },
   ]
 
-  return <div className={'venus-shell-toolbar border-b'}>
+  return <div className={'bg-white dark:bg-slate-900'}>
     <div className={'flex h-11 items-center gap-1 overflow-x-auto px-3 whitespace-nowrap'}>
       <Button
         type={'button'}
@@ -205,7 +205,7 @@ const ShortcutBar: React.FC<{
       >
         <WandSparkles size={18}/>
       </Button>
-      <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>
+      <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>
       {
         Object.values(actions).map((item) => {
           const {id, i18nKey, icon, disabled, divide} = item
@@ -235,11 +235,11 @@ const ShortcutBar: React.FC<{
                     )}>
               {icon}
             </IconButton>
-            {divide && <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>}
+            {divide && <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>}
           </Fragment>
         })
       }
-      <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>
+      <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>
       {shapeActions.map((item) => {
         const menuText = t(item.i18nKey, {returnObjects: true}) as I18nHistoryDataItem | string
         const tooltip = typeof menuText === 'string' ? item.id : menuText.tooltip
@@ -260,7 +260,7 @@ const ShortcutBar: React.FC<{
           {item.icon}
         </IconButton>
       })}
-      <div className={'venus-shell-divider mx-1 h-5 w-px'}></div>
+      <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>
       <ColorSwatchPicker
         icon={<Palette size={14}/>} 
         label={t('ui.quickStyle.fill')}
@@ -279,7 +279,7 @@ const ShortcutBar: React.FC<{
       />
       <div className={'flex items-center gap-1'}>
         <span
-          className={'venus-shell-control-chip venus-shell-text-muted inline-flex size-7 items-center justify-center rounded border'}
+          className={'inline-flex size-7 items-center justify-center rounded text-slate-500 dark:text-slate-400'}
           title={t('ui.quickStyle.stroke')}
         >
           <SlidersHorizontal size={14}/>

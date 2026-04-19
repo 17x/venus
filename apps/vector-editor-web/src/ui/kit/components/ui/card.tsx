@@ -6,7 +6,7 @@ import {
   CardFooter as ShadcnCardFooter,
   CardHeader as ShadcnCardHeader,
   CardTitle as ShadcnCardTitle,
-} from '@/components/ui/card'
+} from '@/ui/primitives/card'
 
 export function Card(props: ComponentProps<typeof ShadcnCard>) {
   return <ShadcnCard {...props} />

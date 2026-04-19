@@ -25,6 +25,7 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[02_PRD]]
 - [[03_SCOPE]]
 - [[product/figma-mapping]]
+- [[product/vector/index]]
 
 ## Apps
 

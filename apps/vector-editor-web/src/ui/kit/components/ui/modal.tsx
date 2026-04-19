@@ -5,10 +5,9 @@ import {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/ui/primitives/dialog'
 import {cn} from '../../lib/utils.ts'
 import {Button} from './button.tsx'
-import {Tooltip} from './tooltip.tsx'
 
 export interface ModalProps extends HTMLProps<HTMLDivElement> {
   onBackdropClick?: VoidFunction
@@ -42,9 +41,6 @@ export function Modal({
             display: 'flex',
             flexDirection: 'column',
             ...style,
-          }}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
           }}
           {...props}
         >
@@ -109,11 +105,7 @@ export interface ModalButtonProps extends React.ButtonHTMLAttributes<HTMLButtonE
 }
 
 export function ModalButton({variant = 'primary', style, children, ...props}: ModalButtonProps) {
-  const resolvedTitle = props.title
-    ?? (typeof props['aria-label'] === 'string' ? props['aria-label'] : undefined)
-    ?? (typeof children === 'string' ? children : undefined)
-
-  const buttonNode = <Button
+  return <Button
     variant={variant === 'primary' ? 'primary' : 'outline'}
     size={'md'}
     style={style}
@@ -121,14 +113,4 @@ export function ModalButton({variant = 'primary', style, children, ...props}: Mo
   >
     {children}
   </Button>
-
-  if (!resolvedTitle) {
-    return buttonNode
-  }
-
-  return (
-    <Tooltip title={resolvedTitle} asChild>
-      {buttonNode}
-    </Tooltip>
-  )
 }

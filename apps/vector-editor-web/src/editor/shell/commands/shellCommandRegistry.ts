@@ -21,7 +21,7 @@ export interface ShellCommandPayloadMap {
     zoomPercent: number
   }
   'shell.setLeftTab': {
-    tab: 'file' | 'assets' | 'search' | 'history' | 'debug'
+    tab: 'file' | 'assets' | 'history' | 'debug'
   }
   'shell.setGrid': {
     enabled: boolean

@@ -105,7 +105,6 @@ export interface EditorUIState {
   selectedIds: string[]
   selectedProps: SelectedElementProps | null
   snappingEnabled: boolean
-  showCreateFile: boolean
   showPrint: boolean
   viewportScale: number
 }
@@ -114,6 +113,8 @@ export interface LayerItem {
   id: string
   name: string
   show: boolean
+  isVisible?: boolean
+  isLocked?: boolean
   type: string
   depth: number
   isGroup: boolean
@@ -143,8 +144,6 @@ export interface EditorRuntimeCommands {
   saveFile: VoidFunction
   createFile: (nextFile: VisionFileType) => void
   addAsset: (asset: VisionFileAsset) => void
-  handleCreating: (value: boolean) => void
-  startCreateFile: VoidFunction
   setCurrentTool: (toolName: ToolName) => void
   setSnappingEnabled: React.Dispatch<React.SetStateAction<boolean>>
   pickHistory: (historyNode: {id: number}) => void
