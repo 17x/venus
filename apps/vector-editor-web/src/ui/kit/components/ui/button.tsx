@@ -1,5 +1,5 @@
 import {forwardRef, type ComponentPropsWithoutRef} from 'react'
-import {Button as ShadcnButton} from '@/components/ui/button'
+import {Button as ShadcnButton} from '@/ui/primitives/button'
 import {cn} from '../../lib/utils.ts'
 import {Tooltip} from './tooltip.tsx'
 

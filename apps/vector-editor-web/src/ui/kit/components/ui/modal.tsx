@@ -5,7 +5,7 @@ import {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/ui/primitives/dialog'
 import {cn} from '../../lib/utils.ts'
 import {Button} from './button.tsx'
 

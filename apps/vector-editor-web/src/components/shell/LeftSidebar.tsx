@@ -137,10 +137,9 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   const treeRows = treeLayerItems as TreeLayerItem[]
 
   return (
-    <aside className={'flex h-full w-[296px] shrink-0 bg-slate-50 dark:bg-slate-950'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-      <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5 bg-slate-50 py-2.5 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+    <aside className={'flex h-full w-[296px] shrink-0 dark:bg-slate-950'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
+      <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5py-2.5 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
         <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
-
         <Tabs
           orientation={'vertical'}
           value={props.activeTab}
@@ -162,9 +161,9 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
                     'inline-flex flex-col w-10 h-10 text-[10px] px-1.5',
-                    'items-center justify-center rounded bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
-                    'data-active:bg-transparent',
-                    active && 'font-semibold',
+                    // 'items-center justify-center rounded bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
+                    // 'data-active:bg-transparent',
+                    // active && 'font-semibold',
                   )}
                   style={active
                     ? {

@@ -1,5 +1,5 @@
 import {forwardRef, type CSSProperties, type InputHTMLAttributes} from 'react'
-import {Input as ShadcnInput} from '@/components/ui/input'
+import {Input as ShadcnInput} from '@/ui/primitives/input'
 import {cn} from '../../lib/utils.ts'
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {

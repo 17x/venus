@@ -6,7 +6,7 @@ import {
   SelectItem as ShadcnSelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/ui/primitives/select'
 import {cn} from '../../lib/utils.ts'
 
 type SelectValueType = string | number
