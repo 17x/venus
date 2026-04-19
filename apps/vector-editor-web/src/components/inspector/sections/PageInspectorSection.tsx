@@ -8,7 +8,7 @@ import {TEST_IDS} from '../../../testing/testIds.ts'
 export function PageInspectorSection() {
   const {t} = useTranslation()
   return (
-    <section className={'vector-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950 p-1'} role={'region'}>
+    <section className={'flex h-full w-full min-h-0 flex-col overflow-hidden p-1 text-[12px] leading-[18px] text-slate-950 dark:text-slate-100'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 text-xs text-slate-900'}>
         <h2 data-testid={TEST_IDS.pageInspector.heading} className={'font-semibold'}>
           {t('inspector.page.title', {defaultValue: 'Page'})}

@@ -25,7 +25,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
       <input
         {...restProps}
         type={'checkbox'}
-        className={cn('vector-prop-form-checkbox', className)}
+        className={cn('h-3.5 w-3.5 rounded border border-slate-300 accent-slate-900 dark:border-slate-600 dark:accent-slate-100', className)}
         {...stopPropagationHandlers}
       />
     )
@@ -36,7 +36,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
       <input
         {...restProps}
         type={'color'}
-        className={cn('vector-prop-form-color', className)}
+        className={cn('h-7 w-full rounded-md border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900', className)}
         {...stopPropagationHandlers}
       />
     )
@@ -46,8 +46,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
     <Input
       {...restProps}
       type={type}
-      s
-      className={cn('vector-prop-form-control', className)}
+      className={cn('h-7 rounded-md border-slate-200 bg-white text-[12px] leading-[18px] dark:border-slate-700 dark:bg-slate-900', className)}
       {...stopPropagationHandlers}
     />
   )

@@ -43,7 +43,7 @@ const ColorSwatchPicker: React.FC<ColorSwatchPickerProps> = ({
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
-      <span className={'vector-shell-text-muted inline-flex size-5 items-center justify-center'}>
+      <span className={'inline-flex size-5 items-center justify-center text-slate-500 dark:text-slate-400'}>
         {icon}
       </span>
       <span className={'absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-slate-200 dark:border-slate-700'} style={{backgroundColor: resolvedValue}}></span>

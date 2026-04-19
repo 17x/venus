@@ -137,8 +137,8 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   const treeRows = treeLayerItems as TreeLayerItem[]
 
   return (
-    <aside className={'vector-shell-rail flex h-full w-[296px] shrink-0 border-r'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-      <nav className={'vector-shell-rail-thin flex w-14 shrink-0 flex-col items-center gap-1.5 border-r py-2.5'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+    <aside className={'flex h-full w-[296px] shrink-0 border-r border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
+      <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5 border-r border-slate-200 bg-slate-50 py-2.5 dark:border-slate-800 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
         <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
 
         <Tabs
@@ -161,9 +161,9 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   title={tabItem.label}
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
-                    'w-90 vector-shell-plain-trigger vector-shell-toolbar-button inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent',
+                    'w-90 inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
                     'data-active:bg-transparent data-active:border-transparent',
-                    active && 'vector-shell-tab-active vector-shell-icon-active font-semibold',
+                    active && 'border-slate-300 bg-slate-100 text-slate-900 font-semibold dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50',
                   )}
                 >
                   <div className='flex flex-col w-90'>
@@ -179,14 +179,14 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         </Tabs>
       </nav>
 
-      <section className={'vector-shell-panel flex min-w-0 w-[240px] flex-1 flex-col'}>
+      <section className={'flex min-w-0 w-[240px] flex-1 flex-col border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}>
         <header className={'border-b px-3 py-2'}>
           <div className={'flex items-center justify-between gap-2'}>
             <h2 className={'truncate text-sm font-medium'}>{props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}</h2>
             <Button
               type={'button'}
               variant={'ghost'}
-              className={'vector-shell-toolbar-button vector-shell-plain-trigger inline-flex size-8 items-center justify-center rounded text-[11px]'}
+              className={'inline-flex size-8 items-center justify-center rounded text-[11px] text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
               aria-label={t('shell.variantB.leftSidebar.minimize', 'Minimize left panel')}
               title={t('shell.variantB.leftSidebar.minimize', 'Minimize left panel')}
               onClick={props.onMinimize}
@@ -194,7 +194,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
               <LuPanelLeftClose size={14}/>
             </Button>
           </div>
-          <p className={'vector-shell-text-muted mt-1 text-[11px]'}>{t('shell.variantB.fileSpace', 'Drafts')}</p>
+          <p className={'mt-1 text-[11px] text-slate-500 dark:text-slate-400'}>{t('shell.variantB.fileSpace', 'Drafts')}</p>
         </header>
 
         {props.activeTab === 'file' &&
@@ -299,8 +299,8 @@ export default function LeftSidebar(props: LeftSidebarProps) {
 
 function DebugRow(props: {label: string, value: string}) {
   return (
-    <div className={'vector-shell-toolbar-button flex items-center justify-between rounded border px-2 py-1.5 text-xs'}>
-      <span className={'vector-shell-text-muted'}>{props.label}</span>
+    <div className={'flex items-center justify-between rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
+      <span className={'text-slate-500 dark:text-slate-400'}>{props.label}</span>
       <span className={'font-mono'}>{props.value}</span>
     </div>
   )

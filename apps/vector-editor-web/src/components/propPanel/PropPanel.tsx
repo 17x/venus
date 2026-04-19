@@ -23,7 +23,7 @@ const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: Prop
   }, [props])
 
   return <Con flex={1} minH={0}>
-    <section className={'vector-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
+    <section className={'flex h-full w-full min-h-0 flex-col overflow-hidden text-[12px] leading-[18px] text-slate-950 dark:text-slate-100'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
         <PanelHead onMinimize={onMinimize}/>
       </div>

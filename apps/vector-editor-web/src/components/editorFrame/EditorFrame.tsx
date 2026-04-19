@@ -9,7 +9,6 @@ import {Col, useTheme} from '@vector/ui'
 import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@vector/runtime'
 import {CanvasViewport} from '../../editor/runtime/canvasAdapter.tsx'
-import {EDITOR_ROOT_CLASS} from '../editorChrome/editorTypography.ts'
 import {generateTemplateFile} from '../../features/templatePresets/generators.ts'
 import type {InspectorContext, InspectorPanelId} from '../../editor/shell/state/inspectorState.ts'
 import {
@@ -22,7 +21,6 @@ import {
 import {
   LEGACY_TOOLBELT_MODE_STORAGE_KEY,
   readStoredToolbeltMode,
-  resolveToolbeltModeFromStorage,
   TOOLBELT_MODE_STORAGE_KEY,
   type ToolbeltMode,
 } from '../../editor/shell/state/toolbeltState.ts'
@@ -227,12 +225,12 @@ const EditorFrame = () => {
     setShowTemplatePresetPicker,
   })
 
-  return <div data-theme={resolvedMode} className={`w-full h-full flex flex-col select-none vector-shell-root ${EDITOR_ROOT_CLASS}`}>
+  return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
-        <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
+           <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
              tabIndex={0}
-             className={'outline-0 vector-shell-canvas-frame'}>
+             className={'outline-0 border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}>
           <FileReceiver executeAction={executeAction}
                         resolveDropPosition={resolveViewportPoint}>
             <Col
@@ -244,7 +242,7 @@ const EditorFrame = () => {
             >
               <div
                 ref={stageHostRef}
-                className={'relative overflow-hidden flex w-full h-full vector-shell-canvas-stage'}
+                className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
                 onContextMenu={(event) => {
                   event.preventDefault()
                   setShowContextMenu(true)

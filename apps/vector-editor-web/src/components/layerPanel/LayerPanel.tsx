@@ -124,8 +124,8 @@ export const LayerPanel = ({
         <div ref={selectedIds?.includes(item.id) ? targetRef : null}
              style={{height: ITEM_HEIGHT}}
              className={selectedIds?.includes(item.id)
-               ? `cursor-pointer rounded vector-shell-icon-active ${EDITOR_TEXT_LABEL_CLASS}`
-               : `vector-shell-panel cursor-pointer rounded ${EDITOR_TEXT_LABEL_CLASS}`}
+               ? `cursor-pointer rounded border border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50 ${EDITOR_TEXT_LABEL_CLASS}`
+               : `cursor-pointer rounded border border-transparent bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200 ${EDITOR_TEXT_LABEL_CLASS}`}
              onClick={(event) => {
                const isToggle = event.metaKey || event.ctrlKey
                if (event.shiftKey && lastClickedId) {
@@ -174,7 +174,7 @@ export const LayerPanel = ({
   }
 
   return <Con flex={1} minH={0}>
-    <section className={'vector-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
+    <section className={'flex h-full w-full min-h-0 flex-col overflow-hidden text-[12px] leading-[18px] text-slate-950 dark:text-slate-100'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
         <h2 data-testid={TEST_IDS.layerPanel.heading} className={'font-semibold'}>{panelTitle}</h2>
         {onMinimize &&
@@ -182,7 +182,7 @@ export const LayerPanel = ({
             type="button"
             aria-label={t('inspector.minimizePanel', {title: panelTitle, defaultValue: `Minimize ${panelTitle}`})}
             title={t('inspector.minimizePanel', {title: panelTitle, defaultValue: `Minimize ${panelTitle}`})}
-            className={'vector-shell-text-muted inline-flex size-5 items-center justify-center rounded hover:opacity-100'}
+            className={'inline-flex size-5 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
             onClick={(event) => {
               event.stopPropagation()
               onMinimize?.()
@@ -192,8 +192,8 @@ export const LayerPanel = ({
           </Button>}
       </div>
       <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 pb-1'}>
-        <div className={`vector-shell-rail flex min-h-full flex-col gap-2 rounded p-1 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
-        <div className={'vector-shell-panel grid grid-cols-4 gap-1 rounded p-1 shadow-sm'}>
+        <div className={`flex min-h-full flex-col gap-2 rounded bg-slate-50 p-1 dark:bg-slate-950 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+        <div className={'grid grid-cols-4 gap-1 rounded border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900'}>
           <LayerActionButton
             title={(t('bringForward', {returnObjects: true}) as I18nHistoryDataItem).tooltip}
             disabled={selectedIds.length === 0}
@@ -221,7 +221,7 @@ export const LayerPanel = ({
         </div>
         <div ref={scrollRef}
              onScroll={handleScroll}
-             className={'vector-shell-panel relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded p-1 select-none'}>
+             className={'relative min-h-0 flex-1 select-none overflow-x-hidden overflow-y-auto rounded border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900'}>
           <div className={'absolute z-10 w-full top-0 left-0'} style={{
             height: layerItems.length * ITEM_HEIGHT,
           }}></div>
@@ -277,7 +277,7 @@ function LayerActionButton(props: {
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={'vector-shell-rail inline-flex h-7 w-full items-center justify-center rounded border border-transparent disabled:opacity-40'}
+      className={'inline-flex h-7 w-full items-center justify-center rounded border border-transparent bg-slate-50 text-slate-700 hover:bg-slate-100 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-40'}
     >
       {icon}
     </Button>

@@ -185,7 +185,7 @@ const ShortcutBar: React.FC<{
     },
   ]
 
-  return <div className={'vector-shell-toolbar border-b'}>
+  return <div className={'border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}>
     <div className={'flex h-11 items-center gap-1 overflow-x-auto px-3 whitespace-nowrap'}>
       <Button
         type={'button'}
@@ -205,7 +205,7 @@ const ShortcutBar: React.FC<{
       >
         <WandSparkles size={18}/>
       </Button>
-      <div className={'vector-shell-divider mx-1 h-5 w-px'}></div>
+      <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>
       {
         Object.values(actions).map((item) => {
           const {id, i18nKey, icon, disabled, divide} = item
@@ -235,11 +235,11 @@ const ShortcutBar: React.FC<{
                     )}>
               {icon}
             </IconButton>
-            {divide && <div className={'vector-shell-divider mx-1 h-5 w-px'}></div>}
+            {divide && <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>}
           </Fragment>
         })
       }
-      <div className={'vector-shell-divider mx-1 h-5 w-px'}></div>
+      <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>
       {shapeActions.map((item) => {
         const menuText = t(item.i18nKey, {returnObjects: true}) as I18nHistoryDataItem | string
         const tooltip = typeof menuText === 'string' ? item.id : menuText.tooltip
@@ -260,7 +260,7 @@ const ShortcutBar: React.FC<{
           {item.icon}
         </IconButton>
       })}
-      <div className={'vector-shell-divider mx-1 h-5 w-px'}></div>
+      <div className={'mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700'}></div>
       <ColorSwatchPicker
         icon={<Palette size={14}/>} 
         label={t('ui.quickStyle.fill')}
@@ -279,7 +279,7 @@ const ShortcutBar: React.FC<{
       />
       <div className={'flex items-center gap-1'}>
         <span
-          className={'vector-shell-control-chip vector-shell-text-muted inline-flex size-7 items-center justify-center rounded border'}
+          className={'inline-flex size-7 items-center justify-center rounded border border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400'}
           title={t('ui.quickStyle.stroke')}
         >
           <SlidersHorizontal size={14}/>

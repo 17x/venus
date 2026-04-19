@@ -1,5 +1,5 @@
 @layer components {
-  .vector-editor {
+  [data-vector-ui-root='true'] {
     --vector-ui-font-family: "Inter", "Segoe UI", sans-serif;
     --vector-ui-font-size-xs: 11px;
     --vector-ui-font-size-sm: 12px;
@@ -64,7 +64,7 @@
     line-height: var(--vector-editor-line-body);
   }
 
-  .vector-editor[data-theme='dark'] {
+  [data-vector-ui-root='true'][data-theme='dark'] {
     --vector-ui-border-color: #334155;
     --vector-ui-border-color-strong: #475569;
 

@@ -96,7 +96,7 @@ const MenuBar: React.FC<{
           {menuItem.divide && <DropdownMenuSeparator/>}
           {hasChildren
             ? <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn('vector-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}>
+                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={EDITOR_TEXT_MENU_CLASS}>
                   <span className={'inline-flex items-center gap-2'}>
                     {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
                     <span>{label}</span>
@@ -112,7 +112,7 @@ const MenuBar: React.FC<{
                   handleMenuAction(menuItem)
                 }}
                 title={tooltip}
-                className={cn('vector-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}
+                className={EDITOR_TEXT_MENU_CLASS}
               >
                 <span className={'inline-flex items-center gap-2'}>
                   {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
@@ -124,15 +124,18 @@ const MenuBar: React.FC<{
     })
   }
 
-  return <div className={cn('vector-shell-menu h-9 select-none border-b px-2 py-1', EDITOR_TEXT_MENU_CLASS)}>
+  return <div className={cn('h-9 select-none border-b border-slate-200 bg-white px-2 py-1 dark:border-slate-800 dark:bg-slate-900', EDITOR_TEXT_MENU_CLASS)}>
     <div className={'flex h-full items-center gap-1'}>
       {
         actions.map((menu) => {
           return <DropdownMenu key={menu.id}>
             <DropdownMenuTrigger
               className={cn(
-                'vector-shell-menu-button vector-shell-focusable inline-flex h-full items-center rounded px-3 font-medium',
-                'data-[state=open]:vector-shell-menu-button-active',
+                'inline-flex h-full items-center rounded px-3 font-medium text-slate-700 outline-none transition-colors',
+                'hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300',
+                'dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
+                'data-[state=open]:border data-[state=open]:border-slate-300 data-[state=open]:bg-slate-100 data-[state=open]:text-slate-900',
+                'dark:data-[state=open]:border-slate-600 dark:data-[state=open]:bg-slate-800 dark:data-[state=open]:text-slate-50',
                 EDITOR_TEXT_MENU_CLASS,
               )}
               title={t(menu.id + '.tooltip', {defaultValue: t(menu.id + '.label')})}

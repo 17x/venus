@@ -34,11 +34,11 @@ export default function RightSidebar(props: RightSidebarProps) {
   }
 
   return (
-    <aside className={'vector-shell-panel flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden border-l'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
+    <aside className={'flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
       <div className={'flex items-center justify-between border-b px-2.5 py-2'}>
         <div className={'flex items-center gap-2'}>
           <div className={'inline-flex size-7 items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-700'}>Y</div>
-          <span className={'vector-shell-text-muted text-xs'}>{t('shell.variantB.role', 'Design')}</span>
+          <span className={'text-xs text-slate-500 dark:text-slate-400'}>{t('shell.variantB.role', 'Design')}</span>
         </div>
         <div className={'flex items-center gap-1.5'}>
           <Tooltip title={t('shell.variantB.present', 'Present')} placement={'l'} asChild>
@@ -46,7 +46,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               type={'button'}
               variant={'ghost'}
               noTooltip
-              className={'vector-shell-toolbar-button vector-shell-plain-trigger inline-flex size-7 items-center justify-center rounded'}
+              className={'inline-flex size-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
               aria-label={t('shell.variantB.present', 'Present')}
               title={t('shell.variantB.present', 'Present')}
             >
@@ -70,7 +70,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               type={'button'}
               variant={'ghost'}
               noTooltip
-              className={'vector-shell-toolbar-button vector-shell-plain-trigger inline-flex size-7 items-center justify-center rounded text-base leading-none'}
+              className={'inline-flex size-7 items-center justify-center rounded text-base leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
               aria-label={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')}
               title={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')}
               onClick={props.onMinimize}
@@ -87,7 +87,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             <TabsTrigger
               value={'design'}
               title={t('shell.variantB.tab.design', 'Design')}
-              className={'vector-shell-plain-trigger vector-shell-icon-active rounded px-2 py-1 text-xs font-semibold'}
+              className={'rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'}
             >
               {t('shell.variantB.tab.design', 'Design')}
             </TabsTrigger>
@@ -95,7 +95,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               value={'prototype'}
               title={t('shell.variantB.tab.prototype', 'Prototype')}
               disabled
-              className={'vector-shell-plain-trigger vector-shell-text-muted rounded px-2 py-1 text-xs'}
+              className={'rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400'}
             >
               {t('shell.variantB.tab.prototype', 'Prototype')}
             </TabsTrigger>
@@ -136,8 +136,8 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.selection', 'Selection')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('selection')}
             className={props.context === 'selection'
-              ? 'vector-shell-plain-trigger vector-shell-icon-active rounded px-2 py-1 text-xs font-semibold'
-              : 'vector-shell-plain-trigger vector-shell-text-muted rounded px-2 py-1 text-xs'}
+              ? 'rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
+              : 'rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400'}
           >
             {t('shell.variantB.context.selection', 'Selection')}
           </TabsTrigger>
@@ -147,8 +147,8 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.page', 'Page')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('page')}
             className={props.context === 'page'
-              ? 'vector-shell-plain-trigger vector-shell-icon-active rounded px-2 py-1 text-xs font-semibold'
-              : 'vector-shell-plain-trigger vector-shell-text-muted rounded px-2 py-1 text-xs'}
+              ? 'rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
+              : 'rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400'}
           >
             {t('shell.variantB.context.page', 'Page')}
           </TabsTrigger>

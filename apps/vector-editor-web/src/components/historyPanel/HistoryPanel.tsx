@@ -36,7 +36,7 @@ export const HistoryPanel: FC<{
   }, [historyItems, historyStatus])
 
   return <Con fh ovh flex={1} minH={0}>
-    <section className={'vector-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
+    <section className={'flex h-full w-full min-h-0 flex-col overflow-hidden text-[12px] leading-[18px] text-slate-950 dark:text-slate-100'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
         <h2 data-testid={TEST_IDS.historyPanel.heading} className={'font-semibold'}>{panelTitle}</h2>
         {onMinimize &&
@@ -71,7 +71,7 @@ export const HistoryPanel: FC<{
               key={historyNode.id}
               aria-current={isCurr ? 'step' : undefined}
               className={isCurr
-                ? 'justify-start rounded vector-shell-icon-active px-2 text-gray-900'
+                ? 'justify-start rounded border border-slate-300 bg-slate-100 px-2 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
                 : 'justify-start rounded bg-white px-2 text-gray-700 hover:bg-gray-100'}
               onClick={() => {
                 if (isCurr) return

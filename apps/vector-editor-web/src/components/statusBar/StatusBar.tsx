@@ -24,7 +24,7 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
     }
   }, [])
 
-  return <div className={'vector-shell-status flex h-7 w-full items-center justify-between border-t px-2'}>
+  return <div className={'flex h-7 w-full items-center justify-between border-t border-slate-200 bg-white px-2 dark:border-slate-800 dark:bg-slate-900'}>
     <ZoomSelect
       scale={worldScale}
       onChange={(newScale) => {
@@ -38,7 +38,7 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
         }
       }}
     />
-    <div className={`line-clamp-1 vector-shell-text-muted ${EDITOR_TEXT_STATUS_CLASS}`}>
+    <div className={`line-clamp-1 text-slate-500 dark:text-slate-400 ${EDITOR_TEXT_STATUS_CLASS}`}>
       {`dx:${worldPoint.x.toFixed(2)} dy:${worldPoint.y.toFixed(2)}`}
     </div>
   </div>

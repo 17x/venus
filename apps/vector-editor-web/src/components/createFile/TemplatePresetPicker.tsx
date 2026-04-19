@@ -67,12 +67,12 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
       }
     }}
   >
-    <div className={cn('vector-shell-panel h-[82vh] w-[95vw] max-w-[1160px] rounded-xl shadow-2xl', EDITOR_TEXT_BODY_CLASS)}>
+    <div className={cn('h-[82vh] w-[95vw] max-w-[1160px] rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900', EDITOR_TEXT_BODY_CLASS)}>
       <div className={'flex h-full min-h-0 flex-col overflow-hidden'}>
         <header className={'flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 dark:border-slate-700'}>
           <div>
             <h2 className={'text-sm font-semibold'}>{t('ui.template.pickerTitle')}</h2>
-            <p className={'vector-shell-text-muted mt-0.5 text-xs'}>{t('ui.template.pickerSubtitle')}</p>
+            <p className={'mt-0.5 text-xs text-slate-500 dark:text-slate-400'}>{t('ui.template.pickerSubtitle')}</p>
           </div>
           <Button type={'button'} size={'sm'} variant={'ghost'} onClick={onClose}>{t('ui.template.cancelButton')}</Button>
         </header>
@@ -89,7 +89,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                   }
 
                   return <section key={category}>
-                    <h3 className={'vector-shell-text-muted mb-1.5 text-[11px] font-semibold uppercase tracking-wide'}>
+                    <h3 className={'mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'}>
                       {t(CATEGORY_LABELS[category])}
                     </h3>
                     <div className={'grid grid-cols-1 gap-2 sm:grid-cols-2'}>
@@ -108,18 +108,18 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                           className={cn(
                             'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left transition-colors',
                             active
-                              ? 'border-transparent vector-shell-tab-active'
+                              ? 'border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
                               : 'hover:border-slate-300 dark:hover:border-slate-600',
                           )}
                         >
                           <div className={'w-full'}>
                             <div className={'flex items-center justify-between gap-2'}>
                               <div className={'text-sm font-medium'}>{preset.label}</div>
-                              <span className={'vector-shell-text-muted rounded bg-slate-100 px-1.5 py-0.5 text-[11px] dark:bg-slate-800'}>
+                              <span className={'rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400'}>
                                 {preset.targetElementCount.toLocaleString()}
                               </span>
                             </div>
-                            <span className={'vector-shell-text-muted rounded bg-slate-100 px-1.5 py-0.5 text-[11px] dark:bg-slate-800'}>
+                            <span className={'rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400'}>
                               {t(CATEGORY_LABELS[preset.category])}
                             </span>
                           </div>
@@ -138,11 +138,11 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
               {activePreset
                 ? <div className={'rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60'}>
                     <div className={'text-sm font-semibold'}>{activePreset.label}</div>
-                    <p className={'vector-shell-text-muted mt-1 text-xs'}>{activePreset.description}</p>
-                    <div className={'vector-shell-text-muted mt-2 text-xs'}>
+                    <p className={'mt-1 text-xs text-slate-500 dark:text-slate-400'}>{activePreset.description}</p>
+                    <div className={'mt-2 text-xs text-slate-500 dark:text-slate-400'}>
                       {t('ui.template.categoryLabel')}: {t(CATEGORY_LABELS[activePreset.category])}
                     </div>
-                    <div className={'vector-shell-text-muted text-xs'}>
+                    <div className={'text-xs text-slate-500 dark:text-slate-400'}>
                       {t('ui.template.targetElementsLabel')}: {activePreset.targetElementCount.toLocaleString()}
                     </div>
                     <div className={'pt-3'}>
@@ -159,7 +159,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                       </Button>
                     </div>
                   </div>
-                : <div className={'vector-shell-text-muted rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/60'}>
+                : <div className={'rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400'}>
                     {t('ui.template.actionsHint')}
                   </div>}
             </div>
