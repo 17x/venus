@@ -71,7 +71,7 @@ export const HistoryPanel: FC<{
               key={historyNode.id}
               aria-current={isCurr ? 'step' : undefined}
               className={isCurr
-                ? 'justify-start rounded border border-slate-300 bg-slate-100 px-2 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
+                ? 'justify-start rounded bg-slate-100 px-2 text-slate-900 dark:bg-slate-800 dark:text-slate-50'
                 : 'justify-start rounded bg-white px-2 text-gray-700 hover:bg-gray-100'}
               onClick={() => {
                 if (isCurr) return

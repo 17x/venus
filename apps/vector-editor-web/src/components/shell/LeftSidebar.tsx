@@ -14,7 +14,7 @@ import {createLeftSidebarTabItems, type LeftSidebarProps, type LeftSidebarTab, t
 
 export default function LeftSidebar(props: LeftSidebarProps) {
   const {t, i18n} = useTranslation()
-  const {mode, setMode} = useTheme()
+  const {mode, setMode, colors} = useTheme()
   const [layerFilter, setLayerFilter] = useState('')
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set())
   const [activeAssetId, setActiveAssetId] = useState('action-sheet')
@@ -137,8 +137,8 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   const treeRows = treeLayerItems as TreeLayerItem[]
 
   return (
-    <aside className={'flex h-full w-[296px] shrink-0 border-r border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-      <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5 border-r border-slate-200 bg-slate-50 py-2.5 dark:border-slate-800 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+    <aside className={'flex h-full w-[296px] shrink-0 bg-slate-50 dark:bg-slate-950'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
+      <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5 bg-slate-50 py-2.5 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
         <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
 
         <Tabs
@@ -161,17 +161,19 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   title={tabItem.label}
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
-                    'w-90 inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
-                    'data-active:bg-transparent data-active:border-transparent',
-                    active && 'border-slate-300 bg-slate-100 text-slate-900 font-semibold dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50',
+                    'inline-flex flex-col w-10 h-10 text-[10px] px-1.5',
+                    'items-center justify-center rounded bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
+                    'data-active:bg-transparent',
+                    active && 'font-semibold',
                   )}
+                  style={active
+                    ? {
+                        backgroundColor: colors.primary,
+                        color: colors.primaryForeground,
+                      }
+                    : undefined}
                 >
-                  <div className='flex flex-col w-90'>
-                    <span>
-                      {tabItem.icon}
-                    </span>
-                    <span className='text-xs'>{tabItem.label}</span>
-                  </div>
+                  {tabItem.icon}
                 </TabsTrigger>
               </Tooltip>
             })}
@@ -179,8 +181,8 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         </Tabs>
       </nav>
 
-      <section className={'flex min-w-0 w-[240px] flex-1 flex-col border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}>
-        <header className={'border-b px-3 py-2'}>
+      <section className={'flex min-w-0 w-[240px] flex-1 flex-col bg-white dark:bg-slate-900'}>
+        <header className={'px-3 py-2'}>
           <div className={'flex items-center justify-between gap-2'}>
             <h2 className={'truncate text-sm font-medium'}>{props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}</h2>
             <Button
@@ -299,7 +301,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
 
 function DebugRow(props: {label: string, value: string}) {
   return (
-    <div className={'flex items-center justify-between rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
+    <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
       <span className={'text-slate-500 dark:text-slate-400'}>{props.label}</span>
       <span className={'font-mono'}>{props.value}</span>
     </div>

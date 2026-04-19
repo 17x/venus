@@ -17,6 +17,8 @@ This app owns its UI stack under `src/ui`.
 
 - Keep visual constants in `foundation/tokens.css`; avoid hardcoded colors in feature components.
 - Keep Tailwind utility usage focused on layout/structure; route semantic colors and typography through CSS variables.
+- Borders and shadows are opt-in at call sites; shared primitives should default to borderless and shadowless surfaces.
+- `useTheme()` exposes both mode state and the resolved theme palette (`primary`, `secondary`, `tertiary` / `thirdly`, hover colors).
 - Put primitive controls in `kit/components/ui`.
 - Put feature-composed components under feature folders (`src/components/*`) and consume `@vector/ui` exports.
 

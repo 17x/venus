@@ -56,13 +56,13 @@ export function Select({
         <SelectTrigger
           size={size}
           className={cn(
-            'vector-ui-font vector-ui-hover-transition border-[var(--vector-ui-border-color)] bg-white text-left text-slate-900 shadow-xs hover:bg-[var(--vector-ui-hover-bg)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
+            'vector-ui-font vector-ui-hover-transition border-0 bg-white text-left text-slate-900 shadow-none hover:bg-[var(--vector-ui-hover-bg)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 dark:bg-slate-900 dark:text-slate-100',
             l && 'h-9',
           )}
         >
           <SelectValue>{placeholderResolver(selectValue)}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="border border-[var(--vector-ui-border-color)] bg-white p-1 shadow-md" alignItemWithTrigger>
+        <SelectContent className="border-0 bg-white p-1 shadow-none dark:bg-slate-900" alignItemWithTrigger>
           <SelectGroup style={itemStyle}>
             {children}
           </SelectGroup>

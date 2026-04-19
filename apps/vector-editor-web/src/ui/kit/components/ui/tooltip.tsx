@@ -57,7 +57,7 @@ export function Tooltip({
     side={resolveSide(placement)}
     align={resolveAlign(placement)}
     sideOffset={6}
-    className="z-50 whitespace-nowrap rounded px-2 py-1 shadow"
+    className="z-50 whitespace-nowrap rounded px-2 py-1 shadow-none"
     style={{backgroundColor: bgColor, color: textColor, fontSize: 11, lineHeight: '14px'}}
   >
     {title}

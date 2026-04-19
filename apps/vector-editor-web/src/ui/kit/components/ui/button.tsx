@@ -14,10 +14,10 @@ export interface ButtonProps extends ComponentPropsWithoutRef<'button'> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'border-[var(--vector-ui-border-width)] border-transparent bg-[var(--vector-ui-color-secondary)] text-white shadow-xs hover:bg-[var(--vector-ui-color-secondary-hover)]',
-  primary: 'border-[var(--vector-ui-border-width)] border-transparent bg-[var(--vector-ui-color-primary)] text-white shadow-xs hover:bg-[var(--vector-ui-color-primary-hover)]',
-  ghost: 'border-[var(--vector-ui-border-width)] border-transparent bg-transparent text-slate-700 hover:border-[var(--vector-ui-border-color-strong)] hover:text-slate-900 active:border-[color:color-mix(in_srgb,var(--vector-shell-active-text)_30%,var(--vector-ui-border-color))] active:text-[var(--vector-shell-active-text)]',
-  outline: 'vector-ui-control-border bg-white text-slate-800 shadow-xs hover:bg-[var(--vector-ui-hover-bg)] hover:border-[var(--vector-ui-border-color-strong)]',
+  default: 'bg-[var(--vector-ui-color-secondary)] text-[var(--vector-ui-color-secondary-foreground)] hover:bg-[var(--vector-ui-color-secondary-hover)]',
+  primary: 'bg-[var(--vector-ui-color-primary)] text-[var(--vector-ui-color-primary-foreground)] hover:bg-[var(--vector-ui-color-primary-hover)]',
+  ghost: 'bg-transparent text-slate-700 hover:bg-[var(--vector-ui-hover-bg)] hover:text-slate-900 active:text-[var(--vector-shell-active-text)] dark:text-slate-200 dark:hover:bg-[var(--vector-ui-hover-bg)] dark:hover:text-slate-50',
+  outline: 'bg-[var(--vector-ui-color-tertiary)] text-[var(--vector-ui-color-tertiary-foreground)] hover:bg-[var(--vector-ui-color-tertiary-hover)] dark:bg-[var(--vector-ui-color-tertiary)] dark:text-[var(--vector-ui-color-tertiary-foreground)]',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -55,7 +55,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     variant={variantMap[usedVariant]}
     size={sizeMap[size]}
     className={cn(
-      'vector-ui-font vector-ui-hover-transition rounded-[var(--vector-ui-radius-md)]',
+      'vector-ui-font vector-ui-hover-transition rounded-[var(--vector-ui-radius-md)] shadow-none',
       variantClasses[usedVariant],
       sizeClasses[size],
       className,
@@ -112,7 +112,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       variant={variantMap[usedVariant]}
       size={size}
       className={cn(
-        'vector-ui-font vector-ui-hover-transition inline-flex items-center justify-center overflow-hidden rounded-md [&_svg]:size-[var(--vector-ui-button-icon-size)]',
+        'vector-ui-font vector-ui-hover-transition inline-flex items-center justify-center overflow-hidden rounded-md shadow-none [&_svg]:size-[var(--vector-ui-button-icon-size)]',
         variantClasses[usedVariant],
         sizeClass,
         className,

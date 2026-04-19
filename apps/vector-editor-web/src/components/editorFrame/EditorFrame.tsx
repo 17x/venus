@@ -230,7 +230,7 @@ const EditorFrame = () => {
       {file && <>
            <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
              tabIndex={0}
-             className={'outline-0 border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}>
+             className={'outline-0 bg-white dark:bg-slate-900'}>
           <FileReceiver executeAction={executeAction}
                         resolveDropPosition={resolveViewportPoint}>
             <Col

@@ -185,7 +185,7 @@ const ShortcutBar: React.FC<{
     },
   ]
 
-  return <div className={'border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}>
+  return <div className={'bg-white dark:bg-slate-900'}>
     <div className={'flex h-11 items-center gap-1 overflow-x-auto px-3 whitespace-nowrap'}>
       <Button
         type={'button'}
@@ -279,7 +279,7 @@ const ShortcutBar: React.FC<{
       />
       <div className={'flex items-center gap-1'}>
         <span
-          className={'inline-flex size-7 items-center justify-center rounded border border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400'}
+          className={'inline-flex size-7 items-center justify-center rounded text-slate-500 dark:text-slate-400'}
           title={t('ui.quickStyle.stroke')}
         >
           <SlidersHorizontal size={14}/>

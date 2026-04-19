@@ -39,7 +39,7 @@ const FileReceiver: FC<{
     {children}
     {
       showDropNotice && <Con fw fh abs t={0} l={0} borderColor={dropNoticeColor} style={{
-        border: '5px solid',
+        backgroundColor: dropNoticeColor === 'green' ? 'rgba(34, 197, 94, 0.14)' : 'rgba(239, 68, 68, 0.14)',
         pointerEvents: 'none',
       }}></Con>
     }

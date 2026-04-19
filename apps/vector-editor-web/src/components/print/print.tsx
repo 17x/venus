@@ -48,9 +48,9 @@ export const Print: FC<{
 
   return <div className={'fixed top-0 left-0 w-full h-full z-100 flex items-center justify-center'}>
     <div className={'absolute top-0 left-0 w-full h-full bg-black/50'} onClick={onClose}></div>
-    <div className={'z-10 flex h-[90%] w-[90%] rounded border border-slate-200 bg-white px-2 py-4 dark:border-slate-700 dark:bg-slate-900'}>
+    <div className={'z-10 flex h-[90%] w-[90%] rounded bg-white px-2 py-4 dark:bg-slate-900'}>
       <div className={'w-[50%] flex items-center justify-center overflow-hidden'}>
-        <canvas ref={printPreviewCanvas} className={'max-w-full max-h-full rounded border border-slate-200 dark:border-slate-700'}></canvas>
+        <canvas ref={printPreviewCanvas} className={'max-w-full max-h-full rounded'}></canvas>
       </div>
       <div className={'w-[50%] flex flex-col justify-between'}>
         <div></div>

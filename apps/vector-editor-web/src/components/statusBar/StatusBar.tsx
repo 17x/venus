@@ -24,7 +24,7 @@ export const StatusBar: FC<{ ref: PointRefType | null, executeAction: EditorExec
     }
   }, [])
 
-  return <div className={'flex h-7 w-full items-center justify-between border-t border-slate-200 bg-white px-2 dark:border-slate-800 dark:bg-slate-900'}>
+  return <div className={'flex h-7 w-full items-center justify-between bg-white px-2 dark:bg-slate-900'}>
     <ZoomSelect
       scale={worldScale}
       onChange={(newScale) => {

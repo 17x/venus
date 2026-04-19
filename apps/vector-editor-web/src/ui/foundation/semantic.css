@@ -82,7 +82,6 @@
     min-width: 0;
     height: 26px;
     border-radius: var(--vector-ui-radius-md);
-    border: var(--vector-ui-border-width) solid var(--vector-ui-border-color);
     background: white;
     padding: 3px;
   }
@@ -152,12 +151,9 @@
   .vector-shell-menu-button,
   .vector-shell-control-chip {
     color: var(--vector-shell-text);
-    border-width: var(--vector-ui-border-width);
-    border-color: transparent;
     background: transparent;
     transition:
       background-color var(--vector-ui-hover-speed) ease,
-      border-color var(--vector-ui-hover-speed) ease,
       color var(--vector-ui-hover-speed) ease;
   }
 
@@ -165,7 +161,6 @@
   .vector-shell-toolbar-button:hover,
   .vector-shell-control-chip:hover {
     background: var(--vector-ui-hover-bg);
-    border-color: var(--vector-ui-border-color-strong);
   }
 
   .vector-shell-menu-button-active,
@@ -173,28 +168,23 @@
   .vector-shell-icon-active {
     background: var(--vector-shell-active-bg);
     color: var(--vector-shell-active-text);
-    border-color: color-mix(in srgb, var(--vector-shell-active-text) 25%, var(--vector-shell-border));
   }
 
   .vector-shell-tab-active {
     background: color-mix(in srgb, var(--vector-shell-active-bg) 75%, var(--vector-shell-active-text) 25%);
-    border-color: color-mix(in srgb, var(--vector-shell-active-text) 35%, var(--vector-shell-border));
   }
 
   .vector-shell-plain-trigger {
-    border-color: transparent;
     background: transparent;
   }
 
   .vector-ui-menu-item {
     height: var(--vector-ui-menu-item-height);
-    border: var(--vector-ui-border-width) solid transparent;
     color: var(--vector-shell-text);
   }
 
   .vector-ui-menu-item:hover {
     background: var(--vector-ui-hover-bg);
-    border-color: var(--vector-shell-border-soft);
   }
 
   .vector-shell-toolbar-button svg,
@@ -218,9 +208,7 @@
   .vector-ui-hover-transition {
     transition:
       background-color var(--vector-ui-hover-speed) ease,
-      border-color var(--vector-ui-hover-speed) ease,
-      color var(--vector-ui-hover-speed) ease,
-      box-shadow var(--vector-ui-hover-speed) ease;
+      color var(--vector-ui-hover-speed) ease;
   }
 
   .vector-ui-control-border {

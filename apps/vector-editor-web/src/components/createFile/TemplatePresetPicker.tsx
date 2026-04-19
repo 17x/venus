@@ -67,9 +67,9 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
       }
     }}
   >
-    <div className={cn('h-[82vh] w-[95vw] max-w-[1160px] rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900', EDITOR_TEXT_BODY_CLASS)}>
+    <div className={cn('h-[82vh] w-[95vw] max-w-[1160px] rounded-xl bg-white dark:bg-slate-900', EDITOR_TEXT_BODY_CLASS)}>
       <div className={'flex h-full min-h-0 flex-col overflow-hidden'}>
-        <header className={'flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 dark:border-slate-700'}>
+        <header className={'flex items-center justify-between gap-4 px-4 py-3'}>
           <div>
             <h2 className={'text-sm font-semibold'}>{t('ui.template.pickerTitle')}</h2>
             <p className={'mt-0.5 text-xs text-slate-500 dark:text-slate-400'}>{t('ui.template.pickerSubtitle')}</p>
@@ -78,7 +78,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
         </header>
 
         <div className={'grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.25fr_0.75fr]'}>
-          <section className={'min-h-0 border-r border-slate-200 p-3 dark:border-slate-700'} data-testid={TEST_IDS.templatePicker.options}>
+          <section className={'min-h-0 p-3'} data-testid={TEST_IDS.templatePicker.options}>
             <h3 className={'mb-2 text-xs font-semibold'}>{t('ui.template.pickerTitle')}</h3>
             <div className={'h-full overflow-auto pr-1'}>
               <div className={'space-y-4'} role={'listbox'} aria-label={t('ui.template.pickerTitle')}>
@@ -108,8 +108,8 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                           className={cn(
                             'h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left transition-colors',
                             active
-                              ? 'border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
-                              : 'hover:border-slate-300 dark:hover:border-slate-600',
+                              ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50'
+                              : '',
                           )}
                         >
                           <div className={'w-full'}>
@@ -136,7 +136,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
             <h3 className={'mb-2 text-xs font-semibold'}>{t('ui.template.presetDetails')}</h3>
             <div className={'scrollbar-custom min-h-0 flex-1 overflow-auto'}>
               {activePreset
-                ? <div className={'rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60'}>
+                ? <div className={'rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60'}>
                     <div className={'text-sm font-semibold'}>{activePreset.label}</div>
                     <p className={'mt-1 text-xs text-slate-500 dark:text-slate-400'}>{activePreset.description}</p>
                     <div className={'mt-2 text-xs text-slate-500 dark:text-slate-400'}>
@@ -159,7 +159,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
                       </Button>
                     </div>
                   </div>
-                : <div className={'rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400'}>
+                : <div className={'rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900/60 dark:text-slate-400'}>
                     {t('ui.template.actionsHint')}
                   </div>}
             </div>
@@ -167,7 +167,7 @@ const TemplatePresetPicker: FC<TemplatePresetPickerProps> = ({bg, onClose, onGen
         </div>
 
         {/* Keep action row fixed to the bottom so cancel/apply remain visible during long preset lists. */}
-        <div className={'flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 px-4 py-3 dark:border-slate-700'} data-testid={TEST_IDS.templatePicker.footer}>
+        <div className={'flex shrink-0 items-center justify-end gap-2 px-4 py-3'} data-testid={TEST_IDS.templatePicker.footer}>
           <Button type={'button'} variant={'outline'} title={t('ui.template.cancelButton')} onClick={onClose}>{t('ui.template.cancelButton')}</Button>
           <Button
             variant={'primary'}

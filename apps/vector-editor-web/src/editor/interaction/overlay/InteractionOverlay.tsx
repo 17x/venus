@@ -26,7 +26,7 @@ import {
 } from './interactionOverlayRenderers.tsx'
 import {InteractionOverlayPathChrome} from './interactionOverlayPathChrome.tsx'
 
-interface InteractionOverlayProps {
+export interface InteractionOverlayProps {
   document: EditorDocument
   shapes: SceneShapeSnapshot[]
   viewport: CanvasRendererProps['viewport']

@@ -14,7 +14,7 @@ export function PageInspectorSection() {
           {t('inspector.page.title', {defaultValue: 'Page'})}
         </h2>
       </div>
-      <div className={`flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+      <div className={`flex flex-col gap-2 rounded bg-gray-50 p-2 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
         <div className={`text-gray-500 ${EDITOR_TEXT_PANEL_HEADING_CLASS}`}>{t('inspector.page.background', {defaultValue: 'Background'})}</div>
         <div className={'flex items-center justify-between gap-2'}>
           <span>{t('inspector.page.visible', {defaultValue: 'Visible'})}</span>

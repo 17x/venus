@@ -25,7 +25,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
       <input
         {...restProps}
         type={'checkbox'}
-        className={cn('h-3.5 w-3.5 rounded border border-slate-300 accent-slate-900 dark:border-slate-600 dark:accent-slate-100', className)}
+        className={cn('h-3.5 w-3.5 rounded accent-slate-900 dark:accent-slate-100', className)}
         {...stopPropagationHandlers}
       />
     )
@@ -36,7 +36,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
       <input
         {...restProps}
         type={'color'}
-        className={cn('h-7 w-full rounded-md border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900', className)}
+        className={cn('h-7 w-full rounded-md bg-white p-1 dark:bg-slate-900', className)}
         {...stopPropagationHandlers}
       />
     )
@@ -46,7 +46,7 @@ export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props)
     <Input
       {...restProps}
       type={type}
-      className={cn('h-7 rounded-md border-slate-200 bg-white text-[12px] leading-[18px] dark:border-slate-700 dark:bg-slate-900', className)}
+      className={cn('h-7 rounded-md bg-white text-[12px] leading-[18px] dark:bg-slate-900', className)}
       {...stopPropagationHandlers}
     />
   )

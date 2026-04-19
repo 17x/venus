@@ -4,11 +4,8 @@ import type {InspectorContext} from '../../editor/shell/state/inspectorState.ts'
 import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
 import {PageInspectorSection} from '../inspector/sections/PageInspectorSection.tsx'
 import PropPanel from '../propPanel/PropPanel.tsx'
-import {LuPlay} from 'react-icons/lu'
 import {useTranslation} from 'react-i18next'
 import {TEST_IDS} from '../../testing/testIds.ts'
-
-const SIDEBAR_ICON_SIZE = 14
 
 export interface RightSidebarProps {
   context: InspectorContext
@@ -34,37 +31,9 @@ export default function RightSidebar(props: RightSidebarProps) {
   }
 
   return (
-    <aside className={'flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
-      <div className={'flex items-center justify-between border-b px-2.5 py-2'}>
-        <div className={'flex items-center gap-2'}>
-          <div className={'inline-flex size-7 items-center justify-center rounded-full bg-slate-300 text-[11px] font-semibold text-slate-700'}>Y</div>
-          <span className={'text-xs text-slate-500 dark:text-slate-400'}>{t('shell.variantB.role', 'Design')}</span>
-        </div>
+    <aside className={'flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden bg-white dark:bg-slate-900'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
+      <div className={'flex items-center justify-end px-2.5 py-2'}>
         <div className={'flex items-center gap-1.5'}>
-          <Tooltip title={t('shell.variantB.present', 'Present')} placement={'l'} asChild>
-            <Button
-              type={'button'}
-              variant={'ghost'}
-              noTooltip
-              className={'inline-flex size-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
-              aria-label={t('shell.variantB.present', 'Present')}
-              title={t('shell.variantB.present', 'Present')}
-            >
-              <LuPlay size={SIDEBAR_ICON_SIZE}/>
-            </Button>
-          </Tooltip>
-          <Tooltip title={t('ui.shell.variantB.shareTooltip', {defaultValue: 'Share current design'})} placement={'l'} asChild>
-            <Button
-              type={'button'}
-              variant={'ghost'}
-              size={'sm'}
-              noTooltip
-              className={'h-7 px-2 text-[11px]'}
-              title={t('ui.shell.variantB.shareTooltip', {defaultValue: 'Share current design'})}
-            >
-              {t('shell.variantB.share', 'Share')}
-            </Button>
-          </Tooltip>
           <Tooltip title={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')} placement={'l'} asChild>
             <Button
               type={'button'}
@@ -81,25 +50,9 @@ export default function RightSidebar(props: RightSidebarProps) {
         </div>
       </div>
 
-      <div className={'flex items-center justify-between border-b px-2.5 py-1.5'}>
+      <div className={'flex items-center justify-between px-2.5 py-1.5'}>
         <Tabs value={'design'} className={'min-w-0'}>
-          <TabsList variant={'line'} className={'h-auto gap-2 rounded-none bg-transparent p-0'}>
-            <TabsTrigger
-              value={'design'}
-              title={t('shell.variantB.tab.design', 'Design')}
-              className={'rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'}
-            >
-              {t('shell.variantB.tab.design', 'Design')}
-            </TabsTrigger>
-            <TabsTrigger
-              value={'prototype'}
-              title={t('shell.variantB.tab.prototype', 'Prototype')}
-              disabled
-              className={'rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400'}
-            >
-              {t('shell.variantB.tab.prototype', 'Prototype')}
-            </TabsTrigger>
-          </TabsList>
+          <TabsList variant={'line'} className={'h-auto gap-2 rounded-none bg-transparent p-0'} />
         </Tabs>
         <div className={'flex items-center gap-1'}>
           <Button type={'button'} variant={'ghost'} size={'sm'} title={t('ui.shell.variantB.zoomOut', {defaultValue: 'Zoom out'})} className={'h-7 px-2 text-xs'} disabled={!canZoomOut} onClick={() => {
@@ -114,7 +67,7 @@ export default function RightSidebar(props: RightSidebarProps) {
         </div>
       </div>
 
-      <Card className={'mx-2 mt-2 border-slate-200 bg-slate-50/40 shadow-none'}>
+      <Card className={'mx-2 mt-2 bg-slate-50/40 shadow-none'}>
         <CardContent className={'flex items-center justify-between px-2 py-1.5 text-[10px] text-slate-500'}>
           <span>{t('shell.variantB.meta.layers', {count: props.layerCount, defaultValue: `Layers: ${props.layerCount}`})}</span>
           <Separator orientation={'vertical'} className={'mx-2 h-3 bg-slate-200'}/>
@@ -127,7 +80,7 @@ export default function RightSidebar(props: RightSidebarProps) {
         onValueChange={(nextValue) => {
           props.onSetInspectorContext(nextValue as InspectorContext)
         }}
-        className={'border-b px-2.5 py-1.5'}
+        className={'px-2.5 py-1.5'}
       >
         <TabsList variant={'line'} aria-label={t('shell.variantB.context.title', 'Inspector context')} className={'h-auto gap-2 rounded-none bg-transparent p-0'}>
           <TabsTrigger
@@ -136,7 +89,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.selection', 'Selection')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('selection')}
             className={props.context === 'selection'
-              ? 'rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
+              ? 'rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-50'
               : 'rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400'}
           >
             {t('shell.variantB.context.selection', 'Selection')}
@@ -147,7 +100,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             title={t('shell.variantB.context.page', 'Page')}
             data-testid={TEST_IDS.sidebarRight.contextSwitch('page')}
             className={props.context === 'page'
-              ? 'rounded border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50'
+              ? 'rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-50'
               : 'rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400'}
           >
             {t('shell.variantB.context.page', 'Page')}

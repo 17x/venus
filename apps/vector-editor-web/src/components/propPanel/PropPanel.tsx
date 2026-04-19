@@ -34,7 +34,7 @@ const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: Prop
               executeAction={executeAction}
               onPatchElementProps={onPatchElementProps}
             />
-          : <div className={`rounded border border-dashed border-gray-200 bg-gray-50 p-3 text-gray-500 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+          : <div className={`rounded bg-gray-50 p-3 text-gray-500 ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
               {t('inspector.properties.empty', 'Select an element to edit its properties.')}
             </div>}
       </div>

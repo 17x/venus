@@ -105,7 +105,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
   return <div ref={rootRef} className={'relative'}>
     <div
       className={cn(
-        'flex h-5 w-[82px] items-center overflow-hidden rounded border border-slate-200 bg-white text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
+        'flex h-5 w-[82px] items-center overflow-hidden rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100',
         'focus-within:ring-1 focus-within:ring-slate-300 dark:focus-within:ring-slate-600',
         menuOpen && 'ring-1 ring-slate-300 dark:ring-slate-600',
       )}
@@ -162,7 +162,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
         id={menuId}
         role="listbox"
         aria-label="Zoom presets"
-        className={'absolute bottom-full left-0 z-50 mb-1 max-h-64 w-32 overflow-y-auto rounded border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900'}
+        className={'absolute bottom-full left-0 z-50 mb-1 max-h-64 w-32 overflow-y-auto rounded bg-white py-1 dark:bg-slate-900'}
       >
         {
           RUNTIME_ZOOM_PRESETS.map(({label, value}) => {
@@ -176,7 +176,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
                 className={cn(
                   'flex h-7 w-full cursor-pointer items-center justify-between px-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800',
                   EDITOR_TEXT_MENU_CLASS,
-                  selected && 'border-slate-300 bg-slate-100 font-medium text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50',
+                  selected && 'bg-slate-100 font-medium text-slate-900 dark:bg-slate-800 dark:text-slate-50',
                 )}
                 onMouseDown={(event) => {
                   event.preventDefault()

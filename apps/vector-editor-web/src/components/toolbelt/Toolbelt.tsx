@@ -59,7 +59,7 @@ function ToolGroupButton(props: {
   const active = Boolean(props.active)
 
   return (
-    <div className={'inline-flex items-center overflow-hidden rounded-md border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'}>
+    <div className={'inline-flex items-center overflow-hidden rounded-md bg-white dark:bg-slate-900'}>
       <Tooltip placement={'t'} title={props.title} asChild>
         <Button
           type={'button'}
@@ -88,7 +88,7 @@ function ToolGroupButton(props: {
             aria-label={props.title + ' menu'}
             title={props.title + ' menu'}
             className={cn(
-              'inline-flex h-8 items-center justify-center rounded-none border-0 border-l border-slate-200 bg-transparent px-1 text-slate-700 outline-none transition-colors dark:border-slate-700 dark:text-slate-200',
+              'inline-flex h-8 items-center justify-center rounded-none border-0 bg-transparent px-1 text-slate-700 outline-none transition-colors dark:text-slate-200',
               'hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
               active && 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50',
             )}
@@ -225,7 +225,7 @@ export default function Toolbelt(props: ToolbeltProps) {
       className={'pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2'}
       aria-label={'Application toolbar'}
     >
-      <div className={'pointer-events-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-2 py-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/90'}>
+      <div className={'pointer-events-auto flex items-center gap-2 rounded-xl bg-white/90 px-2 py-1 backdrop-blur dark:bg-slate-900/90'}>
         <div className={'flex items-center gap-1'}>
           <ToolGroupButton
             title={t('toolbelt.moveTools', {defaultValue: 'Select / Hand tools'})}
@@ -261,10 +261,10 @@ export default function Toolbelt(props: ToolbeltProps) {
               aria-label={textTool.label}
               title={textTool.label}
               className={cn(
-                'inline-flex h-8 items-center justify-center rounded border border-transparent bg-transparent px-2 text-slate-700 outline-none transition-colors',
+                'inline-flex h-8 items-center justify-center rounded bg-transparent px-2 text-slate-700 outline-none transition-colors',
                 'hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300',
                 'dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
-                currentTool === 'text' && 'border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50',
+                currentTool === 'text' && 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50',
               )}
               onClick={() => {
                 selectToolByGroup('text', 'group-text')

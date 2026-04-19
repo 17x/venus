@@ -81,7 +81,7 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
   return <Modal backdropBg={bg} style={{
     zIndex: 1000,
   }} onBackdropClick={() => onBgClick && onBgClick()}>
-    <Flex col w={'90%'} h={'90%'} ovh className={`shadow-md rounded-sm shadow-gray-600 ${EDITOR_TEXT_BODY_CLASS}`}>
+    <Flex col w={'90%'} h={'90%'} ovh className={`rounded-sm ${EDITOR_TEXT_BODY_CLASS}`}>
       <section className={'flex h-full w-full min-h-0 flex-col overflow-hidden p-2 text-[12px] leading-[18px] text-slate-950 dark:text-slate-100'} role={'region'}>
         <div className={'mb-2 flex items-center justify-between gap-2 text-slate-900'}>
           <h2 data-testid={TEST_IDS.createFile.heading} className={'font-semibold'}>{t('createTitle')}</h2>
@@ -101,7 +101,7 @@ const CreateFile: FC<{ bg: string, createFile: (file: VisionFileType) => void, o
                                alignItems={'center'}
                                w={120}
                                h={120}
-                               className={'border overflow-hidden flex text-center   border-gray-200  cursor-pointer hover:border-gray-600'}
+                               className={'overflow-hidden flex text-center cursor-pointer hover:bg-gray-50'}
                                onClick={() => {
                                  setCurrentPageSet({...item})
                                }}>
