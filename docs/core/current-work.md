@@ -149,6 +149,29 @@ context starts, or work needs to resume after switching topics.
   - shape appearance baseline extended: rectangle per-corner radii, ellipse
     start/end angles, and style plumbing (`fill`/`stroke`/`shadow`) are now
     threaded through panel -> runtime command -> worker -> renderer
+  - shell semantic UI migration advanced:
+    - dropdown/context/header/left menu surfaces now use semantic menu item
+      styling hooks (`venus-ui-menu-item`) with shadcn submenu structure
+    - left sidebar Find tab removed and shell tab unions normalized to
+      `file | assets | history | debug`
+    - left sidebar minimized state now preserves fixed panel width and
+      file-name header with explicit restore affordance
+    - layer list now supports horizontal scroll for full-name visibility, with
+      lock/hide icon behavior aligned to hover and locked-row persistence rules
+    - template preset picker restructured to option/details/fixed-footer model
+      with shell tokenized surface/border usage
+    - inspector text-content mutation guard added to keep text editing focused
+      on canvas-side partial selection workflow
+    - inspector typography controls now include a searchable font picker popover
+      for text elements, with style-only `textRuns` updates allowed for
+      font-family changes while keeping direct text-content mutation blocked
+    - global shortcut handling now skips editable/interactive UI surfaces and
+      honors editor focus gating, reducing conflicts between inspector/form
+      keyboard input and canvas-level hotkeys
+    - keyboard interaction baseline hardened for edge cases:
+      - IME/composition input no longer triggers canvas/global hotkeys
+      - temporary `space` pan mode now restores previous tool on editor focus-loss
+        to avoid sticky tool state when keyup is missed
   - matrix-internals migration has started in the active stack: prefer shared
     affine helpers in `document-core` for shape transform math before changing
     persisted/runtime node contracts

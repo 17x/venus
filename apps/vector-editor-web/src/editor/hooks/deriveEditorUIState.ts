@@ -70,10 +70,17 @@ function buildLayerItems(nodes: DocumentNode[]): LayerItem[] {
     }
 
     visited.add(node.id)
+    const layerFlags = node as DocumentNode & {
+      isVisible?: boolean
+      isLocked?: boolean
+    }
+
     flattened.push({
       id: node.id,
       name: node.text ?? node.name ?? node.id,
       show: true,
+      isVisible: layerFlags.isVisible !== false,
+      isLocked: layerFlags.isLocked === true,
       type: node.type,
       depth,
       isGroup: node.type === 'group',

@@ -6,13 +6,13 @@ Track page-to-PRD mapping and design coverage status.
 
 ## Mapping Table
 
-| PRD Capability                       | Figma Page/Section                         | Status      | Notes                                                                                   |
-| ------------------------------------ | ------------------------------------------ | ----------- | --------------------------------------------------------------------------------------- |
-| Editor shell (toolbar/header/panels) | docs/product/figma-prompts/editor-shell.md | In Progress | Implemented A/B/C shell visual variants in vector app; Figma page mapping still pending |
-| Selection + transform workflows      | TBD                                        | Missing     | Include rotate/scale/multi-select states                                                |
-| Property panel controls              | TBD                                        | Missing     | Cover text/path/image style variations                                                  |
-| Layer panel operations               | TBD                                        | Missing     | Include group and reorder behavior                                                      |
-| Context menu + shortcuts             | TBD                                        | Missing     | Ensure parity with runtime commands                                                     |
+| PRD Capability                       | Figma Page/Section                         | Status      | Notes                                                                                                                             |
+| ------------------------------------ | ------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Editor shell (toolbar/header/panels) | docs/product/figma-prompts/editor-shell.md | In Progress | Implemented A/B/C shell variants plus semantic menu/tab/template picker alignment in vector app; Figma page mapping still pending |
+| Selection + transform workflows      | TBD                                        | Missing     | Include rotate/scale/multi-select states                                                                                          |
+| Property panel controls              | TBD                                        | Missing     | Cover text/path/image style variations                                                                                            |
+| Layer panel operations               | TBD                                        | Missing     | Include group and reorder behavior                                                                                                |
+| Context menu + shortcuts             | TBD                                        | Missing     | Ensure parity with runtime commands                                                                                               |
 
 ## Active Figma File
 
@@ -44,6 +44,15 @@ Track page-to-PRD mapping and design coverage status.
 - Variant A -> `.venus-editor` default token set in apps/vector-editor-web/src/index.css
 - Variant B -> `.venus-editor[data-shell-variant='b']` in apps/vector-editor-web/src/index.css
 - Variant C -> `.venus-editor[data-shell-variant='c']` in apps/vector-editor-web/src/index.css
+
+### Recent Accepted Mapping Deltas
+
+- Header/left/context menus are now consistently mapped to shadcn-style
+  dropdown/submenu semantics with shared `venus-ui-menu-item` visuals.
+- Template preset picker now follows split-pane mapping:
+  options list (left) + preset details (right) + fixed bottom actions.
+- Inspector text workflow mapping now treats text content edits as
+  canvas-context behavior; right panel remains for structural/style properties.
 
 ## Update Rules
 

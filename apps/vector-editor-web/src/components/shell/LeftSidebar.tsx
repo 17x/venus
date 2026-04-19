@@ -39,6 +39,11 @@ import {
   LuType,
   LuBox,
   LuMenu,
+  LuEye,
+  LuEyeOff,
+  LuLock,
+  LuLockOpen,
+  LuPanelLeftClose,
 } from 'react-icons/lu'
 import {lineSeg} from '../../assets/svg/icons.tsx'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
@@ -50,7 +55,7 @@ import {TEST_IDS} from '../../testing/testIds.ts'
 import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
 import {EDITOR_TEXT_LABEL_CLASS} from '../editorChrome/editorTypography.ts'
 
-type LeftSidebarTab = 'file' | 'assets' | 'search' | 'history' | 'debug'
+type LeftSidebarTab = 'file' | 'assets' | 'history' | 'debug'
 
 interface AssetLibraryCard {
   id: string
@@ -88,6 +93,7 @@ interface LeftSidebarProps {
   onToggleGrid: VoidFunction
   onToggleSnapping: VoidFunction
   onOpenTemplatePicker: VoidFunction
+  onOpenCreateFile: VoidFunction
   executeMenuAction: EditorExecutor
   copiedCount: number
   hasUnsavedChanges: boolean
@@ -99,6 +105,7 @@ interface LeftSidebarProps {
   historyItems: Array<{id: number; label?: string; data: {type: string}}>
   onPickHistory: (historyId: number, meta: ShellCommandMeta) => void
   onSelectLayers: (mode: 'replace' | 'toggle' | 'add', ids: string[], sourceControl: string) => void
+  onPatchLayers: (ids: string[], patch: Record<string, unknown>, sourceControl: string) => void
 }
 
 const SIDEBAR_ICON_SIZE = 16
@@ -171,7 +178,11 @@ function SemanticTreeRow(props: {
   icon?: ReactNode
   expandTooltip: string
   collapseTooltip: string
+  isLocked?: boolean
+  isVisible?: boolean
   onToggleChildren?: VoidFunction
+  onToggleLocked?: VoidFunction
+  onToggleVisible?: VoidFunction
   onActivate: (isToggle: boolean) => void
 }) {
   return (
@@ -182,10 +193,9 @@ function SemanticTreeRow(props: {
         aria-expanded={props.hasChildren ? props.expanded : undefined}
         tabIndex={0}
         className={cn(
-          `flex h-8 w-full items-center gap-2 rounded px-2 text-left outline-none ${EDITOR_TEXT_LABEL_CLASS}`,
+          `group/tree-row relative flex h-8 w-full min-w-0 items-center justify-start rounded px-1 text-left outline-none ${EDITOR_TEXT_LABEL_CLASS}`,
           props.active ? 'venus-shell-icon-active' : 'venus-shell-toolbar-button venus-shell-text-muted',
         )}
-        style={{paddingLeft: 8 + (props.depth ?? 0) * 14}}
         onClick={(event) => {
           const isToggle = event.metaKey || event.ctrlKey
           props.onActivate(isToggle)
@@ -197,28 +207,86 @@ function SemanticTreeRow(props: {
           }
         }}
       >
-        {props.hasChildren
-          ? <Tooltip placement='r' title={props.expanded ? props.collapseTooltip : props.expandTooltip} asChild>
-              <Button
-                type={'button'}
-                variant={'ghost'}
-                className={'inline-flex size-4 items-center justify-center rounded venus-shell-plain-trigger hover:text-[var(--venus-shell-active-text)]'}
-                aria-label={props.expanded ? props.collapseTooltip : props.expandTooltip}
-                title={props.expanded ? props.collapseTooltip : props.expandTooltip}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  props.onToggleChildren?.()
-                }}
-              >
-                {props.expanded ? <LuChevronDown size={12}/> : <LuChevronRight size={12}/>} 
-              </Button>
-            </Tooltip>
-          : <span className={'inline-flex size-4'} aria-hidden={true}/>} 
-        {props.icon &&
+        <span
+          className={'grid min-w-0 w-full grid-cols-[16px_16px_minmax(0,1fr)] items-center gap-2'}
+          // Keep first-level subitems text-aligned with parent label instead of parent icon.
+          style={{paddingLeft: 8 + Math.max(0, (props.depth ?? 0) - 1) * 14}}
+        >
+          {props.hasChildren
+            ? <Tooltip placement='r' title={props.expanded ? props.collapseTooltip : props.expandTooltip} asChild>
+                <Button
+                  type={'button'}
+                  variant={'ghost'}
+                  noTooltip
+                  className={'inline-flex size-4 items-center justify-center rounded venus-shell-plain-trigger hover:text-[var(--venus-shell-active-text)]'}
+                  aria-label={props.expanded ? props.collapseTooltip : props.expandTooltip}
+                  title={props.expanded ? props.collapseTooltip : props.expandTooltip}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    props.onToggleChildren?.()
+                  }}
+                >
+                  {props.expanded ? <LuChevronDown size={12}/> : <LuChevronRight size={12}/>} 
+                </Button>
+              </Tooltip>
+            : <span className={'inline-flex size-4'} aria-hidden={true}/>} 
           <span className={'inline-flex size-4 items-center justify-start venus-shell-text-muted'}>
             {props.icon}
-          </span>}
-        <span className={'truncate'}>{props.label}</span>
+          </span>
+          <span className={cn('truncate pr-2', props.isVisible === false && 'text-[var(--venus-shell-text-muted)] opacity-70')}>
+            {props.label}
+          </span>
+        </span>
+        <span className={'sticky right-0 ml-auto inline-flex items-center gap-1 bg-[var(--venus-shell-surface)] pr-1 pl-2'}>
+          <Tooltip
+            placement={'r'}
+            title={props.isLocked ? 'Unlock layer' : 'Lock layer'}
+            asChild
+          >
+            <Button
+              type={'button'}
+              variant={'ghost'}
+              noTooltip
+              className={cn(
+                'inline-flex size-5 items-center justify-center rounded venus-shell-plain-trigger',
+                props.isLocked
+                  ? 'venus-shell-text-muted'
+                  : 'opacity-0 transition-opacity group-hover/tree-row:opacity-100 group-focus-within/tree-row:opacity-100',
+              )}
+              aria-label={props.isLocked ? 'Unlock layer' : 'Lock layer'}
+              onClick={(event) => {
+                event.stopPropagation()
+                props.onToggleLocked?.()
+              }}
+            >
+              {props.isLocked ? <LuLock size={12}/> : <LuLockOpen size={12}/>}
+            </Button>
+          </Tooltip>
+          <Tooltip
+            placement={'r'}
+            title={props.isVisible === false ? 'Show layer' : 'Hide layer'}
+            asChild
+          >
+            <Button
+              type={'button'}
+              variant={'ghost'}
+              noTooltip
+              className={cn(
+                'inline-flex size-5 items-center justify-center rounded venus-shell-plain-trigger',
+                props.isLocked || props.isVisible === false
+                  ? 'venus-shell-text-muted opacity-100'
+                  : 'opacity-0 transition-opacity group-hover/tree-row:opacity-100 group-focus-within/tree-row:opacity-100',
+              )}
+              aria-label={props.isVisible === false ? 'Show layer' : 'Hide layer'}
+              onClick={(event) => {
+                event.stopPropagation()
+                props.onToggleVisible?.()
+              }}
+            >
+              {props.isVisible === false ? <LuEyeOff size={12}/> : <LuEye size={12}/>}
+            </Button>
+          </Tooltip>
+        </span>
       </div>
     </li>
   )
@@ -228,9 +296,9 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   const {t, i18n} = useTranslation()
   const {mode, setMode} = useTheme()
   const [layerFilter, setLayerFilter] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set())
   const [activeAssetId, setActiveAssetId] = useState(ASSET_LIBRARY_CARDS[0]?.id ?? '')
+  const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null)
   const menuRootRef = useRef<HTMLDivElement>(null)
 
   const topMenuActions = useMemo(() => {
@@ -268,7 +336,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         i18n.changeLanguage('en')
         return true
       case 'languageChinese':
-        i18n.changeLanguage('cn')
+        i18n.changeLanguage('zh-CN')
         return true
       case 'languageJapanese':
         i18n.changeLanguage('jp')
@@ -324,13 +392,13 @@ export default function LeftSidebar(props: LeftSidebarProps) {
           {menuItem.divide && <DropdownMenuSeparator/>}
           {hasChildren
             ? <DropdownMenuSub key={`sub-${menuItem.id}`}>
-                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn(EDITOR_TEXT_LABEL_CLASS)}>
+                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn('venus-ui-menu-item', EDITOR_TEXT_LABEL_CLASS)}>
                   <span className={'inline-flex items-center gap-2'}>
                     {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
                     <span>{label}</span>
                   </span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
+                <DropdownMenuSubContent className={'min-w-40'}>
                   {renderTopMenuNodes(menuItem.children ?? [])}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -341,7 +409,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   executeTopMenuAction(menuItem)
                 }}
                 title={tooltip}
-                className={cn(EDITOR_TEXT_LABEL_CLASS)}
+                className={cn('venus-ui-menu-item', EDITOR_TEXT_LABEL_CLASS)}
               >
                 <span className={'inline-flex items-center gap-2'}>
                   {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
@@ -389,48 +457,48 @@ export default function LeftSidebar(props: LeftSidebarProps) {
     return rows
   }, [collapsedGroupIds, visibleLayerItems])
 
-  const searchResults = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase()
-    if (!normalizedQuery) {
-      return [] as LayerItem[]
-    }
-
-    return props.layerItems.filter((item) => {
-      return item.name.toLowerCase().includes(normalizedQuery) || item.type.toLowerCase().includes(normalizedQuery)
-    })
-  }, [props.layerItems, searchQuery])
-
   const activeAsset = useMemo(() => {
     return ASSET_LIBRARY_CARDS.find((item) => item.id === activeAssetId) ?? ASSET_LIBRARY_CARDS[0]
   }, [activeAssetId])
 
+  const selectedLayerItems = useMemo(() => {
+    if (props.selectedIds.length === 0) {
+      return [] as LayerItem[]
+    }
+
+    const selectedIdSet = new Set(props.selectedIds)
+    return props.layerItems.filter((item) => selectedIdSet.has(item.id))
+  }, [props.layerItems, props.selectedIds])
+
+  const selectedHasHidden = selectedLayerItems.some((item) => item.isVisible === false)
+  const selectedHasLocked = selectedLayerItems.some((item) => item.isLocked === true)
+
   const tabItems: Array<{id: LeftSidebarTab, label: string, icon: ReactNode}> = [
     {id: 'file', label: t('shell.variantB.nav.file', 'File'), icon: <LuFile size={SIDEBAR_ICON_SIZE}/>},
     {id: 'assets', label: t('shell.variantB.nav.assets', 'Assets'), icon: <LuShapes size={SIDEBAR_ICON_SIZE}/>},
-    {id: 'search', label: t('shell.variantB.nav.find', 'Find'), icon: <LuSearch size={SIDEBAR_ICON_SIZE}/>},
     {id: 'history', label: t('inspector.history.title', 'History'), icon: <LuHistory size={SIDEBAR_ICON_SIZE}/>},
     {id: 'debug', label: t('shell.variantB.nav.debug', 'Debug'), icon: <LuBug size={SIDEBAR_ICON_SIZE}/>},
   ]
 
   return (
     <aside className={'venus-shell-rail flex h-full w-[296px] shrink-0 border-r'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-      <nav className={'venus-shell-rail-thin flex w-14 shrink-0 flex-col items-center gap-2 border-r py-3'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
-        <div ref={menuRootRef} className={'relative mb-1'}>
+      <nav className={'venus-shell-rail-thin flex w-14 shrink-0 flex-col items-center gap-1.5 border-r py-2.5'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+        <div ref={menuRootRef} className={'relative mb-1 flex w-full justify-center border-b pb-2'}>
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
               title={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
-              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-9 items-center justify-center rounded'}
+              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-8 items-center justify-center rounded data-[state=open]:venus-shell-toolbar-button-active'}
             >
               <LuMenu size={SIDEBAR_ICON_SIZE}/>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={'start'} side={'right'} sideOffset={8} className={'min-w-40'}>
               {topMenuActions.map((menu) => {
                 return <DropdownMenuSub key={menu.id}>
-                  <DropdownMenuSubTrigger disabled={menu.disabled} className={cn(EDITOR_TEXT_LABEL_CLASS)}>
+                  <DropdownMenuSubTrigger disabled={menu.disabled} className={cn('venus-ui-menu-item', EDITOR_TEXT_LABEL_CLASS)}>
                     {t(menu.id + '.label')}
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
+                  <DropdownMenuSubContent className={'min-w-40'}>
                     {renderTopMenuNodes(menu.children ?? [])}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
@@ -447,7 +515,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
           }}
           className={'w-full'}
         >
-          <TabsList variant={'line'} className={'h-auto w-full flex-col items-center gap-2 rounded-none bg-transparent p-0'}>
+          <TabsList variant={'line'} className={'h-auto w-full flex-col items-center gap-1.5 rounded-none bg-transparent p-0'}>
             {tabItems.map((tabItem) => {
               const active = tabItem.id === props.activeTab
 
@@ -459,9 +527,9 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   title={tabItem.label}
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
-                    'venus-shell-plain-trigger inline-flex size-9 items-center justify-center rounded text-[var(--venus-shell-text)]',
-                    'hover:text-[var(--venus-shell-active-text)]',
-                    active && 'venus-shell-tab-active font-semibold text-[var(--venus-shell-active-text)]',
+                    'venus-shell-plain-trigger venus-shell-toolbar-button inline-flex size-8 items-center justify-center rounded border border-transparent bg-transparent text-[var(--venus-shell-text)]',
+                    'data-active:bg-transparent data-active:border-transparent hover:border-[var(--venus-ui-border-color-strong)] hover:text-[var(--venus-shell-active-text)]',
+                    active && 'venus-shell-tab-active border-[color:color-mix(in_srgb,var(--venus-shell-active-text)_25%,var(--venus-shell-border))] bg-[color:color-mix(in_srgb,var(--venus-shell-active-text)_14%,transparent)] font-semibold text-[var(--venus-shell-active-text)]',
                   )}
                 >
                   {tabItem.icon}
@@ -479,12 +547,12 @@ export default function LeftSidebar(props: LeftSidebarProps) {
             <Button
               type={'button'}
               variant={'ghost'}
-              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-6 items-center justify-center rounded text-[11px]'}
+              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-8 items-center justify-center rounded text-[11px]'}
               aria-label={t('shell.variantB.leftSidebar.minimize', 'Minimize left panel')}
               title={t('shell.variantB.leftSidebar.minimize', 'Minimize left panel')}
               onClick={props.onMinimize}
             >
-              <span>&minus;</span>
+              <LuPanelLeftClose size={14}/>
             </Button>
           </div>
           <p className={'venus-shell-text-muted mt-1 text-[11px]'}>{t('shell.variantB.fileSpace', 'Drafts')}</p>
@@ -498,7 +566,8 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   <Button
                     type={'button'}
                     variant={'ghost'}
-                    className={'venus-shell-plain-trigger inline-flex items-center gap-1 rounded px-1 text-xs font-semibold text-[var(--venus-shell-text)] hover:text-[var(--venus-shell-active-text)]'}
+                    noTooltip
+                    className={'venus-shell-plain-trigger inline-flex w-full items-center justify-start gap-1 rounded px-1 text-xs font-semibold text-[var(--venus-shell-text)] hover:text-[var(--venus-shell-active-text)]'}
                     title={t('ui.shell.variantB.layers.toggle', {defaultValue: 'Toggle layers section'})}
                     onClick={props.onToggleLayers}
                   >
@@ -506,7 +575,6 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                     {t('shell.variantB.layers.title', 'Layers')}
                   </Button>
                 </Tooltip>
-                <span className={'venus-shell-text-muted text-xs'}>{props.layerItems.length}</span>
               </div>
 
               {!props.layersCollapsed &&
@@ -526,21 +594,64 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                       onChange={(event) => {
                         setLayerFilter(event.target.value)
                       }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation()
+                      }}
                     />
                   </div>
                 </div>}
 
               {!props.layersCollapsed &&
-                <div className={'scrollbar-custom min-h-0 flex-1 overflow-y-auto rounded border p-1'}>
+                <div className={'mb-2 grid grid-cols-2 gap-1'}>
+                  <Button
+                    type={'button'}
+                    variant={'ghost'}
+                    noTooltip
+                    disabled={selectedLayerItems.length === 0}
+                    className={'h-7 justify-center text-[11px]'}
+                    title={selectedHasLocked ? t('ui.shell.variantB.layers.unlockSelected', {defaultValue: 'Unlock selected'}) : t('ui.shell.variantB.layers.lockSelected', {defaultValue: 'Lock selected'})}
+                    onClick={() => {
+                      props.onPatchLayers(
+                        selectedLayerItems.map((item) => item.id),
+                        {isLocked: !selectedHasLocked},
+                        'variant-b-layer-batch-lock',
+                      )
+                    }}
+                  >
+                    {selectedHasLocked ? t('ui.shell.variantB.layers.unlock', {defaultValue: 'Unlock'}) : t('ui.shell.variantB.layers.lock', {defaultValue: 'Lock'})}
+                  </Button>
+                  <Button
+                    type={'button'}
+                    variant={'ghost'}
+                    noTooltip
+                    disabled={selectedLayerItems.length === 0}
+                    className={'h-7 justify-center text-[11px]'}
+                    title={selectedHasHidden ? t('ui.shell.variantB.layers.showSelected', {defaultValue: 'Show selected'}) : t('ui.shell.variantB.layers.hideSelected', {defaultValue: 'Hide selected'})}
+                    onClick={() => {
+                      props.onPatchLayers(
+                        selectedLayerItems.map((item) => item.id),
+                        {isVisible: selectedHasHidden},
+                        'variant-b-layer-batch-visible',
+                      )
+                    }}
+                  >
+                    {selectedHasHidden ? t('ui.shell.variantB.layers.show', {defaultValue: 'Show'}) : t('ui.shell.variantB.layers.hide', {defaultValue: 'Hide'})}
+                  </Button>
+                </div>}
+
+              {!props.layersCollapsed &&
+                <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded border p-1'}>
                   {visibleLayerItems.length === 0 &&
                     <div className={'venus-shell-text-muted px-2 py-3 text-xs'}>
                       {t('shell.variantB.layers.empty', 'No matching layers')}
                     </div>}
 
-                  <ul role={'tree'} aria-label={t('shell.variantB.layers.title', 'Layers')} className={'flex flex-col gap-1'}>
+                  <ul role={'tree'} aria-label={t('shell.variantB.layers.title', 'Layers')} className={'flex min-w-0 flex-col gap-1'}>
                     {treeLayerItems.map((item) => {
                       const selected = props.selectedIds.includes(item.id)
                       const expanded = !collapsedGroupIds.has(item.id)
+                      const isLocked = item.isLocked === true
+                      const isVisible = item.isVisible !== false
 
                       return (
                         <SemanticTreeRow
@@ -550,6 +661,8 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                           active={selected}
                           hasChildren={item.hasChildren}
                           expanded={expanded}
+                          isLocked={isLocked}
+                          isVisible={isVisible}
                           expandTooltip={t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})}
                           collapseTooltip={t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})}
                           onToggleChildren={item.hasChildren
@@ -565,6 +678,12 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                                 })
                               }
                             : undefined}
+                          onToggleLocked={() => {
+                            props.onPatchLayers([item.id], {isLocked: !isLocked}, 'variant-b-layer-row-lock')
+                          }}
+                          onToggleVisible={() => {
+                            props.onPatchLayers([item.id], {isVisible: !isVisible}, 'variant-b-layer-row-visible')
+                          }}
                           icon={<LayerTypeGlyph type={item.type} isGroup={item.isGroup}/>}
                           onActivate={(isToggle) => {
                             props.onSelectLayers(isToggle ? 'toggle' : 'replace', [item.id], 'variant-b-layer-row-select')
@@ -584,11 +703,18 @@ export default function LeftSidebar(props: LeftSidebarProps) {
               {t('shell.variantB.assets.title', 'Assets')}
             </h3>
 
-            <div className={'grid min-h-0 flex-1 grid-cols-[1.1fr_0.9fr] gap-2'}>
+            <div className={'relative grid min-h-0 flex-1 grid-cols-[1.1fr_0.9fr] gap-2'}>
+              {hoveredAssetId &&
+                <div className={'pointer-events-none absolute left-2 right-2 top-1 z-40 rounded-md border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)]/95 px-2 py-1 shadow-lg backdrop-blur'}>
+                  <div className={'text-[10px] font-semibold text-[var(--venus-shell-text)]'}>
+                    {t('shell.variantB.assets.hoverHint', 'Tip: Double-click a card to create a new file quickly.')}
+                  </div>
+                </div>}
               <div className={'scrollbar-custom min-h-0 overflow-y-auto pr-0.5'}>
                 <div className={'grid grid-cols-1 gap-2'}>
                   {ASSET_LIBRARY_CARDS.map((card) => {
                     const active = card.id === activeAsset.id
+                    const hovered = card.id === hoveredAssetId
                     return (
                       <article
                         key={card.id}
@@ -596,47 +722,75 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                         tabIndex={0}
                         data-state={active ? 'active' : 'inactive'}
                         className={cn(
-                          'rounded-md border p-2 transition-colors',
+                          'group rounded-md border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] p-2 transition-all',
                           active
                             ? 'border-[var(--venus-shell-active-text)] bg-[var(--venus-shell-active-bg)]'
-                            : 'bg-white hover:border-[var(--venus-ui-border-color-strong)]',
+                            : 'hover:-translate-y-[1px] hover:border-[var(--venus-ui-border-color-strong)] hover:shadow-sm',
+                          hovered && 'ring-1 ring-[color:color-mix(in_srgb,var(--venus-shell-active-text)_35%,transparent)]',
                         )}
                         onMouseEnter={() => {
                           setActiveAssetId(card.id)
+                          setHoveredAssetId(card.id)
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredAssetId((current) => (current === card.id ? null : current))
                         }}
                         onFocus={() => {
                           setActiveAssetId(card.id)
+                          setHoveredAssetId(card.id)
+                        }}
+                        onBlur={() => {
+                          setHoveredAssetId((current) => (current === card.id ? null : current))
+                        }}
+                        onDoubleClick={() => {
+                          props.onOpenCreateFile()
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault()
                             setActiveAssetId(card.id)
-                            props.onOpenTemplatePicker()
+                            props.onOpenCreateFile()
                           }
                         }}
                       >
-                        <div className={'mb-1.5 rounded border bg-slate-50 p-1.5'}>
-                          <div className={'h-12 w-full rounded border bg-white'}/>
+                        <div className={'mb-1.5 rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface-muted)] p-1.5'}>
+                          <div className={'h-12 w-full rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)]'}/>
                         </div>
 
                         <div className={'text-xs font-medium text-[var(--venus-shell-text)]'}>{card.title}</div>
                         <div className={'text-[10px] text-[var(--venus-shell-text-muted)]'}>{card.subtitle}</div>
 
-                        {active &&
+                        {(active || hovered) &&
                           <div className={'mt-1.5 flex items-center justify-between gap-1'}>
                             <p className={'line-clamp-2 text-[10px] text-[var(--venus-shell-text-muted)]'}>{card.description}</p>
-                            <Button
-                              type={'button'}
-                              variant={'ghost'}
-                              size={'sm'}
-                              title={t('ui.template.applyButtonLabel', {defaultValue: 'Add'})}
-                              className={'h-6 shrink-0 px-1.5 text-[10px] font-semibold'}
-                              onClick={() => {
-                                props.onOpenTemplatePicker()
-                              }}
-                            >
-                              +
-                            </Button>
+                            <div className={'flex items-center gap-1'}>
+                              <Button
+                                type={'button'}
+                                variant={'ghost'}
+                                size={'sm'}
+                                noTooltip
+                                title={t('ui.shell.variantB.assets.newFile', {defaultValue: 'New file'})}
+                                className={'h-6 shrink-0 px-1.5 text-[10px] font-semibold'}
+                                onClick={() => {
+                                  props.onOpenCreateFile()
+                                }}
+                              >
+                                {t('ui.shell.variantB.assets.newFile', {defaultValue: 'New'})}
+                              </Button>
+                              <Button
+                                type={'button'}
+                                variant={'ghost'}
+                                size={'sm'}
+                                noTooltip
+                                title={t('ui.shell.variantB.assets.useTemplate', {defaultValue: 'Use template'})}
+                                className={'h-6 shrink-0 px-1.5 text-[10px] font-semibold'}
+                                onClick={() => {
+                                  props.onOpenTemplatePicker()
+                                }}
+                              >
+                                +
+                              </Button>
+                            </div>
                           </div>}
                       </article>
                     )
@@ -644,12 +798,12 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                 </div>
               </div>
 
-              <aside className={'flex min-h-0 flex-col rounded border bg-white p-2'}>
+              <aside className={'flex min-h-0 flex-col rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] p-2'}>
                 <p className={'text-[11px] font-semibold text-[var(--venus-shell-text)]'}>{t('shell.variantB.assets.details', 'Details')}</p>
                 <p className={'text-[10px] text-[var(--venus-shell-text-muted)]'}>{activeAsset.subtitle}</p>
 
-                <div className={'mt-2 rounded border bg-slate-50 p-1.5'}>
-                  <div className={'h-20 w-full rounded border bg-white'}/>
+                <div className={'mt-2 rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface-muted)] p-1.5'}>
+                  <div className={'h-20 w-full rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)]'}/>
                 </div>
 
                 <h4 className={'mt-2 text-xs font-semibold text-[var(--venus-shell-text)]'}>{activeAsset.title}</h4>
@@ -663,6 +817,15 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   <Button
                     type={'button'}
                     variant={'ghost'}
+                    title={t('ui.shell.variantB.assets.newFile', {defaultValue: 'Create new file'})}
+                    className={'mb-1 h-7 w-full justify-center border border-[var(--venus-ui-border-color)] text-xs font-semibold'}
+                    onClick={props.onOpenCreateFile}
+                  >
+                    {t('ui.shell.variantB.assets.newFile', {defaultValue: 'New file'})}
+                  </Button>
+                  <Button
+                    type={'button'}
+                    variant={'ghost'}
                     title={t('ui.shell.variantB.assets.templateTooltip', {defaultValue: 'Create file from template preset'})}
                     className={'h-7 w-full justify-center border border-[var(--venus-ui-border-color)] text-xs font-semibold'}
                     onClick={props.onOpenTemplatePicker}
@@ -671,60 +834,6 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   </Button>
                 </div>
               </aside>
-            </div>
-          </section>}
-
-        {props.activeTab === 'search' &&
-          <section id={'variant-b-tabpanel-search'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col p-3'}>
-            <h3 className={'mb-2 inline-flex items-center gap-2 font-semibold'}>
-              <LuSearch size={SIDEBAR_GLYPH_SIZE}/>
-              {t('shell.variantB.search.title', 'Quick Find')}
-            </h3>
-            <div className={'venus-shell-toolbar-button mb-2 flex items-center gap-2 rounded border px-2 py-1'}>
-              <LuSearch className={'venus-shell-text-muted'} size={12}/>
-              <Input
-                type={'text'}
-                s
-                className={'h-6 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0'}
-                placeholder={t('shell.variantB.search.placeholder', 'Search by name or type')}
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                }}
-              />
-            </div>
-
-            <div className={'scrollbar-custom min-h-0 flex-1 overflow-y-auto rounded border p-1'}>
-              {searchQuery.trim().length === 0 &&
-                <div className={'venus-shell-text-muted px-2 py-3 text-xs'}>
-                  {t('shell.variantB.search.tip', 'Type to start searching layers')}
-                </div>}
-
-              {searchQuery.trim().length > 0 && searchResults.length === 0 &&
-                <div className={'venus-shell-text-muted px-2 py-3 text-xs'}>
-                  {t('shell.variantB.search.empty', 'No results')}
-                </div>}
-
-              {searchResults.length > 0 &&
-                <ul role={'list'} className={'flex flex-col gap-1'}>
-                  {searchResults.map((item) => {
-                    const selected = props.selectedIds.includes(item.id)
-
-                    return (
-                      <SemanticTreeRow
-                        key={item.id}
-                        label={item.name}
-                        active={selected}
-                        expandTooltip={t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})}
-                        collapseTooltip={t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})}
-                        icon={<LayerTypeGlyph type={item.type} isGroup={item.isGroup}/>}
-                        onActivate={() => {
-                          props.onSelectLayers('replace', [item.id], 'variant-b-search-result-select')
-                        }}
-                      />
-                    )
-                  })}
-                </ul>}
             </div>
           </section>}
 

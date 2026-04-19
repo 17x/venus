@@ -7,7 +7,19 @@ import LeftSidebar from '../shell/LeftSidebar.tsx'
 import RightSidebar from '../shell/RightSidebar.tsx'
 import {Print} from '../print/print.tsx'
 import FileReceiver from '../fileReceiver.tsx'
-import {Button, Col, useTheme} from '@vector/ui'
+import {
+  Button,
+  Col,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  useTheme,
+} from '@vector/ui'
 import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@vector/runtime'
 import {CanvasViewport} from '../../editor/runtime/canvasAdapter.tsx'
@@ -15,6 +27,8 @@ import {EDITOR_ROOT_CLASS} from '../editorChrome/editorTypography.ts'
 import {generateTemplateFile} from '../../features/templatePresets/generators.ts'
 import {createShellCommandDispatch} from '../../editor/shell/commands/shellCommandDispatch.ts'
 import type {InspectorContext, InspectorPanelId} from '../../editor/shell/state/inspectorState.ts'
+import {createHeaderMenuData} from '../header/menu/menuData.ts'
+import type {MenuItemType} from '../header/menu/type'
 import {
   deserializeShellLayoutState,
   serializeShellLayoutState,
@@ -25,15 +39,15 @@ import {
   TOOLBELT_MODE_STORAGE_KEY,
   type ToolbeltMode,
 } from '../../editor/shell/state/toolbeltState.ts'
-import {LuPanelLeftClose, LuPanelRightClose} from 'react-icons/lu'
+import {LuMenu, LuPanelLeftOpen, LuPanelRightClose} from 'react-icons/lu'
 import {useTranslation} from 'react-i18next'
 
 const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
 
 const EditorFrame = () => {
-  const {t} = useTranslation()
-  const {resolvedMode} = useTheme()
+  const {t, i18n} = useTranslation()
+  const {resolvedMode, mode, setMode} = useTheme()
   const initialLayoutState = deserializeShellLayoutState(
     typeof window === 'undefined' ? null : window.localStorage.getItem(SHELL_LAYOUT_STATE_STORAGE_KEY),
   )
@@ -99,6 +113,110 @@ const EditorFrame = () => {
     pickHistory,
   } = commands
   const {contextRootRef, editorRef} = refs
+
+  const topMenuActions = createHeaderMenuData({
+    selectedIds,
+    copiedCount: copiedItems.length,
+    needSave: hasUnsavedChanges,
+    historyStatus,
+    language: i18n.language === 'zh-CN' ? 'cn' : (i18n.language as 'en' | 'cn' | 'jp'),
+    gridEnabled: variantBSections.showGrid,
+    snappingEnabled,
+    canToggleGrid: true,
+    canToggleSnapping: true,
+    themeMode: mode,
+  })
+
+  const handleTopMenuAction = (menuItem: MenuItemType) => {
+    switch (menuItem.id) {
+      case 'languageEnglish':
+        i18n.changeLanguage('en')
+        return true
+      case 'languageChinese':
+        i18n.changeLanguage('zh-CN')
+        return true
+      case 'languageJapanese':
+        i18n.changeLanguage('jp')
+        return true
+      case 'toggleGridOn':
+      case 'toggleGridOff':
+        dispatchShellCommand('shell.setGrid', {enabled: !variantBSections.showGrid}, {
+          sourcePanel: 'left-sidebar',
+          sourceControl: 'settings-grid-toggle',
+          commitType: 'final',
+        })
+        return true
+      case 'toggleSnappingOn':
+      case 'toggleSnappingOff':
+        dispatchShellCommand('shell.setSnapping', {enabled: !snappingEnabled}, {
+          sourcePanel: 'left-sidebar',
+          sourceControl: 'settings-snapping-toggle',
+          commitType: 'final',
+        })
+        return true
+      case 'themeSystem':
+        setMode('system')
+        return true
+      case 'themeLight':
+        setMode('light')
+        return true
+      case 'themeDark':
+        setMode('dark')
+        return true
+      default:
+        return false
+    }
+  }
+
+  const executeTopMenuAction = (menuItem: MenuItemType) => {
+    if (menuItem.disabled) {
+      return
+    }
+
+    if (handleTopMenuAction(menuItem)) {
+      return
+    }
+
+    const action = menuItem.editorActionCode ?? menuItem.action ?? menuItem.id
+    if (menuItem.editorActionData) {
+      executeAction(action, menuItem.editorActionData)
+      return
+    }
+
+    executeAction(action)
+  }
+
+  const renderTopMenuNodes = (menuItems: MenuItemType[]) => {
+    return menuItems.map((menuItem) => {
+      const hasChildren = !!menuItem.children?.length
+      const label = t(menuItem.id + '.label')
+
+      return (
+        <>
+          {menuItem.divide && <DropdownMenuSeparator/>}
+          {hasChildren
+            ? <DropdownMenuSub key={`sub-${menuItem.id}`}>
+                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={'venus-ui-menu-item'}>
+                  {label}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className={'min-w-40'}>
+                  {renderTopMenuNodes(menuItem.children ?? [])}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            : <DropdownMenuItem
+                key={`item-${menuItem.id}`}
+                disabled={menuItem.disabled}
+                onClick={() => {
+                  executeTopMenuAction(menuItem)
+                }}
+                className={'venus-ui-menu-item'}
+              >
+                {label}
+              </DropdownMenuItem>}
+        </>
+      )
+    })
+  }
 
   useEffect(() => {
     if (selectedProps) {
@@ -302,28 +420,58 @@ const EditorFrame = () => {
 
                 <Toolbelt
                   currentTool={currentTool}
-                  mode={toolbeltMode}
                   onSelectTool={(tool, meta) => {
                     dispatchShellCommand('tool.select', {tool}, meta)
-                  }}
-                  onSetMode={(mode, meta) => {
-                    dispatchShellCommand('tool.setMode', {mode}, meta)
                   }}
                 />
 
                 <div className={'pointer-events-none absolute left-3 top-3 bottom-3 z-20 flex'}>
                   {leftPanelMinimized
-                    ? <Button
-                        type={'button'}
-                        title={t('ui.shell.variantB.leftSidebar.restore', {defaultValue: 'Restore left panel'})}
-                        className={'venus-shell-toolbar-button venus-shell-plain-trigger pointer-events-auto inline-flex h-9 items-center gap-1 rounded px-2'}
-                        onClick={() => {
-                          setLeftPanelMinimized(false)
-                        }}
+                    ? <aside
+                        className={'venus-shell-panel pointer-events-auto flex h-12 self-start overflow-hidden rounded-lg border shadow-xl'}
+                        style={{width: FIXED_LEFT_PANEL_WIDTH}}
+                        aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')}
                       >
-                        <LuPanelLeftClose size={14}/>
-                        <span className={'text-xs'}>{variantBSections.activeTab}</span>
-                      </Button>
+                        <div className={'venus-shell-rail-thin flex w-14 shrink-0 items-center justify-center border-r'}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              aria-label={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
+                              title={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
+                              className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-9 items-center justify-center rounded data-[state=open]:venus-shell-toolbar-button-active'}
+                            >
+                              <LuMenu size={16}/>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align={'start'} side={'right'} sideOffset={8} className={'min-w-40'}>
+                              {topMenuActions.map((menu) => {
+                                return <DropdownMenuSub key={menu.id}>
+                                  <DropdownMenuSubTrigger disabled={menu.disabled} className={'venus-ui-menu-item'}>
+                                    {t(menu.id + '.label')}
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent className={'min-w-40'}>
+                                    {renderTopMenuNodes(menu.children ?? [])}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              })}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className={'flex min-w-0 flex-1 items-center gap-2 px-3'}>
+                          <span className={'min-w-0 truncate text-sm font-medium'}>
+                            {file?.name ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}
+                          </span>
+                          <Button
+                            type={'button'}
+                            variant={'ghost'}
+                            title={t('ui.shell.variantB.leftSidebar.restore', {defaultValue: 'Open left panel'})}
+                            className={'venus-shell-toolbar-button venus-shell-plain-trigger ml-auto inline-flex size-7 items-center justify-center rounded'}
+                            onClick={() => {
+                              setLeftPanelMinimized(false)
+                            }}
+                          >
+                            <LuPanelLeftOpen size={14}/>
+                          </Button>
+                        </div>
+                      </aside>
                     : <div className={'pointer-events-auto h-full overflow-hidden rounded-lg border shadow-xl'} style={{width: FIXED_LEFT_PANEL_WIDTH}}>
                         <LeftSidebar
                           onMinimize={() => {
@@ -381,6 +529,9 @@ const EditorFrame = () => {
                           onOpenTemplatePicker={() => {
                             setShowTemplatePresetPicker(true)
                           }}
+                          onOpenCreateFile={() => {
+                            executeAction('newFile')
+                          }}
                           executeMenuAction={executeAction}
                           copiedCount={copiedItems.length}
                           hasUnsavedChanges={hasUnsavedChanges}
@@ -394,6 +545,15 @@ const EditorFrame = () => {
                               sourcePanel: 'left-sidebar',
                               sourceControl,
                               commitType: 'final',
+                            })
+                          }}
+                          onPatchLayers={(ids, patch, sourceControl) => {
+                            ids.forEach((elementId) => {
+                              dispatchShellCommand('element.modify', {elementId, patch}, {
+                                sourcePanel: 'left-sidebar',
+                                sourceControl,
+                                commitType: 'final',
+                              })
                             })
                           }}
                         />

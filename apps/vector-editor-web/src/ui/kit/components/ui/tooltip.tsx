@@ -67,7 +67,7 @@ export function Tooltip({
     return (
       <TooltipProvider delay={250}>
         <ShadcnTooltip>
-          <TooltipTrigger nativeButton={false} render={children as ReactElement} />
+          <TooltipTrigger render={children as ReactElement} />
           {contentNode}
         </ShadcnTooltip>
       </TooltipProvider>
@@ -77,7 +77,7 @@ export function Tooltip({
   return (
     <TooltipProvider delay={250}>
       <ShadcnTooltip>
-        <TooltipTrigger nativeButton={false}>
+        <TooltipTrigger>
           <div className={cn('inline-flex', className)} {...props}>
             {children as ReactElement}
           </div>

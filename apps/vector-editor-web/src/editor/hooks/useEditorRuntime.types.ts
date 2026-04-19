@@ -114,6 +114,8 @@ export interface LayerItem {
   id: string
   name: string
   show: boolean
+  isVisible?: boolean
+  isLocked?: boolean
   type: string
   depth: number
   isGroup: boolean

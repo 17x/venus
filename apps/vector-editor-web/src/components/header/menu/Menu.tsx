@@ -47,7 +47,7 @@ const MenuBar: React.FC<{
         i18n.changeLanguage('en')
         return true
       case 'languageChinese':
-        i18n.changeLanguage('cn')
+        i18n.changeLanguage('zh-CN')
         return true
       case 'languageJapanese':
         i18n.changeLanguage('jp')
@@ -96,13 +96,13 @@ const MenuBar: React.FC<{
           {menuItem.divide && <DropdownMenuSeparator/>}
           {hasChildren
             ? <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn(EDITOR_TEXT_MENU_CLASS)}>
+                <DropdownMenuSubTrigger disabled={menuItem.disabled} className={cn('venus-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}>
                   <span className={'inline-flex items-center gap-2'}>
                     {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
                     <span>{label}</span>
                   </span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
+                <DropdownMenuSubContent className={'min-w-50'}>
                   {renderMenuNodes(menuItem.children ?? [])}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -112,7 +112,7 @@ const MenuBar: React.FC<{
                   handleMenuAction(menuItem)
                 }}
                 title={tooltip}
-                className={cn(EDITOR_TEXT_MENU_CLASS)}
+                className={cn('venus-ui-menu-item', EDITOR_TEXT_MENU_CLASS)}
               >
                 <span className={'inline-flex items-center gap-2'}>
                   {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
@@ -132,6 +132,7 @@ const MenuBar: React.FC<{
             <DropdownMenuTrigger
               className={cn(
                 'venus-shell-menu-button venus-shell-focusable inline-flex h-full items-center rounded px-3 font-medium',
+                'data-[state=open]:venus-shell-menu-button-active',
                 EDITOR_TEXT_MENU_CLASS,
               )}
               title={t(menu.id + '.tooltip', {defaultValue: t(menu.id + '.label')})}

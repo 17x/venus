@@ -1,6 +1,7 @@
 import {forwardRef, type ComponentPropsWithoutRef} from 'react'
 import {Button as ShadcnButton} from '@/components/ui/button'
 import {cn} from '../../lib/utils.ts'
+import {Tooltip} from './tooltip.tsx'
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'outline'
 export type ButtonSize = 'sm' | 'md' | 'lg'
@@ -9,6 +10,7 @@ export interface ButtonProps extends ComponentPropsWithoutRef<'button'> {
   variant?: ButtonVariant
   size?: ButtonSize
   primary?: boolean // backward-compat
+  noTooltip?: boolean
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -38,7 +40,7 @@ const sizeMap: Record<ButtonSize, 'sm' | 'default' | 'lg'> = {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  {className, variant = 'default', size = 'md', primary, type = 'button', title, children, ...props},
+  {className, variant = 'default', size = 'md', primary, type = 'button', title, children, noTooltip = false, ...props},
   ref,
 ) {
   const usedVariant: ButtonVariant = primary ? 'primary' : variant
@@ -46,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     ?? (typeof props['aria-label'] === 'string' ? props['aria-label'] : undefined)
     ?? (typeof children === 'string' ? children : undefined)
 
-  return <ShadcnButton
+  const buttonNode = <ShadcnButton
     ref={ref}
     type={type}
     title={resolvedTitle}
@@ -62,6 +64,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   >
     {children}
   </ShadcnButton>
+
+  // Use title/aria/label as a single tooltip source to keep Button interactions consistently discoverable.
+  if (!resolvedTitle || noTooltip) {
+    return buttonNode
+  }
+
+  return <Tooltip title={resolvedTitle} asChild>{buttonNode}</Tooltip>
 })
 
 export interface IconButtonProps extends ButtonProps {
@@ -72,7 +81,7 @@ export interface IconButtonProps extends ButtonProps {
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  {className, xs, s, l, size: _legacySize, variant = 'ghost', primary, title, children, type = 'button', ...props},
+  {className, xs, s, l, size: _legacySize, variant = 'ghost', primary, title, children, type = 'button', noTooltip = false, ...props},
   ref,
 ) {
   const usedVariant: ButtonVariant = primary ? 'primary' : variant
@@ -96,7 +105,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       ?? (typeof props['aria-label'] === 'string' ? props['aria-label'] : undefined)
       ?? (typeof children === 'string' ? children : undefined)
 
-    return <ShadcnButton
+    const buttonNode = <ShadcnButton
       ref={ref}
       type={type}
       title={resolvedTitle}
@@ -112,4 +121,10 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
     >
       {children}
     </ShadcnButton>
+
+    if (!resolvedTitle || noTooltip) {
+      return buttonNode
+    }
+
+    return <Tooltip title={resolvedTitle} asChild>{buttonNode}</Tooltip>
 })

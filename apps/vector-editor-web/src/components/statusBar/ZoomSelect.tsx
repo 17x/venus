@@ -105,10 +105,10 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
   return <div ref={rootRef} className={'relative'}>
     <div
       className={cn(
-        'flex h-5 w-[82px] items-center overflow-hidden rounded border bg-white text-gray-700',
-        'border-gray-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]',
-        'hover:border-gray-400 focus-within:border-gray-500',
-        menuOpen && 'border-gray-500',
+        'flex h-5 w-[82px] items-center overflow-hidden rounded border bg-[var(--venus-shell-surface)] text-[var(--venus-shell-text)]',
+        'border-[var(--venus-shell-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]',
+        'hover:border-[var(--venus-ui-border-color-strong)] focus-within:border-[var(--venus-shell-active-text)]',
+        menuOpen && 'border-[var(--venus-shell-active-text)]',
       )}
     >
       <input
@@ -145,7 +145,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
           aria-haspopup="listbox"
           aria-expanded={menuOpen}
           aria-controls={menuId}
-          className={'flex h-full w-4 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-500'}
+          className={'flex h-full w-4 shrink-0 cursor-pointer items-center justify-center text-[var(--venus-shell-text-muted)] hover:bg-[var(--venus-shell-hover)] hover:text-[var(--venus-shell-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--venus-shell-active-text)]'}
           onMouseDown={(event) => {
             event.preventDefault()
           }}
@@ -163,7 +163,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
         id={menuId}
         role="listbox"
         aria-label="Zoom presets"
-        className={'absolute bottom-full left-0 z-50 mb-1 max-h-64 w-32 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg'}
+        className={'absolute bottom-full left-0 z-50 mb-1 max-h-64 w-32 overflow-y-auto rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] py-1 shadow-lg'}
       >
         {
           RUNTIME_ZOOM_PRESETS.map(({label, value}) => {
@@ -175,9 +175,9 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
                 aria-selected={selected}
                 title={label}
                 className={cn(
-                  'flex h-7 w-full cursor-pointer items-center justify-between px-3 text-left text-gray-700 hover:bg-gray-100',
+                  'flex h-7 w-full cursor-pointer items-center justify-between px-3 text-left text-[var(--venus-shell-text)] hover:bg-[var(--venus-shell-hover)]',
                   EDITOR_TEXT_MENU_CLASS,
-                  selected && 'bg-gray-100 font-medium text-gray-950',
+                  selected && 'bg-[var(--venus-shell-active-bg)] font-medium text-[var(--venus-shell-active-text)]',
                 )}
                 onMouseDown={(event) => {
                   event.preventDefault()
@@ -187,7 +187,7 @@ const ZoomSelect: React.FC<{ scale: number, onChange: (newScale: number | 'fit')
                 }}
               >
                 <span>{label}</span>
-                {selected && <span aria-hidden className={'size-1.5 rounded-full bg-gray-900'}/>}
+                {selected && <span aria-hidden className={'size-1.5 rounded-full bg-[var(--venus-shell-active-text)]'}/>} 
               </button>
             </Tooltip>
           })

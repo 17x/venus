@@ -47,15 +47,15 @@ export const Print: FC<{
   }
 
   return <div className={'fixed top-0 left-0 w-full h-full z-100 flex items-center justify-center'}>
-    <div className={'absolute top-0 left-0 w-full h-full bg-gray-400 opacity-70'} onClick={onClose}></div>
-    <div className={'flex w-[90%] h-[90%] bg-white rounded z-10 px-2 py-4'}>
+    <div className={'absolute top-0 left-0 w-full h-full bg-black/50'} onClick={onClose}></div>
+    <div className={'flex w-[90%] h-[90%] rounded border border-[var(--venus-shell-border)] bg-[var(--venus-shell-surface)] z-10 px-2 py-4'}>
       <div className={'w-[50%] flex items-center justify-center overflow-hidden'}>
-        <canvas ref={printPreviewCanvas} className={'max-w-full max-h-full border'}></canvas>
+        <canvas ref={printPreviewCanvas} className={'max-w-full max-h-full border border-[var(--venus-shell-border)]'}></canvas>
       </div>
       <div className={'w-[50%] flex flex-col justify-between'}>
         <div></div>
         <div className={'w-full flex items-end'}>
-          <Button type={'button'} className={'border cursor-pointer'}
+          <Button type={'button'} title={'Print document'} className={'cursor-pointer border border-[var(--venus-shell-border)]'}
                   onClick={() => {
                     const printWindow = window.open('', '', 'width=600,height=600')
                     if (!printWindow) return

@@ -39,6 +39,103 @@
   - aligned left-sidebar main menu popup placement/visual container to context
     menu behavior in
     `apps/vector-editor-web/src/components/shell/LeftSidebar.tsx`
+- Vector editor UI semantic migration and regression fixes:
+  - normalized language switching to `zh-CN` with resilient language-code
+    resolution in `apps/vector-editor-web/src/i18n/ui.ts`
+  - migrated header/left/context menu item styling to semantic
+    `venus-ui-menu-item` classes and restored open-state trigger visuals
+  - removed left sidebar Find tab and aligned shell tab unions/state
+    (`shellCommandRegistry.ts`, `shellState.ts`, `LeftSidebar.tsx`)
+  - removed synthetic `page-frame` scene injection and page-frame-only
+    save filtering so frame behaves as a normal document node
+    (`fileFormatScene.ts`, `fileDocument.ts`)
+  - added default tooltip behavior to shared `Button`/`IconButton` with
+    explicit `noTooltip` opt-out for wrapped Tooltip call-sites
+  - refactored template preset picker into option/details layout with
+    fixed action footer and tokenized shell surfaces
+  - blocked inspector text-content patching (`text`/`textRuns`) to preserve
+    canvas-side partial text editing behavior
+  - left sidebar and layer-list behavior refinements:
+    - minimized left panel now keeps fixed width with file name and explicit
+      restore controls instead of collapsing to a floating chip
+    - minimized left panel mode now uses a fixed 48px header strip with
+      file icon + file name + restore icon button only
+    - minimized left rail Menu icon now opens the main dropdown menu directly
+      without requiring panel restore first
+    - layer list now supports horizontal scrolling with non-truncated layer names
+    - layer header count removed and section trigger expanded to full-width
+    - layer section title trigger is left-aligned; layer rows now align by
+      collapse/icon indent anchors
+    - layer row lock/hide controls now follow hover/persistent visibility rules
+      (locked rows keep lock + hidden-eye indicators visible)
+    - layer row hover controls are now sticky to the right edge and do not
+      drift with horizontal scrolling
+    - left tab rail rhythm normalized (button sizing/spacing + rail divider and
+      inner padding), and active tab emphasis aligned to shell active color token
+      with explicit active border/background treatment
+    - IconInput field behavior refinements:
+      - text is left-aligned
+      - unit suffix is rendered inline with value text (for example `100°`)
+      - numeric spinner arrows are removed from this input path
+    - right-side inspector no longer shows `px` suffix tags in numeric fields
+    - selection/property section blocks now share consistent padding and
+      divider treatment, with redundant standalone separators removed
+    - toolbelt group controls now use explicit button-group visuals:
+      primary tool button + select trigger button
+    - hidden layer rows now render muted gray label text
+    - layer-tree first-level subitem text now aligns to parent label baseline
+      (no longer aligned to parent icon anchor)
+    - layer list interaction completion:
+      - horizontal scrolling disabled (`overflow-x-hidden`) for stable row layout
+      - row-level lock/visibility toggles now dispatch real `element.modify`
+        updates instead of local-only visual state
+      - new layer batch action bar (lock/unlock, show/hide selected)
+        dispatches bulk per-selection `element.modify` updates
+    - assets panel interaction completion:
+      - card hover/focus visual feedback enhanced (lift, ring, hover hint strip)
+      - card quick actions split into `New` and `Template`
+      - double-click and Enter/Space on cards now route to new-file flow
+      - details panel action area now includes a dedicated `New file` action
+    - shell state cleanup: removed stale `pagesCollapsed` from
+      `variantBSections` persistence model
+  - toolbelt grouped controls now support direct one-click quick select on
+    the currently displayed group icon, with submenu kept on chevron trigger
+    - projected node-level visibility/lock metadata into derived `LayerItem`
+      values (`deriveEditorUIState.ts`, `useEditorRuntime.types.ts`)
+    - closure sweep for tooltip/type/token consistency:
+      - tokenized remaining border/text gray hardcodes in high-traffic surfaces
+        (`statusBar/ZoomSelect.tsx`, `styleControls/ColorSwatchPicker.tsx`,
+        `layerPanel/LayerPanel.tsx`, `print/print.tsx`)
+      - completed native button tooltip backfill in print action surface
+      - fixed UI-kit type mismatches with current Base UI APIs:
+        - removed unsupported `onOpenAutoFocus` pass-through in modal wrapper
+        - guarded nullable select values before value coercion callback
+        - removed unsupported `nativeButton` props from tooltip trigger wrapper
+    - text typography controls:
+      - added a dedicated font picker popover in inspector (search + preview list)
+        for text elements in `apps/vector-editor-web/src/components/propPanel/PropPanel.tsx`
+      - enabled style-only `textRuns` patching from inspector so font-family
+        updates flow to runtime text rendering while still blocking direct text
+        content mutation
+    - keyboard interaction conflict fix:
+      - hardened global shortcut handling in
+        `apps/vector-editor-web/src/lib/shortcut/shortcut.ts` to skip
+        editable/interactive UI targets (`input`, `textarea`, `select`,
+        `button`, contenteditable, and menu-like role surfaces)
+      - added composition/IME safety guard (`event.isComposing` / `Process` key)
+        so global hotkeys do not interrupt in-progress text input composition
+      - wired editor-focus gating into shortcut registration in
+        `apps/vector-editor-web/src/editor/hooks/useShortcut.tsx` so
+        browser/UI default key behavior is not blocked when editor is unfocused
+      - added focus-loss fallback in `useShortcut` to restore the previous tool
+        when temporary `space` panning is active and focus leaves editor before keyup
+    - packages/ui migration verification:
+      - audited vector app import/dependency surface and confirmed no residual
+        `@venus/ui` or workspace `packages/ui` runtime dependency usage remains
+  - verification:
+    - `pnpm typecheck`
+    - `pnpm --filter @venus/vector-editor-web lint`
+    - `pnpm --filter @venus/vector-editor-web build`
 
 ## 2026-04-16
 

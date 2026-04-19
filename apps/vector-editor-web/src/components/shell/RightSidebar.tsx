@@ -45,6 +45,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             <Button
               type={'button'}
               variant={'ghost'}
+              noTooltip
               className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-7 items-center justify-center rounded'}
               aria-label={t('shell.variantB.present', 'Present')}
               title={t('shell.variantB.present', 'Present')}
@@ -57,6 +58,7 @@ export default function RightSidebar(props: RightSidebarProps) {
               type={'button'}
               variant={'ghost'}
               size={'sm'}
+              noTooltip
               className={'h-7 px-2 text-[11px]'}
               title={t('ui.shell.variantB.shareTooltip', {defaultValue: 'Share current design'})}
             >
@@ -67,6 +69,7 @@ export default function RightSidebar(props: RightSidebarProps) {
             <Button
               type={'button'}
               variant={'ghost'}
+              noTooltip
               className={'venus-shell-toolbar-button venus-shell-plain-trigger inline-flex size-7 items-center justify-center rounded text-base leading-none'}
               aria-label={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')}
               title={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')}

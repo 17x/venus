@@ -10,9 +10,8 @@ export interface ShellLayoutState {
   activeInspectorContext: InspectorContext
   toolbeltMode: ToolbeltMode
   variantBSections: {
-    activeTab: 'file' | 'assets' | 'search' | 'history' | 'debug'
+    activeTab: 'file' | 'assets' | 'history' | 'debug'
     showGrid: boolean
-    pagesCollapsed: boolean
     layersCollapsed: boolean
   }
 }
@@ -34,7 +33,6 @@ export function createDefaultShellLayoutState(): ShellLayoutState {
     variantBSections: {
       activeTab: 'file',
       showGrid: false,
-      pagesCollapsed: false,
       layersCollapsed: false,
     },
   }
@@ -58,13 +56,11 @@ export function normalizeShellLayoutState(input?: Partial<ShellLayoutState>): Sh
     // Keep this normalization backward-compatible with existing persisted state.
     variantBSections: {
       activeTab: input.variantBSections?.activeTab === 'assets' ||
-      input.variantBSections?.activeTab === 'search' ||
       input.variantBSections?.activeTab === 'history' ||
       input.variantBSections?.activeTab === 'debug'
         ? input.variantBSections.activeTab
         : 'file',
       showGrid: input.variantBSections?.showGrid === true,
-      pagesCollapsed: input.variantBSections?.pagesCollapsed === true,
       layersCollapsed: input.variantBSections?.layersCollapsed === true,
     },
   }

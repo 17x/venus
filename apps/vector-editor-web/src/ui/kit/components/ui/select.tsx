@@ -46,6 +46,9 @@ export function Select({
         value={String(selectValue)}
         disabled={disabled}
         onValueChange={(nextValue) => {
+          if (nextValue == null) {
+            return
+          }
           const resolvedValue = typeof selectValue === 'number' ? Number(nextValue) : nextValue
           onSelectChange?.(resolvedValue)
         }}

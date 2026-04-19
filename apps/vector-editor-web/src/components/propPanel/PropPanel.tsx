@@ -1,5 +1,5 @@
-import {type ChangeEvent, type ReactNode, useEffect, useMemo, useState} from 'react'
-import {Button, Con, Select, SelectItem, Separator} from '@vector/ui'
+import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
+import {Button, Con, Select, SelectItem} from '@vector/ui'
 import {ProtectedInput} from './protectedInput.tsx'
 import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
 import type {SelectedElementProps} from '../../editor/hooks/useEditorRuntime.types.ts'
@@ -11,7 +11,16 @@ import {
 } from '../editorChrome/editorTypography.ts'
 import {useTranslation} from 'react-i18next'
 import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
-import {LuChevronRight, LuCircle, LuSettings2, LuSpline} from 'react-icons/lu'
+import {
+  LuChevronDown,
+  LuChevronRight,
+  LuCircle,
+  LuSearch,
+  LuSettings2,
+  LuSpline,
+  LuX,
+} from 'react-icons/lu'
+import {IconInputField} from './IconInputField.tsx'
 
 interface PropPanelProps {
   props?: SelectedElementProps
@@ -31,7 +40,7 @@ const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: Prop
   return <Con flex={1} minH={0}>
     <section className={'venus-ui-font flex h-full w-full min-h-0 flex-col overflow-hidden text-slate-950'} role={'region'}>
       <div className={'mb-2 flex items-center justify-between gap-2 p-1 text-xs text-slate-900'}>
-        <PanelHead title={t('inspector.properties.title', 'Properties')} onMinimize={onMinimize}/>
+        <PanelHead onMinimize={onMinimize}/>
       </div>
       <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 pb-1'}>
         {localProps
@@ -50,16 +59,16 @@ const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: Prop
 
 export default PropPanel
 
-function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
+function PanelHead(props: {onMinimize?: VoidFunction}) {
   const {t} = useTranslation()
   return (
     <div className={'flex w-full items-center justify-between gap-2'}>
-      <h2 className={'font-semibold'}>{props.title}</h2>
+      <span className={'sr-only'}>{t('inspector.properties.title', 'Properties')}</span>
       {props.onMinimize &&
         <Button
           type="button"
-          aria-label={t('inspector.minimizePanel', {title: props.title, defaultValue: `Minimize ${props.title}`})}
-          title={t('inspector.minimizePanel', {title: props.title, defaultValue: `Minimize ${props.title}`})}
+          aria-label={t('inspector.minimizePanel', {title: t('inspector.properties.title', 'Properties'), defaultValue: 'Minimize properties'})}
+          title={t('inspector.minimizePanel', {title: t('inspector.properties.title', 'Properties'), defaultValue: 'Minimize properties'})}
           className={'inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900'}
           onClick={(event) => {
             event.stopPropagation()
@@ -75,6 +84,15 @@ function PanelHead(props: {title: string, onMinimize?: VoidFunction}) {
 function GroupTitle(props: {title: string}) {
   return (
     <div className={`venus-prop-group-title ${EDITOR_TEXT_PANEL_HEADING_CLASS}`}>{props.title}</div>
+  )
+}
+
+function SectionBlock(props: {title: string, children: ReactNode}) {
+  return (
+    <section className={'space-y-2 border-b border-[var(--venus-shell-border)] px-2 py-2'}>
+      <GroupTitle title={props.title}/>
+      {props.children}
+    </section>
   )
 }
 
@@ -99,6 +117,208 @@ function InlineIconAction(props: {label: string, icon: ReactNode}) {
     >
       {props.icon}
     </Button>
+  )
+}
+
+const FONT_PICKER_FALLBACKS = [
+  'Arial',
+  'Arial Black',
+  'Courier New',
+  'Georgia',
+  'Geist',
+  'Geist Mono',
+  'Genos',
+  'Gentium Basic',
+  'Gentium Book Basic',
+  'Gentium Book Plus',
+  'Gentium Plus',
+  'Geo',
+  'Geologica',
+  'Geom',
+  'Georama',
+  'Geostar',
+  'Geostar Fill',
+  'Germania One',
+  'GFS Didot',
+  'Helvetica',
+  'Inter',
+  'Times New Roman',
+  'Verdana',
+]
+
+function FontFamilyPicker(props: {value: string, onChange: (nextFontFamily: string) => void}) {
+  const {t} = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState('')
+  const [fontOptions, setFontOptions] = useState(FONT_PICKER_FALLBACKS)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const localFontQuery = (globalThis as {
+      queryLocalFonts?: () => Promise<Array<{fullName?: string, family?: string}>>
+    }).queryLocalFonts
+
+    if (!localFontQuery) {
+      return
+    }
+
+    localFontQuery()
+      .then((fonts) => {
+        const discovered = fonts
+          .map((font) => font.family ?? font.fullName)
+          .filter((fontName): fontName is string => typeof fontName === 'string' && fontName.length > 0)
+
+        if (discovered.length === 0) {
+          return
+        }
+
+        const merged = new Set([...FONT_PICKER_FALLBACKS, ...discovered])
+        setFontOptions(Array.from(merged).sort((left, right) => left.localeCompare(right)))
+      })
+      .catch(() => {
+        // Keep fallback fonts when Local Font Access is unavailable or blocked.
+      })
+  }, [])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) {
+        return
+      }
+      if (!popoverRef.current?.contains(target)) {
+        setOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [open])
+
+  const normalizedSearch = searchValue.trim().toLowerCase()
+  const filteredFonts = normalizedSearch.length > 0
+    ? fontOptions.filter((fontName) => fontName.toLowerCase().includes(normalizedSearch))
+    : fontOptions
+
+  return (
+    <div className={'relative'} ref={popoverRef}>
+      <Button
+        type={'button'}
+        variant={'outline'}
+        className={'h-8 w-full justify-between border-[var(--venus-ui-border-color)] bg-white px-2 text-[11px]'}
+        title={props.value}
+        onClick={() => {
+          setOpen((currentOpen) => !currentOpen)
+        }}
+      >
+        <span className={'truncate text-left'} style={{fontFamily: `${props.value}, var(--venus-ui-font-family)`}}>
+          {props.value}
+        </span>
+        <LuChevronDown size={14}/>
+      </Button>
+
+      {open &&
+        <div className={'absolute left-0 top-[calc(100%+6px)] z-50 w-[320px] overflow-hidden rounded-2xl border border-[var(--venus-shell-border)] bg-[#f2f2f3] shadow-xl'}>
+          <div className={'flex items-center justify-between px-4 py-3'}>
+            <h4 className={'text-lg font-semibold text-slate-900'}>
+              {t('inspector.fontPicker.title', {defaultValue: 'Fonts'})}
+            </h4>
+            <div className={'inline-flex items-center gap-2'}>
+              <Button
+                type={'button'}
+                variant={'ghost'}
+                noTooltip
+                className={'inline-flex size-7 items-center justify-center rounded-full text-slate-700 hover:bg-white'}
+                title={t('inspector.fontPicker.settings', {defaultValue: 'Font settings'})}
+              >
+                <LuSettings2 size={14}/>
+              </Button>
+              <Button
+                type={'button'}
+                variant={'ghost'}
+                noTooltip
+                className={'inline-flex size-7 items-center justify-center rounded-full text-slate-700 hover:bg-white'}
+                title={t('inspector.fontPicker.close', {defaultValue: 'Close'})}
+                onClick={() => {
+                  setOpen(false)
+                }}
+              >
+                <LuX size={16}/>
+              </Button>
+            </div>
+          </div>
+
+          <div className={'px-3 pb-3'}>
+            <div className={'mb-3 flex items-center rounded-xl border border-[#94a3b8] bg-white px-2 py-2 shadow-[0_0_0_1px_rgba(59,130,246,0.35)]'}>
+              <LuSearch size={16} className={'text-slate-700'}/>
+              <input
+                type={'text'}
+                value={searchValue}
+                className={'ml-2 h-6 w-full bg-transparent text-base text-slate-900 outline-none'}
+                placeholder={t('inspector.fontPicker.searchPlaceholder', {defaultValue: 'Search fonts'})}
+                onChange={(event) => {
+                  setSearchValue(event.target.value)
+                }}
+              />
+            </div>
+
+            <Button
+              type={'button'}
+              variant={'outline'}
+              className={'mb-3 h-11 w-full justify-between rounded-xl border-[var(--venus-shell-border)] bg-[#f8f8f8] px-3 text-[14px] text-slate-900'}
+              title={t('inspector.fontPicker.filterAll', {defaultValue: 'All fonts'})}
+            >
+              <span>{t('inspector.fontPicker.filterAll', {defaultValue: 'All fonts'})}</span>
+              <LuChevronDown size={14}/>
+            </Button>
+
+            <div className={'scrollbar-custom max-h-[420px] overflow-y-auto border-t border-[var(--venus-shell-border)] pt-3'}>
+              {filteredFonts.length === 0
+                ? <div className={'px-2 py-4 text-sm text-[var(--venus-shell-text-muted)]'}>
+                    {t('inspector.fontPicker.noResults', {defaultValue: 'No fonts found'})}
+                  </div>
+                : filteredFonts.map((fontName) => {
+                    const selected = fontName === props.value
+                    return (
+                      <Button
+                        key={fontName}
+                        type={'button'}
+                        variant={'ghost'}
+                        noTooltip
+                        className={'h-auto w-full justify-start rounded-md px-2 py-1.5 text-left text-[14px] hover:bg-white'}
+                        title={fontName}
+                        onClick={() => {
+                          props.onChange(fontName)
+                          setOpen(false)
+                        }}
+                      >
+                        <span
+                          className={selected ? 'font-semibold text-slate-950' : 'text-slate-900'}
+                          style={{fontFamily: `${fontName}, var(--venus-ui-font-family)`}}
+                        >
+                          {fontName}
+                        </span>
+                      </Button>
+                    )
+                  })}
+            </div>
+          </div>
+        </div>}
+    </div>
   )
 }
 
@@ -172,26 +392,22 @@ const ShapePropsPanel = ({
     blur: props.shadow?.blur ?? 8,
   }
 
-  const numericFieldNames = useMemo<Array<keyof SelectedElementProps>>(() => [
-    'x',
-    'y',
-    'width',
-    'height',
-    'rotation',
-    'r1',
-    'r2',
-    'cornerRadius',
-    'ellipseStartAngle',
-    'ellipseEndAngle',
-    'opacity',
-    'shadowOffsetX',
-    'shadowOffsetY',
-    'shadowBlur',
-  ], [])
-
   const patchElementProps = (nextProps: Partial<SelectedElementProps>) => {
+    // Text content editing is intentionally blocked in the inspector so partial text selection remains the source of truth.
+    // Style-only textRuns updates remain allowed for typography controls (font, size, etc.).
+    const sanitizedNextProps = props.type === 'text'
+      ? Object.fromEntries(
+          Object.entries(nextProps as Record<string, unknown>)
+            .filter(([key]) => key !== 'text'),
+        ) as Partial<SelectedElementProps>
+      : nextProps
+
+    if (Object.keys(sanitizedNextProps as Record<string, unknown>).length === 0) {
+      return
+    }
+
     if (onPatchElementProps) {
-      onPatchElementProps(props.id, nextProps as Record<string, unknown>, {
+      onPatchElementProps(props.id, sanitizedNextProps as Record<string, unknown>, {
         sourcePanel: 'properties-panel',
         sourceControl: 'property-field-input',
         commitType: 'final',
@@ -201,22 +417,58 @@ const ShapePropsPanel = ({
 
     executeAction('element-modify', [{
       id: props.id,
-      props: nextProps,
+      props: sanitizedNextProps,
     }])
   }
 
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const keyName = event.target.name as Extract<keyof SelectedElementProps, string>
-    let nextValue: string | number = event.target.value
+  const patchNumericField = (field: keyof SelectedElementProps, nextValue: number) => {
+    patchElementProps({[field]: nextValue} as Partial<SelectedElementProps>)
+  }
 
-    if (numericFieldNames.includes(keyName as keyof SelectedElementProps)) {
-      nextValue = Number(nextValue)
+  const currentFontFamily = useMemo(() => {
+    if (props.type !== 'text') {
+      return 'Arial, sans-serif'
     }
 
-    patchElementProps({[keyName]: nextValue} as Partial<SelectedElementProps>)
+    const runs = Array.isArray((props as {textRuns?: unknown}).textRuns)
+      ? ((props as {textRuns?: unknown}).textRuns as Array<{style?: {fontFamily?: string}}>)
+      : []
 
-    event.preventDefault()
-    event.stopPropagation()
+    const firstRunFont = runs[0]?.style?.fontFamily
+    return typeof firstRunFont === 'string' && firstRunFont.length > 0
+      ? firstRunFont
+      : 'Arial, sans-serif'
+  }, [props])
+
+  const applyTextFontFamily = (nextFontFamily: string) => {
+    if (props.type !== 'text') {
+      return
+    }
+
+    const sourceRuns = Array.isArray((props as {textRuns?: unknown}).textRuns)
+      ? ((props as {textRuns?: unknown}).textRuns as Array<{
+          start?: number
+          end?: number
+          style?: Record<string, unknown>
+        }>)
+      : []
+    const textContent = typeof props.text === 'string' ? props.text : ''
+    const fallbackRunLength = Math.max(0, textContent.length)
+    const baseRuns = sourceRuns.length > 0
+      ? sourceRuns
+      : [{start: 0, end: fallbackRunLength, style: {}}]
+    const nextRuns = baseRuns.map((run) => ({
+      start: typeof run.start === 'number' ? run.start : 0,
+      end: typeof run.end === 'number' ? run.end : fallbackRunLength,
+      style: {
+        ...(run.style ?? {}),
+        fontFamily: nextFontFamily,
+      },
+    }))
+
+    patchElementProps({
+      textRuns: nextRuns,
+    } as Partial<SelectedElementProps>)
   }
 
   return (
@@ -229,115 +481,123 @@ const ShapePropsPanel = ({
         <span className={'truncate text-gray-600'} title={props.id}>{props.id}</span>
       </FieldRow> */}
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.layout', 'Layout')}/>
-      <div className={'venus-prop-grid-2'}>
-        <ProtectedInput
-          type={'number'}
-          name={'x'}
-          value={props.x ?? props.cx ?? 0}
-          title={t('inspector.properties.fields.x', 'X')}
-          onChange={handleChange}
-        />
-        <ProtectedInput
-          type={'number'}
-          name={'y'}
-          value={props.y ?? props.cy ?? 0}
-          title={t('inspector.properties.fields.y', 'Y')}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className={'venus-prop-grid-2'}>
-        <ProtectedInput
-          type={'number'}
-          name={'width'}
-          value={props.width ?? 0}
-          title={t('inspector.properties.fields.width', 'Width')}
-          onChange={handleChange}
-        />
-        <ProtectedInput
-          type={'number'}
-          name={'height'}
-          value={props.height ?? 0}
-          title={t('inspector.properties.fields.height', 'Height')}
-          onChange={handleChange}
-        />
-      </div>
-      <div className={'grid grid-cols-[minmax(0,1fr)_24px] items-center gap-2'}>
-        <ProtectedInput
-          type={'number'}
-          name={'rotation'}
-          value={props.rotation ?? 0}
-          title={t('inspector.properties.fields.rotation', 'Rotation')}
-          onChange={handleChange}
-        />
-        <InlineIconAction
-          label={t('inspector.properties.layout.constraint', {defaultValue: 'Aspect ratio constraint'})}
-          icon={<LuSettings2 size={14}/>}
-        />
-      </div>
-
-      {props.type === 'ellipse' &&
+      <SectionBlock title={t('inspector.properties.sections.layout', 'Layout')}>
         <div className={'venus-prop-grid-2'}>
-          <ProtectedInput
-            type={'number'}
-            name={'ellipseStartAngle'}
-            value={props.ellipseStartAngle ?? 0}
-            title={t('inspector.properties.fields.startAngle', 'Start Angle')}
-            onChange={handleChange}
+          <IconInputField
+            value={Number(props.x ?? props.cx ?? 0)}
+            title={t('inspector.properties.fields.x', 'X')}
+            leading={<span className={'text-[10px] font-semibold'}>X</span>}
+            onChange={(nextValue: number) => patchNumericField('x', nextValue)}
           />
-          <ProtectedInput
-            type={'number'}
-            name={'ellipseEndAngle'}
-            value={props.ellipseEndAngle ?? 360}
-            title={t('inspector.properties.fields.endAngle', 'End Angle')}
-            onChange={handleChange}
+          <IconInputField
+            value={Number(props.y ?? props.cy ?? 0)}
+            title={t('inspector.properties.fields.y', 'Y')}
+            leading={<span className={'text-[10px] font-semibold'}>Y</span>}
+            onChange={(nextValue: number) => patchNumericField('y', nextValue)}
           />
-        </div>}
+        </div>
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.appearance', 'Appearance')}/>
-      <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px] items-center gap-2'}>
-        <ProtectedInput
-          type={'number'}
-          name={'opacity'}
-          min={0}
-          max={1}
-          step={0.01}
-          value={props.opacity ?? 1}
-          title={t('inspector.properties.fields.opacity', 'Opacity')}
-          onChange={handleChange}
-        />
-        <ProtectedInput
-          type={'number'}
-          name={'cornerRadius'}
-          value={props.cornerRadius ?? 0}
-          title={t('inspector.properties.fields.cornerRadius', 'Corner Radius')}
-          onChange={handleChange}
-        />
-        <InlineIconAction
-          label={t('inspector.properties.appearance.radiusMode', {defaultValue: 'Radius mode'})}
-          icon={<LuCircle size={14}/>}
-        />
-      </div>
+        <div className={'venus-prop-grid-2'}>
+          <IconInputField
+            value={Number(props.width ?? 0)}
+            min={0}
+            title={t('inspector.properties.fields.width', 'Width')}
+            leading={<span className={'text-[10px] font-semibold'}>W</span>}
+            onChange={(nextValue: number) => patchNumericField('width', nextValue)}
+          />
+          <IconInputField
+            value={Number(props.height ?? 0)}
+            min={0}
+            title={t('inspector.properties.fields.height', 'Height')}
+            leading={<span className={'text-[10px] font-semibold'}>H</span>}
+            onChange={(nextValue: number) => patchNumericField('height', nextValue)}
+          />
+        </div>
+        <div className={'grid grid-cols-[minmax(0,1fr)_24px] items-center gap-2'}>
+          <IconInputField
+            value={Number(props.rotation ?? 0)}
+            step={0.5}
+            title={t('inspector.properties.fields.rotation', 'Rotation')}
+            leading={<span className={'text-[10px] font-semibold'}>R</span>}
+            unit={'°'}
+            onChange={(nextValue: number) => patchNumericField('rotation', nextValue)}
+          />
+          <InlineIconAction
+            label={t('inspector.properties.layout.constraint', {defaultValue: 'Aspect ratio constraint'})}
+            icon={<LuSettings2 size={14}/>} 
+          />
+        </div>
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.fill', 'Fill')}/>
-      <PaintRow
-        label={t('inspector.properties.fields.fillColor', 'Fill')}
-        enabled={fill.enabled}
-        color={fill.color}
-        onChangeEnabled={(enabled) => {
-          patchElementProps({fill: {enabled, color: fill.color}})
-        }}
-        onChangeColor={(color) => {
-          patchElementProps({fill: {color, enabled: fill.enabled}})
-        }}
-      />
+        {props.type === 'ellipse' &&
+          <div className={'venus-prop-grid-2'}>
+            <IconInputField
+              value={Number(props.ellipseStartAngle ?? 0)}
+              step={0.5}
+              title={t('inspector.properties.fields.startAngle', 'Start Angle')}
+              leading={<span className={'text-[10px] font-semibold'}>S</span>}
+              unit={'°'}
+              onChange={(nextValue: number) => patchNumericField('ellipseStartAngle', nextValue)}
+            />
+            <IconInputField
+              value={Number(props.ellipseEndAngle ?? 360)}
+              step={0.5}
+              title={t('inspector.properties.fields.endAngle', 'End Angle')}
+              leading={<span className={'text-[10px] font-semibold'}>E</span>}
+              unit={'°'}
+              onChange={(nextValue: number) => patchNumericField('ellipseEndAngle', nextValue)}
+            />
+          </div>}
+      </SectionBlock>
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.stroke', 'Stroke')}/>
+      <SectionBlock title={t('inspector.properties.sections.appearance', 'Appearance')}>
+        {props.type === 'text' &&
+          <FieldRow label={t('inspector.properties.fields.fontFamily', {defaultValue: 'Font'})}>
+            <FontFamilyPicker
+              value={currentFontFamily}
+              onChange={applyTextFontFamily}
+            />
+          </FieldRow>}
+
+        <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px] items-center gap-2'}>
+          <IconInputField
+            value={Number(props.opacity ?? 1)}
+            min={0}
+            max={1}
+            step={0.01}
+            title={t('inspector.properties.fields.opacity', 'Opacity')}
+            leading={<span className={'text-[10px] font-semibold'}>O</span>}
+            onChange={(nextValue: number) => patchNumericField('opacity', nextValue)}
+          />
+          <IconInputField
+            value={Number(props.cornerRadius ?? 0)}
+            min={0}
+            step={0.5}
+            title={t('inspector.properties.fields.cornerRadius', 'Corner Radius')}
+            leading={<span className={'text-[10px] font-semibold'}>C</span>}
+            onChange={(nextValue: number) => patchNumericField('cornerRadius', nextValue)}
+          />
+          <InlineIconAction
+            label={t('inspector.properties.appearance.radiusMode', {defaultValue: 'Radius mode'})}
+            icon={<LuCircle size={14}/>} 
+          />
+        </div>
+      </SectionBlock>
+
+      <SectionBlock title={t('inspector.properties.sections.fill', 'Fill')}>
+        <PaintRow
+          label={t('inspector.properties.fields.fillColor', 'Fill')}
+          enabled={fill.enabled}
+          color={fill.color}
+          onChangeEnabled={(enabled) => {
+            patchElementProps({fill: {enabled, color: fill.color}})
+          }}
+          onChangeColor={(color) => {
+            patchElementProps({fill: {color, enabled: fill.enabled}})
+          }}
+        />
+      </SectionBlock>
+
+      <SectionBlock title={t('inspector.properties.sections.stroke', 'Stroke')}>
       <PaintRow
         label={t('inspector.properties.fields.lineColor', 'Stroke')}
         enabled={stroke.enabled}
@@ -362,13 +622,14 @@ const ShapePropsPanel = ({
             <SelectItem value={'center'}>Center</SelectItem>
             <SelectItem value={'outside'}>Outside</SelectItem>
           </Select>
-          <ProtectedInput
-            type={'number'}
-            value={stroke.weight}
+          <IconInputField
+            value={Number(stroke.weight)}
+            min={0}
             step={0.25}
             title={t('inspector.properties.fields.lineWidth', 'Line Width')}
-            onChange={(event) => {
-              patchElementProps({stroke: {weight: Number(event.target.value), enabled: stroke.enabled, color: stroke.color, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
+            leading={<span className={'text-[10px] font-semibold'}>W</span>}
+            onChange={(nextValue: number) => {
+              patchElementProps({stroke: {weight: Number(nextValue), enabled: stroke.enabled, color: stroke.color, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
             }}
           />
         </div>
@@ -407,9 +668,9 @@ const ShapePropsPanel = ({
           />
         </div>
       </PaintRow>
+      </SectionBlock>
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.effects', 'Effects')}/>
+      <SectionBlock title={t('inspector.properties.sections.effects', 'Effects')}>
       <FieldRow label={t('inspector.properties.effects.dropShadow', {defaultValue: 'Drop shadow'})}>
         <ProtectedInput
           type={'checkbox'}
@@ -432,36 +693,39 @@ const ShapePropsPanel = ({
         />
       </div>
       <div className={'venus-prop-grid-2'}>
-        <ProtectedInput
-          type={'number'}
-          value={shadow.offsetX}
+        <IconInputField
+          value={Number(shadow.offsetX)}
+          step={0.5}
           title={t('inspector.properties.fields.shadowX', 'Shadow X')}
-          onChange={(event) => {
-            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: Number(event.target.value), offsetY: shadow.offsetY, blur: shadow.blur}})
+          leading={<span className={'text-[10px] font-semibold'}>X</span>}
+          onChange={(nextValue: number) => {
+            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: Number(nextValue), offsetY: shadow.offsetY, blur: shadow.blur}})
           }}
         />
-        <ProtectedInput
-          type={'number'}
-          value={shadow.offsetY}
+        <IconInputField
+          value={Number(shadow.offsetY)}
+          step={0.5}
           title={t('inspector.properties.fields.shadowY', 'Shadow Y')}
-          onChange={(event) => {
-            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: Number(event.target.value), blur: shadow.blur}})
+          leading={<span className={'text-[10px] font-semibold'}>Y</span>}
+          onChange={(nextValue: number) => {
+            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: Number(nextValue), blur: shadow.blur}})
           }}
         />
       </div>
-      <ProtectedInput
-        type={'number'}
-        value={shadow.blur}
+      <IconInputField
+        value={Number(shadow.blur)}
+        min={0}
+        step={0.5}
         title={t('inspector.properties.fields.shadowBlur', 'Shadow Blur')}
-        onChange={(event) => {
-          patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: Number(event.target.value)}})
+        leading={<span className={'text-[10px] font-semibold'}>B</span>}
+        onChange={(nextValue: number) => {
+          patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: Number(nextValue)}})
         }}
       />
+      </SectionBlock>
 
       {props.type === 'image' &&
-        <>
-          <Separator className={'my-0.5'}/>
-          <GroupTitle title={t('inspector.properties.sections.image', {defaultValue: 'Image'})}/>
+        <SectionBlock title={t('inspector.properties.sections.image', {defaultValue: 'Image'})}>
           <FieldRow label={t('inspector.properties.fields.asset', 'Asset')}>
             <span className={'truncate text-gray-600'}>
               {props.imageMeta?.assetName ?? props.asset ?? t('inspector.properties.values.linkedImage', 'Linked image')}
@@ -490,12 +754,10 @@ const ShapePropsPanel = ({
               {t('inspector.properties.actions.clearMask', 'Clear Mask')}
             </Button>
           </div>
-        </>}
+        </SectionBlock>}
 
       {props.schemaMeta &&
-        <>
-          <Separator className={'my-0.5'}/>
-          <GroupTitle title={t('inspector.properties.sections.schema', {defaultValue: 'Schema'})}/>
+        <SectionBlock title={t('inspector.properties.sections.schema', {defaultValue: 'Schema'})}>
           <FieldRow label={t('inspector.properties.fields.schemaNode', 'Schema Node')}>
             <span className={'truncate text-gray-600'}>{props.schemaMeta.sourceNodeType ?? '-'}</span>
           </FieldRow>
@@ -505,59 +767,59 @@ const ShapePropsPanel = ({
           <FieldRow label={t('inspector.properties.fields.features', 'Features')}>
             <span className={'truncate text-gray-600'}>{props.schemaMeta.sourceFeatureKinds?.join(', ') ?? '-'}</span>
           </FieldRow>
-        </>}
+        </SectionBlock>}
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.export', 'Export')}/>
-      <div className={'venus-prop-grid-2'}>
-        <Select
-          className={EDITOR_TEXT_CONTROL_CLASS}
-          selectValue={exportScale}
-          onSelectChange={(nextScale) => {
-            setExportScale(String(nextScale))
+      <SectionBlock title={t('inspector.properties.sections.export', 'Export')}>
+        <div className={'venus-prop-grid-2'}>
+          <Select
+            className={EDITOR_TEXT_CONTROL_CLASS}
+            selectValue={exportScale}
+            onSelectChange={(nextScale) => {
+              setExportScale(String(nextScale))
+            }}
+            placeholderResolver={(value) => String(value)}
+          >
+            <SelectItem value={'1x'}>1x</SelectItem>
+            <SelectItem value={'2x'}>2x</SelectItem>
+            <SelectItem value={'3x'}>3x</SelectItem>
+          </Select>
+          <Select
+            className={EDITOR_TEXT_CONTROL_CLASS}
+            selectValue={exportFormat}
+            onSelectChange={(nextFormat) => {
+              setExportFormat(String(nextFormat))
+            }}
+            placeholderResolver={(value) => String(value)}
+          >
+            <SelectItem value={'PNG'}>PNG</SelectItem>
+            <SelectItem value={'JPG'}>JPG</SelectItem>
+            <SelectItem value={'SVG'}>SVG</SelectItem>
+          </Select>
+        </div>
+        <Button
+          type={'button'}
+          variant={'outline'}
+          className={'h-7 w-full justify-start text-xs'}
+          title={t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
+          onClick={() => {
+            executeAction('print')
           }}
-          placeholderResolver={(value) => String(value)}
         >
-          <SelectItem value={'1x'}>1x</SelectItem>
-          <SelectItem value={'2x'}>2x</SelectItem>
-          <SelectItem value={'3x'}>3x</SelectItem>
-        </Select>
-        <Select
-          className={EDITOR_TEXT_CONTROL_CLASS}
-          selectValue={exportFormat}
-          onSelectChange={(nextFormat) => {
-            setExportFormat(String(nextFormat))
-          }}
-          placeholderResolver={(value) => String(value)}
-        >
-          <SelectItem value={'PNG'}>PNG</SelectItem>
-          <SelectItem value={'JPG'}>JPG</SelectItem>
-          <SelectItem value={'SVG'}>SVG</SelectItem>
-        </Select>
-      </div>
-      <Button
-        type={'button'}
-        variant={'outline'}
-        className={'h-7 w-full justify-start text-xs'}
-        title={t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
-        onClick={() => {
-          executeAction('print')
-        }}
-      >
-        {t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
-      </Button>
+          {t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
+        </Button>
+      </SectionBlock>
 
-      <Separator className={'my-0.5'}/>
-      <GroupTitle title={t('inspector.properties.sections.preview', 'Preview')}/>
-      <Button
-        type={'button'}
-        variant={'ghost'}
-        className={'h-7 w-full justify-between px-1 text-xs'}
-        title={t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}
-      >
-        <span>{t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}</span>
-        <LuChevronRight size={14}/>
-      </Button>
+      <SectionBlock title={t('inspector.properties.sections.preview', 'Preview')}>
+        <Button
+          type={'button'}
+          variant={'ghost'}
+          className={'h-7 w-full justify-between px-1 text-xs'}
+          title={t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}
+        >
+          <span>{t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}</span>
+          <LuChevronRight size={14}/>
+        </Button>
+      </SectionBlock>
     </div>
   )
 }
