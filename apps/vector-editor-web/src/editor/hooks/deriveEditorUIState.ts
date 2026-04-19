@@ -14,7 +14,6 @@ export function deriveEditorUIState(options: {
   clipboard: ElementProps[]
   selectedNode: DocumentNode | null
   selectedIds: string[]
-  showCreateFile: boolean
   showPrint: boolean
 }): EditorUIState {
   const {
@@ -22,7 +21,6 @@ export function deriveEditorUIState(options: {
     clipboard,
     selectedNode,
     selectedIds,
-    showCreateFile,
     showPrint,
   } = options
 
@@ -40,7 +38,6 @@ export function deriveEditorUIState(options: {
     selectedProps: buildSelectedProps(selectedNode),
     // Runtime hook overrides this with the live snapping toggle state.
     snappingEnabled: true,
-    showCreateFile,
     showPrint,
     viewportScale: canvasRuntime.viewport.scale,
   }

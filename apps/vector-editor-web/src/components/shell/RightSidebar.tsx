@@ -5,9 +5,12 @@ import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandReg
 import {PageInspectorSection} from '../inspector/sections/PageInspectorSection.tsx'
 import PropPanel from '../propPanel/PropPanel.tsx'
 import {useTranslation} from 'react-i18next'
+import {LuPanelRightClose} from 'react-icons/lu'
 import {TEST_IDS} from '../../testing/testIds.ts'
 
 export interface RightSidebarProps {
+  rightPanelMinimized: boolean
+  panelWidth: number
   context: InspectorContext
   selectedProps: SelectedElementProps | null
   zoomPercent: number
@@ -30,8 +33,22 @@ export default function RightSidebar(props: RightSidebarProps) {
     props.onSetZoom(Math.max(10, Math.min(800, nextZoomPercent)))
   }
 
+  if (props.rightPanelMinimized) {
+    return (
+      <Button
+        type={'button'}
+        title={t('ui.shell.variantB.rightSidebar.restore', {defaultValue: 'Restore right panel'})}
+        className={'absolute right-0 inline-flex h-9 items-center gap-1 rounded bg-white px-2 text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
+        onClick={props.onMinimize}
+      >
+        <LuPanelRightClose size={14}/>
+        <span className={'text-xs'}>Inspector</span>
+      </Button>
+    )
+  }
+
   return (
-    <aside className={'flex h-full w-[240px] shrink-0 flex-col overflow-x-hidden bg-white dark:bg-slate-900'} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
+    <aside className={'flex h-full shrink-0 flex-col overflow-x-hidden bg-white dark:bg-slate-900'} style={{width: props.panelWidth}} aria-label={t('shell.variantB.rightSidebar', 'Right sidebar')} data-testid={TEST_IDS.sidebarRight.workspace}>
       <div className={'flex items-center justify-end px-2.5 py-2'}>
         <div className={'flex items-center gap-1.5'}>
           <Tooltip title={t('shell.variantB.rightSidebar.minimize', 'Minimize right panel')} placement={'l'} asChild>

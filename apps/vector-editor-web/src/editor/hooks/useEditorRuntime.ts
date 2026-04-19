@@ -70,14 +70,10 @@ const useEditorRuntime = (options?: {
     file,
     document,
     hasFile,
-    creating,
-    showCreateFile,
     openFile,
     closeFile,
     createFile,
     addAsset,
-    startCreateFile,
-    handleCreating,
     saveFile,
   } = useEditorDocument()
   const [showPrint, setShowPrint] = useState(false)
@@ -292,7 +288,6 @@ const useEditorRuntime = (options?: {
     setPathSubSelection,
     setPathSubSelectionHover,
     setShowPrint,
-    startCreateFile,
     runtimeToolRegistryRef,
     runtimeEditingModeControllerRef,
   })
@@ -311,7 +306,6 @@ const useEditorRuntime = (options?: {
     clipboard,
     selectedNode,
     selectedIds: selectedShapeIds,
-    showCreateFile,
     showPrint,
   })
   const selectedProps: SelectedElementProps | null = useMemo(() => resolveSelectedProps(
@@ -427,8 +421,6 @@ const useEditorRuntime = (options?: {
     saveFile: () => saveFile(canvasRuntime.document),
     createFile,
     addAsset,
-    handleCreating,
-    startCreateFile,
     setCurrentTool,
     setSnappingEnabled,
     pickHistory,
@@ -454,8 +446,6 @@ const useEditorRuntime = (options?: {
     refs,
     file,
     hasFile,
-    creating,
-    showCreateFile,
     showPrint,
     setShowPrint,
     contextRootRef,
@@ -464,8 +454,6 @@ const useEditorRuntime = (options?: {
     executeAction,
     saveFile: commands.saveFile,
     createFile,
-    handleCreating,
-    startCreateFile,
     setCurrentTool,
     pickHistory,
     openDroppedFile,

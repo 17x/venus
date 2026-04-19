@@ -1,5 +1,4 @@
 import {useEffect, useRef, useState} from 'react'
-import CreateFile from '../createFile/CreateFile.tsx'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
@@ -72,7 +71,7 @@ const EditorFrame = () => {
     commands,
     refs,
   } = runtime
-  const {file, hasFile} = documentState
+  const {file} = documentState
   const {canvas, currentTool, focused} = runtimeState
   const {
     copiedItems,
@@ -83,7 +82,6 @@ const EditorFrame = () => {
     selectedIds,
     selectedProps,
     snappingEnabled,
-    showCreateFile,
     showPrint,
     viewportScale,
   } = uiState
@@ -91,7 +89,6 @@ const EditorFrame = () => {
     setShowPrint,
     executeAction,
     createFile,
-    handleCreating,
     setCurrentTool,
     setSnappingEnabled,
     pickHistory,
@@ -284,8 +281,6 @@ const EditorFrame = () => {
                   rightPanelMinimized={rightPanelMinimized}
                   showGrid={variantBSections.showGrid}
                   viewportScale={viewportScale}
-                  topMenuActions={shell.topMenuActions}
-                  onExecuteTopMenuAction={shell.executeTopMenuAction}
                   onRestoreLeftPanel={() => {
                     setLeftPanelMinimized((current) => !current)
                   }}
@@ -316,15 +311,6 @@ const EditorFrame = () => {
     {showPrint && <Print editorRef={editorRef} onClose={() => {
       setShowPrint(false)
     }}/>}
-
-    {showCreateFile &&
-      <CreateFile bg={hasFile ? '#00000080' : '#fff'}
-                  createFile={createFile}
-                  onBgClick={() => {
-                    if (hasFile) {
-                      handleCreating(false)
-                    }
-                  }}/>}
 
     {showTemplatePresetPicker &&
       <TemplatePresetPicker

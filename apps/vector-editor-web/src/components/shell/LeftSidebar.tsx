@@ -1,10 +1,9 @@
 import {Button, Tabs, TabsList, TabsTrigger, Tooltip, useTheme, cn} from '@vector/ui'
 import {useMemo, useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import {LuBug, LuPanelLeftClose} from 'react-icons/lu'
+import {LuBug, LuPanelLeftClose, LuPanelLeftOpen} from 'react-icons/lu'
 import type {LayerItem} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {createHeaderMenuData} from '../header/menu/menuData.ts'
-import type {MenuItemType} from '../header/menu/type'
 import {HistoryPanel} from '../historyPanel/HistoryPanel.tsx'
 import {TEST_IDS} from '../../testing/testIds.ts'
 import {LeftSidebarMenu} from './LeftSidebarMenu.tsx'
@@ -35,7 +34,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
     })
   }, [props.selectedIds, props.copiedCount, props.hasUnsavedChanges, props.historyStatus, i18n.language, props.showGrid, props.snappingEnabled, mode])
 
-  const handleTopMenuAction = (menuItem: MenuItemType) => {
+  const handleTopMenuAction = (menuItem: import('../header/menu/type').MenuItemType) => {
     switch (menuItem.id) {
       case 'languageEnglish':
         i18n.changeLanguage('en')
@@ -68,7 +67,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
     }
   }
 
-  const executeTopMenuAction = (menuItem: MenuItemType) => {
+  const executeTopMenuAction = (menuItem: import('../header/menu/type').MenuItemType) => {
     if (menuItem.disabled) {
       return
     }
@@ -136,17 +135,47 @@ export default function LeftSidebar(props: LeftSidebarProps) {
   const tabItems = createLeftSidebarTabItems(t)
   const treeRows = treeLayerItems as TreeLayerItem[]
 
+  if (props.leftPanelMinimized) {
+    return (
+      <aside
+        className={'border border-slate-100 flex h-12 self-start overflow-hidden rounded-lg bg-white dark:bg-slate-900'}
+        style={{width: props.panelWidth}}
+        aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')}
+      >
+        <div className={'flex w-14 shrink-0 items-center justify-center bg-slate-50 dark:bg-slate-950'}>
+          <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction} compact={true}/>
+        </div>
+        <div className={'flex min-w-0 flex-1 items-center gap-2 px-3'}>
+          <span className={'min-w-0 truncate text-sm font-medium'}>
+            {props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}
+          </span>
+          <Button
+            type={'button'}
+            variant={'ghost'}
+            title={t('ui.shell.variantB.leftSidebar.restore', {defaultValue: 'Open left panel'})}
+            className={'ml-auto inline-flex size-7 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
+            onClick={props.onMinimize}
+          >
+            <LuPanelLeftOpen size={14}/>
+          </Button>
+        </div>
+      </aside>
+    )
+  }
+
   return (
-    <aside className={'flex h-full w-[296px] shrink-0 dark:bg-slate-950'} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-      <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5py-2.5 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
-        <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
+    <aside className={'border border-slate-100 flex h-full shrink-0 overflow-hidden dark:bg-slate-950'} style={{width: props.panelWidth}} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
+      <nav className={'bg-white border-r border-slate-100 flex w-14 shrink-0 flex-col items-center gap-1.5py-2.5 dark:bg-slate-950 dark:border-slate-800'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+        <div className={'m-2 '}>
+          <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
+        </div>
         <Tabs
           orientation={'vertical'}
           value={props.activeTab}
           onValueChange={(nextValue) => {
             props.onSetActiveTab(nextValue as LeftSidebarTab)
           }}
-          className={'w-full'}
+          className={'w-[32px]'}
         >
           <TabsList variant={'line'} className={'h-auto w-full flex-col items-center gap-1.5 rounded-none bg-transparent p-0'}>
             {tabItems.map((tabItem) => {
@@ -160,19 +189,23 @@ export default function LeftSidebar(props: LeftSidebarProps) {
                   title={tabItem.label}
                   data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                   className={cn(
-                    'inline-flex flex-col w-10 h-10 text-[10px] px-1.5',
+                    'inline-flex flex-col flex-none',
                     // 'items-center justify-center rounded bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
                     // 'data-active:bg-transparent',
                     // active && 'font-semibold',
                   )}
                   style={active
                     ? {
-                        backgroundColor: colors.primary,
-                        color: colors.primaryForeground,
+                        // backgroundColor: colors.primary,
+                        color: colors.primaryForeground,                        
                       }
-                    : undefined}
+                    : {
+                      
+                    }}
                 >
+                  <Button variant={'ghost'} size={'sm'} className={'h-[32px]'} noTooltip>
                   {tabItem.icon}
+                  </Button>
                 </TabsTrigger>
               </Tooltip>
             })}
@@ -180,7 +213,7 @@ export default function LeftSidebar(props: LeftSidebarProps) {
         </Tabs>
       </nav>
 
-      <section className={'flex min-w-0 w-[240px] flex-1 flex-col bg-white dark:bg-slate-900'}>
+      <section className={'flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900'}>
         <header className={'px-3 py-2'}>
           <div className={'flex items-center justify-between gap-2'}>
             <h2 className={'truncate text-sm font-medium'}>{props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}</h2>
@@ -254,7 +287,6 @@ export default function LeftSidebar(props: LeftSidebarProps) {
             hoveredAssetId={hoveredAssetId}
             onHoverAsset={setHoveredAssetId}
             onSelectAsset={setActiveAssetId}
-            onOpenCreateFile={props.onOpenCreateFile}
             onOpenTemplatePicker={props.onOpenTemplatePicker}
           />}
 
