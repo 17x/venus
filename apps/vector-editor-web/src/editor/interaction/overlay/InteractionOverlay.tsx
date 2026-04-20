@@ -57,45 +57,54 @@ export function InteractionOverlay({
 }: InteractionOverlayProps) {
   const handleSize = presentation.overlay.handleSize
   const halfHandleSize = handleSize / 2
+  const documentShapeById = useMemo(
+    () => new Map(document.shapes.map((shape) => [shape.id, shape])),
+    [document.shapes],
+  )
+  const snapshotShapeById = useMemo(
+    () => new Map(shapes.map((shape) => [shape.id, shape])),
+    [shapes],
+  )
   const selection = useMemo(
     () => buildSelectionState(document, shapes),
     [document, shapes],
   )
+  const selectedIdSet = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds])
   const handles = useMemo(
     () => buildSelectionHandles(selection, {
       rotateOffset: 28,
       rotateDegrees:
         selection.selectedIds.length === 1
-          ? (document.shapes.find((shape) => shape.id === selection.selectedIds[0])?.rotation ?? 0)
+          ? (documentShapeById.get(selection.selectedIds[0])?.rotation ?? 0)
           : 0,
     }),
-    [document.shapes, selection],
+    [documentShapeById, selection],
   )
   const singleSelectedShape = useMemo(
     () => selection.selectedIds.length === 1
-      ? document.shapes.find((shape) => shape.id === selection.selectedIds[0]) ?? null
+      ? documentShapeById.get(selection.selectedIds[0]) ?? null
       : null,
-    [document.shapes, selection.selectedIds],
+    [documentShapeById, selection.selectedIds],
   )
   const hovered = useMemo(
-    () => hoveredShapeId ? document.shapes.find((shape) => shape.id === hoveredShapeId) : null,
-    [document.shapes, hoveredShapeId],
+    () => hoveredShapeId ? documentShapeById.get(hoveredShapeId) ?? null : null,
+    [documentShapeById, hoveredShapeId],
   )
   const hoveredSnapshot = useMemo(
-    () => hoveredShapeId ? shapes.find((shape) => shape.id === hoveredShapeId) ?? null : null,
-    [hoveredShapeId, shapes],
+    () => hoveredShapeId ? snapshotShapeById.get(hoveredShapeId) ?? null : null,
+    [hoveredShapeId, snapshotShapeById],
   )
   const hoveredShape = useMemo(
     () => {
       if (!hovered || !hoveredSnapshot) {
         return null
       }
-      if (hoveredSnapshot.isSelected || selection.selectedIds.includes(hovered.id)) {
+      if (hoveredSnapshot.isSelected || selectedIdSet.has(hovered.id)) {
         return null
       }
       return hovered
     },
-    [hovered, hoveredSnapshot, selection.selectedIds],
+    [hovered, hoveredSnapshot, selectedIdSet],
   )
   const hoveredCenterScreen = useMemo(() => {
     if (!hoveredShape || hoveredShape.type === 'path') {
@@ -106,9 +115,9 @@ export function InteractionOverlay({
   }, [hoveredShape, viewport.matrix])
   const selectedShapes = useMemo(
     () => selection.selectedIds
-      .map((id) => document.shapes.find((shape) => shape.id === id))
+      .map((id) => documentShapeById.get(id))
       .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape)),
-    [document.shapes, selection.selectedIds],
+    [documentShapeById, selection.selectedIds],
   )
   const shouldHideSelectionPolygon = useMemo(
     () => selectedShapes.length === 1 && selectedShapes[0].type === 'image' && Boolean(selectedShapes[0].clipPathId),
@@ -176,12 +185,12 @@ export function InteractionOverlay({
     if (!activePathSubSelection) {
       return null
     }
-    const shape = document.shapes.find((item) => item.id === activePathSubSelection.shapeId)
+    const shape = documentShapeById.get(activePathSubSelection.shapeId)
     if (!shape || shape.type !== 'path') {
       return null
     }
     return shape
-  }, [activePathSubSelection, document.shapes])
+  }, [activePathSubSelection, documentShapeById])
   const activePathAnchors = useMemo(() => {
     if (!activePathShape) {
       return [] as Array<{x: number; y: number}>

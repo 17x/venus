@@ -14,7 +14,7 @@ import {
   type MarqueeState,
   type SnapGuide,
 } from '../interaction/runtime/index.ts'
-import type {ElementProps} from '@lite-u/editor/types'
+// import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../../components/statusBar/StatusBar.tsx'
 import useFocus from './useFocus.tsx'

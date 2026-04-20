@@ -14,6 +14,31 @@ import {useTransformPreviewCommitBridge} from './useTransformPreviewCommitBridge
 import {resolvePathHandlePreviewDocument} from './useEditorRuntime.helpers.ts'
 
 const SCENE_CAPACITY = 256
+const DEFAULT_SELECTION_CONFIG = {
+  allowFrameSelection: false,
+  input: {
+    singleClick: 'replace',
+    shiftClick: 'add',
+    metaOrCtrlClick: 'toggle',
+    altClick: 'subtract',
+  },
+  marquee: {
+    enabled: true,
+    defaultMatchMode: 'contain',
+    shiftMatchMode: 'contain',
+  },
+} as const
+
+const DEFAULT_PRESENTATION_CONFIG = {
+  marquee: {
+    fill: 'rgba(37, 99, 235, 0.12)',
+    stroke: 'rgba(37, 99, 235, 0.95)',
+  },
+  overlay: {
+    selectionStroke: '#2563eb',
+    hoverStroke: 'rgba(14, 165, 233, 0.9)',
+  },
+} as const
 
 export function useEditorRuntimeDerivedState(options: {
   document: EditorDocument
@@ -47,41 +72,23 @@ export function useEditorRuntimeDerivedState(options: {
     pathHandleDrag,
     createWorker,
   } = options
+  const runtimeBridgeOptions = useMemo(() => {
+    return {
+      capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
+      createWorker,
+      document,
+      allowFrameSelection: false,
+      selection: DEFAULT_SELECTION_CONFIG,
+      presentation: DEFAULT_PRESENTATION_CONFIG,
+      onContextMenu,
+    }
+  }, [createWorker, document, onContextMenu])
+
   const {
     runtime: canvasRuntime,
     interactions: defaultCanvasInteractions,
     presentation: runtimePresentation,
-  } = useCanvasRuntimeBridge({
-    capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
-    createWorker,
-    document,
-    allowFrameSelection: false,
-    selection: {
-      allowFrameSelection: false,
-      input: {
-        singleClick: 'replace',
-        shiftClick: 'add',
-        metaOrCtrlClick: 'toggle',
-        altClick: 'subtract',
-      },
-      marquee: {
-        enabled: true,
-        defaultMatchMode: 'contain',
-        shiftMatchMode: 'contain',
-      },
-    },
-    presentation: {
-      marquee: {
-        fill: 'rgba(37, 99, 235, 0.12)',
-        stroke: 'rgba(37, 99, 235, 0.95)',
-      },
-      overlay: {
-        selectionStroke: '#2563eb',
-        hoverStroke: 'rgba(14, 165, 233, 0.9)',
-      },
-    },
-    onContextMenu,
-  })
+  } = useCanvasRuntimeBridge(runtimeBridgeOptions)
 
   const preferredEngineBackend = useMemo(() => {
     if (typeof window === 'undefined') {

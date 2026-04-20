@@ -1,5 +1,5 @@
 import {Button, Input, Tooltip, cn} from '@vector/ui'
-import {type ReactNode} from 'react'
+import {memo, useCallback, useMemo} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuBox, LuChevronDown, LuChevronRight, LuCircle, LuComponent, LuEye, LuEyeOff, LuFrame, LuGroup, LuImage, LuLock, LuLockOpen, LuPentagon, LuRectangleHorizontal, LuSearch, LuSpline, LuStar, LuType} from 'react-icons/lu'
 import {lineSeg} from '../../assets/svg/icons.tsx'
@@ -27,12 +27,15 @@ interface LeftSidebarFileTabProps {
   onSelectLayer: (layerId: string, isToggle: boolean) => void
 }
 
-export function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
+export const LeftSidebarFileTab = memo(function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
   const {t} = useTranslation()
+  const selectedIdSet = useMemo(() => new Set(props.selectedIds), [props.selectedIds])
+  const expandTooltip = t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})
+  const collapseTooltip = t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})
 
-  return <div id={'variant-b-tabpanel-file'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col'}>
+  return <div id={'variant-b-tabpanel-file'} role={'tabpanel'} className={'border-t border-slate-200 flex min-h-0 flex-1 flex-col'}>
     <section className={'flex min-h-0 flex-1 flex-col p-2.5'}>
-      <div className={'mb-2 flex items-center justify-between'}>
+      <div className={'border-b border-slate-200 mb-2 flex items-center justify-between'}>
         <Tooltip placement={'r'} title={t('ui.shell.variantB.layers.toggle', {defaultValue: 'Toggle layers section'})} asChild>
           <Button
             type={'button'}
@@ -53,13 +56,12 @@ export function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
           <label className={'sr-only'} htmlFor={'variant-b-layer-filter'}>
             {t('shell.variantB.layers.search', 'Search layers')}
           </label>
-          <div className={'flex items-center gap-2 rounded bg-white px-2 py-1 dark:bg-slate-900'}>
+          <div className={'flex items-center gap-2 rounded bg-white px-2 py-1 hover:bg-slate-200 dark:bg-slate-900'}>
             <LuSearch className={'text-slate-500 dark:text-slate-400'} size={12}/>
             <Input
               id={'variant-b-layer-filter'}
               type={'text'}
-              s
-              className={'h-6 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0'}
+              className={'h-6 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:outline-none focus-visible:ring-0'}
               placeholder={t('shell.variantB.layers.searchPlaceholder', 'Filter layers')}
               value={props.layerFilter}
               onChange={(event) => {
@@ -72,7 +74,7 @@ export function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
           </div>
         </div>}
 
-      {!props.layersCollapsed &&
+      {/* {!props.layersCollapsed &&
         <div className={'mb-2 grid grid-cols-2 gap-1'}>
           <Button
             type={'button'}
@@ -96,7 +98,7 @@ export function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
           >
             {props.selectedHasHidden ? t('ui.shell.variantB.layers.show', {defaultValue: 'Show'}) : t('ui.shell.variantB.layers.hide', {defaultValue: 'Hide'})}
           </Button>
-        </div>}
+        </div>} */}
 
       {!props.layersCollapsed &&
         <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded p-1'}>
@@ -107,34 +109,25 @@ export function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
 
           <ul role={'tree'} aria-label={t('shell.variantB.layers.title', 'Layers')} className={'flex min-w-0 flex-col gap-1'}>
             {props.treeLayerItems.map((item) => {
-              const selected = props.selectedIds.includes(item.id)
-              const expanded = !props.collapsedGroupIds.has(item.id)
-              const isLocked = item.isLocked === true
-              const isVisible = item.isVisible !== false
-
               return (
                 <SemanticTreeRow
                   key={item.id}
+                  layerId={item.id}
                   label={item.name}
+                  type={item.type}
+                  isGroup={item.isGroup}
                   depth={item.depth}
-                  active={selected}
-                  hasChildren={item.hasChildren}
-                  expanded={expanded}
-                  isLocked={isLocked}
-                  isVisible={isVisible}
-                  expandTooltip={t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})}
-                  collapseTooltip={t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})}
-                  onToggleChildren={item.hasChildren ? () => props.onToggleGroup(item.id) : undefined}
-                  onToggleLocked={() => {
-                    props.onToggleLayerLocked(item.id, !isLocked)
-                  }}
-                  onToggleVisible={() => {
-                    props.onToggleLayerVisible(item.id, !isVisible)
-                  }}
-                  icon={<LayerTypeGlyph type={item.type} isGroup={item.isGroup}/>}
-                  onActivate={(isToggle) => {
-                    props.onSelectLayer(item.id, isToggle)
-                  }}
+                  active={selectedIdSet.has(item.id)}
+                  hasChildren={item.hasChildren === true}
+                  expanded={!props.collapsedGroupIds.has(item.id)}
+                  isLocked={item.isLocked === true}
+                  isVisible={item.isVisible !== false}
+                  expandTooltip={expandTooltip}
+                  collapseTooltip={collapseTooltip}
+                  onToggleGroup={props.onToggleGroup}
+                  onToggleLayerLocked={props.onToggleLayerLocked}
+                  onToggleLayerVisible={props.onToggleLayerVisible}
+                  onSelectLayer={props.onSelectLayer}
                 />
               )
             })}
@@ -142,7 +135,7 @@ export function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
         </div>}
     </section>
   </div>
-}
+})
 
 function LayerTypeGlyph(props: {type: string, isGroup?: boolean}) {
   if (props.isGroup || props.type === 'group') {
@@ -175,22 +168,47 @@ function LayerTypeGlyph(props: {type: string, isGroup?: boolean}) {
   }
 }
 
-function SemanticTreeRow(props: {
+interface SemanticTreeRowProps {
+  layerId: string
   label: string
-  active?: boolean
-  depth?: number
-  hasChildren?: boolean
-  expanded?: boolean
-  icon?: ReactNode
+  type: string
+  isGroup?: boolean
+  active: boolean
+  depth: number
+  hasChildren: boolean
+  expanded: boolean
   expandTooltip: string
   collapseTooltip: string
-  isLocked?: boolean
-  isVisible?: boolean
-  onToggleChildren?: VoidFunction
-  onToggleLocked?: VoidFunction
-  onToggleVisible?: VoidFunction
-  onActivate: (isToggle: boolean) => void
-}) {
+  isLocked: boolean
+  isVisible: boolean
+  onToggleGroup: (layerId: string) => void
+  onToggleLayerLocked: (layerId: string, nextLocked: boolean) => void
+  onToggleLayerVisible: (layerId: string, nextVisible: boolean) => void
+  onSelectLayer: (layerId: string, isToggle: boolean) => void
+}
+
+const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProps) {
+  const handleActivate = useCallback((isToggle: boolean) => {
+    props.onSelectLayer(props.layerId, isToggle)
+  }, [props.layerId, props.onSelectLayer])
+
+  const handleToggleChildren = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    if (props.hasChildren) {
+      props.onToggleGroup(props.layerId)
+    }
+  }, [props.hasChildren, props.layerId, props.onToggleGroup])
+
+  const handleToggleLocked = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    props.onToggleLayerLocked(props.layerId, !props.isLocked)
+  }, [props.isLocked, props.layerId, props.onToggleLayerLocked])
+
+  const handleToggleVisible = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    props.onToggleLayerVisible(props.layerId, !props.isVisible)
+  }, [props.isVisible, props.layerId, props.onToggleLayerVisible])
+
   return (
     <li role={'none'}>
       <div
@@ -206,12 +224,12 @@ function SemanticTreeRow(props: {
         )}
         onClick={(event) => {
           const isToggle = event.metaKey || event.ctrlKey
-          props.onActivate(isToggle)
+          handleActivate(isToggle)
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
-            props.onActivate(false)
+            handleActivate(false)
           }
         }}
       >
@@ -229,17 +247,14 @@ function SemanticTreeRow(props: {
                   className={'inline-flex size-4 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-50'}
                   aria-label={props.expanded ? props.collapseTooltip : props.expandTooltip}
                   title={props.expanded ? props.collapseTooltip : props.expandTooltip}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    props.onToggleChildren?.()
-                  }}
+                  onClick={handleToggleChildren}
                 >
                   {props.expanded ? <LuChevronDown size={12}/> : <LuChevronRight size={12}/>} 
                 </Button>
               </Tooltip>
             : <span className={'inline-flex size-4'} aria-hidden={true}/>} 
           <span className={'inline-flex size-4 items-center justify-start text-slate-500 dark:text-slate-400'}>
-            {props.icon}
+            <LayerTypeGlyph type={props.type} isGroup={props.isGroup}/>
           </span>
           <span className={cn('truncate pr-2', props.isVisible === false && 'text-slate-500 opacity-70 dark:text-slate-400')}>
             {props.label}
@@ -262,10 +277,7 @@ function SemanticTreeRow(props: {
                   : 'opacity-0 transition-opacity group-hover/tree-row:opacity-100 group-focus-within/tree-row:opacity-100',
               )}
               aria-label={props.isLocked ? 'Unlock layer' : 'Lock layer'}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggleLocked?.()
-              }}
+              onClick={handleToggleLocked}
             >
               {props.isLocked ? <LuLock size={12}/> : <LuLockOpen size={12}/>}
             </Button>
@@ -286,10 +298,7 @@ function SemanticTreeRow(props: {
                   : 'opacity-0 transition-opacity group-hover/tree-row:opacity-100 group-focus-within/tree-row:opacity-100',
               )}
               aria-label={props.isVisible === false ? 'Show layer' : 'Hide layer'}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggleVisible?.()
-              }}
+              onClick={handleToggleVisible}
             >
               {props.isVisible === false ? <LuEyeOff size={12}/> : <LuEye size={12}/>}
             </Button>
@@ -298,4 +307,4 @@ function SemanticTreeRow(props: {
       </div>
     </li>
   )
-}
+})

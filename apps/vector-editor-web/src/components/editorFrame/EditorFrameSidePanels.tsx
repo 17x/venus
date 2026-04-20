@@ -20,7 +20,6 @@ interface EditorFrameSidePanelsProps {
 export function EditorFrameSidePanels(props: EditorFrameSidePanelsProps) {
   return <>
     <div className={'pointer-events-none absolute left-3 top-3 bottom-3 z-20 flex'}>
-      <div className={'pointer-events-auto h-full overflow-hidden rounded-lg'} style={{width: FIXED_LEFT_PANEL_WIDTH}}>
         <LeftSidebar
           {...props.leftSidebarProps}
           fileName={props.fileName}
@@ -28,7 +27,6 @@ export function EditorFrameSidePanels(props: EditorFrameSidePanelsProps) {
           panelWidth={FIXED_LEFT_PANEL_WIDTH}
           onMinimize={props.onRestoreLeftPanel}
         />
-      </div>
     </div>
 
     <div className={'pointer-events-none absolute right-3 top-3 bottom-3 z-20 flex'}>

@@ -2,8 +2,8 @@ import {useEffect, useRef, useState} from 'react'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
-import {Print} from '../print/Print.tsx'
-import FileReceiver from '../FileReceiver.tsx'
+import {Print} from '../print/print.tsx'
+import FileReceiver from '../fileReceiver.tsx'
 import {Col, useTheme} from '@vector/ui'
 import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@vector/runtime'
@@ -53,6 +53,7 @@ const EditorFrame = () => {
   )
   const [inspectorContext, setInspectorContext] = useState<InspectorContext>(initialLayoutState.activeInspectorContext)
   const [variantBSections, setVariantBSections] = useState(initialLayoutState.variantBSections)
+  const isDebugTabActive = variantBSections.activeTab === 'debug'
   const renderCountRef = useRef(0)
   renderCountRef.current += 1
   const [fps, setFps] = useState(0)
@@ -102,6 +103,10 @@ const EditorFrame = () => {
   }, [selectedProps])
 
   useEffect(() => {
+    if (!isDebugTabActive) {
+      return
+    }
+
     setDebugRuntimeStats((current) => {
       const stable = current.lastSceneVersion === canvas.stats.version
       return {
@@ -110,9 +115,13 @@ const EditorFrame = () => {
         lastSceneVersion: canvas.stats.version,
       }
     })
-  }, [canvas.stats.version])
+  }, [canvas.stats.version, isDebugTabActive])
 
   useEffect(() => {
+    if (!isDebugTabActive) {
+      return
+    }
+
     let frameCount = 0
     let rafId = 0
     let sampleStart = performance.now()
@@ -132,7 +141,7 @@ const EditorFrame = () => {
     return () => {
       window.cancelAnimationFrame(rafId)
     }
-  }, [])
+  }, [isDebugTabActive])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -221,7 +230,7 @@ const EditorFrame = () => {
     setVariantBSections,
     setShowTemplatePresetPicker,
   })
-
+console.log('render EditorFrame');
   return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
