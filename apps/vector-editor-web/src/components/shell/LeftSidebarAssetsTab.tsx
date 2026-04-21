@@ -76,7 +76,7 @@ export function LeftSidebarAssetsTab(props: LeftSidebarAssetsTabProps) {
 
               <div className={'text-xs font-medium'}>{card.title}</div>
               <div className={'text-[10px] text-slate-500 dark:text-slate-400'}>{card.subtitle}</div>
-              <p className={'mt-1 line-clamp-2 text-[10px] text-slate-500 dark:text-slate-400'}>{card.description}</p>
+              <p className={'mt-1 line-clamp-2 text-[10px] text-slate-500 dark:text-slate-400'} title={card.description}>{card.description}</p>
 
               <div className={'mt-2 h-6'}>
                 <Button
