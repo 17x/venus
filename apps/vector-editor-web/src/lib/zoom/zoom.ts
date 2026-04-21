@@ -58,7 +58,6 @@ class Zoom {
   }
 
   handleWheel(event: WheelEvent) {
-    // console.log(event)
     const {/*EVENT_BUFFER,*/ mouseScrollModifier: modifier} = this
     const {deltaX, deltaY, altKey, ctrlKey, shiftKey} = event
     let translateX = 0
@@ -68,8 +67,6 @@ class Zoom {
     let _zooming = false
     // let touchpad = false
     // let mouse = false
-    // console.log('event ',event)
-    // console.log(deltaX, deltaY)
     if (event.cancelable) {
       event.preventDefault()
     }

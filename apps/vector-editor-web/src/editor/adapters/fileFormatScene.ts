@@ -42,6 +42,80 @@ function resolveArrowhead(value: unknown) {
   return undefined
 }
 
+function appendGradientMetadata(
+  metadataValues: Record<string, string | number | boolean>,
+  prefix: 'fill' | 'stroke',
+  gradient: unknown,
+) {
+  if (!gradient || typeof gradient !== 'object') {
+    return
+  }
+
+  const record = gradient as {
+    type?: unknown
+    stops?: unknown
+    angle?: unknown
+    centerX?: unknown
+    centerY?: unknown
+    radius?: unknown
+  }
+
+  if (record.type !== 'linear' && record.type !== 'radial') {
+    return
+  }
+
+  if (!Array.isArray(record.stops)) {
+    return
+  }
+
+  const stops = record.stops
+    .map((stop) => {
+      if (!stop || typeof stop !== 'object') {
+        return null
+      }
+
+      const candidate = stop as {
+        offset?: unknown
+        color?: unknown
+        opacity?: unknown
+      }
+
+      if (typeof candidate.offset !== 'number' || typeof candidate.color !== 'string') {
+        return null
+      }
+
+      const nextStop: {offset: number; color: string; opacity?: number} = {
+        offset: candidate.offset,
+        color: candidate.color,
+      }
+      if (typeof candidate.opacity === 'number') {
+        nextStop.opacity = candidate.opacity
+      }
+      return nextStop
+    })
+    .filter((stop): stop is {offset: number; color: string; opacity?: number} => stop !== null)
+
+  if (stops.length === 0) {
+    return
+  }
+
+  metadataValues[`${prefix}GradientType`] = record.type
+  metadataValues[`${prefix}GradientStops`] = JSON.stringify(stops)
+
+  if (typeof record.angle === 'number') {
+    metadataValues[`${prefix}GradientAngle`] = record.angle
+  }
+  if (typeof record.centerX === 'number') {
+    metadataValues[`${prefix}GradientCenterX`] = record.centerX
+  }
+  if (typeof record.centerY === 'number') {
+    metadataValues[`${prefix}GradientCenterY`] = record.centerY
+  }
+  if (typeof record.radius === 'number') {
+    metadataValues[`${prefix}GradientRadius`] = record.radius
+  }
+}
+
 /**
  * Converts the app-level JSON file into the normalized file-format runtime
  * scene so the editor can go through a single parse entry afterwards.
@@ -116,6 +190,7 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     if (typeof element.fill.color === 'string') {
       metadataValues.fillColor = element.fill.color
     }
+    appendGradientMetadata(metadataValues, 'fill', (element.fill as {gradient?: unknown}).gradient)
   }
   if (element.stroke && typeof element.stroke === 'object') {
     if (typeof element.stroke.enabled === 'boolean') {
@@ -127,6 +202,7 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
     if (typeof element.stroke.weight === 'number') {
       metadataValues.strokeWeight = element.stroke.weight
     }
+    appendGradientMetadata(metadataValues, 'stroke', (element.stroke as {gradient?: unknown}).gradient)
   }
   if (element.shadow && typeof element.shadow === 'object') {
     if (typeof element.shadow.enabled === 'boolean') {

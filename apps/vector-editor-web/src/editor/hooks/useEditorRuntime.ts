@@ -2,7 +2,9 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@vector/ui'
 import {type ToolName} from '@venus/document-core'
 import {
+  createRuntimeCanvasInputBridge,
   createRuntimeEditingModeController,
+  createRuntimeInputRouter,
   createRuntimeToolRegistry,
   type RuntimeEditingMode,
 } from '@vector/runtime'
@@ -13,7 +15,7 @@ import {
   resolveMarqueeSelection,
   type MarqueeState,
   type SnapGuide,
-} from '../interaction/runtime/index.ts'
+} from '../../runtime/interaction/index.ts'
 import type {ElementProps} from '@lite-u/editor/types'
 import {useTranslation} from 'react-i18next'
 import {PointRef} from '../../components/statusBar/StatusBar.tsx'
@@ -48,6 +50,7 @@ import {
 } from './useEditorRuntimeMaskActions.ts'
 import {useEditorRuntimeCoreCallbacks} from './useEditorRuntimeCoreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './useEditorRuntimeCanvasInteractions.ts'
+import {publishRuntimeShellSnapshot, resetRuntimeEventSnapshots} from '../../runtime/events/index.ts'
 
 export type {
   EditorDocumentState,
@@ -127,6 +130,8 @@ const useEditorRuntime = (options?: {
     interactionDocument,
     previewShapeById,
     selectionState,
+    overlayInstructions,
+    previewInstructions,
     OverlayRenderer,
   } = useEditorRuntimeDerivedState({
     document,
@@ -314,6 +319,17 @@ const useEditorRuntime = (options?: {
     file,
   ), [file, selectedNode, uiState.selectedProps])
 
+  useEffect(() => {
+    resetRuntimeEventSnapshots()
+  }, [file?.id])
+
+  useEffect(() => {
+    publishRuntimeShellSnapshot({
+      selectedCount: selectedShapeIds.length,
+      layerCount: uiState.layerItems.length,
+    })
+  }, [selectedShapeIds.length, uiState.layerItems.length])
+
   const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
     interactionDocument.shapes,
     resolveMarqueeBounds(nextMarquee),
@@ -380,6 +396,24 @@ const useEditorRuntime = (options?: {
     transformPreview,
   })
 
+  const runtimeInputBridge = useMemo(() => {
+    const router = createRuntimeInputRouter({
+      onInput: () => {
+        // Runtime input stream is currently used for event normalization.
+      },
+    })
+
+    return createRuntimeCanvasInputBridge(router, {
+      onPointerMove: (point: {x: number; y: number}) => {
+        worldPointRef.current?.set(point)
+        canvasInteractions.onPointerMove(point)
+      },
+      onPointerDown: canvasInteractions.onPointerDown,
+      onPointerUp: canvasInteractions.onPointerUp,
+      onPointerLeave: canvasInteractions.onPointerLeave,
+    })
+  }, [canvasInteractions])
+
   const documentState: EditorDocumentState = {
     document: canvasRuntime.document,
     file,
@@ -395,13 +429,12 @@ const useEditorRuntime = (options?: {
       stats: canvasRuntime.stats,
       viewport: canvasRuntime.viewport,
       ready: canvasRuntime.ready,
-      onPointerMove: (point) => {
-        worldPointRef.current?.set(point)
-        canvasInteractions.onPointerMove(point)
-      },
-      onPointerDown: canvasInteractions.onPointerDown,
-      onPointerUp: canvasInteractions.onPointerUp,
-      onPointerLeave: canvasInteractions.onPointerLeave,
+      overlayInstructions,
+      previewInstructions,
+      onPointerMove: runtimeInputBridge.onPointerMove,
+      onPointerDown: runtimeInputBridge.onPointerDown,
+      onPointerUp: runtimeInputBridge.onPointerUp,
+      onPointerLeave: runtimeInputBridge.onPointerLeave,
       onViewportChange: canvasInteractions.onViewportChange,
       onViewportPan: canvasInteractions.onViewportPan,
       onViewportResize: canvasInteractions.onViewportResize,

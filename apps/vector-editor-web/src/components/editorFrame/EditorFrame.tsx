@@ -1,9 +1,9 @@
-import {useEffect, useRef, useState} from 'react'
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
-import {Print} from '../print/Print.tsx'
-import FileReceiver from '../FileReceiver.tsx'
+import {Print} from '../print/print.tsx'
+import FileReceiver from '../fileReceiver.tsx'
 import {Col, useTheme} from '@vector/ui'
 import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@vector/runtime'
@@ -23,17 +23,86 @@ import {
   TOOLBELT_MODE_STORAGE_KEY,
   type ToolbeltMode,
 } from '../../editor/shell/state/toolbeltState.ts'
+import {ASSET_LIBRARY_CARDS} from '../shell/LeftSidebarShared.tsx'
 import {EditorFrameSidePanels} from './EditorFrameSidePanels.tsx'
 import {useEditorFrameShell} from './useEditorFrameShell.ts'
 
 const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
+const MemoToolbelt = memo(Toolbelt)
 
-const EditorFrame = () => {
-  const {resolvedMode, mode, setMode} = useTheme()
-  const initialLayoutState = deserializeShellLayoutState(
-    typeof window === 'undefined' ? null : serializeShellLayoutState(readStoredShellLayoutState(window.localStorage)),
+const MemoCanvasViewport = memo(CanvasViewport)
+
+interface StageCanvasLayerProps {
+  canvas: ReturnType<typeof useEditorRuntime>['runtimeState']['canvas']
+  contextRootRef: ReturnType<typeof useEditorRuntime>['refs']['contextRootRef']
+  focused: boolean
+  executeAction: ReturnType<typeof useEditorRuntime>['commands']['executeAction']
+  stageHostRef: React.RefObject<HTMLDivElement | null>
+  onContextMenu: (event: React.MouseEvent<HTMLDivElement>) => void
+  currentTool: ReturnType<typeof useEditorRuntime>['runtimeState']['currentTool']
+  onSelectTool: ReturnType<typeof useEditorFrameShell>['onSelectTool']
+}
+
+const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerProps) {
+  return (
+    <Col fw fh stretch ref={props.contextRootRef} data-focused={props.focused} autoFocus={true}
+      tabIndex={0}
+      className={'outline-0 bg-white dark:bg-slate-900'}>
+      <FileReceiver executeAction={props.executeAction} resolveDropPosition={(clientX, clientY) => {
+        const rect = props.stageHostRef.current?.getBoundingClientRect()
+        if (!rect) {
+          return {x: clientX, y: clientY}
+        }
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top,
+        }
+      }}>
+        <Col
+          fw
+          fh
+          ovh
+          rela
+          flex={1}
+        >
+          <div
+            ref={props.stageHostRef}
+            className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
+            onContextMenu={props.onContextMenu}
+          >
+            <MemoCanvasViewport
+              document={props.canvas.document}
+              renderer={props.canvas.Renderer}
+              overlayRenderer={props.canvas.OverlayRenderer}
+              shapes={props.canvas.shapes}
+              stats={props.canvas.stats}
+              viewport={props.canvas.viewport}
+              onPointerMove={props.canvas.onPointerMove}
+              onPointerDown={props.canvas.onPointerDown}
+              onPointerUp={props.canvas.onPointerUp}
+              onPointerLeave={props.canvas.onPointerLeave}
+              onViewportChange={props.canvas.onViewportChange}
+              onViewportPan={props.canvas.onViewportPan}
+              onViewportResize={props.canvas.onViewportResize}
+              onViewportZoom={props.canvas.onViewportZoom}
+            />
+
+            <MemoToolbelt
+              currentTool={props.currentTool}
+              onSelectTool={props.onSelectTool}
+            />
+          </div>
+        </Col>
+      </FileReceiver>
+    </Col>
   )
+})
+
+function EditorFrameRuntime() {
+  const initialLayoutState = useMemo(() => deserializeShellLayoutState(
+    typeof window === 'undefined' ? null : serializeShellLayoutState(readStoredShellLayoutState(window.localStorage)),
+  ), [])
   const [showTemplatePresetPicker, setShowTemplatePresetPicker] = useState(false)
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0})
@@ -53,14 +122,6 @@ const EditorFrame = () => {
   )
   const [inspectorContext, setInspectorContext] = useState<InspectorContext>(initialLayoutState.activeInspectorContext)
   const [variantBSections, setVariantBSections] = useState(initialLayoutState.variantBSections)
-  const renderCountRef = useRef(0)
-  renderCountRef.current += 1
-  const [fps, setFps] = useState(0)
-  const [debugRuntimeStats, setDebugRuntimeStats] = useState({
-    sceneUpdates: 0,
-    sceneStableFrames: 0,
-    lastSceneVersion: -1,
-  })
   const stageHostRef = useRef<HTMLDivElement>(null)
   const runtime = useEditorRuntime()
 
@@ -83,7 +144,6 @@ const EditorFrame = () => {
     selectedProps,
     snappingEnabled,
     showPrint,
-    viewportScale,
   } = uiState
   const {
     setShowPrint,
@@ -100,39 +160,6 @@ const EditorFrame = () => {
       setInspectorContext('selection')
     }
   }, [selectedProps])
-
-  useEffect(() => {
-    setDebugRuntimeStats((current) => {
-      const stable = current.lastSceneVersion === canvas.stats.version
-      return {
-        sceneUpdates: current.sceneUpdates + 1,
-        sceneStableFrames: current.sceneStableFrames + (stable ? 1 : 0),
-        lastSceneVersion: canvas.stats.version,
-      }
-    })
-  }, [canvas.stats.version])
-
-  useEffect(() => {
-    let frameCount = 0
-    let rafId = 0
-    let sampleStart = performance.now()
-
-    const tick = (time: number) => {
-      frameCount += 1
-      const elapsed = time - sampleStart
-      if (elapsed >= 500) {
-        setFps((frameCount * 1000) / elapsed)
-        frameCount = 0
-        sampleStart = time
-      }
-      rafId = window.requestAnimationFrame(tick)
-    }
-
-    rafId = window.requestAnimationFrame(tick)
-    return () => {
-      window.cancelAnimationFrame(rafId)
-    }
-  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -163,25 +190,35 @@ const EditorFrame = () => {
     variantBSections,
   ])
 
-  const resolveViewportPoint = (clientX: number, clientY: number) => {
-    const rect = stageHostRef.current?.getBoundingClientRect()
-    if (!rect) {
-      return {x: clientX, y: clientY}
-    }
-
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    }
-  }
-
-  const resolveWorldPoint = (viewportPoint: {x: number; y: number}) => {
+  const resolveWorldPoint = useCallback((viewportPoint: {x: number; y: number}) => {
     return applyMatrixToPoint(canvas.viewport.inverseMatrix, viewportPoint)
-  }
+  }, [canvas.viewport.inverseMatrix])
+
+  const onRestoreLeftPanel = useCallback(() => {
+    setLeftPanelMinimized((current: boolean) => !current)
+  }, [])
+
+  const onRestoreRightPanel = useCallback(() => {
+    setRightPanelMinimized((current: boolean) => !current)
+  }, [])
+
+  const handleStageContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setShowContextMenu(true)
+    const viewportRect = stageHostRef.current?.getBoundingClientRect()
+    const viewportPoint = viewportRect
+      ? {x: event.clientX - viewportRect.left, y: event.clientY - viewportRect.top}
+      : {x: event.clientX, y: event.clientY}
+    const worldPoint = resolveWorldPoint(viewportPoint)
+    setContextMenuPosition(viewportPoint)
+    setContextMenuPastePosition(worldPoint)
+    canvas.onContextMenu({
+      x: viewportPoint.x,
+      y: viewportPoint.y,
+    })
+  }, [canvas, resolveWorldPoint])
 
   const shell = useEditorFrameShell({
-    mode,
-    setMode,
     selectedIds,
     copiedCount: copiedItems.length,
     hasUnsavedChanges,
@@ -192,24 +229,8 @@ const EditorFrame = () => {
     activeTab: variantBSections.activeTab,
     layersCollapsed: variantBSections.layersCollapsed,
     fileAssetCount: file?.assets?.length ?? 0,
-    fileName: file?.name,
     layerItems,
     selectedProps,
-    viewportScale,
-    debugStats: {
-      editorRenderCount: renderCountRef.current,
-      sceneUpdateCount: debugRuntimeStats.sceneUpdates,
-      fps,
-      sceneVersion: canvas.stats.version,
-      shapeCount: canvas.stats.shapeCount,
-      selectedCount: selectedIds.length,
-      viewportScale,
-      cacheHitEstimate: debugRuntimeStats.sceneStableFrames,
-      cacheMissEstimate: Math.max(0, debugRuntimeStats.sceneUpdates - debugRuntimeStats.sceneStableFrames),
-      cacheHitRate: debugRuntimeStats.sceneUpdates > 0
-        ? (debugRuntimeStats.sceneStableFrames / debugRuntimeStats.sceneUpdates) * 100
-        : 0,
-    },
     inspectorContext,
     executeAction,
     pickHistory,
@@ -220,91 +241,52 @@ const EditorFrame = () => {
     setMinimizedInspectorPanels,
     setVariantBSections,
     setShowTemplatePresetPicker,
+    onApplyAssetTemplate: (assetId) => {
+      const presetId = ASSET_LIBRARY_CARDS.find((asset) => asset.id === assetId)?.presetId ?? 'demo-basic-shapes'
+      const generatedFile = generateTemplateFile(presetId, {
+        seed: Date.now(),
+      })
+      createFile(generatedFile)
+    },
   })
 
-  return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
+  return <>
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
-           <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
-             tabIndex={0}
-             className={'outline-0 bg-white dark:bg-slate-900'}>
-          <FileReceiver executeAction={executeAction}
-                        resolveDropPosition={resolveViewportPoint}>
-            <Col
-              fw
-              fh
-              ovh
-              rela
-              flex={1}
-            >
-              <div
-                ref={stageHostRef}
-                className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
-                onContextMenu={(event) => {
-                  event.preventDefault()
-                  setShowContextMenu(true)
-                  const viewportPoint = resolveViewportPoint(event.clientX, event.clientY)
-                  const worldPoint = resolveWorldPoint(viewportPoint)
-                  setContextMenuPosition(viewportPoint)
-                  setContextMenuPastePosition(worldPoint)
-                  canvas.onContextMenu({
-                    x: viewportPoint.x,
-                    y: viewportPoint.y,
-                  })
-                }}
-              >
-                <CanvasViewport
-                  document={canvas.document}
-                  renderer={canvas.Renderer}
-                  overlayRenderer={canvas.OverlayRenderer}
-                  shapes={canvas.shapes}
-                  stats={canvas.stats}
-                  viewport={canvas.viewport}
-                  onPointerMove={canvas.onPointerMove}
-                  onPointerDown={canvas.onPointerDown}
-                  onPointerUp={canvas.onPointerUp}
-                  onPointerLeave={canvas.onPointerLeave}
-                  onViewportChange={canvas.onViewportChange}
-                  onViewportPan={canvas.onViewportPan}
-                  onViewportResize={canvas.onViewportResize}
-                  onViewportZoom={canvas.onViewportZoom}
-                />
+        <div className={'relative flex h-full w-full'}>
+          <StageCanvasLayer
+            canvas={canvas}
+            contextRootRef={contextRootRef}
+            focused={focused}
+            executeAction={executeAction}
+            stageHostRef={stageHostRef}
+            onContextMenu={handleStageContextMenu}
+            currentTool={currentTool}
+            onSelectTool={shell.onSelectTool}
+          />
 
-                <Toolbelt
-                  currentTool={currentTool}
-                  onSelectTool={shell.onSelectTool}
-                />
+          <EditorFrameSidePanels
+            fileName={file?.name}
+            leftPanelMinimized={leftPanelMinimized}
+            rightPanelMinimized={rightPanelMinimized}
+            showGrid={variantBSections.showGrid}
+            onRestoreLeftPanel={onRestoreLeftPanel}
+            onRestoreRightPanel={onRestoreRightPanel}
+            leftSidebarProps={shell.leftSidebarProps}
+            rightSidebarProps={shell.rightSidebarProps}
+          />
 
-                <EditorFrameSidePanels
-                  fileName={file?.name}
-                  leftPanelMinimized={leftPanelMinimized}
-                  rightPanelMinimized={rightPanelMinimized}
-                  showGrid={variantBSections.showGrid}
-                  viewportScale={viewportScale}
-                  onRestoreLeftPanel={() => {
-                    setLeftPanelMinimized((current) => !current)
-                  }}
-                  onRestoreRightPanel={() => {
-                    setRightPanelMinimized((current) => !current)
-                  }}
-                  leftSidebarProps={shell.leftSidebarProps}
-                  rightSidebarProps={shell.rightSidebarProps}
-                />
-              </div>
-
-              {showContextMenu &&
-                <ContextMenu position={contextMenuPosition}
-                             pastePosition={contextMenuPastePosition}
-                             executeAction={executeAction}
-                             selectedIds={selectedIds}
-                             copiedItems={copiedItems}
-                             historyStatus={historyStatus}
-                             onClose={() => {
-                               setShowContextMenu(false)
-                             }}/>}
-            </Col>
-          </FileReceiver>
-        </Col>
+          {showContextMenu &&
+            <ContextMenu position={contextMenuPosition}
+                         pastePosition={contextMenuPastePosition}
+                         executeAction={executeAction}
+                         selectedIds={selectedIds}
+                         copiedItems={copiedItems}
+                         historyStatus={historyStatus}
+                         onClose={() => {
+                           setShowContextMenu(false)
+                         }}/>} 
+        </div>
       </>}
     </div>
 
@@ -325,6 +307,14 @@ const EditorFrame = () => {
         }}
       />}
 
+  </>
+}
+
+const EditorFrame = () => {
+  const {resolvedMode} = useTheme()
+
+  return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
+    <EditorFrameRuntime/>
   </div>
 }
 

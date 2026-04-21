@@ -191,6 +191,137 @@ context starts, or work needs to resume after switching topics.
   - phase-1 vector-first localization now routes app interaction imports through
     `apps/vector-editor-web/src/editor/interaction/runtime/index.ts`
     instead of direct `@venus/runtime/interaction` imports at call sites
+  - runtime folder migration kickoff started in app source:
+    new pure-TS runtime skeleton now exists under
+    `apps/vector-editor-web/src/runtime/*` (core/model/commands/events/
+    interaction/hittest/overlay/preview/subscriptions/protocol/types), and
+    `useEditorRuntimeCanvasInteractions.ts` now imports the interaction barrel
+    through `src/runtime/interaction` to establish the forward path while
+    preserving current behavior
+  - app runtime root alias now points to
+    `apps/vector-editor-web/src/runtime/index.ts` (with compatibility re-export
+    from `editor/runtime-local/index.ts`), and `useEditorRuntime` pointer
+    callbacks now flow through `createRuntimeInputRouter` +
+    `createRuntimeCanvasInputBridge` before reaching interaction handlers
+  - runtime interaction alias is now promoted to
+    `apps/vector-editor-web/src/runtime/interaction/index.ts` in both
+    TypeScript and Vite config, and editor hooks/runtime adapters no longer
+    import `editor/interaction/runtime/index.ts` directly
+  - phase-4 overlay/preview contract baseline landed:
+    runtime now exposes `buildRuntimeOverlayInstructions` and
+    `buildRuntimePreviewInstructions`, and `useEditorRuntime` canvas state
+    publishes `overlayInstructions` / `previewInstructions` so engine-side
+    overlay rendering can consume runtime-owned instruction streams
+  - phase-5 document style model extended with gradient support:
+    `document-core` shape `fill` / `stroke` now accept optional gradient
+    payloads (`linear` / `radial`, stops, angle/center/radius) and
+    `parseRuntimeScene` now reads optional
+    `fillGradient*` / `strokeGradient*` metadata fields
+  - phase-6 cleanup/hardening updated:
+    `useEditorRuntime` restored explicit `ElementProps` type import and runtime
+    model barrel now re-exports gradient style types for app/runtime boundaries
+  - runtime instruction consumption moved from definition-only to render path:
+    `InteractionOverlay` now renders runtime-owned overlay/preview instruction
+    streams (line/polyline/polygon/handle), and migration mode avoids duplicate
+    legacy marquee/snap/selection-box drawing when instruction streams exist
+  - runtime overlay `hitRegion` semantics are now protocolized in
+    `src/runtime/overlay/index.ts` via typed constants and `snap:*` namespace,
+    and path-chrome fallback in `InteractionOverlay` now uses runtime helper
+    `isPathOverlayHitRegion` instead of local string matching
+  - vector app now includes a local compatibility declaration for
+    `@lite-u/editor/types` at
+    `apps/vector-editor-web/src/types/lite-u-editor-compat.d.ts`, which
+    unblocks app-level TypeScript checking during migration and keeps
+    legacy type imports compile-safe while runtime/document boundaries are
+    being hardened
+  - `editorRuntimeHelpers` bezier offset narrowing was hardened to avoid
+    object-property access on untyped points, and
+    `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
+    is now clean
+  - viewport interaction rerender hardening landed in editor shell:
+    `useEditorFrameShell` now memoizes dispatch/props callbacks, and
+    `EditorFrame` removed per-render logging while limiting debug render-count
+    churn so panning/zooming no longer forces unrelated menu/shell subtrees
+    to recalculate each frame
+  - `EditorFrame` now isolates high-frequency canvas stage updates from
+    low-frequency shell overlays through memoized stage composition
+    (`StageCanvasLayer` + memoized `CanvasViewport`), while side-panel restore
+    handlers are stabilized to avoid prop-churn-driven rerenders during pan
+  - runtime diagnostics event pipeline is now available under
+    `src/runtime/events/index.ts` (`publish/subscribe/get snapshot` for render
+    diagnostics), and canvas adapter forwards engine `debug.onStats` cache/frame
+    reuse metrics through this channel so `EditorFrame` debug info no longer
+    depends on local RAF sampling or scene-stability heuristics
+  - debug observability expanded with UI render probes wired into shell debug:
+    `EditorFrame`, `StageCanvasLayer`, `EditorFrameSidePanels`, and
+    `RightSidebar` render counts are now surfaced alongside engine draw/cache
+    metrics for direct hotspot attribution during pan/zoom sessions
+  - debug diagnostics consumption is now extracted from `EditorFrame` into an
+    independent subscriber component (`components/shell/RuntimeDebugPanel.tsx`)
+    using `useSyncExternalStore` on runtime events, so debug metric refresh no
+    longer participates in top-level frame orchestration rerenders
+  - viewport scale consumers are now detached from `EditorFrame` prop threading:
+    runtime viewport snapshot pub/sub was added in `runtime/events`, with
+    `RuntimeZoomControls` and `RuntimeGridOverlay` independently subscribing via
+    `useSyncExternalStore`; zoom and grid refresh no longer require
+    `EditorFrame -> useEditorFrameShell -> RightSidebar/SidePanels` propagation
+  - right sidebar metadata (layers/selection counters) now consumes an
+    independent runtime shell snapshot (`publishRuntimeShellSnapshot`) via
+    `RuntimeSidebarMeta`, removing `selectedCount/layerCount` prop threading
+    from `useEditorFrameShell` and reducing shell-level invalidation fanout
+  - `LeftSidebar` and `RightSidebar` are now exported as memoized components to
+    isolate subtree rerenders when sibling panel props mutate
+  - debug FPS reporting no longer uses `1000 / drawMs`; runtime diagnostics now
+    compute a smoothed FPS estimate from draw-count/time deltas with a bounded
+    clamp, eliminating frequent unrealistic 3-4 digit spikes
+  - debug tab now exposes both `FPS (Smooth)` and `FPS (Instant)` to separate
+    sustained frame cadence from short-lived render burst jitter
+  - global UI/perf cleanup pass removed active and stale debug logging across
+    editor frame, save pipeline, context menu, print, layer panel, and zoom
+    utility modules to reduce console overhead/noise during interaction traces
+  - `useEditorFrameShell` no longer computes unused top-menu action models;
+    dead derivation paths (`createHeaderMenuData` + top menu dispatcher in this
+    hook) were removed to shrink per-render work on shell recomposition
+  - `deriveEditorUIState` now caches layer tree flattening by `document.shapes`
+    array identity, avoiding redundant layer item rebuilds under high-frequency
+    runtime snapshot updates when document structure is unchanged
+  - `EditorFrame` callback plumbing was normalized to `useCallback` and noisy
+    render logging was removed
+  - `EditorFrame` shell layout bootstrap now memoizes local storage
+    deserialization (`initialLayoutState`) instead of recomputing it on every
+    render
+  - `useEditorRuntimeDerivedState` now stabilizes `selectedShapeIds` identity
+    across equivalent snapshots, reducing downstream sidebar/shell prop churn
+    when selection membership is unchanged
+  - `useEditorFrameShell` options and dependency list were trimmed to remove
+    now-unused mode/file-name pathways after earlier menu-path deletion
+  - `EditorFrame` was split into a lightweight themed shell plus
+    `EditorFrameRuntime` inner container so `useEditorRuntime` high-frequency
+    pointer/pan/zoom updates no longer directly re-execute the outer frame
+    component body
+  - runtime event snapshots now support explicit reset via
+    `resetRuntimeEventSnapshots`, and `useEditorRuntime` resets diagnostics /
+    viewport / shell snapshots on active file change to keep initialization data
+    deterministic
+  - sustained paste upper bound was traced to initialization capacity headroom;
+    runtime scene capacity baseline increased from `256` to `8192`, and
+    duplicate/paste/image insert paths now generate collision-resistant unique
+    shape ids against current document ids
+  - left sidebar assets tab was rebuilt as a grid card list with per-item apply
+    button placeholder shown on hover/focus; clicking apply now directly
+    generates the mapped fake data preset file via
+    `createFile(generateTemplateFile(...))`
+  - template preset catalog expanded with additional large-scale tiers requested
+    by product validation: mixed 200K/300K, image-heavy 50K, and text-dense 10K;
+    assets grid cards now expose direct apply entries for mixed 10K/100K,
+    images 10K/50K, text 10K, and extreme mixed tiers
+  - right sidebar heavy inspector body is memoized as a dedicated subtree
+    (`InspectorPanelBody`) so high-frequency zoom chip updates no longer force
+    full panel content rerender on every viewport-scale change
+  - gradient write-back chain advanced in adapters:
+    file-format scene serialization now writes
+    `fillGradient*` / `strokeGradient*` metadata keys from element styles, and
+    document adapter keeps gradient payloads on `fill`/`stroke` conversion
   - zoom preset policy has a first app-local module at
     `apps/vector-editor-web/src/editor/interaction/runtime/zoomPresets.ts`
   - migration-safe passthrough wrappers are in place for

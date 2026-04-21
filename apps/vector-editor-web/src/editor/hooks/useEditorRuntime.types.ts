@@ -2,6 +2,7 @@ import type * as React from 'react'
 import type {ToolName} from '@venus/document-core'
 import type {CanvasViewportState} from '@vector/runtime'
 import type {RuntimeEditingMode} from '@vector/runtime'
+import type {RuntimeOverlayInstruction, RuntimePreviewInstruction} from '@vector/runtime'
 import type {
   CanvasOverlayRenderer as CanvasOverlayRendererCompat,
   CanvasRenderer as CanvasRendererCompat,
@@ -71,6 +72,8 @@ export interface EditorRuntimeState {
     stats: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['stats']
     viewport: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['viewport']
     ready: boolean
+    overlayInstructions?: RuntimeOverlayInstruction[]
+    previewInstructions?: RuntimePreviewInstruction[]
     onPointerMove: (point: {x: number; y: number}) => void
     onPointerDown: (
       point: {x: number; y: number},

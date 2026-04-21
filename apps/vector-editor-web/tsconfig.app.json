@@ -8,9 +8,9 @@
     "paths": {
       "@/*": ["apps/vector-editor-web/src/*"],
       "@vector/ui": ["apps/vector-editor-web/src/ui/index.ts"],
-      "@vector/runtime": ["apps/vector-editor-web/src/editor/runtime-local/index.ts"],
+      "@vector/runtime": ["apps/vector-editor-web/src/runtime/index.ts"],
       "@vector/runtime/engine": ["apps/vector-editor-web/src/editor/runtime-local/engine.ts"],
-      "@vector/runtime/interaction": ["apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts"],
+      "@vector/runtime/interaction": ["apps/vector-editor-web/src/runtime/interaction/index.ts"],
       "@vector/runtime/worker": ["apps/vector-editor-web/src/editor/runtime-local/worker/index.ts"],
       "@vector/runtime/shared-memory": ["apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts"],
       "@vector/runtime/presets": ["apps/vector-editor-web/src/editor/runtime-local/presets/index.ts"],

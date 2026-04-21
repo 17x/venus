@@ -29,7 +29,7 @@ const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: Prop
       </div>
       <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 pb-1'}>
         {localProps
-          ? <ShapePropsPanel
+          ? <PropPanelShapeProps
               props={localProps}
               executeAction={executeAction}
               onPatchElementProps={onPatchElementProps}
@@ -63,19 +63,5 @@ function PanelHead(props: {onMinimize?: VoidFunction}) {
           <span>&minus;</span>
         </Button>}
     </div>
-  )
-}
-
-function ShapePropsPanel(props: {
-  props: SelectedElementProps
-  executeAction: EditorExecutor
-  onPatchElementProps?: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
-}) {
-  return (
-    <PropPanelShapeProps
-      props={props.props}
-      executeAction={props.executeAction}
-      onPatchElementProps={props.onPatchElementProps}
-    />
   )
 }

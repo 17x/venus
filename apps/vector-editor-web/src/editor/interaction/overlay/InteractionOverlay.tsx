@@ -1,7 +1,10 @@
 import {useMemo} from 'react'
 import {
   DEFAULT_CANVAS_PRESENTATION_CONFIG,
+  isPathOverlayHitRegion,
   type CanvasPresentationConfig,
+  type RuntimeOverlayInstruction,
+  type RuntimePreviewInstruction,
 } from '@vector/runtime'
 import {
   resolveNodeTransform,
@@ -38,6 +41,8 @@ export interface InteractionOverlayProps {
   pathSubSelectionHover?: PathSubSelection | null
   draftPrimitive?: DraftPrimitive | null
   penDraftPoints?: Array<{x: number; y: number}> | null
+  overlayInstructions?: RuntimeOverlayInstruction[]
+  previewInstructions?: RuntimePreviewInstruction[]
   presentation?: CanvasPresentationConfig
 }
 
@@ -53,49 +58,60 @@ export function InteractionOverlay({
   pathSubSelectionHover = null,
   draftPrimitive = null,
   penDraftPoints = null,
+  overlayInstructions = [],
+  previewInstructions = [],
   presentation = DEFAULT_CANVAS_PRESENTATION_CONFIG,
 }: InteractionOverlayProps) {
   const handleSize = presentation.overlay.handleSize
   const halfHandleSize = handleSize / 2
+  const documentShapeById = useMemo(
+    () => new Map(document.shapes.map((shape) => [shape.id, shape])),
+    [document.shapes],
+  )
+  const snapshotShapeById = useMemo(
+    () => new Map(shapes.map((shape) => [shape.id, shape])),
+    [shapes],
+  )
   const selection = useMemo(
     () => buildSelectionState(document, shapes),
     [document, shapes],
   )
+  const selectedIdSet = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds])
   const handles = useMemo(
     () => buildSelectionHandles(selection, {
       rotateOffset: 28,
       rotateDegrees:
         selection.selectedIds.length === 1
-          ? (document.shapes.find((shape) => shape.id === selection.selectedIds[0])?.rotation ?? 0)
+          ? (documentShapeById.get(selection.selectedIds[0])?.rotation ?? 0)
           : 0,
     }),
-    [document.shapes, selection],
+    [documentShapeById, selection],
   )
   const singleSelectedShape = useMemo(
     () => selection.selectedIds.length === 1
-      ? document.shapes.find((shape) => shape.id === selection.selectedIds[0]) ?? null
+      ? documentShapeById.get(selection.selectedIds[0]) ?? null
       : null,
-    [document.shapes, selection.selectedIds],
+    [documentShapeById, selection.selectedIds],
   )
   const hovered = useMemo(
-    () => hoveredShapeId ? document.shapes.find((shape) => shape.id === hoveredShapeId) : null,
-    [document.shapes, hoveredShapeId],
+    () => hoveredShapeId ? documentShapeById.get(hoveredShapeId) ?? null : null,
+    [documentShapeById, hoveredShapeId],
   )
   const hoveredSnapshot = useMemo(
-    () => hoveredShapeId ? shapes.find((shape) => shape.id === hoveredShapeId) ?? null : null,
-    [hoveredShapeId, shapes],
+    () => hoveredShapeId ? snapshotShapeById.get(hoveredShapeId) ?? null : null,
+    [hoveredShapeId, snapshotShapeById],
   )
   const hoveredShape = useMemo(
     () => {
       if (!hovered || !hoveredSnapshot) {
         return null
       }
-      if (hoveredSnapshot.isSelected || selection.selectedIds.includes(hovered.id)) {
+      if (hoveredSnapshot.isSelected || selectedIdSet.has(hovered.id)) {
         return null
       }
       return hovered
     },
-    [hovered, hoveredSnapshot, selection.selectedIds],
+    [hovered, hoveredSnapshot, selectedIdSet],
   )
   const hoveredCenterScreen = useMemo(() => {
     if (!hoveredShape || hoveredShape.type === 'path') {
@@ -106,9 +122,9 @@ export function InteractionOverlay({
   }, [hoveredShape, viewport.matrix])
   const selectedShapes = useMemo(
     () => selection.selectedIds
-      .map((id) => document.shapes.find((shape) => shape.id === id))
+      .map((id) => documentShapeById.get(id))
       .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape)),
-    [document.shapes, selection.selectedIds],
+    [documentShapeById, selection.selectedIds],
   )
   const shouldHideSelectionPolygon = useMemo(
     () => selectedShapes.length === 1 && selectedShapes[0].type === 'image' && Boolean(selectedShapes[0].clipPathId),
@@ -176,12 +192,12 @@ export function InteractionOverlay({
     if (!activePathSubSelection) {
       return null
     }
-    const shape = document.shapes.find((item) => item.id === activePathSubSelection.shapeId)
+    const shape = documentShapeById.get(activePathSubSelection.shapeId)
     if (!shape || shape.type !== 'path') {
       return null
     }
     return shape
-  }, [activePathSubSelection, document.shapes])
+  }, [activePathSubSelection, documentShapeById])
   const activePathAnchors = useMemo(() => {
     if (!activePathShape) {
       return [] as Array<{x: number; y: number}>
@@ -241,6 +257,93 @@ export function InteractionOverlay({
     }
     return {from, to}
   }, [activePathAnchors, activePathSubSelection])
+  const hasRuntimeInstructionOverlay = overlayInstructions.length > 0 || previewInstructions.length > 0
+
+  const runtimeInstructions = useMemo(
+    () => [...overlayInstructions, ...previewInstructions],
+    [overlayInstructions, previewInstructions],
+  )
+  const hasRuntimePathChrome = useMemo(
+    () => runtimeInstructions.some((instruction) => isPathOverlayHitRegion(instruction.hitRegion)),
+    [runtimeInstructions],
+  )
+
+  const renderInstruction = (instruction: RuntimeOverlayInstruction | RuntimePreviewInstruction) => {
+    const points = instruction.points ?? []
+    const strokeDasharray = instruction.style?.strokeDash?.join(' ')
+    const stroke = instruction.style?.strokeColor ?? presentation.overlay.selectionStroke
+    const strokeWidth = instruction.style?.strokeWidth ?? presentation.overlay.selectionStrokeWidth
+    const fill = instruction.style?.fillColor ?? 'none'
+
+    if (instruction.primitive === 'line' && points.length >= 2) {
+      return (
+        <line
+          role="presentation"
+          key={instruction.id}
+          x1={points[0].x}
+          y1={points[0].y}
+          x2={points[1].x}
+          y2={points[1].y}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    if (instruction.primitive === 'polygon' && points.length >= 3) {
+      return (
+        <polygon
+          role="presentation"
+          key={instruction.id}
+          points={toSvgPoints(points)}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    if (instruction.primitive === 'polyline' && points.length >= 2) {
+      return (
+        <polyline
+          role="presentation"
+          key={instruction.id}
+          points={toSvgPoints(points)}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    if (instruction.primitive === 'handle' && points.length >= 1) {
+      return (
+        <circle
+          role="presentation"
+          key={instruction.id}
+          cx={points[0].x}
+          cy={points[0].y}
+          r={3}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    return null
+  }
 
   return (
     <div
@@ -285,16 +388,18 @@ export function InteractionOverlay({
             />
           )}
 
-          <InteractionOverlayPathChrome
-            activePathShapeId={activePathShape?.id}
-            activePathAnchors={activePathAnchors}
-            activePathHandleLinks={activePathHandleLinks}
-            activePathSubSelection={activePathSubSelection}
-            highlightedSegment={highlightedSegment}
-            presentation={presentation}
-          />
+          {!hasRuntimePathChrome && (
+            <InteractionOverlayPathChrome
+              activePathShapeId={activePathShape?.id}
+              activePathAnchors={activePathAnchors}
+              activePathHandleLinks={activePathHandleLinks}
+              activePathSubSelection={activePathSubSelection}
+              highlightedSegment={highlightedSegment}
+              presentation={presentation}
+            />
+          )}
 
-          {selectedPolygon && (
+          {!hasRuntimeInstructionOverlay && selectedPolygon && (
             <polygon
               role="presentation"
               points={toSvgPoints(selectedPolygon)}
@@ -306,6 +411,8 @@ export function InteractionOverlay({
               vectorEffect="non-scaling-stroke"
             />
           )}
+
+          {hasRuntimeInstructionOverlay && runtimeInstructions.map((instruction) => renderInstruction(instruction))}
         </g>
 
         {hoveredCenterScreen && (
@@ -338,7 +445,7 @@ export function InteractionOverlay({
           />
         ))}
 
-        {marqueePolygon && (
+        {!hasRuntimeInstructionOverlay && marqueePolygon && (
           <polygon
             role="presentation"
             points={toSvgPoints(marqueePolygon)}
@@ -349,7 +456,7 @@ export function InteractionOverlay({
             strokeDasharray={presentation.marquee.strokeDasharray}
           />
         )}
-        {snapLines.map((line) => (
+        {!hasRuntimeInstructionOverlay && snapLines.map((line) => (
           <line
             role="presentation"
             key={line.id}

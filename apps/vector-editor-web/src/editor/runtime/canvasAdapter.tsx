@@ -15,7 +15,11 @@ import {
   bindViewportGestures,
   resolveCanvasLodProfile,
   type ViewportGestureBindingOptions,
-} from '../interaction/runtime/index.ts'
+} from '../../runtime/interaction/index.ts'
+import {
+  publishRuntimeRenderDiagnostics,
+  publishRuntimeViewportSnapshot,
+} from '../../runtime/events/index.ts'
 import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,
@@ -123,6 +127,12 @@ export function CanvasViewport({
   }, [onViewportResize])
 
   React.useEffect(() => {
+    publishRuntimeViewportSnapshot({
+      scale: viewport.scale,
+    })
+  }, [viewport.scale])
+
+  React.useEffect(() => {
     const node = viewportRef.current
     if (!node) {
       return
@@ -201,7 +211,8 @@ export function Canvas2DRenderer({
   backend = 'webgl',
 }: CanvasRendererProps & {backend?: 'canvas2d' | 'webgl'}) {
   const INTERACTION_SETTLE_MS = 120
-  const INTERACTIVE_RENDER_INTERVAL_MS = 20
+    // 12ms keeps interaction cadence near display refresh without saturating CPU.
+    const INTERACTIVE_RENDER_INTERVAL_MS = 12
   const FULL_REDRAW_QUIET_WINDOW_MS = 140
   const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
   const FULL_REDRAW_DEFER_MS = 32
@@ -219,6 +230,7 @@ export function Canvas2DRenderer({
     canvas: OffscreenCanvas | HTMLCanvasElement
     context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
   } | null>(null)
+  const drawSerialRef = React.useRef(0)
   const replayPresentRafRef = React.useRef<number | null>(null)
   const assetUrlByIdRef = React.useRef<Map<string, string>>(new Map())
   const imageCacheRef = React.useRef<Map<string, HTMLImageElement>>(new Map())
@@ -486,6 +498,23 @@ export function Canvas2DRenderer({
             imageCacheRef.current.set(src, image)
             return null
           },
+        },
+      },
+      debug: {
+        onStats: (nextStats) => {
+          drawSerialRef.current += 1
+          publishRuntimeRenderDiagnostics({
+            drawCount: drawSerialRef.current,
+            drawMs: nextStats.frameMs,
+            fpsInstantaneous: 0,
+            fpsEstimate: 0,
+            visibleShapeCount: nextStats.visibleCount,
+            cacheHitCount: nextStats.cacheHits,
+            cacheMissCount: nextStats.cacheMisses,
+            frameReuseHitCount: nextStats.frameReuseHits,
+            frameReuseMissCount: nextStats.frameReuseMisses,
+            cacheMode: nextStats.frameReuseHits > 0 ? 'frame' : 'none',
+          })
         },
       },
     })

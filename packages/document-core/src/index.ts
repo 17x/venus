@@ -50,14 +50,30 @@ export {Unit, type UnitType} from './unit.ts'
 
 export type ShapeType = 'frame' | 'group' | 'rectangle' | 'ellipse' | 'polygon' | 'star' | 'lineSegment' | 'path' | 'text' | 'image'
 export type StrokeArrowhead = 'none' | 'triangle' | 'diamond' | 'circle' | 'bar'
+export type ShapeGradientType = 'linear' | 'radial'
+export interface ShapeGradientStop {
+  offset: number
+  color: string
+  opacity?: number
+}
+export interface ShapeGradientStyle {
+  type: ShapeGradientType
+  stops: ShapeGradientStop[]
+  angle?: number
+  centerX?: number
+  centerY?: number
+  radius?: number
+}
 export interface ShapeFillStyle {
   enabled?: boolean
   color?: string
+  gradient?: ShapeGradientStyle
 }
 export interface ShapeStrokeStyle {
   enabled?: boolean
   color?: string
   weight?: number
+  gradient?: ShapeGradientStyle
 }
 export interface ShapeShadowStyle {
   enabled?: boolean

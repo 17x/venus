@@ -1,7 +1,7 @@
 import {useCallback} from 'react'
 import {nid, type ToolName} from '@venus/document-core'
 import {applyMatrixToPoint} from '@vector/runtime'
-import {createTransformBatchCommand} from '../interaction/runtime/index.ts'
+import {createTransformBatchCommand} from '../../runtime/interaction/index.ts'
 import type {ElementProps} from '@lite-u/editor/types'
 import {
   cloneElementProps,
@@ -47,6 +47,17 @@ interface UseEditorRuntimeExecuteActionOptions {
   runtimeToolRegistryRef: React.RefObject<ReturnType<typeof import('@vector/runtime').createRuntimeToolRegistry>>
   runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('@vector/runtime').createRuntimeEditingModeController>>
   applyAutoMask: VoidFunction
+}
+
+function generateUniqueShapeId(existingIds: Set<string>) {
+  let nextId = nid()
+  let attempts = 0
+  while (existingIds.has(nextId) && attempts < 16) {
+    attempts += 1
+    nextId = attempts < 8 ? nid() : nid(8)
+  }
+  existingIds.add(nextId)
+  return nextId
 }
 
 export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteActionOptions) {
@@ -114,9 +125,10 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
       if (copied.length === 0) {
         return
       }
+      const existingIds = new Set(options.canvasRuntime.document.shapes.map((shape) => shape.id))
       options.insertElementsBatch(copied.map((item) => ({
         ...offsetElementPosition(item, (item.x ?? 0) + 24, (item.y ?? 0) + 24),
-        id: nid(),
+        id: generateUniqueShapeId(existingIds),
         name: `${item.name ?? item.type} Copy`,
       })))
       return
@@ -175,6 +187,7 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
       const pasteTargetY = position ? position.y + baseOffset : anchorY + baseOffset
       const deltaX = pasteTargetX - anchorX
       const deltaY = pasteTargetY - anchorY
+      const existingIds = new Set(options.canvasRuntime.document.shapes.map((shape) => shape.id))
 
       options.insertElementsBatch(options.clipboard.map((item) => ({
         ...offsetElementPosition(
@@ -182,7 +195,7 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
           (item.x ?? 0) + deltaX,
           (item.y ?? 0) + deltaY,
         ),
-        id: nid(),
+        id: generateUniqueShapeId(existingIds),
         name: `${item.name ?? item.type} Copy`,
       })))
       options.setPasteSerial((value) => value + 1)
@@ -281,7 +294,7 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
       }
 
       options.insertElement({
-        id: nid(),
+        id: generateUniqueShapeId(new Set(options.canvasRuntime.document.shapes.map((shape) => shape.id))),
         type: 'image',
         name: asset?.name ?? 'Image',
         asset: asset?.id,

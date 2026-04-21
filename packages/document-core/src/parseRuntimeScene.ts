@@ -1,5 +1,5 @@
 import {getBoundingRectFromBezierPoints, getNormalizedBoundsFromBox, type BezierPoint} from './geometry.ts'
-import type {DocumentNode, EditorDocument, StrokeArrowhead} from './index.ts'
+import type {DocumentNode, EditorDocument, ShapeGradientStyle, StrokeArrowhead} from './index.ts'
 import type {
   RuntimeFeatureEntryV5,
   RuntimeNodeFeatureV5,
@@ -57,9 +57,11 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   })
   const fillEnabled = readBoolean(metadata, 'fillEnabled')
   const fillColor = readString(metadata, 'fillColor')
+  const fillGradient = readGradient(metadata, 'fill')
   const strokeEnabled = readBoolean(metadata, 'strokeEnabled')
   const strokeColor = readString(metadata, 'strokeColor')
   const strokeWeight = readNumber(metadata, 'strokeWeight')
+  const strokeGradient = readGradient(metadata, 'stroke')
   const shadowEnabled = readBoolean(metadata, 'shadowEnabled')
   const shadowColor = readString(metadata, 'shadowColor')
   const shadowOffsetX = readNumber(metadata, 'shadowOffsetX')
@@ -122,17 +124,19 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
     bezierPoints: pathData?.bezierPoints,
     strokeStartArrowhead: readArrowhead(metadata, 'strokeStartArrowhead'),
     strokeEndArrowhead: readArrowhead(metadata, 'strokeEndArrowhead'),
-    fill: fillEnabled !== null || fillColor !== undefined
+    fill: fillEnabled !== null || fillColor !== undefined || fillGradient !== undefined
       ? {
           enabled: fillEnabled ?? undefined,
           color: fillColor,
+          gradient: fillGradient,
         }
       : undefined,
-    stroke: strokeEnabled !== null || strokeColor !== undefined || strokeWeight !== null
+    stroke: strokeEnabled !== null || strokeColor !== undefined || strokeWeight !== null || strokeGradient !== undefined
       ? {
           enabled: strokeEnabled ?? undefined,
           color: strokeColor,
           weight: strokeWeight ?? undefined,
+          gradient: strokeGradient,
         }
       : undefined,
     shadow: shadowEnabled !== null || shadowColor !== undefined || shadowOffsetX !== null || shadowOffsetY !== null || shadowBlur !== null
@@ -388,6 +392,70 @@ function readArrowhead(metadata: Map<string, string>, key: string): StrokeArrowh
   }
 
   return undefined
+}
+
+function readGradient(
+  metadata: Map<string, string>,
+  prefix: 'fill' | 'stroke',
+): ShapeGradientStyle | undefined {
+  const gradientType = readString(metadata, `${prefix}GradientType`)
+  if (gradientType !== 'linear' && gradientType !== 'radial') {
+    return undefined
+  }
+
+  const stopsRaw = readString(metadata, `${prefix}GradientStops`)
+  const parsedStops = parseGradientStops(stopsRaw)
+  if (!parsedStops || parsedStops.length === 0) {
+    return undefined
+  }
+
+  return {
+    type: gradientType,
+    stops: parsedStops,
+    angle: readNumber(metadata, `${prefix}GradientAngle`) ?? undefined,
+    centerX: readNumber(metadata, `${prefix}GradientCenterX`) ?? undefined,
+    centerY: readNumber(metadata, `${prefix}GradientCenterY`) ?? undefined,
+    radius: readNumber(metadata, `${prefix}GradientRadius`) ?? undefined,
+  }
+}
+
+function parseGradientStops(raw: string | undefined) {
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+
+    return parsed
+      .map((stop) => {
+        if (!stop || typeof stop !== 'object') {
+          return null
+        }
+
+        const maybeOffset = Number((stop as {offset?: unknown}).offset)
+        const maybeColor = (stop as {color?: unknown}).color
+        const maybeOpacity = (stop as {opacity?: unknown}).opacity
+
+        if (!Number.isFinite(maybeOffset) || typeof maybeColor !== 'string') {
+          return null
+        }
+
+        return {
+          offset: maybeOffset,
+          color: maybeColor,
+          opacity: typeof maybeOpacity === 'number' && Number.isFinite(maybeOpacity)
+            ? maybeOpacity
+            : undefined,
+        }
+      })
+      .filter((stop): stop is {offset: number; color: string; opacity?: number} => stop !== null)
+  } catch {
+    return null
+  }
 }
 
 function parseRuntimeRotation(transform: RuntimeSceneLatest['nodes'][number]['transform']) {

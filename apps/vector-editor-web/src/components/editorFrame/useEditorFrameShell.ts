@@ -1,7 +1,4 @@
-import {useMemo} from 'react'
-import {useTranslation} from 'react-i18next'
-import {createHeaderMenuData} from '../header/menu/menuData.ts'
-import type {MenuItemType} from '../header/menu/type'
+import {useCallback, useMemo} from 'react'
 import {createShellCommandDispatch} from '../../editor/shell/commands/shellCommandDispatch.ts'
 import type {InspectorContext, InspectorPanelId} from '../../editor/shell/state/inspectorState.ts'
 import type {ToolbeltMode} from '../../editor/shell/state/toolbeltState.ts'
@@ -9,8 +6,6 @@ import type {LeftSidebarProps} from '../shell/LeftSidebarShared.tsx'
 import type {RightSidebarProps} from '../shell/RightSidebar.tsx'
 
 interface UseEditorFrameShellOptions {
-  mode: 'light' | 'dark' | 'system'
-  setMode: (mode: 'light' | 'dark' | 'system') => void
   selectedIds: string[]
   copiedCount: number
   hasUnsavedChanges: boolean
@@ -25,11 +20,8 @@ interface UseEditorFrameShellOptions {
   activeTab: LeftSidebarProps['activeTab']
   layersCollapsed: boolean
   fileAssetCount: number
-  fileName?: string
   layerItems: LeftSidebarProps['layerItems']
   selectedProps: RightSidebarProps['selectedProps']
-  viewportScale: number
-  debugStats: LeftSidebarProps['debugStats']
   inspectorContext: InspectorContext
   executeAction: (type: string, data?: unknown) => void
   pickHistory: (historyNode: {id: number}) => void
@@ -44,27 +36,11 @@ interface UseEditorFrameShellOptions {
     layersCollapsed: boolean
   }>>
   setShowTemplatePresetPicker: (visible: boolean) => void
+  onApplyAssetTemplate: (assetId: string) => void
 }
 
 export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
-  const {i18n} = useTranslation()
-
-  const topMenuActions = useMemo(() => {
-    return createHeaderMenuData({
-      selectedIds: options.selectedIds,
-      copiedCount: options.copiedCount,
-      needSave: options.hasUnsavedChanges,
-      historyStatus: options.historyStatus,
-      language: i18n.language === 'zh-CN' ? 'cn' : (i18n.language as 'en' | 'cn' | 'jp'),
-      gridEnabled: options.showGrid,
-      snappingEnabled: options.snappingEnabled,
-      canToggleGrid: true,
-      canToggleSnapping: true,
-      themeMode: options.mode,
-    })
-  }, [options.selectedIds, options.copiedCount, options.hasUnsavedChanges, options.historyStatus, i18n.language, options.showGrid, options.snappingEnabled, options.mode])
-
-  const dispatchShellCommand = createShellCommandDispatch({
+  const dispatchShellCommand = useMemo(() => createShellCommandDispatch({
     onSetZoom(payload) {
       options.executeAction('world-zoom', {
         zoomTo: true,
@@ -132,63 +108,19 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
         props: payload.patch,
       }])
     },
-  })
+  }), [
+    options.executeAction,
+    options.historyItems,
+    options.pickHistory,
+    options.setCurrentTool,
+    options.setInspectorContext,
+    options.setMinimizedInspectorPanels,
+    options.setSnappingEnabled,
+    options.setToolbeltMode,
+    options.setVariantBSections,
+  ])
 
-  const executeTopMenuAction = (menuItem: MenuItemType) => {
-    if (menuItem.disabled) {
-      return
-    }
-
-    switch (menuItem.id) {
-      case 'languageEnglish':
-        i18n.changeLanguage('en')
-        return
-      case 'languageChinese':
-        i18n.changeLanguage('zh-CN')
-        return
-      case 'languageJapanese':
-        i18n.changeLanguage('jp')
-        return
-      case 'toggleGridOn':
-      case 'toggleGridOff':
-        dispatchShellCommand('shell.setGrid', {enabled: !options.showGrid}, {
-          sourcePanel: 'left-sidebar',
-          sourceControl: 'settings-grid-toggle',
-          commitType: 'final',
-        })
-        return
-      case 'toggleSnappingOn':
-      case 'toggleSnappingOff':
-        dispatchShellCommand('shell.setSnapping', {enabled: !options.snappingEnabled}, {
-          sourcePanel: 'left-sidebar',
-          sourceControl: 'settings-snapping-toggle',
-          commitType: 'final',
-        })
-        return
-      case 'themeSystem':
-        options.setMode('system')
-        return
-      case 'themeLight':
-        options.setMode('light')
-        return
-      case 'themeDark':
-        options.setMode('dark')
-        return
-      case 'newFile':
-        options.setShowTemplatePresetPicker(true)
-        return
-      default: {
-        const action = menuItem.editorActionCode ?? menuItem.action ?? menuItem.id
-        if (menuItem.editorActionData) {
-          options.executeAction(action, menuItem.editorActionData)
-          return
-        }
-        options.executeAction(action)
-      }
-    }
-  }
-
-  const leftSidebarProps: Omit<LeftSidebarProps, 'fileName' | 'leftPanelMinimized' | 'panelWidth' | 'onMinimize'> = {
+  const leftSidebarProps: Omit<LeftSidebarProps, 'fileName' | 'leftPanelMinimized' | 'panelWidth' | 'onMinimize'> = useMemo(() => ({
     layerItems: options.layerItems,
     selectedIds: options.selectedIds,
     assetCount: options.fileAssetCount,
@@ -196,7 +128,6 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     layersCollapsed: options.layersCollapsed,
     showGrid: options.showGrid,
     snappingEnabled: options.snappingEnabled,
-    debugStats: options.debugStats,
     onSetActiveTab: (tab) => {
       dispatchShellCommand('shell.setLeftTab', {tab}, {
         sourcePanel: 'left-sidebar',
@@ -227,6 +158,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     onOpenTemplatePicker: () => {
       options.setShowTemplatePresetPicker(true)
     },
+    onApplyAssetTemplate: options.onApplyAssetTemplate,
     executeMenuAction: options.executeAction,
     copiedCount: options.copiedCount,
     hasUnsavedChanges: options.hasUnsavedChanges,
@@ -251,14 +183,28 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
         })
       })
     },
-  }
+  }), [
+    dispatchShellCommand,
+    options.activeTab,
+    options.fileAssetCount,
+    options.copiedCount,
+    options.executeAction,
+    options.hasUnsavedChanges,
+    options.historyItems,
+    options.historyStatus,
+    options.layerItems,
+    options.layersCollapsed,
+    options.selectedIds,
+    options.showGrid,
+    options.onApplyAssetTemplate,
+    options.setShowTemplatePresetPicker,
+    options.setVariantBSections,
+    options.snappingEnabled,
+  ])
 
-  const rightSidebarProps: Omit<RightSidebarProps, 'rightPanelMinimized' | 'panelWidth' | 'onMinimize'> = {
+  const rightSidebarProps: Omit<RightSidebarProps, 'rightPanelMinimized' | 'panelWidth' | 'onMinimize'> = useMemo(() => ({
     context: options.inspectorContext,
     selectedProps: options.selectedProps,
-    zoomPercent: Math.max(1, Math.round(options.viewportScale * 100)),
-    selectedCount: options.selectedIds.length,
-    layerCount: options.layerItems.length,
     executeAction: options.executeAction,
     onSetZoom: (zoomPercent) => {
       dispatchShellCommand('shell.setZoom', {zoomPercent}, {
@@ -277,14 +223,19 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     onPatchElementProps: (elementId, patch, meta) => {
       dispatchShellCommand('element.modify', {elementId, patch}, meta)
     },
-  }
+  }), [
+    dispatchShellCommand,
+    options.executeAction,
+    options.inspectorContext,
+    options.selectedProps,
+  ])
+
+  const onSelectTool = useCallback((tool: import('@venus/document-core').ToolName, meta: import('../../editor/shell/commands/shellCommandRegistry.ts').ShellCommandMeta) => {
+    dispatchShellCommand('tool.select', {tool}, meta)
+  }, [dispatchShellCommand])
 
   return {
-    topMenuActions,
-    executeTopMenuAction,
-    onSelectTool: (tool: import('@venus/document-core').ToolName, meta: import('../../editor/shell/commands/shellCommandRegistry.ts').ShellCommandMeta) => {
-      dispatchShellCommand('tool.select', {tool}, meta)
-    },
+    onSelectTool,
     leftSidebarProps,
     rightSidebarProps,
   }

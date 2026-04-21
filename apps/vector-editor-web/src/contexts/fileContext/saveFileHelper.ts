@@ -31,8 +31,6 @@ const saveFileHelper = (file: VisionFileType, exportedData?: Partial<VisionFileT
     },
   )
     .then(function (content) {
-      console.log(content)
-
       const a = document.createElement('a')
       const url = URL.createObjectURL(content)
       a.href = url

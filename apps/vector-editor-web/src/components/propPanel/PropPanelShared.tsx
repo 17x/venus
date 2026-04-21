@@ -1,6 +1,6 @@
 import {type ReactNode} from 'react'
 import {Button} from '@vector/ui'
-import {ProtectedInput} from './ProtectedInput.tsx'
+import {ProtectedInput} from './protectedInput.tsx'
 import {
   EDITOR_TEXT_PANEL_HEADING_CLASS,
   EDITOR_TEXT_PANEL_LABEL_CLASS,

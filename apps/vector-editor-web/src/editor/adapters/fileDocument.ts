@@ -70,10 +70,15 @@ function resolveFill(value: unknown): DocumentNode['fill'] {
     return undefined
   }
   const record = value as Record<string, unknown>
-  return {
+  const gradient = resolveGradient(record.gradient)
+  const resolved: DocumentNode['fill'] & {gradient?: ReturnType<typeof resolveGradient>} = {
     enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
     color: typeof record.color === 'string' ? record.color : undefined,
   }
+  if (gradient) {
+    resolved.gradient = gradient
+  }
+  return resolved
 }
 
 function resolveStroke(value: unknown): DocumentNode['stroke'] {
@@ -81,10 +86,72 @@ function resolveStroke(value: unknown): DocumentNode['stroke'] {
     return undefined
   }
   const record = value as Record<string, unknown>
-  return {
+  const gradient = resolveGradient(record.gradient)
+  const resolved: DocumentNode['stroke'] & {gradient?: ReturnType<typeof resolveGradient>} = {
     enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
     color: typeof record.color === 'string' ? record.color : undefined,
     weight: typeof record.weight === 'number' ? record.weight : undefined,
+  }
+  if (gradient) {
+    resolved.gradient = gradient
+  }
+  return resolved
+}
+
+function resolveGradient(value: unknown): {
+  type: 'linear' | 'radial'
+  stops: Array<{offset: number; color: string; opacity?: number}>
+  angle?: number
+  centerX?: number
+  centerY?: number
+  radius?: number
+} | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (record.type !== 'linear' && record.type !== 'radial') {
+    return undefined
+  }
+
+  if (!Array.isArray(record.stops)) {
+    return undefined
+  }
+
+  const stops = record.stops
+    .map((stop) => {
+      if (!stop || typeof stop !== 'object') {
+        return null
+      }
+
+      const candidate = stop as Record<string, unknown>
+      if (typeof candidate.offset !== 'number' || typeof candidate.color !== 'string') {
+        return null
+      }
+
+      const nextStop: {offset: number; color: string; opacity?: number} = {
+        offset: candidate.offset,
+        color: candidate.color,
+      }
+      if (typeof candidate.opacity === 'number') {
+        nextStop.opacity = candidate.opacity
+      }
+      return nextStop
+    })
+    .filter((stop): stop is {offset: number; color: string; opacity?: number} => stop !== null)
+
+  if (stops.length === 0) {
+    return undefined
+  }
+
+  return {
+    type: record.type,
+    stops,
+    angle: typeof record.angle === 'number' ? record.angle : undefined,
+    centerX: typeof record.centerX === 'number' ? record.centerX : undefined,
+    centerY: typeof record.centerY === 'number' ? record.centerY : undefined,
+    radius: typeof record.radius === 'number' ? record.radius : undefined,
   }
 }
 

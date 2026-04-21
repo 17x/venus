@@ -11,7 +11,7 @@ import {
   EDITOR_TEXT_PANEL_LABEL_CLASS,
 } from '../editorChrome/editorTypography.ts'
 import {IconInputField} from './IconInputField.tsx'
-import {ProtectedInput} from './ProtectedInput.tsx'
+import {ProtectedInput} from './protectedInput.tsx'
 import {PropPanelFontFamilyPicker} from './PropPanelFontFamilyPicker.tsx'
 import {FieldRow, InlineIconAction, PaintRow, SectionBlock} from './PropPanelShared.tsx'
 

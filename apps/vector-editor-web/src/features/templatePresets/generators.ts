@@ -33,16 +33,20 @@ const PRESET_GENERATORS: Record<string, TemplateFileGenerator> = {
   'demo-basic-shapes': createBasicShapesDemo,
   'demo-welcome-board': createWelcomeBoardDemo,
   'demo-wireframe': createWireframeDemo,
-  'test-text-dense': createLargeMixedTemplate,
+  'test-text-dense': createTextDenseTemplate,
   'test-deep-groups': createLargeMixedTemplate,
   'test-overlap-heavy': createLargeMixedTemplate,
   'mixed-10k': createLargeMixedTemplate,
   'mixed-50k': createLargeMixedTemplate,
   'mixed-100k': createLargeMixedTemplate,
+  'mixed-200k': createLargeMixedTemplate,
+  'mixed-300k': createLargeMixedTemplate,
   'test-sparse-large': createLargeMixedTemplate,
   'test-transform-batch': createLargeMixedTemplate,
   'images-1k': createImageHeavyTemplate,
   'images-10k': createImageHeavyTemplate,
+  'images-50k': createImageHeavyTemplate,
+  'text-10k': createTextDenseTemplate,
 }
 
 export function generateTemplateFile(
@@ -512,6 +516,49 @@ function createImageHeavyTemplate(
     height: sceneHeight,
     elements,
     assets: IMAGE_HEAVY_ASSETS,
+  })
+}
+
+function createTextDenseTemplate(
+  preset: TemplatePresetDefinition,
+  context: TemplateGeneratorContext,
+): VisionFileType {
+  const rng = createSeededRandom(resolveSeed(context.seed, preset.targetElementCount + 6001))
+  const state: GenerationState = {nextId: 1}
+  const count = preset.targetElementCount
+  const elements: ElementProps[] = []
+  const columns = Math.max(1, Math.ceil(Math.sqrt(count)))
+  const cellSize = count > 5000 ? 78 : 92
+  const sceneWidth = Math.max(4096, columns * cellSize + 320)
+  const rows = Math.ceil(count / columns)
+  const sceneHeight = Math.max(4096, rows * cellSize + 320)
+
+  for (let index = 0; index < count; index += 1) {
+    const point = resolveGridPoint(index, columns, cellSize, rng)
+    const lineA = `Text-${index}`
+    const lineB = `Node-${rng.nextInt(100, 999)}`
+    const text = index % 5 === 0 ? `${lineA}\n${lineB}` : lineA
+    const baseFontSize = index % 7 === 0 ? 16 : 13
+    const lineHeight = Math.round(baseFontSize * 1.35)
+
+    elements.push(createTextElement(state, {
+      x: point.x,
+      y: point.y,
+      width: rng.nextInt(72, 180),
+      height: text.includes('\n') ? lineHeight * 2 + 6 : lineHeight + 6,
+      text,
+      fill: '#111827',
+      fontSize: baseFontSize,
+      lineHeight,
+    }))
+  }
+
+  return buildVisionFile({
+    id: createDeterministicId('tpl', preset.id, 0),
+    name: preset.label,
+    width: sceneWidth,
+    height: sceneHeight,
+    elements,
   })
 }
 

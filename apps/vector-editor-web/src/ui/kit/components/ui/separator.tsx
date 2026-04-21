@@ -9,7 +9,7 @@ interface SeparatorProps extends Omit<ComponentProps<typeof ShadcnSeparator>, 'o
 export function Separator({className, orientation = 'horizontal', ...props}: SeparatorProps) {
   return <ShadcnSeparator
     orientation={orientation}
-    className={cn('bg-slate-200', className)}
+    className={cn('w-50 border-slate-200 border-b', className)}
     {...props}
   />
 }

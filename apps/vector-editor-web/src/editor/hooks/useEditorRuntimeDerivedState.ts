@@ -1,8 +1,13 @@
-import {createElement, useMemo} from 'react'
+import {createElement, useMemo, useRef} from 'react'
 import type {EditorDocument} from '@venus/document-core'
+import {
+  buildRuntimePathEditInstructions,
+  buildRuntimeOverlayInstructions,
+  buildRuntimePreviewInstructions,
+} from '@vector/runtime'
 import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
 import {buildSelectionState, InteractionOverlay} from '../interaction/index.ts'
-import {resolveTransformPreviewRuntimeState, resolveMarqueeBounds, type MarqueeState, type SnapGuide} from '../interaction/runtime/index.ts'
+import {resolveTransformPreviewRuntimeState, resolveMarqueeBounds, type MarqueeState, type SnapGuide} from '../../runtime/interaction/index.ts'
 import type {
   DraftPrimitive,
   InteractionBounds,
@@ -13,7 +18,32 @@ import {useCanvasRuntimeBridge} from './useCanvasRuntimeBridge.ts'
 import {useTransformPreviewCommitBridge} from './useTransformPreviewCommitBridge.ts'
 import {resolvePathHandlePreviewDocument} from './useEditorRuntime.helpers.ts'
 
-const SCENE_CAPACITY = 256
+const SCENE_CAPACITY = 8192
+const DEFAULT_SELECTION_CONFIG = {
+  allowFrameSelection: false,
+  input: {
+    singleClick: 'replace',
+    shiftClick: 'add',
+    metaOrCtrlClick: 'toggle',
+    altClick: 'subtract',
+  },
+  marquee: {
+    enabled: true,
+    defaultMatchMode: 'contain',
+    shiftMatchMode: 'contain',
+  },
+} as const
+
+const DEFAULT_PRESENTATION_CONFIG = {
+  marquee: {
+    fill: 'rgba(37, 99, 235, 0.12)',
+    stroke: 'rgba(37, 99, 235, 0.95)',
+  },
+  overlay: {
+    selectionStroke: '#2563eb',
+    hoverStroke: 'rgba(14, 165, 233, 0.9)',
+  },
+} as const
 
 export function useEditorRuntimeDerivedState(options: {
   document: EditorDocument
@@ -47,41 +77,23 @@ export function useEditorRuntimeDerivedState(options: {
     pathHandleDrag,
     createWorker,
   } = options
+  const runtimeBridgeOptions = useMemo(() => {
+    return {
+      capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
+      createWorker,
+      document,
+      allowFrameSelection: false,
+      selection: DEFAULT_SELECTION_CONFIG,
+      presentation: DEFAULT_PRESENTATION_CONFIG,
+      onContextMenu,
+    }
+  }, [createWorker, document, onContextMenu])
+
   const {
     runtime: canvasRuntime,
     interactions: defaultCanvasInteractions,
     presentation: runtimePresentation,
-  } = useCanvasRuntimeBridge({
-    capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
-    createWorker,
-    document,
-    allowFrameSelection: false,
-    selection: {
-      allowFrameSelection: false,
-      input: {
-        singleClick: 'replace',
-        shiftClick: 'add',
-        metaOrCtrlClick: 'toggle',
-        altClick: 'subtract',
-      },
-      marquee: {
-        enabled: true,
-        defaultMatchMode: 'contain',
-        shiftMatchMode: 'contain',
-      },
-    },
-    presentation: {
-      marquee: {
-        fill: 'rgba(37, 99, 235, 0.12)',
-        stroke: 'rgba(37, 99, 235, 0.95)',
-      },
-      overlay: {
-        selectionStroke: '#2563eb',
-        hoverStroke: 'rgba(14, 165, 233, 0.9)',
-      },
-    },
-    onContextMenu,
-  })
+  } = useCanvasRuntimeBridge(runtimeBridgeOptions)
 
   const preferredEngineBackend = useMemo(() => {
     if (typeof window === 'undefined') {
@@ -113,14 +125,23 @@ export function useEditorRuntimeDerivedState(options: {
   const selectedShape = canvasRuntime.stats.selectedIndex >= 0
     ? canvasRuntime.shapes[canvasRuntime.stats.selectedIndex] ?? null
     : null
+  const selectedShapeIdsRef = useRef<string[]>([])
   const runtimeShapeById = useMemo(
     () => new Map(canvasRuntime.shapes.map((shape) => [shape.id, shape])),
     [canvasRuntime.shapes],
   )
-  const selectedShapeIds = useMemo(
-    () => canvasRuntime.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
-    [canvasRuntime.shapes],
-  )
+  const selectedShapeIds = useMemo(() => {
+    const next = canvasRuntime.shapes
+      .filter((shape) => shape.isSelected)
+      .map((shape) => shape.id)
+    const current = selectedShapeIdsRef.current
+    const unchanged = current.length === next.length && current.every((id, index) => id === next[index])
+    if (unchanged) {
+      return current
+    }
+    selectedShapeIdsRef.current = next
+    return next
+  }, [canvasRuntime.shapes])
   const selectedNode = selectedShape
     ? canvasRuntime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
     : null
@@ -153,6 +174,140 @@ export function useEditorRuntimeDerivedState(options: {
     }
     return resolveMarqueeBounds(marquee)
   }, [marquee])
+
+  const hoveredShapeBounds = useMemo(() => {
+    if (!hoveredShapeId) {
+      return null
+    }
+    const hoveredShape = previewShapeById.get(hoveredShapeId)
+    if (!hoveredShape) {
+      return null
+    }
+    return {
+      minX: Math.min(hoveredShape.x, hoveredShape.x + hoveredShape.width),
+      minY: Math.min(hoveredShape.y, hoveredShape.y + hoveredShape.height),
+      maxX: Math.max(hoveredShape.x, hoveredShape.x + hoveredShape.width),
+      maxY: Math.max(hoveredShape.y, hoveredShape.y + hoveredShape.height),
+    }
+  }, [hoveredShapeId, previewShapeById])
+
+  const activePathSubSelection = pathSubSelectionHover ?? pathSubSelection
+  const activePathShape = useMemo(() => {
+    if (!activePathSubSelection) {
+      return null
+    }
+    const shape = previewShapeById.get(activePathSubSelection.shapeId)
+    if (!shape || shape.type !== 'path') {
+      return null
+    }
+    return shape
+  }, [activePathSubSelection, previewShapeById])
+
+  const activePathAnchors = useMemo(() => {
+    if (!activePathShape) {
+      return [] as Array<{x: number; y: number}>
+    }
+    if (Array.isArray(activePathShape.bezierPoints) && activePathShape.bezierPoints.length > 0) {
+      return activePathShape.bezierPoints.map((point) => ({
+        x: point.anchor.x,
+        y: point.anchor.y,
+      }))
+    }
+    return (activePathShape.points ?? []).map((point) => ({x: point.x, y: point.y}))
+  }, [activePathShape])
+
+  const activePathHandleLinks = useMemo(() => {
+    if (!activePathShape || !Array.isArray(activePathShape.bezierPoints)) {
+      return [] as Array<{anchor: {x: number; y: number}; handle: {x: number; y: number}; handleType: 'inHandle' | 'outHandle'; anchorIndex: number}>
+    }
+
+    return activePathShape.bezierPoints.flatMap((point, anchorIndex) => {
+      const links: Array<{anchor: {x: number; y: number}; handle: {x: number; y: number}; handleType: 'inHandle' | 'outHandle'; anchorIndex: number}> = []
+      if (point.cp1) {
+        const override =
+          activePathSubSelection?.hitType === 'inHandle' &&
+          activePathSubSelection.handlePoint?.anchorIndex === anchorIndex
+            ? activePathSubSelection.handlePoint
+            : null
+        links.push({
+          anchor: {x: point.anchor.x, y: point.anchor.y},
+          handle: override ? {x: override.x, y: override.y} : {x: point.cp1.x, y: point.cp1.y},
+          handleType: 'inHandle',
+          anchorIndex,
+        })
+      }
+      if (point.cp2) {
+        const override =
+          activePathSubSelection?.hitType === 'outHandle' &&
+          activePathSubSelection.handlePoint?.anchorIndex === anchorIndex
+            ? activePathSubSelection.handlePoint
+            : null
+        links.push({
+          anchor: {x: point.anchor.x, y: point.anchor.y},
+          handle: override ? {x: override.x, y: override.y} : {x: point.cp2.x, y: point.cp2.y},
+          handleType: 'outHandle',
+          anchorIndex,
+        })
+      }
+      return links
+    })
+  }, [activePathShape, activePathSubSelection])
+
+  const highlightedSegment = useMemo(() => {
+    if (!activePathSubSelection || activePathSubSelection.hitType !== 'segment' || !activePathSubSelection.segment || activePathAnchors.length < 2) {
+      return null
+    }
+    const from = activePathAnchors[activePathSubSelection.segment.index]
+    const to = activePathAnchors[activePathSubSelection.segment.index + 1]
+    if (!from || !to) {
+      return null
+    }
+    return {from, to}
+  }, [activePathAnchors, activePathSubSelection])
+
+  const baseOverlayInstructions = useMemo(() => buildRuntimeOverlayInstructions({
+    selectedBounds: selectionState.selectedBounds,
+    marqueeBounds,
+    hoveredShapeBounds,
+    snapGuides,
+    canvasBounds: {
+      minX: 0,
+      minY: 0,
+      maxX: interactionDocument.width,
+      maxY: interactionDocument.height,
+    },
+  }), [
+    hoveredShapeBounds,
+    interactionDocument.height,
+    interactionDocument.width,
+    marqueeBounds,
+    selectionState.selectedBounds,
+    snapGuides,
+  ])
+
+  const pathEditInstructions = useMemo(() => buildRuntimePathEditInstructions({
+    activePathShapeId: activePathShape?.id,
+    activePathAnchors,
+    activePathHandleLinks,
+    highlightedSegment,
+    activePathSubSelection,
+  }), [
+    activePathAnchors,
+    activePathHandleLinks,
+    activePathShape?.id,
+    activePathSubSelection,
+    highlightedSegment,
+  ])
+
+  const overlayInstructions = useMemo(
+    () => [...baseOverlayInstructions, ...pathEditInstructions],
+    [baseOverlayInstructions, pathEditInstructions],
+  )
+
+  const previewInstructions = useMemo(() => buildRuntimePreviewInstructions({
+    transformPreview,
+  }), [transformPreview])
+
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
     const overlayHoveredShapeId = hoveredShapeId
@@ -175,6 +330,8 @@ export function useEditorRuntimeDerivedState(options: {
         pathSubSelectionHover: overlayPathSubSelectionHover,
         draftPrimitive: overlayDraftPrimitive,
         penDraftPoints: overlayPenDraftPoints,
+        overlayInstructions,
+        previewInstructions,
         presentation: runtimePresentation,
       })
     }
@@ -186,6 +343,8 @@ export function useEditorRuntimeDerivedState(options: {
     pathSubSelection,
     pathSubSelectionHover,
     penDraftPoints,
+    overlayInstructions,
+    previewInstructions,
     runtimePresentation,
     snapGuides,
   ])
@@ -210,6 +369,8 @@ export function useEditorRuntimeDerivedState(options: {
     previewShapeById,
     selectionState,
     marqueeBounds,
+    overlayInstructions,
+    previewInstructions,
     OverlayRenderer,
   }
 }

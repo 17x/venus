@@ -1,4 +1,4 @@
-import {type ReactNode, useEffect, useRef, useState} from 'react'
+import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 import {Button, Con} from '@vector/ui'
 import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
 import type {LayerItem} from '../../editor/hooks/useEditorRuntime.types.ts'
@@ -49,9 +49,12 @@ export const LayerPanel = ({
   const panelTitle = t('inspector.layer.title', 'Layer')
   const scrollRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<HTMLDivElement>(null)
-  const [scrollTop, setScrollTop] = useState(0)
+  const scrollTopRef = useRef(0)
+  const pendingScrollTopRef = useRef(0)
+  const scrollFrameRef = useRef<number | null>(null)
   const [indexRange, setIndexRange] = useState([0, 10])
   const [lastClickedId, setLastClickedId] = useState<string | null>(null)
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const reorderLayers = (direction: 'up' | 'down' | 'top' | 'bottom', sourceControl: string) => {
     if (onReorderLayers) {
       onReorderLayers(direction, {
@@ -91,27 +94,43 @@ export const LayerPanel = ({
         const idx = elements.findIndex(x => x.id === closestOne)
 
         scrollRef.current?.scrollTo(0, idx * ITEM_HEIGHT)
-        console.log(idx * ITEM_HEIGHT)
       }*/
   }, [layerItems, selectedIds])
 
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(scrollFrameRef.current)
+        scrollFrameRef.current = null
+      }
+    }
+  }, [])
+
   const handleScroll = () => {
     if (!scrollRef.current) return
-    const newScrollTop = scrollRef.current.scrollTop
-    const scrollUp = newScrollTop < scrollTop
-    const startIndex = Math.round(newScrollTop / ITEM_HEIGHT)
-    const endIndex = startIndex + 10
+    pendingScrollTopRef.current = scrollRef.current.scrollTop
 
-    // console.log(newScrollTop)
-    if (scrollUp) {
-      if (indexRange[0] >= layerItems.length - 1) return
-    } else {
-      if (indexRange[1] >= layerItems.length - 1) return
-
+    if (scrollFrameRef.current !== null) {
+      return
     }
 
-    setScrollTop(newScrollTop)
-    setIndexRange([startIndex, endIndex])
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null
+
+      const newScrollTop = pendingScrollTopRef.current
+      const startIndex = Math.round(newScrollTop / ITEM_HEIGHT)
+      const clampedStartIndex = Math.max(0, Math.min(startIndex, Math.max(0, layerItems.length - 1)))
+      const endIndex = Math.min(layerItems.length, clampedStartIndex + 10)
+
+      scrollTopRef.current = newScrollTop
+      setIndexRange((previousRange) => {
+        if (previousRange[0] === clampedStartIndex && previousRange[1] === endIndex) {
+          return previousRange
+        }
+
+        return [clampedStartIndex, endIndex]
+      })
+    })
   }
 
   const arr = []
@@ -120,10 +139,11 @@ export const LayerPanel = ({
     const item = layerItems[i]
 
     if (item) {
+      const isSelected = selectedIdSet.has(item.id)
       arr.push(
-        <div ref={selectedIds?.includes(item.id) ? targetRef : null}
+        <div ref={isSelected ? targetRef : null}
              style={{height: ITEM_HEIGHT}}
-             className={selectedIds?.includes(item.id)
+             className={isSelected
                ? `cursor-pointer rounded bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50 ${EDITOR_TEXT_LABEL_CLASS}`
                : `cursor-pointer rounded bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200 ${EDITOR_TEXT_LABEL_CLASS}`}
              onClick={(event) => {

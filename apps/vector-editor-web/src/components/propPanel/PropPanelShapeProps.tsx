@@ -18,6 +18,7 @@ import {
   PreviewSection,
   SchemaSection,
 } from './PropPanelMetaSections.tsx'
+import { Separator } from '@/ui/kit/components/ui/separator.tsx'
 
 interface PropPanelShapePropsProps {
   props: SelectedElementProps
@@ -115,7 +116,9 @@ export function PropPanelShapeProps({
 
   return (
     <div className={`z-30 flex min-w-0 flex-col gap-2 overflow-x-hidden ${EDITOR_TEXT_PANEL_BODY_CLASS}`}>
+        <Separator />
       <LayoutSection props={props} patchNumericField={patchNumericField} patchElementProps={patchElementProps}/>
+        <Separator />
       <AppearanceSection
         props={props}
         patchNumericField={patchNumericField}
