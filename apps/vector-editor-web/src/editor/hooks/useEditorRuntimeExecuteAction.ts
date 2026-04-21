@@ -1,7 +1,7 @@
 import {useCallback} from 'react'
 import {nid, type ToolName} from '@venus/document-core'
 import {applyMatrixToPoint} from '@vector/runtime'
-import {createTransformBatchCommand} from '../interaction/runtime/index.ts'
+import {createTransformBatchCommand} from '../../runtime/interaction/index.ts'
 import type {ElementProps} from '@lite-u/editor/types'
 import {
   cloneElementProps,

@@ -367,27 +367,38 @@ export function offsetElementPosition(
       : undefined,
     bezierPoints: Array.isArray(element.bezierPoints)
       ? element.bezierPoints.map((point) =>
-          point && typeof point === 'object' && point.anchor && typeof point.anchor === 'object'
-            ? {
-                anchor: {
-                  x: Number((point.anchor as {x: number}).x) + deltaX,
-                  y: Number((point.anchor as {y: number}).y) + deltaY,
-                },
-                cp1:
-                  point.cp1 && typeof point.cp1 === 'object'
-                    ? {
-                        x: Number((point.cp1 as {x: number}).x) + deltaX,
-                        y: Number((point.cp1 as {y: number}).y) + deltaY,
-                      }
-                    : point.cp1,
-                cp2:
-                  point.cp2 && typeof point.cp2 === 'object'
-                    ? {
-                        x: Number((point.cp2 as {x: number}).x) + deltaX,
-                        y: Number((point.cp2 as {y: number}).y) + deltaY,
-                      }
-                    : point.cp2,
-              }
+          point && typeof point === 'object'
+            ? (() => {
+                const candidate = point as {
+                  anchor?: unknown
+                  cp1?: unknown
+                  cp2?: unknown
+                }
+                if (!candidate.anchor || typeof candidate.anchor !== 'object') {
+                  return point
+                }
+
+                return {
+                  anchor: {
+                    x: Number((candidate.anchor as {x: number}).x) + deltaX,
+                    y: Number((candidate.anchor as {y: number}).y) + deltaY,
+                  },
+                  cp1:
+                    candidate.cp1 && typeof candidate.cp1 === 'object'
+                      ? {
+                          x: Number((candidate.cp1 as {x: number}).x) + deltaX,
+                          y: Number((candidate.cp1 as {y: number}).y) + deltaY,
+                        }
+                      : candidate.cp1,
+                  cp2:
+                    candidate.cp2 && typeof candidate.cp2 === 'object'
+                      ? {
+                          x: Number((candidate.cp2 as {x: number}).x) + deltaX,
+                          y: Number((candidate.cp2 as {y: number}).y) + deltaY,
+                        }
+                      : candidate.cp2,
+                }
+              })()
             : point,
         )
       : undefined,

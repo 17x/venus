@@ -5,7 +5,7 @@ import {
   type DocumentShapeGeometry,
   type TransformPreviewState,
 } from '@vector/runtime'
-import type {TransformPreviewShape} from '../interaction/runtime/index.ts'
+import type {TransformPreviewShape} from '../../runtime/interaction/index.ts'
 
 export {isTransformPreviewSynced}
 

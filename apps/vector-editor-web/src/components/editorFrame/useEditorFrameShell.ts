@@ -1,4 +1,4 @@
-import {useMemo} from 'react'
+import {useCallback, useMemo} from 'react'
 import {useTranslation} from 'react-i18next'
 import {createHeaderMenuData} from '../header/menu/menuData.ts'
 import type {MenuItemType} from '../header/menu/type'
@@ -64,7 +64,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     })
   }, [options.selectedIds, options.copiedCount, options.hasUnsavedChanges, options.historyStatus, i18n.language, options.showGrid, options.snappingEnabled, options.mode])
 
-  const dispatchShellCommand = createShellCommandDispatch({
+  const dispatchShellCommand = useMemo(() => createShellCommandDispatch({
     onSetZoom(payload) {
       options.executeAction('world-zoom', {
         zoomTo: true,
@@ -132,9 +132,23 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
         props: payload.patch,
       }])
     },
-  })
+  }), [
+    options.executeAction,
+    options.hasUnsavedChanges,
+    options.historyItems,
+    options.mode,
+    options.pickHistory,
+    options.selectedIds,
+    options.setCurrentTool,
+    options.setInspectorContext,
+    options.setMinimizedInspectorPanels,
+    options.setMode,
+    options.setSnappingEnabled,
+    options.setToolbeltMode,
+    options.setVariantBSections,
+  ])
 
-  const executeTopMenuAction = (menuItem: MenuItemType) => {
+  const executeTopMenuAction = useCallback((menuItem: MenuItemType) => {
     if (menuItem.disabled) {
       return
     }
@@ -186,9 +200,17 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
         options.executeAction(action)
       }
     }
-  }
+  }, [
+    dispatchShellCommand,
+    i18n,
+    options.executeAction,
+    options.setMode,
+    options.setShowTemplatePresetPicker,
+    options.showGrid,
+    options.snappingEnabled,
+  ])
 
-  const leftSidebarProps: Omit<LeftSidebarProps, 'fileName' | 'leftPanelMinimized' | 'panelWidth' | 'onMinimize'> = {
+  const leftSidebarProps: Omit<LeftSidebarProps, 'fileName' | 'leftPanelMinimized' | 'panelWidth' | 'onMinimize'> = useMemo(() => ({
     layerItems: options.layerItems,
     selectedIds: options.selectedIds,
     assetCount: options.fileAssetCount,
@@ -251,9 +273,26 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
         })
       })
     },
-  }
+  }), [
+    dispatchShellCommand,
+    options.activeTab,
+    options.fileAssetCount,
+    options.copiedCount,
+    options.debugStats,
+    options.executeAction,
+    options.hasUnsavedChanges,
+    options.historyItems,
+    options.historyStatus,
+    options.layerItems,
+    options.layersCollapsed,
+    options.selectedIds,
+    options.showGrid,
+    options.setShowTemplatePresetPicker,
+    options.setVariantBSections,
+    options.snappingEnabled,
+  ])
 
-  const rightSidebarProps: Omit<RightSidebarProps, 'rightPanelMinimized' | 'panelWidth' | 'onMinimize'> = {
+  const rightSidebarProps: Omit<RightSidebarProps, 'rightPanelMinimized' | 'panelWidth' | 'onMinimize'> = useMemo(() => ({
     context: options.inspectorContext,
     selectedProps: options.selectedProps,
     zoomPercent: Math.max(1, Math.round(options.viewportScale * 100)),
@@ -277,14 +316,24 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     onPatchElementProps: (elementId, patch, meta) => {
       dispatchShellCommand('element.modify', {elementId, patch}, meta)
     },
-  }
+  }), [
+    dispatchShellCommand,
+    options.executeAction,
+    options.inspectorContext,
+    options.layerItems.length,
+    options.selectedIds.length,
+    options.selectedProps,
+    options.viewportScale,
+  ])
+
+  const onSelectTool = useCallback((tool: import('@venus/document-core').ToolName, meta: import('../../editor/shell/commands/shellCommandRegistry.ts').ShellCommandMeta) => {
+    dispatchShellCommand('tool.select', {tool}, meta)
+  }, [dispatchShellCommand])
 
   return {
     topMenuActions,
     executeTopMenuAction,
-    onSelectTool: (tool: import('@venus/document-core').ToolName, meta: import('../../editor/shell/commands/shellCommandRegistry.ts').ShellCommandMeta) => {
-      dispatchShellCommand('tool.select', {tool}, meta)
-    },
+    onSelectTool,
     leftSidebarProps,
     rightSidebarProps,
   }

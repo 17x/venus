@@ -1,3 +1,4 @@
+import {memo} from 'react'
 import LeftSidebar from '../shell/LeftSidebar.tsx'
 import type {LeftSidebarProps} from '../shell/LeftSidebarShared.tsx'
 import RightSidebar, {type RightSidebarProps} from '../shell/RightSidebar.tsx'
@@ -17,7 +18,7 @@ interface EditorFrameSidePanelsProps {
   rightSidebarProps: Omit<RightSidebarProps, 'rightPanelMinimized' | 'panelWidth' | 'onMinimize'>
 }
 
-export function EditorFrameSidePanels(props: EditorFrameSidePanelsProps) {
+function EditorFrameSidePanelsComponent(props: EditorFrameSidePanelsProps) {
   return <>
     <div className={'pointer-events-none absolute left-3 top-3 bottom-3 z-20 flex'}>
         <LeftSidebar
@@ -50,3 +51,5 @@ export function EditorFrameSidePanels(props: EditorFrameSidePanelsProps) {
       />}
   </>
 }
+
+export const EditorFrameSidePanels = memo(EditorFrameSidePanelsComponent)

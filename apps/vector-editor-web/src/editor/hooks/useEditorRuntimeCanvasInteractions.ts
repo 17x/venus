@@ -14,7 +14,7 @@ import {
   updateMarqueeState,
   type MarqueeApplyMode,
   type MarqueeSelectionMode,
-} from '../interaction/runtime/index.ts'
+} from '../../runtime/interaction/index.ts'
 import {createShapeElementFromTool} from './editorRuntimeHelpers.ts'
 import {resolvePathSubSelectionAtPoint} from './runtime/pathSubSelection.ts'
 import type {
@@ -24,7 +24,7 @@ import type {
   PathSubSelection,
   TransformPreview,
 } from '../interaction/index.ts'
-import type {SelectionDragController} from '../interaction/runtime/index.ts'
+import type {SelectionDragController} from '../../runtime/interaction/index.ts'
 import {
   handleCanvasPointerLeave,
   handleCanvasPointerUp,
@@ -96,7 +96,7 @@ function isPathSubSelectionEqual(left: PathSubSelection | null, right: PathSubSe
 
 export function useEditorRuntimeCanvasInteractions(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
-  applyMarqueeSelectionWhileMoving: (nextMarquee: import('../interaction/runtime/index.ts').MarqueeState) => void
+  applyMarqueeSelectionWhileMoving: (nextMarquee: import('../../runtime/interaction/index.ts').MarqueeState) => void
   canvasRuntime: ReturnType<typeof import('./useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']
   clearTransformPreview: VoidFunction
   commitPathHandleUpdate: (params: {
@@ -113,7 +113,7 @@ export function useEditorRuntimeCanvasInteractions(options: {
   hoveredShapeId: string | null
   insertElement: (element: import('@lite-u/editor/types').ElementProps) => void
   interactionDocument: ReturnType<typeof import('./useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']
-  marquee: import('../interaction/runtime/index.ts').MarqueeState | null
+  marquee: import('../../runtime/interaction/index.ts').MarqueeState | null
   markTransformPreviewCommitPending: VoidFunction
   pathHandleDrag: {
     shapeId: string
@@ -134,7 +134,7 @@ export function useEditorRuntimeCanvasInteractions(options: {
   setActiveTransformHandle: React.Dispatch<React.SetStateAction<HandleKind | null>>
   setDraftPrimitive: React.Dispatch<React.SetStateAction<DraftPrimitive | null>>
   setHoveredShapeId: React.Dispatch<React.SetStateAction<string | null>>
-  setMarquee: React.Dispatch<React.SetStateAction<import('../interaction/runtime/index.ts').MarqueeState | null>>
+  setMarquee: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').MarqueeState | null>>
   setPathHandleDrag: React.Dispatch<React.SetStateAction<{
     shapeId: string
     anchorIndex: number
@@ -143,12 +143,12 @@ export function useEditorRuntimeCanvasInteractions(options: {
   setPathSubSelection: React.Dispatch<React.SetStateAction<PathSubSelection | null>>
   setPathSubSelectionHover: React.Dispatch<React.SetStateAction<PathSubSelection | null>>
   setPenDraftPoints: React.Dispatch<React.SetStateAction<Array<{x: number; y: number}> | null>>
-  setSnapGuides: React.Dispatch<React.SetStateAction<import('../interaction/runtime/index.ts').SnapGuide[]>>
+  setSnapGuides: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').SnapGuide[]>>
   setTransformPreview: (next: TransformPreview | null) => void
   snappingEnabled: boolean
   transformManagerRef: React.RefObject<ReturnType<typeof import('../interaction/index.ts').createTransformSessionManager>>
   transformPreview: TransformPreview | null
-  marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../interaction/runtime/index.ts').createMarqueeSelectionApplyController>>
+  marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createMarqueeSelectionApplyController>>
 }) {
   return useMemo(() => ({
     onPointerMove: (point: {x: number; y: number}) => {

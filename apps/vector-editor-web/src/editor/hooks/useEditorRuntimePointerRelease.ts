@@ -1,7 +1,7 @@
 import {
   resolvePointerUpMarqueeSelection,
   resolvePointerUpTransformCommit,
-} from '../interaction/runtime/index.ts'
+} from '../../runtime/interaction/index.ts'
 import {createShapeElementFromDrag, createShapeElementFromTool} from './editorRuntimeHelpers.ts'
 import {formatSelectionNames} from './useEditorRuntime.helpers.ts'
 
@@ -20,9 +20,9 @@ export function handleCanvasPointerUp(options: {
   handleCommand: (command: import('@vector/runtime/worker').EditorRuntimeCommand) => void
   insertElement: (element: import('@lite-u/editor/types').ElementProps) => void
   interactionDocument: ReturnType<typeof import('./useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']
-  marquee: import('../interaction/runtime/index.ts').MarqueeState | null
+  marquee: import('../../runtime/interaction/index.ts').MarqueeState | null
   markTransformPreviewCommitPending: VoidFunction
-  marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../interaction/runtime/index.ts').createMarqueeSelectionApplyController>>
+  marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createMarqueeSelectionApplyController>>
   pathHandleDrag: {
     shapeId: string
     anchorIndex: number
@@ -35,15 +35,15 @@ export function handleCanvasPointerUp(options: {
   setActiveTransformHandle: React.Dispatch<React.SetStateAction<import('../interaction/index.ts').HandleKind | null>>
   setDraftPrimitive: React.Dispatch<React.SetStateAction<import('../interaction/index.ts').DraftPrimitive | null>>
   setHoveredShapeId: React.Dispatch<React.SetStateAction<string | null>>
-  setMarquee: React.Dispatch<React.SetStateAction<import('../interaction/runtime/index.ts').MarqueeState | null>>
+  setMarquee: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').MarqueeState | null>>
   setPathHandleDrag: React.Dispatch<React.SetStateAction<{
     shapeId: string
     anchorIndex: number
     handleType: 'inHandle' | 'outHandle'
   } | null>>
   setPathSubSelectionHover: React.Dispatch<React.SetStateAction<import('../interaction/index.ts').PathSubSelection | null>>
-  setSnapGuides: React.Dispatch<React.SetStateAction<import('../interaction/runtime/index.ts').SnapGuide[]>>
-  selectionDragControllerRef: React.RefObject<import('../interaction/runtime/index.ts').SelectionDragController>
+  setSnapGuides: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').SnapGuide[]>>
+  selectionDragControllerRef: React.RefObject<import('../../runtime/interaction/index.ts').SelectionDragController>
   transformManagerRef: React.RefObject<ReturnType<typeof import('../interaction/index.ts').createTransformSessionManager>>
   transformPreview: import('../interaction/index.ts').TransformPreview | null
 }) {
@@ -131,14 +131,14 @@ export function handleCanvasPointerUp(options: {
 
 export function handleCanvasPointerLeave(options: {
   clearTransformPreview: VoidFunction
-  marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../interaction/runtime/index.ts').createMarqueeSelectionApplyController>>
+  marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createMarqueeSelectionApplyController>>
   penTool: ReturnType<typeof import('./usePenTool.ts').usePenTool>
   runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('@vector/runtime').createRuntimeEditingModeController>>
-  selectionDragControllerRef: React.RefObject<import('../interaction/runtime/index.ts').SelectionDragController>
+  selectionDragControllerRef: React.RefObject<import('../../runtime/interaction/index.ts').SelectionDragController>
   setActiveTransformHandle: React.Dispatch<React.SetStateAction<import('../interaction/index.ts').HandleKind | null>>
   setDraftPrimitive: React.Dispatch<React.SetStateAction<import('../interaction/index.ts').DraftPrimitive | null>>
   setHoveredShapeId: React.Dispatch<React.SetStateAction<string | null>>
-  setMarquee: React.Dispatch<React.SetStateAction<import('../interaction/runtime/index.ts').MarqueeState | null>>
+  setMarquee: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').MarqueeState | null>>
   setPathHandleDrag: React.Dispatch<React.SetStateAction<{
     shapeId: string
     anchorIndex: number
@@ -146,7 +146,7 @@ export function handleCanvasPointerLeave(options: {
   } | null>>
   setPathSubSelectionHover: React.Dispatch<React.SetStateAction<import('../interaction/index.ts').PathSubSelection | null>>
   setPenDraftPoints: React.Dispatch<React.SetStateAction<Array<{x: number; y: number}> | null>>
-  setSnapGuides: React.Dispatch<React.SetStateAction<import('../interaction/runtime/index.ts').SnapGuide[]>>
+  setSnapGuides: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').SnapGuide[]>>
   transformManagerRef: React.RefObject<ReturnType<typeof import('../interaction/index.ts').createTransformSessionManager>>
 }) {
   options.runtimeEditingModeControllerRef.current?.transition({

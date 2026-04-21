@@ -1,5 +1,5 @@
 import React, {useEffect, useId, useRef, useState} from 'react'
-import {RUNTIME_ZOOM_PRESETS, type RuntimeZoomPreset} from '../../editor/interaction/runtime/index.ts'
+import {RUNTIME_ZOOM_PRESETS, type RuntimeZoomPreset} from '@vector/runtime/interaction'
 import {cn, Tooltip} from '@vector/ui'
 import {EDITOR_TEXT_CONTROL_CLASS, EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 import {LuChevronDown} from 'react-icons/lu'

@@ -15,7 +15,7 @@ import {
   bindViewportGestures,
   resolveCanvasLodProfile,
   type ViewportGestureBindingOptions,
-} from '../interaction/runtime/index.ts'
+} from '../../runtime/interaction/index.ts'
 import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,
@@ -201,7 +201,8 @@ export function Canvas2DRenderer({
   backend = 'webgl',
 }: CanvasRendererProps & {backend?: 'canvas2d' | 'webgl'}) {
   const INTERACTION_SETTLE_MS = 120
-  const INTERACTIVE_RENDER_INTERVAL_MS = 20
+    // 12ms keeps interaction cadence near display refresh without saturating CPU.
+    const INTERACTIVE_RENDER_INTERVAL_MS = 12
   const FULL_REDRAW_QUIET_WINDOW_MS = 140
   const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
   const FULL_REDRAW_DEFER_MS = 32

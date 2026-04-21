@@ -191,6 +191,66 @@ context starts, or work needs to resume after switching topics.
   - phase-1 vector-first localization now routes app interaction imports through
     `apps/vector-editor-web/src/editor/interaction/runtime/index.ts`
     instead of direct `@venus/runtime/interaction` imports at call sites
+  - runtime folder migration kickoff started in app source:
+    new pure-TS runtime skeleton now exists under
+    `apps/vector-editor-web/src/runtime/*` (core/model/commands/events/
+    interaction/hittest/overlay/preview/subscriptions/protocol/types), and
+    `useEditorRuntimeCanvasInteractions.ts` now imports the interaction barrel
+    through `src/runtime/interaction` to establish the forward path while
+    preserving current behavior
+  - app runtime root alias now points to
+    `apps/vector-editor-web/src/runtime/index.ts` (with compatibility re-export
+    from `editor/runtime-local/index.ts`), and `useEditorRuntime` pointer
+    callbacks now flow through `createRuntimeInputRouter` +
+    `createRuntimeCanvasInputBridge` before reaching interaction handlers
+  - runtime interaction alias is now promoted to
+    `apps/vector-editor-web/src/runtime/interaction/index.ts` in both
+    TypeScript and Vite config, and editor hooks/runtime adapters no longer
+    import `editor/interaction/runtime/index.ts` directly
+  - phase-4 overlay/preview contract baseline landed:
+    runtime now exposes `buildRuntimeOverlayInstructions` and
+    `buildRuntimePreviewInstructions`, and `useEditorRuntime` canvas state
+    publishes `overlayInstructions` / `previewInstructions` so engine-side
+    overlay rendering can consume runtime-owned instruction streams
+  - phase-5 document style model extended with gradient support:
+    `document-core` shape `fill` / `stroke` now accept optional gradient
+    payloads (`linear` / `radial`, stops, angle/center/radius) and
+    `parseRuntimeScene` now reads optional
+    `fillGradient*` / `strokeGradient*` metadata fields
+  - phase-6 cleanup/hardening updated:
+    `useEditorRuntime` restored explicit `ElementProps` type import and runtime
+    model barrel now re-exports gradient style types for app/runtime boundaries
+  - runtime instruction consumption moved from definition-only to render path:
+    `InteractionOverlay` now renders runtime-owned overlay/preview instruction
+    streams (line/polyline/polygon/handle), and migration mode avoids duplicate
+    legacy marquee/snap/selection-box drawing when instruction streams exist
+  - runtime overlay `hitRegion` semantics are now protocolized in
+    `src/runtime/overlay/index.ts` via typed constants and `snap:*` namespace,
+    and path-chrome fallback in `InteractionOverlay` now uses runtime helper
+    `isPathOverlayHitRegion` instead of local string matching
+  - vector app now includes a local compatibility declaration for
+    `@lite-u/editor/types` at
+    `apps/vector-editor-web/src/types/lite-u-editor-compat.d.ts`, which
+    unblocks app-level TypeScript checking during migration and keeps
+    legacy type imports compile-safe while runtime/document boundaries are
+    being hardened
+  - `editorRuntimeHelpers` bezier offset narrowing was hardened to avoid
+    object-property access on untyped points, and
+    `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
+    is now clean
+  - viewport interaction rerender hardening landed in editor shell:
+    `useEditorFrameShell` now memoizes dispatch/props callbacks, and
+    `EditorFrame` removed per-render logging while limiting debug render-count
+    churn so panning/zooming no longer forces unrelated menu/shell subtrees
+    to recalculate each frame
+  - `EditorFrame` now isolates high-frequency canvas stage updates from
+    low-frequency shell overlays through memoized stage composition
+    (`StageCanvasLayer` + memoized `CanvasViewport`), while side-panel restore
+    handlers are stabilized to avoid prop-churn-driven rerenders during pan
+  - gradient write-back chain advanced in adapters:
+    file-format scene serialization now writes
+    `fillGradient*` / `strokeGradient*` metadata keys from element styles, and
+    document adapter keeps gradient payloads on `fill`/`stroke` conversion
   - zoom preset policy has a first app-local module at
     `apps/vector-editor-web/src/editor/interaction/runtime/zoomPresets.ts`
   - migration-safe passthrough wrappers are in place for

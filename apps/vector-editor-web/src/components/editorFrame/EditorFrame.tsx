@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {memo, useEffect, useMemo, useRef, useState} from 'react'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
@@ -28,6 +28,75 @@ import {useEditorFrameShell} from './useEditorFrameShell.ts'
 
 const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
+const MemoToolbelt = memo(Toolbelt)
+
+const MemoCanvasViewport = memo(CanvasViewport)
+
+interface StageCanvasLayerProps {
+  canvas: ReturnType<typeof useEditorRuntime>['runtimeState']['canvas']
+  contextRootRef: ReturnType<typeof useEditorRuntime>['refs']['contextRootRef']
+  focused: boolean
+  executeAction: ReturnType<typeof useEditorRuntime>['commands']['executeAction']
+  stageHostRef: React.RefObject<HTMLDivElement | null>
+  onContextMenu: (event: React.MouseEvent<HTMLDivElement>) => void
+  currentTool: ReturnType<typeof useEditorRuntime>['runtimeState']['currentTool']
+  onSelectTool: ReturnType<typeof useEditorFrameShell>['onSelectTool']
+}
+
+const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerProps) {
+  return (
+    <Col fw fh stretch ref={props.contextRootRef} data-focused={props.focused} autoFocus={true}
+      tabIndex={0}
+      className={'outline-0 bg-white dark:bg-slate-900'}>
+      <FileReceiver executeAction={props.executeAction} resolveDropPosition={(clientX, clientY) => {
+        const rect = props.stageHostRef.current?.getBoundingClientRect()
+        if (!rect) {
+          return {x: clientX, y: clientY}
+        }
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top,
+        }
+      }}>
+        <Col
+          fw
+          fh
+          ovh
+          rela
+          flex={1}
+        >
+          <div
+            ref={props.stageHostRef}
+            className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
+            onContextMenu={props.onContextMenu}
+          >
+            <MemoCanvasViewport
+              document={props.canvas.document}
+              renderer={props.canvas.Renderer}
+              overlayRenderer={props.canvas.OverlayRenderer}
+              shapes={props.canvas.shapes}
+              stats={props.canvas.stats}
+              viewport={props.canvas.viewport}
+              onPointerMove={props.canvas.onPointerMove}
+              onPointerDown={props.canvas.onPointerDown}
+              onPointerUp={props.canvas.onPointerUp}
+              onPointerLeave={props.canvas.onPointerLeave}
+              onViewportChange={props.canvas.onViewportChange}
+              onViewportPan={props.canvas.onViewportPan}
+              onViewportResize={props.canvas.onViewportResize}
+              onViewportZoom={props.canvas.onViewportZoom}
+            />
+
+            <MemoToolbelt
+              currentTool={props.currentTool}
+              onSelectTool={props.onSelectTool}
+            />
+          </div>
+        </Col>
+      </FileReceiver>
+    </Col>
+  )
+})
 
 const EditorFrame = () => {
   const {resolvedMode, mode, setMode} = useTheme()
@@ -55,7 +124,9 @@ const EditorFrame = () => {
   const [variantBSections, setVariantBSections] = useState(initialLayoutState.variantBSections)
   const isDebugTabActive = variantBSections.activeTab === 'debug'
   const renderCountRef = useRef(0)
-  renderCountRef.current += 1
+  if (isDebugTabActive) {
+    renderCountRef.current += 1
+  }
   const [fps, setFps] = useState(0)
   const [debugRuntimeStats, setDebugRuntimeStats] = useState({
     sceneUpdates: 0,
@@ -172,21 +243,57 @@ const EditorFrame = () => {
     variantBSections,
   ])
 
-  const resolveViewportPoint = (clientX: number, clientY: number) => {
-    const rect = stageHostRef.current?.getBoundingClientRect()
-    if (!rect) {
-      return {x: clientX, y: clientY}
-    }
-
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    }
-  }
-
   const resolveWorldPoint = (viewportPoint: {x: number; y: number}) => {
     return applyMatrixToPoint(canvas.viewport.inverseMatrix, viewportPoint)
   }
+
+  const onRestoreLeftPanel = useMemo(() => () => {
+    setLeftPanelMinimized((current) => !current)
+  }, [])
+
+  const onRestoreRightPanel = useMemo(() => () => {
+    setRightPanelMinimized((current) => !current)
+  }, [])
+
+  const handleStageContextMenu = useMemo(() => (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setShowContextMenu(true)
+    const viewportRect = stageHostRef.current?.getBoundingClientRect()
+    const viewportPoint = viewportRect
+      ? {x: event.clientX - viewportRect.left, y: event.clientY - viewportRect.top}
+      : {x: event.clientX, y: event.clientY}
+    const worldPoint = resolveWorldPoint(viewportPoint)
+    setContextMenuPosition(viewportPoint)
+    setContextMenuPastePosition(worldPoint)
+    canvas.onContextMenu({
+      x: viewportPoint.x,
+      y: viewportPoint.y,
+    })
+  }, [canvas, resolveWorldPoint])
+
+  const shellDebugStats = useMemo(() => ({
+    editorRenderCount: isDebugTabActive ? renderCountRef.current : 0,
+    sceneUpdateCount: debugRuntimeStats.sceneUpdates,
+    fps,
+    sceneVersion: canvas.stats.version,
+    shapeCount: canvas.stats.shapeCount,
+    selectedCount: selectedIds.length,
+    viewportScale,
+    cacheHitEstimate: debugRuntimeStats.sceneStableFrames,
+    cacheMissEstimate: Math.max(0, debugRuntimeStats.sceneUpdates - debugRuntimeStats.sceneStableFrames),
+    cacheHitRate: debugRuntimeStats.sceneUpdates > 0
+      ? (debugRuntimeStats.sceneStableFrames / debugRuntimeStats.sceneUpdates) * 100
+      : 0,
+  }), [
+    canvas.stats.shapeCount,
+    canvas.stats.version,
+    debugRuntimeStats.sceneStableFrames,
+    debugRuntimeStats.sceneUpdates,
+    fps,
+    isDebugTabActive,
+    selectedIds.length,
+    viewportScale,
+  ])
 
   const shell = useEditorFrameShell({
     mode,
@@ -205,20 +312,7 @@ const EditorFrame = () => {
     layerItems,
     selectedProps,
     viewportScale,
-    debugStats: {
-      editorRenderCount: renderCountRef.current,
-      sceneUpdateCount: debugRuntimeStats.sceneUpdates,
-      fps,
-      sceneVersion: canvas.stats.version,
-      shapeCount: canvas.stats.shapeCount,
-      selectedCount: selectedIds.length,
-      viewportScale,
-      cacheHitEstimate: debugRuntimeStats.sceneStableFrames,
-      cacheMissEstimate: Math.max(0, debugRuntimeStats.sceneUpdates - debugRuntimeStats.sceneStableFrames),
-      cacheHitRate: debugRuntimeStats.sceneUpdates > 0
-        ? (debugRuntimeStats.sceneStableFrames / debugRuntimeStats.sceneUpdates) * 100
-        : 0,
-    },
+    debugStats: shellDebugStats,
     inspectorContext,
     executeAction,
     pickHistory,
@@ -230,90 +324,45 @@ const EditorFrame = () => {
     setVariantBSections,
     setShowTemplatePresetPicker,
   })
-console.log('render EditorFrame');
+
   return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
-           <Col fw fh stretch ref={contextRootRef} data-focused={focused} autoFocus={true}
-             tabIndex={0}
-             className={'outline-0 bg-white dark:bg-slate-900'}>
-          <FileReceiver executeAction={executeAction}
-                        resolveDropPosition={resolveViewportPoint}>
-            <Col
-              fw
-              fh
-              ovh
-              rela
-              flex={1}
-            >
-              <div
-                ref={stageHostRef}
-                className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
-                onContextMenu={(event) => {
-                  event.preventDefault()
-                  setShowContextMenu(true)
-                  const viewportPoint = resolveViewportPoint(event.clientX, event.clientY)
-                  const worldPoint = resolveWorldPoint(viewportPoint)
-                  setContextMenuPosition(viewportPoint)
-                  setContextMenuPastePosition(worldPoint)
-                  canvas.onContextMenu({
-                    x: viewportPoint.x,
-                    y: viewportPoint.y,
-                  })
-                }}
-              >
-                <CanvasViewport
-                  document={canvas.document}
-                  renderer={canvas.Renderer}
-                  overlayRenderer={canvas.OverlayRenderer}
-                  shapes={canvas.shapes}
-                  stats={canvas.stats}
-                  viewport={canvas.viewport}
-                  onPointerMove={canvas.onPointerMove}
-                  onPointerDown={canvas.onPointerDown}
-                  onPointerUp={canvas.onPointerUp}
-                  onPointerLeave={canvas.onPointerLeave}
-                  onViewportChange={canvas.onViewportChange}
-                  onViewportPan={canvas.onViewportPan}
-                  onViewportResize={canvas.onViewportResize}
-                  onViewportZoom={canvas.onViewportZoom}
-                />
+        <div className={'relative flex h-full w-full'}>
+          <StageCanvasLayer
+            canvas={canvas}
+            contextRootRef={contextRootRef}
+            focused={focused}
+            executeAction={executeAction}
+            stageHostRef={stageHostRef}
+            onContextMenu={handleStageContextMenu}
+            currentTool={currentTool}
+            onSelectTool={shell.onSelectTool}
+          />
 
-                <Toolbelt
-                  currentTool={currentTool}
-                  onSelectTool={shell.onSelectTool}
-                />
+          <EditorFrameSidePanels
+            fileName={file?.name}
+            leftPanelMinimized={leftPanelMinimized}
+            rightPanelMinimized={rightPanelMinimized}
+            showGrid={variantBSections.showGrid}
+            viewportScale={viewportScale}
+            onRestoreLeftPanel={onRestoreLeftPanel}
+            onRestoreRightPanel={onRestoreRightPanel}
+            leftSidebarProps={shell.leftSidebarProps}
+            rightSidebarProps={shell.rightSidebarProps}
+          />
 
-                <EditorFrameSidePanels
-                  fileName={file?.name}
-                  leftPanelMinimized={leftPanelMinimized}
-                  rightPanelMinimized={rightPanelMinimized}
-                  showGrid={variantBSections.showGrid}
-                  viewportScale={viewportScale}
-                  onRestoreLeftPanel={() => {
-                    setLeftPanelMinimized((current) => !current)
-                  }}
-                  onRestoreRightPanel={() => {
-                    setRightPanelMinimized((current) => !current)
-                  }}
-                  leftSidebarProps={shell.leftSidebarProps}
-                  rightSidebarProps={shell.rightSidebarProps}
-                />
-              </div>
-
-              {showContextMenu &&
-                <ContextMenu position={contextMenuPosition}
-                             pastePosition={contextMenuPastePosition}
-                             executeAction={executeAction}
-                             selectedIds={selectedIds}
-                             copiedItems={copiedItems}
-                             historyStatus={historyStatus}
-                             onClose={() => {
-                               setShowContextMenu(false)
-                             }}/>}
-            </Col>
-          </FileReceiver>
-        </Col>
+          {showContextMenu &&
+            <ContextMenu position={contextMenuPosition}
+                         pastePosition={contextMenuPastePosition}
+                         executeAction={executeAction}
+                         selectedIds={selectedIds}
+                         copiedItems={copiedItems}
+                         historyStatus={historyStatus}
+                         onClose={() => {
+                           setShowContextMenu(false)
+                         }}/>} 
+        </div>
       </>}
     </div>
 

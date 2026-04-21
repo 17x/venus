@@ -1,6 +1,6 @@
 import {useCallback} from 'react'
 import {type ToolName} from '@venus/document-core'
-import {resolveRuntimeZoomPresetScale} from '../interaction/runtime/index.ts'
+import {resolveRuntimeZoomPresetScale} from '../../runtime/interaction/index.ts'
 import readFileHelper from '../../contexts/fileContext/readFileHelper.ts'
 import {isDragCreateTool, mapToolNameToToolId} from './editorRuntimeHelpers.ts'
 import {resolveEditingModeForTool} from './runtime/tooling.ts'

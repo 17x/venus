@@ -1,7 +1,10 @@
 import {useMemo} from 'react'
 import {
   DEFAULT_CANVAS_PRESENTATION_CONFIG,
+  isPathOverlayHitRegion,
   type CanvasPresentationConfig,
+  type RuntimeOverlayInstruction,
+  type RuntimePreviewInstruction,
 } from '@vector/runtime'
 import {
   resolveNodeTransform,
@@ -38,6 +41,8 @@ export interface InteractionOverlayProps {
   pathSubSelectionHover?: PathSubSelection | null
   draftPrimitive?: DraftPrimitive | null
   penDraftPoints?: Array<{x: number; y: number}> | null
+  overlayInstructions?: RuntimeOverlayInstruction[]
+  previewInstructions?: RuntimePreviewInstruction[]
   presentation?: CanvasPresentationConfig
 }
 
@@ -53,6 +58,8 @@ export function InteractionOverlay({
   pathSubSelectionHover = null,
   draftPrimitive = null,
   penDraftPoints = null,
+  overlayInstructions = [],
+  previewInstructions = [],
   presentation = DEFAULT_CANVAS_PRESENTATION_CONFIG,
 }: InteractionOverlayProps) {
   const handleSize = presentation.overlay.handleSize
@@ -250,6 +257,93 @@ export function InteractionOverlay({
     }
     return {from, to}
   }, [activePathAnchors, activePathSubSelection])
+  const hasRuntimeInstructionOverlay = overlayInstructions.length > 0 || previewInstructions.length > 0
+
+  const runtimeInstructions = useMemo(
+    () => [...overlayInstructions, ...previewInstructions],
+    [overlayInstructions, previewInstructions],
+  )
+  const hasRuntimePathChrome = useMemo(
+    () => runtimeInstructions.some((instruction) => isPathOverlayHitRegion(instruction.hitRegion)),
+    [runtimeInstructions],
+  )
+
+  const renderInstruction = (instruction: RuntimeOverlayInstruction | RuntimePreviewInstruction) => {
+    const points = instruction.points ?? []
+    const strokeDasharray = instruction.style?.strokeDash?.join(' ')
+    const stroke = instruction.style?.strokeColor ?? presentation.overlay.selectionStroke
+    const strokeWidth = instruction.style?.strokeWidth ?? presentation.overlay.selectionStrokeWidth
+    const fill = instruction.style?.fillColor ?? 'none'
+
+    if (instruction.primitive === 'line' && points.length >= 2) {
+      return (
+        <line
+          role="presentation"
+          key={instruction.id}
+          x1={points[0].x}
+          y1={points[0].y}
+          x2={points[1].x}
+          y2={points[1].y}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    if (instruction.primitive === 'polygon' && points.length >= 3) {
+      return (
+        <polygon
+          role="presentation"
+          key={instruction.id}
+          points={toSvgPoints(points)}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    if (instruction.primitive === 'polyline' && points.length >= 2) {
+      return (
+        <polyline
+          role="presentation"
+          key={instruction.id}
+          points={toSvgPoints(points)}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    if (instruction.primitive === 'handle' && points.length >= 1) {
+      return (
+        <circle
+          role="presentation"
+          key={instruction.id}
+          cx={points[0].x}
+          cy={points[0].y}
+          r={3}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          vectorEffect={instruction.style?.nonScalingStroke ? 'non-scaling-stroke' : undefined}
+          opacity={instruction.style?.fillOpacity}
+        />
+      )
+    }
+
+    return null
+  }
 
   return (
     <div
@@ -294,16 +388,18 @@ export function InteractionOverlay({
             />
           )}
 
-          <InteractionOverlayPathChrome
-            activePathShapeId={activePathShape?.id}
-            activePathAnchors={activePathAnchors}
-            activePathHandleLinks={activePathHandleLinks}
-            activePathSubSelection={activePathSubSelection}
-            highlightedSegment={highlightedSegment}
-            presentation={presentation}
-          />
+          {!hasRuntimePathChrome && (
+            <InteractionOverlayPathChrome
+              activePathShapeId={activePathShape?.id}
+              activePathAnchors={activePathAnchors}
+              activePathHandleLinks={activePathHandleLinks}
+              activePathSubSelection={activePathSubSelection}
+              highlightedSegment={highlightedSegment}
+              presentation={presentation}
+            />
+          )}
 
-          {selectedPolygon && (
+          {!hasRuntimeInstructionOverlay && selectedPolygon && (
             <polygon
               role="presentation"
               points={toSvgPoints(selectedPolygon)}
@@ -315,6 +411,8 @@ export function InteractionOverlay({
               vectorEffect="non-scaling-stroke"
             />
           )}
+
+          {hasRuntimeInstructionOverlay && runtimeInstructions.map((instruction) => renderInstruction(instruction))}
         </g>
 
         {hoveredCenterScreen && (
@@ -347,7 +445,7 @@ export function InteractionOverlay({
           />
         ))}
 
-        {marqueePolygon && (
+        {!hasRuntimeInstructionOverlay && marqueePolygon && (
           <polygon
             role="presentation"
             points={toSvgPoints(marqueePolygon)}
@@ -358,7 +456,7 @@ export function InteractionOverlay({
             strokeDasharray={presentation.marquee.strokeDasharray}
           />
         )}
-        {snapLines.map((line) => (
+        {!hasRuntimeInstructionOverlay && snapLines.map((line) => (
           <line
             role="presentation"
             key={line.id}

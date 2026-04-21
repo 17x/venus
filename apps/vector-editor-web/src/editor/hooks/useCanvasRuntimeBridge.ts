@@ -10,7 +10,7 @@ import {
 } from '@vector/runtime'
 import {
   type DefaultCanvasInteractions,
-} from '../interaction/runtime/index.ts'
+} from '../../runtime/interaction/index.ts'
 
 export interface UseCanvasRuntimeBridgeOptions<TDocument extends EditorDocument>
   extends DefaultCanvasRuntimeOptions<TDocument> {
