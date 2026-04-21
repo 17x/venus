@@ -260,6 +260,15 @@ context starts, or work needs to resume after switching topics.
     independent subscriber component (`components/shell/RuntimeDebugPanel.tsx`)
     using `useSyncExternalStore` on runtime events, so debug metric refresh no
     longer participates in top-level frame orchestration rerenders
+  - velocity-aware LOD baseline landed across engine + vector canvas adapter:
+    `resolveEngineCanvasLodProfile` now incorporates interaction velocity and
+    emits render tuning hints (`targetDpr`, smoothing hint, cadence hint),
+    while vector `canvasAdapter` derives viewport motion velocity and applies
+    interaction-time dynamic DPR degradation with settle restore to `auto`
+  - WebGL renderer now has an interaction-first fallback path:
+    when runtime sets `quality=interactive`, the renderer bypasses
+    model-complete Canvas2D composite and skips rich text texture generation,
+    using packet-path solid text-bounds fallback to keep pan/zoom responsive
   - viewport scale consumers are now detached from `EditorFrame` prop threading:
     runtime viewport snapshot pub/sub was added in `runtime/events`, with
     `RuntimeZoomControls` and `RuntimeGridOverlay` independently subscribing via

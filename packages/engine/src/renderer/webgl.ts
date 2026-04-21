@@ -88,8 +88,11 @@ export function createWebGLEngineRenderer(
     },
     render: async (frame: EngineRenderFrame) => {
       const startAt = performance.now()
+      const interactiveQuality = frame.context.quality === 'interactive'
 
-      if (modelCompleteComposite) {
+      // Keep full-fidelity composite for settled frames, but fall back to the
+      // packet pipeline during interaction so pan/zoom can keep frame pace.
+      if (modelCompleteComposite && !interactiveQuality) {
         const modelStats = await modelRenderer.render(frame)
         const compositeFrame: EngineRenderFrame = {
           ...frame,
@@ -193,7 +196,7 @@ export function createWebGLEngineRenderer(
       // If there are text packets that require run-level fidelity, use the
       // canvas2d model renderer as a fallback compositor to produce accurate
       // text run output which we then upload to textures per-node.
-      const needsModelTextComposite = packetPlan.packets.some((p) => {
+      const needsModelTextComposite = !interactiveQuality && packetPlan.packets.some((p) => {
         if (p.kind !== 'text') return false
         const prepared = plan.preparedNodes[p.preparedIndex]
         return !!(prepared && prepared.node && prepared.node.type === 'text' && (prepared.node.runs && prepared.node.runs.length > 0))
@@ -238,6 +241,21 @@ export function createWebGLEngineRenderer(
         }
 
         if (packet.kind === 'text') {
+          if (interactiveQuality) {
+            // Interactive mode prioritizes motion stability over text fidelity.
+            // Draw a solid fallback quad and avoid per-node texture uploads.
+            drawCount += drawWebGLPacket(
+              context,
+              pipeline,
+              frame,
+              prepared.worldBounds,
+              resolveNodeColor(node),
+              packet.opacity,
+              null,
+            )
+            continue
+          }
+
           // Try cached text texture first
           const cached = textCache.get(packet.nodeId)
           if (cached) {

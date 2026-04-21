@@ -35,6 +35,7 @@ export interface CanvasRendererProps {
   viewport: CanvasViewportState
   renderQuality?: 'full' | 'interactive'
   lodLevel?: 0 | 1 | 2 | 3
+  targetDpr?: number | 'auto'
 }
 
 export interface CanvasOverlayProps {
@@ -80,17 +81,32 @@ export function CanvasViewport({
   onViewportResize,
   onViewportZoom,
 }: CanvasViewportProps) {
+  const VIEWPORT_VELOCITY_SETTLE_MS = 110
+  const VIEWPORT_ZOOM_VELOCITY_WEIGHT = 520
   const imageCount = React.useMemo(
     () => document.shapes.reduce((count, shape) => count + (shape.type === 'image' ? 1 : 0), 0),
     [document.shapes],
   )
+  const [viewportVelocity, setViewportVelocity] = React.useState(0)
+  const previousLodLevelRef = React.useRef<0 | 1 | 2 | 3>(0)
+  const velocitySettleHandleRef = React.useRef<number | null>(null)
+  const viewportMotionRef = React.useRef({
+    offsetX: viewport.offsetX,
+    offsetY: viewport.offsetY,
+    scale: viewport.scale,
+    at: performance.now(),
+  })
+
   const lodProfile = React.useMemo(
     () => resolveCanvasLodProfile({
       shapeCount: stats.shapeCount,
       imageCount,
       scale: viewport.scale,
+      isInteracting: viewportVelocity > 1,
+      interactionVelocity: viewportVelocity,
+      previousLodLevel: previousLodLevelRef.current,
     }),
-    [imageCount, stats.shapeCount, viewport.scale],
+    [imageCount, stats.shapeCount, viewport.scale, viewportVelocity],
   )
 
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
@@ -111,6 +127,55 @@ export function CanvasViewport({
   onPointerDownRef.current = onPointerDown
   onPointerUpRef.current = onPointerUp
   onPointerLeaveRef.current = onPointerLeave
+
+  React.useEffect(() => {
+    const now = performance.now()
+    const previous = viewportMotionRef.current
+    const elapsedMs = Math.max(1, now - previous.at)
+    const deltaX = viewport.offsetX - previous.offsetX
+    const deltaY = viewport.offsetY - previous.offsetY
+    const panDistance = Math.hypot(deltaX, deltaY)
+    const zoomDelta = Math.abs(Math.log2(Math.max(0.0001, viewport.scale / previous.scale)))
+    const zoomDistance = zoomDelta * VIEWPORT_ZOOM_VELOCITY_WEIGHT
+    const nextVelocity = ((panDistance + zoomDistance) / elapsedMs) * 1000
+
+    setViewportVelocity((current) =>
+      Math.abs(current - nextVelocity) < 24
+        ? current
+        : nextVelocity,
+    )
+
+    viewportMotionRef.current = {
+      offsetX: viewport.offsetX,
+      offsetY: viewport.offsetY,
+      scale: viewport.scale,
+      at: now,
+    }
+
+    if (velocitySettleHandleRef.current !== null) {
+      window.clearTimeout(velocitySettleHandleRef.current)
+    }
+
+    velocitySettleHandleRef.current = window.setTimeout(() => {
+      velocitySettleHandleRef.current = null
+      setViewportVelocity(0)
+    }, VIEWPORT_VELOCITY_SETTLE_MS)
+
+    return () => {
+      if (velocitySettleHandleRef.current !== null) {
+        window.clearTimeout(velocitySettleHandleRef.current)
+        velocitySettleHandleRef.current = null
+      }
+    }
+  }, [
+    VIEWPORT_VELOCITY_SETTLE_MS,
+    VIEWPORT_ZOOM_VELOCITY_WEIGHT,
+    viewport.offsetX,
+    viewport.offsetY,
+    viewport.scale,
+  ])
+
+  previousLodLevelRef.current = lodProfile.lodLevel
 
   React.useEffect(() => {
     if (!viewportRef.current || !onViewportResize || typeof ResizeObserver === 'undefined') {
@@ -186,6 +251,7 @@ export function CanvasViewport({
             viewport={viewport}
             renderQuality={lodProfile.renderQuality}
             lodLevel={lodProfile.lodLevel}
+            targetDpr={lodProfile.targetDpr}
           />
         )}
         {OverlayRenderer && (
@@ -208,6 +274,7 @@ export function Canvas2DRenderer({
   viewport,
   renderQuality = 'full',
   lodLevel = 0,
+  targetDpr = 'auto',
   backend = 'webgl',
 }: CanvasRendererProps & {backend?: 'canvas2d' | 'webgl'}) {
   const INTERACTION_SETTLE_MS = 120
@@ -235,6 +302,7 @@ export function Canvas2DRenderer({
   const assetUrlByIdRef = React.useRef<Map<string, string>>(new Map())
   const imageCacheRef = React.useRef<Map<string, HTMLImageElement>>(new Map())
   const appliedQualityRef = React.useRef<'full' | 'interactive' | null>(null)
+  const appliedDprRef = React.useRef<number | 'auto' | null>(null)
   const appliedRenderSizeRef = React.useRef<{width: number; height: number} | null>(null)
   const [isInteracting, setIsInteracting] = React.useState(false)
   const isInteractingRef = React.useRef(isInteracting)
@@ -535,6 +603,7 @@ export function Canvas2DRenderer({
       renderSchedulerRef.current?.dispose()
       renderSchedulerRef.current = null
       appliedQualityRef.current = null
+      appliedDprRef.current = null
       appliedRenderSizeRef.current = null
       engineRef.current = null
       engine.dispose()
@@ -624,7 +693,13 @@ export function Canvas2DRenderer({
       return
     }
 
-    // Avoid mutating DPR/quality every frame; `setDpr` triggers renderer resize.
+    const nextDpr = isInteracting ? targetDpr : 'auto'
+    if (appliedDprRef.current !== nextDpr) {
+      engine.setDpr(nextDpr, {maxDpr: 2})
+      appliedDprRef.current = nextDpr
+    }
+
+    // Avoid mutating render quality every frame.
     const nextQuality: 'full' | 'interactive' =
       isInteracting || renderQuality === 'interactive' || lodLevel >= 2
         ? 'interactive'
@@ -734,6 +809,7 @@ export function Canvas2DRenderer({
     isInteracting,
     replayScenePayload,
     shouldUseWorkerReplay,
+    targetDpr,
     viewport,
     requestEngineRender,
   ])
