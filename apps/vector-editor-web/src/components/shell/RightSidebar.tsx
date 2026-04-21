@@ -1,4 +1,5 @@
-import {Button, Card, CardContent, Separator, Tabs, TabsList, TabsTrigger, Tooltip} from '@vector/ui'
+import {memo} from 'react'
+import {Button, Tabs, TabsList, TabsTrigger, Tooltip} from '@vector/ui'
 import type {EditorExecutor, SelectedElementProps} from '../../editor/hooks/useEditorRuntime.types.ts'
 import type {InspectorContext} from '../../editor/shell/state/inspectorState.ts'
 import type {ShellCommandMeta} from '../../editor/shell/commands/shellCommandRegistry.ts'
@@ -7,15 +8,14 @@ import PropPanel from '../propPanel/PropPanel.tsx'
 import {useTranslation} from 'react-i18next'
 import {LuPanelRightClose} from 'react-icons/lu'
 import {TEST_IDS} from '../../testing/testIds.ts'
+import {RuntimeZoomControls} from './RuntimeZoomControls.tsx'
+import {RuntimeSidebarMeta} from './RuntimeSidebarMeta.tsx'
 
 export interface RightSidebarProps {
   rightPanelMinimized: boolean
   panelWidth: number
   context: InspectorContext
   selectedProps: SelectedElementProps | null
-  zoomPercent: number
-  selectedCount: number
-  layerCount: number
   executeAction: EditorExecutor
   onMinimize: VoidFunction
   onSetZoom: (zoomPercent: number) => void
@@ -23,15 +23,32 @@ export interface RightSidebarProps {
   onPatchElementProps: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }
 
-export default function RightSidebar(props: RightSidebarProps) {
-  const {t} = useTranslation()
-  const canZoomOut = props.zoomPercent > 10
-  const canZoomIn = props.zoomPercent < 800
+const InspectorPanelBody = memo(function InspectorPanelBody(props: {
+  context: InspectorContext
+  selectedProps: SelectedElementProps | null
+  executeAction: EditorExecutor
+  onPatchElementProps: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+}) {
+  return (
+    <div
+      className={'scrollbar-custom flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto'}
+      role={'tabpanel'}
+      id={props.context === 'page' ? 'variant-b-inspector-page' : 'variant-b-inspector-selection'}
+      data-testid={TEST_IDS.sidebarRight.inspectorViewport}
+    >
+      {props.context === 'page'
+        ? <PageInspectorSection/>
+        : <PropPanel
+            props={props.selectedProps ?? undefined}
+            executeAction={props.executeAction}
+            onPatchElementProps={props.onPatchElementProps}
+          />}
+    </div>
+  )
+})
 
-  function adjustZoom(nextZoomPercent: number) {
-    // Clamp zoom so shell controls stay aligned with runtime zoom bounds.
-    props.onSetZoom(Math.max(10, Math.min(800, nextZoomPercent)))
-  }
+function RightSidebarComponent(props: RightSidebarProps) {
+  const {t} = useTranslation()
 
   if (props.rightPanelMinimized) {
     return (
@@ -71,26 +88,10 @@ export default function RightSidebar(props: RightSidebarProps) {
         <Tabs value={'design'} className={'min-w-0'}>
           <TabsList variant={'line'} className={'h-auto gap-2 rounded-none bg-transparent p-0'} />
         </Tabs>
-        <div className={'flex items-center gap-1'}>
-          <Button type={'button'} variant={'ghost'} size={'sm'} title={t('ui.shell.variantB.zoomOut', {defaultValue: 'Zoom out'})} className={'h-7 px-2 text-xs'} disabled={!canZoomOut} onClick={() => {
-            adjustZoom(props.zoomPercent - 10)
-          }}>-</Button>
-          <Button type={'button'} variant={'ghost'} size={'sm'} title={t('ui.shell.variantB.zoomReset', {defaultValue: 'Reset zoom to 100%'})} className={'h-7 px-2 text-xs'} onClick={() => {
-            adjustZoom(100)
-          }}>{`${props.zoomPercent}%`}</Button>
-          <Button type={'button'} variant={'ghost'} size={'sm'} title={t('ui.shell.variantB.zoomIn', {defaultValue: 'Zoom in'})} className={'h-7 px-2 text-xs'} disabled={!canZoomIn} onClick={() => {
-            adjustZoom(props.zoomPercent + 10)
-          }}>+</Button>
-        </div>
+        <RuntimeZoomControls onSetZoom={props.onSetZoom}/>
       </div>
 
-      <Card className={'mx-2 mt-2 bg-slate-50/40 shadow-none'}>
-        <CardContent className={'flex items-center justify-between px-2 py-1.5 text-[10px] text-slate-500'}>
-          <span>{t('shell.variantB.meta.layers', {count: props.layerCount, defaultValue: `Layers: ${props.layerCount}`})}</span>
-          <Separator orientation={'vertical'} className={'mx-2 h-3 bg-slate-200'}/>
-          <span>{t('shell.variantB.meta.selection', {count: props.selectedCount, defaultValue: `Selection: ${props.selectedCount}`})}</span>
-        </CardContent>
-      </Card>
+      <RuntimeSidebarMeta/>
 
       <Tabs
         value={props.context}
@@ -125,20 +126,16 @@ export default function RightSidebar(props: RightSidebarProps) {
         </TabsList>
       </Tabs>
 
-      <div
-        className={'scrollbar-custom flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto'}
-        role={'tabpanel'}
-        id={props.context === 'page' ? 'variant-b-inspector-page' : 'variant-b-inspector-selection'}
-        data-testid={TEST_IDS.sidebarRight.inspectorViewport}
-      >
-        {props.context === 'page'
-          ? <PageInspectorSection/>
-          : <PropPanel
-              props={props.selectedProps ?? undefined}
-              executeAction={props.executeAction}
-              onPatchElementProps={props.onPatchElementProps}
-            />}
-      </div>
+      <InspectorPanelBody
+        context={props.context}
+        selectedProps={props.selectedProps}
+        executeAction={props.executeAction}
+        onPatchElementProps={props.onPatchElementProps}
+      />
     </aside>
   )
 }
+
+const RightSidebar = memo(RightSidebarComponent)
+
+export default RightSidebar

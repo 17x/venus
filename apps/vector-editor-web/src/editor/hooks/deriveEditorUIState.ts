@@ -5,6 +5,8 @@ import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {LayerItem} from './useEditorRuntime.types.ts'
 
+const layerItemsCache = new WeakMap<DocumentNode[], LayerItem[]>()
+
 /**
  * Centralizes UI-facing derived data so panels and menus don't each invent
  * their own projection of runtime state.
@@ -33,7 +35,7 @@ export function deriveEditorUIState(options: {
       hasPrev: canvasRuntime.history.canUndo,
       hasNext: canvasRuntime.history.canRedo,
     },
-    layerItems: buildLayerItems(canvasRuntime.document.shapes),
+    layerItems: buildLayerItemsCached(canvasRuntime.document.shapes),
     selectedIds,
     selectedProps: buildSelectedProps(selectedNode),
     // Runtime hook overrides this with the live snapping toggle state.
@@ -99,4 +101,15 @@ function buildLayerItems(nodes: DocumentNode[]): LayerItem[] {
   nodes.forEach((node) => visit(node, 0))
 
   return flattened
+}
+
+function buildLayerItemsCached(nodes: DocumentNode[]): LayerItem[] {
+  const cached = layerItemsCache.get(nodes)
+  if (cached) {
+    return cached
+  }
+
+  const next = buildLayerItems(nodes)
+  layerItemsCache.set(nodes, next)
+  return next
 }

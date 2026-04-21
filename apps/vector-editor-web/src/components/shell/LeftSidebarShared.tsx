@@ -14,19 +14,6 @@ interface AssetLibraryCard {
   description: string
 }
 
-export interface DebugStats {
-  editorRenderCount: number
-  sceneUpdateCount: number
-  fps: number
-  sceneVersion: number
-  shapeCount: number
-  selectedCount: number
-  viewportScale: number
-  cacheHitEstimate: number
-  cacheMissEstimate: number
-  cacheHitRate: number
-}
-
 export interface LeftSidebarProps {
   fileName?: string
   leftPanelMinimized: boolean
@@ -38,7 +25,6 @@ export interface LeftSidebarProps {
   layersCollapsed: boolean
   showGrid: boolean
   snappingEnabled: boolean
-  debugStats: DebugStats
   onMinimize: VoidFunction
   onSetActiveTab: (tab: LeftSidebarTab) => void
   onToggleLayers: VoidFunction

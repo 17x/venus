@@ -94,7 +94,6 @@ export const LayerPanel = ({
         const idx = elements.findIndex(x => x.id === closestOne)
 
         scrollRef.current?.scrollTo(0, idx * ITEM_HEIGHT)
-        console.log(idx * ITEM_HEIGHT)
       }*/
   }, [layerItems, selectedIds])
 

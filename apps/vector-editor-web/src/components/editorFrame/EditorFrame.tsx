@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef, useState} from 'react'
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
@@ -98,11 +98,10 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
   )
 })
 
-const EditorFrame = () => {
-  const {resolvedMode, mode, setMode} = useTheme()
-  const initialLayoutState = deserializeShellLayoutState(
+function EditorFrameRuntime() {
+  const initialLayoutState = useMemo(() => deserializeShellLayoutState(
     typeof window === 'undefined' ? null : serializeShellLayoutState(readStoredShellLayoutState(window.localStorage)),
-  )
+  ), [])
   const [showTemplatePresetPicker, setShowTemplatePresetPicker] = useState(false)
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0})
@@ -122,17 +121,6 @@ const EditorFrame = () => {
   )
   const [inspectorContext, setInspectorContext] = useState<InspectorContext>(initialLayoutState.activeInspectorContext)
   const [variantBSections, setVariantBSections] = useState(initialLayoutState.variantBSections)
-  const isDebugTabActive = variantBSections.activeTab === 'debug'
-  const renderCountRef = useRef(0)
-  if (isDebugTabActive) {
-    renderCountRef.current += 1
-  }
-  const [fps, setFps] = useState(0)
-  const [debugRuntimeStats, setDebugRuntimeStats] = useState({
-    sceneUpdates: 0,
-    sceneStableFrames: 0,
-    lastSceneVersion: -1,
-  })
   const stageHostRef = useRef<HTMLDivElement>(null)
   const runtime = useEditorRuntime()
 
@@ -155,7 +143,6 @@ const EditorFrame = () => {
     selectedProps,
     snappingEnabled,
     showPrint,
-    viewportScale,
   } = uiState
   const {
     setShowPrint,
@@ -172,47 +159,6 @@ const EditorFrame = () => {
       setInspectorContext('selection')
     }
   }, [selectedProps])
-
-  useEffect(() => {
-    if (!isDebugTabActive) {
-      return
-    }
-
-    setDebugRuntimeStats((current) => {
-      const stable = current.lastSceneVersion === canvas.stats.version
-      return {
-        sceneUpdates: current.sceneUpdates + 1,
-        sceneStableFrames: current.sceneStableFrames + (stable ? 1 : 0),
-        lastSceneVersion: canvas.stats.version,
-      }
-    })
-  }, [canvas.stats.version, isDebugTabActive])
-
-  useEffect(() => {
-    if (!isDebugTabActive) {
-      return
-    }
-
-    let frameCount = 0
-    let rafId = 0
-    let sampleStart = performance.now()
-
-    const tick = (time: number) => {
-      frameCount += 1
-      const elapsed = time - sampleStart
-      if (elapsed >= 500) {
-        setFps((frameCount * 1000) / elapsed)
-        frameCount = 0
-        sampleStart = time
-      }
-      rafId = window.requestAnimationFrame(tick)
-    }
-
-    rafId = window.requestAnimationFrame(tick)
-    return () => {
-      window.cancelAnimationFrame(rafId)
-    }
-  }, [isDebugTabActive])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -243,19 +189,19 @@ const EditorFrame = () => {
     variantBSections,
   ])
 
-  const resolveWorldPoint = (viewportPoint: {x: number; y: number}) => {
+  const resolveWorldPoint = useCallback((viewportPoint: {x: number; y: number}) => {
     return applyMatrixToPoint(canvas.viewport.inverseMatrix, viewportPoint)
-  }
+  }, [canvas.viewport.inverseMatrix])
 
-  const onRestoreLeftPanel = useMemo(() => () => {
-    setLeftPanelMinimized((current) => !current)
+  const onRestoreLeftPanel = useCallback(() => {
+    setLeftPanelMinimized((current: boolean) => !current)
   }, [])
 
-  const onRestoreRightPanel = useMemo(() => () => {
-    setRightPanelMinimized((current) => !current)
+  const onRestoreRightPanel = useCallback(() => {
+    setRightPanelMinimized((current: boolean) => !current)
   }, [])
 
-  const handleStageContextMenu = useMemo(() => (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleStageContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
     setShowContextMenu(true)
     const viewportRect = stageHostRef.current?.getBoundingClientRect()
@@ -271,33 +217,7 @@ const EditorFrame = () => {
     })
   }, [canvas, resolveWorldPoint])
 
-  const shellDebugStats = useMemo(() => ({
-    editorRenderCount: isDebugTabActive ? renderCountRef.current : 0,
-    sceneUpdateCount: debugRuntimeStats.sceneUpdates,
-    fps,
-    sceneVersion: canvas.stats.version,
-    shapeCount: canvas.stats.shapeCount,
-    selectedCount: selectedIds.length,
-    viewportScale,
-    cacheHitEstimate: debugRuntimeStats.sceneStableFrames,
-    cacheMissEstimate: Math.max(0, debugRuntimeStats.sceneUpdates - debugRuntimeStats.sceneStableFrames),
-    cacheHitRate: debugRuntimeStats.sceneUpdates > 0
-      ? (debugRuntimeStats.sceneStableFrames / debugRuntimeStats.sceneUpdates) * 100
-      : 0,
-  }), [
-    canvas.stats.shapeCount,
-    canvas.stats.version,
-    debugRuntimeStats.sceneStableFrames,
-    debugRuntimeStats.sceneUpdates,
-    fps,
-    isDebugTabActive,
-    selectedIds.length,
-    viewportScale,
-  ])
-
   const shell = useEditorFrameShell({
-    mode,
-    setMode,
     selectedIds,
     copiedCount: copiedItems.length,
     hasUnsavedChanges,
@@ -308,11 +228,8 @@ const EditorFrame = () => {
     activeTab: variantBSections.activeTab,
     layersCollapsed: variantBSections.layersCollapsed,
     fileAssetCount: file?.assets?.length ?? 0,
-    fileName: file?.name,
     layerItems,
     selectedProps,
-    viewportScale,
-    debugStats: shellDebugStats,
     inspectorContext,
     executeAction,
     pickHistory,
@@ -325,7 +242,7 @@ const EditorFrame = () => {
     setShowTemplatePresetPicker,
   })
 
-  return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
+  return <>
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
         <div className={'relative flex h-full w-full'}>
@@ -345,7 +262,6 @@ const EditorFrame = () => {
             leftPanelMinimized={leftPanelMinimized}
             rightPanelMinimized={rightPanelMinimized}
             showGrid={variantBSections.showGrid}
-            viewportScale={viewportScale}
             onRestoreLeftPanel={onRestoreLeftPanel}
             onRestoreRightPanel={onRestoreRightPanel}
             leftSidebarProps={shell.leftSidebarProps}
@@ -383,6 +299,14 @@ const EditorFrame = () => {
         }}
       />}
 
+  </>
+}
+
+const EditorFrame = () => {
+  const {resolvedMode} = useTheme()
+
+  return <div data-vector-ui-root={'true'} data-theme={resolvedMode} className={'flex h-full w-full flex-col select-none bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100'}>
+    <EditorFrameRuntime/>
   </div>
 }
 

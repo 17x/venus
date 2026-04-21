@@ -2,6 +2,7 @@ import {memo} from 'react'
 import LeftSidebar from '../shell/LeftSidebar.tsx'
 import type {LeftSidebarProps} from '../shell/LeftSidebarShared.tsx'
 import RightSidebar, {type RightSidebarProps} from '../shell/RightSidebar.tsx'
+import {RuntimeGridOverlay} from '../shell/RuntimeGridOverlay.tsx'
 
 const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
@@ -11,7 +12,6 @@ interface EditorFrameSidePanelsProps {
   leftPanelMinimized: boolean
   rightPanelMinimized: boolean
   showGrid: boolean
-  viewportScale: number
   onRestoreLeftPanel: VoidFunction
   onRestoreRightPanel: VoidFunction
   leftSidebarProps: Omit<LeftSidebarProps, 'fileName' | 'leftPanelMinimized' | 'panelWidth' | 'onMinimize'>
@@ -41,14 +41,7 @@ function EditorFrameSidePanelsComponent(props: EditorFrameSidePanelsProps) {
       </div>
     </div>
 
-    {props.showGrid &&
-      <div
-        className={'pointer-events-none absolute inset-0 z-10'}
-        style={{
-          backgroundImage: 'linear-gradient(to right, rgba(15, 23, 42, 0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(15, 23, 42, 0.08) 1px, transparent 1px)',
-          backgroundSize: `${Math.max(12, Math.round(24 * props.viewportScale))}px ${Math.max(12, Math.round(24 * props.viewportScale))}px`,
-        }}
-      />}
+    {props.showGrid && <RuntimeGridOverlay/>}
   </>
 }
 

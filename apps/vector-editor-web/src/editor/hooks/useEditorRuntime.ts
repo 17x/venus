@@ -50,6 +50,7 @@ import {
 } from './useEditorRuntimeMaskActions.ts'
 import {useEditorRuntimeCoreCallbacks} from './useEditorRuntimeCoreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './useEditorRuntimeCanvasInteractions.ts'
+import {publishRuntimeShellSnapshot, resetRuntimeEventSnapshots} from '../../runtime/events/index.ts'
 
 export type {
   EditorDocumentState,
@@ -317,6 +318,17 @@ const useEditorRuntime = (options?: {
     selectedNode,
     file,
   ), [file, selectedNode, uiState.selectedProps])
+
+  useEffect(() => {
+    resetRuntimeEventSnapshots()
+  }, [file?.id])
+
+  useEffect(() => {
+    publishRuntimeShellSnapshot({
+      selectedCount: selectedShapeIds.length,
+      layerCount: uiState.layerItems.length,
+    })
+  }, [selectedShapeIds.length, uiState.layerItems.length])
 
   const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
     interactionDocument.shapes,

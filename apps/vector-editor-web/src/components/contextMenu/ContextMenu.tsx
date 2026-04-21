@@ -84,11 +84,9 @@ export const ContextMenu: FC<ContextMenuProps> = ({
         ],
       },
     ]
-    // console.log(selectedIds)
     setMenuItems(ITEMS)
   }, [selectedIds, position, copiedItems])
 
-  // console.log(9)
   const handleContextAction = (item: MenuItemType) => {
     const {editorActionCode} = item
 

@@ -17,7 +17,6 @@ export const Print: FC<{
 
   const createPreview = () => {
     if (!editorRef || !editorRef.current || !printPreviewCanvas) {
-      // console.log(editorRef.current)
       return
     }
     // const {frame} = editorRef.current!.viewport

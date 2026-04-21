@@ -1,7 +1,7 @@
 import {Button, Tabs, TabsList, TabsTrigger, Tooltip, useTheme, cn} from '@vector/ui'
-import {useCallback, useMemo, useState} from 'react'
+import {memo, useCallback, useMemo, useState} from 'react'
 import {useTranslation} from 'react-i18next'
-import {LuBug, LuPanelLeftClose, LuPanelLeftOpen} from 'react-icons/lu'
+import {LuPanelLeftClose, LuPanelLeftOpen} from 'react-icons/lu'
 import type {LayerItem} from '../../editor/hooks/useEditorRuntime.types.ts'
 import {createHeaderMenuData} from '../header/menu/menuData.ts'
 import {HistoryPanel} from '../historyPanel/HistoryPanel.tsx'
@@ -9,9 +9,10 @@ import {TEST_IDS} from '../../testing/testIds.ts'
 import {LeftSidebarMenu} from './LeftSidebarMenu.tsx'
 import {LeftSidebarAssetsTab} from './LeftSidebarAssetsTab.tsx'
 import {LeftSidebarFileTab} from './LeftSidebarFileTab.tsx'
-import {createLeftSidebarTabItems, type LeftSidebarProps, type LeftSidebarTab, type TreeLayerItem, SIDEBAR_GLYPH_SIZE} from './LeftSidebarShared.tsx'
+import {createLeftSidebarTabItems, type LeftSidebarProps, type LeftSidebarTab, type TreeLayerItem} from './LeftSidebarShared.tsx'
+import {RuntimeDebugPanel} from './RuntimeDebugPanel.tsx'
 
-export default function LeftSidebar(props: LeftSidebarProps) {
+function LeftSidebarComponent(props: LeftSidebarProps) {
   const {t, i18n} = useTranslation()
   const {mode, setMode, colors} = useTheme()
   const [layerFilter, setLayerFilter] = useState('')
@@ -323,34 +324,13 @@ export default function LeftSidebar(props: LeftSidebarProps) {
               </div>
             </section>}
 
-          {props.activeTab === 'debug' &&
-            <section id={'variant-b-tabpanel-debug'} role={'tabpanel'} className={'scrollbar-custom flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3'}>
-              <h3 className={'inline-flex items-center gap-2 font-semibold'}>
-                <LuBug size={SIDEBAR_GLYPH_SIZE}/>
-                {t('shell.variantB.debug.title', 'Debug')}
-              </h3>
-              <DebugRow label={t('shell.variantB.debug.editorRenders', 'EditorFrame Renders')} value={String(props.debugStats.editorRenderCount)}/>
-              <DebugRow label={t('shell.variantB.debug.sceneUpdates', 'Scene Updates')} value={String(props.debugStats.sceneUpdateCount)}/>
-              <DebugRow label={t('shell.variantB.debug.fps', 'FPS')} value={props.debugStats.fps.toFixed(1)}/>
-              <DebugRow label={t('shell.variantB.debug.sceneVersion', 'Scene Version')} value={String(props.debugStats.sceneVersion)}/>
-              <DebugRow label={t('shell.variantB.debug.shapeCount', 'Shape Count')} value={String(props.debugStats.shapeCount)}/>
-              <DebugRow label={t('shell.variantB.debug.selectedCount', 'Selected Count')} value={String(props.debugStats.selectedCount)}/>
-              <DebugRow label={t('shell.variantB.debug.viewportScale', 'Viewport Scale')} value={props.debugStats.viewportScale.toFixed(3)}/>
-              <DebugRow label={t('shell.variantB.debug.cacheHitEstimate', 'Cache Hit (est.)')} value={String(props.debugStats.cacheHitEstimate)}/>
-              <DebugRow label={t('shell.variantB.debug.cacheMissEstimate', 'Cache Miss (est.)')} value={String(props.debugStats.cacheMissEstimate)}/>
-              <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate (est.)')} value={`${props.debugStats.cacheHitRate.toFixed(1)}%`}/>
-            </section>}
+          {props.activeTab === 'debug' && <RuntimeDebugPanel/>}
         </section>
       </aside>
     </div>
   )
 }
 
-function DebugRow(props: {label: string, value: string}) {
-  return (
-    <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
-      <span className={'text-slate-500 dark:text-slate-400'}>{props.label}</span>
-      <span className={'font-mono'}>{props.value}</span>
-    </div>
-  )
-}
+const LeftSidebar = memo(LeftSidebarComponent)
+
+export default LeftSidebar

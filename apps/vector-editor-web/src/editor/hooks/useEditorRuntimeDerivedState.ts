@@ -1,4 +1,4 @@
-import {createElement, useMemo} from 'react'
+import {createElement, useMemo, useRef} from 'react'
 import type {EditorDocument} from '@venus/document-core'
 import {
   buildRuntimePathEditInstructions,
@@ -18,7 +18,7 @@ import {useCanvasRuntimeBridge} from './useCanvasRuntimeBridge.ts'
 import {useTransformPreviewCommitBridge} from './useTransformPreviewCommitBridge.ts'
 import {resolvePathHandlePreviewDocument} from './useEditorRuntime.helpers.ts'
 
-const SCENE_CAPACITY = 256
+const SCENE_CAPACITY = 8192
 const DEFAULT_SELECTION_CONFIG = {
   allowFrameSelection: false,
   input: {
@@ -125,14 +125,23 @@ export function useEditorRuntimeDerivedState(options: {
   const selectedShape = canvasRuntime.stats.selectedIndex >= 0
     ? canvasRuntime.shapes[canvasRuntime.stats.selectedIndex] ?? null
     : null
+  const selectedShapeIdsRef = useRef<string[]>([])
   const runtimeShapeById = useMemo(
     () => new Map(canvasRuntime.shapes.map((shape) => [shape.id, shape])),
     [canvasRuntime.shapes],
   )
-  const selectedShapeIds = useMemo(
-    () => canvasRuntime.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
-    [canvasRuntime.shapes],
-  )
+  const selectedShapeIds = useMemo(() => {
+    const next = canvasRuntime.shapes
+      .filter((shape) => shape.isSelected)
+      .map((shape) => shape.id)
+    const current = selectedShapeIdsRef.current
+    const unchanged = current.length === next.length && current.every((id, index) => id === next[index])
+    if (unchanged) {
+      return current
+    }
+    selectedShapeIdsRef.current = next
+    return next
+  }, [canvasRuntime.shapes])
   const selectedNode = selectedShape
     ? canvasRuntime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
     : null

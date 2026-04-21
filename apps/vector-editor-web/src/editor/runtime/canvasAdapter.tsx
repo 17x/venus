@@ -17,6 +17,10 @@ import {
   type ViewportGestureBindingOptions,
 } from '../../runtime/interaction/index.ts'
 import {
+  publishRuntimeRenderDiagnostics,
+  publishRuntimeViewportSnapshot,
+} from '../../runtime/events/index.ts'
+import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
@@ -123,6 +127,12 @@ export function CanvasViewport({
   }, [onViewportResize])
 
   React.useEffect(() => {
+    publishRuntimeViewportSnapshot({
+      scale: viewport.scale,
+    })
+  }, [viewport.scale])
+
+  React.useEffect(() => {
     const node = viewportRef.current
     if (!node) {
       return
@@ -220,6 +230,7 @@ export function Canvas2DRenderer({
     canvas: OffscreenCanvas | HTMLCanvasElement
     context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
   } | null>(null)
+  const drawSerialRef = React.useRef(0)
   const replayPresentRafRef = React.useRef<number | null>(null)
   const assetUrlByIdRef = React.useRef<Map<string, string>>(new Map())
   const imageCacheRef = React.useRef<Map<string, HTMLImageElement>>(new Map())
@@ -487,6 +498,23 @@ export function Canvas2DRenderer({
             imageCacheRef.current.set(src, image)
             return null
           },
+        },
+      },
+      debug: {
+        onStats: (nextStats) => {
+          drawSerialRef.current += 1
+          publishRuntimeRenderDiagnostics({
+            drawCount: drawSerialRef.current,
+            drawMs: nextStats.frameMs,
+            fpsInstantaneous: 0,
+            fpsEstimate: 0,
+            visibleShapeCount: nextStats.visibleCount,
+            cacheHitCount: nextStats.cacheHits,
+            cacheMissCount: nextStats.cacheMisses,
+            frameReuseHitCount: nextStats.frameReuseHits,
+            frameReuseMissCount: nextStats.frameReuseMisses,
+            cacheMode: nextStats.frameReuseHits > 0 ? 'frame' : 'none',
+          })
         },
       },
     })

@@ -247,6 +247,69 @@ context starts, or work needs to resume after switching topics.
     low-frequency shell overlays through memoized stage composition
     (`StageCanvasLayer` + memoized `CanvasViewport`), while side-panel restore
     handlers are stabilized to avoid prop-churn-driven rerenders during pan
+  - runtime diagnostics event pipeline is now available under
+    `src/runtime/events/index.ts` (`publish/subscribe/get snapshot` for render
+    diagnostics), and canvas adapter forwards engine `debug.onStats` cache/frame
+    reuse metrics through this channel so `EditorFrame` debug info no longer
+    depends on local RAF sampling or scene-stability heuristics
+  - debug observability expanded with UI render probes wired into shell debug:
+    `EditorFrame`, `StageCanvasLayer`, `EditorFrameSidePanels`, and
+    `RightSidebar` render counts are now surfaced alongside engine draw/cache
+    metrics for direct hotspot attribution during pan/zoom sessions
+  - debug diagnostics consumption is now extracted from `EditorFrame` into an
+    independent subscriber component (`components/shell/RuntimeDebugPanel.tsx`)
+    using `useSyncExternalStore` on runtime events, so debug metric refresh no
+    longer participates in top-level frame orchestration rerenders
+  - viewport scale consumers are now detached from `EditorFrame` prop threading:
+    runtime viewport snapshot pub/sub was added in `runtime/events`, with
+    `RuntimeZoomControls` and `RuntimeGridOverlay` independently subscribing via
+    `useSyncExternalStore`; zoom and grid refresh no longer require
+    `EditorFrame -> useEditorFrameShell -> RightSidebar/SidePanels` propagation
+  - right sidebar metadata (layers/selection counters) now consumes an
+    independent runtime shell snapshot (`publishRuntimeShellSnapshot`) via
+    `RuntimeSidebarMeta`, removing `selectedCount/layerCount` prop threading
+    from `useEditorFrameShell` and reducing shell-level invalidation fanout
+  - `LeftSidebar` and `RightSidebar` are now exported as memoized components to
+    isolate subtree rerenders when sibling panel props mutate
+  - debug FPS reporting no longer uses `1000 / drawMs`; runtime diagnostics now
+    compute a smoothed FPS estimate from draw-count/time deltas with a bounded
+    clamp, eliminating frequent unrealistic 3-4 digit spikes
+  - debug tab now exposes both `FPS (Smooth)` and `FPS (Instant)` to separate
+    sustained frame cadence from short-lived render burst jitter
+  - global UI/perf cleanup pass removed active and stale debug logging across
+    editor frame, save pipeline, context menu, print, layer panel, and zoom
+    utility modules to reduce console overhead/noise during interaction traces
+  - `useEditorFrameShell` no longer computes unused top-menu action models;
+    dead derivation paths (`createHeaderMenuData` + top menu dispatcher in this
+    hook) were removed to shrink per-render work on shell recomposition
+  - `deriveEditorUIState` now caches layer tree flattening by `document.shapes`
+    array identity, avoiding redundant layer item rebuilds under high-frequency
+    runtime snapshot updates when document structure is unchanged
+  - `EditorFrame` callback plumbing was normalized to `useCallback` and noisy
+    render logging was removed
+  - `EditorFrame` shell layout bootstrap now memoizes local storage
+    deserialization (`initialLayoutState`) instead of recomputing it on every
+    render
+  - `useEditorRuntimeDerivedState` now stabilizes `selectedShapeIds` identity
+    across equivalent snapshots, reducing downstream sidebar/shell prop churn
+    when selection membership is unchanged
+  - `useEditorFrameShell` options and dependency list were trimmed to remove
+    now-unused mode/file-name pathways after earlier menu-path deletion
+  - `EditorFrame` was split into a lightweight themed shell plus
+    `EditorFrameRuntime` inner container so `useEditorRuntime` high-frequency
+    pointer/pan/zoom updates no longer directly re-execute the outer frame
+    component body
+  - runtime event snapshots now support explicit reset via
+    `resetRuntimeEventSnapshots`, and `useEditorRuntime` resets diagnostics /
+    viewport / shell snapshots on active file change to keep initialization data
+    deterministic
+  - sustained paste upper bound was traced to initialization capacity headroom;
+    runtime scene capacity baseline increased from `256` to `8192`, and
+    duplicate/paste/image insert paths now generate collision-resistant unique
+    shape ids against current document ids
+  - right sidebar heavy inspector body is memoized as a dedicated subtree
+    (`InspectorPanelBody`) so high-frequency zoom chip updates no longer force
+    full panel content rerender on every viewport-scale change
   - gradient write-back chain advanced in adapters:
     file-format scene serialization now writes
     `fillGradient*` / `strokeGradient*` metadata keys from element styles, and
