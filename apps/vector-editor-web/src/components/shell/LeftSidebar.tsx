@@ -257,7 +257,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
           </Tabs>
         </nav>
 
-        <section className={'border-tflex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900'}>
+        <section className={'border-t border-slate-200 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:border-slate-800 dark:bg-slate-900'}>
           <header className={'px-3 py-2'}>
             <div className={'flex items-center justify-between gap-2'}>
               <h2 className={'truncate text-sm font-medium'}>{props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}</h2>
@@ -303,12 +303,12 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
               hoveredAssetId={hoveredAssetId}
               onHoverAsset={setHoveredAssetId}
               onSelectAsset={setActiveAssetId}
-              onOpenTemplatePicker={props.onOpenTemplatePicker}
+              onApplyAsset={props.onApplyAssetTemplate}
             />}
 
           {props.activeTab === 'history' &&
-            <section id={'variant-b-tabpanel-history'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col p-2.5'}>
-              <div className={'min-h-0 flex-1'} data-testid={TEST_IDS.sidebarLeft.historyTimeline}>
+            <section id={'variant-b-tabpanel-history'} role={'tabpanel'} className={'flex min-h-0 flex-1 flex-col overflow-hidden p-2.5'}>
+              <div className={'min-h-0 flex-1 overflow-hidden'} data-testid={TEST_IDS.sidebarLeft.historyTimeline}>
                 <HistoryPanel
                   historyItems={props.historyItems}
                   historyStatus={props.historyStatus}

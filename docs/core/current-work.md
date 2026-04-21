@@ -307,6 +307,14 @@ context starts, or work needs to resume after switching topics.
     runtime scene capacity baseline increased from `256` to `8192`, and
     duplicate/paste/image insert paths now generate collision-resistant unique
     shape ids against current document ids
+  - left sidebar assets tab was rebuilt as a grid card list with per-item apply
+    button placeholder shown on hover/focus; clicking apply now directly
+    generates the mapped fake data preset file via
+    `createFile(generateTemplateFile(...))`
+  - template preset catalog expanded with additional large-scale tiers requested
+    by product validation: mixed 200K/300K, image-heavy 50K, and text-dense 10K;
+    assets grid cards now expose direct apply entries for mixed 10K/100K,
+    images 10K/50K, text 10K, and extreme mixed tiers
   - right sidebar heavy inspector body is memoized as a dedicated subtree
     (`InspectorPanelBody`) so high-frequency zoom chip updates no longer force
     full panel content rerender on every viewport-scale change

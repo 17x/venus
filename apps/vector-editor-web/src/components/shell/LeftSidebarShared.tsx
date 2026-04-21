@@ -12,6 +12,7 @@ interface AssetLibraryCard {
   title: string
   subtitle: string
   description: string
+  presetId: string
 }
 
 export interface LeftSidebarProps {
@@ -31,6 +32,7 @@ export interface LeftSidebarProps {
   onToggleGrid: VoidFunction
   onToggleSnapping: VoidFunction
   onOpenTemplatePicker: VoidFunction
+  onApplyAssetTemplate: (assetId: string) => void
   executeMenuAction: EditorExecutor
   copiedCount: number
   hasUnsavedChanges: boolean
@@ -62,24 +64,77 @@ export const ASSET_LIBRARY_CARDS: AssetLibraryCard[] = [
     title: 'Action Sheet',
     subtitle: 'iOS and iPadOS 26 / Examples',
     description: 'Use the action sheet pattern for contextual actions and one-step task handoff.',
+    presetId: 'demo-basic-shapes',
   },
   {
     id: 'activity-view',
     title: 'Activity View',
     subtitle: 'iOS and iPadOS 26 / Examples',
     description: 'Switch variable modes and insertion presets before committing a reusable instance to canvas.',
+    presetId: 'demo-welcome-board',
   },
   {
     id: 'alert',
     title: 'Alert',
     subtitle: 'iOS and iPadOS 26 / Examples',
     description: 'Use alerts for concise, high-priority feedback with one primary and one dismissive action.',
+    presetId: 'demo-wireframe',
   },
   {
     id: 'color-picker',
     title: 'Color Picker',
     subtitle: 'iOS and iPadOS 26 / Examples',
     description: 'Use palette and spectrum controls to expose variables while preserving contrast constraints.',
+    presetId: 'test-text-dense',
+  },
+  {
+    id: 'mixed-10k',
+    title: 'Mixed 10K',
+    subtitle: 'Large Mixed Scene',
+    description: 'Generate a 10K mixed fake dataset for render and interaction stress.',
+    presetId: 'mixed-10k',
+  },
+  {
+    id: 'mixed-100k',
+    title: 'Mixed 100K',
+    subtitle: 'Large Mixed Scene',
+    description: 'Generate a 100K mixed fake dataset for high-load diagnostics.',
+    presetId: 'mixed-100k',
+  },
+  {
+    id: 'images-10k',
+    title: 'Images 10K',
+    subtitle: 'Image Heavy',
+    description: 'Generate 10K image nodes to stress texture/decode paths.',
+    presetId: 'images-10k',
+  },
+  {
+    id: 'images-50k',
+    title: 'Images 50K',
+    subtitle: 'Image Heavy',
+    description: 'Generate 50K image nodes for extreme image workload tests.',
+    presetId: 'images-50k',
+  },
+  {
+    id: 'text-10k',
+    title: 'Text 10K',
+    subtitle: 'Text Dense',
+    description: 'Generate 10K text nodes for text rendering and hit-test pressure.',
+    presetId: 'text-10k',
+  },
+  {
+    id: 'mixed-200k',
+    title: 'Mixed 200K',
+    subtitle: 'Extreme Mixed',
+    description: 'Generate 200K mixed nodes for extreme-scale runtime tests.',
+    presetId: 'mixed-200k',
+  },
+  {
+    id: 'mixed-300k',
+    title: 'Mixed 300K',
+    subtitle: 'Extreme Mixed',
+    description: 'Generate 300K mixed nodes as a high-end stress profile.',
+    presetId: 'mixed-300k',
   },
 ]
 

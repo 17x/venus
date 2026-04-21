@@ -23,6 +23,7 @@ import {
   TOOLBELT_MODE_STORAGE_KEY,
   type ToolbeltMode,
 } from '../../editor/shell/state/toolbeltState.ts'
+import {ASSET_LIBRARY_CARDS} from '../shell/LeftSidebarShared.tsx'
 import {EditorFrameSidePanels} from './EditorFrameSidePanels.tsx'
 import {useEditorFrameShell} from './useEditorFrameShell.ts'
 
@@ -240,6 +241,13 @@ function EditorFrameRuntime() {
     setMinimizedInspectorPanels,
     setVariantBSections,
     setShowTemplatePresetPicker,
+    onApplyAssetTemplate: (assetId) => {
+      const presetId = ASSET_LIBRARY_CARDS.find((asset) => asset.id === assetId)?.presetId ?? 'demo-basic-shapes'
+      const generatedFile = generateTemplateFile(presetId, {
+        seed: Date.now(),
+      })
+      createFile(generatedFile)
+    },
   })
 
   return <>

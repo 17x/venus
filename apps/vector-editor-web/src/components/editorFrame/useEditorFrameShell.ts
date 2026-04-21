@@ -36,6 +36,7 @@ interface UseEditorFrameShellOptions {
     layersCollapsed: boolean
   }>>
   setShowTemplatePresetPicker: (visible: boolean) => void
+  onApplyAssetTemplate: (assetId: string) => void
 }
 
 export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
@@ -157,6 +158,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     onOpenTemplatePicker: () => {
       options.setShowTemplatePresetPicker(true)
     },
+    onApplyAssetTemplate: options.onApplyAssetTemplate,
     executeMenuAction: options.executeAction,
     copiedCount: options.copiedCount,
     hasUnsavedChanges: options.hasUnsavedChanges,
@@ -194,6 +196,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     options.layersCollapsed,
     options.selectedIds,
     options.showGrid,
+    options.onApplyAssetTemplate,
     options.setShowTemplatePresetPicker,
     options.setVariantBSections,
     options.snappingEnabled,
