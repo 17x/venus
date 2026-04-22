@@ -32,6 +32,11 @@ import type {
 } from '../scene/patch.ts'
 import { createSystemEngineClock, type EngineClock } from '../time/index.ts'
 import { createEngineLoop, type EngineLoopController } from './createEngineLoop.ts'
+import type {
+  EngineLodConfig,
+  EngineTileConfig,
+  EngineInitialRenderConfig,
+} from '../index.ts'
 
 interface EnginePerformanceOptions {
   culling?: boolean
@@ -50,6 +55,12 @@ interface EngineRenderOptions {
   imageSmoothing?: boolean
   imageSmoothingQuality?: ImageSmoothingQuality
   webglAntialias?: boolean
+  // Optional: LOD (level-of-detail) configuration
+  lod?: EngineLodConfig
+  // Optional: Tile-based caching configuration
+  tileConfig?: EngineTileConfig
+  // Optional: Initial render optimization (low-DPR preview + progressive detail)
+  initialRender?: EngineInitialRenderConfig
 }
 
 interface EngineResourceOptions {
@@ -138,6 +149,9 @@ export function createEngine(options: CreateEngineOptions): Engine {
       enableCulling: options.performance?.culling,
       clearColor: options.render?.webglClearColor,
       antialias: options.render?.webglAntialias ?? true,
+      lod: options.render?.lod,
+      tileConfig: options.render?.tileConfig,
+      initialRender: options.render?.initialRender,
     })
     : createCanvas2DEngineRenderer({
       canvas: options.canvas,
