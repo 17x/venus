@@ -142,11 +142,11 @@ export function createWebGLEngineRenderer(
       // Keep full-fidelity composite for settled frames, but fall back to the
       // packet pipeline during interaction so pan/zoom can keep frame pace.
       if (modelCompleteComposite && !interactiveQuality) {
-        const modelStats = await modelRenderer.render(frame)
+        const modelStats = await modelRenderer.render(effectiveFrame)
         const compositeFrame: EngineRenderFrame = {
-          ...frame,
+          ...effectiveFrame,
           viewport: {
-            ...frame.viewport,
+            ...effectiveFrame.viewport,
             scale: 1,
             offsetX: 0,
             offsetY: 0,
@@ -215,10 +215,10 @@ export function createWebGLEngineRenderer(
         }
       }
 
-      const plan = prepareEngineRenderPlan(frame)
+      const plan = prepareEngineRenderPlan(effectiveFrame)
       // Prepare typed-array instance payload once per frame so upcoming WebGL
       // draw pipelines can focus on upload/commit without repeating traversal.
-      const instanceView = prepareEngineRenderInstanceView(frame, plan)
+      const instanceView = prepareEngineRenderInstanceView(effectiveFrame, plan)
       const packetPlan = compileEngineWebGLPacketPlan(plan, instanceView)
 
       let frameTextureEstimate = resourceBudget.getTextureBytes()
@@ -312,7 +312,7 @@ export function createWebGLEngineRenderer(
             drawCount += drawWebGLPacket(
               context,
               pipeline,
-              frame,
+              effectiveFrame,
               prepared.worldBounds,
               resolveNodeColor(node),
               packet.opacity,
@@ -329,7 +329,7 @@ export function createWebGLEngineRenderer(
             drawCount += drawWebGLPacket(
               context,
               pipeline,
-              frame,
+              effectiveFrame,
               prepared.worldBounds,
               resolveNodeColor(node),
               packet.opacity,
@@ -373,7 +373,7 @@ export function createWebGLEngineRenderer(
                 drawCount += drawWebGLPacket(
                   context,
                   pipeline,
-                  frame,
+                  effectiveFrame,
                   prepared.worldBounds,
                   resolveNodeColor(node),
                   packet.opacity,
@@ -391,7 +391,7 @@ export function createWebGLEngineRenderer(
         drawCount += drawWebGLPacket(
           context,
           pipeline,
-          frame,
+          effectiveFrame,
           prepared.worldBounds,
           resolveNodeColor(node),
           packet.opacity,
