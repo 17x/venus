@@ -39,6 +39,10 @@ export interface EngineRenderStats {
   // Initial render diagnostics
   initialRenderPhase?: string
   initialRenderProgress?: number
+  // Dirty region tracking diagnostics
+  dirtyRegionCount?: number
+  dirtyTileCount?: number
+  incrementalUpdateCount?: number
 }
 
 export interface EngineRendererCapabilities {
@@ -84,6 +88,13 @@ export interface EngineRendererContext {
   pixelRatio?: number
   loader?: EngineResourceLoader
   textShaper?: EngineTextShaper
+  // Optional: dirty regions for incremental tile updates.
+  // When provided, renderers can use this to optimize which tiles to re-render.
+  dirtyRegions?: Array<{
+    zoomLevel: 0 | 1 | 2 | 3 | 4 | 5
+    gridX: number
+    gridY: number
+  }>
 }
 
 export interface EngineRenderFrame {

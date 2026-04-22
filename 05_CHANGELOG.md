@@ -1,16 +1,5 @@
 # Changelog
 
-- Fixed extreme LOD degradation during fast panning by introducing
-  **screen-size-aware rendering quality decision** in lodProfile:
-  - added `maxElementScreenDimension` parameter to `EngineCanvasLodProfileInput`
-  - when largest element ≥ 200px in screen space (readable, near), preserve
-    full rendering quality even during fast interaction (panning/zooming)
-  - only enter aggressive interactive degradation when all elements are
-    small/far (< 50px effective screen size)
-  - this prevents shape loss and text disappearance while user is viewing
-    large/readable elements, while still maintaining motion smoothness
-  - computed in `canvasAdapter.tsx` from shape dimensions × viewport scale
-  - resolves: "near-field elements become blocks during fast panning"
 - Upgraded engine LOD policy in
   `packages/engine/src/interaction/lodProfile.ts` from static
   scene-size thresholds to a velocity-aware profile that now considers:

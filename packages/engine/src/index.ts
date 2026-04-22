@@ -65,6 +65,13 @@ export {
   getTileBounds,
   getTilesIntersectingBounds,
 } from './renderer/tileManager.ts'
+export type {
+  DirtyRegionUpdate,
+  DirtyUpdateMode,
+} from './renderer/dirtyRegionTracker.ts'
+export {
+  EngineDirtyRegionTracker,
+} from './renderer/dirtyRegionTracker.ts'
 export type { EngineInitialRenderConfig } from './renderer/initialRender.ts'
 export {
   EngineInitialRenderController,

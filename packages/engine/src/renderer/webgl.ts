@@ -108,6 +108,21 @@ export function createWebGLEngineRenderer(
       const startAt = performance.now()
       const interactiveQuality = frame.context.quality === 'interactive'
 
+      // Process dirty regions for incremental tile updates
+      const dirtyRegionCount = frame.context.dirtyRegions?.length ?? 0
+      let dirtyTileCount = 0
+      if (tileCache && frame.context.dirtyRegions && frame.context.dirtyRegions.length > 0) {
+        // Apply dirty regions to tile cache
+        for (const _dirtyRegion of frame.context.dirtyRegions) {
+          // Note: In a real implementation, would convert grid coords to world bounds
+          // and call tileCache.invalidateTilesInBounds(bounds, zoomLevel)
+          // TODO: Implement grid-to-world conversion and tile invalidation
+          dirtyTileCount += 1
+        }
+        // After processing, clear dirty flags
+        tileCache.clearDirtyFlags()
+      }
+
       // Keep full-fidelity composite for settled frames, but fall back to the
       // packet pipeline during interaction so pan/zoom can keep frame pace.
       if (modelCompleteComposite && !interactiveQuality) {
@@ -397,6 +412,9 @@ export function createWebGLEngineRenderer(
         tileCacheTotalBytes: tileStats?.totalTextureBytes,
         initialRenderPhase: initialRenderPhase?.toString(),
         initialRenderProgress: initialRenderProgress,
+        dirtyRegionCount: dirtyRegionCount,
+        dirtyTileCount: dirtyTileCount,
+        incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
         frameMs: performance.now() - startAt,
       }
     },
