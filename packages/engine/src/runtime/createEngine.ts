@@ -119,6 +119,8 @@ export interface Engine {
   setQuality(quality: EngineRenderQuality): void
   setResourceLoader(loader?: EngineResourceLoader): void
   setTextShaper(textShaper?: EngineTextShaper): void
+  /** Mark world-space bounds as dirty for incremental tile invalidation. */
+  markDirtyBounds(bounds: EngineRect, zoomLevel?: number): void
   renderFrame(): Promise<EngineRenderStats>
   start(): void
   stop(): void
@@ -165,6 +167,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
     pixelRatio: number
     loader?: EngineResourceLoader
     textShaper?: EngineTextShaper
+    dirtyRegions?: Array<{zoomLevel: number; gridX: number; gridY: number}>
   } = {
     quality: options.render?.quality ?? 'full',
     pixelRatio,
@@ -278,9 +281,30 @@ export function createEngine(options: CreateEngineOptions): Engine {
     setTextShaper(textShaper) {
       renderContext.textShaper = textShaper
     },
+    markDirtyBounds(bounds, zoomLevel = 3) {
+      // Convert world-space bounds to tile grid coordinates and queue for invalidation
+      // Uses a simple approximation: tileSizePx = 512 by default
+      const tileSizePx = options.render?.tileConfig?.tileSizePx ?? 512
+      if (tileSizePx <= 0) return
+      const gridX0 = Math.floor(bounds.x / tileSizePx)
+      const gridY0 = Math.floor(bounds.y / tileSizePx)
+      const gridX1 = Math.ceil((bounds.x + bounds.width) / tileSizePx)
+      const gridY1 = Math.ceil((bounds.y + bounds.height) / tileSizePx)
+      const regions: Array<{zoomLevel: number; gridX: number; gridY: number}> = []
+      for (let gx = gridX0; gx < gridX1; gx++) {
+        for (let gy = gridY0; gy < gridY1; gy++) {
+          regions.push({zoomLevel, gridX: gx, gridY: gy})
+        }
+      }
+      if (regions.length > 0) {
+        renderContext.dirtyRegions = (renderContext.dirtyRegions ?? []).concat(regions)
+      }
+    },
     renderFrame: async () => {
       const stats = await loop.renderOnce()
       latestRenderStats = stats
+      // Clear dirty regions after each render so they don't stale-accumulate
+      renderContext.dirtyRegions = undefined
       return stats
     },
     start() {

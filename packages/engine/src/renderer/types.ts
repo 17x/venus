@@ -91,7 +91,7 @@ export interface EngineRendererContext {
   // Optional: dirty regions for incremental tile updates.
   // When provided, renderers can use this to optimize which tiles to re-render.
   dirtyRegions?: Array<{
-    zoomLevel: 0 | 1 | 2 | 3 | 4 | 5
+    zoomLevel: number
     gridX: number
     gridY: number
   }>

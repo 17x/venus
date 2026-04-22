@@ -707,6 +707,18 @@ export function Canvas2DRenderer({
               upsertNodes,
             }],
           })
+          // Mark tile regions dirty for changed node bounds so tile cache
+          // only re-renders affected areas instead of full redraws.
+          for (const node of upsertNodes) {
+            if ('x' in node && 'y' in node && 'width' in node && 'height' in node) {
+              engine.markDirtyBounds({
+                x: (node as {x: number}).x,
+                y: (node as {y: number}).y,
+                width: (node as {width: number}).width,
+                height: (node as {height: number}).height,
+              })
+            }
+          }
         }
       }
       requestEngineRender('normal')

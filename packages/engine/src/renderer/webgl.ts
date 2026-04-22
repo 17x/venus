@@ -62,6 +62,8 @@ export function createWebGLEngineRenderer(
   const initialRenderController = options.initialRender
     ? new EngineInitialRenderController(options.initialRender)
     : null
+  // Track whether the initial render sequence has been kicked off
+  let initialRenderStarted = false
   
   const modelSurface = createModelSurface(1, 1)
   if (!modelSurface) {
@@ -111,6 +113,11 @@ export function createWebGLEngineRenderer(
       // Apply initial render DPR optimization if configured
       let effectiveFrame = frame
       if (initialRenderController) {
+        // Kick off the progressive render sequence on the very first render
+        if (!initialRenderStarted) {
+          initialRenderStarted = true
+          initialRenderController.beginInitialRender()
+        }
         const dprForPhase = initialRenderController.getDprForPhase()
         if (dprForPhase !== 1.0) {
           // Apply low-DPR for preview phase
@@ -266,7 +273,7 @@ export function createWebGLEngineRenderer(
         // Render the full model into the modelSurface canvas so we can crop
         // per-node text rects. Ignore returned stats.
         try {
-          await modelRenderer.render(frame)
+          await modelRenderer.render(effectiveFrame)
         } catch {
           // If modelRenderer fails, continue without text composite fallback.
         }
@@ -287,7 +294,7 @@ export function createWebGLEngineRenderer(
         if (node.type === 'image') {
           const drawImageTexture = resolveImageTexture(
             context,
-            frame,
+            effectiveFrame,
             node,
             imageCache,
             resourceBudget,
@@ -295,7 +302,7 @@ export function createWebGLEngineRenderer(
           drawCount += drawWebGLPacket(
             context,
             pipeline,
-            frame,
+            effectiveFrame,
             prepared.worldBounds,
             resolveNodeColor(node),
             packet.opacity,

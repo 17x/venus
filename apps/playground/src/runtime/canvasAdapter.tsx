@@ -550,6 +550,21 @@ export function Canvas2DRenderer({
         render: {
           quality: 'full',
           canvasClearColor: '#f3f4f6',
+          lod: {
+            enabled: true,
+            options: { mode: 'moderate' },
+          },
+          tileConfig: {
+            enabled: true,
+            tileSizePx: 512,
+            maxTilesLRU: 64,
+          },
+          initialRender: {
+            enabled: true,
+            lowDprPreview: 0.25,
+            previewDelayMs: 50,
+            detailDelayMs: 200,
+          },
         },
         resource: {
           loader: {
