@@ -108,12 +108,28 @@ export function createWebGLEngineRenderer(
       const startAt = performance.now()
       const interactiveQuality = frame.context.quality === 'interactive'
 
+      // Apply initial render DPR optimization if configured
+      let effectiveFrame = frame
+      if (initialRenderController) {
+        const dprForPhase = initialRenderController.getDprForPhase()
+        if (dprForPhase !== 1.0) {
+          // Apply low-DPR for preview phase
+          effectiveFrame = {
+            ...frame,
+            context: {
+              ...frame.context,
+              pixelRatio: (frame.context.pixelRatio ?? 1) * dprForPhase,
+            },
+          }
+        }
+      }
+
       // Process dirty regions for incremental tile updates
-      const dirtyRegionCount = frame.context.dirtyRegions?.length ?? 0
+      const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
       let dirtyTileCount = 0
-      if (tileCache && frame.context.dirtyRegions && frame.context.dirtyRegions.length > 0) {
+      if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
         // Apply dirty regions to tile cache
-        for (const _dirtyRegion of frame.context.dirtyRegions) {
+        for (const _dirtyRegion of effectiveFrame.context.dirtyRegions) {
           // Note: In a real implementation, would convert grid coords to world bounds
           // and call tileCache.invalidateTilesInBounds(bounds, zoomLevel)
           // TODO: Implement grid-to-world conversion and tile invalidation
@@ -186,10 +202,10 @@ export function createWebGLEngineRenderer(
           drawCount: Math.max(1, modelStats.drawCount),
           webglRenderPath: 'model-complete',
           webglCompositeUploadBytes:
-            Math.max(1, frame.viewport.viewportWidth) *
-            Math.max(1, frame.viewport.viewportHeight) *
-            Math.max(1, frame.context.pixelRatio ?? 1) *
-            Math.max(1, frame.context.pixelRatio ?? 1) *
+            Math.max(1, effectiveFrame.viewport.viewportWidth) *
+            Math.max(1, effectiveFrame.viewport.viewportHeight) *
+            Math.max(1, effectiveFrame.context.pixelRatio ?? 1) *
+            Math.max(1, effectiveFrame.context.pixelRatio ?? 1) *
             4,
           webglInteractiveTextFallbackCount: 0,
           webglTextTextureUploadCount: 0,
@@ -325,7 +341,7 @@ export function createWebGLEngineRenderer(
           // If we have a modelSurface canvas from the canvas2d renderer,
           // crop the node rect and upload as texture.
           if (modelSurface && modelSurface.canvas) {
-            const pixelRatio = frame.context.pixelRatio ?? 1
+            const pixelRatio = effectiveFrame.context.pixelRatio ?? 1
             const sx = Math.round(prepared.worldBounds.x * pixelRatio)
             const sy = Math.round(prepared.worldBounds.y * pixelRatio)
             const sw = Math.max(1, Math.round(prepared.worldBounds.width * pixelRatio))
