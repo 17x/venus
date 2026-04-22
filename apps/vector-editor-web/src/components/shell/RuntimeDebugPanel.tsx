@@ -41,6 +41,12 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.frameReuseHitCount', 'Frame Reuse Hit')} value={String(diagnostics.frameReuseHitCount)}/>
       <DebugRow label={t('shell.variantB.debug.frameReuseMissCount', 'Frame Reuse Miss')} value={String(diagnostics.frameReuseMissCount)}/>
       <DebugRow label={t('shell.variantB.debug.cacheMode', 'Cache Mode')} value={diagnostics.cacheMode}/>
+      <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnostics.webglRenderPath}/>
+      <DebugRow label={t('shell.variantB.debug.webglInteractiveTextFallbackCount', 'WebGL Text Fallback')} value={String(diagnostics.webglInteractiveTextFallbackCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglTextTextureUploadCount', 'WebGL Text Upload Count')} value={String(diagnostics.webglTextTextureUploadCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglTextTextureUploadBytes', 'WebGL Text Upload Bytes')} value={String(diagnostics.webglTextTextureUploadBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.webglTextCacheHitCount', 'WebGL Text Cache Hit')} value={String(diagnostics.webglTextCacheHitCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglCompositeUploadBytes', 'WebGL Composite Upload Bytes')} value={String(diagnostics.webglCompositeUploadBytes)}/>
     </section>
   )
 }

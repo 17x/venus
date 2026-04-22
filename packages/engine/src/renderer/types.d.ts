@@ -18,6 +18,12 @@ export interface EngineRenderStats {
     frameReuseHits: number;
     frameReuseMisses: number;
     frameMs: number;
+    webglRenderPath?: 'model-complete' | 'packet';
+    webglInteractiveTextFallbackCount?: number;
+    webglTextTextureUploadCount?: number;
+    webglTextTextureUploadBytes?: number;
+    webglTextCacheHitCount?: number;
+    webglCompositeUploadBytes?: number;
 }
 export interface EngineRendererCapabilities {
     backend: EngineBackend;

@@ -1,30 +1,30 @@
 # Changelog
 
-## 2026-04-21
-
 - Upgraded engine LOD policy in
   `packages/engine/src/interaction/lodProfile.ts` from static
   scene-size thresholds to a velocity-aware profile that now considers:
   - scene pressure (`shapeCount`, `imageCount`)
   - zoom scale (`scale`)
-  - interaction pressure (`isInteracting`, `interactionVelocity`)
   - previous LOD level hysteresis (`previousLodLevel`)
 - Extended LOD profile output with runtime tuning hints:
   - `targetDpr`
-  - `imageSmoothingQuality`
   - `interactiveIntervalMs`
 - Wired vector canvas runtime to use the new LOD signals in
   `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`:
   - derives viewport motion velocity from pan + zoom deltas
   - feeds velocity + previous LOD into `resolveCanvasLodProfile`
   - applies dynamic interaction-time DPR via `engine.setDpr(...)`
-    while restoring `auto` DPR on settle
   - forwards `targetDpr` into renderer props for explicit LOD->render bridge
 - Added WebGL interaction-time degradation path in
   `packages/engine/src/renderer/webgl.ts`:
   - skip model-complete Canvas2D composite while `quality=interactive`
-  - skip expensive text-run model-composite + texture generation while
     interacting, falling back to solid text bounds quads for motion stability
+- Expanded WebGL diagnostics propagation:
+  - engine render stats now expose optional WebGL counters
+    (`webglRenderPath`, text fallback/upload/cache metrics,
+    composite upload bytes)
+  - vector runtime diagnostics/event snapshot schema now includes these fields
+  - debug panel now renders WebGL path/fallback/upload counters for live tuning
 
 ## 2026-04-18
 

@@ -37,6 +37,12 @@ export interface RuntimeRenderDiagnostics {
   frameReuseHitCount: number
   frameReuseMissCount: number
   cacheMode: 'none' | 'frame'
+  webglRenderPath: 'model-complete' | 'packet' | 'none'
+  webglInteractiveTextFallbackCount: number
+  webglTextTextureUploadCount: number
+  webglTextTextureUploadBytes: number
+  webglTextCacheHitCount: number
+  webglCompositeUploadBytes: number
 }
 
 export interface RuntimeViewportSnapshot {
@@ -59,6 +65,12 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   frameReuseHitCount: 0,
   frameReuseMissCount: 0,
   cacheMode: 'none',
+  webglRenderPath: 'none',
+  webglInteractiveTextFallbackCount: 0,
+  webglTextTextureUploadCount: 0,
+  webglTextTextureUploadBytes: 0,
+  webglTextCacheHitCount: 0,
+  webglCompositeUploadBytes: 0,
 }
 
 const renderDiagnosticsListeners = new Set<VoidFunction>()

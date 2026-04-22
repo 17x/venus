@@ -5,6 +5,11 @@ export interface EngineCanvasLodProfileInput {
   isInteracting?: boolean
   interactionVelocity?: number
   previousLodLevel?: 0 | 1 | 2 | 3
+  /**
+   * Largest element dimension in screen space (max of width * scale, height * scale).
+   * Used to preserve detail when elements are close/visible, even during fast interaction.
+   */
+  maxElementScreenDimension?: number
 }
 
 export interface EngineCanvasLodProfile {
@@ -53,7 +58,16 @@ export function resolveEngineCanvasLodProfile(
     lodLevel = (options.previousLodLevel - 1) as 0 | 1 | 2 | 3
   }
 
-  const renderQuality = lodLevel >= 2 || isInteracting ? 'interactive' : 'full'
+  // Preserve full quality when elements are large/close (readable), even during fast interaction.
+  // Only enter interactive degradation when elements are small (unreadable anyway).
+  const maxScreenDim = options.maxElementScreenDimension ?? 0
+  const hasReadableLargeElements = maxScreenDim >= 200
+  const renderQuality =
+    hasReadableLargeElements
+      ? 'full'
+      : (lodLevel >= 2 || isInteracting)
+        ? 'interactive'
+        : 'full'
 
   if (lodLevel <= 0) {
     return {

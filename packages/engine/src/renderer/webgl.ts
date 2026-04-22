@@ -151,6 +151,17 @@ export function createWebGLEngineRenderer(
         return {
           ...modelStats,
           drawCount: Math.max(1, modelStats.drawCount),
+          webglRenderPath: 'model-complete',
+          webglCompositeUploadBytes:
+            Math.max(1, frame.viewport.viewportWidth) *
+            Math.max(1, frame.viewport.viewportHeight) *
+            Math.max(1, frame.context.pixelRatio ?? 1) *
+            Math.max(1, frame.context.pixelRatio ?? 1) *
+            4,
+          webglInteractiveTextFallbackCount: 0,
+          webglTextTextureUploadCount: 0,
+          webglTextTextureUploadBytes: 0,
+          webglTextCacheHitCount: 0,
           frameMs: performance.now() - startAt,
         }
       }
@@ -213,6 +224,10 @@ export function createWebGLEngineRenderer(
       }
 
       let drawCount = 0
+      let interactiveTextFallbackCount = 0
+      let textTextureUploadCount = 0
+      let textTextureUploadBytes = 0
+      let textCacheHitCount = 0
       for (const packet of packetPlan.packets) {
         const prepared = plan.preparedNodes[packet.preparedIndex]
         if (!prepared || !prepared.worldBounds) {
@@ -241,24 +256,10 @@ export function createWebGLEngineRenderer(
         }
 
         if (packet.kind === 'text') {
-          if (interactiveQuality) {
-            // Interactive mode prioritizes motion stability over text fidelity.
-            // Draw a solid fallback quad and avoid per-node texture uploads.
-            drawCount += drawWebGLPacket(
-              context,
-              pipeline,
-              frame,
-              prepared.worldBounds,
-              resolveNodeColor(node),
-              packet.opacity,
-              null,
-            )
-            continue
-          }
-
           // Try cached text texture first
           const cached = textCache.get(packet.nodeId)
           if (cached) {
+            textCacheHitCount += 1
             resourceBudget.markTextureUsed(packet.nodeId)
             drawCount += drawWebGLPacket(
               context,
@@ -270,6 +271,35 @@ export function createWebGLEngineRenderer(
               cached.texture,
             )
             continue
+          }
+
+          if (interactiveQuality) {
+            const pixelRatio = frame.context.pixelRatio ?? 1
+            const screenWidth = Math.max(0, prepared.worldBounds.width * frame.viewport.scale * pixelRatio)
+            const screenHeight = Math.max(0, prepared.worldBounds.height * frame.viewport.scale * pixelRatio)
+            const screenArea = screenWidth * screenHeight
+            const maxEdge = Math.max(screenWidth, screenHeight)
+            const canKeepDetail =
+              screenArea >= WEBGL_INTERACTIVE_TEXT_DETAIL_AREA_PX ||
+              maxEdge >= WEBGL_INTERACTIVE_TEXT_DETAIL_EDGE_PX
+            const hasUploadBudget =
+              textTextureUploadCount < WEBGL_INTERACTIVE_TEXT_UPLOAD_BUDGET_PER_FRAME
+
+            if (!canKeepDetail || !hasUploadBudget) {
+              // Keep small/far text lightweight during panning and reserve
+              // texture uploads for near-field labels.
+              interactiveTextFallbackCount += 1
+              drawCount += drawWebGLPacket(
+                context,
+                pipeline,
+                frame,
+                prepared.worldBounds,
+                resolveNodeColor(node),
+                packet.opacity,
+                null,
+              )
+              continue
+            }
           }
 
           // If we have a modelSurface canvas from the canvas2d renderer,
@@ -302,6 +332,8 @@ export function createWebGLEngineRenderer(
                 textCache.set(packet.nodeId, {texture, width: sw, height: sh})
                 resourceBudget.markTextureResident(packet.nodeId, sw * sh * 4)
                 resourceBudget.markTextureUsed(packet.nodeId)
+                textTextureUploadCount += 1
+                textTextureUploadBytes += sw * sh * 4
                 drawCount += drawWebGLPacket(
                   context,
                   pipeline,
@@ -344,6 +376,12 @@ export function createWebGLEngineRenderer(
         cacheMisses: 0,
         frameReuseHits: 0,
         frameReuseMisses: 0,
+        webglRenderPath: 'packet',
+        webglCompositeUploadBytes: 0,
+        webglInteractiveTextFallbackCount: interactiveTextFallbackCount,
+        webglTextTextureUploadCount: textTextureUploadCount,
+        webglTextTextureUploadBytes: textTextureUploadBytes,
+        webglTextCacheHitCount: textCacheHitCount,
         frameMs: performance.now() - startAt,
       }
     },
@@ -401,6 +439,10 @@ interface CachedTextureEntry {
   width: number
   height: number
 }
+
+const WEBGL_INTERACTIVE_TEXT_DETAIL_AREA_PX = 18_000
+const WEBGL_INTERACTIVE_TEXT_DETAIL_EDGE_PX = 180
+const WEBGL_INTERACTIVE_TEXT_UPLOAD_BUDGET_PER_FRAME = 6
 
 function createWebGLQuadPipeline(
   context: WebGLRenderingContext | WebGL2RenderingContext,
