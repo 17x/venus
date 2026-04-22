@@ -544,6 +544,26 @@ export function Canvas2DRenderer({
       render: {
         quality: 'full',
         canvasClearColor: '#f3f4f6',
+        // Enable LOD (level-of-detail) for performance with large scenes
+        lod: {
+          enabled: true,
+          options: {
+            mode: 'moderate', // conservative | moderate | aggressive
+          },
+        },
+        // Enable tile-based caching with multiple zoom levels
+        tileConfig: {
+          enabled: true,
+          tileSizePx: 512,
+          maxTilesLRU: 64,
+        },
+        // Enable initial render optimization with low-DPR preview
+        initialRender: {
+          enabled: true,
+          lowDprPreview: 0.25, // Preview at 25% DPR for fast initial render
+          previewDelayMs: 50,  // Show preview after 50ms
+          detailDelayMs: 200,  // Start detail pass after 200ms
+        },
       },
       resource: {
         loader: {
