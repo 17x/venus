@@ -8,6 +8,9 @@ import { prepareEngineRenderInstanceView } from './instances.ts'
 import { compileEngineWebGLPacketPlan } from './webglPackets.ts'
 import { createEngineWebGLResourceBudgetTracker } from './webglResources.ts'
 import type { EngineImageNode, EngineRenderableNode } from '../scene/types.ts'
+import type { EngineTileConfig, EngineLodConfig, EngineInitialRenderConfig } from '../index.ts'
+import { EngineTileCache } from './tileManager.ts'
+import { EngineInitialRenderController } from './initialRender.ts'
 
 interface WebGLEngineRendererOptions {
   id?: string
@@ -16,6 +19,12 @@ interface WebGLEngineRendererOptions {
   clearColor?: readonly [number, number, number, number]
   antialias?: boolean
   modelCompleteComposite?: boolean
+  // New: LOD configuration
+  lod?: EngineLodConfig
+  // New: Tile caching configuration
+  tileConfig?: EngineTileConfig
+  // New: Initial render optimization
+  initialRender?: EngineInitialRenderConfig
 }
 
 /**
@@ -45,6 +54,15 @@ export function createWebGLEngineRenderer(
   const pipeline = createWebGLQuadPipeline(context)
   const imageCache = new Map<string, CachedTextureEntry>()
   const textCache = new Map<string, CachedTextureEntry>()
+  
+  // Initialize tile cache (optional)
+  const tileCache = options.tileConfig ? new EngineTileCache(options.tileConfig) : null
+  
+  // Initialize initial render controller (optional)
+  const initialRenderController = options.initialRender
+    ? new EngineInitialRenderController(options.initialRender)
+    : null
+  
   const modelSurface = createModelSurface(1, 1)
   if (!modelSurface) {
     throw new Error('webgl model-complete surface allocation failed')
@@ -74,7 +92,7 @@ export function createWebGLEngineRenderer(
       textRuns: modelCompleteComposite,
       imageClip: modelCompleteComposite,
       culling: enableCulling,
-      lod: false,
+      lod: options.lod?.enabled ?? false,
     },
     resize: (width, height) => {
       if ('width' in options.canvas) {
@@ -256,6 +274,22 @@ export function createWebGLEngineRenderer(
         }
 
         if (packet.kind === 'text') {
+          if (interactiveQuality) {
+            // Interactive mode prioritizes motion stability over text fidelity.
+            // Draw a solid fallback quad and avoid per-node texture uploads.
+            interactiveTextFallbackCount += 1
+            drawCount += drawWebGLPacket(
+              context,
+              pipeline,
+              frame,
+              prepared.worldBounds,
+              resolveNodeColor(node),
+              packet.opacity,
+              null,
+            )
+            continue
+          }
+
           // Try cached text texture first
           const cached = textCache.get(packet.nodeId)
           if (cached) {
@@ -271,35 +305,6 @@ export function createWebGLEngineRenderer(
               cached.texture,
             )
             continue
-          }
-
-          if (interactiveQuality) {
-            const pixelRatio = frame.context.pixelRatio ?? 1
-            const screenWidth = Math.max(0, prepared.worldBounds.width * frame.viewport.scale * pixelRatio)
-            const screenHeight = Math.max(0, prepared.worldBounds.height * frame.viewport.scale * pixelRatio)
-            const screenArea = screenWidth * screenHeight
-            const maxEdge = Math.max(screenWidth, screenHeight)
-            const canKeepDetail =
-              screenArea >= WEBGL_INTERACTIVE_TEXT_DETAIL_AREA_PX ||
-              maxEdge >= WEBGL_INTERACTIVE_TEXT_DETAIL_EDGE_PX
-            const hasUploadBudget =
-              textTextureUploadCount < WEBGL_INTERACTIVE_TEXT_UPLOAD_BUDGET_PER_FRAME
-
-            if (!canKeepDetail || !hasUploadBudget) {
-              // Keep small/far text lightweight during panning and reserve
-              // texture uploads for near-field labels.
-              interactiveTextFallbackCount += 1
-              drawCount += drawWebGLPacket(
-                context,
-                pipeline,
-                frame,
-                prepared.worldBounds,
-                resolveNodeColor(node),
-                packet.opacity,
-                null,
-              )
-              continue
-            }
           }
 
           // If we have a modelSurface canvas from the canvas2d renderer,
@@ -368,6 +373,11 @@ export function createWebGLEngineRenderer(
         resourceBudget.markTextureUsed(key)
       }
 
+      // Collect tile and initial render diagnostics
+      const tileStats = tileCache?.getStats()
+      const initialRenderPhase = initialRenderController?.getPhase()
+      const initialRenderProgress = initialRenderController?.getDetailPassProgress()
+
       return {
         drawCount,
         visibleCount: plan.stats.visibleCount,
@@ -382,6 +392,11 @@ export function createWebGLEngineRenderer(
         webglTextTextureUploadCount: textTextureUploadCount,
         webglTextTextureUploadBytes: textTextureUploadBytes,
         webglTextCacheHitCount: textCacheHitCount,
+        tileCacheSize: tileStats?.tileCount,
+        tileDirtyCount: tileStats?.dirtyCount,
+        tileCacheTotalBytes: tileStats?.totalTextureBytes,
+        initialRenderPhase: initialRenderPhase?.toString(),
+        initialRenderProgress: initialRenderProgress,
         frameMs: performance.now() - startAt,
       }
     },
@@ -439,10 +454,6 @@ interface CachedTextureEntry {
   width: number
   height: number
 }
-
-const WEBGL_INTERACTIVE_TEXT_DETAIL_AREA_PX = 18_000
-const WEBGL_INTERACTIVE_TEXT_DETAIL_EDGE_PX = 180
-const WEBGL_INTERACTIVE_TEXT_UPLOAD_BUDGET_PER_FRAME = 6
 
 function createWebGLQuadPipeline(
   context: WebGLRenderingContext | WebGL2RenderingContext,

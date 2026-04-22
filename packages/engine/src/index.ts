@@ -53,6 +53,32 @@ export { buildEngineReplayTiles } from './renderer/replay.ts'
 export { createEngineReplayCoordinator } from './renderer/replayWorker.ts'
 export { createCanvas2DEngineRenderer } from './renderer/canvas2d.ts'
 export { createWebGLEngineRenderer } from './renderer/webgl.ts'
+export type {
+  EngineTileConfig,
+  EngineTileCacheEntry,
+  TileZoomLevel,
+} from './renderer/tileManager.ts'
+export {
+  EngineTileCache,
+  getTileSizeForZoom,
+  getZoomLevelForScale,
+  getTileBounds,
+  getTilesIntersectingBounds,
+} from './renderer/tileManager.ts'
+export type { EngineInitialRenderConfig } from './renderer/initialRender.ts'
+export {
+  EngineInitialRenderController,
+  InitialRenderPhase,
+} from './renderer/initialRender.ts'
+export type {
+  EngineLodConfig,
+  EngineLodOptions,
+  LodDegradationMode,
+} from './interaction/lodConfig.ts'
+export {
+  getLodPreset,
+  mergeWithPreset,
+} from './interaction/lodConfig.ts'
 export type { Mat3, Point2D } from './math/matrix.ts'
 export { applyMatrixToPoint } from './math/matrix.ts'
 export type {

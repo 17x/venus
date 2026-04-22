@@ -90,19 +90,6 @@ export function CanvasViewport({
   const [viewportVelocity, setViewportVelocity] = React.useState(0)
   const previousLodLevelRef = React.useRef<0 | 1 | 2 | 3>(0)
   const velocitySettleHandleRef = React.useRef<number | null>(null)
-  
-  // Calculate largest element's screen dimension to preserve detail when elements are near/readable.
-  const maxElementScreenDimension = React.useMemo(() => {
-    let maxDim = 0
-    for (const shape of shapes) {
-      const screenWidth = Math.abs(shape.width * viewport.scale)
-      const screenHeight = Math.abs(shape.height * viewport.scale)
-      const elemDim = Math.max(screenWidth, screenHeight)
-      if (elemDim > maxDim) maxDim = elemDim
-    }
-    return maxDim
-  }, [shapes, viewport.scale])
-  
   const viewportMotionRef = React.useRef({
     offsetX: viewport.offsetX,
     offsetY: viewport.offsetY,
@@ -118,9 +105,8 @@ export function CanvasViewport({
       isInteracting: viewportVelocity > 1,
       interactionVelocity: viewportVelocity,
       previousLodLevel: previousLodLevelRef.current,
-      maxElementScreenDimension,
     }),
-    [imageCount, maxElementScreenDimension, stats.shapeCount, viewport.scale, viewportVelocity],
+    [imageCount, stats.shapeCount, viewport.scale, viewportVelocity],
   )
 
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
@@ -558,7 +544,6 @@ export function Canvas2DRenderer({
       render: {
         quality: 'full',
         canvasClearColor: '#f3f4f6',
-        webglClearColor: [0.9529, 0.9569, 0.9647, 1],
       },
       resource: {
         loader: {

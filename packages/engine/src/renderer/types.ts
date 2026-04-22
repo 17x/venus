@@ -32,6 +32,13 @@ export interface EngineRenderStats {
   webglTextTextureUploadBytes?: number
   webglTextCacheHitCount?: number
   webglCompositeUploadBytes?: number
+  // Tile cache diagnostics
+  tileCacheSize?: number
+  tileDirtyCount?: number
+  tileCacheTotalBytes?: number
+  // Initial render diagnostics
+  initialRenderPhase?: string
+  initialRenderProgress?: number
 }
 
 export interface EngineRendererCapabilities {
