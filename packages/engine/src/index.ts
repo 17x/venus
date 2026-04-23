@@ -9,6 +9,7 @@ export type {
 export { createEngineAnimationController } from './animation/index.ts'
 export type {
   EngineBackend,
+  EngineInteractionPreviewConfig,
   EngineRenderFrame,
   EngineRenderStats,
   EngineRenderer,

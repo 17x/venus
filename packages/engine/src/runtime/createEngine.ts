@@ -9,6 +9,7 @@ import { createCanvas2DEngineRenderer } from '../renderer/canvas2d.ts'
 import { createWebGLEngineRenderer } from '../renderer/webgl.ts'
 import type {
   EngineBackend,
+  EngineInteractionPreviewConfig,
   EngineRenderQuality,
   EngineRenderStats,
   EngineResourceLoader,
@@ -61,6 +62,8 @@ interface EngineRenderOptions {
   tileConfig?: EngineTileConfig
   // Optional: Initial render optimization (low-DPR preview + progressive detail)
   initialRender?: EngineInitialRenderConfig
+  // Optional: interaction-time affine preview from last rendered frame.
+  interactionPreview?: EngineInteractionPreviewConfig
 }
 
 interface EngineResourceOptions {
@@ -154,6 +157,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
       lod: options.render?.lod,
       tileConfig: options.render?.tileConfig,
       initialRender: options.render?.initialRender,
+      interactionPreview: options.render?.interactionPreview,
     })
     : createCanvas2DEngineRenderer({
       canvas: options.canvas,
@@ -161,6 +165,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
       clearColor: options.render?.canvasClearColor,
       imageSmoothing: options.render?.imageSmoothing ?? true,
       imageSmoothingQuality: options.render?.imageSmoothingQuality ?? 'high',
+      interactionPreview: options.render?.interactionPreview,
     })
   const renderContext: {
     quality: EngineRenderQuality

@@ -8,6 +8,17 @@ import type {
 export type EngineBackend = 'canvas2d' | 'webgl'
 export type EngineRenderQuality = 'full' | 'interactive'
 
+export interface EngineInteractionPreviewConfig {
+  // Enables temporary affine preview from last rendered frame during interaction.
+  enabled?: boolean
+  // `interaction`: allow pan/zoom preview; `zoom-only`: only scale gestures.
+  mode?: 'interaction' | 'zoom-only'
+  // Max allowed preview scale step against cached frame before falling back.
+  maxScaleStep?: number
+  // Max allowed translation in pixels before falling back.
+  maxTranslatePx?: number
+}
+
 export interface EngineViewportState {
   viewportWidth: number
   viewportHeight: number

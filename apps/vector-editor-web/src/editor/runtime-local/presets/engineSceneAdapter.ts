@@ -8,6 +8,8 @@ export interface CreateEngineSceneFromRuntimeSnapshotOptions {
   revision: string | number
   backgroundFill?: string
   backgroundStroke?: string
+  includeShapeIds?: readonly string[]
+  includeDocumentBackground?: boolean
 }
 
 /**
@@ -20,21 +22,32 @@ export interface CreateEngineSceneFromRuntimeSnapshotOptions {
 export function createEngineSceneFromRuntimeSnapshot(
   options: CreateEngineSceneFromRuntimeSnapshotOptions,
 ): EngineSceneSnapshot {
+  const includeShapeIdSet = options.includeShapeIds
+    ? new Set(options.includeShapeIds)
+    : null
   const documentShapeById = new Map(options.document.shapes.map((shape) => [shape.id, shape]))
-  const nodes: EngineRenderableNode[] = [{
-    id: '__doc_background__',
-    type: 'shape',
-    shape: 'rect',
-    x: 0,
-    y: 0,
-    width: options.document.width,
-    height: options.document.height,
-    fill: options.backgroundFill ?? '#ffffff',
-    stroke: options.backgroundStroke ?? '#d0d7de',
-    strokeWidth: 1,
-  }]
+  const nodes: EngineRenderableNode[] = []
+
+  if (options.includeDocumentBackground !== false) {
+    nodes.push({
+      id: '__doc_background__',
+      type: 'shape',
+      shape: 'rect',
+      x: 0,
+      y: 0,
+      width: options.document.width,
+      height: options.document.height,
+      fill: options.backgroundFill ?? '#ffffff',
+      stroke: options.backgroundStroke ?? '#d0d7de',
+      strokeWidth: 1,
+    })
+  }
 
   options.shapes.forEach((shape) => {
+    if (includeShapeIdSet && !includeShapeIdSet.has(shape.id)) {
+      return
+    }
+
     const sourceShape = documentShapeById.get(shape.id)
     const sourceBounds = resolveSourceShapeBounds(sourceShape)
     const sourceTransform = resolveSourceShapeTransform(sourceShape)

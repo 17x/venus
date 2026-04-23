@@ -52,6 +52,8 @@ import {useEditorRuntimeCoreCallbacks} from './useEditorRuntimeCoreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './useEditorRuntimeCanvasInteractions.ts'
 import {publishRuntimeShellSnapshot, resetRuntimeEventSnapshots} from '../../runtime/events/index.ts'
 
+const SNAP_AUTO_DISABLE_SHAPE_COUNT = 25_000
+
 export type {
   EditorDocumentState,
   EditorExecutor,
@@ -339,6 +341,8 @@ const useEditorRuntime = (options?: {
     },
   ), [interactionDocument.shapes])
 
+  const effectiveSnappingEnabled = snappingEnabled && interactionDocument.shapes.length < SNAP_AUTO_DISABLE_SHAPE_COUNT
+
   const applyMarqueeSelectionWhileMoving = useCallback((nextMarquee: MarqueeState) => {
     const selectedIds = resolveMarqueeSelectionIds(nextMarquee)
     marqueeApplyControllerRef.current.applyWhileMoving({
@@ -391,7 +395,7 @@ const useEditorRuntime = (options?: {
     setPenDraftPoints,
     setSnapGuides,
     setTransformPreview,
-    snappingEnabled,
+    snappingEnabled: effectiveSnappingEnabled,
     transformManagerRef,
     transformPreview,
   })

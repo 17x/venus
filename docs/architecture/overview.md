@@ -27,7 +27,7 @@
 ## Product Surface Roles
 
 - `apps/vector-editor-web`: product-facing vector editor.
-- `apps/playground`: runtime/render diagnostics surface.
+- `apps/playground`: deprecated historical diagnostics surface (no active development).
 
 ## Related Documents
 

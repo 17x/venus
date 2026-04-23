@@ -26,21 +26,21 @@ export function resolveEngineCanvasLodProfile(
   const isInteracting = options.isInteracting ?? interactionVelocity > 0
 
   let lodLevel: 0 | 1 | 2 | 3 =
-    options.shapeCount >= 50_000 || options.imageCount >= 1_000
+    options.shapeCount >= 80_000 || options.imageCount >= 2_000
       ? 2
-      : options.shapeCount >= 10_000 || options.imageCount >= 250
+      : options.shapeCount >= 20_000 || options.imageCount >= 500
         ? 1
         : 0
 
-  if (options.scale < 0.35 && lodLevel < 3) {
+  if (options.scale < 0.22 && lodLevel < 3) {
     lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
   }
 
-  if (interactionVelocity >= 2_400 && lodLevel < 3) {
+  if (interactionVelocity >= 3_200 && lodLevel < 3) {
     lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
   }
 
-  if (interactionVelocity >= 4_200 && lodLevel < 3) {
+  if (interactionVelocity >= 5_600 && lodLevel < 3) {
     lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
   }
 
@@ -69,7 +69,7 @@ export function resolveEngineCanvasLodProfile(
     return {
       lodLevel,
       renderQuality,
-      targetDpr: isInteracting ? 1.25 : 'auto',
+      targetDpr: isInteracting ? 1.5 : 'auto',
       imageSmoothingQuality: 'medium',
       interactiveIntervalMs: 10,
     }
@@ -79,7 +79,7 @@ export function resolveEngineCanvasLodProfile(
     return {
       lodLevel,
       renderQuality,
-      targetDpr: 1,
+      targetDpr: 1.25,
       imageSmoothingQuality: 'low',
       interactiveIntervalMs: 12,
     }
@@ -88,7 +88,7 @@ export function resolveEngineCanvasLodProfile(
   return {
     lodLevel,
     renderQuality,
-    targetDpr: 0.75,
+    targetDpr: 1,
     imageSmoothingQuality: 'low',
     interactiveIntervalMs: 16,
   }

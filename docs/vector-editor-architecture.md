@@ -665,4 +665,4 @@ When picking up this work:
 6. Next priority: command registry integration into worker command dispatch with explicit undo contracts.
 7. Next priority: dselector path sub-selection model (anchor/segment/handle types) and candidate-level hit semantics.
 8. Template test metadata is enriched; next step is regression harness wiring.
-9. Always validate against both `vector-editor-web` and `playground`.
+9. Always validate against `vector-editor-web`; use `playground` only for legacy comparison when needed.

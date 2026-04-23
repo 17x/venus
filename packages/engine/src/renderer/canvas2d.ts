@@ -1,4 +1,5 @@
 import type {
+  EngineInteractionPreviewConfig,
   EngineRenderFrame,
   EngineRenderer,
 } from './types.ts'
@@ -24,6 +25,7 @@ interface Canvas2DEngineRendererOptions {
   clearColor?: string
   imageSmoothing?: boolean
   imageSmoothingQuality?: ImageSmoothingQuality
+  interactionPreview?: EngineInteractionPreviewConfig
 }
 
 interface RenderCounters {
@@ -42,8 +44,12 @@ interface PreparedNodeEntry {
   worldMatrix: EngineWorldMatrix
 }
 
-const MAX_FRAME_REUSE_SHIFT_PX = 220
-const MAX_FRAME_REUSE_SCALE_STEP = 1.2
+const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
+  enabled: true,
+  mode: 'interaction',
+  maxScaleStep: 1.2,
+  maxTranslatePx: 220,
+}
 
 interface FrameReuseSnapshot {
   revision: string | number
@@ -84,6 +90,10 @@ export function createCanvas2DEngineRenderer(
   const clearColor = options.clearColor ?? 'transparent'
   const imageSmoothing = options.imageSmoothing ?? true
   const imageSmoothingQuality = options.imageSmoothingQuality ?? 'high'
+  const interactionPreview = {
+    ...DEFAULT_INTERACTION_PREVIEW,
+    ...options.interactionPreview,
+  }
   let cachedWorldBounds: {
     preparedNodesRef: PreparedNodeEntry[]
     map: Map<string, EngineRect>
@@ -143,6 +153,7 @@ export function createCanvas2DEngineRenderer(
         pixelRatio,
         frameReuseSurface,
         frameReuseSnapshot,
+        interactionPreview,
       )
 
       if (reused.reused) {
@@ -239,8 +250,9 @@ function tryReuseInteractiveFrame(
   pixelRatio: number,
   surface: ReuseCacheSurface | null,
   snapshot: FrameReuseSnapshot | null,
+  interactionPreview: Required<EngineInteractionPreviewConfig>,
 ): {reused: boolean; visibleCount: number; culledCount: number} {
-  if (!surface || !snapshot || frame.context.quality !== 'interactive') {
+  if (!interactionPreview.enabled || !surface || !snapshot || frame.context.quality !== 'interactive') {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
@@ -260,7 +272,11 @@ function tryReuseInteractiveFrame(
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
-  if (scaleRatio > MAX_FRAME_REUSE_SCALE_STEP || scaleRatio < 1 / MAX_FRAME_REUSE_SCALE_STEP) {
+  if (interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < 1e-3) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  if (scaleRatio > interactionPreview.maxScaleStep || scaleRatio < 1 / interactionPreview.maxScaleStep) {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
@@ -270,7 +286,7 @@ function tryReuseInteractiveFrame(
   const previousOffsetYPx = snapshot.offsetY * pixelRatio
   const deltaX = nextOffsetXPx - scaleRatio * previousOffsetXPx
   const deltaY = nextOffsetYPx - scaleRatio * previousOffsetYPx
-  if (Math.abs(deltaX) > MAX_FRAME_REUSE_SHIFT_PX || Math.abs(deltaY) > MAX_FRAME_REUSE_SHIFT_PX) {
+  if (Math.abs(deltaX) > interactionPreview.maxTranslatePx || Math.abs(deltaY) > interactionPreview.maxTranslatePx) {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 

@@ -4,8 +4,6 @@ import type {CanvasViewportState} from '@vector/runtime'
 import type {
   Engine,
   EngineRenderScheduler,
-  EngineReplayRenderRequest,
-  EngineReplayWorkerEvent,
 } from '@vector/runtime/engine'
 import {
   createEngine,
@@ -64,6 +62,8 @@ interface CanvasViewportProps {
   onViewportResize?: (width: number, height: number) => void
   onViewportZoom?: (nextScale: number, anchor?: {x: number; y: number}) => void
 }
+
+const MAX_DIRTY_REGION_MARK_NODES = 256
 
 export function CanvasViewport({
   document,
@@ -283,22 +283,10 @@ export function Canvas2DRenderer({
   const FULL_REDRAW_QUIET_WINDOW_MS = 140
   const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
   const FULL_REDRAW_DEFER_MS = 32
-  const REPLAY_TILE_SIZE = 384
-  const ENABLE_WORKER_REPLAY = false
-  const REPLAY_MIN_SHAPE_COUNT = 10_000
   const OVERSCAN_PX = 240
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
   const engineRef = React.useRef<Engine | null>(null)
-  const replayWorkerRef = React.useRef<Worker | null>(null)
-  const replayActiveRequestIdRef = React.useRef<number | null>(null)
-  const replayRequestSeqRef = React.useRef(0)
-  const replayFrameSizeRef = React.useRef<{width: number; height: number} | null>(null)
-  const replayCompositorRef = React.useRef<{
-    canvas: OffscreenCanvas | HTMLCanvasElement
-    context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
-  } | null>(null)
   const drawSerialRef = React.useRef(0)
-  const replayPresentRafRef = React.useRef<number | null>(null)
   const assetUrlByIdRef = React.useRef<Map<string, string>>(new Map())
   const imageCacheRef = React.useRef<Map<string, HTMLImageElement>>(new Map())
   const appliedQualityRef = React.useRef<'full' | 'interactive' | null>(null)
@@ -307,7 +295,6 @@ export function Canvas2DRenderer({
   const [isInteracting, setIsInteracting] = React.useState(false)
   const isInteractingRef = React.useRef(isInteracting)
   const lastInteractionAtRef = React.useRef(0)
-  const previousScaleRef = React.useRef(viewport.scale)
   const interactionSettleTimerRef = React.useRef<number | null>(null)
   const deferredFullRedrawHandleRef = React.useRef<number | null>(null)
   const deferredFullRedrawTokenRef = React.useRef(0)
@@ -327,7 +314,6 @@ export function Canvas2DRenderer({
     }),
     [document, shapes, stats.version],
   )
-  const shouldUseWorkerReplay = ENABLE_WORKER_REPLAY && stats.shapeCount >= REPLAY_MIN_SHAPE_COUNT
 
   isInteractingRef.current = isInteracting
 
@@ -358,175 +344,9 @@ export function Canvas2DRenderer({
     renderSchedulerRef.current?.request(mode)
   }, [])
 
-  const cancelWorkerReplay = React.useCallback(() => {
-    const requestId = replayActiveRequestIdRef.current
-    if (!replayWorkerRef.current || requestId === null) {
-      return
-    }
-
-    replayWorkerRef.current.postMessage({
-      type: 'cancel',
-      requestId,
-    })
-    if (replayPresentRafRef.current !== null) {
-      window.cancelAnimationFrame(replayPresentRafRef.current)
-      replayPresentRafRef.current = null
-    }
-    replayActiveRequestIdRef.current = null
-    replayFrameSizeRef.current = null
-  }, [])
-
-  const presentReplayCompositor = React.useCallback(() => {
-    replayPresentRafRef.current = null
-    const canvas = canvasRef.current
-    const compositor = replayCompositorRef.current
-    const frameSize = replayFrameSizeRef.current
-    if (!canvas || !compositor || !frameSize) {
-      return
-    }
-
-    const context = canvas.getContext('2d')
-    if (!context) {
-      return
-    }
-
-    context.save()
-    context.setTransform(1, 0, 0, 1, 0, 0)
-    context.drawImage(
-      compositor.canvas as CanvasImageSource,
-      0,
-      0,
-      frameSize.width,
-      frameSize.height,
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    )
-    context.restore()
-  }, [])
-
-  const scheduleReplayPresent = React.useCallback(() => {
-    if (replayPresentRafRef.current !== null) {
-      return
-    }
-    replayPresentRafRef.current = window.requestAnimationFrame(() => {
-      presentReplayCompositor()
-    })
-  }, [presentReplayCompositor])
-
-  const ensureReplayCompositor = React.useCallback((width: number, height: number) => {
-    const current = replayCompositorRef.current
-    if (current && current.canvas.width === width && current.canvas.height === height) {
-      return current
-    }
-
-    let canvas: OffscreenCanvas | HTMLCanvasElement | null = null
-    if (typeof OffscreenCanvas !== 'undefined') {
-      canvas = new OffscreenCanvas(width, height)
-    } else if (typeof globalThis.document !== 'undefined') {
-      const element = globalThis.document.createElement('canvas')
-      element.width = width
-      element.height = height
-      canvas = element
-    }
-
-    if (!canvas) {
-      replayCompositorRef.current = null
-      return null
-    }
-
-    const context = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null
-    if (!context) {
-      replayCompositorRef.current = null
-      return null
-    }
-
-    replayCompositorRef.current = {
-      canvas,
-      context,
-    }
-    return replayCompositorRef.current
-  }, [])
-
   React.useEffect(() => {
     assetUrlByIdRef.current = buildDocumentImageAssetUrlMap(document)
   }, [document])
-
-  React.useEffect(() => {
-    if (typeof Worker === 'undefined') {
-      return
-    }
-
-    const worker = new Worker(new URL('./bitmapReplay.worker.ts', import.meta.url), {type: 'module'})
-    replayWorkerRef.current = worker
-    worker.onmessage = (event: MessageEvent<EngineReplayWorkerEvent>) => {
-      const message = event.data
-      const activeRequestId = replayActiveRequestIdRef.current
-
-      if (message.type === 'tile' && message.requestId !== activeRequestId) {
-        message.bitmap.close()
-        return
-      }
-      if (message.requestId !== activeRequestId) {
-        return
-      }
-
-      if (message.type === 'start') {
-        replayFrameSizeRef.current = {
-          width: message.width,
-          height: message.height,
-        }
-        const compositor = ensureReplayCompositor(message.width, message.height)
-        compositor?.context.clearRect(0, 0, message.width, message.height)
-        return
-      }
-
-      if (message.type === 'tile') {
-        const canvas = canvasRef.current
-        const frameSize = replayFrameSizeRef.current
-        const compositor = ensureReplayCompositor(message.width, message.height)
-        if (!canvas || !frameSize || !compositor) {
-          message.bitmap.close()
-          return
-        }
-
-        compositor.context.drawImage(
-          message.bitmap,
-          0,
-          0,
-          message.width,
-          message.height,
-          message.x,
-          message.y,
-          message.width,
-          message.height,
-        )
-        message.bitmap.close()
-        return
-      }
-
-      if (message.type === 'done') {
-        scheduleReplayPresent()
-      }
-      replayActiveRequestIdRef.current = null
-      replayFrameSizeRef.current = null
-      if (message.type === 'error') {
-        void engineRef.current?.renderFrame()
-      }
-    }
-
-    return () => {
-      if (replayPresentRafRef.current !== null) {
-        window.cancelAnimationFrame(replayPresentRafRef.current)
-        replayPresentRafRef.current = null
-      }
-      replayActiveRequestIdRef.current = null
-      replayFrameSizeRef.current = null
-      replayWorkerRef.current = null
-      worker.terminate()
-    }
-  }, [ensureReplayCompositor, scheduleReplayPresent])
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -548,21 +368,27 @@ export function Canvas2DRenderer({
         lod: {
           enabled: true,
           options: {
-            mode: 'moderate', // conservative | moderate | aggressive
+            mode: 'conservative', // conservative | moderate | aggressive
           },
         },
         // Enable tile-based caching with multiple zoom levels
         tileConfig: {
           enabled: true,
           tileSizePx: 512,
-          maxTilesLRU: 64,
+          maxCacheSize: 64,
         },
         // Enable initial render optimization with low-DPR preview
         initialRender: {
           enabled: true,
-          lowDprPreview: 0.25, // Preview at 25% DPR for fast initial render
+          lowDprPreview: 0.5, // Keep preview readable while still reducing startup cost
           previewDelayMs: 50,  // Show preview after 50ms
-          detailDelayMs: 200,  // Start detail pass after 200ms
+          detailPassDelayMs: 200,  // Start detail pass after 200ms
+        },
+        interactionPreview: {
+          enabled: true,
+          mode: 'zoom-only',
+          maxScaleStep: 1.2,
+          maxTranslatePx: 220,
         },
       },
       resource: {
@@ -634,7 +460,6 @@ export function Canvas2DRenderer({
 
     return () => {
       cancelDeferredFullRedraw()
-      cancelWorkerReplay()
       cancelScheduledRender()
       if (interactionSettleTimerRef.current !== null) {
         window.clearTimeout(interactionSettleTimerRef.current)
@@ -648,11 +473,10 @@ export function Canvas2DRenderer({
       engineRef.current = null
       engine.dispose()
     }
-  }, [backend, cancelDeferredFullRedraw, cancelScheduledRender, cancelWorkerReplay])
+  }, [backend, cancelDeferredFullRedraw, cancelScheduledRender])
 
   React.useEffect(() => {
     lastInteractionAtRef.current = performance.now()
-    previousScaleRef.current = viewport.scale
     setIsInteracting(true)
     if (interactionSettleTimerRef.current !== null) {
       window.clearTimeout(interactionSettleTimerRef.current)
@@ -693,12 +517,17 @@ export function Canvas2DRenderer({
     })
 
     if (preparedFrame.scene.dirty) {
-      const nextEngineScene = createEngineSceneFromRuntimeSnapshot(replayScenePayload)
       if (preparedFrame.dirtyState.sceneStructureDirty || !previous) {
+        const nextEngineScene = createEngineSceneFromRuntimeSnapshot(replayScenePayload)
         engine.loadScene(nextEngineScene)
       } else {
-        const changedIdSet = new Set(preparedFrame.dirtyState.sceneInstanceIds)
-        const upsertNodes = nextEngineScene.nodes.filter((node) => changedIdSet.has(node.id))
+        const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, document)
+        const incrementalScene = createEngineSceneFromRuntimeSnapshot({
+          ...replayScenePayload,
+          includeShapeIds: changedIds,
+          includeDocumentBackground: false,
+        })
+        const upsertNodes = incrementalScene.nodes
 
         if (upsertNodes.length > 0) {
           engine.applyScenePatchBatch({
@@ -707,16 +536,11 @@ export function Canvas2DRenderer({
               upsertNodes,
             }],
           })
-          // Mark tile regions dirty for changed node bounds so tile cache
-          // only re-renders affected areas instead of full redraws.
-          for (const node of upsertNodes) {
-            if ('x' in node && 'y' in node && 'width' in node && 'height' in node) {
-              engine.markDirtyBounds({
-                x: (node as {x: number}).x,
-                y: (node as {y: number}).y,
-                width: (node as {width: number}).width,
-                height: (node as {height: number}).height,
-              })
+          // Coalesce dirty marks to one merged region for large patch bursts.
+          if (upsertNodes.length <= MAX_DIRTY_REGION_MARK_NODES) {
+            const mergedDirtyBounds = resolveMergedNodeBounds(upsertNodes)
+            if (mergedDirtyBounds) {
+              engine.markDirtyBounds(mergedDirtyBounds)
             }
           }
         }
@@ -753,7 +577,7 @@ export function Canvas2DRenderer({
 
     // Avoid mutating render quality every frame.
     const nextQuality: 'full' | 'interactive' =
-      isInteracting || renderQuality === 'interactive' || lodLevel >= 2
+      renderQuality === 'interactive' || (isInteracting && lodLevel >= 2)
         ? 'interactive'
         : 'full'
     if (appliedQualityRef.current !== nextQuality) {
@@ -761,8 +585,10 @@ export function Canvas2DRenderer({
       appliedQualityRef.current = nextQuality
     }
 
-    const width = Math.max(1, Math.floor(viewport.viewportWidth))
-    const height = Math.max(1, Math.floor(viewport.viewportHeight))
+    const fallbackWidth = canvas.clientWidth || canvas.parentElement?.clientWidth || 0
+    const fallbackHeight = canvas.clientHeight || canvas.parentElement?.clientHeight || 0
+    const width = Math.max(1, Math.floor(viewport.viewportWidth > 1 ? viewport.viewportWidth : fallbackWidth))
+    const height = Math.max(1, Math.floor(viewport.viewportHeight > 1 ? viewport.viewportHeight : fallbackHeight))
     const renderWidth = width + OVERSCAN_PX * 2
     const renderHeight = height + OVERSCAN_PX * 2
     if (
@@ -783,7 +609,6 @@ export function Canvas2DRenderer({
 
     if (isInteracting) {
       cancelDeferredFullRedraw()
-      cancelWorkerReplay()
       cancelScheduledRender()
       requestEngineRender('interactive')
       return
@@ -807,33 +632,7 @@ export function Canvas2DRenderer({
         return
       }
 
-      if (!shouldUseWorkerReplay || !replayWorkerRef.current) {
-        requestEngineRender('normal')
-        return
-      }
-
-      const requestId = ++replayRequestSeqRef.current
-      replayActiveRequestIdRef.current = requestId
-      replayFrameSizeRef.current = {
-        width: renderWidth,
-        height: renderHeight,
-      }
-      const request: EngineReplayRenderRequest<CreateEngineSceneFromRuntimeSnapshotOptions> = {
-        type: 'render',
-        requestId,
-        width: renderWidth,
-        height: renderHeight,
-        tileSize: REPLAY_TILE_SIZE,
-        viewport: {
-          viewportWidth: renderWidth,
-          viewportHeight: renderHeight,
-          offsetX: viewport.offsetX + OVERSCAN_PX,
-          offsetY: viewport.offsetY + OVERSCAN_PX,
-          scale: viewport.scale,
-        },
-        scene: replayScenePayload,
-      }
-      replayWorkerRef.current.postMessage(request)
+      requestEngineRender('normal')
     }
 
     const idleApi = window as Window & {
@@ -857,10 +656,7 @@ export function Canvas2DRenderer({
     FULL_REDRAW_QUIET_WINDOW_MS,
     cancelDeferredFullRedraw,
     cancelScheduledRender,
-    cancelWorkerReplay,
     isInteracting,
-    replayScenePayload,
-    shouldUseWorkerReplay,
     targetDpr,
     viewport,
     requestEngineRender,
@@ -884,4 +680,66 @@ export function Canvas2DRenderer({
       }}
     />
   )
+}
+
+function resolveMergedNodeBounds(nodes: ReadonlyArray<Record<string, unknown>>) {
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
+  for (const node of nodes) {
+    const x = typeof node.x === 'number' ? node.x : null
+    const y = typeof node.y === 'number' ? node.y : null
+    const width = typeof node.width === 'number' ? node.width : null
+    const height = typeof node.height === 'number' ? node.height : null
+    if (x === null || y === null || width === null || height === null) {
+      continue
+    }
+
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x + width)
+    maxY = Math.max(maxY, y + height)
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  }
+}
+
+function resolveExpandedChangedIds(
+  changedIds: readonly string[],
+  document: EditorDocument,
+) {
+  if (changedIds.length === 0) {
+    return []
+  }
+
+  const changedIdSet = new Set(changedIds)
+  const expanded = new Set(changedIds)
+
+  // If a clip source changed, clipped images also need refresh.
+  // If a clipped image changed, keep its clip source in the patch set too.
+  for (const shape of document.shapes) {
+    if (!shape.clipPathId) {
+      continue
+    }
+
+    if (changedIdSet.has(shape.clipPathId)) {
+      expanded.add(shape.id)
+    }
+    if (changedIdSet.has(shape.id)) {
+      expanded.add(shape.clipPathId)
+    }
+  }
+
+  return Array.from(expanded)
 }

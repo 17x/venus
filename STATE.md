@@ -9,6 +9,7 @@
 - Runtime chain: `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`
 - Product UI behavior stays in app layers; command/history/protocol stays in runtime worker paths.
 - Persisted model truth stays in `@venus/document-core`.
+- `apps/playground` is deprecated and retained only as historical diagnostics reference.
 
 ## Current Blockers
 

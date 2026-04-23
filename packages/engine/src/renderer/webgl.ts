@@ -1,4 +1,5 @@
 import type {
+  EngineInteractionPreviewConfig,
   EngineRenderFrame,
   EngineRenderer,
 } from './types.ts'
@@ -25,6 +26,15 @@ interface WebGLEngineRendererOptions {
   tileConfig?: EngineTileConfig
   // New: Initial render optimization
   initialRender?: EngineInitialRenderConfig
+  // Optional: interactive affine preview from last composite frame.
+  interactionPreview?: EngineInteractionPreviewConfig
+}
+
+const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
+  enabled: true,
+  mode: 'interaction',
+  maxScaleStep: 1.2,
+  maxTranslatePx: 220,
 }
 
 /**
@@ -54,6 +64,21 @@ export function createWebGLEngineRenderer(
   const pipeline = createWebGLQuadPipeline(context)
   const imageCache = new Map<string, CachedTextureEntry>()
   const textCache = new Map<string, CachedTextureEntry>()
+  const interactionPreview = {
+    ...DEFAULT_INTERACTION_PREVIEW,
+    ...options.interactionPreview,
+  }
+  let compositeSnapshot: {
+    revision: string | number
+    scale: number
+    offsetX: number
+    offsetY: number
+    viewportWidth: number
+    viewportHeight: number
+    pixelRatio: number
+    visibleCount: number
+    culledCount: number
+  } | null = null
   
   // Initialize tile cache (optional)
   const tileCache = options.tileConfig ? new EngineTileCache(options.tileConfig) : null
@@ -204,6 +229,18 @@ export function createWebGLEngineRenderer(
           compositeTexture,
         )
 
+        compositeSnapshot = {
+          revision: effectiveFrame.scene.revision,
+          scale: effectiveFrame.viewport.scale,
+          offsetX: effectiveFrame.viewport.offsetX,
+          offsetY: effectiveFrame.viewport.offsetY,
+          viewportWidth: effectiveFrame.viewport.viewportWidth,
+          viewportHeight: effectiveFrame.viewport.viewportHeight,
+          pixelRatio: effectiveFrame.context.pixelRatio ?? 1,
+          visibleCount: modelStats.visibleCount,
+          culledCount: modelStats.culledCount,
+        }
+
         return {
           ...modelStats,
           drawCount: Math.max(1, modelStats.drawCount),
@@ -214,6 +251,33 @@ export function createWebGLEngineRenderer(
             Math.max(1, effectiveFrame.context.pixelRatio ?? 1) *
             Math.max(1, effectiveFrame.context.pixelRatio ?? 1) *
             4,
+          webglInteractiveTextFallbackCount: 0,
+          webglTextTextureUploadCount: 0,
+          webglTextTextureUploadBytes: 0,
+          webglTextCacheHitCount: 0,
+          frameMs: performance.now() - startAt,
+        }
+      }
+
+      const previewReuse = tryReuseInteractiveCompositeFrame({
+        context,
+        pipeline,
+        frame: effectiveFrame,
+        texture: compositeTexture,
+        snapshot: compositeSnapshot,
+        interactionPreview,
+      })
+      if (previewReuse.reused) {
+        return {
+          drawCount: 1,
+          visibleCount: previewReuse.visibleCount,
+          culledCount: previewReuse.culledCount,
+          cacheHits: 1,
+          cacheMisses: 0,
+          frameReuseHits: 1,
+          frameReuseMisses: 0,
+          webglRenderPath: 'packet',
+          webglCompositeUploadBytes: 0,
           webglInteractiveTextFallbackCount: 0,
           webglTextTextureUploadCount: 0,
           webglTextTextureUploadBytes: 0,
@@ -494,6 +558,108 @@ interface CachedTextureEntry {
   texture: WebGLTexture
   width: number
   height: number
+}
+
+function tryReuseInteractiveCompositeFrame(options: {
+  context: WebGLRenderingContext | WebGL2RenderingContext
+  pipeline: WebGLQuadPipeline
+  frame: EngineRenderFrame
+  texture: WebGLTexture
+  snapshot: {
+    revision: string | number
+    scale: number
+    offsetX: number
+    offsetY: number
+    viewportWidth: number
+    viewportHeight: number
+    pixelRatio: number
+    visibleCount: number
+    culledCount: number
+  } | null
+  interactionPreview: Required<EngineInteractionPreviewConfig>
+}) {
+  if (!options.interactionPreview.enabled || options.frame.context.quality !== 'interactive' || !options.snapshot) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  const snapshot = options.snapshot
+  const frame = options.frame
+  const currentPixelRatio = frame.context.pixelRatio ?? 1
+  if (
+    snapshot.revision !== frame.scene.revision ||
+    snapshot.viewportWidth !== frame.viewport.viewportWidth ||
+    snapshot.viewportHeight !== frame.viewport.viewportHeight ||
+    snapshot.pixelRatio !== currentPixelRatio
+  ) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  const scaleRatio = frame.viewport.scale / snapshot.scale
+  if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  if (options.interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < 1e-3) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  if (
+    scaleRatio > options.interactionPreview.maxScaleStep ||
+    scaleRatio < 1 / options.interactionPreview.maxScaleStep
+  ) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  const deltaX = frame.viewport.offsetX - scaleRatio * snapshot.offsetX
+  const deltaY = frame.viewport.offsetY - scaleRatio * snapshot.offsetY
+  if (
+    Math.abs(deltaX * currentPixelRatio) > options.interactionPreview.maxTranslatePx ||
+    Math.abs(deltaY * currentPixelRatio) > options.interactionPreview.maxTranslatePx
+  ) {
+    return {reused: false, visibleCount: 0, culledCount: 0}
+  }
+
+  options.context.viewport(
+    0,
+    0,
+    frame.viewport.viewportWidth * currentPixelRatio,
+    frame.viewport.viewportHeight * currentPixelRatio,
+  )
+  options.context.enable(options.context.BLEND)
+  options.context.blendFunc(options.context.ONE, options.context.ONE_MINUS_SRC_ALPHA)
+  options.context.clearColor(0, 0, 0, 0)
+  options.context.clear(options.context.COLOR_BUFFER_BIT)
+
+  const previewFrame: EngineRenderFrame = {
+    ...frame,
+    viewport: {
+      ...frame.viewport,
+      scale: scaleRatio,
+      offsetX: deltaX,
+      offsetY: deltaY,
+    },
+  }
+
+  drawWebGLPacket(
+    options.context,
+    options.pipeline,
+    previewFrame,
+    {
+      x: 0,
+      y: 0,
+      width: snapshot.viewportWidth,
+      height: snapshot.viewportHeight,
+    },
+    [1, 1, 1, 1],
+    1,
+    options.texture,
+  )
+
+  return {
+    reused: true,
+    visibleCount: snapshot.visibleCount,
+    culledCount: snapshot.culledCount,
+  }
 }
 
 function createWebGLQuadPipeline(
