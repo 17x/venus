@@ -653,6 +653,28 @@ context starts, or work needs to resume after switching topics.
   extracted out of `useEditorRuntimeCanvasInteractions` into shared runtime
   hook helpers to reduce adjacent monolith size without changing input routing
   ownership.
+  Follow-up slice: pointer-down path-subselection interpretation and marquee
+  mode resolution now also live in shared helpers, leaving the hook focused
+  more tightly on state transitions and command dispatch.
+  Current slice: selector pointer-down hit-option resolution also moved into
+  shared helpers, and the hook no longer performs a redundant hovered-shape
+  map lookup just to recover the same id.
+  Latest slice: selector pointer-down clear-selection and group-drag
+  preservation decisions are now helper-owned as well, continuing the shift of
+  branch-local policy out of the interaction hook.
+  Current follow-up: resize/rotate transform-start payload assembly is now
+  helper-owned too, which shortens the hook's transform-handle branch and keeps
+  it closer to transition/dispatch orchestration.
+  Latest follow-up: marquee-start pointer-down state assembly is now helper-
+  owned as well, continuing the same reduction of inline branch setup logic.
+  Current follow-up: draft-shape and insert-shape pointer-down state assembly
+  also moved into shared helpers, reducing inline setup outside the
+  selector/direct-selector path.
+  Latest follow-up: pen pointer-down transition metadata now also lives in a
+  shared helper, leaving the remaining branch body closer to pure orchestration.
+  Closure: the only pointer-down logic left local is default fallback
+  orchestration into existing canvas interactions; the rest of the branch-local
+  setup/policy surface has been extracted behind shared helpers.
 
 ## Avoid Repeating
 

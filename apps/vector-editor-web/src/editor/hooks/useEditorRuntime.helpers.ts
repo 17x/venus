@@ -1,16 +1,168 @@
 import {
+  nid,
   getBoundingRectFromBezierPoints,
   type BezierPoint,
   type DocumentNode,
   type EditorDocument,
+  type ToolName,
 } from '@venus/document-core'
 import {doNormalizedBoundsOverlap, getNormalizedBoundsFromBox} from '@vector/runtime/engine'
 import type {ElementProps} from '@lite-u/editor/types'
-import type {PathSubSelection} from '../interaction/index.ts'
+import {
+  collectResizeTransformTargets,
+  createMarqueeState,
+  createTransformPreviewShape,
+  createTransformSessionShape,
+  shouldClearSelectionOnPointerDown,
+  shouldPreserveGroupDragSelection,
+  type MarqueeApplyMode,
+  type MarqueeSelectionMode,
+} from '../../runtime/interaction/index.ts'
+import type {
+  DraftPrimitiveType,
+  HandleKind,
+  PathSubSelection,
+} from '../interaction/index.ts'
+import type {TransformBounds} from '../runtime-local/interaction/transformSessionManager.ts'
 import type {
   SelectedElementProps,
   VisionFileType,
 } from './useEditorRuntime.types.ts'
+import {createShapeElementFromTool} from './editorRuntimeHelpers.ts'
+
+export interface RuntimePointerModifiersLike {
+  shiftKey?: boolean
+  metaKey?: boolean
+  ctrlKey?: boolean
+  altKey?: boolean
+}
+
+export function resolveSelectionPointerDownHitOptions(input: {
+  currentTool: 'selector' | 'dselector'
+  hoveredShapeId: string | null
+  modifiers?: RuntimePointerModifiersLike
+}) {
+  return {
+    hitShapeId: input.hoveredShapeId,
+    preferGroupSelection:
+      input.currentTool === 'selector' &&
+      !(input.modifiers?.metaKey || input.modifiers?.ctrlKey),
+  }
+}
+
+export function shouldClearSelectionOnSelectorPointerDown(input: {
+  point: {x: number; y: number}
+  selectedBounds: TransformBounds | null
+  selectedNodes: DocumentNode[]
+  singleSelectedRotation: number
+  shapeById: Map<string, DocumentNode>
+  tolerance: number
+}) {
+  return shouldClearSelectionOnPointerDown(input.point, {
+    selectedBounds: input.selectedBounds,
+    selectedNodes: input.selectedNodes,
+    singleSelectedRotation: input.singleSelectedRotation,
+    shapeById: input.shapeById,
+    tolerance: input.tolerance,
+  })
+}
+
+export function shouldPreserveGroupDragSelectionOnPointerDown(input: {
+  modifiers?: RuntimePointerModifiersLike
+  hoveredShapeId: string | null
+  selectedNodes: DocumentNode[]
+  shapeById: Map<string, DocumentNode>
+}) {
+  return shouldPreserveGroupDragSelection({
+    modifiers: input.modifiers,
+    hoveredShapeId: input.hoveredShapeId,
+    selectedNodes: input.selectedNodes,
+    shapeById: input.shapeById,
+  })
+}
+
+export function resolveTransformHandlePointerDownState(input: {
+  handleKind: HandleKind
+  selectedNodes: DocumentNode[]
+  selectedBounds: TransformBounds
+  interactionDocument: EditorDocument
+}) {
+  const resizeTargets = input.handleKind === 'rotate'
+    ? input.selectedNodes
+    : collectResizeTransformTargets(input.selectedNodes, input.interactionDocument)
+
+  return {
+    shapeIds: input.selectedNodes.map((shape) => shape.id),
+    sessionShapes: resizeTargets.map((shape) => createTransformSessionShape(shape)),
+    previewShapes: resizeTargets.map((shape) => createTransformPreviewShape(shape)),
+    handle: input.handleKind,
+    startBounds: input.selectedBounds,
+    nextEditingMode: input.handleKind === 'rotate' ? 'rotating' as const : 'resizing' as const,
+  }
+}
+
+export function resolveMarqueePointerDownState(input: {
+  point: {x: number; y: number}
+  modifiers?: RuntimePointerModifiersLike
+  applyMode: MarqueeApplyMode
+}) {
+  return {
+    marquee: createMarqueeState(
+      input.point,
+      resolveMarqueeSelectionMode(input.modifiers),
+      {applyMode: input.applyMode},
+    ),
+    nextEditingMode: 'marqueeSelecting' as const,
+    transitionReason: 'marquee-start',
+  }
+}
+
+export function resolveDraftPrimitivePointerDownState(input: {
+  point: {x: number; y: number}
+  draftPrimitiveType: DraftPrimitiveType
+  currentTool: ToolName
+}) {
+  return {
+    draftPrimitive: {
+      id: nid(),
+      type: input.draftPrimitiveType,
+      points: [input.point, input.point],
+      bounds: {
+        minX: input.point.x,
+        minY: input.point.y,
+        maxX: input.point.x,
+        maxY: input.point.y,
+      },
+    },
+    nextEditingMode: 'insertingShape' as const,
+    transitionReason: `draft-shape:${input.currentTool}`,
+  }
+}
+
+export function resolveInsertShapePointerDownState(input: {
+  currentTool: ToolName
+  point: {x: number; y: number}
+}) {
+  const shape = createShapeElementFromTool(input.currentTool, input.point)
+  if (!shape) {
+    return null
+  }
+
+  return {
+    shape,
+    nextEditingMode: 'insertingShape' as const,
+    transitionReason: `insert-shape:${input.currentTool}`,
+  }
+}
+
+export function resolvePenPointerDownState(input: {
+  currentTool: ToolName
+}) {
+  return {
+    nextEditingMode: input.currentTool === 'path' ? 'drawingPath' as const : 'drawingPencil' as const,
+    transitionReason: `draw-start:${input.currentTool}`,
+  }
+}
 
 export function isClosedMaskShape(shape: DocumentNode | null | undefined) {
   return !!shape && (
@@ -280,5 +432,47 @@ export function shouldResolveHoverHit(
       lastAt: now,
       lastPoint: point,
     } satisfies HoverHitBudgetState,
+  }
+}
+
+export function resolveMarqueeSelectionMode(
+  modifiers?: RuntimePointerModifiersLike,
+): MarqueeSelectionMode {
+  if (modifiers?.shiftKey) {
+    return 'add'
+  }
+
+  if (modifiers?.altKey) {
+    return 'remove'
+  }
+
+  if (modifiers?.metaKey || modifiers?.ctrlKey) {
+    return 'toggle'
+  }
+
+  return 'replace'
+}
+
+export function resolvePointerDownPathSubSelectionState(
+  nextPathSubSelection: PathSubSelection | null,
+) {
+  if (!nextPathSubSelection) {
+    return null
+  }
+
+  const pathHandleDrag =
+    (nextPathSubSelection.hitType === 'inHandle' || nextPathSubSelection.hitType === 'outHandle') &&
+    nextPathSubSelection.handlePoint
+      ? {
+          shapeId: nextPathSubSelection.shapeId,
+          anchorIndex: nextPathSubSelection.handlePoint.anchorIndex,
+          handleType: nextPathSubSelection.handlePoint.handleType,
+        }
+      : null
+
+  return {
+    pathHandleDrag,
+    pathSubSelection: nextPathSubSelection,
+    pathSubSelectionHover: nextPathSubSelection,
   }
 }

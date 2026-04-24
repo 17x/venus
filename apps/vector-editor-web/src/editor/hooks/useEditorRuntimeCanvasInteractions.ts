@@ -1,24 +1,26 @@
 import {useMemo, useRef} from 'react'
-import {nid, type ToolName} from '@venus/document-core'
+import {type ToolName} from '@venus/document-core'
 import {
-  collectResizeTransformTargets,
   createMarqueeState,
-  createTransformPreviewShape,
-  createTransformSessionShape,
   resolveDragStartTransformPayload,
   resolveSelectionHandleHitAtPoint,
   resolveSnappedTransformPreview,
   resolveTopHitShapeId,
-  shouldClearSelectionOnPointerDown,
-  shouldPreserveGroupDragSelection,
   updateMarqueeState,
   type MarqueeApplyMode,
-  type MarqueeSelectionMode,
 } from '../../runtime/interaction/index.ts'
-import {createShapeElementFromTool} from './editorRuntimeHelpers.ts'
 import {resolvePathSubSelectionAtPoint} from './runtime/pathSubSelection.ts'
 import {
+  resolveDraftPrimitivePointerDownState,
+  resolveInsertShapePointerDownState,
   isPathSubSelectionEqual,
+  resolveMarqueePointerDownState,
+  resolvePenPointerDownState,
+  resolvePointerDownPathSubSelectionState,
+  resolveSelectionPointerDownHitOptions,
+  resolveTransformHandlePointerDownState,
+  shouldClearSelectionOnSelectorPointerDown,
+  shouldPreserveGroupDragSelectionOnPointerDown,
   shouldResolveHoverHit,
   type HoverHitBudgetState,
 } from './useEditorRuntime.helpers.ts'
@@ -310,16 +312,13 @@ export function useEditorRuntimeCanvasInteractions(options: {
             point,
             {tolerance: 8},
           )
-          if (nextPathSubSelection) {
-            if ((nextPathSubSelection.hitType === 'inHandle' || nextPathSubSelection.hitType === 'outHandle') && nextPathSubSelection.handlePoint) {
-              options.setPathHandleDrag({
-                shapeId: nextPathSubSelection.shapeId,
-                anchorIndex: nextPathSubSelection.handlePoint.anchorIndex,
-                handleType: nextPathSubSelection.handlePoint.handleType,
-              })
+          const pathSubSelectionState = resolvePointerDownPathSubSelectionState(nextPathSubSelection)
+          if (pathSubSelectionState) {
+            if (pathSubSelectionState.pathHandleDrag) {
+              options.setPathHandleDrag(pathSubSelectionState.pathHandleDrag)
             }
-            options.setPathSubSelection(nextPathSubSelection)
-            options.setPathSubSelectionHover(nextPathSubSelection)
+            options.setPathSubSelection(pathSubSelectionState.pathSubSelection)
+            options.setPathSubSelectionHover(pathSubSelectionState.pathSubSelectionHover)
             options.setSnapGuides([])
             return
           }
@@ -344,30 +343,34 @@ export function useEditorRuntimeCanvasInteractions(options: {
         })
 
         if (handle && selectedBounds && selectedNodes.length > 0) {
-          const resizeTargets = handle.kind === 'rotate'
-            ? selectedNodes
-            : collectResizeTransformTargets(selectedNodes, options.interactionDocument)
+          const transformHandleState = resolveTransformHandlePointerDownState({
+            handleKind: handle.kind,
+            selectedNodes,
+            selectedBounds,
+            interactionDocument: options.interactionDocument,
+          })
           options.selectionDragControllerRef.current?.clear()
           options.transformManagerRef.current?.start({
-            shapeIds: selectedNodes.map((shape) => shape.id),
-            shapes: resizeTargets.map((shape) => createTransformSessionShape(shape)),
-            handle: handle.kind,
+            shapeIds: transformHandleState.shapeIds,
+            shapes: transformHandleState.sessionShapes,
+            handle: transformHandleState.handle,
             pointer: point,
-            startBounds: selectedBounds,
+            startBounds: transformHandleState.startBounds,
           })
-          options.setActiveTransformHandle(handle.kind)
+          options.setActiveTransformHandle(transformHandleState.handle)
           options.runtimeEditingModeControllerRef.current?.transition({
-            to: handle.kind === 'rotate' ? 'rotating' : 'resizing',
-            reason: `transform-handle:${handle.kind}`,
+            to: transformHandleState.nextEditingMode,
+            reason: `transform-handle:${transformHandleState.handle}`,
           })
           options.setTransformPreview({
-            shapes: resizeTargets.map((shape) => createTransformPreviewShape(shape)),
+            shapes: transformHandleState.previewShapes,
           })
           options.setSnapGuides([])
           return
         }
 
-        if (shouldClearSelectionOnPointerDown(point, {
+        if (shouldClearSelectionOnSelectorPointerDown({
+          point,
           selectedBounds,
           selectedNodes,
           singleSelectedRotation,
@@ -383,22 +386,21 @@ export function useEditorRuntimeCanvasInteractions(options: {
           return
         }
 
-        const hoveredShape = options.hoveredShapeId
-          ? options.runtimeShapeById.get(options.hoveredShapeId) ?? null
-          : null
+        const selectionHitOptions = resolveSelectionPointerDownHitOptions({
+          currentTool: options.currentTool,
+          hoveredShapeId: options.hoveredShapeId,
+          modifiers,
+        })
         const hasHit = options.selectionDragControllerRef.current?.pointerDown(point, {
           document: options.interactionDocument,
           shapes: options.canvasRuntime.shapes,
-        }, modifiers, {
-          hitShapeId: hoveredShape?.id ?? null,
-          preferGroupSelection: options.currentTool === 'selector' && !(modifiers?.metaKey || modifiers?.ctrlKey),
-        })
+        }, modifiers, selectionHitOptions)
 
         if (hasHit) {
           options.setSnapGuides([])
-          const preserveGroupDragSelection = shouldPreserveGroupDragSelection({
+          const preserveGroupDragSelection = shouldPreserveGroupDragSelectionOnPointerDown({
             modifiers,
-            hoveredShapeId: hoveredShape?.id ?? null,
+            hoveredShapeId: selectionHitOptions.hitShapeId,
             selectedNodes,
             shapeById: options.previewShapeById,
           })
@@ -411,64 +413,61 @@ export function useEditorRuntimeCanvasInteractions(options: {
 
         options.selectionDragControllerRef.current?.clear()
         options.setSnapGuides([])
-        const marqueeMode: MarqueeSelectionMode = modifiers?.shiftKey
-          ? 'add'
-          : modifiers?.altKey
-            ? 'remove'
-            : (modifiers?.metaKey || modifiers?.ctrlKey)
-              ? 'toggle'
-              : 'replace'
+        const marqueeState = resolveMarqueePointerDownState({
+          point,
+          modifiers,
+          applyMode: DEFAULT_MARQUEE_APPLY_MODE,
+        })
         options.setHoveredShapeId(null)
         options.marqueeApplyControllerRef.current?.reset()
-        options.setMarquee(createMarqueeState(point, marqueeMode, {
-          applyMode: DEFAULT_MARQUEE_APPLY_MODE,
-        }))
+        options.setMarquee(marqueeState.marquee)
         options.runtimeEditingModeControllerRef.current?.transition({
-          to: 'marqueeSelecting',
-          reason: 'marquee-start',
+          to: marqueeState.nextEditingMode,
+          reason: marqueeState.transitionReason,
         })
         return
       }
 
       const draftPrimitiveType = options.resolveDraftPrimitiveType(options.currentTool)
       if (draftPrimitiveType) {
+        const draftPrimitiveState = resolveDraftPrimitivePointerDownState({
+          point,
+          draftPrimitiveType,
+          currentTool: options.currentTool,
+        })
         options.setSnapGuides([])
         options.setPathSubSelectionHover(null)
         options.runtimeEditingModeControllerRef.current?.transition({
-          to: 'insertingShape',
-          reason: `draft-shape:${options.currentTool}`,
+          to: draftPrimitiveState.nextEditingMode,
+          reason: draftPrimitiveState.transitionReason,
         })
-        options.setDraftPrimitive({
-          id: nid(),
-          type: draftPrimitiveType,
-          points: [point, point],
-          bounds: {
-            minX: point.x,
-            minY: point.y,
-            maxX: point.x,
-            maxY: point.y,
-          },
-        })
+        options.setDraftPrimitive(draftPrimitiveState.draftPrimitive)
         return
       }
 
-      const shapeFromTool = createShapeElementFromTool(options.currentTool, point)
-      if (shapeFromTool) {
+      const insertShapeState = resolveInsertShapePointerDownState({
+        currentTool: options.currentTool,
+        point,
+      })
+      if (insertShapeState) {
         options.setSnapGuides([])
         options.runtimeEditingModeControllerRef.current?.transition({
-          to: 'insertingShape',
-          reason: `insert-shape:${options.currentTool}`,
+          to: insertShapeState.nextEditingMode,
+          reason: insertShapeState.transitionReason,
         })
-        options.insertElement(shapeFromTool)
+        options.insertElement(insertShapeState.shape)
         return
       }
 
       if (options.penTool.handlePointerDown(point)) {
+        const penPointerDownState = resolvePenPointerDownState({
+          currentTool: options.currentTool,
+        })
         options.selectionDragControllerRef.current?.clear()
         options.setSnapGuides([])
         options.runtimeEditingModeControllerRef.current?.transition({
-          to: options.currentTool === 'path' ? 'drawingPath' : 'drawingPencil',
-          reason: `draw-start:${options.currentTool}`,
+          to: penPointerDownState.nextEditingMode,
+          reason: penPointerDownState.transitionReason,
         })
         return
       }

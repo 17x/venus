@@ -40,7 +40,14 @@
 - Runtime monolith decomposition follow-up (`useEditorRuntime` adjacent paths)
   - Progress 2026-04-24:
     - Implemented: `VT-20260424-15` extracted hover-hit budget and path-subselection equality helpers from `useEditorRuntimeCanvasInteractions.ts` into `useEditorRuntime.helpers.ts`, reducing hook-local decision surface without changing pointer state-machine ownership
-    - Next: continue extracting pointer-down branch selection/hover policy from `useEditorRuntimeCanvasInteractions.ts` in similarly small slices
+    - Implemented: `VT-20260424-15` extracted pointer-down path-subselection interpretation and marquee-mode resolution from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, shrinking selector/direct-selector branch-local policy code without changing transform or selection state-machine flow
+    - Implemented: `VT-20260424-15` extracted selector pointer-down hit-option resolution and removed an unnecessary hovered-shape map lookup, further narrowing `useEditorRuntimeCanvasInteractions.ts` to transition/dispatch behavior
+    - Implemented: `VT-20260424-15` extracted selector pointer-down clear-selection and group-drag-preservation decisions into shared helpers, leaving the hook with less embedded selection policy logic
+    - Implemented: `VT-20260424-15` extracted transform-handle start payload assembly for resize/rotate pointer-down into shared helpers, reducing inline transform session wiring inside `useEditorRuntimeCanvasInteractions.ts`
+    - Implemented: `VT-20260424-15` extracted marquee-start pointer-down state assembly into shared helpers, reducing inline marquee setup inside `useEditorRuntimeCanvasInteractions.ts`
+    - Implemented: `VT-20260424-15` extracted draft-shape and insert-shape pointer-down state assembly into shared helpers, shrinking non-selector pointer-down setup in `useEditorRuntimeCanvasInteractions.ts`
+    - Implemented: `VT-20260424-15` extracted pen pointer-down transition metadata into shared helpers, further reducing inline branch setup in `useEditorRuntimeCanvasInteractions.ts`
+    - Verified 2026-04-24: `VT-20260424-15` decomposition pass leaves only pointer/down fallback orchestration local in `useEditorRuntimeCanvasInteractions.ts`; branch-local policy/setup now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
 - Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
   - Progress 2026-04-24:
     - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
@@ -202,7 +209,7 @@
 - `VT-20260424-12` [verified]: multi-resolution image path baseline for zoom-dependent image decode/upload cost control
 - `VT-20260424-13` [verified]: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
 - `VT-20260424-14` [verified]: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
-- `VT-20260424-15` [in-progress]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
+- `VT-20260424-15` [verified]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
 - 100K performance optimization Phase 2 (runtime structure, next execution queue):
   1. Phase-based render policy service (owner: runtime)
   - Deliverable: explicit policy for `static/pan/zoom/drag/settled`
