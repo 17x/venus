@@ -228,6 +228,15 @@
     - Implemented: added targeted transform/hit-test overlap regression checklist (`docs/core/transform-hit-test-regression-checklist.md`) with required scenarios, expected outcomes, and diagnostics capture points
     - Implemented: engineering testing docs now include mixed-scene gate usage and checklist entrypoints for repeatable validation
     - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+  - Progress 2026-04-24 (`VT-20260424-49` / `VT-20260424-50`):
+    - Implemented: packet-primary WebGL frames now capture a reusable composite snapshot so later interactive preview frames can reuse a settled packet render instead of requiring model-complete composite mode
+    - Implemented: pan-phase render policy now forces interactive engine quality, the vector-editor runtime now enables `interactionPreview` in `interaction` mode, and runtime diagnostics now expose actual engine frame quality to distinguish requested policy from renderer-applied quality
+    - Implemented: pan-phase render policy now keeps DPR at `auto` so entering hand-pan mode does not invalidate the latest preview snapshot via a `pixelRatio` mismatch before any viewport movement occurs
+    - Implemented: WebGL interaction preview reuse now flips framebuffer-captured preview textures on the Y axis during reuse sampling only, fixing the vertical mirroring that appeared during pan/zoom preview while leaving normal packet textures unchanged
+    - Implemented: zoom-phase render policy now also keeps DPR at `auto`, and low-scale interaction preview reuse now widens translate/scale-step tolerance only for overview-scale frames, with viewport-size-aware translate windows mirrored across WebGL and Canvas2D reuse paths
+    - Verified 2026-04-24: live `Stress Mixed 100K` browser validation at `2%` now shows `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, `Cache Hit Rate = 100%`, and pan preview frames dropping to `0.06 ms` on reuse-hit wheel-pan frames plus `0.12 ms` on hand-tool pan-entry frames
+    - Verified 2026-04-24: after the preview-texture Y-flip fix, both hand-pan and zoom-triggered interactive preview frames continue to report `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, `Cache Fallback Reason = none`, and sub-millisecond draw cost (`0.09 ms` hand-pan, `0.14 ms` zoom-triggered preview)
+    - Verified 2026-04-24: after zoom DPR continuity plus low-scale preview-window tuning, focused `Stress Mixed 100K` browser sampling at `2%` reached `reuseFrameCount = 10/11`, `maxFpsInstant = 78.1`, `maxFpsSmooth = 32.8`, and `minDrawMs = 0.11`; residual misses in the sampled sequence dropped to a single initial `l0-scale-step-exceeded`, so `VT-20260424-49` remains in progress only for first-zoom-entry acceptance follow-up
   - Progress 2026-04-24 (Phase 2 kickoff):
     - Verified 2026-04-24: mixed-scene perf gate executed with trend check output (`16 checks`, `16 trend checks`, `PASS`) via `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`
     - Implemented: `VT-20260424-05` precision-edit routing fix so `pathEditing` / `textEditing` now resolve to `precision` phase instead of falling through `drag` degradation in `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`
@@ -380,6 +389,40 @@
   1. Baseline scenes: `10k`, `50k`, `100k`, `mixed(text/image/path)` [`VT-20260424-14` verified]
   2. Metrics gate: frame time, hit-test time, cache hit-rate, visible candidate count [`VT-20260424-14` verified]
   3. CI/report rule: record trend and flag regression above agreed threshold [`VT-20260424-14` verified]
+
+- New task queue: 100K render correctness + frame-rate recovery (planned)
+  - Progress 2026-04-24:
+    - Implemented: `VT-20260424-49` first-pass overview-scale render-plan tuning now raises interactive tiny-object culling thresholds at very low zoom (`<= 5%` and `<= 12%`) in `packages/engine/src/renderer/plan.ts` to reduce pathological draw-list pressure during `2%` pan/zoom stress
+    - Implemented: `VT-20260424-49` WebGL packet path now skips imperceptibly small low-scale text placeholders plus tiny overview image packets in both the main packet loop and interactive edge-redraw path, reducing 100K overview packet load without changing higher-zoom fidelity paths
+    - Measured: `Mixed 100K` at `2%` overview now reports `Engine Draw Calls 19031` (down from `22006` after the prior pass), `Visible Shapes 15528`, `WebGL Text Fallback 6263`, and `WebGL Deferred Image Uploads 3916` in the runtime debug panel during initial stress load
+    - Implemented: `VT-20260424-50` runtime diagnostics now track instantaneous/smoothed FPS peaks plus `60 FPS+` / `120 FPS+` session-hit flags in `apps/vector-editor-web/src/runtime/events/index.ts`, and `RuntimeDebugPanel` now surfaces those peak/threshold rows for live validation
+  - `VT-20260424-49` [planned]: diagnose and recover 100K overview (`2%` scale) `panning` / `zooming` frame rate from `0.3 FPS`
+    - Deliverable: identify the dominant render-path bottleneck at overview scale and land the narrowest engine/runtime fix that removes the pathological slowdown
+    - Acceptance: 100K overview stress pass no longer collapses to sub-1 FPS during pan/zoom, with before/after diagnostics evidence recorded
+  - `VT-20260424-50` [planned]: add peak-frame-rate diagnostics and define `60 FPS+ / 120 FPS+` scene targets for engine validation
+    - Deliverable: runtime diagnostics and debug surface expose current FPS plus peak/ceiling detection for active sessions
+    - Acceptance: diagnostics can distinguish whether a scenario sustains `60 FPS+` and whether it ever reaches `120 FPS+`
+  - `VT-20260424-51` [planned]: fix initial-render corruption at `96%` scale where large portions of the scene fall back to placeholder color blocks
+    - Deliverable: correct first-frame / near-fit render path so normal scene content resolves instead of widespread fallback quads
+    - Acceptance: initial load around `96%` scale renders expected scene geometry/text/images without large fallback-color coverage
+  - `VT-20260424-52` [planned]: restore clip correctness for masked images
+    - Deliverable: masked image render path respects clip source / mask shape in the active engine backend
+    - Acceptance: masked images are clipped identically in normal render, interaction preview, and cache-reuse paths
+  - `VT-20260424-53` [planned]: fix tile-cache corruption after moving elements causing ghosting / stale trails
+    - Deliverable: tile invalidation and redraw correctly clear or rebuild moved-element regions without stale retained pixels
+    - Acceptance: moving shapes/images/text does not leave persistent ghost trails or stale tile remnants in cached regions
+  - `VT-20260424-54` [planned]: correct path bounding-box precision errors
+    - Deliverable: path bounds computation uses geometry-accurate bounds for points / bezier control points / transformed path cases
+    - Acceptance: selection, culling, dirty-region invalidation, and hit preparation all use stable, correct path bounds in regression scenarios
+  - `VT-20260424-55` [planned]: restore missing path stroke rendering
+    - Deliverable: path stroke draw path is visible again in the active engine backend and consistent with fill / hit geometry
+    - Acceptance: open and closed paths with stroke render correctly across normal view, low-scale view, and interaction preview
+  - `VT-20260424-56` [planned]: fix text drag ghosting and screen-LOD fallback sampling drift
+    - Deliverable: text movement invalidation and LOD fallback sampling align to the correct screen position during and after drag
+    - Acceptance: dragged text leaves no residue, and fallback text/placeholder sampling stays visually aligned with final settled render
+  - `VT-20260424-57` [planned]: restore missing star-shape stroke rendering
+    - Deliverable: star geometry stroke path is emitted correctly in the active engine backend
+    - Acceptance: star shapes show stroke consistently in full render, degraded/LOD render, and interaction preview
 
 ## Blocked
 

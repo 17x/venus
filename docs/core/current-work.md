@@ -218,6 +218,43 @@ context starts, or work needs to resume after switching topics.
   - runtime diagnostics now preserve max observed offscreen consecutive-skip
     streaks and panel now shows remaining frames before forced redraw, adding
     both long-horizon and immediate-pressure starvation indicators
+  - first-pass 100K overview recovery tuning now raises interactive tiny-object
+    culling thresholds at very low zoom in `packages/engine/src/renderer/plan.ts`
+    so `2%` pan/zoom overview passes can drop more sub-perceptual nodes before
+    packet replay
+  - runtime diagnostics now track peak instantaneous/smoothed FPS and session
+    hit flags for `60 FPS+` and `120 FPS+`, and Runtime Debug Panel surfaces
+    those rows for live engine validation during stress sessions
+  - WebGL packet rendering now skips imperceptibly small low-scale text
+    placeholders and tiny overview image packets, including the interactive
+    edge-redraw path used by preview frame reuse, to reduce `2%` overview
+    packet volume in `Stress Mixed 100K`
+  - packet-primary WebGL frames now capture a reusable composite snapshot, and
+    vector-editor runtime policy now keeps `pan` on interactive preview mode
+    with `interactionPreview` enabled; live `Stress Mixed 100K` validation at
+    `2%` now shows `Frame Reuse Hit = 1` / `L0 Preview Hits = 1` on reuse-hit
+    pan frames with draw time dropping to `0.06 ms`
+  - pan-phase render policy now keeps DPR at `auto`, removing the hand-tool
+    entry `l0-pixel-ratio-mismatch` that previously invalidated preview reuse
+    before any actual viewport motion; hand-pan entry frames now hit preview
+    reuse with draw time around `0.12 ms`
+  - zoom-phase render policy now also keeps DPR at `auto`, eliminating the
+    zoom-entry `l0-pixel-ratio-mismatch` fallback that previously broke
+    low-scale preview reuse before threshold checks even ran
+  - interaction preview reuse now flips only framebuffer-captured preview
+    textures on the Y axis during reuse sampling, fixing the vertical mirror
+    artifact seen during pan/zoom preview while preserving normal packet/image
+    texture orientation; hand-pan and zoom-triggered preview frames still hit
+    reuse with draw times around `0.09-0.14 ms`
+  - low-scale interaction preview reuse now widens translate and scale-step
+    tolerance only for overview frames, with viewport-size-aware translate
+    windows applied in both WebGL and Canvas2D reuse paths; focused `2%`
+    `Stress Mixed 100K` sampling now reaches `10/11` reuse-hit samples,
+    `78.1` instant FPS peak, and `0.11 ms` minimum draw time, leaving only an
+    initial zoom-entry `l0-scale-step-exceeded` miss in the sampled sequence
+  - runtime diagnostics now expose actual engine frame quality alongside
+    requested render-policy quality so preview-path validation can distinguish
+    scheduler/policy state from renderer-applied state during 100K tuning
   - Runtime Debug Panel now derives trend pressure (`rising`/`mixed`/`easing`),
     computes a bounded risk score (0-100), and color-codes scene-dirty risk
     status for faster stress-session diagnosis

@@ -32,6 +32,7 @@ export interface EngineRenderStats {
   drawCount: number
   visibleCount: number
   culledCount: number
+  engineFrameQuality?: EngineRenderQuality
   groupCollapseCount?: number
   groupCollapseCulledCount?: number
   cacheHits: number

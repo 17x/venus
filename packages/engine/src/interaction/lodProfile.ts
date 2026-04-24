@@ -22,12 +22,12 @@ export function resolveEngineCanvasLodProfile(
 ): EngineCanvasLodProfile {
   const interactionType = options.interactionType ?? 'other'
 
-  // Keep panning visually stable with full-quality reuse to avoid obvious
-  // content pop while the camera is translating.
+  // Pan should request interactive quality so render policy can engage
+  // affine preview reuse instead of replaying the full packet path.
   if (interactionType === 'pan') {
     return {
       lodLevel: 0,
-      renderQuality: 'full',
+      renderQuality: 'interactive',
       targetDpr: 'auto',
       imageSmoothingQuality: 'high',
       interactiveIntervalMs: 8,

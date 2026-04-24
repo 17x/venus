@@ -61,6 +61,15 @@ const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   maxTranslatePx: 220,
 }
 
+const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE = 0.12
+const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP = 1.3
+const INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX = 320
+const INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO = 0.24
+const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE = 0.05
+const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.5
+const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
+const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
+
 const NULL_RENDER_COUNTERS: RenderCounters = {
   drawCount: 0,
   visibleCount: 0,
@@ -314,7 +323,11 @@ function tryReuseInteractiveFrame(
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
-  if (scaleRatio > interactionPreview.maxScaleStep || scaleRatio < 1 / interactionPreview.maxScaleStep) {
+  const maxScaleStep = resolveInteractionPreviewMaxScaleStep(
+    interactionPreview.maxScaleStep,
+    Math.min(snapshot.scale, frame.viewport.scale),
+  )
+  if (scaleRatio > maxScaleStep || scaleRatio < 1 / maxScaleStep) {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
@@ -324,7 +337,12 @@ function tryReuseInteractiveFrame(
   const previousOffsetYPx = snapshot.offsetY * pixelRatio
   const deltaX = nextOffsetXPx - scaleRatio * previousOffsetXPx
   const deltaY = nextOffsetYPx - scaleRatio * previousOffsetYPx
-  if (Math.abs(deltaX) > interactionPreview.maxTranslatePx || Math.abs(deltaY) > interactionPreview.maxTranslatePx) {
+  const maxTranslatePx = resolveInteractionPreviewMaxTranslatePx(
+    interactionPreview.maxTranslatePx,
+    Math.min(snapshot.scale, frame.viewport.scale),
+    Math.min(snapshot.viewportWidth, snapshot.viewportHeight) * pixelRatio,
+  )
+  if (Math.abs(deltaX) > maxTranslatePx || Math.abs(deltaY) > maxTranslatePx) {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
@@ -338,6 +356,42 @@ function tryReuseInteractiveFrame(
     visibleCount: snapshot.visibleCount,
     culledCount: snapshot.culledCount,
   }
+}
+
+function resolveInteractionPreviewMaxTranslatePx(
+  baseTranslatePx: number,
+  scale: number,
+  viewportMinDimensionPx: number,
+) {
+  if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
+    return Math.max(
+      baseTranslatePx,
+      INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
+      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
+    )
+  }
+
+  if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
+    return Math.max(
+      baseTranslatePx,
+      INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
+      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
+    )
+  }
+
+  return baseTranslatePx
+}
+
+function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: number) {
+  if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
+    return Math.max(baseScaleStep, INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP)
+  }
+
+  if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
+    return Math.max(baseScaleStep, INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP)
+  }
+
+  return baseScaleStep
 }
 
 function ensureReuseSurface(

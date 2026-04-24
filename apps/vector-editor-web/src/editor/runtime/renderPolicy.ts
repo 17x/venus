@@ -80,9 +80,25 @@ export function resolveRuntimeRenderPolicy(
   input: ResolveRuntimeRenderPolicyInput,
 ): RuntimeRenderPolicy {
   // Keep phase ownership explicit so interaction degrade/restore rules live in one place.
+  if (input.phase === 'pan') {
+    return {
+      quality: 'interactive',
+      dpr: 'auto',
+      interactionActive: true,
+      overlayMode: 'degraded',
+    }
+  }
+
+  if (input.phase === 'zoom') {
+    return {
+      quality: 'interactive',
+      dpr: 'auto',
+      interactionActive: true,
+      overlayMode: 'degraded',
+    }
+  }
+
   if (
-    input.phase === 'pan' ||
-    input.phase === 'zoom' ||
     input.phase === 'drag'
   ) {
     return {

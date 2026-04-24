@@ -30,8 +30,13 @@ export interface RuntimeRenderDiagnostics {
   frameCount: number
   drawCount: number
   drawMs: number
+  engineFrameQuality: 'full' | 'interactive'
   fpsInstantaneous: number
   fpsEstimate: number
+  fpsPeak: number
+  fpsEstimatePeak: number
+  fpsReached60: boolean
+  fpsReached120: boolean
   visibleShapeCount: number
   groupCollapseCount: number
   groupCollapseCulledCount: number
@@ -145,8 +150,13 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   frameCount: 0,
   drawCount: 0,
   drawMs: 0,
+  engineFrameQuality: 'full',
   fpsInstantaneous: 0,
   fpsEstimate: 0,
+  fpsPeak: 0,
+  fpsEstimatePeak: 0,
+  fpsReached60: false,
+  fpsReached120: false,
   visibleShapeCount: 0,
   groupCollapseCount: 0,
   groupCollapseCulledCount: 0,
@@ -252,6 +262,8 @@ let currentRenderDiagnostics = EMPTY_RUNTIME_RENDER_DIAGNOSTICS
 let previousFrameCount = 0
 let previousDrawTimestamp = 0
 let smoothedFpsEstimate = 0
+let peakInstantaneousFps = 0
+let peakSmoothedFpsEstimate = 0
 
 export const EMPTY_RUNTIME_VIEWPORT_SNAPSHOT: RuntimeViewportSnapshot = {
   scale: 1,
@@ -272,6 +284,8 @@ export function resetRuntimeEventSnapshots() {
   previousFrameCount = 0
   previousDrawTimestamp = 0
   smoothedFpsEstimate = 0
+  peakInstantaneousFps = 0
+  peakSmoothedFpsEstimate = 0
   currentViewportSnapshot = EMPTY_RUNTIME_VIEWPORT_SNAPSHOT
   currentShellSnapshot = EMPTY_RUNTIME_SHELL_SNAPSHOT
   renderDiagnosticsListeners.forEach((listener) => listener())
@@ -298,10 +312,17 @@ export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) 
   previousFrameCount = next.frameCount
   previousDrawTimestamp = now
 
+  peakInstantaneousFps = Math.max(peakInstantaneousFps, Math.min(Math.max(instantaneousFps, 0), 1000))
+  peakSmoothedFpsEstimate = Math.max(peakSmoothedFpsEstimate, smoothedFpsEstimate)
+
   currentRenderDiagnostics = {
     ...next,
     fpsInstantaneous: Math.min(Math.max(instantaneousFps, 0), 1000),
     fpsEstimate: smoothedFpsEstimate,
+    fpsPeak: peakInstantaneousFps,
+    fpsEstimatePeak: peakSmoothedFpsEstimate,
+    fpsReached60: peakInstantaneousFps >= 60,
+    fpsReached120: peakInstantaneousFps >= 120,
   }
   renderDiagnosticsListeners.forEach((listener) => listener())
 }

@@ -47,9 +47,21 @@ const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   maxTranslatePx: 220,
 }
 
+const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE = 0.12
+const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP = 1.3
+const INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX = 320
+const INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO = 0.24
+const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE = 0.05
+const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.5
+const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
+const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
+
 const MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME = 2
 const MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME = 16 * 1024 * 1024
 const TEXT_PLACEHOLDER_MAX_SCALE = 0.3
+const TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX = 2.2
+const OVERVIEW_IMAGE_SKIP_MAX_SCALE = 0.05
+const OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX = 2.8
 
 /**
  * Built-in WebGL renderer entry for engine standalone/runtime integrations.
@@ -253,6 +265,7 @@ export function createWebGLEngineRenderer(
           return {
             ...modelStats,
             drawCount: Math.max(1, tileDrawResult.drawCount),
+            engineFrameQuality: effectiveFrame.context.quality,
             cacheHits: tileDrawResult.tileHitCount,
             cacheMisses: tileDrawResult.tileMissCount,
             webglRenderPath: 'model-complete',
@@ -393,6 +406,7 @@ export function createWebGLEngineRenderer(
 
         return {
           drawCount: 1 + edgeRedrawCount,
+          engineFrameQuality: effectiveFrame.context.quality,
           visibleCount: previewReuse.visibleCount,
           culledCount: previewReuse.culledCount,
           cacheHits: 1,
@@ -418,7 +432,7 @@ export function createWebGLEngineRenderer(
       }
       l0PreviewMissCount += 1
       if (interactiveQuality) {
-        cacheFallbackReason = 'l0-preview-miss'
+        cacheFallbackReason = previewReuse.missReason ?? 'l0-preview-miss'
       }
 
       const plan = prepareEngineRenderPlan(effectiveFrame)
@@ -502,6 +516,10 @@ export function createWebGLEngineRenderer(
         effectiveFrame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
       for (const packet of packetPlan.packets) {
         if (packet.kind === 'image' && packet.assetId) {
+          if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds)) {
+            continue
+          }
+
           const imageTexture = resolveImageTexture(
             context,
             effectiveFrame,
@@ -538,6 +556,10 @@ export function createWebGLEngineRenderer(
           if (useTextPlaceholderMode) {
             // Low-zoom text is not legible at glyph fidelity. Render an
             // inexpensive placeholder and skip text raster uploads.
+            if (shouldSkipTextPlaceholderPacket(effectiveFrame, packet.worldBounds)) {
+              continue
+            }
+
             interactiveTextFallbackCount += 1
             drawCount += drawInteractiveTextFallback(
               context,
@@ -684,8 +706,20 @@ export function createWebGLEngineRenderer(
       const initialRenderPhase = initialRenderController?.getPhase()
       const initialRenderProgress = initialRenderController?.getDetailPassProgress()
 
+      const snapshot = captureCompositeSnapshotFromCurrentFramebuffer({
+        context,
+        texture: compositeTexture,
+        frame: effectiveFrame,
+        visibleCount: plan.stats.visibleCount,
+        culledCount: plan.stats.culledCount,
+      })
+      if (snapshot) {
+        compositeSnapshot = snapshot
+      }
+
       return {
         drawCount,
+        engineFrameQuality: effectiveFrame.context.quality,
         visibleCount: plan.stats.visibleCount,
         culledCount: plan.stats.culledCount,
         groupCollapseCount: plan.stats.collapsedGroupCount,
@@ -795,6 +829,76 @@ function resolveViewportWorldBounds(frame: EngineRenderFrame) {
     width: frame.viewport.viewportWidth / frame.viewport.scale,
     height: frame.viewport.viewportHeight / frame.viewport.scale,
   }
+}
+
+function captureCompositeSnapshotFromCurrentFramebuffer(options: {
+  context: WebGLRenderingContext | WebGL2RenderingContext
+  texture: WebGLTexture
+  frame: EngineRenderFrame
+  visibleCount: number
+  culledCount: number
+}) {
+  const pixelRatio = options.frame.context.pixelRatio ?? 1
+  const width = Math.max(1, Math.round(options.frame.viewport.viewportWidth * pixelRatio))
+  const height = Math.max(1, Math.round(options.frame.viewport.viewportHeight * pixelRatio))
+
+  options.context.bindTexture(options.context.TEXTURE_2D, options.texture)
+  try {
+    options.context.copyTexImage2D(
+      options.context.TEXTURE_2D,
+      0,
+      options.context.RGBA,
+      0,
+      0,
+      width,
+      height,
+      0,
+    )
+  } catch {
+    return null
+  }
+
+  return {
+    revision: options.frame.scene.revision,
+    scale: options.frame.viewport.scale,
+    offsetX: options.frame.viewport.offsetX,
+    offsetY: options.frame.viewport.offsetY,
+    viewportWidth: options.frame.viewport.viewportWidth,
+    viewportHeight: options.frame.viewport.viewportHeight,
+    pixelRatio,
+    visibleCount: options.visibleCount,
+    culledCount: options.culledCount,
+  }
+}
+
+function shouldSkipTextPlaceholderPacket(
+  frame: EngineRenderFrame,
+  worldBounds: { width: number; height: number },
+) {
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  const screenWidth = Math.abs(worldBounds.width) * scale
+  const screenHeight = Math.abs(worldBounds.height) * scale
+  return (
+    screenWidth <= TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX &&
+    screenHeight <= TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX
+  )
+}
+
+function shouldSkipOverviewImagePacket(
+  frame: EngineRenderFrame,
+  worldBounds: { width: number; height: number },
+) {
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  if (scale > OVERVIEW_IMAGE_SKIP_MAX_SCALE) {
+    return false
+  }
+
+  const screenWidth = Math.abs(worldBounds.width) * scale
+  const screenHeight = Math.abs(worldBounds.height) * scale
+  return (
+    screenWidth <= OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX &&
+    screenHeight <= OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX
+  )
 }
 
 function drawModelSurfaceAsTiles(options: {
@@ -1311,6 +1415,7 @@ interface WebGLQuadPipeline {
   uniformViewport: WebGLUniformLocation
   uniformColor: WebGLUniformLocation
   uniformUseTexture: WebGLUniformLocation
+  uniformFlipTextureY: WebGLUniformLocation
   uniformSampler: WebGLUniformLocation
 }
 
@@ -1355,44 +1460,116 @@ function tryReuseInteractiveCompositeFrame(options: {
   interactionPreview: Required<EngineInteractionPreviewConfig>
 }) {
   if (!options.interactionPreview.enabled || options.frame.context.quality !== 'interactive' || !options.snapshot) {
-    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
+    return {
+      reused: false,
+      missReason: options.snapshot ? 'l0-non-interactive' : 'l0-no-snapshot',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
   }
 
   const snapshot = options.snapshot
   const frame = options.frame
   const currentPixelRatio = frame.context.pixelRatio ?? 1
-  if (
-    snapshot.revision !== frame.scene.revision ||
-    snapshot.viewportWidth !== frame.viewport.viewportWidth ||
-    snapshot.viewportHeight !== frame.viewport.viewportHeight ||
-    snapshot.pixelRatio !== currentPixelRatio
-  ) {
-    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
+  if (snapshot.revision !== frame.scene.revision) {
+    return {
+      reused: false,
+      missReason: 'l0-revision-mismatch',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
+  }
+
+  if (snapshot.viewportWidth !== frame.viewport.viewportWidth) {
+    return {
+      reused: false,
+      missReason: 'l0-viewport-width-mismatch',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
+  }
+
+  if (snapshot.viewportHeight !== frame.viewport.viewportHeight) {
+    return {
+      reused: false,
+      missReason: 'l0-viewport-height-mismatch',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
+  }
+
+  if (snapshot.pixelRatio !== currentPixelRatio) {
+    return {
+      reused: false,
+      missReason: 'l0-pixel-ratio-mismatch',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
   }
 
   const scaleRatio = frame.viewport.scale / snapshot.scale
   if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) {
-    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
+    return {
+      reused: false,
+      missReason: 'l0-invalid-scale-ratio',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
   }
 
   if (options.interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < 1e-3) {
-    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
+    return {
+      reused: false,
+      missReason: 'l0-zoom-only-pan-blocked',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
   }
 
+  const maxScaleStep = resolveInteractionPreviewMaxScaleStep(
+    options.interactionPreview.maxScaleStep,
+    Math.min(snapshot.scale, frame.viewport.scale),
+  )
+
   if (
-    scaleRatio > options.interactionPreview.maxScaleStep ||
-    scaleRatio < 1 / options.interactionPreview.maxScaleStep
+    scaleRatio > maxScaleStep ||
+    scaleRatio < 1 / maxScaleStep
   ) {
-    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
+    return {
+      reused: false,
+      missReason: 'l0-scale-step-exceeded',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
   }
+
+  const maxTranslatePx = resolveInteractionPreviewMaxTranslatePx(
+    options.interactionPreview.maxTranslatePx,
+    Math.min(snapshot.scale, frame.viewport.scale),
+    Math.min(snapshot.viewportWidth, snapshot.viewportHeight) * currentPixelRatio,
+  )
 
   const deltaX = frame.viewport.offsetX - scaleRatio * snapshot.offsetX
   const deltaY = frame.viewport.offsetY - scaleRatio * snapshot.offsetY
   if (
-    Math.abs(deltaX * currentPixelRatio) > options.interactionPreview.maxTranslatePx ||
-    Math.abs(deltaY * currentPixelRatio) > options.interactionPreview.maxTranslatePx
+    Math.abs(deltaX * currentPixelRatio) > maxTranslatePx ||
+    Math.abs(deltaY * currentPixelRatio) > maxTranslatePx
   ) {
-    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
+    return {
+      reused: false,
+      missReason: 'l0-translate-exceeded',
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
   }
 
   options.context.viewport(
@@ -1429,6 +1606,7 @@ function tryReuseInteractiveCompositeFrame(options: {
     [1, 1, 1, 1],
     1,
     options.texture,
+    true,
   )
 
   const edgeRedrawRegions = resolveInteractivePreviewEdgeRedrawRegions(
@@ -1441,10 +1619,47 @@ function tryReuseInteractiveCompositeFrame(options: {
 
   return {
     reused: true,
+    missReason: null,
     visibleCount: snapshot.visibleCount,
     culledCount: snapshot.culledCount,
     edgeRedrawRegions,
   }
+}
+
+function resolveInteractionPreviewMaxTranslatePx(
+  baseTranslatePx: number,
+  scale: number,
+  viewportMinDimensionPx: number,
+) {
+  if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
+    return Math.max(
+      baseTranslatePx,
+      INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
+      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
+    )
+  }
+
+  if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
+    return Math.max(
+      baseTranslatePx,
+      INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
+      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
+    )
+  }
+
+  return baseTranslatePx
+}
+
+function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: number) {
+  if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
+    return Math.max(baseScaleStep, INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP)
+  }
+
+  if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
+    return Math.max(baseScaleStep, INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP)
+  }
+
+  return baseScaleStep
 }
 
 function resolveInteractivePreviewEdgeRedrawRegions(
@@ -1535,6 +1750,10 @@ function drawInteractivePreviewEdgeRegions(options: {
       }
 
       if (packet.kind === 'image' && packet.assetId) {
+        if (shouldSkipOverviewImagePacket(options.frame, packet.worldBounds)) {
+          continue
+        }
+
         const imageTexture = resolveImageTexture(
           options.context,
           options.frame,
@@ -1561,6 +1780,10 @@ function drawInteractivePreviewEdgeRegions(options: {
         const textCacheKey = resolveTextCacheKey(packet)
 
         if (useTextPlaceholderMode) {
+          if (shouldSkipTextPlaceholderPacket(options.frame, packet.worldBounds)) {
+            continue
+          }
+
           drawCount += drawInteractiveTextFallback(
             options.context,
             options.pipeline,
@@ -1652,6 +1875,7 @@ uniform vec4 uRect;
 uniform vec2 uScale;
 uniform vec2 uOffset;
 uniform vec2 uViewport;
+uniform float uFlipTextureY;
 varying vec2 vUv;
 
 void main() {
@@ -1662,7 +1886,7 @@ void main() {
     1.0 - (screen.y / uViewport.y) * 2.0
   );
   gl_Position = vec4(clip, 0.0, 1.0);
-  vUv = aPosition;
+  vUv = vec2(aPosition.x, mix(aPosition.y, 1.0 - aPosition.y, uFlipTextureY));
 }
 `)
   const fragmentShader = createShader(context, context.FRAGMENT_SHADER, `
@@ -1706,6 +1930,7 @@ void main() {
   const uniformViewport = context.getUniformLocation(program, 'uViewport')
   const uniformColor = context.getUniformLocation(program, 'uColor')
   const uniformUseTexture = context.getUniformLocation(program, 'uUseTexture')
+  const uniformFlipTextureY = context.getUniformLocation(program, 'uFlipTextureY')
   const uniformSampler = context.getUniformLocation(program, 'uSampler')
 
   if (
@@ -1716,6 +1941,7 @@ void main() {
     !uniformViewport ||
     !uniformColor ||
     !uniformUseTexture ||
+    !uniformFlipTextureY ||
     !uniformSampler
   ) {
     context.deleteBuffer(positionBuffer)
@@ -1733,6 +1959,7 @@ void main() {
     uniformViewport,
     uniformColor,
     uniformUseTexture,
+    uniformFlipTextureY,
     uniformSampler,
   }
 }
@@ -1745,6 +1972,7 @@ function drawWebGLPacket(
   color: readonly [number, number, number, number],
   opacity: number,
   texture: WebGLTexture | null,
+  flipTextureY = false,
 ) {
   const pixelRatio = frame.context.pixelRatio ?? 1
 
@@ -1783,6 +2011,7 @@ function drawWebGLPacket(
     color[2],
     color[3] * opacity,
   )
+  context.uniform1f(pipeline.uniformFlipTextureY, flipTextureY ? 1 : 0)
 
   if (texture) {
     context.activeTexture(context.TEXTURE0)

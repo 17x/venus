@@ -568,10 +568,10 @@ export function Canvas2DRenderer({
           detailPassDelayMs: 200,  // Start detail pass after 200ms
         },
         interactionPreview: {
-          // Reuse-preview can drift against runtime hit-test coordinates on
-          // rapid viewport changes; disable until transform parity is fixed.
-          enabled: false,
-          mode: 'zoom-only',
+          // Keep pan/zoom on the affine-preview path now that edge-redraw and
+          // overview packet skips are in place for large-scene navigation.
+          enabled: true,
+          mode: 'interaction',
           maxScaleStep: 1.2,
           maxTranslatePx: 220,
         },
@@ -621,6 +621,7 @@ export function Canvas2DRenderer({
             return
           }
           const webglStats = nextStats as typeof nextStats & {
+            engineFrameQuality?: 'full' | 'interactive'
             webglRenderPath?: 'model-complete' | 'packet'
             webglInteractiveTextFallbackCount?: number
             webglImageTextureUploadCount?: number
@@ -723,8 +724,13 @@ export function Canvas2DRenderer({
             frameCount: drawSerialRef.current,
             drawCount: nextStats.drawCount,
             drawMs: nextStats.frameMs,
+            engineFrameQuality: webglStats.engineFrameQuality ?? 'full',
             fpsInstantaneous: 0,
             fpsEstimate: 0,
+            fpsPeak: 0,
+            fpsEstimatePeak: 0,
+            fpsReached60: false,
+            fpsReached120: false,
             visibleShapeCount: nextStats.visibleCount,
             groupCollapseCount: groupCollapseStats.groupCollapseCount ?? 0,
             groupCollapseCulledCount: groupCollapseStats.groupCollapseCulledCount ?? 0,
@@ -1118,6 +1124,7 @@ export function Canvas2DRenderer({
       overlayDiagnostics?.pathEditWhitelistActive ?? false
     const nextDpr = renderPolicy.dpr
     const dprChanged = appliedDprRef.current !== nextDpr
+    renderRequestStatsRef.current.renderPolicyDpr = nextDpr
     if (appliedDprRef.current !== nextDpr) {
       engine.setDpr(nextDpr, {maxDpr: 2})
       appliedDprRef.current = nextDpr
@@ -1126,6 +1133,7 @@ export function Canvas2DRenderer({
     // Keep quality transitions policy-driven so phase tuning does not spread.
     const nextQuality = renderPolicy.quality
     const qualityChanged = appliedQualityRef.current !== nextQuality
+    renderRequestStatsRef.current.renderPolicyQuality = nextQuality
     if (appliedQualityRef.current !== nextQuality) {
       engine.setQuality(nextQuality)
       appliedQualityRef.current = nextQuality

@@ -2,6 +2,61 @@
 
 ## 2026-04-24
 
+- Started the next 100K frame-rate recovery queue:
+  - `packages/engine/src/renderer/plan.ts` now raises the interactive
+    tiny-object culling threshold at very low overview scales so 100K `2%`
+    pan/zoom passes can reject more sub-perceptual nodes before they enter the
+    packet draw list (`VT-20260424-49` first pass)
+  - `packages/engine/src/renderer/webgl.ts` now skips imperceptibly small
+    low-scale text placeholders and tiny overview image packets in both the
+    main packet loop and interactive edge-redraw path; live `Stress Mixed
+100K` validation dropped initial `2%` overview packet load to `19031`
+    draw calls with `6263` text fallbacks and `3916` deferred images
+  - `apps/vector-editor-web/src/runtime/events/index.ts` now tracks peak
+    instantaneous and smoothed FPS plus `60 FPS+` / `120 FPS+` hit flags, and
+    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    surfaces those rows for live engine validation (`VT-20260424-50` first
+    pass)
+  - `packages/engine/src/renderer/webgl.ts` now captures reusable composite
+    snapshots after packet renders, and now exposes explicit preview miss
+    reasons plus actual engine frame quality in render stats so overview
+    preview-reuse failures can be diagnosed without conflating policy and
+    renderer state
+  - `packages/engine/src/interaction/lodProfile.ts`,
+    `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts`, and
+    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` now keep
+    `pan` on interactive preview posture and enable runtime `interactionPreview`
+    in `interaction` mode, allowing 100K overview pan frames to reuse the
+    cached framebuffer instead of replaying the full packet path
+  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts` now keeps
+    pan-phase DPR at `auto`, preventing hand-tool pan entry from invalidating
+    the current preview snapshot with a `pixelRatio` mismatch before viewport
+    movement begins
+  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts` now keeps
+    zoom-phase DPR at `auto`, removing the zoom-entry `pixelRatio` mismatch
+    that previously blocked low-scale preview reuse before any threshold-based
+    reuse checks could pass
+  - `packages/engine/src/renderer/webgl.ts` now flips framebuffer-captured
+    preview textures vertically only for interaction-preview reuse sampling,
+    fixing the pan/zoom-time vertical mirror artifact without changing normal
+    packet/image/text texture orientation
+  - `packages/engine/src/renderer/webgl.ts` and
+    `packages/engine/src/renderer/canvas2d.ts` now widen low-scale interaction
+    preview translate/scale-step tolerance only for overview frames, including
+    viewport-size-aware translate windows so large-screen `2%` navigation no
+    longer falls out of preview reuse on modest pan deltas
+  - `apps/vector-editor-web/src/runtime/events/index.ts` and
+    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    surface `Engine Frame Quality`, and live `Stress Mixed 100K` validation at
+    `2%` now records `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, wheel-pan
+    reuse-hit frames as low as `0.06 ms`, and hand-pan entry reuse-hit frames
+    around `0.12 ms`; after the preview-texture flip fix, hand-pan and zoom
+    preview frames still hit reuse with `Cache Fallback Reason = none` and
+    sub-millisecond draw time; after the low-scale overview threshold tuning,
+    focused `2%` browser sampling reached `10/11` reuse-hit samples,
+    `78.1` instant FPS peak, and `0.11 ms` minimum draw time while reducing
+    the sampled residual fallback set to a single initial
+    `l0-scale-step-exceeded` (`VT-20260424-49` follow-up)
 - Completed mixed-scene regression gate closeout for the 100K performance
   track:
   - `apps/vector-editor-web/scripts/perf-gate.mjs` is now treated as the

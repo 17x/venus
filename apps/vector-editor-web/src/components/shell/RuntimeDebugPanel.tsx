@@ -536,10 +536,15 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.drawMs', 'Draw Ms')} value={diagnostics.drawMs.toFixed(2)}/>
       <DebugRow label={t('shell.variantB.debug.fps', 'FPS (Smooth)')} value={diagnostics.fpsEstimate.toFixed(1)}/>
       <DebugRow label={t('shell.variantB.debug.fpsInstant', 'FPS (Instant)')} value={diagnostics.fpsInstantaneous.toFixed(1)}/>
+      <DebugRow label={t('shell.variantB.debug.fpsPeak', 'FPS Peak (Instant)')} value={diagnostics.fpsPeak.toFixed(1)}/>
+      <DebugRow label={t('shell.variantB.debug.fpsEstimatePeak', 'FPS Peak (Smooth)')} value={diagnostics.fpsEstimatePeak.toFixed(1)}/>
+      <DebugRow label={t('shell.variantB.debug.fpsReached60', 'Reached 60 FPS')} value={diagnostics.fpsReached60 ? 'yes' : 'no'}/>
+      <DebugRow label={t('shell.variantB.debug.fpsReached120', 'Reached 120 FPS')} value={diagnostics.fpsReached120 ? 'yes' : 'no'}/>
       <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={diagnostics.renderPhase}/>
       <DebugRow label={t('shell.variantB.debug.renderPhaseTransitionCount', 'Render Phase Transitions')} value={String(diagnostics.renderPhaseTransitionCount)}/>
       <DebugRow label={t('shell.variantB.debug.lastRenderPhaseTransition', 'Last Render Phase Transition')} value={diagnostics.lastRenderPhaseTransition}/>
       <DebugRow label={t('shell.variantB.debug.viewportInteractionType', 'Viewport Interaction')} value={diagnostics.viewportInteractionType}/>
+      <DebugRow label={t('shell.variantB.debug.engineFrameQuality', 'Engine Frame Quality')} value={diagnostics.engineFrameQuality}/>
       <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Render Policy Quality')} value={diagnostics.renderPolicyQuality}/>
       <DebugRow label={t('shell.variantB.debug.renderPolicyDpr', 'Render Policy DPR')} value={String(diagnostics.renderPolicyDpr)}/>
       <DebugRow label={t('shell.variantB.debug.overlayMode', 'Overlay Mode')} value={diagnostics.overlayMode}/>

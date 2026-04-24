@@ -11,6 +11,10 @@ export type EngineWorldMatrix = readonly [number, number, number, number, number
 
 const IDENTITY_MATRIX: EngineWorldMatrix = [1, 0, 0, 0, 1, 0]
 const TINY_OBJECT_MAX_SCREEN_EDGE_PX = 0.9
+const TINY_OBJECT_OVERVIEW_SCREEN_EDGE_PX = 2.4
+const TINY_OBJECT_OVERVIEW_MAX_SCALE = 0.05
+const TINY_OBJECT_LOW_SCALE_SCREEN_EDGE_PX = 1.4
+const TINY_OBJECT_LOW_SCALE_MAX_SCALE = 0.12
 const TINY_GROUP_COLLAPSE_MAX_SCREEN_EDGE_PX = 14
 const TINY_GROUP_COLLAPSE_MAX_SCALE = 0.3
 
@@ -573,10 +577,34 @@ function isTinyRenderableBounds(
   const absScale = Math.max(0, Math.abs(viewportScale))
   const screenWidth = Math.abs(worldBounds.width) * absScale
   const screenHeight = Math.abs(worldBounds.height) * absScale
-  return (
-    screenWidth <= TINY_OBJECT_MAX_SCREEN_EDGE_PX &&
-    screenHeight <= TINY_OBJECT_MAX_SCREEN_EDGE_PX
+  const tinyObjectThreshold = resolveTinyObjectScreenEdgeThreshold(
+    absScale,
+    renderQuality,
   )
+  return (
+    screenWidth <= tinyObjectThreshold &&
+    screenHeight <= tinyObjectThreshold
+  )
+}
+
+function resolveTinyObjectScreenEdgeThreshold(
+  viewportScale: number,
+  renderQuality: EngineRenderFrame['context']['quality'],
+) {
+  if (renderQuality === 'interactive') {
+    // Extremely zoomed-out overview passes still push tens of thousands of
+    // sub-perceptual nodes through packet rendering unless we raise the tiny
+    // cutoff beyond the default sub-pixel threshold.
+    if (viewportScale <= TINY_OBJECT_OVERVIEW_MAX_SCALE) {
+      return TINY_OBJECT_OVERVIEW_SCREEN_EDGE_PX
+    }
+
+    if (viewportScale <= TINY_OBJECT_LOW_SCALE_MAX_SCALE) {
+      return TINY_OBJECT_LOW_SCALE_SCREEN_EDGE_PX
+    }
+  }
+
+  return TINY_OBJECT_MAX_SCREEN_EDGE_PX
 }
 
 function resolveViewportWorldBounds(frame: EngineRenderFrame) {
