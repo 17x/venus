@@ -2,6 +2,11 @@
 
 ## 2026-04-24
 
+- Fixed a toolbar hydration warning:
+  - `apps/vector-editor-web/src/components/toolbelt/Toolbelt.tsx` now renders
+    the text-tool tooltip trigger with `asChild`, avoiding a nested
+    `TooltipTrigger <button>` wrapping the existing `Button` element during
+    hydration
 - Started the next 100K frame-rate recovery queue:
   - `packages/engine/src/renderer/plan.ts` now raises the interactive
     tiny-object culling threshold at very low overview scales so 100K `2%`
@@ -45,6 +50,21 @@
     preview translate/scale-step tolerance only for overview frames, including
     viewport-size-aware translate windows so large-screen `2%` navigation no
     longer falls out of preview reuse on modest pan deltas
+  - `packages/engine/src/renderer/webgl.ts` and
+    `packages/engine/src/renderer/canvas2d.ts` now raise the overview-only
+    interaction preview `maxScaleStep` ceiling to `1.75`, and repeated
+    cold-start `2%` zoom-entry probes now hit preview reuse with
+    `Cache Fallback Reason = none` instead of `l0-scale-step-exceeded`
+  - `packages/engine/src/renderer/webgl.ts` and
+    `packages/engine/src/renderer/canvas2d.ts` now advance low-scale preview
+    snapshots after reuse-hit frames so repeated overview pans do not keep
+    measuring translate distance against an older settled snapshot; follow-up
+    `2%` long-sequence validation no longer reports `l0-translate-exceeded`
+  - follow-up validation also showed the last sampled
+    `l0-scale-step-exceeded` was coming from template-apply initialization
+    zoom being sampled before it fully settled; when the same `2%`
+    long-sequence probe starts after that initialization completes, it now
+    runs at `11/11` reuse-hit samples with `Cache Fallback Reason = none`
   - `apps/vector-editor-web/src/runtime/events/index.ts` and
     `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
     surface `Engine Frame Quality`, and live `Stress Mixed 100K` validation at

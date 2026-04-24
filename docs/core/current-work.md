@@ -252,6 +252,18 @@ context starts, or work needs to resume after switching topics.
     `Stress Mixed 100K` sampling now reaches `10/11` reuse-hit samples,
     `78.1` instant FPS peak, and `0.11 ms` minimum draw time, leaving only an
     initial zoom-entry `l0-scale-step-exceeded` miss in the sampled sequence
+  - overview-only interaction preview `maxScaleStep` is now widened again to
+    `1.75` across WebGL and Canvas2D reuse paths; repeated cold-start `2%`
+    zoom-entry probes now consistently report `Cache Fallback Reason = none`
+    with `Frame Reuse Hit = 1`, closing the first zoom-entry preview miss
+  - low-scale interaction preview reuse now advances its cached snapshot after
+    reuse-hit frames in both WebGL and Canvas2D, preventing repeated overview
+    pans from accumulating translate deltas against an older settled frame;
+    follow-up `2%` long-sequence sampling no longer reports
+    `l0-translate-exceeded`, leaving only initial `l0-scale-step-exceeded`
+    while template-apply initialization is still in flight; when the same
+    sequence starts after that initialization zoom settles, the run reaches
+    `11/11` reuse-hit samples with `Cache Fallback Reason = none` throughout
   - runtime diagnostics now expose actual engine frame quality alongside
     requested render-policy quality so preview-path validation can distinguish
     scheduler/policy state from renderer-applied state during 100K tuning

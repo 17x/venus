@@ -254,7 +254,7 @@ export default function Toolbelt(props: ToolbeltProps) {
             onSelectTool={selectToolByGroup}
           />
 
-          <Tooltip placement={'t'} title={textTool.label}>
+          <Tooltip placement={'t'} title={textTool.label} asChild>
             <Button
               type={'button'}
               noTooltip

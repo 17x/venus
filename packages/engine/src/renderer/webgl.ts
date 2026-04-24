@@ -52,7 +52,7 @@ const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP = 1.3
 const INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX = 320
 const INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO = 0.24
 const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE = 0.05
-const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.5
+const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.75
 const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
 const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
 
@@ -402,6 +402,19 @@ export function createWebGLEngineRenderer(
             textCache,
             resourceBudget,
           })
+        }
+
+        if (shouldAdvanceInteractionPreviewSnapshot(effectiveFrame.viewport.scale)) {
+          const refreshedSnapshot = captureCompositeSnapshotFromCurrentFramebuffer({
+            context,
+            texture: compositeTexture,
+            frame: effectiveFrame,
+            visibleCount: previewReuse.visibleCount,
+            culledCount: previewReuse.culledCount,
+          })
+          if (refreshedSnapshot) {
+            compositeSnapshot = refreshedSnapshot
+          }
         }
 
         return {
@@ -1554,14 +1567,15 @@ function tryReuseInteractiveCompositeFrame(options: {
   const maxTranslatePx = resolveInteractionPreviewMaxTranslatePx(
     options.interactionPreview.maxTranslatePx,
     Math.min(snapshot.scale, frame.viewport.scale),
-    Math.min(snapshot.viewportWidth, snapshot.viewportHeight) * currentPixelRatio,
+    snapshot.viewportWidth * currentPixelRatio,
+    snapshot.viewportHeight * currentPixelRatio,
   )
 
   const deltaX = frame.viewport.offsetX - scaleRatio * snapshot.offsetX
   const deltaY = frame.viewport.offsetY - scaleRatio * snapshot.offsetY
   if (
-    Math.abs(deltaX * currentPixelRatio) > maxTranslatePx ||
-    Math.abs(deltaY * currentPixelRatio) > maxTranslatePx
+    Math.abs(deltaX * currentPixelRatio) > maxTranslatePx.x ||
+    Math.abs(deltaY * currentPixelRatio) > maxTranslatePx.y
   ) {
     return {
       reused: false,
@@ -1629,25 +1643,40 @@ function tryReuseInteractiveCompositeFrame(options: {
 function resolveInteractionPreviewMaxTranslatePx(
   baseTranslatePx: number,
   scale: number,
-  viewportMinDimensionPx: number,
+  viewportWidthPx: number,
+  viewportHeightPx: number,
 ) {
   if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
-    return Math.max(
-      baseTranslatePx,
-      INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
-      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
-    )
+    return {
+      x: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
+        Math.round(viewportWidthPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
+      ),
+      y: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
+        Math.round(viewportHeightPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
+      ),
+    }
   }
 
   if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
-    return Math.max(
-      baseTranslatePx,
-      INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
-      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
-    )
+    return {
+      x: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
+        Math.round(viewportWidthPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
+      ),
+      y: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
+        Math.round(viewportHeightPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
+      ),
+    }
   }
 
-  return baseTranslatePx
+  return {x: baseTranslatePx, y: baseTranslatePx}
 }
 
 function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: number) {
@@ -1660,6 +1689,10 @@ function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: num
   }
 
   return baseScaleStep
+}
+
+function shouldAdvanceInteractionPreviewSnapshot(scale: number) {
+  return scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE
 }
 
 function resolveInteractivePreviewEdgeRedrawRegions(

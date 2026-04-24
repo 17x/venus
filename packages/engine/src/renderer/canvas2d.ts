@@ -66,7 +66,7 @@ const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP = 1.3
 const INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX = 320
 const INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO = 0.24
 const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE = 0.05
-const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.5
+const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.75
 const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
 const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
 
@@ -198,9 +198,26 @@ export function createCanvas2DEngineRenderer(
         counters.frameReuseHits += 1
         counters.visibleCount = reused.visibleCount
         counters.culledCount = reused.culledCount
-        // Keep reuse cache anchored to the last true redraw frame. Re-caching a
-        // transformed intermediate frame compounds interpolation/rounding errors
-        // and can drift slightly against the eventual full redraw result.
+
+        if (shouldAdvanceInteractionPreviewSnapshot(frame.viewport.scale)) {
+          frameReuseSurface = ensureReuseSurface(frameReuseSurface, options.canvas.width, options.canvas.height)
+          if (frameReuseSurface) {
+            copyCanvasIntoSurface(options.canvas, frameReuseSurface)
+            frameReuseSnapshot = {
+              revision: frame.scene.revision,
+              scale: frame.viewport.scale,
+              offsetX: frame.viewport.offsetX,
+              offsetY: frame.viewport.offsetY,
+              viewportWidth: frame.viewport.viewportWidth,
+              viewportHeight: frame.viewport.viewportHeight,
+              pixelRatio,
+              canvasWidth: options.canvas.width,
+              canvasHeight: options.canvas.height,
+              visibleCount: counters.visibleCount,
+              culledCount: counters.culledCount,
+            }
+          }
+        }
 
         return {
           drawCount: counters.drawCount,
@@ -340,9 +357,10 @@ function tryReuseInteractiveFrame(
   const maxTranslatePx = resolveInteractionPreviewMaxTranslatePx(
     interactionPreview.maxTranslatePx,
     Math.min(snapshot.scale, frame.viewport.scale),
-    Math.min(snapshot.viewportWidth, snapshot.viewportHeight) * pixelRatio,
+    snapshot.viewportWidth * pixelRatio,
+    snapshot.viewportHeight * pixelRatio,
   )
-  if (Math.abs(deltaX) > maxTranslatePx || Math.abs(deltaY) > maxTranslatePx) {
+  if (Math.abs(deltaX) > maxTranslatePx.x || Math.abs(deltaY) > maxTranslatePx.y) {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
@@ -361,25 +379,40 @@ function tryReuseInteractiveFrame(
 function resolveInteractionPreviewMaxTranslatePx(
   baseTranslatePx: number,
   scale: number,
-  viewportMinDimensionPx: number,
+  viewportWidthPx: number,
+  viewportHeightPx: number,
 ) {
   if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
-    return Math.max(
-      baseTranslatePx,
-      INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
-      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
-    )
+    return {
+      x: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
+        Math.round(viewportWidthPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
+      ),
+      y: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
+        Math.round(viewportHeightPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
+      ),
+    }
   }
 
   if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
-    return Math.max(
-      baseTranslatePx,
-      INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
-      Math.round(viewportMinDimensionPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
-    )
+    return {
+      x: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
+        Math.round(viewportWidthPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
+      ),
+      y: Math.max(
+        baseTranslatePx,
+        INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
+        Math.round(viewportHeightPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
+      ),
+    }
   }
 
-  return baseTranslatePx
+  return {x: baseTranslatePx, y: baseTranslatePx}
 }
 
 function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: number) {
@@ -392,6 +425,10 @@ function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: num
   }
 
   return baseScaleStep
+}
+
+function shouldAdvanceInteractionPreviewSnapshot(scale: number) {
+  return scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE
 }
 
 function ensureReuseSurface(
