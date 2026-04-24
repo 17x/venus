@@ -2,6 +2,14 @@
 
 ## 2026-04-24
 
+- Completed mixed-scene regression gate closeout for the 100K performance
+  track:
+  - `apps/vector-editor-web/scripts/perf-gate.mjs` is now treated as the
+    verified app/runtime regression gate for `10k`, `50k`, `100k`, and
+    `mixed(text/image/path)` scene coverage
+  - root and vector package scripts plus testing docs now provide the baseline,
+    trend-regression, and machine-readable output flow used for performance
+    signoff (`VT-20260424-14`)
 - Completed Phase 3 closeout for the 100K scene-readiness track:
   - `packages/engine/src/renderer/webgl.ts` now extends interactive composite
     preview reuse with pan-time edge redraw, replaying packet draws only into

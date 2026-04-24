@@ -376,10 +376,10 @@
   3. Incremental spatial-index update for drag/move (owner: engine) [`VT-20260424-13` verified]
   4. Worker precompute for path/text heavy prep (owner: engine + runtime) [`VT-20260424-47` verified]
   5. Pan frame reuse path (framebuffer shift + edge redraw) (owner: engine) [`VT-20260424-48` verified]
-- Add 100K mixed-scene regression gate (owner: app + runtime):
-  1. Baseline scenes: `10k`, `50k`, `100k`, `mixed(text/image/path)`
-  2. Metrics gate: frame time, hit-test time, cache hit-rate, visible candidate count
-  3. CI/report rule: record trend and flag regression above agreed threshold
+- Add 100K mixed-scene regression gate (owner: app + runtime, verified):
+  1. Baseline scenes: `10k`, `50k`, `100k`, `mixed(text/image/path)` [`VT-20260424-14` verified]
+  2. Metrics gate: frame time, hit-test time, cache hit-rate, visible candidate count [`VT-20260424-14` verified]
+  3. CI/report rule: record trend and flag regression above agreed threshold [`VT-20260424-14` verified]
 
 ## Blocked
 

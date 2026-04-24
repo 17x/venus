@@ -114,6 +114,10 @@ context starts, or work needs to resume after switching topics.
     enforcement and machine-readable result output for CI/report workflows
     window in engine runtime, reducing shortlist on/off oscillation near
     threshold boundaries during minor viewport movement
+  - mixed-scene regression gate is now a verified standing guardrail for the
+    100K scene-readiness track: required scenes, threshold checks, trend
+    regression, and machine-readable result output are all wired and should be
+    treated as the default performance closeout path for future tuning slices
   - engine render options now expose shortlist policy tuning (`enabled`,
     `minSceneNodes`, `ratioThreshold`, `hysteresisRatio`) so behavior can be
     adjusted per host without changing engine source constants
