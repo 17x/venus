@@ -2,6 +2,7 @@
   "name": "venus",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Composable canvas runtime monorepo for multi-editor products",
   "scripts": {
     "dev": "pnpm --filter @venus/vector-editor-web dev",

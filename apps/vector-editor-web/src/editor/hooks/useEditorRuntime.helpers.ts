@@ -13,12 +13,16 @@ import {
   createMarqueeState,
   createTransformPreviewShape,
   createTransformSessionShape,
+  resolveDragStartTransformPayload,
+  resolveSnappedTransformPreview,
   shouldClearSelectionOnPointerDown,
   shouldPreserveGroupDragSelection,
   type MarqueeApplyMode,
   type MarqueeSelectionMode,
 } from '../../runtime/interaction/index.ts'
+import type {RuntimeEditingMode} from '@vector/runtime'
 import type {
+  DraftPrimitive,
   DraftPrimitiveType,
   HandleKind,
   PathSubSelection,
@@ -35,6 +39,26 @@ export interface RuntimePointerModifiersLike {
   metaKey?: boolean
   ctrlKey?: boolean
   altKey?: boolean
+}
+
+const HOVER_GATED_EDITING_MODES: ReadonlySet<RuntimeEditingMode> = new Set([
+  'dragging',
+  'resizing',
+  'rotating',
+  'panning',
+  'zooming',
+  'marqueeSelecting',
+])
+
+export function resolveHoverHitTestOptions() {
+  return {
+    hitMode: 'bbox_then_exact' as const,
+    maxExactCandidateCount: 3,
+    allowFrameSelection: false,
+    tolerance: 6,
+    excludeClipBoundImage: true,
+    clipTolerance: 1.5,
+  }
 }
 
 export function resolveSelectionPointerDownHitOptions(input: {
@@ -164,6 +188,94 @@ export function resolvePenPointerDownState(input: {
   }
 }
 
+export function shouldGateHoverForEditingMode(
+  editingMode: RuntimeEditingMode | null | undefined,
+) {
+  return Boolean(editingMode && HOVER_GATED_EDITING_MODES.has(editingMode))
+}
+
+export function resolveSelectionDragMoveStartState(input: {
+  session: Parameters<typeof resolveDragStartTransformPayload>[0]
+  shapeById: Parameters<typeof resolveDragStartTransformPayload>[1]
+}) {
+  const dragStart = resolveDragStartTransformPayload(input.session, input.shapeById)
+  if (!dragStart) {
+    return null
+  }
+
+  return {
+    ...dragStart,
+    handle: 'move' as const,
+    activeTransformHandle: 'move' as const,
+    nextEditingMode: 'dragging' as const,
+    transitionReason: 'selection-drag-start',
+  }
+}
+
+export function resolveSelectionDragMovePreviewState(input: {
+  preview: Parameters<typeof resolveSnappedTransformPreview>[0]
+  handle: Parameters<typeof resolveSnappedTransformPreview>[1]['handle']
+  snappingEnabled: Parameters<typeof resolveSnappedTransformPreview>[1]['snappingEnabled']
+  previewDocument: Parameters<typeof resolveSnappedTransformPreview>[1]['previewDocument']
+}) {
+  const resolved = resolveSnappedTransformPreview(input.preview, {
+    handle: input.handle,
+    snappingEnabled: input.snappingEnabled,
+    previewDocument: input.previewDocument,
+  })
+
+  return {
+    snapGuides: resolved.guides,
+    transformPreview: resolved.preview,
+  }
+}
+
+export function resolvePointerMovePathSubSelectionHoverState(
+  nextPathSubSelectionHover: PathSubSelection | null,
+) {
+  return (current: PathSubSelection | null) => {
+    return isPathSubSelectionEqual(current, nextPathSubSelectionHover)
+      ? current
+      : nextPathSubSelectionHover
+  }
+}
+
+export function resolvePathHandleDragPointerMoveState(input: {
+  shapeId: string
+  anchorIndex: number
+  handleType: 'inHandle' | 'outHandle'
+  point: {x: number; y: number}
+}) {
+  return {
+    shapeId: input.shapeId,
+    hitType: input.handleType,
+    handlePoint: {
+      anchorIndex: input.anchorIndex,
+      handleType: input.handleType,
+      x: input.point.x,
+      y: input.point.y,
+    },
+  } satisfies PathSubSelection
+}
+
+export function resolveDraftPrimitivePointerMoveState(input: {
+  current: DraftPrimitive
+  point: {x: number; y: number}
+}): DraftPrimitive {
+  const start = input.current.points[0] ?? input.point
+
+  return {
+    ...input.current,
+    points: [start, input.point],
+    bounds: {
+      minX: Math.min(start.x, input.point.x),
+      minY: Math.min(start.y, input.point.y),
+      maxX: Math.max(start.x, input.point.x),
+      maxY: Math.max(start.y, input.point.y),
+    },
+  }
+}
+
 export function isClosedMaskShape(shape: DocumentNode | null | undefined) {
   return !!shape && (
     shape.type === 'rectangle' ||
@@ -271,6 +383,62 @@ export function resolvePathHandlePreviewDocument(
         }
       : item),
   }
+}
+
+export function resolveCommittedPathBezierPoints(input: {
+  shape: DocumentNode
+  anchorIndex: number
+  handleType: 'inHandle' | 'outHandle'
+  point: {x: number; y: number}
+}) {
+  if (input.shape.type !== 'path' || !Array.isArray(input.shape.bezierPoints) || input.shape.bezierPoints.length === 0) {
+    return null
+  }
+
+  return input.shape.bezierPoints.map((item, index) => {
+    if (index !== input.anchorIndex) {
+      return {
+        anchor: {...item.anchor},
+        cp1: item.cp1 ? {...item.cp1} : item.cp1,
+        cp2: item.cp2 ? {...item.cp2} : item.cp2,
+      }
+    }
+
+    return {
+      anchor: {...item.anchor},
+      cp1: input.handleType === 'inHandle'
+        ? {x: input.point.x, y: input.point.y}
+        : (item.cp1 ? {...item.cp1} : item.cp1),
+      cp2: input.handleType === 'outHandle'
+        ? {x: input.point.x, y: input.point.y}
+        : (item.cp2 ? {...item.cp2} : item.cp2),
+    }
+  })
+}
+
+export function resolveReorderedShapeIndex(input: {
+  direction: 'up' | 'down' | 'top' | 'bottom'
+  index: number
+  shapeCount: number
+}) {
+  if (input.index <= 0) {
+    return null
+  }
+
+  const maxIndex = Math.max(1, input.shapeCount - 1)
+  let nextIndex = input.index
+
+  if (input.direction === 'up') {
+    nextIndex = Math.min(maxIndex, input.index + 1)
+  } else if (input.direction === 'down') {
+    nextIndex = Math.max(1, input.index - 1)
+  } else if (input.direction === 'top') {
+    nextIndex = maxIndex
+  } else if (input.direction === 'bottom') {
+    nextIndex = 1
+  }
+
+  return nextIndex === input.index ? null : nextIndex
 }
 
 export function formatSelectionNames(

@@ -675,6 +675,30 @@ context starts, or work needs to resume after switching topics.
   Closure: the only pointer-down logic left local is default fallback
   orchestration into existing canvas interactions; the rest of the branch-local
   setup/policy surface has been extracted behind shared helpers.
+  New pass: `onPointerMove` decomposition has started as well, with direct-
+  select hover state resolution and shared hover hit-test options now extracted
+  into helpers.
+  Latest `onPointerMove` slice: selection drag-start payload assembly and
+  hover-gating decisions now also live in shared helpers, further narrowing the
+  interaction hook to preview updates and dispatch/orchestration.
+  Current `onPointerMove` follow-up: selection drag preview/snapping resolution
+  is now helper-owned too, leaving the drag branch closer to transform-manager
+  calls plus state dispatch.
+  Latest `onPointerMove` follow-up: path-handle hover state construction and
+  draft-primitive move updates now also live in shared helpers, reducing the
+  remaining inline setup around direct-select editing and draft drawing.
+  Closure: the remaining `onPointerMove` logic is local orchestration around
+  drag controller, transform manager, draft updates, and pen-tool handoff;
+  branch-local hover/path-hover policy has been extracted behind helpers.
+  New adjacent slice: `useEditorRuntimeCoreCallbacks` now delegates
+  path-handle commit bezier-point shaping to shared helpers instead of keeping
+  that path-data rewrite inline inside the callback.
+  Latest adjacent slice: selected-shape reorder target-index resolution also
+  moved out of `useEditorRuntimeCoreCallbacks`, leaving that callback closer to
+  shape lookup and command dispatch.
+  Closure: the current `useEditorRuntimeCoreCallbacks` pass is now verified;
+  path-handle commit and reorder flows keep local runtime lookup/dispatch only,
+  while the adjacent data-shaping logic is helper-owned.
 
 ## Avoid Repeating
 

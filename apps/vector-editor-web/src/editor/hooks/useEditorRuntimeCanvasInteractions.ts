@@ -2,9 +2,7 @@ import {useMemo, useRef} from 'react'
 import {type ToolName} from '@venus/document-core'
 import {
   createMarqueeState,
-  resolveDragStartTransformPayload,
   resolveSelectionHandleHitAtPoint,
-  resolveSnappedTransformPreview,
   resolveTopHitShapeId,
   updateMarqueeState,
   type MarqueeApplyMode,
@@ -12,13 +10,20 @@ import {
 import {resolvePathSubSelectionAtPoint} from './runtime/pathSubSelection.ts'
 import {
   resolveDraftPrimitivePointerDownState,
+  resolveHoverHitTestOptions,
   resolveInsertShapePointerDownState,
   isPathSubSelectionEqual,
   resolveMarqueePointerDownState,
   resolvePenPointerDownState,
+  resolvePathHandleDragPointerMoveState,
+  resolveDraftPrimitivePointerMoveState,
+  resolvePointerMovePathSubSelectionHoverState,
   resolvePointerDownPathSubSelectionState,
+  resolveSelectionDragMovePreviewState,
+  resolveSelectionDragMoveStartState,
   resolveSelectionPointerDownHitOptions,
   resolveTransformHandlePointerDownState,
+  shouldGateHoverForEditingMode,
   shouldClearSelectionOnSelectorPointerDown,
   shouldPreserveGroupDragSelectionOnPointerDown,
   shouldResolveHoverHit,
@@ -40,14 +45,6 @@ import {
 const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
 const HOVER_HIT_MIN_INTERVAL_MS = 24
 const HOVER_HIT_MIN_DISTANCE_PX = 2
-const HOVER_GATED_EDITING_MODES: ReadonlySet<string> = new Set([
-  'dragging',
-  'resizing',
-  'rotating',
-  'panning',
-  'zooming',
-  'marqueeSelecting',
-])
 
 export function useEditorRuntimeCanvasInteractions(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
@@ -127,13 +124,14 @@ export function useEditorRuntimeCanvasInteractions(options: {
         clearHoveredShape()
         const preview = options.transformManagerRef.current?.update(point)
         if (preview) {
-          const maybeSnapped = resolveSnappedTransformPreview(preview, {
+          const transformPreviewState = resolveSelectionDragMovePreviewState({
+            preview,
             handle: transformSession.handle,
             snappingEnabled: options.snappingEnabled,
             previewDocument: options.interactionDocument,
           })
-          options.setSnapGuides(maybeSnapped.guides)
-          options.setTransformPreview(maybeSnapped.preview)
+          options.setSnapGuides(transformPreviewState.snapGuides)
+          options.setTransformPreview(transformPreviewState.transformPreview)
         }
         return
       }
@@ -151,16 +149,12 @@ export function useEditorRuntimeCanvasInteractions(options: {
         return
       }
       if (options.pathHandleDrag && options.currentTool === 'dselector') {
-        const nextPathSelectionHover: PathSubSelection = {
+        const nextPathSelectionHover = resolvePathHandleDragPointerMoveState({
           shapeId: options.pathHandleDrag.shapeId,
-          hitType: options.pathHandleDrag.handleType,
-          handlePoint: {
-            anchorIndex: options.pathHandleDrag.anchorIndex,
-            handleType: options.pathHandleDrag.handleType,
-            x: point.x,
-            y: point.y,
-          },
-        }
+          anchorIndex: options.pathHandleDrag.anchorIndex,
+          handleType: options.pathHandleDrag.handleType,
+          point,
+        })
         options.setPathSubSelectionHover((current) => {
           return isPathSubSelectionEqual(current, nextPathSelectionHover)
             ? current
@@ -177,17 +171,10 @@ export function useEditorRuntimeCanvasInteractions(options: {
           if (!current) {
             return current
           }
-          const start = current.points[0] ?? point
-          return {
-            ...current,
-            points: [start, point],
-            bounds: {
-              minX: Math.min(start.x, point.x),
-              minY: Math.min(start.y, point.y),
-              maxX: Math.max(start.x, point.x),
-              maxY: Math.max(start.y, point.y),
-            },
-          }
+          return resolveDraftPrimitivePointerMoveState({
+            current,
+            point,
+          })
         })
         return
       }
@@ -204,36 +191,39 @@ export function useEditorRuntimeCanvasInteractions(options: {
         if ((dragMove?.phase === 'started' || dragMove?.phase === 'dragging') && dragMove.session) {
           clearHoveredShape()
           if (dragMove.phase === 'started') {
-            const dragStart = resolveDragStartTransformPayload(dragMove.session, options.previewShapeById)
-            if (dragStart) {
+            const dragStartState = resolveSelectionDragMoveStartState({
+              session: dragMove.session,
+              shapeById: options.previewShapeById,
+            })
+            if (dragStartState) {
               options.transformManagerRef.current?.start({
-                shapeIds: dragStart.shapeIds,
-                shapes: dragStart.sessionShapes,
-                handle: 'move',
-                pointer: dragStart.pointer,
-                startBounds: dragStart.startBounds,
+                shapeIds: dragStartState.shapeIds,
+                shapes: dragStartState.sessionShapes,
+                handle: dragStartState.handle,
+                pointer: dragStartState.pointer,
+                startBounds: dragStartState.startBounds,
               })
-              options.setActiveTransformHandle('move')
+              options.setActiveTransformHandle(dragStartState.activeTransformHandle)
               options.runtimeEditingModeControllerRef.current?.transition({
-                to: 'dragging',
-                reason: 'selection-drag-start',
+                to: dragStartState.nextEditingMode,
+                reason: dragStartState.transitionReason,
               })
               options.setTransformPreview({
-                shapes: dragStart.previewShapes,
+                shapes: dragStartState.previewShapes,
               })
             }
           }
 
           const preview = options.transformManagerRef.current?.update(point)
           if (preview) {
-            const transformSession = options.transformManagerRef.current?.getSession()
-            const maybeSnapped = resolveSnappedTransformPreview(preview, {
-              handle: transformSession?.handle,
+            const transformPreviewState = resolveSelectionDragMovePreviewState({
+              preview,
+              handle: options.transformManagerRef.current?.getSession()?.handle,
               snappingEnabled: options.snappingEnabled,
               previewDocument: options.interactionDocument,
             })
-            options.setSnapGuides(maybeSnapped.guides)
-            options.setTransformPreview(maybeSnapped.preview)
+            options.setSnapGuides(transformPreviewState.snapGuides)
+            options.setTransformPreview(transformPreviewState.transformPreview)
           }
           return
         }
@@ -246,11 +236,9 @@ export function useEditorRuntimeCanvasInteractions(options: {
           point,
           {tolerance: 8},
         )
-        options.setPathSubSelectionHover((current) => {
-          return isPathSubSelectionEqual(current, nextPathSubSelectionHover)
-            ? current
-            : nextPathSubSelectionHover
-        })
+        options.setPathSubSelectionHover(
+          resolvePointerMovePathSubSelectionHoverState(nextPathSubSelectionHover),
+        )
         return
       }
       if (options.penTool.handlePointerMove(point)) {
@@ -261,10 +249,7 @@ export function useEditorRuntimeCanvasInteractions(options: {
 
       const currentEditingMode =
         options.runtimeEditingModeControllerRef.current?.getCurrentMode()
-      if (
-        currentEditingMode &&
-        HOVER_GATED_EDITING_MODES.has(currentEditingMode)
-      ) {
+      if (shouldGateHoverForEditingMode(currentEditingMode)) {
         clearHoveredShape()
         return
       }
@@ -284,14 +269,12 @@ export function useEditorRuntimeCanvasInteractions(options: {
       }
 
       clearSnapGuides()
-      setHoveredShape(resolveTopHitShapeId(options.interactionDocument, options.canvasRuntime.shapes, point, {
-        hitMode: 'bbox_then_exact',
-        maxExactCandidateCount: 3,
-        allowFrameSelection: false,
-        tolerance: 6,
-        excludeClipBoundImage: true,
-        clipTolerance: 1.5,
-      }))
+      setHoveredShape(resolveTopHitShapeId(
+        options.interactionDocument,
+        options.canvasRuntime.shapes,
+        point,
+        resolveHoverHitTestOptions(),
+      ))
     },
     onPointerDown: (point: {x: number; y: number}, modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean}) => {
       options.setHoveredShapeId(null)

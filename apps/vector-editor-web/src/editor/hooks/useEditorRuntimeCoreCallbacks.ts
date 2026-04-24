@@ -3,6 +3,7 @@ import {type ToolName} from '@venus/document-core'
 import {resolveRuntimeZoomPresetScale} from '../../runtime/interaction/index.ts'
 import readFileHelper from '../../contexts/fileContext/readFileHelper.ts'
 import {isDragCreateTool, mapToolNameToToolId} from './editorRuntimeHelpers.ts'
+import {resolveCommittedPathBezierPoints, resolveReorderedShapeIndex} from './useEditorRuntime.helpers.ts'
 import {resolveEditingModeForTool} from './runtime/tooling.ts'
 
 export function useEditorRuntimeCoreCallbacks(options: {
@@ -32,24 +33,12 @@ export function useEditorRuntimeCoreCallbacks(options: {
     }
 
     const index = options.canvasRuntime.document.shapes.findIndex((shape) => shape.id === options.selectedShapeId)
-    if (index <= 0) {
-      return
-    }
-
-    const maxIndex = Math.max(1, options.canvasRuntime.document.shapes.length - 1)
-    let nextIndex = index
-
-    if (direction === 'up') {
-      nextIndex = Math.min(maxIndex, index + 1)
-    } else if (direction === 'down') {
-      nextIndex = Math.max(1, index - 1)
-    } else if (direction === 'top') {
-      nextIndex = maxIndex
-    } else if (direction === 'bottom') {
-      nextIndex = 1
-    }
-
-    if (nextIndex === index) {
+    const nextIndex = resolveReorderedShapeIndex({
+      direction,
+      index,
+      shapeCount: options.canvasRuntime.document.shapes.length,
+    })
+    if (nextIndex === null) {
       return
     }
 
@@ -88,7 +77,7 @@ export function useEditorRuntimeCoreCallbacks(options: {
     point: {x: number; y: number}
   }) => {
     const shape = options.previewDocument.shapes.find((item) => item.id === params.shapeId)
-    if (!shape || shape.type !== 'path' || !Array.isArray(shape.bezierPoints) || shape.bezierPoints.length === 0) {
+    if (!shape) {
       return
     }
     const shapeIndex = options.previewDocument.shapes.findIndex((item) => item.id === shape.id)
@@ -96,21 +85,15 @@ export function useEditorRuntimeCoreCallbacks(options: {
       return
     }
 
-    const nextBezierPoints = shape.bezierPoints.map((item, index) => {
-      if (index !== params.anchorIndex) {
-        return {
-          anchor: {...item.anchor},
-          cp1: item.cp1 ? {...item.cp1} : item.cp1,
-          cp2: item.cp2 ? {...item.cp2} : item.cp2,
-        }
-      }
-
-      return {
-        anchor: {...item.anchor},
-        cp1: params.handleType === 'inHandle' ? {x: params.point.x, y: params.point.y} : (item.cp1 ? {...item.cp1} : item.cp1),
-        cp2: params.handleType === 'outHandle' ? {x: params.point.x, y: params.point.y} : (item.cp2 ? {...item.cp2} : item.cp2),
-      }
+    const nextBezierPoints = resolveCommittedPathBezierPoints({
+      shape,
+      anchorIndex: params.anchorIndex,
+      handleType: params.handleType,
+      point: params.point,
     })
+    if (!nextBezierPoints) {
+      return
+    }
 
     options.handleCommand({type: 'shape.remove', shapeId: shape.id})
     options.handleCommand({

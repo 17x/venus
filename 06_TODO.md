@@ -48,6 +48,14 @@
     - Implemented: `VT-20260424-15` extracted draft-shape and insert-shape pointer-down state assembly into shared helpers, shrinking non-selector pointer-down setup in `useEditorRuntimeCanvasInteractions.ts`
     - Implemented: `VT-20260424-15` extracted pen pointer-down transition metadata into shared helpers, further reducing inline branch setup in `useEditorRuntimeCanvasInteractions.ts`
     - Verified 2026-04-24: `VT-20260424-15` decomposition pass leaves only pointer/down fallback orchestration local in `useEditorRuntimeCanvasInteractions.ts`; branch-local policy/setup now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-16` extracted direct-select hover state resolution and shared hover hit-test options from `useEditorRuntimeCanvasInteractions.ts` into `useEditorRuntime.helpers.ts`, starting the adjacent `onPointerMove` decomposition pass
+    - Implemented: `VT-20260424-16` extracted selection drag-start payload assembly and hover-gating decisions from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, reducing inline `onPointerMove` branch policy around selection drag + hover suppression
+    - Implemented: `VT-20260424-16` extracted selection drag preview/snapping resolution from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, further narrowing the remaining `onPointerMove` selection-drag branch to transform-manager orchestration
+    - Implemented: `VT-20260424-16` extracted path-handle hover state construction and draft-primitive move updates from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, shrinking remaining inline `onPointerMove` setup outside drag-controller orchestration
+    - Verified 2026-04-24: `VT-20260424-16` decomposition pass leaves `onPointerMove` with local transform/drag/pen orchestration only; hover/path-hover branch-local policy now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-17` extracted path-handle commit bezier-point resolution from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, starting the next adjacent runtime-structure slice beyond `useEditorRuntimeCanvasInteractions`
+    - Implemented: `VT-20260424-17` extracted reorder-target index resolution from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, leaving the callback closer to command dispatch and selected-shape lookup only
+    - Verified 2026-04-24: `VT-20260424-17` decomposition pass leaves `useEditorRuntimeCoreCallbacks.ts` with command dispatch and runtime lookup orchestration only for path-handle commit and reorder flows; shared helpers now own the adjacent data-shaping logic and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
 - Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
   - Progress 2026-04-24:
     - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
@@ -210,6 +218,8 @@
 - `VT-20260424-13` [verified]: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
 - `VT-20260424-14` [verified]: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
 - `VT-20260424-15` [verified]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
+- `VT-20260424-16` [verified]: decompose `useEditorRuntime` adjacent `onPointerMove` hover/path-hover helper logic out of `useEditorRuntimeCanvasInteractions`
+- `VT-20260424-17` [verified]: decompose `useEditorRuntimeCoreCallbacks` path-handle commit and reorder index data shaping out of inline callback logic
 - 100K performance optimization Phase 2 (runtime structure, next execution queue):
   1. Phase-based render policy service (owner: runtime)
   - Deliverable: explicit policy for `static/pan/zoom/drag/settled`
