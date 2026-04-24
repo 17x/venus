@@ -699,6 +699,104 @@ context starts, or work needs to resume after switching topics.
   Closure: the current `useEditorRuntimeCoreCallbacks` pass is now verified;
   path-handle commit and reorder flows keep local runtime lookup/dispatch only,
   while the adjacent data-shaping logic is helper-owned.
+  New adjacent pass: `useEditorRuntime.ts` now delegates snapping/history
+  command side-effect classification to shared helpers, reducing inline
+  branching in the app-level command dispatcher.
+  Latest adjacent pass: history undo/redo sequence planning also moved out of
+  `useEditorRuntimeCoreCallbacks`, leaving that callback closer to target
+  history selection plus command dispatch.
+  Closure: the current command-routing decomposition pass is verified; the app
+  layer still performs local transient-state resets and dispatch, while command
+  classification/planning logic now lives in shared helpers.
+  New execute-action pass: selected non-frame element snapshot resolution for
+  copy/cut/duplicate now lives in shared helpers instead of being repeated
+  inline in `useEditorRuntimeExecuteAction`.
+  Latest execute-action pass: `switch-tool` now reuses the verified
+  `setCurrentTool` callback from `useEditorRuntimeCoreCallbacks` instead of
+  duplicating tool lifecycle wiring in the action executor.
+  Closure: the current execute-action decomposition pass is verified; the hook
+  keeps action branching local while shared helpers/core callbacks own the
+  repeated selection-shaping and tool-lifecycle logic.
+  New execute-action alias pass: direct-command mappings for undo/redo/delete/
+  select-all now live in shared helpers instead of remaining inline in the
+  action executor.
+  Latest execute-action alias pass: layer reorder aliases now also resolve
+  through shared helpers, further reducing repeated branch-local direction
+  mapping in `useEditorRuntimeExecuteAction`.
+  Closure: the current execute-action alias decomposition pass is verified;
+  the hook keeps action-specific orchestration local while shared helpers own
+  simple command and reorder alias resolution.
+  New execute-action payload pass: element nudge delta resolution and selected
+  move batch planning now live in shared helpers instead of staying inline in
+  the executor.
+  Latest execute-action payload pass: pasted-element payload shaping and unique
+  inserted-shape id allocation also moved behind shared helpers, reducing
+  inline object construction for paste and drop-image insert flows.
+  Closure: the current execute-action payload decomposition pass is verified;
+  the hook keeps action branching local while shared helpers own the repeated
+  move/paste payload-planning details.
+  New execute-action follow-up: duplicate-element payload planning now also
+  lives in shared helpers instead of remaining inline in the executor.
+  Latest execute-action follow-up: `selection-modify` command resolution moved
+  out of `useEditorRuntimeExecuteAction`, leaving selection-set payload shaping
+  helper-owned as well.
+  Closure: the current execute-action follow-up pass is verified; the hook
+  keeps duplicate/selection-modify branching local while shared helpers own the
+  adjacent payload and command-resolution details.
+  New drop-image follow-up: viewport-relative dropped-image sizing and inserted
+  image element payload planning now live in shared helpers instead of staying
+  inline in `useEditorRuntimeExecuteAction`.
+  Closure: the current drop-image decomposition pass is verified; the hook
+  keeps asset registration and insert dispatch local while shared helpers own
+  the viewport-relative image sizing and payload construction details.
+  New viewport follow-up: `world-shift` / `world-zoom` action parsing now also
+  lives in shared helpers instead of remaining inline in
+  `useEditorRuntimeExecuteAction`.
+  Closure: the current viewport-action decomposition pass is verified; the
+  hook keeps viewport dispatch local while shared helpers own the pan/zoom
+  action parsing details.
+  New mask-action follow-up: auto-mask and clear-mask command/message
+  resolution now live in shared helpers instead of staying inline in
+  `useEditorRuntimeMaskActions`.
+  Closure: the current mask-action decomposition pass is verified; the handler
+  keeps notification and dispatch local while shared helpers own mask
+  candidate validation and command/message resolution.
+  New element-modify follow-up: element-modify command planning now lives in
+  shared helpers instead of staying inline in
+  `useEditorRuntimeElementModify`.
+  Closure: the current element-modify decomposition pass is verified; the
+  handler keeps command dispatch local while shared helpers own property
+  resolution and style-patch construction.
+  New group-action follow-up: grouping target resolution now lives in shared
+  helpers instead of remaining inline in `runtime/groupActions`.
+  Latest group-action follow-up: ungroup selected-group resolution also moved
+  out of `runtime/groupActions`, leaving the module closer to command dispatch.
+  Closure: the current group-action decomposition pass is verified; the module
+  keeps dispatch/notify local while shared helpers own grouping target lookup.
+  New shape-action follow-up: convert-to-path and align command resolution now
+  live in shared helpers instead of staying inline in `runtime/shapeActions`.
+  Latest shape-action follow-up: distribute and boolean command resolution also
+  moved out of `runtime/shapeActions`, leaving dispatch/notify local.
+  Closure: the current shape-action decomposition pass is verified; shared
+  helpers now own action-mode resolution for these shape commands.
+  New layer-derivation follow-up: layer hierarchy index construction now lives
+  in local helpers instead of staying inline in `deriveEditorUIState`.
+  Latest layer-derivation follow-up: child-id resolution and layer item
+  projection also moved behind local helpers, leaving traversal orchestration
+  local while projection/indexing details are isolated.
+  Closure: the current layer-derivation decomposition pass is verified; the
+  module keeps cached traversal orchestration local while helper functions own
+  the hierarchy indexing and layer projection details.
+  New editor-runtime-helper follow-up: centered rectangle/ellipse tool element
+  construction now lives in local helpers instead of staying inline in
+  `editorRuntimeHelpers`.
+  Latest editor-runtime-helper follow-up: line-like tool construction plus
+  drag box/line-like shape construction also moved behind local helpers,
+  leaving tool/drag routing local while repeated object construction is
+  isolated.
+  Closure: the current editor-runtime-helper decomposition pass is verified;
+  the module keeps tool/drag branch routing local while helper functions own
+  the repeated centered-box and line-like element construction details.
 
 ## Avoid Repeating
 

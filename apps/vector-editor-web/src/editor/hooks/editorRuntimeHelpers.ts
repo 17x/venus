@@ -43,64 +43,19 @@ export function createShapeElementFromTool(
   point: {x: number; y: number},
 ): ElementProps | null {
   if (toolName === 'rectangle') {
-    const width = 140
-    const height = 96
-    return {
-      id: nid(),
-      type: 'rectangle',
-      name: 'Rectangle',
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createCenteredBoxToolElement('rectangle', 'Rectangle', point, 140, 96)
   }
 
   if (toolName === 'ellipse') {
-    const width = 120
-    const height = 120
-    return {
-      id: nid(),
-      type: 'ellipse',
-      name: 'Ellipse',
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createCenteredBoxToolElement('ellipse', 'Ellipse', point, 120, 120)
   }
 
   if (toolName === 'lineSegment') {
-    return {
-      id: nid(),
-      type: 'lineSegment',
-      name: 'Line',
-      x: point.x - 80,
-      y: point.y - 20,
-      width: 160,
-      height: 40,
-      fill: {enabled: false, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 2},
-    }
+    return createLineLikeToolElement('Line', point, 160, 40, '#111827')
   }
 
   if (toolName === 'connector') {
-    return {
-      id: nid(),
-      type: 'lineSegment',
-      name: 'Connector',
-      x: point.x - 96,
-      y: point.y - 12,
-      width: 192,
-      height: 24,
-      fill: {enabled: false, color: '#ffffff'},
-      stroke: {enabled: true, color: '#0f172a', weight: 2},
-      strokeEndArrowhead: 'triangle',
-    }
+    return createLineLikeToolElement('Connector', point, 192, 24, '#0f172a', 'triangle')
   }
 
   if (toolName === 'polygon') {
@@ -182,68 +137,19 @@ export function createShapeElementFromDrag(
   const y = bounds.minY
 
   if (toolName === 'rectangle') {
-    return {
-      id: nid(),
-      type: 'rectangle',
-      name: 'Rectangle',
-      x,
-      y,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createDragBoxShapeElement('rectangle', 'Rectangle', x, y, width, height)
   }
 
   if (toolName === 'ellipse') {
-    return {
-      id: nid(),
-      type: 'ellipse',
-      name: 'Ellipse',
-      x,
-      y,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createDragBoxShapeElement('ellipse', 'Ellipse', x, y, width, height)
   }
 
   if (toolName === 'lineSegment') {
-    return {
-      id: nid(),
-      type: 'lineSegment',
-      name: 'Line',
-      x: start.x,
-      y: start.y,
-      width: end.x - start.x,
-      height: end.y - start.y,
-      points: [
-        {x: start.x, y: start.y},
-        {x: end.x, y: end.y},
-      ],
-      fill: {enabled: false, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 2},
-    }
+    return createDragLineLikeShapeElement('Line', start, end, '#111827')
   }
 
   if (toolName === 'connector') {
-    return {
-      id: nid(),
-      type: 'lineSegment',
-      name: 'Connector',
-      x: start.x,
-      y: start.y,
-      width: end.x - start.x,
-      height: end.y - start.y,
-      points: [
-        {x: start.x, y: start.y},
-        {x: end.x, y: end.y},
-      ],
-      fill: {enabled: false, color: '#ffffff'},
-      stroke: {enabled: true, color: '#0f172a', weight: 2},
-      strokeEndArrowhead: 'triangle',
-    }
+    return createDragLineLikeShapeElement('Connector', start, end, '#0f172a', 'triangle')
   }
 
   if (toolName === 'polygon') {
@@ -465,6 +371,94 @@ export function buildHistoryArray(history: HistorySummary): HistoryNodeLike[] {
 
 export function isPenTool(toolName: ToolName) {
   return toolName === 'pencil' || toolName === 'path'
+}
+
+function createCenteredBoxToolElement(
+  type: 'rectangle' | 'ellipse',
+  name: string,
+  point: {x: number; y: number},
+  width: number,
+  height: number,
+): ElementProps {
+  return {
+    id: nid(),
+    type,
+    name,
+    x: point.x - width / 2,
+    y: point.y - height / 2,
+    width,
+    height,
+    fill: {enabled: true, color: '#ffffff'},
+    stroke: {enabled: true, color: '#111827', weight: 1},
+  }
+}
+
+function createLineLikeToolElement(
+  name: string,
+  point: {x: number; y: number},
+  width: number,
+  height: number,
+  strokeColor: string,
+  strokeEndArrowhead?: ElementProps['strokeEndArrowhead'],
+): ElementProps {
+  return {
+    id: nid(),
+    type: 'lineSegment',
+    name,
+    x: point.x - width / 2,
+    y: point.y - height / 2,
+    width,
+    height,
+    fill: {enabled: false, color: '#ffffff'},
+    stroke: {enabled: true, color: strokeColor, weight: 2},
+    strokeEndArrowhead,
+  }
+}
+
+function createDragBoxShapeElement(
+  type: 'rectangle' | 'ellipse',
+  name: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): ElementProps {
+  return {
+    id: nid(),
+    type,
+    name,
+    x,
+    y,
+    width,
+    height,
+    fill: {enabled: true, color: '#ffffff'},
+    stroke: {enabled: true, color: '#111827', weight: 1},
+  }
+}
+
+function createDragLineLikeShapeElement(
+  name: string,
+  start: {x: number; y: number},
+  end: {x: number; y: number},
+  strokeColor: string,
+  strokeEndArrowhead?: ElementProps['strokeEndArrowhead'],
+): ElementProps {
+  return {
+    id: nid(),
+    type: 'lineSegment',
+    name,
+    x: start.x,
+    y: start.y,
+    width: end.x - start.x,
+    height: end.y - start.y,
+    points: [
+      {x: start.x, y: start.y},
+      {x: end.x, y: end.y},
+    ],
+    fill: {enabled: false, color: '#ffffff'},
+    stroke: {enabled: true, color: strokeColor, weight: 2},
+    strokeEndArrowhead,
+  }
 }
 
 function createPolygonPoints(x: number, y: number, width: number, height: number) {

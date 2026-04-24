@@ -56,6 +56,49 @@
     - Implemented: `VT-20260424-17` extracted path-handle commit bezier-point resolution from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, starting the next adjacent runtime-structure slice beyond `useEditorRuntimeCanvasInteractions`
     - Implemented: `VT-20260424-17` extracted reorder-target index resolution from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, leaving the callback closer to command dispatch and selected-shape lookup only
     - Verified 2026-04-24: `VT-20260424-17` decomposition pass leaves `useEditorRuntimeCoreCallbacks.ts` with command dispatch and runtime lookup orchestration only for path-handle commit and reorder flows; shared helpers now own the adjacent data-shaping logic and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-18` extracted runtime command side-effect classification from `useEditorRuntime.ts` into shared helpers, reducing inline snapping/history branching inside the app-level command dispatcher
+    - Implemented: `VT-20260424-18` extracted history undo/redo command-sequence planning from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, leaving the callback closer to history target selection and dispatch only
+    - Verified 2026-04-24: `VT-20260424-18` decomposition pass leaves `useEditorRuntime.ts` and `useEditorRuntimeCoreCallbacks.ts` with local runtime state reset/dispatch orchestration only; snapping/history command classification and history navigation planning now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-19` extracted selected non-frame element snapshot resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing repeated copy/cut/duplicate selection shaping
+    - Implemented: `VT-20260424-19` removed duplicated `switch-tool` lifecycle wiring from `useEditorRuntimeExecuteAction.ts` by reusing the shared `setCurrentTool` callback from `useEditorRuntimeCoreCallbacks.ts`
+    - Verified 2026-04-24: `VT-20260424-19` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action branching only; selected-element snapshot shaping and switch-tool lifecycle ownership now live behind shared helpers/core callbacks and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-20` extracted direct-command action alias resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, removing inline history/delete/select-all command mapping from the executor hook
+    - Implemented: `VT-20260424-20` extracted layer reorder action alias resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing repeated bring/send/layer direction branching
+    - Verified 2026-04-24: `VT-20260424-20` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action-specific orchestration only; direct command and reorder alias mapping now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-21` extracted element nudge delta resolution and selection-move transform batch planning from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline move-action payload shaping
+    - Implemented: `VT-20260424-21` extracted pasted-element payload planning and unique inserted-shape id allocation from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline insert payload construction for paste/drop-image flows
+    - Verified 2026-04-24: `VT-20260424-21` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action branching and dispatch only for nudge/paste flows; move/paste payload planning and unique id allocation now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-22` extracted duplicate-element payload planning from `useEditorRuntimeExecuteAction.ts` into shared helpers, further reducing inline repeated insert-shape object construction
+    - Implemented: `VT-20260424-22` extracted `selection-modify` command resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline selection-set command shaping in the executor hook
+    - Verified 2026-04-24: `VT-20260424-22` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action branching and dispatch only for duplicate/selection-modify flows; duplicate payload planning and selection command resolution now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-23` extracted dropped-image sizing and inserted image element payload planning from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline viewport-relative image insert construction
+    - Verified 2026-04-24: `VT-20260424-23` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` with local asset registration and insert dispatch only for drop-image flows; image sizing and insert payload planning now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-24` extracted viewport pan/zoom action parsing from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline `world-shift` / `world-zoom` branching in the executor hook
+    - Verified 2026-04-24: `VT-20260424-24` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` with local viewport dispatch only for world navigation flows; pan/zoom action parsing now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-25` extracted auto-mask and clear-mask command/message resolution from `useEditorRuntimeMaskActions.ts` into shared helpers, reducing inline mask candidate selection and validation branching in the handler module
+    - Verified 2026-04-24: `VT-20260424-25` decomposition pass leaves `useEditorRuntimeMaskActions.ts` with local notification and dispatch only; auto-mask and clear-mask resolution now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-26` extracted element-modify command planning from `useEditorRuntimeElementModify.ts` into shared helpers, reducing inline property resolution and style patch construction in the handler module
+    - Verified 2026-04-24: `VT-20260424-26` decomposition pass leaves `useEditorRuntimeElementModify.ts` with local command dispatch only; element-modify command planning now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-27` extracted groupable-shape id resolution from `runtime/groupActions.ts` into shared helpers, reducing inline ancestor-filtering logic in group action handling
+    - Verified 2026-04-24: `VT-20260424-27` decomposition pass leaves `runtime/groupActions.ts` with local group command dispatch only for grouping flows; groupable id resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-28` extracted selected-group resolution from `runtime/groupActions.ts` into shared helpers, reducing inline selected-group lookup in ungroup action handling
+    - Verified 2026-04-24: `VT-20260424-28` decomposition pass leaves `runtime/groupActions.ts` with local ungroup dispatch only for ungroup flows; selected-group resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-29` extracted convert-to-path and align command resolution from `runtime/shapeActions.ts` into shared helpers, reducing inline action-mode branching in shape action handling
+    - Verified 2026-04-24: `VT-20260424-29` decomposition pass leaves `runtime/shapeActions.ts` with local dispatch only for convert/align flows; command resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-30` extracted distribute and boolean command resolution from `runtime/shapeActions.ts` into shared helpers, reducing inline mode mapping and boolean-notify branching in shape action handling
+    - Verified 2026-04-24: `VT-20260424-30` decomposition pass leaves `runtime/shapeActions.ts` with local dispatch/notify only for distribute/boolean flows; command resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-31` extracted layer hierarchy index construction from `deriveEditorUIState.ts`, reducing inline node/parent indexing work inside layer item derivation
+    - Verified 2026-04-24: `VT-20260424-31` decomposition pass leaves `deriveEditorUIState.ts` with helper-owned layer hierarchy indexing and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-32` extracted layer child-id resolution from `deriveEditorUIState.ts`, reducing inline explicit-vs-inferred child selection logic inside layer traversal
+    - Verified 2026-04-24: `VT-20260424-32` decomposition pass leaves `deriveEditorUIState.ts` with helper-owned child-id resolution and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-33` extracted layer item projection from `deriveEditorUIState.ts`, reducing inline layer flag/name/depth mapping inside traversal
+    - Verified 2026-04-24: `VT-20260424-33` decomposition pass leaves `deriveEditorUIState.ts` with helper-owned layer item projection and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-34` extracted centered rectangle/ellipse tool element construction from `editorRuntimeHelpers.ts`, reducing inline centered box object construction in `createShapeElementFromTool`
+    - Verified 2026-04-24: `VT-20260424-34` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned centered box tool construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-35` extracted line-like tool element construction from `editorRuntimeHelpers.ts`, reducing inline line/connector object construction in `createShapeElementFromTool`
+    - Verified 2026-04-24: `VT-20260424-35` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned line-like tool construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-36` extracted drag box and drag line-like shape construction from `editorRuntimeHelpers.ts`, reducing inline rectangle/ellipse/line/connector object construction in `createShapeElementFromDrag`
+    - Verified 2026-04-24: `VT-20260424-36` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned drag shape construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
 - Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
   - Progress 2026-04-24:
     - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
@@ -220,6 +263,31 @@
 - `VT-20260424-15` [verified]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
 - `VT-20260424-16` [verified]: decompose `useEditorRuntime` adjacent `onPointerMove` hover/path-hover helper logic out of `useEditorRuntimeCanvasInteractions`
 - `VT-20260424-17` [verified]: decompose `useEditorRuntimeCoreCallbacks` path-handle commit and reorder index data shaping out of inline callback logic
+- `VT-20260424-18` [verified]: decompose runtime command side-effect classification and history navigation planning out of `useEditorRuntime` adjacent callbacks
+- `VT-20260424-19` [verified]: decompose execute-action selection snapshot shaping and switch-tool lifecycle duplication out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-20` [verified]: decompose execute-action direct command and reorder alias mapping out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-21` [verified]: decompose execute-action nudge/paste payload planning and unique id allocation out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-22` [verified]: decompose execute-action duplicate payload planning and selection-modify command resolution out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-23` [verified]: decompose execute-action dropped-image sizing and insert payload planning out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-24` [verified]: decompose execute-action viewport pan/zoom action parsing out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-25` [verified]: decompose mask-action command and message resolution out of `useEditorRuntimeMaskActions`
+- `VT-20260424-26` [verified]: decompose element-modify command planning out of `useEditorRuntimeElementModify`
+- `VT-20260424-27` [verified]: decompose grouping target resolution out of `runtime/groupActions`
+- `VT-20260424-28` [verified]: decompose ungroup selected-group resolution out of `runtime/groupActions`
+- `VT-20260424-29` [verified]: decompose convert/align shape action command resolution out of `runtime/shapeActions`
+- `VT-20260424-30` [verified]: decompose distribute/boolean shape action command resolution out of `runtime/shapeActions`
+- `VT-20260424-31` [verified]: decompose layer hierarchy index construction out of `deriveEditorUIState`
+- `VT-20260424-32` [verified]: decompose layer child-id resolution out of `deriveEditorUIState`
+- `VT-20260424-33` [verified]: decompose layer item projection out of `deriveEditorUIState`
+- `VT-20260424-34` [verified]: decompose centered box tool element construction out of `editorRuntimeHelpers`
+- `VT-20260424-35` [verified]: decompose line-like tool element construction out of `editorRuntimeHelpers`
+- `VT-20260424-36` [verified]: decompose drag box and line-like shape construction out of `editorRuntimeHelpers`
+- `VT-20260424-31` [verified]: decompose layer hierarchy index construction out of `deriveEditorUIState`
+- `VT-20260424-32` [verified]: decompose layer child-id resolution out of `deriveEditorUIState`
+- `VT-20260424-33` [verified]: decompose layer item projection out of `deriveEditorUIState`
+
+# break line
+
 - 100K performance optimization Phase 2 (runtime structure, next execution queue):
   1. Phase-based render policy service (owner: runtime)
   - Deliverable: explicit policy for `static/pan/zoom/drag/settled`

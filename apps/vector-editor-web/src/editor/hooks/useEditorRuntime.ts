@@ -38,7 +38,7 @@ import type {
   EditorRuntimeState,
   SelectedElementProps,
 } from './useEditorRuntime.types.ts'
-import {resolveSelectedProps} from './useEditorRuntime.helpers.ts'
+import {resolveRuntimeCommandSideEffects, resolveSelectedProps} from './useEditorRuntime.helpers.ts'
 import {useEditorRuntimeDerivedState} from './useEditorRuntimeDerivedState.ts'
 import {
   useEditorRuntimeExecuteAction,
@@ -189,18 +189,17 @@ const useEditorRuntime = (options?: {
   const {t} = useTranslation()
 
   const handleCommand = useCallback((command: import('@vector/runtime/worker').EditorRuntimeCommand) => {
-    if (command.type === 'snapping.pause') {
-      setSnappingEnabled(false)
+    const sideEffects = resolveRuntimeCommandSideEffects(command)
+
+    if (sideEffects.nextSnappingEnabled !== null) {
+      setSnappingEnabled(sideEffects.nextSnappingEnabled)
+    }
+
+    if (sideEffects.clearSnapGuides) {
       setSnapGuides([])
-      return
     }
 
-    if (command.type === 'snapping.resume') {
-      setSnappingEnabled(true)
-      return
-    }
-
-    if (command.type === 'history.undo' || command.type === 'history.redo') {
+    if (sideEffects.resetTransientInteractionState) {
       clearTransformPreview()
       transformManagerRef.current.cancel()
       selectionDragControllerRef.current.clear()
@@ -208,8 +207,12 @@ const useEditorRuntime = (options?: {
       setDraftPrimitive(null)
       setPathHandleDrag(null)
       setMarquee(null)
-      setSnapGuides([])
     }
+
+    if (!sideEffects.shouldDispatch) {
+      return
+    }
+
     canvasRuntime.dispatchCommand(command)
   }, [canvasRuntime, clearTransformPreview])
 
@@ -298,13 +301,9 @@ const useEditorRuntime = (options?: {
     selectedNode,
     selectedShapeIds,
     setClipboard,
-    setCurrentToolState,
+    setCurrentTool,
     setPasteSerial,
-    setPathSubSelection,
-    setPathSubSelectionHover,
     setShowPrint,
-    runtimeToolRegistryRef,
-    runtimeEditingModeControllerRef,
   })
 
   useFocus(contextRootRef, focused, (nextFocused) => {

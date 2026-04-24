@@ -10,6 +10,7 @@ import {doNormalizedBoundsOverlap, getNormalizedBoundsFromBox} from '@vector/run
 import type {ElementProps} from '@lite-u/editor/types'
 import {
   collectResizeTransformTargets,
+  createTransformBatchCommand,
   createMarqueeState,
   createTransformPreviewShape,
   createTransformSessionShape,
@@ -21,6 +22,7 @@ import {
   type MarqueeSelectionMode,
 } from '../../runtime/interaction/index.ts'
 import type {RuntimeEditingMode} from '@vector/runtime'
+import type {EditorRuntimeCommand} from '@vector/runtime/worker'
 import type {
   DraftPrimitive,
   DraftPrimitiveType,
@@ -32,7 +34,7 @@ import type {
   SelectedElementProps,
   VisionFileType,
 } from './useEditorRuntime.types.ts'
-import {createShapeElementFromTool} from './editorRuntimeHelpers.ts'
+import {cloneElementProps, createShapeElementFromTool, offsetElementPosition} from './editorRuntimeHelpers.ts'
 
 export interface RuntimePointerModifiersLike {
   shiftKey?: boolean
@@ -330,6 +332,19 @@ export function toElementPropsFromNode(selectedNode: DocumentNode): ElementProps
   }
 }
 
+export function resolveSelectedNonFrameElementProps(input: {
+  shapes: DocumentNode[]
+  selectedShapeIds: string[]
+  clone?: boolean
+}) {
+  const selectedSet = new Set(input.selectedShapeIds)
+  const elements = input.shapes
+    .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
+    .map((shape) => toElementPropsFromNode(shape))
+
+  return input.clone ? elements.map((element) => cloneElementProps(element)) : elements
+}
+
 export function resolvePathHandlePreviewDocument(
   document: EditorDocument,
   pathHandleDrag: {
@@ -439,6 +454,645 @@ export function resolveReorderedShapeIndex(input: {
   }
 
   return nextIndex === input.index ? null : nextIndex
+}
+
+export function resolveRuntimeCommandSideEffects(command: EditorRuntimeCommand) {
+  if (command.type === 'snapping.pause') {
+    return {
+      nextSnappingEnabled: false,
+      clearSnapGuides: true,
+      resetTransientInteractionState: false,
+      shouldDispatch: false,
+    }
+  }
+
+  if (command.type === 'snapping.resume') {
+    return {
+      nextSnappingEnabled: true,
+      clearSnapGuides: false,
+      resetTransientInteractionState: false,
+      shouldDispatch: false,
+    }
+  }
+
+  const resetTransientInteractionState = command.type === 'history.undo' || command.type === 'history.redo'
+
+  return {
+    nextSnappingEnabled: null,
+    clearSnapGuides: resetTransientInteractionState,
+    resetTransientInteractionState,
+    shouldDispatch: true,
+  }
+}
+
+export function resolveHistoryNavigationCommands(input: {
+  targetHistoryId: number
+  currentCursor: number
+}): EditorRuntimeCommand[] {
+  const diff = input.targetHistoryId - input.currentCursor
+
+  if (diff === 0) {
+    return []
+  }
+
+  const command = diff > 0
+    ? {type: 'history.redo'} as const
+    : {type: 'history.undo'} as const
+
+  return Array.from({length: Math.abs(diff)}, () => command)
+}
+
+export function resolveDirectExecuteActionCommand(input: {
+  type: string
+  shapes: DocumentNode[]
+}): EditorRuntimeCommand | null {
+  if (input.type === 'history-undo') {
+    return {type: 'history.undo'}
+  }
+
+  if (input.type === 'history-redo') {
+    return {type: 'history.redo'}
+  }
+
+  if (input.type === 'element-delete') {
+    return {type: 'selection.delete'}
+  }
+
+  if (input.type === 'selection-all') {
+    return {
+      type: 'selection.set',
+      shapeIds: input.shapes
+        .filter((shape) => shape.type !== 'frame')
+        .map((shape) => shape.id),
+      mode: 'replace',
+    }
+  }
+
+  return null
+}
+
+export function resolveReorderDirectionFromExecuteAction(input: {
+  type: string
+  data: unknown
+}) {
+  if (input.type === 'element-layer') {
+    return String(input.data ?? 'up') as 'up' | 'down' | 'top' | 'bottom'
+  }
+
+  if (input.type === 'bringForward') {
+    return 'up' as const
+  }
+
+  if (input.type === 'sendBackward') {
+    return 'down' as const
+  }
+
+  if (input.type === 'bringToFront') {
+    return 'top' as const
+  }
+
+  if (input.type === 'sendToBack') {
+    return 'bottom' as const
+  }
+
+  return null
+}
+
+export function resolveElementMoveDelta(type: string) {
+  if (
+    type !== 'element-move-up' &&
+    type !== 'element-move-right' &&
+    type !== 'element-move-down' &&
+    type !== 'element-move-left'
+  ) {
+    return null
+  }
+
+  return {
+    x: type === 'element-move-right' ? 1 : type === 'element-move-left' ? -1 : 0,
+    y: type === 'element-move-down' ? 1 : type === 'element-move-up' ? -1 : 0,
+  }
+}
+
+export function resolveSelectedNonFrameNodes(input: {
+  shapes: DocumentNode[]
+  selectedShapeIds: string[]
+}) {
+  const selectedSet = new Set(input.selectedShapeIds)
+  return input.shapes.filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
+}
+
+export function resolveSelectionMoveCommand(input: {
+  shapes: DocumentNode[]
+  selectedShapeIds: string[]
+  delta: {x: number; y: number}
+}) {
+  const moveTargets = resolveSelectedNonFrameNodes({
+    shapes: input.shapes,
+    selectedShapeIds: input.selectedShapeIds,
+  })
+
+  return createTransformBatchCommand(moveTargets, {
+    shapes: moveTargets.map((shape) => ({
+      shapeId: shape.id,
+      x: shape.x + input.delta.x,
+      y: shape.y + input.delta.y,
+      width: shape.width,
+      height: shape.height,
+      rotation: shape.rotation ?? 0,
+      flipX: shape.flipX ?? false,
+      flipY: shape.flipY ?? false,
+    })),
+  })
+}
+
+export function allocateUniqueShapeId(existingIds: Set<string>) {
+  let nextId = nid()
+  let attempts = 0
+  while (existingIds.has(nextId) && attempts < 16) {
+    attempts += 1
+    nextId = attempts < 8 ? nid() : nid(8)
+  }
+  existingIds.add(nextId)
+  return nextId
+}
+
+export function resolvePastedElements(input: {
+  clipboard: ElementProps[]
+  pasteSerial: number
+  existingShapeIds: Set<string>
+  position: {x: number; y: number} | null
+}) {
+  if (input.clipboard.length === 0) {
+    return []
+  }
+
+  const baseOffset = 24 * (input.pasteSerial + 1)
+  const anchor = input.clipboard[0]
+  const anchorX = anchor?.x ?? 0
+  const anchorY = anchor?.y ?? 0
+  const pasteTargetX = input.position ? input.position.x + baseOffset : anchorX + baseOffset
+  const pasteTargetY = input.position ? input.position.y + baseOffset : anchorY + baseOffset
+  const deltaX = pasteTargetX - anchorX
+  const deltaY = pasteTargetY - anchorY
+
+  return input.clipboard.map((item) => ({
+    ...offsetElementPosition(
+      item,
+      (item.x ?? 0) + deltaX,
+      (item.y ?? 0) + deltaY,
+    ),
+    id: allocateUniqueShapeId(input.existingShapeIds),
+    name: `${item.name ?? item.type} Copy`,
+  }))
+}
+
+export function resolveDuplicatedElements(input: {
+  elements: ElementProps[]
+  existingShapeIds: Set<string>
+}) {
+  return input.elements.map((item) => ({
+    ...offsetElementPosition(item, (item.x ?? 0) + 24, (item.y ?? 0) + 24),
+    id: allocateUniqueShapeId(input.existingShapeIds),
+    name: `${item.name ?? item.type} Copy`,
+  }))
+}
+
+export function resolveSelectionModifyCommand(data: unknown): EditorRuntimeCommand | null {
+  if (!data || typeof data !== 'object' || !('idSet' in data)) {
+    return null
+  }
+
+  const nextIds = Array.from(data.idSet as Set<string>)
+  const mode =
+    'mode' in data && typeof data.mode === 'string'
+      ? data.mode as 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
+      : 'replace'
+
+  return {
+    type: 'selection.set',
+    shapeIds: nextIds,
+    mode,
+  }
+}
+
+export function resolveDroppedImageElement(input: {
+  asset: {
+    id?: string
+    name?: string
+    objectUrl?: string
+    imageRef?: unknown
+  } | null
+  position: {x: number; y: number}
+  viewportWidth: number
+  viewportHeight: number
+  imageInsertViewportRatio: number
+  existingShapeIds: Set<string>
+}): ElementProps {
+  const imageRef = input.asset?.imageRef as {naturalWidth?: number; naturalHeight?: number} | undefined
+  const naturalWidth = imageRef?.naturalWidth ?? 160
+  const naturalHeight = imageRef?.naturalHeight ?? 120
+  const maxWidth = input.viewportWidth * input.imageInsertViewportRatio
+  const maxHeight = input.viewportHeight * input.imageInsertViewportRatio
+  const scale = Math.min(
+    1,
+    maxWidth / naturalWidth,
+    maxHeight / naturalHeight,
+  )
+  const width = naturalWidth * scale
+  const height = naturalHeight * scale
+
+  return {
+    id: allocateUniqueShapeId(input.existingShapeIds),
+    type: 'image',
+    name: input.asset?.name ?? 'Image',
+    asset: input.asset?.id,
+    assetUrl: input.asset?.objectUrl,
+    x: input.position.x - width / 2,
+    y: input.position.y - height / 2,
+    width,
+    height,
+    rotation: 0,
+    opacity: 1,
+  }
+}
+
+export function resolveViewportShiftFromExecuteAction(data: unknown) {
+  if (!data || typeof data !== 'object' || !('x' in data) || !('y' in data)) {
+    return null
+  }
+
+  return {
+    x: Number(data.x),
+    y: Number(data.y),
+  }
+}
+
+export function resolveViewportZoomFromExecuteAction(data: unknown) {
+  if (data === 'fit') {
+    return {
+      mode: 'fit' as const,
+    }
+  }
+
+  if (!data || typeof data !== 'object' || !('zoomFactor' in data)) {
+    return null
+  }
+
+  return {
+    mode: 'zoom' as const,
+    zoomFactor: Number(data.zoomFactor),
+    point: 'physicalPoint' in data
+      ? data.physicalPoint as {x: number; y: number} | undefined
+      : undefined,
+  }
+}
+
+export function resolveAutoMaskAction(input: {
+  canvasShapes: EditorDocument['shapes']
+  selectedNode: DocumentNode | null
+}) {
+  if (!input.selectedNode || input.selectedNode.type === 'frame' || input.selectedNode.type === 'group') {
+    return {
+      message: 'Select an image or a closed shape to create a mask.',
+    }
+  }
+
+  const otherShapes = input.canvasShapes.filter((shape) =>
+    shape.id !== input.selectedNode?.id &&
+    shape.type !== 'frame' &&
+    shape.type !== 'group',
+  )
+
+  if (input.selectedNode.type === 'image') {
+    const candidates = otherShapes.filter((shape) =>
+      isClosedMaskShape(shape) && boundsOverlap(input.selectedNode!, shape),
+    )
+
+    if (candidates.length !== 1) {
+      return {
+        message: candidates.length === 0
+          ? 'No single closed shape overlaps this image.'
+          : 'Multiple closed shapes overlap this image. Narrow the target first.',
+      }
+    }
+
+    return {
+      command: {
+        type: 'shape.set-clip' as const,
+        shapeId: input.selectedNode.id,
+        clipPathId: candidates[0].id,
+        clipRule: 'nonzero' as const,
+      },
+      message: `Masked with ${candidates[0].name}.`,
+    }
+  }
+
+  if (isClosedMaskShape(input.selectedNode)) {
+    const candidates = otherShapes.filter((shape) =>
+      shape.type === 'image' && boundsOverlap(input.selectedNode!, shape),
+    )
+
+    if (candidates.length !== 1) {
+      return {
+        message: candidates.length === 0
+          ? 'No single image overlaps this shape.'
+          : 'Multiple images overlap this shape. Narrow the target first.',
+      }
+    }
+
+    return {
+      command: {
+        type: 'shape.set-clip' as const,
+        shapeId: candidates[0].id,
+        clipPathId: input.selectedNode.id,
+        clipRule: 'nonzero' as const,
+      },
+      message: `Masked ${candidates[0].name} with ${input.selectedNode.name}.`,
+    }
+  }
+
+  return {
+    message: 'Only images and closed shapes can participate in masking.',
+  }
+}
+
+export function resolveClearMaskAction(selectedNode: DocumentNode | null) {
+  if (!selectedNode || selectedNode.type !== 'image') {
+    return {
+      message: 'Select an image to clear its mask.',
+    }
+  }
+
+  if (!selectedNode.clipPathId) {
+    return {
+      message: 'This image does not have an active mask.',
+    }
+  }
+
+  return {
+    command: {
+      type: 'shape.set-clip' as const,
+      shapeId: selectedNode.id,
+      clipPathId: undefined,
+      clipRule: undefined,
+    },
+    message: 'Image mask cleared.',
+  }
+}
+
+export function resolveElementModifyCommands(input: {
+  shape: DocumentNode
+  props: Partial<ElementProps>
+}) {
+  const commands: EditorRuntimeCommand[] = []
+
+  const nextX = typeof input.props.x === 'number' ? input.props.x : input.shape.x
+  const nextY = typeof input.props.y === 'number' ? input.props.y : input.shape.y
+  const nextWidth = typeof input.props.width === 'number' ? input.props.width : input.shape.width
+  const nextHeight = typeof input.props.height === 'number' ? input.props.height : input.shape.height
+  const nextRotation = typeof input.props.rotation === 'number' ? input.props.rotation : (input.shape.rotation ?? 0)
+  const nextName = typeof input.props.name === 'string' ? input.props.name : input.shape.text ?? input.shape.name
+
+  if (nextName !== (input.shape.text ?? input.shape.name)) {
+    commands.push({
+      type: 'shape.rename',
+      shapeId: input.shape.id,
+      name: nextName,
+      text: input.shape.type === 'text' ? nextName : input.shape.text,
+    })
+  }
+
+  if (nextX !== input.shape.x || nextY !== input.shape.y) {
+    commands.push({
+      type: 'shape.move',
+      shapeId: input.shape.id,
+      x: nextX,
+      y: nextY,
+    })
+  }
+
+  if (nextWidth !== input.shape.width || nextHeight !== input.shape.height) {
+    commands.push({
+      type: 'shape.resize',
+      shapeId: input.shape.id,
+      width: nextWidth,
+      height: nextHeight,
+    })
+  }
+
+  if (nextRotation !== (input.shape.rotation ?? 0)) {
+    commands.push({
+      type: 'shape.rotate',
+      shapeId: input.shape.id,
+      rotation: nextRotation,
+    })
+  }
+
+  const stylePatch: {
+    fill?: DocumentNode['fill']
+    stroke?: DocumentNode['stroke']
+    shadow?: DocumentNode['shadow']
+    cornerRadius?: number
+    cornerRadii?: DocumentNode['cornerRadii']
+    ellipseStartAngle?: number
+    ellipseEndAngle?: number
+  } = {}
+
+  if (Object.prototype.hasOwnProperty.call(input.props, 'fill')) {
+    const incoming = input.props.fill
+    stylePatch.fill = incoming && typeof incoming === 'object'
+      ? {
+          ...(input.shape.fill ?? {}),
+          ...(incoming as Record<string, unknown>),
+        }
+      : undefined
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input.props, 'stroke')) {
+    const incoming = input.props.stroke
+    stylePatch.stroke = incoming && typeof incoming === 'object'
+      ? {
+          ...(input.shape.stroke ?? {}),
+          ...(incoming as Record<string, unknown>),
+        }
+      : undefined
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input.props, 'shadow')) {
+    const incoming = input.props.shadow
+    stylePatch.shadow = incoming && typeof incoming === 'object'
+      ? {
+          ...(input.shape.shadow ?? {}),
+          ...(incoming as Record<string, unknown>),
+        }
+      : undefined
+  }
+
+  if (typeof input.props.cornerRadius === 'number') {
+    stylePatch.cornerRadius = input.props.cornerRadius
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input.props, 'cornerRadii')) {
+    const incoming = input.props.cornerRadii
+    stylePatch.cornerRadii = incoming && typeof incoming === 'object'
+      ? {
+          ...(input.shape.cornerRadii ?? {}),
+          ...(incoming as Record<string, unknown>),
+        }
+      : undefined
+  }
+
+  if (typeof input.props.ellipseStartAngle === 'number') {
+    stylePatch.ellipseStartAngle = input.props.ellipseStartAngle
+  }
+
+  if (typeof input.props.ellipseEndAngle === 'number') {
+    stylePatch.ellipseEndAngle = input.props.ellipseEndAngle
+  }
+
+  if (Object.keys(stylePatch).length > 0) {
+    commands.push({
+      type: 'shape.patch',
+      shapeId: input.shape.id,
+      patch: stylePatch,
+    })
+  }
+
+  return commands
+}
+
+export function resolveGroupableShapeIds(input: {
+  selectedShapeIds: string[]
+  shapes: DocumentNode[]
+}) {
+  const shapeById = new Map(input.shapes.map((shape) => [shape.id, shape]))
+
+  return input.selectedShapeIds.filter((shapeId) => {
+    const shape = shapeById.get(shapeId)
+    if (!shape || shape.type === 'frame') {
+      return false
+    }
+
+    let parentId = shape.parentId
+    while (parentId) {
+      if (input.selectedShapeIds.includes(parentId)) {
+        return false
+      }
+      parentId = shapeById.get(parentId)?.parentId ?? null
+    }
+
+    return true
+  })
+}
+
+export function resolveSelectedGroups(input: {
+  selectedShapeIds: string[]
+  shapes: DocumentNode[]
+}) {
+  const shapeById = new Map(input.shapes.map((shape) => [shape.id, shape]))
+
+  return input.selectedShapeIds
+    .map((shapeId) => shapeById.get(shapeId))
+    .filter((shape): shape is DocumentNode => Boolean(shape && shape.type === 'group'))
+}
+
+export function resolveConvertOrAlignShapeAction(input: {
+  actionType: string
+  selectedShapeIds: string[]
+}) {
+  if (input.actionType === 'convert-to-path' || input.actionType === 'convertToPath') {
+    if (input.selectedShapeIds.length === 0) {
+      return {handled: true as const}
+    }
+
+    return {
+      handled: true as const,
+      command: {
+        type: 'shape.convert-to-path' as const,
+        shapeIds: input.selectedShapeIds,
+      },
+    }
+  }
+
+  const alignModeMap = {
+    'align-left': 'left',
+    'align-center-horizontal': 'hcenter',
+    'align-right': 'right',
+    'align-top': 'top',
+    'align-middle': 'vcenter',
+    'align-bottom': 'bottom',
+  } as const
+
+  if (input.actionType in alignModeMap) {
+    if (input.selectedShapeIds.length < 2) {
+      return {handled: true as const}
+    }
+
+    return {
+      handled: true as const,
+      command: {
+        type: 'shape.align' as const,
+        shapeIds: input.selectedShapeIds,
+        mode: alignModeMap[input.actionType as keyof typeof alignModeMap],
+        reference: 'selection' as const,
+      },
+    }
+  }
+
+  return {handled: false as const}
+}
+
+export function resolveDistributeOrBooleanShapeAction(input: {
+  actionType: string
+  selectedShapeIds: string[]
+}) {
+  const distributeModeMap = {
+    'distribute-horizontal': 'hspace',
+    'distribute-vertical': 'vspace',
+  } as const
+
+  if (input.actionType in distributeModeMap) {
+    if (input.selectedShapeIds.length < 3) {
+      return {handled: true as const}
+    }
+
+    return {
+      handled: true as const,
+      command: {
+        type: 'shape.distribute' as const,
+        shapeIds: input.selectedShapeIds,
+        mode: distributeModeMap[input.actionType as keyof typeof distributeModeMap],
+      },
+    }
+  }
+
+  const booleanModeMap = {
+    'boolean-union': 'union',
+    booleanUnion: 'union',
+    'boolean-subtract': 'subtract',
+    booleanSubtract: 'subtract',
+    'boolean-intersect': 'intersect',
+    booleanIntersect: 'intersect',
+  } as const
+
+  if (input.actionType in booleanModeMap) {
+    if (input.selectedShapeIds.length < 2) {
+      return {handled: true as const}
+    }
+
+    return {
+      handled: true as const,
+      command: {
+        type: 'shape.boolean' as const,
+        shapeIds: input.selectedShapeIds,
+        mode: booleanModeMap[input.actionType as keyof typeof booleanModeMap],
+      },
+      message: 'Boolean command baseline dispatched (geometry merge pending)',
+    }
+  }
+
+  return {handled: false as const}
 }
 
 export function formatSelectionNames(

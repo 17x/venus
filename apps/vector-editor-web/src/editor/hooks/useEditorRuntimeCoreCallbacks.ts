@@ -3,7 +3,11 @@ import {type ToolName} from '@venus/document-core'
 import {resolveRuntimeZoomPresetScale} from '../../runtime/interaction/index.ts'
 import readFileHelper from '../../contexts/fileContext/readFileHelper.ts'
 import {isDragCreateTool, mapToolNameToToolId} from './editorRuntimeHelpers.ts'
-import {resolveCommittedPathBezierPoints, resolveReorderedShapeIndex} from './useEditorRuntime.helpers.ts'
+import {
+  resolveCommittedPathBezierPoints,
+  resolveHistoryNavigationCommands,
+  resolveReorderedShapeIndex,
+} from './useEditorRuntime.helpers.ts'
 import {resolveEditingModeForTool} from './runtime/tooling.ts'
 
 export function useEditorRuntimeCoreCallbacks(options: {
@@ -135,21 +139,14 @@ export function useEditorRuntimeCoreCallbacks(options: {
   }, [options])
 
   const pickHistory = useCallback((historyNode: {id: number}) => {
-    const currentCursor = options.canvasRuntime.history.cursor
-    const diff = historyNode.id - currentCursor
+    const commands = resolveHistoryNavigationCommands({
+      targetHistoryId: historyNode.id,
+      currentCursor: options.canvasRuntime.history.cursor,
+    })
 
-    if (diff > 0) {
-      for (let index = 0; index < diff; index += 1) {
-        options.handleCommand({type: 'history.redo'})
-      }
-      return
-    }
-
-    if (diff < 0) {
-      for (let index = 0; index < Math.abs(diff); index += 1) {
-        options.handleCommand({type: 'history.undo'})
-      }
-    }
+    commands.forEach((command) => {
+      options.handleCommand(command)
+    })
   }, [options])
 
   const openDroppedFile = useCallback(async (droppedFile: File) => {
