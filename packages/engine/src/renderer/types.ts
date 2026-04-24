@@ -46,6 +46,8 @@ export interface EngineRenderStats {
   webglTextCacheHitCount?: number
   webglImageTextureUploadCount?: number
   webglImageTextureUploadBytes?: number
+  webglImageDownsampledUploadCount?: number
+  webglImageDownsampledUploadBytesSaved?: number
   webglDeferredImageTextureCount?: number
   webglCompositeUploadBytes?: number
   l0PreviewHitCount?: number

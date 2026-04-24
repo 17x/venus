@@ -78,6 +78,30 @@ context starts, or work needs to resume after switching topics.
     into render planning, keeping active/editing nodes from being incorrectly
     dropped by coarse viewport shortlisting
   - frame-plan shortlist activation now uses an enter/leave hysteresis ratio
+
+  - transform preview is now runtime-owned and rendered as overlay preview
+    instructions, so drag/resize/rotate no longer require per-frame preview
+    scene mutation during active transform
+  - dirty-region redraw now uses merged updated-node bounds with offscreen
+    skip guards and debug diagnostics, reducing full-canvas redraw pressure on
+    local transforms and scene patch bursts
+  - low-zoom group collapse now ships with protected-node guarantees and
+    runtime diagnostics evidence so active selection/editing remains visible
+    while collapse pruning is tuned
+  - path simplification buckets are now active in Canvas2D with adaptive
+    projected-density sampling for lower zoom-out path construction cost
+  - engine tile cache now includes zoom-bucket hysteresis, dirty tile
+    tracking, cache-size caps, texture-byte accounting, and budget-driven
+    texture eviction guardrails
+  - image texture upload now has a multi-resolution baseline: settled frames
+    can upload a zoom-appropriate downsampled raster, then promote to higher
+    fidelity when zoom demand increases, with debug diagnostics for upload
+    count and bytes saved
+  - scene patch apply flow now maintains node map + spatial index
+    incrementally via subtree remove/upsert helpers instead of rebuilding the
+    coarse spatial index for every drag/move patch
+  - mixed-scene perf gate now supports previous-report trend regression
+    enforcement and machine-readable result output for CI/report workflows
     window in engine runtime, reducing shortlist on/off oscillation near
     threshold boundaries during minor viewport movement
   - engine render options now expose shortlist policy tuning (`enabled`,
@@ -590,6 +614,15 @@ context starts, or work needs to resume after switching topics.
   current path tool should stay on the stable bezier-generation baseline until
   that direction is decided.
 
+- `vector boolean + contour`
+  Recent boolean/contour changes were checked against the runtime -> engine
+  ownership boundary.
+  Verified status: boolean command composition and history/collaboration patch
+  flow remain in vector runtime-local worker code, while contour render/hit
+  behavior remains engine-owned.
+  Residual risk: regressions are currently more likely to be behavioral
+  parity issues across history/replay/hit-test than architecture drift.
+
 ## Next Up
 
 - `vector`
@@ -616,6 +649,10 @@ context starts, or work needs to resume after switching topics.
   Continue pushing numeric LOD and viewport bitmap cache paths through app-local
   renderer adapters and framework-agnostic runtime APIs before larger renderer
   architecture changes.
+  Latest slice: hover-hit budget and path-subselection equality logic were
+  extracted out of `useEditorRuntimeCanvasInteractions` into shared runtime
+  hook helpers to reduce adjacent monolith size without changing input routing
+  ownership.
 
 ## Avoid Repeating
 

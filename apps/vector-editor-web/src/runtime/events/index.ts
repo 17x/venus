@@ -87,6 +87,8 @@ export interface RuntimeRenderDiagnostics {
   webglInteractiveTextFallbackCount: number
   webglImageTextureUploadCount: number
   webglImageTextureUploadBytes: number
+  webglImageDownsampledUploadCount: number
+  webglImageDownsampledUploadBytesSaved: number
   webglDeferredImageTextureCount: number
   webglTextTextureUploadCount: number
   webglTextTextureUploadBytes: number
@@ -193,6 +195,8 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   webglInteractiveTextFallbackCount: 0,
   webglImageTextureUploadCount: 0,
   webglImageTextureUploadBytes: 0,
+  webglImageDownsampledUploadCount: 0,
+  webglImageDownsampledUploadBytesSaved: 0,
   webglDeferredImageTextureCount: 0,
   webglTextTextureUploadCount: 0,
   webglTextTextureUploadBytes: 0,

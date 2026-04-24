@@ -177,3 +177,108 @@ export function resolveSelectedProps(
     },
   }
 }
+
+export function isPathSubSelectionEqual(
+  left: PathSubSelection | null,
+  right: PathSubSelection | null,
+) {
+  if (left === right) {
+    return true
+  }
+  if (!left || !right) {
+    return false
+  }
+  if (left.shapeId !== right.shapeId || left.hitType !== right.hitType) {
+    return false
+  }
+
+  const leftAnchor = left.anchorPoint
+  const rightAnchor = right.anchorPoint
+  if (leftAnchor || rightAnchor) {
+    if (!leftAnchor || !rightAnchor) {
+      return false
+    }
+    if (
+      leftAnchor.index !== rightAnchor.index ||
+      leftAnchor.x !== rightAnchor.x ||
+      leftAnchor.y !== rightAnchor.y ||
+      leftAnchor.segmentType !== rightAnchor.segmentType
+    ) {
+      return false
+    }
+  }
+
+  const leftSegment = left.segment
+  const rightSegment = right.segment
+  if (leftSegment || rightSegment) {
+    if (!leftSegment || !rightSegment) {
+      return false
+    }
+    if (
+      leftSegment.index !== rightSegment.index ||
+      leftSegment.x !== rightSegment.x ||
+      leftSegment.y !== rightSegment.y ||
+      leftSegment.segmentType !== rightSegment.segmentType
+    ) {
+      return false
+    }
+  }
+
+  const leftHandle = left.handlePoint
+  const rightHandle = right.handlePoint
+  if (leftHandle || rightHandle) {
+    if (!leftHandle || !rightHandle) {
+      return false
+    }
+    if (
+      leftHandle.anchorIndex !== rightHandle.anchorIndex ||
+      leftHandle.handleType !== rightHandle.handleType ||
+      leftHandle.x !== rightHandle.x ||
+      leftHandle.y !== rightHandle.y
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export interface HoverHitBudgetState {
+  lastAt: number
+  lastPoint: {x: number; y: number} | null
+}
+
+export function shouldResolveHoverHit(
+  point: {x: number; y: number},
+  budget: HoverHitBudgetState,
+  options: {
+    minIntervalMs: number
+    minDistancePx: number
+    now?: number
+  },
+) {
+  const now = options.now ?? performance.now()
+  const elapsedMs = now - budget.lastAt
+  const previousPoint = budget.lastPoint
+  const movedDistance = previousPoint
+    ? Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y)
+    : Number.POSITIVE_INFINITY
+
+  if (
+    elapsedMs < options.minIntervalMs &&
+    movedDistance < options.minDistancePx
+  ) {
+    return {
+      shouldResolve: false,
+      nextBudget: budget,
+    }
+  }
+
+  return {
+    shouldResolve: true,
+    nextBudget: {
+      lastAt: now,
+      lastPoint: point,
+    } satisfies HoverHitBudgetState,
+  }
+}

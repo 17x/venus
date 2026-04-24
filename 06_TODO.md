@@ -34,10 +34,13 @@
     - Verified 2026-04-24: VT-20260424-01 passed via regression report (`boolean-chained-union-subtract-contour`, `contour-anchor-subselection-edge-cases`) in `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
     - Verified 2026-04-24: VT-20260424-02 completed checklist promotion with scenario-by-scenario evidence mapping in `docs/core/boolean-contour-regression-checklist.md`
     - Verified 2026-04-24: contour regression harness passed (undo/backward patch parity, remote replay patch parity, contour round-trip) with report `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
+    - Verified 2026-04-24: `VT-20260424-04` runtime/engine boundary audit found no layer violations across boolean command composition, contour editability, engine hit-test, and engine render ownership; remaining regression focus stays on behavioral parity rather than architecture drift
     - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
-    - Next: run runtime/engine boundary checklist on recent boolean + contour diffs and record risks
 - Runtime/engine boundary checks on new feature diffs
 - Runtime monolith decomposition follow-up (`useEditorRuntime` adjacent paths)
+  - Progress 2026-04-24:
+    - Implemented: `VT-20260424-15` extracted hover-hit budget and path-subselection equality helpers from `useEditorRuntimeCanvasInteractions.ts` into `useEditorRuntime.helpers.ts`, reducing hook-local decision surface without changing pointer state-machine ownership
+    - Next: continue extracting pointer-down branch selection/hover policy from `useEditorRuntimeCanvasInteractions.ts` in similarly small slices
 - Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
   - Progress 2026-04-24:
     - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
@@ -148,10 +151,19 @@
     - Implemented: engineering testing docs now include mixed-scene gate usage and checklist entrypoints for repeatable validation
     - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
   - Progress 2026-04-24 (Phase 2 kickoff):
-    - In-progress: `VT-20260424-05` phase-based render policy service hardening and diagnostics evidence collection
     - Verified 2026-04-24: mixed-scene perf gate executed with trend check output (`16 checks`, `16 trend checks`, `PASS`) via `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`
     - Implemented: `VT-20260424-05` precision-edit routing fix so `pathEditing` / `textEditing` now resolve to `precision` phase instead of falling through `drag` degradation in `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`
     - Implemented: `VT-20260424-05` transition diagnostics evidence now records phase/policy switch counts plus latest transition summaries and surfaces them in Runtime Debug Panel
+    - Verified 2026-04-24: `VT-20260424-05` phase-based render policy service now owns explicit `static` / `pan` / `zoom` / `drag` / `precision` / `settled` routing, publishes policy transition telemetry, and passed validation baseline (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Verified 2026-04-24: `VT-20260424-06` drag preview layer is runtime-owned and rendered through preview instructions instead of per-frame preview-scene mutation (`src/runtime/preview/index.ts`, `src/editor/runtime-local/interaction/transformSessionManager.ts`)
+    - Verified 2026-04-24: `VT-20260424-07` dirty-region redraw pipeline uses merged dirty bounds, offscreen skip guards, and diagnostics rows for local redraw evidence (`src/editor/runtime/canvasAdapter.tsx`, `src/components/shell/RuntimeDebugPanel.tsx`)
+    - Verified 2026-04-24: `VT-20260424-08` group collapse policy ships with protected-node guarantees plus debug counters for regression checks (`packages/engine/src/runtime/createEngine.ts`, `src/components/shell/RuntimeDebugPanel.tsx`)
+    - Verified 2026-04-24: `VT-20260424-09` path simplification buckets are active with adaptive projected-density sampling for low-zoom path cost reduction (`packages/engine/src/renderer/canvas2d.ts`)
+    - Verified 2026-04-24: `VT-20260424-10` cache zoom bucket hysteresis is implemented in engine tile zoom selection and shortlist tuning (`packages/engine/src/renderer/tileManager.ts`, `packages/engine/src/runtime/createEngine.ts`)
+    - Verified 2026-04-24: `VT-20260424-11` tiled bitmap cache prototype ships with tile cache size caps, dirty-tile tracking, texture-byte accounting, and WebGL resource budget guardrails (`packages/engine/src/renderer/tileManager.ts`, `packages/engine/src/renderer/webglResources.ts`, `packages/engine/src/renderer/webgl.ts`)
+    - Verified 2026-04-24: `VT-20260424-12` multi-resolution image baseline now downscales uploads to zoom-appropriate raster size, re-uploads higher fidelity on demand, and surfaces saved-byte diagnostics in Runtime Debug Panel (`packages/engine/src/renderer/webgl.ts`, `src/components/shell/RuntimeDebugPanel.tsx`)
+    - Verified 2026-04-24: `VT-20260424-13` incremental spatial-index update path is active in scene patch apply flow via subtree upsert/remove helpers instead of full rebuilds (`packages/engine/src/scene/patch.ts`, `packages/engine/src/scene/indexing.ts`, `packages/engine/src/spatial/index.ts`)
+    - Verified 2026-04-24: `VT-20260424-14` mixed-scene perf gate CI/report integration supports `--previous-report`, machine-readable `--output`, and trend regression enforcement (`apps/vector-editor-web/scripts/perf-gate.mjs`)
   - `VT-20260423-P1-01` [verified]: Runtime diagnostics baseline (owner: engine + app)
     - Deliverable: frame/hit/cache counters wired from engine stats to debug panel
     - Acceptance: panel shows `totalMs`, `hitTestMs`, `cacheHit/Miss`, `rendered/skipped`
@@ -179,17 +191,18 @@
 - `VT-20260424-01` [verified]: extend boolean contour regression harness to chained boolean sequences and contour-anchor edit edge cases
 - `VT-20260424-02` [verified]: execute contour checklist scenarios and promote rows from planned to verified with command/report evidence
 - `VT-20260424-03` [verified]: normalize package-level README responsibilities (`apps/*`, `packages/*`)
-- `VT-20260424-04`: runtime/engine boundary checks on recent boolean and contour-related diffs
-- `VT-20260424-05` [in-progress]: phase-based render policy service hardening for `static/pan/zoom/drag/settled` with policy-switch diagnostics evidence
-- `VT-20260424-06`: drag preview layer rollout so active drag avoids per-frame full-scene invalidation
-- `VT-20260424-07`: dirty-region redraw pipeline implementation using merged old/new/overlay bounds
-- `VT-20260424-08`: group collapse policy stabilization with protected-node guarantees and regression checks
-- `VT-20260424-09`: path simplification bucket tuning for low-zoom cost reduction without edit hit drift
-- `VT-20260424-10`: cache zoom buckets + hysteresis calibration to reduce threshold-edge cache thrash
-- `VT-20260424-11`: tiled bitmap cache prototype for large static regions with memory budget guardrails
-- `VT-20260424-12`: multi-resolution image path baseline for zoom-dependent image decode/upload cost control
-- `VT-20260424-13`: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
-- `VT-20260424-14`: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
+- `VT-20260424-04` [verified]: runtime/engine boundary checks on recent boolean and contour-related diffs
+- `VT-20260424-05` [verified]: phase-based render policy service hardening for `static/pan/zoom/drag/precision/settled` with policy-switch diagnostics evidence
+- `VT-20260424-06` [verified]: drag preview layer rollout so active drag avoids per-frame full-scene invalidation
+- `VT-20260424-07` [verified]: dirty-region redraw pipeline implementation using merged old/new/overlay bounds
+- `VT-20260424-08` [verified]: group collapse policy stabilization with protected-node guarantees and regression checks
+- `VT-20260424-09` [verified]: path simplification bucket tuning for low-zoom cost reduction without edit hit drift
+- `VT-20260424-10` [verified]: cache zoom buckets + hysteresis calibration to reduce threshold-edge cache thrash
+- `VT-20260424-11` [verified]: tiled bitmap cache prototype for large static regions with memory budget guardrails
+- `VT-20260424-12` [verified]: multi-resolution image path baseline for zoom-dependent image decode/upload cost control
+- `VT-20260424-13` [verified]: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
+- `VT-20260424-14` [verified]: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
+- `VT-20260424-15` [in-progress]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
 - 100K performance optimization Phase 2 (runtime structure, next execution queue):
   1. Phase-based render policy service (owner: runtime)
   - Deliverable: explicit policy for `static/pan/zoom/drag/settled`

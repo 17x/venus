@@ -668,6 +668,8 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.webglInteractiveTextFallbackCount', 'WebGL Text Fallback')} value={String(diagnostics.webglInteractiveTextFallbackCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglImageTextureUploadCount', 'WebGL Image Upload Count')} value={String(diagnostics.webglImageTextureUploadCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglImageTextureUploadBytes', 'WebGL Image Upload Bytes')} value={formatDiagnosticBytes(diagnostics.webglImageTextureUploadBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.webglImageDownsampledUploadCount', 'WebGL Image Downsampled Uploads')} value={String(diagnostics.webglImageDownsampledUploadCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglImageDownsampledUploadBytesSaved', 'WebGL Image Bytes Saved')} value={formatDiagnosticBytes(diagnostics.webglImageDownsampledUploadBytesSaved)}/>
       <DebugRow label={t('shell.variantB.debug.webglDeferredImageTextureCount', 'WebGL Deferred Image Uploads')} value={String(diagnostics.webglDeferredImageTextureCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglTextTextureUploadCount', 'WebGL Text Upload Count')} value={String(diagnostics.webglTextTextureUploadCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglTextTextureUploadBytes', 'WebGL Text Upload Bytes')} value={formatDiagnosticBytes(diagnostics.webglTextTextureUploadBytes)}/>

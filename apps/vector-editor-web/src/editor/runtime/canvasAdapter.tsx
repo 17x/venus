@@ -803,6 +803,10 @@ export function Canvas2DRenderer({
               webglStats.webglImageTextureUploadCount ?? 0,
             webglImageTextureUploadBytes:
               webglStats.webglImageTextureUploadBytes ?? 0,
+            webglImageDownsampledUploadCount:
+              webglStats.webglImageDownsampledUploadCount ?? 0,
+            webglImageDownsampledUploadBytesSaved:
+              webglStats.webglImageDownsampledUploadBytesSaved ?? 0,
             webglDeferredImageTextureCount:
               deferredImageTextureCount,
             webglTextTextureUploadCount:

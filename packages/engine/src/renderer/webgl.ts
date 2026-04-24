@@ -466,6 +466,8 @@ export function createWebGLEngineRenderer(
       let textCacheHitCount = 0
       let imageTextureUploadCount = 0
       let imageTextureUploadBytes = 0
+      let imageDownsampledUploadCount = 0
+      let imageDownsampledUploadBytesSaved = 0
       let deferredImageTextureCount = 0
       const imageUploadBudget: ImageUploadBudgetState = {
         remainingUploads: MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
@@ -478,6 +480,7 @@ export function createWebGLEngineRenderer(
           const imageTexture = resolveImageTexture(
             context,
             effectiveFrame,
+            packet.worldBounds,
             packet.assetId,
             imageCache,
             resourceBudget,
@@ -488,6 +491,8 @@ export function createWebGLEngineRenderer(
           }
           imageTextureUploadCount += imageTexture.uploadCount
           imageTextureUploadBytes += imageTexture.uploadBytes
+          imageDownsampledUploadCount += imageTexture.downsampledUploadCount
+          imageDownsampledUploadBytesSaved += imageTexture.downsampledBytesSaved
           drawCount += drawWebGLPacket(
             context,
             pipeline,
@@ -669,6 +674,8 @@ export function createWebGLEngineRenderer(
         webglInteractiveTextFallbackCount: interactiveTextFallbackCount,
         webglImageTextureUploadCount: imageTextureUploadCount,
         webglImageTextureUploadBytes: imageTextureUploadBytes,
+        webglImageDownsampledUploadCount: imageDownsampledUploadCount,
+        webglImageDownsampledUploadBytesSaved: imageDownsampledUploadBytesSaved,
         webglDeferredImageTextureCount: deferredImageTextureCount,
         webglTextTextureUploadCount: textTextureUploadCount,
         webglTextTextureUploadBytes: textTextureUploadBytes,
@@ -1017,6 +1024,105 @@ function canReuseInteractiveTextTexture(
   return Boolean(cached && cached.cacheKey === textCacheKey)
 }
 
+function resolveImageCacheKey(assetId: string) {
+  return `image:${assetId}`
+}
+
+function resolveImageRasterScale(
+  size: {width: number; height: number},
+  worldBounds: {width: number; height: number},
+  frame: EngineRenderFrame,
+) {
+  const pixelRatio = frame.context.pixelRatio ?? 1
+  const displayWidth = Math.max(1, Math.abs(worldBounds.width) * frame.viewport.scale * pixelRatio)
+  const displayHeight = Math.max(1, Math.abs(worldBounds.height) * frame.viewport.scale * pixelRatio)
+  const widthRatio = displayWidth / Math.max(1, size.width)
+  const heightRatio = displayHeight / Math.max(1, size.height)
+
+  // Bias slightly above the current display size so small zoom-ins can reuse
+  // the uploaded texture before a higher-resolution upload is needed.
+  return Math.min(1, Math.max(widthRatio, heightRatio) * 1.25)
+}
+
+function canReuseImageTexture(
+  cached: CachedTextureEntry | undefined,
+  imageCacheKey: string,
+  imageRasterScale: number,
+) {
+  if (!cached || cached.cacheKey !== imageCacheKey) {
+    return false
+  }
+
+  const cachedRasterScale = cached.rasterScale ?? 0
+  return cachedRasterScale >= imageRasterScale
+}
+
+function createImageUploadSource(
+  source: CanvasImageSource,
+  size: {width: number; height: number},
+  rasterScale: number,
+) {
+  const targetWidth = Math.max(1, Math.min(size.width, Math.ceil(size.width * rasterScale)))
+  const targetHeight = Math.max(1, Math.min(size.height, Math.ceil(size.height * rasterScale)))
+  const shouldDownsample =
+    rasterScale < 0.99 &&
+    (targetWidth <= size.width * 0.85 || targetHeight <= size.height * 0.85)
+
+  if (!shouldDownsample) {
+    return {
+      source,
+      width: size.width,
+      height: size.height,
+      downsampled: false,
+    }
+  }
+
+  const rasterSurface = createImageUploadSurface(targetWidth, targetHeight)
+  if (!rasterSurface) {
+    return {
+      source,
+      width: size.width,
+      height: size.height,
+      downsampled: false,
+    }
+  }
+
+  const rasterContext = rasterSurface.getContext('2d')
+  if (!rasterContext) {
+    return {
+      source,
+      width: size.width,
+      height: size.height,
+      downsampled: false,
+    }
+  }
+
+  rasterContext.clearRect(0, 0, targetWidth, targetHeight)
+  rasterContext.drawImage(source, 0, 0, targetWidth, targetHeight)
+
+  return {
+    source: rasterSurface,
+    width: targetWidth,
+    height: targetHeight,
+    downsampled: true,
+  }
+}
+
+function createImageUploadSurface(width: number, height: number) {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height)
+  }
+
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    return canvas
+  }
+
+  return null
+}
+
 function resolvePacketTextureSourceRect(
   worldBounds: {x: number; y: number; width: number; height: number},
   frame: EngineRenderFrame,
@@ -1197,6 +1303,8 @@ interface ResolvedImageTextureResult {
   texture: WebGLTexture | null
   uploadCount: number
   uploadBytes: number
+  downsampledUploadCount: number
+  downsampledBytesSaved: number
   deferred: boolean
 }
 
@@ -1459,18 +1567,22 @@ function drawWebGLPacket(
 function resolveImageTexture(
   context: WebGLRenderingContext | WebGL2RenderingContext,
   frame: EngineRenderFrame,
+  worldBounds: {x: number; y: number; width: number; height: number},
   assetId: string,
   imageCache: Map<string, CachedTextureEntry>,
   budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
   uploadBudget: ImageUploadBudgetState,
 ): ResolvedImageTextureResult {
+  const imageCacheKey = resolveImageCacheKey(assetId)
   const existing = imageCache.get(assetId)
-  if (existing) {
+  if (frame.context.quality === 'interactive' && existing?.cacheKey === imageCacheKey) {
     budget.markTextureUsed(assetId)
     return {
       texture: existing.texture,
       uploadCount: 0,
       uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
       deferred: false,
     }
   }
@@ -1482,6 +1594,8 @@ function resolveImageTexture(
       texture: null,
       uploadCount: 0,
       uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
       deferred: true,
     }
   }
@@ -1492,6 +1606,8 @@ function resolveImageTexture(
       texture: null,
       uploadCount: 0,
       uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
       deferred: false,
     }
   }
@@ -1499,7 +1615,24 @@ function resolveImageTexture(
   const size = resolveCanvasImageSourceSize(source)
   const width = Math.max(1, size.width)
   const height = Math.max(1, size.height)
-  const uploadBytes = width * height * 4
+  const imageRasterScale = resolveImageRasterScale(size, worldBounds, frame)
+  if (canReuseImageTexture(existing, imageCacheKey, imageRasterScale)) {
+    budget.markTextureUsed(assetId)
+    return {
+      texture: existing?.texture ?? null,
+      uploadCount: 0,
+      uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
+      deferred: false,
+    }
+  }
+
+  const uploadSource = createImageUploadSource(source, size, imageRasterScale)
+  const uploadWidth = Math.max(1, uploadSource.width)
+  const uploadHeight = Math.max(1, uploadSource.height)
+  const uploadBytes = uploadWidth * uploadHeight * 4
+  const downsampledBytesSaved = Math.max(0, width * height * 4 - uploadBytes)
   const canSpendOversizedSingleUpload =
     uploadBudget.remainingUploads > 0 &&
     uploadBudget.remainingBytes === MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME
@@ -1511,16 +1644,20 @@ function resolveImageTexture(
       texture: null,
       uploadCount: 0,
       uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
       deferred: true,
     }
   }
 
-  const texture = context.createTexture()
+  const texture = existing?.texture ?? context.createTexture()
   if (!texture) {
     return {
       texture: null,
       uploadCount: 0,
       uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
       deferred: false,
     }
   }
@@ -1533,7 +1670,7 @@ function resolveImageTexture(
   context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
 
   try {
-    const textureSource = source as unknown as TexImageSource
+    const textureSource = uploadSource.source as unknown as TexImageSource
     context.texImage2D(
       context.TEXTURE_2D,
       0,
@@ -1548,6 +1685,8 @@ function resolveImageTexture(
       texture: null,
       uploadCount: 0,
       uploadBytes: 0,
+      downsampledUploadCount: 0,
+      downsampledBytesSaved: 0,
       deferred: false,
     }
   }
@@ -1558,8 +1697,10 @@ function resolveImageTexture(
   uploadBudget.remainingBytes = Math.max(0, uploadBudget.remainingBytes - uploadBytes)
   imageCache.set(assetId, {
     texture,
-    width,
-    height,
+    width: uploadWidth,
+    height: uploadHeight,
+    cacheKey: imageCacheKey,
+    rasterScale: imageRasterScale,
   })
   budget.markTextureResident(assetId, uploadBytes)
   budget.markTextureUsed(assetId)
@@ -1568,6 +1709,8 @@ function resolveImageTexture(
     texture,
     uploadCount: 1,
     uploadBytes,
+    downsampledUploadCount: uploadSource.downsampled ? 1 : 0,
+    downsampledBytesSaved,
     deferred: false,
   }
 }

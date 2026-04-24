@@ -17,6 +17,11 @@ import {
 } from '../../runtime/interaction/index.ts'
 import {createShapeElementFromTool} from './editorRuntimeHelpers.ts'
 import {resolvePathSubSelectionAtPoint} from './runtime/pathSubSelection.ts'
+import {
+  isPathSubSelectionEqual,
+  shouldResolveHoverHit,
+  type HoverHitBudgetState,
+} from './useEditorRuntime.helpers.ts'
 import type {
   DraftPrimitive,
   DraftPrimitiveType,
@@ -41,68 +46,6 @@ const HOVER_GATED_EDITING_MODES: ReadonlySet<string> = new Set([
   'zooming',
   'marqueeSelecting',
 ])
-
-function isPathSubSelectionEqual(left: PathSubSelection | null, right: PathSubSelection | null) {
-  if (left === right) {
-    return true
-  }
-  if (!left || !right) {
-    return false
-  }
-  if (left.shapeId !== right.shapeId || left.hitType !== right.hitType) {
-    return false
-  }
-
-  const leftAnchor = left.anchorPoint
-  const rightAnchor = right.anchorPoint
-  if (leftAnchor || rightAnchor) {
-    if (!leftAnchor || !rightAnchor) {
-      return false
-    }
-    if (
-      leftAnchor.index !== rightAnchor.index ||
-      leftAnchor.x !== rightAnchor.x ||
-      leftAnchor.y !== rightAnchor.y ||
-      leftAnchor.segmentType !== rightAnchor.segmentType
-    ) {
-      return false
-    }
-  }
-
-  const leftSegment = left.segment
-  const rightSegment = right.segment
-  if (leftSegment || rightSegment) {
-    if (!leftSegment || !rightSegment) {
-      return false
-    }
-    if (
-      leftSegment.index !== rightSegment.index ||
-      leftSegment.x !== rightSegment.x ||
-      leftSegment.y !== rightSegment.y ||
-      leftSegment.segmentType !== rightSegment.segmentType
-    ) {
-      return false
-    }
-  }
-
-  const leftHandle = left.handlePoint
-  const rightHandle = right.handlePoint
-  if (leftHandle || rightHandle) {
-    if (!leftHandle || !rightHandle) {
-      return false
-    }
-    if (
-      leftHandle.anchorIndex !== rightHandle.anchorIndex ||
-      leftHandle.handleType !== rightHandle.handleType ||
-      leftHandle.x !== rightHandle.x ||
-      leftHandle.y !== rightHandle.y
-    ) {
-      return false
-    }
-  }
-
-  return true
-}
 
 export function useEditorRuntimeCanvasInteractions(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
@@ -160,34 +103,10 @@ export function useEditorRuntimeCanvasInteractions(options: {
   transformPreview: TransformPreview | null
   marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createMarqueeSelectionApplyController>>
 }) {
-  const hoverHitBudgetRef = useRef<{
-    lastAt: number
-    lastPoint: {x: number; y: number} | null
-  }>({
+  const hoverHitBudgetRef = useRef<HoverHitBudgetState>({
     lastAt: 0,
     lastPoint: null,
   })
-
-  const shouldResolveHoverHit = (point: {x: number; y: number}) => {
-    const now = performance.now()
-    const elapsedMs = now - hoverHitBudgetRef.current.lastAt
-    const previousPoint = hoverHitBudgetRef.current.lastPoint
-    const movedDistance = previousPoint
-      ? Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y)
-      : Number.POSITIVE_INFINITY
-    if (
-      elapsedMs < HOVER_HIT_MIN_INTERVAL_MS &&
-      movedDistance < HOVER_HIT_MIN_DISTANCE_PX
-    ) {
-      return false
-    }
-
-    hoverHitBudgetRef.current = {
-      lastAt: now,
-      lastPoint: point,
-    }
-    return true
-  }
 
   return useMemo(() => ({
     onPointerMove: (point: {x: number; y: number}) => {
@@ -348,7 +267,17 @@ export function useEditorRuntimeCanvasInteractions(options: {
         return
       }
 
-      if (!shouldResolveHoverHit(point)) {
+      const hoverResolution = shouldResolveHoverHit(
+        point,
+        hoverHitBudgetRef.current,
+        {
+          minIntervalMs: HOVER_HIT_MIN_INTERVAL_MS,
+          minDistancePx: HOVER_HIT_MIN_DISTANCE_PX,
+        },
+      )
+      hoverHitBudgetRef.current = hoverResolution.nextBudget
+
+      if (!hoverResolution.shouldResolve) {
         return
       }
 
