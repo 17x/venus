@@ -101,10 +101,14 @@ export interface RuntimeRenderDiagnostics {
   cacheFallbackReason: string
   lastRenderRequestReason: string
   renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
+  renderPhaseTransitionCount: number
+  lastRenderPhaseTransition: string
   renderPolicyQuality: 'full' | 'interactive'
   renderPolicyDpr: number | 'auto'
   viewportInteractionType: 'pan' | 'zoom' | 'other'
   overlayMode: 'full' | 'degraded'
+  renderPolicyTransitionCount: number
+  lastRenderPolicyTransition: string
   overlayDegraded: boolean
   overlayGuideInputCount: number
   overlayGuideKeptCount: number
@@ -203,10 +207,14 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   cacheFallbackReason: 'none',
   lastRenderRequestReason: 'none',
   renderPhase: 'settled',
+  renderPhaseTransitionCount: 0,
+  lastRenderPhaseTransition: 'none',
   renderPolicyQuality: 'full',
   renderPolicyDpr: 'auto',
   viewportInteractionType: 'other',
   overlayMode: 'full',
+  renderPolicyTransitionCount: 0,
+  lastRenderPolicyTransition: 'none',
   overlayDegraded: false,
   overlayGuideInputCount: 0,
   overlayGuideKeptCount: 0,

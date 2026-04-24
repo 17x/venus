@@ -18,6 +18,7 @@ export function createHeaderMenuData(options: {
   const noSelectedElement = options.selectedIds.length === 0
   const canGroup = options.selectedIds.length >= 2
   const canAlign = options.selectedIds.length >= 2
+  const canBoolean = options.selectedIds.length >= 2
   const canDistribute = options.selectedIds.length >= 3
 
   return [
@@ -90,6 +91,15 @@ export function createHeaderMenuData(options: {
         {id: 'groupNodes', editorActionCode: 'group-nodes', disabled: !canGroup},
         {id: 'ungroupNodes', editorActionCode: 'ungroup-nodes', disabled: noSelectedElement},
         {id: 'convertToPath', editorActionCode: 'convert-to-path', disabled: noSelectedElement},
+        {
+          id: 'boolean',
+          disabled: !canBoolean,
+          children: [
+            {id: 'booleanUnion', editorActionCode: 'boolean-union', disabled: !canBoolean},
+            {id: 'booleanSubtract', editorActionCode: 'boolean-subtract', disabled: !canBoolean},
+            {id: 'booleanIntersect', editorActionCode: 'boolean-intersect', disabled: !canBoolean},
+          ],
+        },
         {
           id: 'align',
           disabled: !canAlign,

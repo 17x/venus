@@ -14,9 +14,19 @@ const DISTRIBUTE_ACTION_MODE_MAP = {
   'distribute-vertical': 'vspace',
 } as const
 
+const BOOLEAN_ACTION_MODE_MAP = {
+  'boolean-union': 'union',
+  booleanUnion: 'union',
+  'boolean-subtract': 'subtract',
+  booleanSubtract: 'subtract',
+  'boolean-intersect': 'intersect',
+  booleanIntersect: 'intersect',
+} as const
+
 interface ShapeActionsContext {
   selectedShapeIds: string[]
   dispatchCommand: (command: EditorRuntimeCommand) => void
+  notify?: (message: string) => void
 }
 
 export function handleShapeActions(
@@ -58,6 +68,20 @@ export function handleShapeActions(
       shapeIds: context.selectedShapeIds,
       mode: DISTRIBUTE_ACTION_MODE_MAP[actionType as keyof typeof DISTRIBUTE_ACTION_MODE_MAP],
     })
+    return true
+  }
+
+  if (actionType in BOOLEAN_ACTION_MODE_MAP) {
+    if (context.selectedShapeIds.length < 2) {
+      return true
+    }
+
+    context.dispatchCommand({
+      type: 'shape.boolean',
+      shapeIds: context.selectedShapeIds,
+      mode: BOOLEAN_ACTION_MODE_MAP[actionType as keyof typeof BOOLEAN_ACTION_MODE_MAP],
+    })
+    context.notify?.('Boolean command baseline dispatched (geometry merge pending)')
     return true
   }
 

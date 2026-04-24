@@ -155,9 +155,9 @@ export default function Toolbelt(props: ToolbeltProps) {
       icon: <LuBetweenHorizontalStart size={16}/>,
     },
     {
-      id: 'arrow',
-      tool: 'lineSegment',
-      label: t('toolbar.arrow', {defaultValue: 'Arrow'}),
+      id: 'connector',
+      tool: 'connector',
+      label: t('ui.toolbar.connector', {defaultValue: 'Connector'}),
       icon: <LuMoveUpRight size={16}/>,
     },
     {

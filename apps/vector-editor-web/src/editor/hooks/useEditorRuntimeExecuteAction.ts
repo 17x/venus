@@ -157,6 +157,7 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
     if (handleShapeActions(type, {
       selectedShapeIds: options.selectedShapeIds,
       dispatchCommand: options.handleCommand,
+      notify: (message) => options.add(message, 'info'),
     })) {
       return
     }

@@ -16,6 +16,7 @@ export type ToolName =
   | 'text'
   | 'ellipse'
   | 'panning'
+  | 'connector'
   | 'lineSegment'
   | 'polygon'
   | 'star'

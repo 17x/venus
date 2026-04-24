@@ -93,12 +93,14 @@ export function createRuntimeHitTestAdapter(stateProvider: RuntimeNodeStateProvi
     options?: RuntimeHitTestFilterOptions,
   ): RuntimeHitTestResult {
     const candidates: RuntimeHitCandidate[] = []
+    const seenNodeIds = new Set<string>()
     const excludeIds = options?.excludeIds
 
     for (let i = 0; i < engineResults.length; i++) {
       const er = engineResults[i]
       const nodeId = er.nodeId
       if (excludeIds?.has(nodeId)) continue
+      if (seenNodeIds.has(nodeId)) continue
 
       const locked = stateProvider.isLocked(nodeId)
       const hidden = stateProvider.isHidden(nodeId)
@@ -118,6 +120,8 @@ export function createRuntimeHitTestAdapter(stateProvider: RuntimeNodeStateProvi
         !hidden &&
         !(options?.excludeLocked && locked) &&
         inIsolation
+
+      seenNodeIds.add(nodeId)
 
       candidates.push({
         nodeId,

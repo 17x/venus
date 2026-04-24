@@ -6,8 +6,10 @@ import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} fr
 import {
   convertShapeToPathShape,
   createAlignMovePatches,
+  createBooleanReplacePatches,
   createDistributeMovePatches,
   type ShapeAlignMode,
+  type ShapeBooleanMode,
   type ShapeAlignReference,
 } from './shapeCommandHelpers.ts'
 import {
@@ -45,6 +47,13 @@ function asAlignReference(value: unknown): ShapeAlignReference {
 
 function asDistributeMode(value: unknown): 'hspace' | 'vspace' | null {
   if (value === 'hspace' || value === 'vspace') {
+    return value
+  }
+  return null
+}
+
+function asBooleanMode(value: unknown): ShapeBooleanMode | null {
+  if (value === 'union' || value === 'subtract' || value === 'intersect') {
     return value
   }
   return null
@@ -340,6 +349,14 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
       patches.push({type: 'insert-shape', index, shape: converted})
     })
     return patches
+  }
+
+  if (operation.type === 'shape.boolean') {
+    const shapeIds = asStringArray(operation.payload?.shapeIds)
+    const mode = asBooleanMode(operation.payload?.mode)
+    if (shapeIds.length < 2 || mode === null) return []
+    const resolved = createBooleanReplacePatches(document, shapeIds, mode)
+    return resolved?.patches ?? []
   }
 
   if (operation.type === 'shape.align') {

@@ -649,6 +649,21 @@ function isPathStrokeHit(
   shape: EngineEditorHitTestNode,
   tolerance: number,
 ) {
+  if (shape.points && shape.points.length > 1 && (!shape.bezierPoints || shape.bezierPoints.length === 0)) {
+    const contours = resolveClosedPointContours(shape.points)
+    if (contours.length > 1) {
+      for (const contour of contours) {
+        const segments = resolveContourSegments(contour)
+        for (const segment of segments) {
+          if (isPointNearLineSegment(pointer, segment, tolerance)) {
+            return true
+          }
+        }
+      }
+      return false
+    }
+  }
+
   const segments = resolvePathSegments(shape)
   for (const segment of segments) {
     if (isPointNearLineSegment(pointer, segment, tolerance)) {
@@ -677,6 +692,18 @@ function isPathFillHit(
   shape: EngineEditorHitTestNode,
   tolerance: number,
 ) {
+  if (shape.points && shape.points.length > 1 && (!shape.bezierPoints || shape.bezierPoints.length === 0)) {
+    const contours = resolveClosedPointContours(shape.points)
+    if (contours.length > 1) {
+      for (const contour of contours) {
+        if (isPointNearPolygonEdge(pointer, contour, tolerance)) {
+          return true
+        }
+      }
+      return resolveNonZeroWindingContains(pointer, contours)
+    }
+  }
+
   const polygon = resolvePathPolygon(shape)
   if (polygon.length < 3) {
     return false
@@ -716,6 +743,90 @@ function resolvePathPolygon(shape: EngineEditorHitTestNode) {
   }
 
   return shape.points ? [...shape.points] : []
+}
+
+function resolveClosedPointContours(points: EngineEditorPoint[]) {
+  const contours: EngineEditorPoint[][] = []
+  let cursor = 0
+
+  while (cursor < points.length) {
+    const start = points[cursor]
+    if (!start) {
+      break
+    }
+
+    const contour: EngineEditorPoint[] = [start]
+    let closedIndex = -1
+
+    for (let index = cursor + 1; index < points.length; index += 1) {
+      const point = points[index]
+      if (!point) {
+        continue
+      }
+      contour.push(point)
+      if (point.x === start.x && point.y === start.y && contour.length >= 4) {
+        closedIndex = index
+        break
+      }
+    }
+
+    if (closedIndex < 0) {
+      break
+    }
+
+    contours.push(contour)
+    cursor = closedIndex + 1
+  }
+
+  return contours
+}
+
+function resolveContourSegments(contour: EngineEditorPoint[]) {
+  const segments: Array<{x1: number; y1: number; x2: number; y2: number}> = []
+  for (let index = 0; index < contour.length - 1; index += 1) {
+    const current = contour[index]
+    const next = contour[index + 1]
+    segments.push({x1: current.x, y1: current.y, x2: next.x, y2: next.y})
+  }
+  return segments
+}
+
+function resolveNonZeroWindingContains(pointer: EngineEditorPoint, contours: EngineEditorPoint[][]) {
+  const winding = contours.reduce((sum, contour) => {
+    return sum + resolveContourWinding(pointer, contour)
+  }, 0)
+
+  return winding !== 0
+}
+
+function resolveContourWinding(pointer: EngineEditorPoint, contour: EngineEditorPoint[]) {
+  let winding = 0
+
+  for (let index = 0; index < contour.length - 1; index += 1) {
+    const current = contour[index]
+    const next = contour[index + 1]
+
+    if (current.y <= pointer.y) {
+      if (next.y > pointer.y && resolvePointCross(current, next, pointer) > 0) {
+        winding += 1
+      }
+      continue
+    }
+
+    if (next.y <= pointer.y && resolvePointCross(current, next, pointer) < 0) {
+      winding -= 1
+    }
+  }
+
+  return winding
+}
+
+function resolvePointCross(
+  from: EngineEditorPoint,
+  to: EngineEditorPoint,
+  point: EngineEditorPoint,
+) {
+  return (to.x - from.x) * (point.y - from.y) - (point.x - from.x) * (to.y - from.y)
 }
 
 function sampleBezierPathPolygon(

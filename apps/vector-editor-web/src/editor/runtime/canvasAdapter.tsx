@@ -147,15 +147,19 @@ export function CanvasViewport({
       return 'zoom'
     }
 
+    // Keep precision editing out of drag degradation so path/text work can
+    // retain full-fidelity overlay and render policy.
+    if (editingMode === 'pathEditing' || editingMode === 'textEditing') {
+      return 'precision'
+    }
+
     if (
       editingMode === 'dragging' ||
       editingMode === 'resizing' ||
       editingMode === 'rotating' ||
       editingMode === 'drawingPath' ||
       editingMode === 'drawingPencil' ||
-      editingMode === 'insertingShape' ||
-      editingMode === 'pathEditing' ||
-      editingMode === 'textEditing'
+      editingMode === 'insertingShape'
     ) {
       return 'drag'
     }
@@ -407,10 +411,14 @@ export function Canvas2DRenderer({
   const renderRequestStatsRef = React.useRef({
     lastReason: 'none',
     renderPhase: 'settled' as RuntimeRenderPhase,
+    renderPhaseTransitionCount: 0,
+    lastRenderPhaseTransition: 'none',
     renderPolicyQuality: 'full' as 'full' | 'interactive',
     renderPolicyDpr: 'auto' as number | 'auto',
     viewportInteractionType: 'other' as 'pan' | 'zoom' | 'other',
     overlayMode: 'full' as 'full' | 'degraded',
+    renderPolicyTransitionCount: 0,
+    lastRenderPolicyTransition: 'none',
     overlayDegraded: false,
     overlayGuideInputCount: 0,
     overlayGuideKeptCount: 0,
@@ -821,10 +829,18 @@ export function Canvas2DRenderer({
               webglStats.cacheFallbackReason ?? 'none',
             lastRenderRequestReason: renderRequestStats.lastReason,
             renderPhase: renderRequestStats.renderPhase,
+            renderPhaseTransitionCount:
+              renderRequestStats.renderPhaseTransitionCount,
+            lastRenderPhaseTransition:
+              renderRequestStats.lastRenderPhaseTransition,
             renderPolicyQuality: renderRequestStats.renderPolicyQuality,
             renderPolicyDpr: renderRequestStats.renderPolicyDpr,
             viewportInteractionType: renderRequestStats.viewportInteractionType,
             overlayMode: renderRequestStats.overlayMode,
+            renderPolicyTransitionCount:
+              renderRequestStats.renderPolicyTransitionCount,
+            lastRenderPolicyTransition:
+              renderRequestStats.lastRenderPolicyTransition,
             overlayDegraded: renderRequestStats.overlayDegraded,
             overlayGuideInputCount: renderRequestStats.overlayGuideInputCount,
             overlayGuideKeptCount: renderRequestStats.overlayGuideKeptCount,
@@ -1062,6 +1078,10 @@ export function Canvas2DRenderer({
       renderQuality,
       targetDpr,
     })
+    const previousPhase = renderRequestStatsRef.current.renderPhase
+    const previousQuality = renderRequestStatsRef.current.renderPolicyQuality
+    const previousDpr = renderRequestStatsRef.current.renderPolicyDpr
+    const previousOverlayMode = renderRequestStatsRef.current.overlayMode
     renderRequestStatsRef.current.renderPhase = interactionPhase
     renderRequestStatsRef.current.overlayMode = renderPolicy.overlayMode
     renderRequestStatsRef.current.overlayDegraded = overlayDiagnostics?.degraded ?? false
@@ -1085,6 +1105,24 @@ export function Canvas2DRenderer({
     if (appliedQualityRef.current !== nextQuality) {
       engine.setQuality(nextQuality)
       appliedQualityRef.current = nextQuality
+    }
+
+    // Keep a compact transition trail so policy tuning can verify phase and
+    // degradation switches instead of relying only on the current snapshot.
+    if (previousPhase !== interactionPhase) {
+      renderRequestStatsRef.current.renderPhaseTransitionCount += 1
+      renderRequestStatsRef.current.lastRenderPhaseTransition = `${previousPhase}->${interactionPhase}`
+    }
+
+    if (
+      previousQuality !== nextQuality ||
+      previousDpr !== nextDpr ||
+      previousOverlayMode !== renderPolicy.overlayMode
+    ) {
+      renderRequestStatsRef.current.renderPolicyTransitionCount += 1
+      renderRequestStatsRef.current.lastRenderPolicyTransition =
+        `${previousQuality}/${String(previousDpr)}/${previousOverlayMode}` +
+        `->${nextQuality}/${String(nextDpr)}/${renderPolicy.overlayMode}`
     }
 
     if (viewport.viewportWidth <= 1 || viewport.viewportHeight <= 1) {

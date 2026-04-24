@@ -8,6 +8,7 @@
     "build": "vite build --configLoader runner",
     "pnpm build": "pnpm run build",
     "lint": "eslint . && node ./scripts/ui-style-guard.mjs",
+    "regression:boolean-contour": "pnpm dlx tsx --tsconfig ./tsconfig.app.json ./scripts/boolean-contour-regression.ts",
     "perf:gate": "node ./scripts/perf-gate.mjs",
     "perf:gate:template": "node ./scripts/perf-gate.mjs --report ./scripts/perf-gate.report.template.json",
     "preview": "vite preview"
@@ -27,6 +28,7 @@
     "i18next": "^24.2.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",
+    "polygon-clipping": "^0.15.7",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-i18next": "^17.0.2",

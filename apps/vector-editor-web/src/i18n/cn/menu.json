@@ -230,6 +230,22 @@
     "label": "转换为路径",
     "tooltip": "将选定图形转换为可编辑路径"
   },
+  "boolean": {
+    "label": "布尔运算",
+    "tooltip": "对选定图形执行布尔运算"
+  },
+  "booleanUnion": {
+    "label": "并集",
+    "tooltip": "将选定图形合并为一个区域"
+  },
+  "booleanSubtract": {
+    "label": "减去",
+    "tooltip": "从基准图形中减去上层选定图形"
+  },
+  "booleanIntersect": {
+    "label": "交集",
+    "tooltip": "仅保留选定图形重叠区域"
+  },
   "align": {
     "label": "对齐",
     "tooltip": "对齐选定图形"

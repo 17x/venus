@@ -22,6 +22,7 @@ export function mapToolNameToToolId(toolName: ToolName): ToolId {
     case 'ellipse':
       return 'ellipse'
     case 'lineSegment':
+    case 'connector':
       return 'lineSegment'
     case 'polygon':
       return 'polygon'
@@ -87,6 +88,21 @@ export function createShapeElementFromTool(
     }
   }
 
+  if (toolName === 'connector') {
+    return {
+      id: nid(),
+      type: 'lineSegment',
+      name: 'Connector',
+      x: point.x - 96,
+      y: point.y - 12,
+      width: 192,
+      height: 24,
+      fill: {enabled: false, color: '#ffffff'},
+      stroke: {enabled: true, color: '#0f172a', weight: 2},
+      strokeEndArrowhead: 'triangle',
+    }
+  }
+
   if (toolName === 'polygon') {
     const width = 140
     const height = 120
@@ -147,6 +163,7 @@ export function createShapeElementFromTool(
 export function isDragCreateTool(toolName: ToolName) {
   return toolName === 'rectangle' ||
     toolName === 'ellipse' ||
+    toolName === 'connector' ||
     toolName === 'lineSegment' ||
     toolName === 'polygon' ||
     toolName === 'star' ||
@@ -207,6 +224,25 @@ export function createShapeElementFromDrag(
       ],
       fill: {enabled: false, color: '#ffffff'},
       stroke: {enabled: true, color: '#111827', weight: 2},
+    }
+  }
+
+  if (toolName === 'connector') {
+    return {
+      id: nid(),
+      type: 'lineSegment',
+      name: 'Connector',
+      x: start.x,
+      y: start.y,
+      width: end.x - start.x,
+      height: end.y - start.y,
+      points: [
+        {x: start.x, y: start.y},
+        {x: end.x, y: end.y},
+      ],
+      fill: {enabled: false, color: '#ffffff'},
+      stroke: {enabled: true, color: '#0f172a', weight: 2},
+      strokeEndArrowhead: 'triangle',
     }
   }
 

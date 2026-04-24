@@ -230,6 +230,22 @@
     "label": "Convert to Path",
     "tooltip": "Convert selected shapes into editable path geometry"
   },
+  "boolean": {
+    "label": "Boolean",
+    "tooltip": "Apply boolean operations to selected shapes"
+  },
+  "booleanUnion": {
+    "label": "Union",
+    "tooltip": "Merge selected shapes into one region"
+  },
+  "booleanSubtract": {
+    "label": "Subtract",
+    "tooltip": "Subtract top-selected shapes from the base shape"
+  },
+  "booleanIntersect": {
+    "label": "Intersect",
+    "tooltip": "Keep only overlapping areas of selected shapes"
+  },
   "align": {
     "label": "Align",
     "tooltip": "Align selected shapes"

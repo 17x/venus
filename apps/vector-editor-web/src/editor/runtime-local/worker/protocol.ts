@@ -109,6 +109,11 @@ export type EditorRuntimeCommand =
   | { type: 'shape.ungroup'; groupId?: string }
   | { type: 'shape.convert-to-path'; shapeIds?: string[] }
   | {
+      type: 'shape.boolean'
+      shapeIds?: string[]
+      mode: 'union' | 'subtract' | 'intersect'
+    }
+  | {
       type: 'shape.align'
       shapeIds?: string[]
       mode: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom'

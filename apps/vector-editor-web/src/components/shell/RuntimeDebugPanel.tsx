@@ -537,10 +537,14 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.fps', 'FPS (Smooth)')} value={diagnostics.fpsEstimate.toFixed(1)}/>
       <DebugRow label={t('shell.variantB.debug.fpsInstant', 'FPS (Instant)')} value={diagnostics.fpsInstantaneous.toFixed(1)}/>
       <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={diagnostics.renderPhase}/>
+      <DebugRow label={t('shell.variantB.debug.renderPhaseTransitionCount', 'Render Phase Transitions')} value={String(diagnostics.renderPhaseTransitionCount)}/>
+      <DebugRow label={t('shell.variantB.debug.lastRenderPhaseTransition', 'Last Render Phase Transition')} value={diagnostics.lastRenderPhaseTransition}/>
       <DebugRow label={t('shell.variantB.debug.viewportInteractionType', 'Viewport Interaction')} value={diagnostics.viewportInteractionType}/>
       <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Render Policy Quality')} value={diagnostics.renderPolicyQuality}/>
       <DebugRow label={t('shell.variantB.debug.renderPolicyDpr', 'Render Policy DPR')} value={String(diagnostics.renderPolicyDpr)}/>
       <DebugRow label={t('shell.variantB.debug.overlayMode', 'Overlay Mode')} value={diagnostics.overlayMode}/>
+      <DebugRow label={t('shell.variantB.debug.renderPolicyTransitionCount', 'Render Policy Transitions')} value={String(diagnostics.renderPolicyTransitionCount)}/>
+      <DebugRow label={t('shell.variantB.debug.lastRenderPolicyTransition', 'Last Render Policy Transition')} value={diagnostics.lastRenderPolicyTransition}/>
       <DebugRow label={t('shell.variantB.debug.overlayDegraded', 'Overlay Degraded')} value={diagnostics.overlayDegraded ? 'yes' : 'no'}/>
       <DebugRow label={t('shell.variantB.debug.overlayGuideInputCount', 'Overlay Guides Input')} value={String(diagnostics.overlayGuideInputCount)}/>
       <DebugRow label={t('shell.variantB.debug.overlayGuideKeptCount', 'Overlay Guides Kept')} value={String(diagnostics.overlayGuideKeptCount)}/>

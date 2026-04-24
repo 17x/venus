@@ -4,6 +4,7 @@ import {ToolName} from '@venus/document-core'
 import {
   LuCircle,
   LuHand,
+  LuMoveUpRight,
   LuPentagon,
   LuPenTool,
   LuPencilLine,
@@ -37,6 +38,11 @@ const toolList = [
     labelKey: 'toolbar.lineSegment',
     icon: lineSeg(CHROME_ICON_SIZE),
     toolName: 'lineSegment',
+  },
+  {
+    labelKey: 'toolbar.connector',
+    icon: <LuMoveUpRight size={CHROME_ICON_SIZE}/>,
+    toolName: 'connector',
   },
   {
     labelKey: 'toolbar.rectangle',

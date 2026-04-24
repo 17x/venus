@@ -8,12 +8,44 @@
 - Validation baseline: `pnpm typecheck`, `pnpm lint`, `pnpm build`
 - Reporting format per task: change summary, risk/regression notes, next task handoff
 
+## Task ID Convention
+
+- Format: `VT-YYYYMMDD-XX` (example: `VT-20260424-01`)
+- Rule: every active execution item must have one ID; progress updates and validation evidence must reference that ID
+- Rule: when an item is completed, keep the same ID in Done/Verified records for traceability
+
 ## In Progress
 
 - Vector capability completion: `connector` then `boolean`
+  - Progress 2026-04-24:
+    - Implemented: added product-level `connector` tool entry (shortcut `C`) mapped to existing `lineSegment` runtime command path
+    - Implemented: connector insertion defaults now create arrow-ended line segments (`strokeEndArrowhead: triangle`) for click and drag creation
+    - Implemented: added `shape.boolean` command surface (`union`/`subtract`/`intersect`) and wired placeholder dispatch through runtime action -> worker command path
+    - Implemented: added boolean action entrypoints in header/context shape menus with i18n labels (`en`/`cn`/`jp`)
+    - Implemented: landed undoable `shape.boolean` execution baseline in worker history/patch pipeline (selected shapes replaced with one path result)
+    - Implemented: wired collaboration remote patch replay for `shape.boolean` so union/subtract/intersect commands stay protocol-complete
+    - Implemented: upgraded boolean geometry from bounds approximation to polygon clipping execution (`polygon-clipping`) for union/subtract/intersect path composition
+    - Implemented: unified multi-hit candidate interpretation baseline by de-duplicating resolved hit targets in worker candidate generation and runtime hit adapter
+    - Implemented: boolean result representation now preserves multi-contour geometry (disconnected polygons + interior rings) by emitting multi-shape inserts and contour-encoded path rings, with engine render/hit-test contour interpretation support
+    - Implemented: contour-encoded path hardening for editability parity (path sub-selection now evaluates segments within contour boundaries only, and overlay path stroke generation avoids cross-contour seam bridging)
+    - Implemented: added targeted contour regression checklist (`docs/core/boolean-contour-regression-checklist.md`) and linked testing entrypoint in `docs/engineering/testing.md`
+    - Implemented: added executable contour regression harness (`apps/vector-editor-web/scripts/boolean-contour-regression.ts`) and package command (`pnpm --filter @venus/vector-editor-web regression:boolean-contour`)
+    - Implemented: VT-20260424-01 extended harness coverage for chained boolean sequence stability and contour-anchor subselection edge cases
+    - Verified 2026-04-24: VT-20260424-01 passed via regression report (`boolean-chained-union-subtract-contour`, `contour-anchor-subselection-edge-cases`) in `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
+    - Verified 2026-04-24: VT-20260424-02 completed checklist promotion with scenario-by-scenario evidence mapping in `docs/core/boolean-contour-regression-checklist.md`
+    - Verified 2026-04-24: contour regression harness passed (undo/backward patch parity, remote replay patch parity, contour round-trip) with report `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
+    - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Next: run runtime/engine boundary checklist on recent boolean + contour diffs and record risks
 - Runtime/engine boundary checks on new feature diffs
 - Runtime monolith decomposition follow-up (`useEditorRuntime` adjacent paths)
 - Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
+  - Progress 2026-04-24:
+    - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
+    - Implemented: added dedicated transform workflow prompt (`docs/product/figma-prompts/selection-transform-workflows.md`)
+    - Implemented: added context menu and shortcuts matrix prompt (`docs/product/figma-prompts/context-shortcuts-matrix.md`)
+    - Implemented: drafted acceptance parity baseline tables from runtime code anchors in both dedicated prompt docs
+    - Implemented: added manual acceptance runbook (`docs/product/figma-prompts/acceptance-session-checklist.md`) with row-level status rubric and evidence fields
+    - Next: execute checklist against active Figma file and promote rows to `verified`/`done` with frame evidence
 - 100K performance optimization Phase 1 (stop worst spikes, AI execution queue):
   - Progress 2026-04-23:
     - Implemented: diagnostics publishing baseline in canvas adapter
@@ -115,33 +147,49 @@
     - Implemented: added targeted transform/hit-test overlap regression checklist (`docs/core/transform-hit-test-regression-checklist.md`) with required scenarios, expected outcomes, and diagnostics capture points
     - Implemented: engineering testing docs now include mixed-scene gate usage and checklist entrypoints for repeatable validation
     - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
-  1. Runtime diagnostics baseline (owner: engine + app)
-  - Deliverable: frame/hit/cache counters wired from engine stats to debug panel
-  - Acceptance: panel shows `totalMs`, `hitTestMs`, `cacheHit/Miss`, `rendered/skipped`
-  2. Pointer-move hit-test throttle (owner: runtime)
-  - Deliverable: pointermove hit dispatch with frame-budget or interval throttling
-  - Acceptance: hover movement no longer triggers exact hit on every raw event
-  3. Hover gating during pan/drag (owner: runtime + app)
-  - Deliverable: interaction-phase switch disables normal hover path during pan/drag
-  - Acceptance: pan/drag stage has no continuous hover recompute
-  4. Zoom-time rebuild freeze (owner: engine)
-  - Deliverable: text/path/cache heavy rebuild deferred during zoom interaction
-  - Acceptance: continuous zoom avoids repeated rebuild spikes; settle phase restores quality
-  5. Tiny-object degradation (owner: engine)
-  - Deliverable: low screen-space nodes rendered as dot/bbox/skip
-  - Acceptance: low zoom rendered node count drops with no major interaction regression
-  6. Text placeholder LOD (owner: engine)
-  - Deliverable: low zoom text uses placeholder block instead of full shaping
-  - Acceptance: text-heavy scene pan/zoom frame jitter reduced
-  7. Bbox-first hit policy (owner: engine + runtime)
-  - Deliverable: `bbox_then_exact` default for non-precision interactions
-  - Acceptance: exact-hit count decreases while top-hit correctness stays stable
+  - Progress 2026-04-24 (Phase 2 kickoff):
+    - In-progress: `VT-20260424-05` phase-based render policy service hardening and diagnostics evidence collection
+    - Verified 2026-04-24: mixed-scene perf gate executed with trend check output (`16 checks`, `16 trend checks`, `PASS`) via `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`
+    - Implemented: `VT-20260424-05` precision-edit routing fix so `pathEditing` / `textEditing` now resolve to `precision` phase instead of falling through `drag` degradation in `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`
+    - Implemented: `VT-20260424-05` transition diagnostics evidence now records phase/policy switch counts plus latest transition summaries and surfaces them in Runtime Debug Panel
+  - `VT-20260423-P1-01` [verified]: Runtime diagnostics baseline (owner: engine + app)
+    - Deliverable: frame/hit/cache counters wired from engine stats to debug panel
+    - Acceptance: panel shows `totalMs`, `hitTestMs`, `cacheHit/Miss`, `rendered/skipped`
+  - `VT-20260423-P1-02` [verified]: Pointer-move hit-test throttle (owner: runtime)
+    - Deliverable: pointermove hit dispatch with frame-budget or interval throttling
+    - Acceptance: hover movement no longer triggers exact hit on every raw event
+  - `VT-20260423-P1-03` [verified]: Hover gating during pan/drag (owner: runtime + app)
+    - Deliverable: interaction-phase switch disables normal hover path during pan/drag
+    - Acceptance: pan/drag stage has no continuous hover recompute
+  - `VT-20260423-P1-04` [verified]: Zoom-time rebuild freeze (owner: engine)
+    - Deliverable: text/path/cache heavy rebuild deferred during zoom interaction
+    - Acceptance: continuous zoom avoids repeated rebuild spikes; settle phase restores quality
+  - `VT-20260423-P1-05` [verified]: Tiny-object degradation (owner: engine)
+    - Deliverable: low screen-space nodes rendered as dot/bbox/skip
+    - Acceptance: low zoom rendered node count drops with no major interaction regression
+  - `VT-20260423-P1-06` [verified]: Text placeholder LOD (owner: engine)
+    - Deliverable: low zoom text uses placeholder block instead of full shaping
+    - Acceptance: text-heavy scene pan/zoom frame jitter reduced
+  - `VT-20260423-P1-07` [verified]: Bbox-first hit policy (owner: engine + runtime)
+    - Deliverable: `bbox_then_exact` default for non-precision interactions
+    - Acceptance: exact-hit count decreases while top-hit correctness stays stable
 
 ## Next
 
-- Add targeted regression checklist for transform and hit-test overlap cases
-- Continue multi-hit candidate interpretation consistency across worker/runtime/product
-- Normalize package-level README responsibilities (`apps/*`, `packages/*`)
+- `VT-20260424-01` [verified]: extend boolean contour regression harness to chained boolean sequences and contour-anchor edit edge cases
+- `VT-20260424-02` [verified]: execute contour checklist scenarios and promote rows from planned to verified with command/report evidence
+- `VT-20260424-03` [verified]: normalize package-level README responsibilities (`apps/*`, `packages/*`)
+- `VT-20260424-04`: runtime/engine boundary checks on recent boolean and contour-related diffs
+- `VT-20260424-05` [in-progress]: phase-based render policy service hardening for `static/pan/zoom/drag/settled` with policy-switch diagnostics evidence
+- `VT-20260424-06`: drag preview layer rollout so active drag avoids per-frame full-scene invalidation
+- `VT-20260424-07`: dirty-region redraw pipeline implementation using merged old/new/overlay bounds
+- `VT-20260424-08`: group collapse policy stabilization with protected-node guarantees and regression checks
+- `VT-20260424-09`: path simplification bucket tuning for low-zoom cost reduction without edit hit drift
+- `VT-20260424-10`: cache zoom buckets + hysteresis calibration to reduce threshold-edge cache thrash
+- `VT-20260424-11`: tiled bitmap cache prototype for large static regions with memory budget guardrails
+- `VT-20260424-12`: multi-resolution image path baseline for zoom-dependent image decode/upload cost control
+- `VT-20260424-13`: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
+- `VT-20260424-14`: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
 - 100K performance optimization Phase 2 (runtime structure, next execution queue):
   1. Phase-based render policy service (owner: runtime)
   - Deliverable: explicit policy for `static/pan/zoom/drag/settled`

@@ -61,9 +61,11 @@ export function hitTestDocumentCandidates(
 
   const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
   const hits: WorkerHitTestCandidate[] = []
+  const emittedShapeIds = new Set<string>()
   let exactCandidateCount = 0
 
-  for (const candidate of sortedCandidates) {
+  for (let candidateRank = 0; candidateRank < sortedCandidates.length; candidateRank += 1) {
+    const candidate = sortedCandidates[candidateRank]
     const shape = shapeById.get(candidate.meta.shapeId)
     if (!shape) {
       continue
@@ -83,12 +85,12 @@ export function hitTestDocumentCandidates(
     }
 
     if (hitMode === 'bbox') {
-      appendHitCandidate(hits, document, sortedCandidates.length, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+      appendHitCandidate(hits, emittedShapeIds, document, sortedCandidates.length, candidateRank, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
       continue
     }
 
     if (hitMode === 'bbox_then_exact' && exactCandidateCount >= maxExactCandidateCount) {
-      appendHitCandidate(hits, document, sortedCandidates.length, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+      appendHitCandidate(hits, emittedShapeIds, document, sortedCandidates.length, candidateRank, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
       continue
     }
 
@@ -112,7 +114,7 @@ export function hitTestDocumentCandidates(
       continue
     }
 
-    appendHitCandidate(hits, document, sortedCandidates.length, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+    appendHitCandidate(hits, emittedShapeIds, document, sortedCandidates.length, candidateRank, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
   }
 
   return hits
@@ -137,8 +139,10 @@ function isPointInsideShapeBounds(
 
 function appendHitCandidate(
   hits: WorkerHitTestCandidate[],
+  emittedShapeIds: Set<string>,
   document: EditorDocument,
   candidateCount: number,
+  candidateRank: number,
   zOrder: number,
   pointer: {x: number; y: number},
   shape: DocumentNode,
@@ -152,13 +156,17 @@ function appendHitCandidate(
   if (shapeIndex < 0) {
     return
   }
+  if (emittedShapeIds.has(resolvedShape.id)) {
+    return
+  }
+  emittedShapeIds.add(resolvedShape.id)
 
   hits.push({
     index: shapeIndex,
     shapeId: resolvedShape.id,
     shapeType: resolvedShape.type,
     hitType: 'shape-body',
-    score: candidateCount - hits.length,
+    score: Math.max(1, candidateCount - candidateRank),
     zOrder,
     hitPoint: pointer,
   })

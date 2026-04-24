@@ -75,6 +75,9 @@ export function useEditorRuntimeCoreCallbacks(options: {
     if (!isDragCreateTool(toolName)) {
       return null
     }
+    if (toolName === 'connector') {
+      return 'lineSegment'
+    }
     return toolName
   }, [])
 

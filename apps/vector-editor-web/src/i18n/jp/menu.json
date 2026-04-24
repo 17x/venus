@@ -230,6 +230,22 @@
     "label": "パスに変換",
     "tooltip": "選択した図形を編集可能なパスに変換"
   },
+  "boolean": {
+    "label": "ブーリアン",
+    "tooltip": "選択した図形にブーリアン演算を適用"
+  },
+  "booleanUnion": {
+    "label": "和集合",
+    "tooltip": "選択した図形を1つの領域に結合"
+  },
+  "booleanSubtract": {
+    "label": "前面で型抜き",
+    "tooltip": "基準図形から前面の選択図形を減算"
+  },
+  "booleanIntersect": {
+    "label": "共通部分",
+    "tooltip": "選択した図形の重なり部分のみ保持"
+  },
   "align": {
     "label": "整列",
     "tooltip": "選択した図形を整列"

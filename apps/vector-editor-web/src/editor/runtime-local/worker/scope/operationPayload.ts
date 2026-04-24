@@ -48,6 +48,7 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
   if (command.type === 'shape.group') return {shapeIds: command.shapeIds, groupId: command.groupId, name: command.name}
   if (command.type === 'shape.ungroup') return {groupId: command.groupId}
   if (command.type === 'shape.convert-to-path') return {shapeIds: command.shapeIds}
+  if (command.type === 'shape.boolean') return {shapeIds: command.shapeIds, mode: command.mode}
   if (command.type === 'shape.align') return {shapeIds: command.shapeIds, mode: command.mode, reference: command.reference}
   if (command.type === 'shape.distribute') return {shapeIds: command.shapeIds, mode: command.mode}
   return undefined

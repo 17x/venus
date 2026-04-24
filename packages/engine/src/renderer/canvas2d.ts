@@ -810,11 +810,34 @@ function appendPathGeometry(
 ) {
   const bezierPoints = node.bezierPoints ?? []
   const points = node.points ?? []
+  const pointContours = bezierPoints.length === 0
+    ? resolveClosedPointContours(points)
+    : []
 
   if (pathSimplificationBucket > 0) {
     const sourcePoints = bezierPoints.length > 0
       ? bezierPoints.map((point) => point.anchor)
       : points
+
+    if (pointContours.length > 1) {
+      pointContours.forEach((contour) => {
+        const simplified = simplifyPathPointsForBucket(
+          contour,
+          pathSimplificationBucket as 1 | 2,
+          true,
+          viewportScale,
+        )
+        const [head, ...rest] = simplified
+        if (!head) {
+          return
+        }
+        context.moveTo(head.x, head.y)
+        rest.forEach((point) => context.lineTo(point.x, point.y))
+        context.closePath()
+      })
+      return true
+    }
+
     const simplifiedPoints = simplifyPathPointsForBucket(
       sourcePoints,
       pathSimplificationBucket as 1 | 2,
@@ -831,6 +854,20 @@ function appendPathGeometry(
     if (node.closed) {
       context.closePath()
     }
+    return true
+  }
+
+  if (pointContours.length > 1) {
+    pointContours.forEach((contour) => {
+      const [head, ...rest] = contour
+      if (!head) {
+        return
+      }
+
+      context.moveTo(head.x, head.y)
+      rest.forEach((point) => context.lineTo(point.x, point.y))
+      context.closePath()
+    })
     return true
   }
 
@@ -866,6 +903,42 @@ function appendPathGeometry(
     context.closePath()
   }
   return true
+}
+
+function resolveClosedPointContours(points: readonly {x: number; y: number}[]) {
+  const contours: Array<Array<{x: number; y: number}>> = []
+  let cursor = 0
+
+  while (cursor < points.length) {
+    const start = points[cursor]
+    if (!start) {
+      break
+    }
+
+    const contour: Array<{x: number; y: number}> = [start]
+    let closedIndex = -1
+
+    for (let index = cursor + 1; index < points.length; index += 1) {
+      const point = points[index]
+      if (!point) {
+        continue
+      }
+      contour.push(point)
+      if (point.x === start.x && point.y === start.y && contour.length >= 4) {
+        closedIndex = index
+        break
+      }
+    }
+
+    if (closedIndex < 0) {
+      break
+    }
+
+    contours.push(contour)
+    cursor = closedIndex + 1
+  }
+
+  return contours
 }
 
 function resolvePathSimplificationBucket(

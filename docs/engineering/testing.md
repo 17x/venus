@@ -45,3 +45,12 @@
 
 - Transform/hit-test overlap checklist:
   - `docs/core/transform-hit-test-regression-checklist.md`
+- Boolean contour checklist:
+  - `docs/core/boolean-contour-regression-checklist.md`
+
+## Targeted Regression Commands
+
+- Boolean contour regression command:
+  - `pnpm --filter @venus/vector-editor-web regression:boolean-contour`
+- Boolean contour regression report:
+  - `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`

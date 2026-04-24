@@ -6,13 +6,14 @@ Track page-to-PRD mapping and design coverage status.
 
 ## Mapping Table
 
-| PRD Capability                       | Figma Page/Section                                                                                                                       | Status      | Notes                                                                                                                                              |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Editor shell (toolbar/header/panels) | docs/product/figma-prompts/editor-shell.md                                                                                               | In Progress | Implemented A/B/C shell variants plus semantic menu/tab/template picker alignment in vector app; continue section-by-section coverage sync         |
-| Selection + transform workflows      | docs/product/figma-prompts/top-toolbar.md + docs/product/figma-prompts/left-tool-rail.md + docs/product/figma-prompts/right-inspector.md | In Progress | Selection tool states and transform/appearance control mapping are covered in shell rails + inspector; dedicated transform-flow page still pending |
-| Property panel controls              | docs/product/figma-prompts/right-inspector.md                                                                                            | In Progress | Inspector structure mapped to properties/transform/appearance/text sections in vector app inspector components                                     |
-| Layer panel operations               | docs/product/figma-prompts/layer-history-panel.md                                                                                        | In Progress | Layer hierarchy/visibility/lock/history mapping now tied to right-side stacked panel contract                                                      |
-| Context menu + shortcuts             | docs/product/figma-prompts/editor-shell.md + docs/product/figma-prompts/top-toolbar.md                                                   | In Progress | Runtime/context action parity tracked against app context menu and shortcut registry surfaces                                                      |
+| PRD Capability                       | Figma Page/Section                                                                                                                                                                                     | Status      | Notes                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor shell (toolbar/header/panels) | docs/product/figma-prompts/editor-shell.md                                                                                                                                                             | In Progress | Implemented A/B/C shell variants plus semantic menu/tab/template picker alignment in vector app; continue section-by-section coverage sync  |
+| Selection + transform workflows      | docs/product/figma-prompts/selection-transform-workflows.md + docs/product/figma-prompts/top-toolbar.md + docs/product/figma-prompts/left-tool-rail.md + docs/product/figma-prompts/right-inspector.md | In Progress | Dedicated transform-flow page added; next step is frame-by-frame state acceptance against runtime overlays and inspector mixed-value states |
+| Property panel controls              | docs/product/figma-prompts/right-inspector.md                                                                                                                                                          | In Progress | Inspector structure mapped to properties/transform/appearance/text sections in vector app inspector components                              |
+| Layer panel operations               | docs/product/figma-prompts/layer-history-panel.md                                                                                                                                                      | In Progress | Layer hierarchy/visibility/lock/history mapping now tied to right-side stacked panel contract                                               |
+| Context menu + shortcuts             | docs/product/figma-prompts/context-shortcuts-matrix.md + docs/product/figma-prompts/editor-shell.md + docs/product/figma-prompts/top-toolbar.md                                                        | In Progress | Dedicated matrix page added; next step is state-by-state parity verification with runtime enable/disable behavior                           |
+| Manual acceptance session runbook    | docs/product/figma-prompts/acceptance-session-checklist.md                                                                                                                                             | In Progress | Session checklist added; next step is completing row-by-row verification in active Figma file and promoting statuses to `verified`          |
 
 ## Active Figma File
 
@@ -73,18 +74,24 @@ Track page-to-PRD mapping and design coverage status.
   - `apps/vector-editor-web/src/components/layerPanel/LayerPanel.tsx`
   - `apps/vector-editor-web/src/components/historyPanel/HistoryPanel.tsx`
 - Context/shortcut parity surfaces:
+  - `docs/product/figma-prompts/context-shortcuts-matrix.md`
   - `apps/vector-editor-web/src/components/contextMenu/ContextMenu.tsx`
   - `apps/vector-editor-web/src/editor/hooks/useShortcut.tsx`
   - `apps/vector-editor-web/src/shared/constants/actions.ts`
+- Selection/transform dedicated workflow prompt:
+  - `docs/product/figma-prompts/selection-transform-workflows.md`
+  - `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx`
+  - `apps/vector-editor-web/src/editor/hooks/useEditorRuntimeDerivedState.ts`
+  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts`
 
 ## Coverage Gaps
 
-- Dedicated Figma page for end-to-end selection/transform state transitions
-  (single select, multi-select, rotate/scale, mixed-value inspector state) is
-  not yet explicitly separated from shell and inspector prompts.
-- Context menu/shortcut interaction-state matrix (disabled/enabled by
-  selection cardinality and mode) still needs a dedicated Figma-focused prompt
-  section for full parity auditing.
+- Dedicated pages and code-verified acceptance baseline tables are now in place
+  for transform workflow and context-menu/shortcut matrix coverage.
+- Manual design-session verification is now checklist-driven via
+  `docs/product/figma-prompts/acceptance-session-checklist.md`.
+- Remaining gap is executing the checklist in Figma and updating each row from
+  `planned` to `verified`/`done` with frame evidence and mismatch notes.
 
 ## Update Rules
 

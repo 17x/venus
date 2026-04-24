@@ -4,7 +4,12 @@ import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@vector
 import type {HistoryEntry, HistoryPatch} from '../history.ts'
 import type {EditorRuntimeCommand} from '../protocol.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
-import {convertShapeToPathShape, createAlignMovePatches, createDistributeMovePatches} from './shapeCommandHelpers.ts'
+import {
+  convertShapeToPathShape,
+  createAlignMovePatches,
+  createBooleanReplacePatches,
+  createDistributeMovePatches,
+} from './shapeCommandHelpers.ts'
 import {createTransformPatches, resolveTransformBatchItemToLegacy} from './transformSerde.ts'
 
 function createLogOnlyEntry(id: string, label: string): Omit<HistoryEntry, 'source'> {
@@ -410,6 +415,48 @@ export function createLocalHistoryEntry(
     return {
       id: `shape.convert-to-path.${Date.now()}`,
       label: `Convert ${convertedCount} Shapes to Path`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.boolean') {
+    const candidateIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+
+    const resolved = createBooleanReplacePatches(document, candidateIds, command.mode)
+    if (!resolved || resolved.patches.length === 0) {
+      return createLogOnlyEntry(command.type, 'Boolean Noop')
+    }
+
+    const insertedPatches = resolved.patches.filter(
+      (patch): patch is Extract<HistoryPatch, {type: 'insert-shape'}> => patch.type === 'insert-shape',
+    )
+
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+    const forward: HistoryPatch[] = [
+      ...resolved.patches,
+      {type: 'set-selected-index', prev: previousSelectedIndex, next: resolved.resultIndex},
+    ]
+
+    const backward: HistoryPatch[] = [
+      {type: 'set-selected-index', prev: resolved.resultIndex, next: previousSelectedIndex},
+      ...insertedPatches
+        .slice()
+        .sort((left, right) => right.index - left.index)
+        .map((patch) => ({type: 'remove-shape' as const, index: patch.index, shape: patch.shape})),
+      ...resolved.patches
+        .filter((patch): patch is Extract<HistoryPatch, {type: 'remove-shape'}> => patch.type === 'remove-shape')
+        .sort((left, right) => left.index - right.index)
+        .map((patch) => ({type: 'insert-shape' as const, index: patch.index, shape: patch.shape})),
+    ]
+
+    return {
+      id: `shape.boolean.${command.mode}.${Date.now()}`,
+      label: `Boolean ${command.mode} (${resolved.touchedCount})`,
       forward,
       backward,
     }
