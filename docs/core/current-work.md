@@ -258,6 +258,7 @@ context starts, or work needs to resume after switching topics.
   - worker hit-test candidate path (`hitTestDocumentCandidates`) with top-hit compatibility
   - toolbar/path/zoomOut coverage and shortcut baseline update (P path, N pencil, Shift+Z zoomOut)
   - initial useEditorRuntime decomposition via `editor/hooks/runtime/tooling.ts`
+  - `editorRuntimeHelpers.ts` decomposition advanced through selected-prop projection, element clone/offset helpers, and history entry projection so remaining runtime helper work can focus on pen/path geometry constructors instead of repeated snapshot/copy logic
   - worker command dispatch moved to registry-style handlers in
     `packages/runtime/src/worker/scope/operations.ts` for explicit
     command routing (`selection.set`, `history.undo`, `history.redo`)

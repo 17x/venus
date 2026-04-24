@@ -99,6 +99,26 @@
     - Verified 2026-04-24: `VT-20260424-35` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned line-like tool construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
     - Implemented: `VT-20260424-36` extracted drag box and drag line-like shape construction from `editorRuntimeHelpers.ts`, reducing inline rectangle/ellipse/line/connector object construction in `createShapeElementFromDrag`
     - Verified 2026-04-24: `VT-20260424-36` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned drag shape construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-37` extracted selected schema-meta projection from `buildSelectedProps` in `editorRuntimeHelpers.ts`, reducing inline schema snapshot branching in selected-element prop derivation
+    - Verified 2026-04-24: `VT-20260424-37` decomposition pass leaves `buildSelectedProps` with helper-owned schema-meta projection and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-38` extracted default fill resolution from `buildSelectedProps` in `editorRuntimeHelpers.ts`, reducing inline shape-type fill fallback branching in selected-element prop derivation
+    - Verified 2026-04-24: `VT-20260424-38` decomposition pass leaves `buildSelectedProps` with helper-owned fill fallback resolution and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-39` extracted default stroke resolution from `buildSelectedProps` in `editorRuntimeHelpers.ts`, reducing inline stroke fallback construction in selected-element prop derivation
+    - Verified 2026-04-24: `VT-20260424-39` decomposition pass leaves `buildSelectedProps` with helper-owned stroke fallback resolution and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-40` extracted point-array cloning from `cloneElementProps` in `editorRuntimeHelpers.ts`, reducing inline shallow-copy mapping for point collections
+    - Verified 2026-04-24: `VT-20260424-40` decomposition pass leaves `cloneElementProps` with helper-owned point-array cloning and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-41` extracted bezier-point cloning from `cloneElementProps` in `editorRuntimeHelpers.ts`, reducing inline shallow-copy mapping for bezier collections
+    - Verified 2026-04-24: `VT-20260424-41` decomposition pass leaves `cloneElementProps` with helper-owned bezier cloning and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-42` extracted style-like shallow cloning from `cloneElementProps` in `editorRuntimeHelpers.ts`, reducing repeated inline object spread handling for fill/stroke/shadow/corner radii
+    - Verified 2026-04-24: `VT-20260424-42` decomposition pass leaves `cloneElementProps` with helper-owned style-like cloning and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-43` extracted point-array offsetting from `offsetElementPosition` in `editorRuntimeHelpers.ts`, reducing inline coordinate translation mapping for moved shapes
+    - Verified 2026-04-24: `VT-20260424-43` decomposition pass leaves `offsetElementPosition` with helper-owned point offsetting and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-44` extracted bezier-point offsetting from `offsetElementPosition` in `editorRuntimeHelpers.ts`, reducing inline anchor/control-point translation logic for moved path shapes
+    - Verified 2026-04-24: `VT-20260424-44` decomposition pass leaves `offsetElementPosition` with helper-owned bezier offsetting and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-45` extracted history neighbor preview construction from `buildHistoryArray` in `editorRuntimeHelpers.ts`, reducing repeated inline prev/next snapshot shaping
+    - Verified 2026-04-24: `VT-20260424-45` decomposition pass leaves `buildHistoryArray` with helper-owned neighbor preview construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-46` extracted history entry projection from `buildHistoryArray` in `editorRuntimeHelpers.ts`, reducing inline history-node mapping details in runtime history projection
+    - Verified 2026-04-24: `VT-20260424-46` decomposition pass leaves `buildHistoryArray` with helper-owned entry projection and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
 - Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
   - Progress 2026-04-24:
     - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
@@ -258,6 +278,16 @@
 - `VT-20260424-10` [verified]: cache zoom buckets + hysteresis calibration to reduce threshold-edge cache thrash
 - `VT-20260424-11` [verified]: tiled bitmap cache prototype for large static regions with memory budget guardrails
 - `VT-20260424-12` [verified]: multi-resolution image path baseline for zoom-dependent image decode/upload cost control
+- `VT-20260424-37` [verified]: extract selected schema-meta projection from `buildSelectedProps`
+- `VT-20260424-38` [verified]: extract default fill resolution from `buildSelectedProps`
+- `VT-20260424-39` [verified]: extract default stroke resolution from `buildSelectedProps`
+- `VT-20260424-40` [verified]: extract point-array cloning from `cloneElementProps`
+- `VT-20260424-41` [verified]: extract bezier-point cloning from `cloneElementProps`
+- `VT-20260424-42` [verified]: extract style-like shallow cloning from `cloneElementProps`
+- `VT-20260424-43` [verified]: extract point-array offsetting from `offsetElementPosition`
+- `VT-20260424-44` [verified]: extract bezier-point offsetting from `offsetElementPosition`
+- `VT-20260424-45` [verified]: extract history neighbor preview construction from `buildHistoryArray`
+- `VT-20260424-46` [verified]: extract history entry projection from `buildHistoryArray`
 - `VT-20260424-13` [verified]: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
 - `VT-20260424-14` [verified]: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
 - `VT-20260424-15` [verified]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
