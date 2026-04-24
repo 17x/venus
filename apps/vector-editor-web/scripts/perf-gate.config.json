@@ -1,0 +1,48 @@
+{
+  "requiredScenes": [
+    "10k",
+    "50k",
+    "100k",
+    "mixed(text/image/path)"
+  ],
+  "metrics": {
+    "frameTimeMsP95": {
+      "operator": "<=",
+      "threshold": 16
+    },
+    "hitTestMsP95": {
+      "operator": "<=",
+      "threshold": 4
+    },
+    "cacheHitRate": {
+      "operator": ">=",
+      "threshold": 0.7
+    },
+    "visibleCandidateCount": {
+      "operator": "<=",
+      "threshold": 25000
+    }
+  },
+  "sceneOverrides": {
+    "100k": {
+      "frameTimeMsP95": {
+        "operator": "<=",
+        "threshold": 20
+      },
+      "visibleCandidateCount": {
+        "operator": "<=",
+        "threshold": 32000
+      }
+    }
+  },
+  "trendRegression": {
+    "enabled": true,
+    "defaultMaxRegressionPercent": 5,
+    "metricDirections": {
+      "frameTimeMsP95": "lower-better",
+      "hitTestMsP95": "lower-better",
+      "cacheHitRate": "higher-better",
+      "visibleCandidateCount": "lower-better"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-04-24T04:03:20.125Z",
+  "passed": true,
+  "checks": [
+    {
+      "name": "boolean-subtract-hole-contour",
+      "passed": true,
+      "details": "inserted=1, contours=2"
+    },
+    {
+      "name": "boolean-intersect-disconnected-results",
+      "passed": true,
+      "details": "inserted=2"
+    },
+    {
+      "name": "boolean-chained-union-subtract-contour",
+      "passed": true,
+      "details": "final.contours=2, final.points=10"
+    },
+    {
+      "name": "contour-anchor-subselection-edge-cases",
+      "passed": true,
+      "details": "seam-hit=null, inner-anchor-index=5, hole-segment-index=5"
+    },
+    {
+      "name": "local-history-multi-insert-undo",
+      "passed": true,
+      "details": "inserted=2, backward.remove=2"
+    },
+    {
+      "name": "remote-replay-patch-parity",
+      "passed": true,
+      "details": "insert=1, remove=2"
+    },
+    {
+      "name": "file-roundtrip-contour-points",
+      "passed": true,
+      "details": "points=10, contours=2"
+    }
+  ]
+}

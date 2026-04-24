@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-04-24T00:00:00.000Z",
+  "scenes": [
+    {
+      "name": "10k",
+      "frameTimeMsP95": 11.2,
+      "hitTestMsP95": 1.6,
+      "cacheHitRate": 0.84,
+      "visibleCandidateCount": 9100
+    },
+    {
+      "name": "50k",
+      "frameTimeMsP95": 14.8,
+      "hitTestMsP95": 2.9,
+      "cacheHitRate": 0.79,
+      "visibleCandidateCount": 17900
+    },
+    {
+      "name": "100k",
+      "frameTimeMsP95": 19.6,
+      "hitTestMsP95": 3.7,
+      "cacheHitRate": 0.73,
+      "visibleCandidateCount": 30100
+    },
+    {
+      "name": "mixed(text/image/path)",
+      "frameTimeMsP95": 15.1,
+      "hitTestMsP95": 3.1,
+      "cacheHitRate": 0.76,
+      "visibleCandidateCount": 21300
+    }
+  ]
+}
