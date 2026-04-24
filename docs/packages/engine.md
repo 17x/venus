@@ -5,8 +5,12 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
 ## Stable Knowledge
 
 - Owns renderer-facing engine contracts and frame-time primitives.
-- Owns backend-agnostic render models for text, text runs, image, and clipping.
+- Owns WebGL-first render models plus auxiliary/offscreen Canvas2D support for
+  text, text runs, image, and clipping workflows.
 - Must stay independent from app frameworks and editor command policy.
+- WebGL is the only primary engine backend; Canvas2D inside `@venus/engine`
+  is helper infrastructure for composite/offscreen/fallback tasks, not a peer
+  production backend.
 
 ## Recent Updates
 
@@ -21,7 +25,8 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
 
 - `createEngine(...)` default backend in
   `packages/engine/src/runtime/createEngine.ts` is now `webgl`
-  (Canvas2D remains available via explicit `backend: 'canvas2d'`).
+  (Canvas2D remains available only as an explicit auxiliary path where helper
+  rendering is required).
 - WebGL renderer internals in `packages/engine/src/renderer/webgl.ts` now run a
   packetized frame pipeline instead of the prior clear-only skeleton:
   shared render plan -> instance view -> WebGL render packets.
@@ -31,6 +36,9 @@ Package-scoped note for the framework-agnostic Venus rendering engine layer.
 - Added `packages/engine/src/renderer/webglPackets.ts` with
   `compileEngineWebGLPacketPlan(...)`, so backend commit stages consume
   render-oriented packets rather than reinterpreting scene/business nodes.
+- Packet compilation now also precomputes draw metadata and WebGL-oriented
+  aggregates so commit loops avoid repeated prepared-node lookups and packet
+  rescans.
 - Added `packages/engine/src/renderer/webglResources.ts` with
   `createEngineWebGLResourceBudgetTracker(...)` to establish explicit frame
   budget accounting (buffer bytes, texture bytes, overflow tracking, LRU-ready

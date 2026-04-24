@@ -32,6 +32,8 @@ export interface EngineRenderStats {
   drawCount: number
   visibleCount: number
   culledCount: number
+  groupCollapseCount?: number
+  groupCollapseCulledCount?: number
   cacheHits: number
   cacheMisses: number
   frameReuseHits: number
@@ -42,7 +44,17 @@ export interface EngineRenderStats {
   webglTextTextureUploadCount?: number
   webglTextTextureUploadBytes?: number
   webglTextCacheHitCount?: number
+  webglImageTextureUploadCount?: number
+  webglImageTextureUploadBytes?: number
+  webglDeferredImageTextureCount?: number
   webglCompositeUploadBytes?: number
+  l0PreviewHitCount?: number
+  l0PreviewMissCount?: number
+  l1CompositeHitCount?: number
+  l1CompositeMissCount?: number
+  l2TileHitCount?: number
+  l2TileMissCount?: number
+  cacheFallbackReason?: string
   // Tile cache diagnostics
   tileCacheSize?: number
   tileDirtyCount?: number
@@ -106,6 +118,13 @@ export interface EngineRendererContext {
     gridX: number
     gridY: number
   }>
+  // Optional: viewport-scoped coarse candidates from the engine frame plan.
+  // Render planning can use this to avoid traversing obviously offscreen work.
+  framePlanCandidateIds?: readonly string[]
+  framePlanVersion?: number
+  // Optional: node ids that should bypass aggressive collapse/degradation.
+  // App/runtime can use this for selected or actively edited objects.
+  protectedNodeIds?: readonly string[]
 }
 
 export interface EngineRenderFrame {

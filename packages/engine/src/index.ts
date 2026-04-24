@@ -108,6 +108,14 @@ export type {
 } from './scene/types.ts'
 export type { EngineSceneBufferLayout } from './scene/buffer.ts'
 export type {
+  EngineFramePlan,
+  PrepareEngineFramePlanOptions,
+} from './scene/framePlan.ts'
+export type {
+  EngineHitPlan,
+  PrepareEngineHitPlanOptions,
+} from './scene/hitPlan.ts'
+export type {
   CreateEngineSceneStoreOptions,
   EngineSceneStore,
   EngineSceneStoreDiagnostics,
@@ -129,6 +137,8 @@ export {
   resolveNodeByFlattenedIndex,
 } from './scene/patch.ts'
 export { createEngineSceneStore } from './scene/store.ts'
+export { prepareEngineFramePlan } from './scene/framePlan.ts'
+export { prepareEngineHitPlan } from './scene/hitPlan.ts'
 export { hitTestEngineSceneState, hitTestEngineSceneStateAll } from './scene/hitTest.ts'
 export type {
   EngineClock,
@@ -210,10 +220,16 @@ export {
   resolveEngineMoveSnapPreview,
 } from './interaction/snapping.ts'
 export type {
+  EngineLodInteractionType,
+  EngineLodProfile,
+  EngineLodProfileInput,
   EngineCanvasLodProfile,
   EngineCanvasLodProfileInput,
 } from './interaction/lodProfile.ts'
-export { resolveEngineCanvasLodProfile } from './interaction/lodProfile.ts'
+export {
+  resolveEngineCanvasLodProfile,
+  resolveEngineLodProfile,
+} from './interaction/lodProfile.ts'
 export type {
   EngineEditorBezierPoint,
   EngineEditorHitTestNode,

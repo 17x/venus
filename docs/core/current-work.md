@@ -18,7 +18,210 @@ context starts, or work needs to resume after switching topics.
 - `vector editor architecture buildout`
   Focus on filling structural gaps in the vector/runtime/engine stack.
   Reference doc: `docs/vector-editor-architecture.md`
-  Recently landed:
+  Performance track (100K scene readiness):
+  - Phase 1 (spike stop): frame stats, pointermove hit throttling,
+    hover gating during pan/drag, zoom-time rebuild freeze
+    (cache/text/path), tiny-object LOD, text placeholder, bbox-first hit
+  - Phase 2 (runtime structure): phase-based render policy,
+    drag preview layer, dirty-region redraw, group collapse,
+    path simplification buckets, zoom-bucket cache hysteresis
+  - Phase 3 (scale hardening): tiled cache, image multi-resolution,
+    incremental spatial-index update, worker precompute,
+    pan framebuffer shift/edge redraw
+    Active execution status (2026-04-23):
+  - canvas adapter now publishes runtime render diagnostics baseline and
+    render-prep dirty overlap uses previous frame candidates from engine diagnostics
+  - pointermove hover resolution now uses a time+distance budget to avoid
+    resolving top-hit on every high-frequency move tick
+  - hover recompute is now gated for interaction modes:
+    `dragging/resizing/rotating/panning/zooming/marqueeSelecting`
+  - zoom interaction now uses an interactive-quality LOD freeze profile
+    (reduced DPR/quality during zoom, full quality on settle)
+  - render plan now skips sub-pixel tiny objects under low zoom or
+    interactive quality to reduce draw-list pressure
+  - WebGL now enforces low-zoom text placeholder mode and defers missing
+    image texture uploads during interactive frames
+  - non-precision hover hit resolution now uses `bbox_then_exact` with
+    a capped exact candidate budget to reduce high-frequency geometry checks
+  - tile cache zoom-level selection now uses threshold hysteresis to
+    avoid zoom-boundary oscillation and cache bucket thrash
+  - worker pointer selection now defaults to `bbox_then_exact` for
+    selector tool while preserving `exact` hit mode for direct-selection flows
+  - runtime debug diagnostics now surface hit-plan exact geometry check count
+    (`Hit Exact Checks`) to verify bbox-first policy impact
+  - engine render planning now applies a minimal tiny-group collapse policy
+    on buffer-backed frames, pruning descendants of sub-pixel/low-screen groups
+    under low zoom or interactive quality
+  - runtime debug panel now surfaces `Hit Exact Ratio`
+    (`hitPlanExactCheckCount / hitPlanCandidateCount`) for quick policy tuning
+  - tiny-group collapse pruning now also applies to non-buffer render planning
+    so fallback traversal path keeps parity with buffer-backed execution
+  - runtime diagnostics now expose group-collapse counters
+    (`Collapsed Groups`, `Collapse-Culled Nodes`) for collapse effectiveness checks
+  - selected-node collapse protection is now wired via engine `setProtectedNodeIds`,
+    and planner collapse selection skips protected groups plus ancestor groups
+    to keep active selection/editing visuals stable at low zoom
+  - Canvas2D renderer now has a first path-simplification bucket entry:
+    low-zoom/interactive path rendering can degrade to simplified anchor
+    polylines to reduce path construction pressure
+  - collapse protection hints now include active editing signals
+    (`pathSubSelection`, path-subselection hover, handle-drag shape id,
+    and transform-preview shape ids), not just selected nodes, so live
+    editing/transforming is less likely to be hidden by low-zoom group collapse
+  - Canvas2D path simplification now uses adaptive projected-density sampling
+    (screen-space spacing + projected-length point cap) instead of fixed
+    anchor stride, reducing dense path cost more predictably across zoom levels
+  - engine runtime now enables frame-plan shortlist pruning for large scenes
+    (scene-size threshold + candidate-ratio gate), so renderer planning can
+    skip offscreen/non-candidate work in normal execution
+  - runtime shortlist candidate ids now merge `protectedNodeIds` before passing
+    into render planning, keeping active/editing nodes from being incorrectly
+    dropped by coarse viewport shortlisting
+  - frame-plan shortlist activation now uses an enter/leave hysteresis ratio
+    window in engine runtime, reducing shortlist on/off oscillation near
+    threshold boundaries during minor viewport movement
+  - engine render options now expose shortlist policy tuning (`enabled`,
+    `minSceneNodes`, `ratioThreshold`, `hysteresisRatio`) so behavior can be
+    adjusted per host without changing engine source constants
+  - shortlist diagnostics (`shortlistActive`, `shortlistCandidateRatio`) now
+    flow through runtime events and are surfaced in `RuntimeDebugPanel` for
+    threshold tuning and oscillation analysis
+  - shortlist state transitions now require consecutive-frame confirmation
+    (`stableFrameCount`) in engine runtime, so one-frame candidate-ratio
+    spikes near boundaries do not immediately flip shortlist state
+  - shortlist diagnostics now expose pending/apply internals (`pendingState`,
+    `pendingFrameCount`, `appliedCandidateCount`) and enter/leave ratio
+    thresholds through runtime events + Runtime Debug Panel, making it easier
+    to explain why shortlist did or did not switch on a given frame
+  - shortlist diagnostics now also expose transition counters (`toggleCount`,
+    `debounceBlockedToggleCount`), and Runtime Debug Panel now surfaces
+    shortlist effectiveness indicators (`Shortlist Coverage`, `Shortlist Gap`,
+    `Shortlist Threshold Zone`) for faster ratio/debounce tuning
+  - Runtime Debug Panel now also derives shortlist stability-rate metrics
+    (`Shortlist Toggle / Min`, `Shortlist Debounce Blocked Rate`) and uses a
+    color-coded threshold-zone signal (`enter`/`hysteresis`/`leave`) to speed
+    up shortlist boundary diagnosis in long-running stress checks
+  - Runtime Debug Panel now surfaces threshold-distance diagnostics
+    (`Shortlist Distance To Enter`, `Shortlist Distance To Leave`), an explicit
+    shortlist stability status (`stable`/`watch`/`unstable`), and a compact
+    `Shortlist Summary` row for faster on-panel readouts during tuning
+  - phase-based render policy baseline is now extracted into
+    `resolveRuntimeRenderPolicy` (interactive/settled), so canvas adapter
+    no longer inlines DPR+quality switching logic and future phase policy
+    tuning can evolve through one service entry
+  - phase-based render policy now supports explicit phase states
+    (`pan`/`zoom`/`drag`/`static`/`settled`), with viewport interaction type
+    feeding renderer policy resolution so phase behavior is no longer tied to
+    generic local interaction timers alone
+  - runtime diagnostics now include `renderPhase`, and Runtime Debug Panel
+    surfaces it to verify phase-policy transitions during stress playback
+  - phase resolution now prefers runtime editing-mode signals (drag/resize/
+    rotate/pan/zoom modes) before viewport-velocity fallback, improving
+    render-phase correctness during active manipulation flows
+  - runtime diagnostics now expose `overlayMode` (`full`/`degraded`) so
+    overlay degradation policy can be inspected alongside render phase
+  - overlay degradation now actively gates hover-highlight and snap-guide
+    instruction generation in app derived-state for motion-heavy editing
+    modes, reducing overlay-side per-frame work while keeping path-edit
+    overlays available
+  - degraded overlay mode now keeps coarse snap guidance (one guide per axis)
+    instead of suppressing guides entirely, and any active path-edit signal
+    now forces full path-edit chrome visibility as an explicit whitelist
+  - degraded snap-guide selection now ranks guides per axis by relevance to
+    current selected/moving bounds (edge/center anchor distance), so reduced
+    overlay guidance is more likely to match active manipulation intent
+  - overlay policy telemetry now publishes degraded flag, guide input/kept
+    counts, and path-edit whitelist activity through runtime render
+    diagnostics, and Runtime Debug Panel now visualizes retention % plus
+    whitelist state for quick overlay-policy verification
+  - overlay diagnostics now also expose guide selection strategy
+    (`full`/`axis-first`/`axis-relevance`) and dropped count/rate so
+    degraded-guide behavior can be interpreted without code inspection
+  - phase policy now includes a dedicated `precision` posture for
+    `pathEditing` and `textEditing`, keeping full-fidelity quality/DPR and
+    full overlay mode instead of routing these flows through generic drag
+    degradation
+  - runtime diagnostics now publish policy output
+    (`renderPolicyQuality`, `renderPolicyDpr`) and viewport interaction
+    classification (`pan`/`zoom`/`other`), and Runtime Debug Panel now adds
+    these rows plus per-reason render-request rate metrics for scene-dirty,
+    deferred-image, idle-redraw, and interactive request sources
+  - transform preview rendering now uses an overlay-only path during
+    `dragging`/`resizing`/`rotating` so active transform gestures do not force
+    per-frame preview-scene mutation in app runtime state, reducing
+    transform-time `scene-dirty` churn while preserving visual preview output
+  - canvas runtime adapter now skips immediate `scene-dirty` redraw when
+    incremental dirty ids are fully outside the previous frame candidate set,
+    while still applying scene patch updates to engine state for correctness
+  - dirty-region invalidation now always coalesces incremental upsert nodes to
+    one merged bounds mark (`markDirtyBounds`) instead of gating by node-count
+    threshold, improving local invalidation signal consistency for tile cache
+  - offscreen-only `scene-dirty` redraw short-circuit now includes a
+    consecutive-skip guardrail that forces periodic redraw after repeated
+    skips, preventing long-running starvation while preserving skip benefits
+  - runtime diagnostics now include offscreen-skip scheduling counters and
+    dirty-mark metrics (`dirtyBoundsMarkCount`, `dirtyBoundsMarkArea`), and
+    Runtime Debug Panel now surfaces skip/forced rates for redraw-policy tuning
+  - runtime diagnostics now also publish the offscreen force-render threshold
+    and dirty-mark area buckets (small/medium/large), so starvation-guard
+    tuning and invalidation footprint distribution are visible without code reads
+  - Runtime Debug Panel now includes short-window (90-frame) per-second trend
+    readouts for offscreen skips, forced scene-dirty renders, and dirty-bounds
+    marks, enabling faster live policy regression checks during stress playback
+  - dirty-region diagnostics thresholds are now centralized under runtime
+    render policy defaults and published into runtime diagnostics snapshots,
+    so panel telemetry can show both current behavior and active thresholds
+  - Runtime Debug Panel now adds trend-direction readouts (`up`/`down`/`flat`)
+    and a coarse `Scene Dirty Risk Status` signal to speed up starvation-risk
+    triage without log inspection
+  - dirty-region risk defaults are now centralized in runtime policy and flow
+    through runtime diagnostics (watch/high skip thresholds + high forced-rate
+    threshold), so risk classification rules are no longer panel-local literals
+  - runtime diagnostics now preserve max observed offscreen consecutive-skip
+    streaks and panel now shows remaining frames before forced redraw, adding
+    both long-horizon and immediate-pressure starvation indicators
+  - Runtime Debug Panel now derives trend pressure (`rising`/`mixed`/`easing`),
+    computes a bounded risk score (0-100), and color-codes scene-dirty risk
+    status for faster stress-session diagnosis
+  - runtime diagnostics now also publish trend/spike/risk-score policy
+    thresholds, enabling panel-side interpretation to stay aligned with
+    adapter/runtime policy defaults instead of local hardcoded constants
+  - Runtime Debug Panel now publishes spike signal classification
+    (`none`/`skip`/`forced`/`forced+skip`), risk-score banding, and
+    risk-status transition telemetry (transition count + time in state)
+  - offscreen-skip diagnostics now include max observed consecutive streak,
+    and panel trend history now scales with active trend-window size while
+    using safe threshold fallbacks for early snapshot initialization
+  - runtime policy now centralizes risk-score composition defaults
+    (skip/forced/streak weights + forced-rate scale) and publishes them through
+    runtime diagnostics to keep panel-side score computation policy-aligned
+  - Runtime Debug Panel now decomposes scene-dirty risk score into explicit
+    contribution rows and surfaces transition reasons plus transitions/min,
+    making status flips diagnosable without stepping through code
+  - Runtime Debug Panel now supports one-click diagnostics snapshot export to
+    clipboard with short-lived export feedback state for faster triage sharing
+  - risk-score composition parameters are now centralized in runtime policy and
+    propagated through diagnostics snapshots, keeping panel score math aligned
+    with runtime defaults and reducing hidden constants
+  - Runtime Debug Panel now reports risk-score contribution percentages and a
+    transition-rate status (`stable`/`watch`/`churning`) so score drivers and
+    state-flip churn can be interpreted at a glance
+  - Runtime Debug Panel now exposes prolonged high-risk detection and exports a
+    timestamped derived-metrics payload alongside raw diagnostics for faster
+    handoff/debug loops
+  - vector app now includes an executable mixed-scene perf gate script
+    (`scripts/perf-gate.mjs`) with baseline config/template artifacts for
+    `10k`/`50k`/`100k`/`mixed(text/image/path)` threshold validation
+  - engineering testing docs now include a targeted transform/hit-test overlap
+    regression checklist plus the mixed-scene gate invocation path so
+    performance and interaction regressions can be reproduced consistently
+  - mixed-scene gate now supports trend regression checks against previous
+    reports and emits optional machine-readable result payloads for CI/report
+    automation (`checks`, `trendChecks`, `failures`, `trendFailures`)
+  - workspace and vector package scripts now expose direct perf-gate entry
+    points (`perf:gate`, `perf:gate:template`) to reduce command friction in
+    iterative performance validation loops
+    Recently landed:
   - command registry (`packages/runtime/src/commands/registry.ts`)
   - hit-test adapter (`packages/runtime/src/interaction/hitTestAdapter.ts`)
   - tool registry (`apps/vector-editor-web/src/editor/tools/registry.ts`)
@@ -269,6 +472,24 @@ context starts, or work needs to resume after switching topics.
     when runtime sets `quality=interactive`, the renderer bypasses
     model-complete Canvas2D composite and skips rich text texture generation,
     using packet-path solid text-bounds fallback to keep pan/zoom responsive
+  - engine render-planning convergence continued on the WebGL-primary path:
+    frame-plan candidates now prune render planning, hit planning now reuses
+    coarse point candidates, instance-view and packet-plan prep are cached by
+    plan identity, and WebGL packet plans now carry immutable draw metadata
+    plus aggregate counters so commit loops avoid repeated prepared-node reads
+    and packet rescans
+  - WebGL text texture uploads now invalidate by frame signature
+    (`scene.revision + pixelRatio + viewport.scale`) to avoid stale text
+    rasters, and text crop uploads now reuse a scratch offscreen surface
+    instead of allocating one temporary canvas per uncached text packet
+  - engine-facing docs and package notes now explicitly treat WebGL as the
+    only primary renderer backend, with Canvas2D retained only for
+    auxiliary/offscreen/composite duties
+  - WebGL settled-frame path now includes an L2 tile cache execution branch:
+    runtime dirty-region tile ids invalidate cached tiles, visible tiles are
+    rebuilt/reused from model-surface captures, and layered cache diagnostics
+    (`L0/L1/L2` hits/misses + fallback reason) are emitted to runtime debug
+    events and surfaced in `RuntimeDebugPanel`
   - viewport scale consumers are now detached from `EditorFrame` prop threading:
     runtime viewport snapshot pub/sub was added in `runtime/events`, with
     `RuntimeZoomControls` and `RuntimeGridOverlay` independently subscribing via
@@ -345,10 +566,10 @@ context starts, or work needs to resume after switching topics.
     `>500` split threshold and build/lint remain green after the refactor
 
 - `playground`
-  Use as the main render diagnostics bench for `Canvas2D`.
-  Current direction: use the pure canvas viewport path (`commit + redraw`)
-  plus viewport bitmap caching to probe how far `Canvas2D` can be pushed on
-  `10k / 50k / 100k / Img+` scenes.
+  Historical pure-canvas diagnostics bench.
+  Current renderer direction is WebGL-primary; keep this surface only for
+  auxiliary comparison and legacy stress checks rather than as the target
+  engine render path.
 
 ## Paused
 

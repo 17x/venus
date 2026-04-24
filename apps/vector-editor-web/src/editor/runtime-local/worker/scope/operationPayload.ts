@@ -18,13 +18,13 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
   if (command.type === 'shape.resize') return {shapeId: command.shapeId, width: command.width, height: command.height}
   if (command.type === 'shape.rotate') return {shapeId: command.shapeId, rotation: command.rotation}
   if (command.type === 'shape.rotate.batch') {
-    return {rotations: command.rotations.map((item) => ({shapeId: item.shapeId, rotation: item.rotation}))}
+    return {rotations: command.rotations.map((item: {shapeId: string; rotation: number}) => ({shapeId: item.shapeId, rotation: item.rotation}))}
   }
   if (command.type === 'shape.transform.batch') {
     return {
       transforms: command.transforms
-        .map((item) => ({id: item.id, fromMatrix: item.fromMatrix, toMatrix: item.toMatrix}))
-        .filter((item): item is {id: string; fromMatrix: NonNullable<typeof item.fromMatrix>; toMatrix: NonNullable<typeof item.toMatrix>} => item !== null),
+        .map((item: {id: string; fromMatrix?: unknown; toMatrix?: unknown}) => ({id: item.id, fromMatrix: item.fromMatrix, toMatrix: item.toMatrix}))
+        .filter((item: {id: string; fromMatrix?: unknown; toMatrix?: unknown}): item is {id: string; fromMatrix: NonNullable<typeof item.fromMatrix>; toMatrix: NonNullable<typeof item.toMatrix>} => item !== null),
     }
   }
   if (command.type === 'shape.patch') {

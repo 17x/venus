@@ -1,9 +1,11 @@
 /// <reference lib="webworker" />
 
 import {
-  createEngine,
+  createCanvas2DEngineRenderer,
   createEngineReplayCoordinator,
-  type Engine,
+  resolveEngineViewportState,
+  type EngineRenderFrame,
+  type EngineRenderQuality,
   type EngineReplayRenderRequest,
   type EngineReplayWorkerMessage,
 } from '@vector/runtime/engine'
@@ -13,12 +15,20 @@ import {
 } from '@vector/runtime/presets'
 
 type ReplayScenePayload = CreateEngineSceneFromRuntimeSnapshotOptions
-let replayEngine: Engine | null = null
+interface ReplayCanvasEngine {
+  loadScene: (scene: ReturnType<typeof createEngineSceneFromRuntimeSnapshot>) => void
+  setViewport: (viewport: EngineReplayRenderRequest['viewport']) => void
+  resize: (width: number, height: number) => void
+  setQuality: (quality: EngineRenderQuality) => void
+  renderFrame: () => Promise<void>
+}
+
+let replayEngine: ReplayCanvasEngine | null = null
 let replayCanvas: OffscreenCanvas | null = null
 
 const replayCoordinator = createEngineReplayCoordinator<ReplayScenePayload>({
   renderFrameBitmap: renderReplayFrameBitmap,
-  postEvent: (message, transfer) => {
+  postEvent: (message: EngineReplayWorkerMessage<ReplayScenePayload>, transfer?: Transferable[]) => {
     if (transfer && transfer.length > 0) {
       postMessage(message, transfer)
       return
@@ -56,23 +66,72 @@ function ensureReplayEngine(width: number, height: number) {
   }
 
   if (!replayEngine) {
-    replayEngine = createEngine({
-      canvas: replayCanvas,
-      backend: 'canvas2d',
-      performance: {
-        culling: true,
-      },
-      render: {
-        quality: 'full',
-        canvasClearColor: '#f3f4f6',
-      },
-      resource: {
-        loader: {
-          resolveImage: () => null,
-        },
-      },
-    })
+    replayEngine = createReplayCanvasEngine(replayCanvas)
   }
 
   return replayEngine
+}
+
+function createReplayCanvasEngine(canvas: OffscreenCanvas): ReplayCanvasEngine {
+  const renderer = createCanvas2DEngineRenderer({
+    id: 'engine.replay.canvas2d',
+    canvas,
+    enableCulling: true,
+    clearColor: '#f3f4f6',
+  })
+  const renderContext: EngineRenderFrame['context'] = {
+    quality: 'full',
+    pixelRatio: 1,
+    loader: {
+      resolveImage: () => null,
+    },
+  }
+  const emptyDocument = {
+    id: 'replay-empty',
+    name: 'replay-empty',
+    width: 1,
+    height: 1,
+    shapes: [],
+  } as unknown as ReplayScenePayload['document']
+  let scene = createEngineSceneFromRuntimeSnapshot({
+    document: emptyDocument,
+    shapes: [],
+    revision: 0,
+  })
+  let viewport = resolveEngineViewportState({
+    viewportWidth: canvas.width,
+    viewportHeight: canvas.height,
+    offsetX: 48,
+    offsetY: 48,
+    scale: 1,
+  })
+
+  return {
+    loadScene(nextScene) {
+      scene = nextScene
+    },
+    setViewport(nextViewport) {
+      viewport = resolveEngineViewportState(nextViewport)
+    },
+    resize(width, height) {
+      renderer.resize?.(width, height)
+      viewport = resolveEngineViewportState({
+        viewportWidth: width,
+        viewportHeight: height,
+        offsetX: viewport.offsetX,
+        offsetY: viewport.offsetY,
+        scale: viewport.scale,
+      })
+    },
+    setQuality(quality) {
+      renderContext.quality = quality
+    },
+    async renderFrame() {
+      await Promise.resolve(renderer.render({
+        scene,
+        viewport,
+        context: renderContext,
+      }))
+    },
+  }
 }

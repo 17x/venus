@@ -37,6 +37,7 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[architecture/runtime]]
 - [[architecture/layering]]
 - [[architecture/data-flow]]
+- [[architecture/render-cache-layering]]
 - [[vector-editor-architecture]]
 
 ## Engineering
@@ -81,4 +82,5 @@ Legacy notes remain available during migration:
 - [[core/monorepo-knowledge-base]]
 - [[core/current-work]]
 - [[core/review-checklist]]
+- [[core/transform-hit-test-regression-checklist]]
 - [[core/important-context]]

@@ -45,7 +45,7 @@ const localCommandHandlers: Array<{
 
     const mode = command.mode ?? 'replace'
     const ids = Array.isArray(command.shapeIds) ? command.shapeIds : command.shapeId === undefined ? [] : [command.shapeId]
-    const indices = ids.map((shapeId) => (shapeId ? context.document.shapes.findIndex((shape) => shape.id === shapeId) : -1)).filter((index) => index >= 0)
+    const indices = ids.map((shapeId: string | null) => (shapeId ? context.document.shapes.findIndex((shape) => shape.id === shapeId) : -1)).filter((index: number) => index >= 0)
     if (mode === 'clear' || (ids.length === 1 && ids[0] === null)) {
       const changed = setSelectedShapes(context.scene, [], 'clear')
       return changed ? 'flags' : null

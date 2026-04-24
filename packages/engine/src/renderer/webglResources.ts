@@ -12,6 +12,7 @@ export interface EngineWebGLResourceBudgetTracker {
   recordFrameUsage(usage: {bufferBytes: number; textureBytes: number}): EngineWebGLBudgetState
   markTextureResident(textureId: string, bytes: number): void
   markTextureUsed(textureId: string): void
+  releaseTexture(textureId: string): void
   evictLeastRecentlyUsedTextures(targetBytes: number): string[]
   getTextureBytes(): number
 }
@@ -79,6 +80,16 @@ export function createEngineWebGLResourceBudgetTracker(
     existing.lastUsedFrame = frameId
   }
 
+  const releaseTexture = (textureId: string) => {
+    const existing = textureEntries.get(textureId)
+    if (!existing) {
+      return
+    }
+
+    textureEntries.delete(textureId)
+    currentTextureBytes = Math.max(0, currentTextureBytes - existing.bytes)
+  }
+
   const evictLeastRecentlyUsedTextures = (targetBytes: number) => {
     const bytesToFree = sanitizeByteSize(targetBytes)
     if (bytesToFree <= 0 || textureEntries.size === 0) {
@@ -111,6 +122,7 @@ export function createEngineWebGLResourceBudgetTracker(
     recordFrameUsage,
     markTextureResident,
     markTextureUsed,
+    releaseTexture,
     evictLeastRecentlyUsedTextures,
     getTextureBytes,
   }

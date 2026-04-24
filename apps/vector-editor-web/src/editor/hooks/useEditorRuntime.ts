@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@vector/ui'
-import {type ToolName} from '@venus/document-core'
+import {type EditorDocument, type ToolName} from '@venus/document-core'
 import {
-  createRuntimeCanvasInputBridge,
   createRuntimeEditingModeController,
   createRuntimeInputRouter,
   createRuntimeToolRegistry,
@@ -134,9 +133,12 @@ const useEditorRuntime = (options?: {
     selectionState,
     overlayInstructions,
     previewInstructions,
+    overlayDiagnostics,
+    protectedNodeIds,
     OverlayRenderer,
   } = useEditorRuntimeDerivedState({
     document,
+    editingMode,
     onContextMenu,
     hoveredShapeId,
     marquee,
@@ -162,14 +164,16 @@ const useEditorRuntime = (options?: {
       },
     })
 
-    runtimeToolRegistryRef.current.activate(currentTool, {
-      editingMode: runtimeEditingModeControllerRef.current.getCurrentMode(),
-    })
-
     return () => {
       dispose()
     }
   }, [])
+
+  useEffect(() => {
+    runtimeToolRegistryRef.current.activate(currentTool, {
+      editingMode: runtimeEditingModeControllerRef.current.getCurrentMode(),
+    })
+  }, [currentTool])
 
   const {add: notify} = useNotification()
   const add = useCallback((message: string, tone: 'info' | 'success' | 'warning' | 'error') => {
@@ -260,18 +264,22 @@ const useEditorRuntime = (options?: {
     t,
   })
 
-  const applyAutoMask = useMemo(() => createAutoMaskHandler({
-    add,
-    canvasShapes: canvasRuntime.document.shapes,
-    handleCommand,
-    selectedNode,
-  }), [add, canvasRuntime.document.shapes, handleCommand, selectedNode])
+  const applyAutoMask = useCallback(() => {
+    createAutoMaskHandler({
+      add,
+      canvasShapes: canvasRuntime.document.shapes,
+      handleCommand,
+      selectedNode,
+    })()
+  }, [add, canvasRuntime.document.shapes, handleCommand, selectedNode])
 
-  const clearMask = useMemo(() => createClearMaskHandler({
-    add,
-    handleCommand,
-    selectedNode,
-  }), [add, handleCommand, selectedNode])
+  const clearMask = useCallback(() => {
+    createClearMaskHandler({
+      add,
+      handleCommand,
+      selectedNode,
+    })()
+  }, [add, handleCommand, selectedNode])
 
   const executeAction = useEditorRuntimeExecuteAction({
     add,
@@ -337,7 +345,7 @@ const useEditorRuntime = (options?: {
     resolveMarqueeBounds(nextMarquee),
     {
       matchMode: 'contain',
-      excludeShape: (shape) => shape.type === 'frame',
+      excludeShape: (shape: EditorDocument['shapes'][number]) => shape.type === 'frame',
     },
   ), [interactionDocument.shapes])
 
@@ -400,23 +408,48 @@ const useEditorRuntime = (options?: {
     transformPreview,
   })
 
-  const runtimeInputBridge = useMemo(() => {
-    const router = createRuntimeInputRouter({
-      onInput: () => {
-        // Runtime input stream is currently used for event normalization.
-      },
-    })
+  const runtimeInputRouter = useMemo(() => createRuntimeInputRouter({
+    onInput: () => {
+      // Runtime input stream is currently used for event normalization.
+    },
+  }), [])
 
-    return createRuntimeCanvasInputBridge(router, {
-      onPointerMove: (point: {x: number; y: number}) => {
-        worldPointRef.current?.set(point)
-        canvasInteractions.onPointerMove(point)
-      },
-      onPointerDown: canvasInteractions.onPointerDown,
-      onPointerUp: canvasInteractions.onPointerUp,
-      onPointerLeave: canvasInteractions.onPointerLeave,
+  const onPointerMove = useCallback((point: {x: number; y: number}) => {
+    runtimeInputRouter.dispatch({
+      type: 'pointermove',
+      point,
     })
-  }, [canvasInteractions])
+    worldPointRef.current?.set(point)
+    canvasInteractions.onPointerMove(point)
+  }, [canvasInteractions, runtimeInputRouter])
+
+  const onPointerDown = useCallback((
+    point: {x: number; y: number},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
+  ) => {
+    runtimeInputRouter.dispatch({
+      type: 'pointerdown',
+      point,
+      modifiers,
+    })
+    canvasInteractions.onPointerDown(point, modifiers)
+  }, [canvasInteractions, runtimeInputRouter])
+
+  const onPointerUp = useCallback(() => {
+    runtimeInputRouter.dispatch({
+      type: 'pointerup',
+      point: {x: 0, y: 0},
+    })
+    canvasInteractions.onPointerUp()
+  }, [canvasInteractions, runtimeInputRouter])
+
+  const onPointerLeave = useCallback(() => {
+    runtimeInputRouter.dispatch({
+      type: 'pointerleave',
+      point: {x: 0, y: 0},
+    })
+    canvasInteractions.onPointerLeave()
+  }, [canvasInteractions, runtimeInputRouter])
 
   const documentState: EditorDocumentState = {
     document: canvasRuntime.document,
@@ -432,13 +465,16 @@ const useEditorRuntime = (options?: {
       shapes: previewShapes,
       stats: canvasRuntime.stats,
       viewport: canvasRuntime.viewport,
+      editingMode,
       ready: canvasRuntime.ready,
+      protectedNodeIds,
       overlayInstructions,
       previewInstructions,
-      onPointerMove: runtimeInputBridge.onPointerMove,
-      onPointerDown: runtimeInputBridge.onPointerDown,
-      onPointerUp: runtimeInputBridge.onPointerUp,
-      onPointerLeave: runtimeInputBridge.onPointerLeave,
+      overlayDiagnostics,
+      onPointerMove,
+      onPointerDown,
+      onPointerUp,
+      onPointerLeave,
       onViewportChange: canvasInteractions.onViewportChange,
       onViewportPan: canvasInteractions.onViewportPan,
       onViewportResize: canvasInteractions.onViewportResize,

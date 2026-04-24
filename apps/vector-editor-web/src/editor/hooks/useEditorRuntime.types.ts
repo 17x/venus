@@ -4,6 +4,7 @@ import type {CanvasViewportState} from '@vector/runtime'
 import type {RuntimeEditingMode} from '@vector/runtime'
 import type {RuntimeOverlayInstruction, RuntimePreviewInstruction} from '@vector/runtime'
 import type {
+  OverlayDiagnostics,
   CanvasOverlayRenderer as CanvasOverlayRendererCompat,
   CanvasRenderer as CanvasRendererCompat,
 } from '../runtime/canvasAdapter.tsx'
@@ -71,9 +72,12 @@ export interface EditorRuntimeState {
     shapes: SceneShapeSnapshot[]
     stats: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['stats']
     viewport: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['viewport']
+    editingMode: RuntimeEditingMode
     ready: boolean
+    protectedNodeIds?: readonly string[]
     overlayInstructions?: RuntimeOverlayInstruction[]
     previewInstructions?: RuntimePreviewInstruction[]
+    overlayDiagnostics?: OverlayDiagnostics
     onPointerMove: (point: {x: number; y: number}) => void
     onPointerDown: (
       point: {x: number; y: number},

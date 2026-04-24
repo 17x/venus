@@ -8,6 +8,8 @@
     "build": "vite build --configLoader runner",
     "pnpm build": "pnpm run build",
     "lint": "eslint . && node ./scripts/ui-style-guard.mjs",
+    "perf:gate": "node ./scripts/perf-gate.mjs",
+    "perf:gate:template": "node ./scripts/perf-gate.mjs --report ./scripts/perf-gate.report.template.json",
     "preview": "vite preview"
   },
   "dependencies": {

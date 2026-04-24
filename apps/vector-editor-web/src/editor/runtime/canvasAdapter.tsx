@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {type EditorDocument} from '@venus/document-core'
-import type {CanvasViewportState} from '@vector/runtime'
+import type {CanvasViewportState, RuntimeEditingMode} from '@vector/runtime'
 import type {
   Engine,
   EngineRenderScheduler,
@@ -25,12 +25,33 @@ import {
 } from '@vector/runtime/presets'
 import type {SceneShapeSnapshot, SceneStats} from '@vector/runtime/shared-memory'
 import {prepareRenderFrame} from '../render-prep/prepareFrame.ts'
+import {
+  resolveRuntimeRenderPolicy,
+  DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY,
+  DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY,
+  DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY,
+  DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY,
+  type RuntimeRenderPhase,
+} from './renderPolicy.ts'
+
+export interface OverlayDiagnostics {
+  degraded: boolean
+  guideInputCount: number
+  guideKeptCount: number
+  guideDroppedCount: number
+  guideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
+  pathEditWhitelistActive: boolean
+}
 
 export interface CanvasRendererProps {
   document: EditorDocument
   shapes: SceneShapeSnapshot[]
   stats: SceneStats
   viewport: CanvasViewportState
+  protectedNodeIds?: readonly string[]
+  overlayDiagnostics?: OverlayDiagnostics
+  interactionPhase?: RuntimeRenderPhase
+  viewportInteractionType?: 'pan' | 'zoom' | 'other'
   renderQuality?: 'full' | 'interactive'
   lodLevel?: 0 | 1 | 2 | 3
   targetDpr?: number | 'auto'
@@ -53,6 +74,9 @@ interface CanvasViewportProps {
   shapes: SceneShapeSnapshot[]
   stats: SceneStats
   viewport: CanvasViewportState
+  protectedNodeIds?: readonly string[]
+  overlayDiagnostics?: OverlayDiagnostics
+  editingMode?: RuntimeEditingMode
   onPointerMove?: ViewportGestureBindingOptions['onPointerMove']
   onPointerDown?: ViewportGestureBindingOptions['onPointerDown']
   onPointerUp?: VoidFunction
@@ -63,7 +87,7 @@ interface CanvasViewportProps {
   onViewportZoom?: (nextScale: number, anchor?: {x: number; y: number}) => void
 }
 
-const MAX_DIRTY_REGION_MARK_NODES = 256
+const ENABLE_RUNTIME_RENDER_DIAGNOSTICS = true
 
 export function CanvasViewport({
   document,
@@ -72,6 +96,9 @@ export function CanvasViewport({
   shapes,
   stats,
   viewport,
+  protectedNodeIds,
+  overlayDiagnostics,
+  editingMode = 'idle',
   onPointerMove,
   onPointerDown,
   onPointerUp,
@@ -83,11 +110,13 @@ export function CanvasViewport({
 }: CanvasViewportProps) {
   const VIEWPORT_VELOCITY_SETTLE_MS = 110
   const VIEWPORT_ZOOM_VELOCITY_WEIGHT = 520
+  const VIEWPORT_INTERACTION_EPSILON = 0.5
   const imageCount = React.useMemo(
     () => document.shapes.reduce((count, shape) => count + (shape.type === 'image' ? 1 : 0), 0),
     [document.shapes],
   )
   const [viewportVelocity, setViewportVelocity] = React.useState(0)
+  const [viewportInteractionType, setViewportInteractionType] = React.useState<'pan' | 'zoom' | 'other'>('other')
   const previousLodLevelRef = React.useRef<0 | 1 | 2 | 3>(0)
   const velocitySettleHandleRef = React.useRef<number | null>(null)
   const viewportMotionRef = React.useRef({
@@ -104,10 +133,49 @@ export function CanvasViewport({
       scale: viewport.scale,
       isInteracting: viewportVelocity > 1,
       interactionVelocity: viewportVelocity,
+      interactionType: viewportInteractionType,
       previousLodLevel: previousLodLevelRef.current,
     }),
-    [imageCount, stats.shapeCount, viewport.scale, viewportVelocity],
+    [imageCount, stats.shapeCount, viewport.scale, viewportInteractionType, viewportVelocity],
   )
+  const runtimeRenderPhase = React.useMemo<RuntimeRenderPhase>(() => {
+    if (editingMode === 'panning') {
+      return 'pan'
+    }
+
+    if (editingMode === 'zooming') {
+      return 'zoom'
+    }
+
+    if (
+      editingMode === 'dragging' ||
+      editingMode === 'resizing' ||
+      editingMode === 'rotating' ||
+      editingMode === 'drawingPath' ||
+      editingMode === 'drawingPencil' ||
+      editingMode === 'insertingShape' ||
+      editingMode === 'pathEditing' ||
+      editingMode === 'textEditing'
+    ) {
+      return 'drag'
+    }
+
+    if (viewportVelocity <= 1) {
+      return editingMode === 'idle' || editingMode === 'selecting'
+        ? 'static'
+        : 'settled'
+    }
+
+    if (viewportInteractionType === 'pan') {
+      return 'pan'
+    }
+
+    if (viewportInteractionType === 'zoom') {
+      return 'zoom'
+    }
+
+    return 'settled'
+  }, [editingMode, viewportInteractionType, viewportVelocity])
 
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const viewportStateRef = React.useRef(viewport)
@@ -139,11 +207,21 @@ export function CanvasViewport({
     const zoomDistance = zoomDelta * VIEWPORT_ZOOM_VELOCITY_WEIGHT
     const nextVelocity = ((panDistance + zoomDistance) / elapsedMs) * 1000
 
+    // Classify the dominant viewport motion so engine LOD can preserve full
+    // fidelity for pan/zoom while leaving other interaction degradation intact.
+    const nextInteractionType: 'pan' | 'zoom' | 'other' =
+      panDistance > VIEWPORT_INTERACTION_EPSILON && panDistance >= zoomDistance
+        ? 'pan'
+        : zoomDistance > VIEWPORT_INTERACTION_EPSILON
+          ? 'zoom'
+          : 'other'
+
     setViewportVelocity((current) =>
       Math.abs(current - nextVelocity) < 24
         ? current
         : nextVelocity,
     )
+    setViewportInteractionType((current) => current === nextInteractionType ? current : nextInteractionType)
 
     viewportMotionRef.current = {
       offsetX: viewport.offsetX,
@@ -159,6 +237,7 @@ export function CanvasViewport({
     velocitySettleHandleRef.current = window.setTimeout(() => {
       velocitySettleHandleRef.current = null
       setViewportVelocity(0)
+      setViewportInteractionType('other')
     }, VIEWPORT_VELOCITY_SETTLE_MS)
 
     return () => {
@@ -168,6 +247,7 @@ export function CanvasViewport({
       }
     }
   }, [
+    VIEWPORT_INTERACTION_EPSILON,
     VIEWPORT_VELOCITY_SETTLE_MS,
     VIEWPORT_ZOOM_VELOCITY_WEIGHT,
     viewport.offsetX,
@@ -249,6 +329,10 @@ export function CanvasViewport({
             shapes={shapes}
             stats={stats}
             viewport={viewport}
+            protectedNodeIds={protectedNodeIds}
+            overlayDiagnostics={overlayDiagnostics}
+            interactionPhase={runtimeRenderPhase}
+            viewportInteractionType={viewportInteractionType}
             renderQuality={lodProfile.renderQuality}
             lodLevel={lodProfile.lodLevel}
             targetDpr={lodProfile.targetDpr}
@@ -272,17 +356,27 @@ export function Canvas2DRenderer({
   shapes,
   stats,
   viewport,
+  protectedNodeIds,
+  overlayDiagnostics,
+  interactionPhase = 'settled',
+  viewportInteractionType = 'other',
   renderQuality = 'full',
   lodLevel = 0,
   targetDpr = 'auto',
-  backend = 'webgl',
-}: CanvasRendererProps & {backend?: 'canvas2d' | 'webgl'}) {
+}: CanvasRendererProps) {
   const INTERACTION_SETTLE_MS = 120
-    // 12ms keeps interaction cadence near display refresh without saturating CPU.
-    const INTERACTIVE_RENDER_INTERVAL_MS = 12
+  const PLAN_DIAGNOSTIC_SAMPLE_MS = 1200
+  // 12ms keeps interaction cadence near display refresh without saturating CPU.
+  const INTERACTIVE_RENDER_INTERVAL_MS = 12
   const FULL_REDRAW_QUIET_WINDOW_MS = 140
   const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
   const FULL_REDRAW_DEFER_MS = 32
+  const SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES =
+    DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames
+  const DIRTY_BOUNDS_SMALL_AREA_PX2 =
+    DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsSmallAreaPx2
+  const DIRTY_BOUNDS_MEDIUM_AREA_PX2 =
+    DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsMediumAreaPx2
   const OVERSCAN_PX = 240
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
   const engineRef = React.useRef<Engine | null>(null)
@@ -292,6 +386,16 @@ export function Canvas2DRenderer({
   const appliedQualityRef = React.useRef<'full' | 'interactive' | null>(null)
   const appliedDprRef = React.useRef<number | 'auto' | null>(null)
   const appliedRenderSizeRef = React.useRef<{width: number; height: number} | null>(null)
+  const appliedViewportRef = React.useRef<{
+    viewportWidth: number
+    viewportHeight: number
+    offsetX: number
+    offsetY: number
+    scale: number
+  } | null>(null)
+  const hasCommittedInitialViewportFrameRef = React.useRef(false)
+  const viewportReadyRef = React.useRef(false)
+  const pendingSceneRenderRef = React.useRef(false)
   const [isInteracting, setIsInteracting] = React.useState(false)
   const isInteractingRef = React.useRef(isInteracting)
   const lastInteractionAtRef = React.useRef(0)
@@ -299,6 +403,60 @@ export function Canvas2DRenderer({
   const deferredFullRedrawHandleRef = React.useRef<number | null>(null)
   const deferredFullRedrawTokenRef = React.useRef(0)
   const renderSchedulerRef = React.useRef<EngineRenderScheduler | null>(null)
+  const deferredImageWakeupPendingRef = React.useRef(false)
+  const renderRequestStatsRef = React.useRef({
+    lastReason: 'none',
+    renderPhase: 'settled' as RuntimeRenderPhase,
+    renderPolicyQuality: 'full' as 'full' | 'interactive',
+    renderPolicyDpr: 'auto' as number | 'auto',
+    viewportInteractionType: 'other' as 'pan' | 'zoom' | 'other',
+    overlayMode: 'full' as 'full' | 'degraded',
+    overlayDegraded: false,
+    overlayGuideInputCount: 0,
+    overlayGuideKeptCount: 0,
+    overlayGuideDroppedCount: 0,
+    overlayGuideSelectionStrategy: 'full' as 'full' | 'axis-first' | 'axis-relevance',
+    overlayPathEditWhitelistActive: false,
+    sceneDirtyCount: 0,
+    deferredImageDrainCount: 0,
+    idleRedrawCount: 0,
+    interactiveCount: 0,
+    offscreenSceneDirtySkipCount: 0,
+    forcedSceneDirtyRenderCount: 0,
+    offscreenSceneDirtySkipConsecutiveMaxCount: 0,
+    dirtyBoundsMarkSmallAreaCount: 0,
+    dirtyBoundsMarkMediumAreaCount: 0,
+    dirtyBoundsMarkLargeAreaCount: 0,
+  })
+  const latestRenderPrepStatsRef = React.useRef({
+    dirtyCandidateCount: 0,
+    dirtyOffscreenCount: 0,
+    offscreenSceneDirtySkipConsecutiveCount: 0,
+    dirtyBoundsMarkCount: 0,
+    dirtyBoundsMarkArea: 0,
+  })
+  const latestPlanDiagnosticsRef = React.useRef({
+    framePlanVersion: 0,
+    framePlanCandidateCount: 0,
+    framePlanSceneNodeCount: 0,
+    framePlanVisibleRatio: 0,
+    framePlanShortlistActive: false,
+    framePlanShortlistCandidateRatio: 0,
+    framePlanShortlistAppliedCandidateCount: 0,
+    framePlanShortlistPendingState: null as boolean | null,
+    framePlanShortlistPendingFrameCount: 0,
+    framePlanShortlistToggleCount: 0,
+    framePlanShortlistDebounceBlockedToggleCount: 0,
+    framePlanShortlistEnterRatioThreshold: 0,
+    framePlanShortlistLeaveRatioThreshold: 0,
+    framePlanShortlistStableFrameCount: 0,
+    hitPlanVersion: 0,
+    hitPlanCandidateCount: 0,
+    hitPlanHitCount: 0,
+    hitPlanExactCheckCount: 0,
+  })
+  const lastPlanDiagnosticSampleAtRef = React.useRef(0)
+  const protectedNodeSignatureRef = React.useRef('')
   const previousRenderPrepRef = React.useRef<{
     document: EditorDocument
     shapes: SceneShapeSnapshot[]
@@ -340,7 +498,22 @@ export function Canvas2DRenderer({
     renderSchedulerRef.current?.cancel()
   }, [])
 
-  const requestEngineRender = React.useCallback((mode: 'interactive' | 'normal' = 'normal') => {
+  const requestEngineRender = React.useCallback((
+    mode: 'interactive' | 'normal' = 'normal',
+    reason: 'scene-dirty' | 'deferred-image-drain' | 'idle-redraw' | 'interactive-viewport' = 'scene-dirty',
+  ) => {
+    // Track request sources in the app adapter so idle redraw churn can be
+    // attributed without touching the engine scheduler contract.
+    renderRequestStatsRef.current.lastReason = reason
+    if (reason === 'scene-dirty') {
+      renderRequestStatsRef.current.sceneDirtyCount += 1
+    } else if (reason === 'deferred-image-drain') {
+      renderRequestStatsRef.current.deferredImageDrainCount += 1
+    } else if (reason === 'idle-redraw') {
+      renderRequestStatsRef.current.idleRedrawCount += 1
+    } else if (reason === 'interactive-viewport') {
+      renderRequestStatsRef.current.interactiveCount += 1
+    }
     renderSchedulerRef.current?.request(mode)
   }, [])
 
@@ -354,16 +527,14 @@ export function Canvas2DRenderer({
       return
     }
 
-    const resolvedBackend = backend
     const engine = createEngine({
       canvas,
-      backend: resolvedBackend,
       performance: {
         culling: true,
       },
       render: {
         quality: 'full',
-        canvasClearColor: '#f3f4f6',
+        webglClearColor: [0.9529, 0.9569, 0.9647, 1],
         // Enable LOD (level-of-detail) for performance with large scenes
         lod: {
           enabled: true,
@@ -373,19 +544,25 @@ export function Canvas2DRenderer({
         },
         // Enable tile-based caching with multiple zoom levels
         tileConfig: {
-          enabled: true,
+          // Tile cache path is not fully wired in WebGL yet (invalidation/render
+          // reuse is still TODO), so keep it off to avoid cache-related drift.
+          enabled: false,
           tileSizePx: 512,
           maxCacheSize: 64,
         },
         // Enable initial render optimization with low-DPR preview
         initialRender: {
-          enabled: true,
+          // Progressive startup currently switches DPR after first committed
+          // frame, which can present a transient transform drift.
+          enabled: false,
           lowDprPreview: 0.5, // Keep preview readable while still reducing startup cost
           previewDelayMs: 50,  // Show preview after 50ms
           detailPassDelayMs: 200,  // Start detail pass after 200ms
         },
         interactionPreview: {
-          enabled: true,
+          // Reuse-preview can drift against runtime hit-test coordinates on
+          // rapid viewport changes; disable until transform parity is fixed.
+          enabled: false,
           mode: 'zoom-only',
           maxScaleStep: 1.2,
           maxTranslatePx: 220,
@@ -408,6 +585,22 @@ export function Canvas2DRenderer({
 
             const image = new Image()
             image.decoding = 'async'
+            // Resume a settled render only when the browser has an actual image
+            // ready, instead of spinning deferred drain frames with no upload progress.
+            image.onload = () => {
+              if (
+                isInteractingRef.current ||
+                deferredImageWakeupPendingRef.current
+              ) {
+                return
+              }
+
+              deferredImageWakeupPendingRef.current = true
+              requestEngineRender('normal', 'idle-redraw')
+            }
+            image.onerror = () => {
+              imageCacheRef.current.delete(src)
+            }
             image.src = src
             imageCacheRef.current.set(src, image)
             return null
@@ -416,22 +609,180 @@ export function Canvas2DRenderer({
       },
       debug: {
         onStats: (nextStats) => {
+          if (!ENABLE_RUNTIME_RENDER_DIAGNOSTICS) {
+            return
+          }
           const webglStats = nextStats as typeof nextStats & {
             webglRenderPath?: 'model-complete' | 'packet'
             webglInteractiveTextFallbackCount?: number
+            webglImageTextureUploadCount?: number
+            webglImageTextureUploadBytes?: number
+            webglDeferredImageTextureCount?: number
             webglTextTextureUploadCount?: number
             webglTextTextureUploadBytes?: number
             webglTextCacheHitCount?: number
             webglCompositeUploadBytes?: number
+            l0PreviewHitCount?: number
+            l0PreviewMissCount?: number
+            l1CompositeHitCount?: number
+            l1CompositeMissCount?: number
+            l2TileHitCount?: number
+            l2TileMissCount?: number
+            cacheFallbackReason?: string
           }
+          const now = performance.now()
+          if (now - lastPlanDiagnosticSampleAtRef.current >= PLAN_DIAGNOSTIC_SAMPLE_MS) {
+            // Poll planner diagnostics at a lower cadence so debug introspection
+            // does not add fixed per-frame overhead to interactive rendering.
+            const runtimeDiagnostics = engineRef.current?.getDiagnostics()
+            const shortlistDiagnostics = (runtimeDiagnostics as {
+              shortlist?: {
+                active?: boolean
+                candidateRatio?: number
+                appliedCandidateCount?: number
+                pendingState?: boolean | null
+                pendingFrameCount?: number
+                toggleCount?: number
+                debounceBlockedToggleCount?: number
+                enterRatioThreshold?: number
+                leaveRatioThreshold?: number
+                stableFrameCount?: number
+              }
+            } | undefined)?.shortlist
+            const framePlanVersion = runtimeDiagnostics?.framePlan?.planVersion ?? 0
+            const framePlanCandidateCount = runtimeDiagnostics?.framePlan?.candidateCount ?? 0
+            const framePlanSceneNodeCount = runtimeDiagnostics?.framePlan?.sceneNodeCount ?? 0
+            const framePlanVisibleRatio = framePlanSceneNodeCount > 0
+              ? framePlanCandidateCount / framePlanSceneNodeCount
+              : 0
+            latestPlanDiagnosticsRef.current = {
+              framePlanVersion,
+              framePlanCandidateCount,
+              framePlanSceneNodeCount,
+              framePlanVisibleRatio,
+              framePlanShortlistActive: shortlistDiagnostics?.active ?? false,
+              framePlanShortlistCandidateRatio: shortlistDiagnostics?.candidateRatio ?? 0,
+              framePlanShortlistAppliedCandidateCount:
+                shortlistDiagnostics?.appliedCandidateCount ?? 0,
+              framePlanShortlistPendingState:
+                shortlistDiagnostics?.pendingState ?? null,
+              framePlanShortlistPendingFrameCount:
+                shortlistDiagnostics?.pendingFrameCount ?? 0,
+              framePlanShortlistToggleCount:
+                shortlistDiagnostics?.toggleCount ?? 0,
+              framePlanShortlistDebounceBlockedToggleCount:
+                shortlistDiagnostics?.debounceBlockedToggleCount ?? 0,
+              framePlanShortlistEnterRatioThreshold:
+                shortlistDiagnostics?.enterRatioThreshold ?? 0,
+              framePlanShortlistLeaveRatioThreshold:
+                shortlistDiagnostics?.leaveRatioThreshold ?? 0,
+              framePlanShortlistStableFrameCount:
+                shortlistDiagnostics?.stableFrameCount ?? 0,
+              hitPlanVersion: runtimeDiagnostics?.hitPlan?.planVersion ?? 0,
+              hitPlanCandidateCount: runtimeDiagnostics?.hitPlan?.candidateCount ?? 0,
+              hitPlanHitCount: runtimeDiagnostics?.hitPlan?.hitCount ?? 0,
+              hitPlanExactCheckCount: (
+                runtimeDiagnostics?.hitPlan as {exactCheckCount?: number} | null | undefined
+              )?.exactCheckCount ?? 0,
+            }
+            lastPlanDiagnosticSampleAtRef.current = now
+          }
+          const planDiagnostics = latestPlanDiagnosticsRef.current
+          const renderPrepDirtyCandidateCount = latestRenderPrepStatsRef.current.dirtyCandidateCount
+          const renderPrepDirtyOffscreenCount = latestRenderPrepStatsRef.current.dirtyOffscreenCount
+          const offscreenSceneDirtySkipConsecutiveCount =
+            latestRenderPrepStatsRef.current.offscreenSceneDirtySkipConsecutiveCount
+          const dirtyBoundsMarkCount = latestRenderPrepStatsRef.current.dirtyBoundsMarkCount
+          const dirtyBoundsMarkArea = latestRenderPrepStatsRef.current.dirtyBoundsMarkArea
+          const deferredImageTextureCount =
+            webglStats.webglDeferredImageTextureCount ?? 0
+          const renderRequestStats = renderRequestStatsRef.current
+          const groupCollapseStats = nextStats as {
+            groupCollapseCount?: number
+            groupCollapseCulledCount?: number
+          }
+
+          deferredImageWakeupPendingRef.current = false
 
           drawSerialRef.current += 1
           publishRuntimeRenderDiagnostics({
-            drawCount: drawSerialRef.current,
+            frameCount: drawSerialRef.current,
+            drawCount: nextStats.drawCount,
             drawMs: nextStats.frameMs,
             fpsInstantaneous: 0,
             fpsEstimate: 0,
             visibleShapeCount: nextStats.visibleCount,
+            groupCollapseCount: groupCollapseStats.groupCollapseCount ?? 0,
+            groupCollapseCulledCount: groupCollapseStats.groupCollapseCulledCount ?? 0,
+            framePlanVersion: planDiagnostics.framePlanVersion,
+            framePlanCandidateCount: planDiagnostics.framePlanCandidateCount,
+            framePlanSceneNodeCount: planDiagnostics.framePlanSceneNodeCount,
+            framePlanVisibleRatio: planDiagnostics.framePlanVisibleRatio,
+            framePlanShortlistActive: planDiagnostics.framePlanShortlistActive,
+            framePlanShortlistCandidateRatio: planDiagnostics.framePlanShortlistCandidateRatio,
+            framePlanShortlistAppliedCandidateCount:
+              planDiagnostics.framePlanShortlistAppliedCandidateCount,
+            framePlanShortlistPendingState:
+              planDiagnostics.framePlanShortlistPendingState,
+            framePlanShortlistPendingFrameCount:
+              planDiagnostics.framePlanShortlistPendingFrameCount,
+            framePlanShortlistToggleCount:
+              planDiagnostics.framePlanShortlistToggleCount,
+            framePlanShortlistDebounceBlockedToggleCount:
+              planDiagnostics.framePlanShortlistDebounceBlockedToggleCount,
+            framePlanShortlistEnterRatioThreshold:
+              planDiagnostics.framePlanShortlistEnterRatioThreshold,
+            framePlanShortlistLeaveRatioThreshold:
+              planDiagnostics.framePlanShortlistLeaveRatioThreshold,
+            framePlanShortlistStableFrameCount:
+              planDiagnostics.framePlanShortlistStableFrameCount,
+            hitPlanVersion: planDiagnostics.hitPlanVersion,
+            hitPlanCandidateCount: planDiagnostics.hitPlanCandidateCount,
+            hitPlanHitCount: planDiagnostics.hitPlanHitCount,
+            hitPlanExactCheckCount: planDiagnostics.hitPlanExactCheckCount,
+            renderPrepDirtyCandidateCount,
+            renderPrepDirtyOffscreenCount,
+            offscreenSceneDirtyForceRenderFrameThreshold:
+              SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES,
+            dirtyBoundsSmallAreaThreshold: DIRTY_BOUNDS_SMALL_AREA_PX2,
+            dirtyBoundsMediumAreaThreshold: DIRTY_BOUNDS_MEDIUM_AREA_PX2,
+            offscreenSceneDirtySkipConsecutiveCount,
+            offscreenSceneDirtySkipConsecutiveMaxCount:
+              renderRequestStats.offscreenSceneDirtySkipConsecutiveMaxCount,
+            offscreenSceneDirtyRiskWatchSkipRateThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY.watchSkipRateThreshold,
+            offscreenSceneDirtyRiskHighSkipRateThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY.highSkipRateThreshold,
+            offscreenSceneDirtyRiskHighForcedPerSecondThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY.highForcedPerSecondThreshold,
+            sceneDirtyProlongedHighRiskSecondsThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY.prolongedHighRiskSecondsThreshold,
+            sceneDirtyTransitionRateWatchThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY.transitionRateWatchThreshold,
+            sceneDirtyTrendWindowFrames:
+              DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY.trendWindowFrames,
+            offscreenSceneDirtyForcedSpikePerSecondThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY.forcedSpikePerSecondThreshold,
+            offscreenSceneDirtySkipSpikePerSecondThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY.skipSpikePerSecondThreshold,
+            sceneDirtyRiskScoreHighThreshold:
+              DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY.riskScoreHighThreshold,
+            sceneDirtyRiskScoreSkipWeight:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY.skipWeight,
+            sceneDirtyRiskScoreForcedWeight:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY.forcedWeight,
+            sceneDirtyRiskScoreStreakWeight:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY.streakWeight,
+            sceneDirtyRiskScoreForcedRateScale:
+              DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY.forcedRateScale,
+            dirtyBoundsMarkCount,
+            dirtyBoundsMarkArea,
+            dirtyBoundsMarkSmallAreaCount:
+              renderRequestStats.dirtyBoundsMarkSmallAreaCount,
+            dirtyBoundsMarkMediumAreaCount:
+              renderRequestStats.dirtyBoundsMarkMediumAreaCount,
+            dirtyBoundsMarkLargeAreaCount:
+              renderRequestStats.dirtyBoundsMarkLargeAreaCount,
             cacheHitCount: nextStats.cacheHits,
             cacheMissCount: nextStats.cacheMisses,
             frameReuseHitCount: nextStats.frameReuseHits,
@@ -440,6 +791,12 @@ export function Canvas2DRenderer({
             webglRenderPath: webglStats.webglRenderPath ?? 'none',
             webglInteractiveTextFallbackCount:
               webglStats.webglInteractiveTextFallbackCount ?? 0,
+            webglImageTextureUploadCount:
+              webglStats.webglImageTextureUploadCount ?? 0,
+            webglImageTextureUploadBytes:
+              webglStats.webglImageTextureUploadBytes ?? 0,
+            webglDeferredImageTextureCount:
+              deferredImageTextureCount,
             webglTextTextureUploadCount:
               webglStats.webglTextTextureUploadCount ?? 0,
             webglTextTextureUploadBytes:
@@ -448,7 +805,46 @@ export function Canvas2DRenderer({
               webglStats.webglTextCacheHitCount ?? 0,
             webglCompositeUploadBytes:
               webglStats.webglCompositeUploadBytes ?? 0,
+            l0PreviewHitCount:
+              webglStats.l0PreviewHitCount ?? 0,
+            l0PreviewMissCount:
+              webglStats.l0PreviewMissCount ?? 0,
+            l1CompositeHitCount:
+              webglStats.l1CompositeHitCount ?? 0,
+            l1CompositeMissCount:
+              webglStats.l1CompositeMissCount ?? 0,
+            l2TileHitCount:
+              webglStats.l2TileHitCount ?? 0,
+            l2TileMissCount:
+              webglStats.l2TileMissCount ?? 0,
+            cacheFallbackReason:
+              webglStats.cacheFallbackReason ?? 'none',
+            lastRenderRequestReason: renderRequestStats.lastReason,
+            renderPhase: renderRequestStats.renderPhase,
+            renderPolicyQuality: renderRequestStats.renderPolicyQuality,
+            renderPolicyDpr: renderRequestStats.renderPolicyDpr,
+            viewportInteractionType: renderRequestStats.viewportInteractionType,
+            overlayMode: renderRequestStats.overlayMode,
+            overlayDegraded: renderRequestStats.overlayDegraded,
+            overlayGuideInputCount: renderRequestStats.overlayGuideInputCount,
+            overlayGuideKeptCount: renderRequestStats.overlayGuideKeptCount,
+            overlayGuideDroppedCount: renderRequestStats.overlayGuideDroppedCount,
+            overlayGuideSelectionStrategy:
+              renderRequestStats.overlayGuideSelectionStrategy,
+            overlayPathEditWhitelistActive:
+              renderRequestStats.overlayPathEditWhitelistActive,
+            sceneDirtyRequestCount: renderRequestStats.sceneDirtyCount,
+            deferredImageDrainRequestCount: renderRequestStats.deferredImageDrainCount,
+            idleRedrawRequestCount: renderRequestStats.idleRedrawCount,
+            interactiveRequestCount: renderRequestStats.interactiveCount,
+            offscreenSceneDirtySkipRequestCount:
+              renderRequestStats.offscreenSceneDirtySkipCount,
+            forcedSceneDirtyRequestCount:
+              renderRequestStats.forcedSceneDirtyRenderCount,
           })
+
+          // No auto-drain chaining here: image uploads wake rendering via
+          // image.onload to prevent self-sustaining deferred request loops.
         },
       },
     })
@@ -470,10 +866,15 @@ export function Canvas2DRenderer({
       appliedQualityRef.current = null
       appliedDprRef.current = null
       appliedRenderSizeRef.current = null
+      appliedViewportRef.current = null
+      hasCommittedInitialViewportFrameRef.current = false
+      viewportReadyRef.current = false
+      pendingSceneRenderRef.current = false
+      deferredImageWakeupPendingRef.current = false
       engineRef.current = null
       engine.dispose()
     }
-  }, [backend, cancelDeferredFullRedraw, cancelScheduledRender])
+  }, [cancelDeferredFullRedraw, cancelScheduledRender])
 
   React.useEffect(() => {
     lastInteractionAtRef.current = performance.now()
@@ -493,13 +894,32 @@ export function Canvas2DRenderer({
       return
     }
 
+    const normalizedProtectedNodeIds = (
+      protectedNodeIds
+      ? [...protectedNodeIds]
+      : shapes.filter((shape) => shape.isSelected).map((shape) => shape.id)
+    ).sort()
+    const protectedNodeSignature = normalizedProtectedNodeIds.join('|')
+    if (protectedNodeSignatureRef.current !== protectedNodeSignature) {
+      // Keep selected nodes and their ancestor groups out of aggressive
+      // collapse so active manipulation remains visually stable.
+      const engineWithProtectedNodes = engine as Engine & {
+        setProtectedNodeIds?: (nodeIds?: readonly string[]) => void
+      }
+      engineWithProtectedNodes.setProtectedNodeIds?.(normalizedProtectedNodeIds)
+      protectedNodeSignatureRef.current = protectedNodeSignature
+    }
+
     const previous = previousRenderPrepRef.current
+    const previousFrameCandidateIds =
+      engine.getDiagnostics().framePlan?.candidateNodeIds
     const preparedFrame = prepareRenderFrame({
       revision: stats.version,
       document,
       previousDocument: previous?.document ?? null,
       shapes,
       previousShapes: previous?.shapes ?? [],
+      previousFrameCandidateIds,
       overlay: {
         selectedShapeIds: shapes.filter((shape) => shape.isSelected).map((shape) => shape.id),
         hoveredShapeId: shapes.find((shape) => shape.isHovered)?.id ?? null,
@@ -515,8 +935,18 @@ export function Canvas2DRenderer({
         previous.viewport.viewportWidth !== viewport.viewportWidth ||
         previous.viewport.viewportHeight !== viewport.viewportHeight,
     })
-
     if (preparedFrame.scene.dirty) {
+      let dirtyBoundsMarkCount = 0
+      let dirtyBoundsMarkArea = 0
+      const shouldRenderSceneDirtyNow =
+        preparedFrame.dirtyState.sceneStructureDirty ||
+        preparedFrame.dirtyState.dirtyCandidateCount > 0 ||
+        preparedFrame.dirtyState.previousFrameCandidateCount === 0
+      const nextOffscreenSceneDirtySkipConsecutiveCount = shouldRenderSceneDirtyNow
+        ? 0
+        : latestRenderPrepStatsRef.current.offscreenSceneDirtySkipConsecutiveCount + 1
+      const shouldForceOffscreenSceneDirtyRender =
+        nextOffscreenSceneDirtySkipConsecutiveCount >= SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES
       if (preparedFrame.dirtyState.sceneStructureDirty || !previous) {
         const nextEngineScene = createEngineSceneFromRuntimeSnapshot(replayScenePayload)
         engine.loadScene(nextEngineScene)
@@ -536,16 +966,72 @@ export function Canvas2DRenderer({
               upsertNodes,
             }],
           })
-          // Coalesce dirty marks to one merged region for large patch bursts.
-          if (upsertNodes.length <= MAX_DIRTY_REGION_MARK_NODES) {
-            const mergedDirtyBounds = resolveMergedNodeBounds(upsertNodes)
-            if (mergedDirtyBounds) {
-              engine.markDirtyBounds(mergedDirtyBounds)
+          // Coalesce dirty marks to one merged region so tile invalidation can
+          // stay local even when many nodes are updated in one patch burst.
+          const mergedDirtyBounds = resolveMergedNodeBounds(upsertNodes)
+          if (mergedDirtyBounds) {
+            engine.markDirtyBounds(mergedDirtyBounds)
+            dirtyBoundsMarkCount = 1
+            dirtyBoundsMarkArea = Math.max(
+              0,
+              Math.abs(mergedDirtyBounds.width * mergedDirtyBounds.height),
+            )
+            // Bucket dirty invalidation area to spot whether redraw pressure is
+            // dominated by tiny local edits or broad invalidation bursts.
+            if (dirtyBoundsMarkArea <= DIRTY_BOUNDS_SMALL_AREA_PX2) {
+              renderRequestStatsRef.current.dirtyBoundsMarkSmallAreaCount += 1
+            } else if (dirtyBoundsMarkArea <= DIRTY_BOUNDS_MEDIUM_AREA_PX2) {
+              renderRequestStatsRef.current.dirtyBoundsMarkMediumAreaCount += 1
+            } else {
+              renderRequestStatsRef.current.dirtyBoundsMarkLargeAreaCount += 1
             }
           }
         }
       }
-      requestEngineRender('normal')
+
+      if (!shouldRenderSceneDirtyNow && !shouldForceOffscreenSceneDirtyRender) {
+        // Keep scene state in sync but skip immediate redraw when all dirty
+        // nodes are outside the previous frame's candidate set.
+        renderRequestStatsRef.current.lastReason = 'offscreen-scene-dirty-skip'
+        renderRequestStatsRef.current.offscreenSceneDirtySkipCount += 1
+        // Track peak skip streak so long-run starvation pressure is visible
+        // even after intermittent forced flushes reset the live streak.
+        renderRequestStatsRef.current.offscreenSceneDirtySkipConsecutiveMaxCount = Math.max(
+          renderRequestStatsRef.current.offscreenSceneDirtySkipConsecutiveMaxCount,
+          nextOffscreenSceneDirtySkipConsecutiveCount,
+        )
+      } else if (!appliedViewportRef.current) {
+        // Queue scene-driven render until viewport alignment is committed to
+        // avoid one startup frame using stale/default viewport transforms.
+        pendingSceneRenderRef.current = true
+        if (shouldForceOffscreenSceneDirtyRender) {
+          renderRequestStatsRef.current.forcedSceneDirtyRenderCount += 1
+        }
+      } else {
+        requestEngineRender('normal', 'scene-dirty')
+        if (shouldForceOffscreenSceneDirtyRender) {
+          renderRequestStatsRef.current.forcedSceneDirtyRenderCount += 1
+        }
+      }
+
+      latestRenderPrepStatsRef.current = {
+        dirtyCandidateCount: preparedFrame.dirtyState.dirtyCandidateCount,
+        dirtyOffscreenCount: preparedFrame.dirtyState.dirtyOffscreenCount,
+        offscreenSceneDirtySkipConsecutiveCount:
+          shouldRenderSceneDirtyNow || shouldForceOffscreenSceneDirtyRender
+            ? 0
+            : nextOffscreenSceneDirtySkipConsecutiveCount,
+        dirtyBoundsMarkCount,
+        dirtyBoundsMarkArea,
+      }
+    } else {
+      latestRenderPrepStatsRef.current = {
+        dirtyCandidateCount: preparedFrame.dirtyState.dirtyCandidateCount,
+        dirtyOffscreenCount: preparedFrame.dirtyState.dirtyOffscreenCount,
+        offscreenSceneDirtySkipConsecutiveCount: 0,
+        dirtyBoundsMarkCount: 0,
+        dirtyBoundsMarkArea: 0,
+      }
     }
 
     previousRenderPrepRef.current = {
@@ -555,6 +1041,7 @@ export function Canvas2DRenderer({
     }
   }, [
     document,
+    protectedNodeIds,
     replayScenePayload,
     requestEngineRender,
     shapes,
@@ -569,28 +1056,54 @@ export function Canvas2DRenderer({
       return
     }
 
-    const nextDpr = isInteracting ? targetDpr : 'auto'
+    const renderPolicy = resolveRuntimeRenderPolicy({
+      phase: interactionPhase,
+      lodLevel,
+      renderQuality,
+      targetDpr,
+    })
+    renderRequestStatsRef.current.renderPhase = interactionPhase
+    renderRequestStatsRef.current.overlayMode = renderPolicy.overlayMode
+    renderRequestStatsRef.current.overlayDegraded = overlayDiagnostics?.degraded ?? false
+    renderRequestStatsRef.current.overlayGuideInputCount = overlayDiagnostics?.guideInputCount ?? 0
+    renderRequestStatsRef.current.overlayGuideKeptCount = overlayDiagnostics?.guideKeptCount ?? 0
+    renderRequestStatsRef.current.overlayGuideDroppedCount = overlayDiagnostics?.guideDroppedCount ?? 0
+    renderRequestStatsRef.current.overlayGuideSelectionStrategy =
+      overlayDiagnostics?.guideSelectionStrategy ?? 'full'
+    renderRequestStatsRef.current.overlayPathEditWhitelistActive =
+      overlayDiagnostics?.pathEditWhitelistActive ?? false
+    const nextDpr = renderPolicy.dpr
+    const dprChanged = appliedDprRef.current !== nextDpr
     if (appliedDprRef.current !== nextDpr) {
       engine.setDpr(nextDpr, {maxDpr: 2})
       appliedDprRef.current = nextDpr
     }
 
-    // Avoid mutating render quality every frame.
-    const nextQuality: 'full' | 'interactive' =
-      renderQuality === 'interactive' || (isInteracting && lodLevel >= 2)
-        ? 'interactive'
-        : 'full'
+    // Keep quality transitions policy-driven so phase tuning does not spread.
+    const nextQuality = renderPolicy.quality
+    const qualityChanged = appliedQualityRef.current !== nextQuality
     if (appliedQualityRef.current !== nextQuality) {
       engine.setQuality(nextQuality)
       appliedQualityRef.current = nextQuality
     }
 
-    const fallbackWidth = canvas.clientWidth || canvas.parentElement?.clientWidth || 0
-    const fallbackHeight = canvas.clientHeight || canvas.parentElement?.clientHeight || 0
-    const width = Math.max(1, Math.floor(viewport.viewportWidth > 1 ? viewport.viewportWidth : fallbackWidth))
-    const height = Math.max(1, Math.floor(viewport.viewportHeight > 1 ? viewport.viewportHeight : fallbackHeight))
+    if (viewport.viewportWidth <= 1 || viewport.viewportHeight <= 1) {
+      // Only trust runtime-measured viewport dimensions here.
+      // Rendering against DOM fallback size can paint one pre-fit frame and
+      // then snap when runtime applies the first fitViewport transform.
+      viewportReadyRef.current = false
+      return
+    }
+
+    viewportReadyRef.current = true
+    const width = Math.max(1, Math.floor(viewport.viewportWidth))
+    const height = Math.max(1, Math.floor(viewport.viewportHeight))
     const renderWidth = width + OVERSCAN_PX * 2
     const renderHeight = height + OVERSCAN_PX * 2
+    const renderSizeChanged =
+      !appliedRenderSizeRef.current ||
+      appliedRenderSizeRef.current.width !== renderWidth ||
+      appliedRenderSizeRef.current.height !== renderHeight
     if (
       !appliedRenderSizeRef.current ||
       appliedRenderSizeRef.current.width !== renderWidth ||
@@ -599,18 +1112,64 @@ export function Canvas2DRenderer({
       engine.resize(renderWidth, renderHeight)
       appliedRenderSizeRef.current = {width: renderWidth, height: renderHeight}
     }
-    engine.setViewport({
+    const nextViewportState = {
       viewportWidth: renderWidth,
       viewportHeight: renderHeight,
       offsetX: viewport.offsetX + OVERSCAN_PX,
       offsetY: viewport.offsetY + OVERSCAN_PX,
       scale: viewport.scale,
-    })
+    }
+    const viewportChanged =
+      !appliedViewportRef.current ||
+      appliedViewportRef.current.viewportWidth !== nextViewportState.viewportWidth ||
+      appliedViewportRef.current.viewportHeight !== nextViewportState.viewportHeight ||
+      appliedViewportRef.current.offsetX !== nextViewportState.offsetX ||
+      appliedViewportRef.current.offsetY !== nextViewportState.offsetY ||
+      appliedViewportRef.current.scale !== nextViewportState.scale
+    if (viewportChanged) {
+      engine.setViewport(nextViewportState)
+      appliedViewportRef.current = nextViewportState
+    }
 
-    if (isInteracting) {
+    const renderStateChanged =
+      dprChanged ||
+      qualityChanged ||
+      renderSizeChanged ||
+      viewportChanged
+    const shouldFlushPendingSceneRender =
+      pendingSceneRenderRef.current && Boolean(appliedViewportRef.current) && viewportReadyRef.current
+
+    if (renderPolicy.interactionActive) {
       cancelDeferredFullRedraw()
       cancelScheduledRender()
-      requestEngineRender('interactive')
+      requestEngineRender('interactive', 'interactive-viewport')
+      return
+    }
+
+    if (!renderStateChanged && !shouldFlushPendingSceneRender) {
+      return
+    }
+
+    if (!hasCommittedInitialViewportFrameRef.current) {
+      // Make the first post-layout frame immediate so startup does not show a
+      // stale pre-layout viewport offset before deferred redraw kicks in.
+      hasCommittedInitialViewportFrameRef.current = true
+      cancelDeferredFullRedraw()
+      cancelScheduledRender()
+      if (shouldFlushPendingSceneRender) {
+        pendingSceneRenderRef.current = false
+        requestEngineRender('normal', 'scene-dirty')
+      } else {
+        requestEngineRender('normal', 'idle-redraw')
+      }
+      return
+    }
+
+    if (shouldFlushPendingSceneRender) {
+      pendingSceneRenderRef.current = false
+      cancelDeferredFullRedraw()
+      cancelScheduledRender()
+      requestEngineRender('normal', 'scene-dirty')
       return
     }
 
@@ -632,7 +1191,7 @@ export function Canvas2DRenderer({
         return
       }
 
-      requestEngineRender('normal')
+      requestEngineRender('normal', 'idle-redraw')
     }
 
     const idleApi = window as Window & {
@@ -658,6 +1217,9 @@ export function Canvas2DRenderer({
     cancelScheduledRender,
     isInteracting,
     targetDpr,
+    overlayDiagnostics,
+    interactionPhase,
+    viewportInteractionType,
     viewport,
     requestEngineRender,
   ])
@@ -682,17 +1244,23 @@ export function Canvas2DRenderer({
   )
 }
 
-function resolveMergedNodeBounds(nodes: ReadonlyArray<Record<string, unknown>>) {
+function resolveMergedNodeBounds(nodes: ReadonlyArray<object>) {
   let minX = Number.POSITIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
   let maxX = Number.NEGATIVE_INFINITY
   let maxY = Number.NEGATIVE_INFINITY
 
   for (const node of nodes) {
-    const x = typeof node.x === 'number' ? node.x : null
-    const y = typeof node.y === 'number' ? node.y : null
-    const width = typeof node.width === 'number' ? node.width : null
-    const height = typeof node.height === 'number' ? node.height : null
+    const boundsNode = node as {
+      x?: unknown
+      y?: unknown
+      width?: unknown
+      height?: unknown
+    }
+    const x = typeof boundsNode.x === 'number' ? boundsNode.x : null
+    const y = typeof boundsNode.y === 'number' ? boundsNode.y : null
+    const width = typeof boundsNode.width === 'number' ? boundsNode.width : null
+    const height = typeof boundsNode.height === 'number' ? boundsNode.height : null
     if (x === null || y === null || width === null || height === null) {
       continue
     }

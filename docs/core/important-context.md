@@ -19,8 +19,9 @@
 
 ## Renderer Direction
 
-- Canvas2D is the current default/stable path for active app work.
-- Runtime apps consume Canvas2D through app-layer renderer wiring over `@venus/engine`.
+- WebGL is the only primary engine backend for active renderer work.
+- Canvas2D in `@venus/engine` is auxiliary/offscreen/composite support, not a
+  peer backend target.
 
 ## Shared Memory Note
 

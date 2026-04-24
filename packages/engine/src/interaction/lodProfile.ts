@@ -1,19 +1,17 @@
-export interface EngineCanvasLodProfileInput {
-  shapeCount: number
-  imageCount: number
-  scale: number
-  isInteracting?: boolean
-  interactionVelocity?: number
-  previousLodLevel?: 0 | 1 | 2 | 3
-}
+import type {
+  EngineCanvasLodProfile,
+  EngineCanvasLodProfileInput,
+  EngineLodProfile,
+  EngineLodProfileInput,
+} from './lodTypes.ts'
 
-export interface EngineCanvasLodProfile {
-  lodLevel: 0 | 1 | 2 | 3
-  renderQuality: 'full' | 'interactive'
-  targetDpr: number | 'auto'
-  imageSmoothingQuality: ImageSmoothingQuality
-  interactiveIntervalMs: number
-}
+export type {
+  EngineCanvasLodProfile,
+  EngineCanvasLodProfileInput,
+  EngineLodInteractionType,
+  EngineLodProfile,
+  EngineLodProfileInput,
+} from './lodTypes.ts'
 
 /**
  * Resolve a coarse LOD profile from scene pressure, zoom scale, and
@@ -22,6 +20,33 @@ export interface EngineCanvasLodProfile {
 export function resolveEngineCanvasLodProfile(
   options: EngineCanvasLodProfileInput,
 ): EngineCanvasLodProfile {
+  const interactionType = options.interactionType ?? 'other'
+
+  // Keep panning visually stable with full-quality reuse to avoid obvious
+  // content pop while the camera is translating.
+  if (interactionType === 'pan') {
+    return {
+      lodLevel: 0,
+      renderQuality: 'full',
+      targetDpr: 'auto',
+      imageSmoothingQuality: 'high',
+      interactiveIntervalMs: 8,
+    }
+  }
+
+  // Zoom interaction is the highest cache/text/path rebuild pressure mode.
+  // Prefer responsive interactive quality during wheel/pinch and restore full
+  // quality in settle frames.
+  if (interactionType === 'zoom') {
+    return {
+      lodLevel: 2,
+      renderQuality: 'interactive',
+      targetDpr: 1.25,
+      imageSmoothingQuality: 'low',
+      interactiveIntervalMs: 10,
+    }
+  }
+
   const interactionVelocity = Math.max(0, options.interactionVelocity ?? 0)
   const isInteracting = options.isInteracting ?? interactionVelocity > 0
 
@@ -93,3 +118,9 @@ export function resolveEngineCanvasLodProfile(
     interactiveIntervalMs: 16,
   }
 }
+
+// Keep a generic resolver name available for newer planner-facing code while
+// preserving the existing canvas-specific entrypoint for compatibility.
+export const resolveEngineLodProfile = (
+  options: EngineLodProfileInput,
+): EngineLodProfile => resolveEngineCanvasLodProfile(options)

@@ -233,6 +233,8 @@ export function createCanvas2DEngineRenderer(
         drawCount: counters.drawCount,
         visibleCount: counters.visibleCount,
         culledCount: counters.culledCount,
+        groupCollapseCount: plan.stats.collapsedGroupCount,
+        groupCollapseCulledCount: plan.stats.collapsedDescendantCulledCount,
         cacheHits: counters.cacheHits,
         cacheMisses: counters.cacheMisses,
         frameReuseHits: counters.frameReuseHits,
@@ -443,7 +445,13 @@ function drawPreparedNode(
       drawImageNode(context, node, frame, counters, localRect)
       break
     case 'shape':
-      drawShapeNode(context, node, localRect)
+      drawShapeNode(
+        context,
+        node,
+        localRect,
+        resolvePathSimplificationBucket(frame),
+        frame.viewport.scale,
+      )
       counters.drawCount += 1
       break
     default:
@@ -632,6 +640,8 @@ function drawShapeNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineShapeNode,
   localRect: {x: number; y: number; width: number; height: number} | null,
+  pathSimplificationBucket: 0 | 1 | 2,
+  viewportScale: number,
 ) {
   const drawX = localRect?.x ?? node.x
   const drawY = localRect?.y ?? node.y
@@ -664,7 +674,7 @@ function drawShapeNode(
     y: drawY,
     width: drawWidth,
     height: drawHeight,
-  })
+  }, pathSimplificationBucket, viewportScale)
   if (!appended) {
     return
   }
@@ -720,6 +730,8 @@ function appendShapePath(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineShapeNode,
   rect: {x: number; y: number; width: number; height: number},
+  pathSimplificationBucket: 0 | 1 | 2,
+  viewportScale: number,
 ) {
   if (node.shape === 'ellipse') {
     const cx = rect.x + rect.width / 2
@@ -770,7 +782,7 @@ function appendShapePath(
   }
 
   if (node.shape === 'path') {
-    return appendPathGeometry(context, node)
+    return appendPathGeometry(context, node, pathSimplificationBucket, viewportScale)
   }
 
   const hasCornerRadii = Boolean(
@@ -793,9 +805,34 @@ function appendShapePath(
 function appendPathGeometry(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineShapeNode,
+  pathSimplificationBucket: 0 | 1 | 2,
+  viewportScale: number,
 ) {
   const bezierPoints = node.bezierPoints ?? []
   const points = node.points ?? []
+
+  if (pathSimplificationBucket > 0) {
+    const sourcePoints = bezierPoints.length > 0
+      ? bezierPoints.map((point) => point.anchor)
+      : points
+    const simplifiedPoints = simplifyPathPointsForBucket(
+      sourcePoints,
+      pathSimplificationBucket as 1 | 2,
+      Boolean(node.closed),
+      viewportScale,
+    )
+    const [head, ...rest] = simplifiedPoints
+    if (!head) {
+      return false
+    }
+
+    context.moveTo(head.x, head.y)
+    rest.forEach((point) => context.lineTo(point.x, point.y))
+    if (node.closed) {
+      context.closePath()
+    }
+    return true
+  }
 
   if (bezierPoints.length > 0) {
     const [head, ...rest] = bezierPoints
@@ -829,6 +866,79 @@ function appendPathGeometry(
     context.closePath()
   }
   return true
+}
+
+function resolvePathSimplificationBucket(
+  frame: EngineRenderFrame,
+): 0 | 1 | 2 {
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  if (frame.context.quality === 'interactive' || scale <= 0.22) {
+    return 2
+  }
+  if (scale <= 0.45) {
+    return 1
+  }
+  return 0
+}
+
+function simplifyPathPointsForBucket(
+  points: readonly {x: number; y: number}[],
+  bucket: 1 | 2,
+  closed: boolean,
+  viewportScale: number,
+) {
+  if (points.length <= 2) {
+    return [...points]
+  }
+
+  // Keep point density roughly constant in screen-space so low-zoom interaction
+  // work scales down with projected path complexity, not raw anchor count.
+  const absScale = Math.max(0.0001, Math.abs(viewportScale))
+  const minScreenStepPx = bucket === 2 ? 6 : 3
+  const minWorldStep = minScreenStepPx / absScale
+  const minWorldStepSquared = minWorldStep * minWorldStep
+  const simplified: Array<{x: number; y: number}> = [points[0]]
+
+  let polylineLength = 0
+  let previousPoint = points[0]
+  let lastKeptPoint = points[0]
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const point = points[index]
+    const segmentX = point.x - previousPoint.x
+    const segmentY = point.y - previousPoint.y
+    polylineLength += Math.hypot(segmentX, segmentY)
+    previousPoint = point
+
+    const dx = point.x - lastKeptPoint.x
+    const dy = point.y - lastKeptPoint.y
+    if ((dx * dx) + (dy * dy) >= minWorldStepSquared) {
+      simplified.push(point)
+      lastKeptPoint = point
+    }
+  }
+
+  const last = points[points.length - 1]
+  polylineLength += Math.hypot(last.x - previousPoint.x, last.y - previousPoint.y)
+
+  // Cap retained points by projected path length so very dense paths still
+  // downsample deterministically at far zoom levels.
+  const projectedLength = polylineLength * absScale
+  const maxRetainedPoints = Math.max(8, Math.min(256, Math.ceil(projectedLength / minScreenStepPx) + 1))
+  if (simplified.length > maxRetainedPoints) {
+    const downsampled: Array<{x: number; y: number}> = [simplified[0]]
+    const step = (simplified.length - 1) / Math.max(1, maxRetainedPoints - 1)
+    for (let index = 1; index < maxRetainedPoints - 1; index += 1) {
+      downsampled.push(simplified[Math.round(step * index)])
+    }
+    simplified.length = 0
+    simplified.push(...downsampled)
+  }
+
+  if (!closed || last.x !== points[0].x || last.y !== points[0].y) {
+    simplified.push(last)
+  }
+
+  return simplified
 }
 
 function drawShapeArrowheads(
@@ -1074,7 +1184,7 @@ function applyClipByNodeReference(
       y: clipNode.node.y,
       width: clipNode.node.width,
       height: clipNode.node.height,
-    })
+    }, 0, 1)
     context.restore()
     if (appended) {
       context.clip(rule)

@@ -24,6 +24,8 @@ export function hitTestDocument(
   spatialIndex: WorkerSpatialIndex,
   pointer: {x: number; y: number},
   options?: {
+    hitMode?: 'exact' | 'bbox_then_exact' | 'bbox'
+    maxExactCandidateCount?: number
     allowFrameSelection?: boolean
     strictStrokeHitTest?: boolean
   },
@@ -37,11 +39,15 @@ export function hitTestDocumentCandidates(
   spatialIndex: WorkerSpatialIndex,
   pointer: {x: number; y: number},
   options?: {
+    hitMode?: 'exact' | 'bbox_then_exact' | 'bbox'
+    maxExactCandidateCount?: number
     allowFrameSelection?: boolean
     strictStrokeHitTest?: boolean
     preferGroupSelection?: boolean
   },
 ) {
+  const hitMode = options?.hitMode ?? 'exact'
+  const maxExactCandidateCount = Math.max(1, options?.maxExactCandidateCount ?? 4)
   const allowFrameSelection = options?.allowFrameSelection ?? true
   const strictStrokeHitTest = options?.strictStrokeHitTest ?? false
   const preferGroupSelection = options?.preferGroupSelection ?? false
@@ -55,6 +61,7 @@ export function hitTestDocumentCandidates(
 
   const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
   const hits: WorkerHitTestCandidate[] = []
+  let exactCandidateCount = 0
 
   for (const candidate of sortedCandidates) {
     const shape = shapeById.get(candidate.meta.shapeId)
@@ -69,6 +76,22 @@ export function hitTestDocumentCandidates(
       continue
     }
 
+    // Coarse bounds prefilter before exact geometry checks so non-precision
+    // interactions can avoid paying exact cost for all spatial candidates.
+    if (!isPointInsideShapeBounds(pointer, shape, PATH_HIT_TOLERANCE)) {
+      continue
+    }
+
+    if (hitMode === 'bbox') {
+      appendHitCandidate(hits, document, sortedCandidates.length, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+      continue
+    }
+
+    if (hitMode === 'bbox_then_exact' && exactCandidateCount >= maxExactCandidateCount) {
+      appendHitCandidate(hits, document, sortedCandidates.length, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+      continue
+    }
+
     // For clipped elements, gate hit-test by clip source first so we do not
     // accidentally select through the unclipped host bounds.
     if (shape.clipPathId) {
@@ -77,6 +100,8 @@ export function hitTestDocumentCandidates(
         continue
       }
     }
+
+    exactCandidateCount += 1
 
     if (!isPointInsideEngineShapeHitArea(pointer, shape, {
       allowFrameSelection,
@@ -87,26 +112,56 @@ export function hitTestDocumentCandidates(
       continue
     }
 
-    const resolvedShape = preferGroupSelection
-      ? resolveSelectableShape(shape, shapeById)
-      : shape
-    const shapeIndex = document.shapes.findIndex((item) => item.id === resolvedShape.id)
-    if (shapeIndex < 0) {
-      continue
-    }
-
-    hits.push({
-      index: shapeIndex,
-      shapeId: resolvedShape.id,
-      shapeType: resolvedShape.type,
-      hitType: 'shape-body',
-      score: sortedCandidates.length - hits.length,
-      zOrder: candidate.meta.order,
-      hitPoint: pointer,
-    })
+    appendHitCandidate(hits, document, sortedCandidates.length, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
   }
 
   return hits
+}
+
+function isPointInsideShapeBounds(
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  tolerance: number,
+) {
+  const minX = Math.min(shape.x, shape.x + shape.width) - tolerance
+  const maxX = Math.max(shape.x, shape.x + shape.width) + tolerance
+  const minY = Math.min(shape.y, shape.y + shape.height) - tolerance
+  const maxY = Math.max(shape.y, shape.y + shape.height) + tolerance
+  return (
+    pointer.x >= minX &&
+    pointer.x <= maxX &&
+    pointer.y >= minY &&
+    pointer.y <= maxY
+  )
+}
+
+function appendHitCandidate(
+  hits: WorkerHitTestCandidate[],
+  document: EditorDocument,
+  candidateCount: number,
+  zOrder: number,
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  shapeById: Map<string, DocumentNode>,
+  preferGroupSelection: boolean,
+) {
+  const resolvedShape = preferGroupSelection
+    ? resolveSelectableShape(shape, shapeById)
+    : shape
+  const shapeIndex = document.shapes.findIndex((item) => item.id === resolvedShape.id)
+  if (shapeIndex < 0) {
+    return
+  }
+
+  hits.push({
+    index: shapeIndex,
+    shapeId: resolvedShape.id,
+    shapeType: resolvedShape.type,
+    hitType: 'shape-body',
+    score: candidateCount - hits.length,
+    zOrder,
+    hitPoint: pointer,
+  })
 }
 
 function isPointInsideClipSource(

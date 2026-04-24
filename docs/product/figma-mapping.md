@@ -6,13 +6,13 @@ Track page-to-PRD mapping and design coverage status.
 
 ## Mapping Table
 
-| PRD Capability                       | Figma Page/Section                         | Status      | Notes                                                                                                                             |
-| ------------------------------------ | ------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Editor shell (toolbar/header/panels) | docs/product/figma-prompts/editor-shell.md | In Progress | Implemented A/B/C shell variants plus semantic menu/tab/template picker alignment in vector app; Figma page mapping still pending |
-| Selection + transform workflows      | TBD                                        | Missing     | Include rotate/scale/multi-select states                                                                                          |
-| Property panel controls              | TBD                                        | Missing     | Cover text/path/image style variations                                                                                            |
-| Layer panel operations               | TBD                                        | Missing     | Include group and reorder behavior                                                                                                |
-| Context menu + shortcuts             | TBD                                        | Missing     | Ensure parity with runtime commands                                                                                               |
+| PRD Capability                       | Figma Page/Section                                                                                                                       | Status      | Notes                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor shell (toolbar/header/panels) | docs/product/figma-prompts/editor-shell.md                                                                                               | In Progress | Implemented A/B/C shell variants plus semantic menu/tab/template picker alignment in vector app; continue section-by-section coverage sync         |
+| Selection + transform workflows      | docs/product/figma-prompts/top-toolbar.md + docs/product/figma-prompts/left-tool-rail.md + docs/product/figma-prompts/right-inspector.md | In Progress | Selection tool states and transform/appearance control mapping are covered in shell rails + inspector; dedicated transform-flow page still pending |
+| Property panel controls              | docs/product/figma-prompts/right-inspector.md                                                                                            | In Progress | Inspector structure mapped to properties/transform/appearance/text sections in vector app inspector components                                     |
+| Layer panel operations               | docs/product/figma-prompts/layer-history-panel.md                                                                                        | In Progress | Layer hierarchy/visibility/lock/history mapping now tied to right-side stacked panel contract                                                      |
+| Context menu + shortcuts             | docs/product/figma-prompts/editor-shell.md + docs/product/figma-prompts/top-toolbar.md                                                   | In Progress | Runtime/context action parity tracked against app context menu and shortcut registry surfaces                                                      |
 
 ## Active Figma File
 
@@ -53,6 +53,38 @@ Track page-to-PRD mapping and design coverage status.
   options list (left) + preset details (right) + fixed bottom actions.
 - Inspector text workflow mapping now treats text content edits as
   canvas-context behavior; right panel remains for structural/style properties.
+
+## Coverage Snapshot (2026-04-24)
+
+- Editor shell prompt coverage:
+  - `docs/product/figma-prompts/editor-shell.md`
+  - `apps/vector-editor-web/src/components/header/menu/Menu.tsx`
+  - `apps/vector-editor-web/src/components/header/shortcutBar/ShortcutBar.tsx`
+  - `apps/vector-editor-web/src/components/toolbar/Toolbar.tsx`
+  - `apps/vector-editor-web/src/components/editorFrame/EditorFrameSidePanels.tsx`
+  - `apps/vector-editor-web/src/components/statusBar/StatusBar.tsx`
+- Inspector prompt coverage:
+  - `docs/product/figma-prompts/right-inspector.md`
+  - `apps/vector-editor-web/src/components/propPanel/PropPanel.tsx`
+  - `apps/vector-editor-web/src/components/propPanel/PropPanelSections.tsx`
+  - `apps/vector-editor-web/src/components/propPanel/PropPanelShapeProps.tsx`
+- Layer and history prompt coverage:
+  - `docs/product/figma-prompts/layer-history-panel.md`
+  - `apps/vector-editor-web/src/components/layerPanel/LayerPanel.tsx`
+  - `apps/vector-editor-web/src/components/historyPanel/HistoryPanel.tsx`
+- Context/shortcut parity surfaces:
+  - `apps/vector-editor-web/src/components/contextMenu/ContextMenu.tsx`
+  - `apps/vector-editor-web/src/editor/hooks/useShortcut.tsx`
+  - `apps/vector-editor-web/src/shared/constants/actions.ts`
+
+## Coverage Gaps
+
+- Dedicated Figma page for end-to-end selection/transform state transitions
+  (single select, multi-select, rotate/scale, mixed-value inspector state) is
+  not yet explicitly separated from shell and inspector prompts.
+- Context menu/shortcut interaction-state matrix (disabled/enabled by
+  selection cardinality and mode) still needs a dedicated Figma-focused prompt
+  section for full parity auditing.
 
 ## Update Rules
 

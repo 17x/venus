@@ -701,9 +701,12 @@ function enrichElementsForDocumentModel(elements: ElementProps[]): ElementProps[
     }
 
     if ((next.type === 'path' || next.type === 'lineSegment') && next.points && next.points.length >= 2 && !next.bezierPoints) {
-      next.bezierPoints = next.points.map((point) => ({
-        anchor: {x: point.x, y: point.y},
-      }))
+      next.bezierPoints = next.points.map((point) => {
+        const resolvedPoint = point as {x: number; y: number}
+        return {
+          anchor: {x: resolvedPoint.x, y: resolvedPoint.y},
+        }
+      })
     }
 
     // Sprinkle gradients/shadows deterministically so template data covers
@@ -715,7 +718,7 @@ function enrichElementsForDocumentModel(elements: ElementProps[]): ElementProps[
           type: 'linear',
           angle: 135,
           stops: [
-            {offset: 0, color: next.fill.color ?? '#dbeafe'},
+            {offset: 0, color: next.fill?.color ?? '#dbeafe'},
             {offset: 1, color: '#eff6ff'},
           ],
         },
@@ -738,7 +741,7 @@ function enrichElementsForDocumentModel(elements: ElementProps[]): ElementProps[
           centerY: 0.45,
           radius: 0.8,
           stops: [
-            {offset: 0, color: next.fill.color ?? '#ede9fe'},
+            {offset: 0, color: next.fill?.color ?? '#ede9fe'},
             {offset: 1, color: '#ddd6fe'},
           ],
         },

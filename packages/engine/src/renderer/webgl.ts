@@ -8,9 +8,12 @@ import { prepareEngineRenderPlan } from './plan.ts'
 import { prepareEngineRenderInstanceView } from './instances.ts'
 import { compileEngineWebGLPacketPlan } from './webglPackets.ts'
 import { createEngineWebGLResourceBudgetTracker } from './webglResources.ts'
-import type { EngineImageNode, EngineRenderableNode } from '../scene/types.ts'
 import type { EngineTileConfig, EngineLodConfig, EngineInitialRenderConfig } from '../index.ts'
-import { EngineTileCache } from './tileManager.ts'
+import {
+  EngineTileCache,
+  getZoomLevelForScale,
+  type TileZoomLevel,
+} from './tileManager.ts'
 import { EngineInitialRenderController } from './initialRender.ts'
 
 interface WebGLEngineRendererOptions {
@@ -37,12 +40,16 @@ const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   maxTranslatePx: 220,
 }
 
+const MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME = 2
+const MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME = 16 * 1024 * 1024
+const TEXT_PLACEHOLDER_MAX_SCALE = 0.3
+
 /**
  * Built-in WebGL renderer entry for engine standalone/runtime integrations.
  *
- * Current stage keeps one shared plan+instance pipeline and a minimal clear
- * commit so Canvas2D/WebGL can evolve with the same front-half optimization
- * path before WebGL draw-program wiring lands.
+ * Current implementation is the primary engine backend and intentionally
+ * reuses shared planning/packet prep while keeping Canvas2D limited to
+ * auxiliary model-complete and offscreen helper work.
  */
 export function createWebGLEngineRenderer(
   options: WebGLEngineRendererOptions,
@@ -59,7 +66,9 @@ export function createWebGLEngineRenderer(
 
   const clearColor = options.clearColor ?? [0, 0, 0, 0]
   const enableCulling = options.enableCulling ?? true
-  const modelCompleteComposite = options.modelCompleteComposite ?? true
+  // Prefer packet path by default for runtime responsiveness. Model-complete
+  // composite remains opt-in for fidelity-focused scenarios.
+  const modelCompleteComposite = options.modelCompleteComposite ?? false
   const resourceBudget = createEngineWebGLResourceBudgetTracker()
   const pipeline = createWebGLQuadPipeline(context)
   const imageCache = new Map<string, CachedTextureEntry>()
@@ -82,6 +91,9 @@ export function createWebGLEngineRenderer(
   
   // Initialize tile cache (optional)
   const tileCache = options.tileConfig ? new EngineTileCache(options.tileConfig) : null
+  const tileTextures = new Map<number, WebGLTexture>()
+  let nextTileTextureId = 1
+  let previousTileZoomLevel: TileZoomLevel | null = null
   
   // Initialize initial render controller (optional)
   const initialRenderController = options.initialRender
@@ -93,6 +105,10 @@ export function createWebGLEngineRenderer(
   const modelSurface = createModelSurface(1, 1)
   if (!modelSurface) {
     throw new Error('webgl model-complete surface allocation failed')
+  }
+  const textCropSurface = createModelSurface(1, 1)
+  if (!textCropSurface) {
+    throw new Error('webgl text crop surface allocation failed')
   }
   const modelRenderer = createCanvas2DEngineRenderer({
     id: `${options.id ?? 'engine.renderer.webgl'}.model-canvas2d`,
@@ -134,6 +150,13 @@ export function createWebGLEngineRenderer(
     render: async (frame: EngineRenderFrame) => {
       const startAt = performance.now()
       const interactiveQuality = frame.context.quality === 'interactive'
+      let l0PreviewHitCount = 0
+      let l0PreviewMissCount = 0
+      let l1CompositeHitCount = 0
+      let l1CompositeMissCount = 0
+      let l2TileHitCount = 0
+      let l2TileMissCount = 0
+      let cacheFallbackReason = 'none'
 
       // Apply initial render DPR optimization if configured
       let effectiveFrame = frame
@@ -160,31 +183,18 @@ export function createWebGLEngineRenderer(
       const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
       let dirtyTileCount = 0
       if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
-        // Apply dirty regions to tile cache
-        for (const _dirtyRegion of effectiveFrame.context.dirtyRegions) {
-          // Note: In a real implementation, would convert grid coords to world bounds
-          // and call tileCache.invalidateTilesInBounds(bounds, zoomLevel)
-          // TODO: Implement grid-to-world conversion and tile invalidation
+        for (const dirtyRegion of effectiveFrame.context.dirtyRegions) {
+          const zoomLevel = clampTileZoomLevel(dirtyRegion.zoomLevel)
+          tileCache.invalidateTile(zoomLevel, dirtyRegion.gridX, dirtyRegion.gridY)
           dirtyTileCount += 1
         }
-        // After processing, clear dirty flags
-        tileCache.clearDirtyFlags()
       }
 
       // Keep full-fidelity composite for settled frames, but fall back to the
       // packet pipeline during interaction so pan/zoom can keep frame pace.
       if (modelCompleteComposite && !interactiveQuality) {
+        l1CompositeHitCount += 1
         const modelStats = await modelRenderer.render(effectiveFrame)
-        const compositeFrame: EngineRenderFrame = {
-          ...effectiveFrame,
-          viewport: {
-            ...effectiveFrame.viewport,
-            scale: 1,
-            offsetX: 0,
-            offsetY: 0,
-          },
-        }
-
         context.viewport(
           0,
           0,
@@ -195,6 +205,85 @@ export function createWebGLEngineRenderer(
         context.blendFunc(context.ONE, context.ONE_MINUS_SRC_ALPHA)
         context.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3])
         context.clear(context.COLOR_BUFFER_BIT)
+
+        const tileDrawResult = tileCache
+          ? drawModelSurfaceAsTiles({
+            context,
+            frame: effectiveFrame,
+            tileCache,
+            tileTextures,
+            nextTileTextureId: () => nextTileTextureId++,
+            modelSurface: modelSurface.canvas,
+            pipeline,
+            previousZoomLevel: previousTileZoomLevel,
+          })
+          : null
+
+        if (tileDrawResult) {
+          previousTileZoomLevel = tileDrawResult.zoomLevel
+          l2TileHitCount += tileDrawResult.tileHitCount
+          l2TileMissCount += tileDrawResult.tileMissCount
+          if (tileDrawResult.fallbackReason !== 'none') {
+            cacheFallbackReason = tileDrawResult.fallbackReason
+          }
+
+          compositeSnapshot = {
+            revision: effectiveFrame.scene.revision,
+            scale: effectiveFrame.viewport.scale,
+            offsetX: effectiveFrame.viewport.offsetX,
+            offsetY: effectiveFrame.viewport.offsetY,
+            viewportWidth: effectiveFrame.viewport.viewportWidth,
+            viewportHeight: effectiveFrame.viewport.viewportHeight,
+            pixelRatio: effectiveFrame.context.pixelRatio ?? 1,
+            visibleCount: modelStats.visibleCount,
+            culledCount: modelStats.culledCount,
+          }
+
+          const tileStats = tileCache?.getStats()
+          const initialRenderPhase = initialRenderController?.getPhase()
+          const initialRenderProgress = initialRenderController?.getDetailPassProgress()
+
+          return {
+            ...modelStats,
+            drawCount: Math.max(1, tileDrawResult.drawCount),
+            cacheHits: tileDrawResult.tileHitCount,
+            cacheMisses: tileDrawResult.tileMissCount,
+            webglRenderPath: 'model-complete',
+            webglCompositeUploadBytes: 0,
+            webglInteractiveTextFallbackCount: 0,
+            webglTextTextureUploadCount: 0,
+            webglTextTextureUploadBytes: 0,
+            webglTextCacheHitCount: 0,
+            l0PreviewHitCount,
+            l0PreviewMissCount,
+            l1CompositeHitCount,
+            l1CompositeMissCount,
+            l2TileHitCount,
+            l2TileMissCount,
+            cacheFallbackReason,
+            tileCacheSize: tileStats?.tileCount,
+            tileDirtyCount: tileStats?.dirtyCount,
+            tileCacheTotalBytes: tileStats?.totalTextureBytes,
+            initialRenderPhase: initialRenderPhase?.toString(),
+            initialRenderProgress: initialRenderProgress,
+            dirtyRegionCount,
+            dirtyTileCount,
+            incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
+            frameMs: performance.now() - startAt,
+          }
+        }
+
+        cacheFallbackReason = tileCache ? 'l2-tile-fallback-to-composite' : cacheFallbackReason
+
+        const compositeFrame: EngineRenderFrame = {
+          ...effectiveFrame,
+          viewport: {
+            ...effectiveFrame.viewport,
+            scale: 1,
+            offsetX: 0,
+            offsetY: 0,
+          },
+        }
 
         context.bindTexture(context.TEXTURE_2D, compositeTexture)
         context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
@@ -244,6 +333,8 @@ export function createWebGLEngineRenderer(
         return {
           ...modelStats,
           drawCount: Math.max(1, modelStats.drawCount),
+          cacheHits: 0,
+          cacheMisses: 0,
           webglRenderPath: 'model-complete',
           webglCompositeUploadBytes:
             Math.max(1, effectiveFrame.viewport.viewportWidth) *
@@ -255,6 +346,13 @@ export function createWebGLEngineRenderer(
           webglTextTextureUploadCount: 0,
           webglTextTextureUploadBytes: 0,
           webglTextCacheHitCount: 0,
+          l0PreviewHitCount,
+          l0PreviewMissCount,
+          l1CompositeHitCount,
+          l1CompositeMissCount,
+          l2TileHitCount,
+          l2TileMissCount,
+          cacheFallbackReason,
           frameMs: performance.now() - startAt,
         }
       }
@@ -268,6 +366,7 @@ export function createWebGLEngineRenderer(
         interactionPreview,
       })
       if (previewReuse.reused) {
+        l0PreviewHitCount += 1
         return {
           drawCount: 1,
           visibleCount: previewReuse.visibleCount,
@@ -282,24 +381,41 @@ export function createWebGLEngineRenderer(
           webglTextTextureUploadCount: 0,
           webglTextTextureUploadBytes: 0,
           webglTextCacheHitCount: 0,
+          l0PreviewHitCount,
+          l0PreviewMissCount,
+          l1CompositeHitCount,
+          l1CompositeMissCount,
+          l2TileHitCount,
+          l2TileMissCount,
+          cacheFallbackReason,
           frameMs: performance.now() - startAt,
         }
       }
+      l0PreviewMissCount += 1
+      if (interactiveQuality) {
+        cacheFallbackReason = 'l0-preview-miss'
+      }
 
       const plan = prepareEngineRenderPlan(effectiveFrame)
+      if (interactiveQuality || !modelCompleteComposite) {
+        l1CompositeMissCount += 1
+        if (cacheFallbackReason === 'none') {
+          cacheFallbackReason = interactiveQuality
+            ? 'l1-bypass-interactive'
+            : 'l1-disabled'
+        }
+      }
       // Prepare typed-array instance payload once per frame so upcoming WebGL
       // draw pipelines can focus on upload/commit without repeating traversal.
       const instanceView = prepareEngineRenderInstanceView(effectiveFrame, plan)
       const packetPlan = compileEngineWebGLPacketPlan(plan, instanceView)
+      pruneTextCache(context, textCache, packetPlan.packets, resourceBudget)
 
-      let frameTextureEstimate = resourceBudget.getTextureBytes()
-      for (const packet of packetPlan.packets) {
-        if (packet.kind === 'image') {
-          // Keep a conservative placeholder estimate so texture budgeting
-          // behavior is active before concrete texture allocation lands.
-          frameTextureEstimate += 4 * 1024 * 1024
-        }
-      }
+      // Estimate only not-yet-resident image textures so budget pressure does
+      // not keep charging cached images as if every frame were a fresh upload.
+      const frameTextureEstimate =
+        resourceBudget.getTextureBytes() +
+        countPendingImageTextureEstimate(packetPlan.packets, imageCache)
 
       const budgetState = resourceBudget.recordFrameUsage({
         bufferBytes: packetPlan.uploadBytesEstimate,
@@ -308,7 +424,10 @@ export function createWebGLEngineRenderer(
 
       if (budgetState.overTextureBudget) {
         if (budgetState.textureOverflowBytes > 0) {
-          resourceBudget.evictLeastRecentlyUsedTextures(budgetState.textureOverflowBytes)
+          const evictedTextureIds = resourceBudget.evictLeastRecentlyUsedTextures(
+            budgetState.textureOverflowBytes,
+          )
+          disposeEvictedTextures(context, imageCache, textCache, evictedTextureIds)
         }
       }
 
@@ -327,11 +446,8 @@ export function createWebGLEngineRenderer(
       // If there are text packets that require run-level fidelity, use the
       // canvas2d model renderer as a fallback compositor to produce accurate
       // text run output which we then upload to textures per-node.
-      const needsModelTextComposite = !interactiveQuality && packetPlan.packets.some((p) => {
-        if (p.kind !== 'text') return false
-        const prepared = plan.preparedNodes[p.preparedIndex]
-        return !!(prepared && prepared.node && prepared.node.type === 'text' && (prepared.node.runs && prepared.node.runs.length > 0))
-      })
+      const needsModelTextComposite =
+        !interactiveQuality && packetPlan.richTextPacketCount > 0
 
       if (needsModelTextComposite) {
         // Render the full model into the modelSurface canvas so we can crop
@@ -348,61 +464,104 @@ export function createWebGLEngineRenderer(
       let textTextureUploadCount = 0
       let textTextureUploadBytes = 0
       let textCacheHitCount = 0
+      let imageTextureUploadCount = 0
+      let imageTextureUploadBytes = 0
+      let deferredImageTextureCount = 0
+      const imageUploadBudget: ImageUploadBudgetState = {
+        remainingUploads: MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
+        remainingBytes: MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
+      }
+      const useTextPlaceholderMode =
+        effectiveFrame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
       for (const packet of packetPlan.packets) {
-        const prepared = plan.preparedNodes[packet.preparedIndex]
-        if (!prepared || !prepared.worldBounds) {
-          continue
-        }
-
-        const node = prepared.node
-        if (node.type === 'image') {
-          const drawImageTexture = resolveImageTexture(
+        if (packet.kind === 'image' && packet.assetId) {
+          const imageTexture = resolveImageTexture(
             context,
             effectiveFrame,
-            node,
+            packet.assetId,
             imageCache,
             resourceBudget,
+            imageUploadBudget,
           )
+          if (imageTexture.deferred) {
+            deferredImageTextureCount += 1
+          }
+          imageTextureUploadCount += imageTexture.uploadCount
+          imageTextureUploadBytes += imageTexture.uploadBytes
           drawCount += drawWebGLPacket(
             context,
             pipeline,
             effectiveFrame,
-            prepared.worldBounds,
-            resolveNodeColor(node),
+            packet.worldBounds,
+            packet.color,
             packet.opacity,
-            drawImageTexture,
+            imageTexture.texture,
           )
           continue
         }
 
         if (packet.kind === 'text') {
-          if (interactiveQuality) {
-            // Interactive mode prioritizes motion stability over text fidelity.
-            // Draw a solid fallback quad and avoid per-node texture uploads.
+          const cached = textCache.get(packet.nodeId)
+          const textCacheKey = resolveTextCacheKey(packet)
+          const textRasterScale = resolveTextRasterScale(effectiveFrame)
+
+          if (useTextPlaceholderMode) {
+            // Low-zoom text is not legible at glyph fidelity. Render an
+            // inexpensive placeholder and skip text raster uploads.
             interactiveTextFallbackCount += 1
-            drawCount += drawWebGLPacket(
+            drawCount += drawInteractiveTextFallback(
               context,
               pipeline,
               effectiveFrame,
-              prepared.worldBounds,
-              resolveNodeColor(node),
+              packet.worldBounds,
+              packet.color,
               packet.opacity,
-              null,
+            )
+            continue
+          }
+
+          if (interactiveQuality) {
+            // Interactive mode prefers cached text textures when content is
+            // unchanged so pan/zoom previews avoid collapsing to solid blocks.
+            if (cached && canReuseInteractiveTextTexture(cached, textCacheKey)) {
+              textCacheHitCount += 1
+              resourceBudget.markTextureUsed(packet.nodeId)
+              drawCount += drawWebGLPacket(
+                context,
+                pipeline,
+                effectiveFrame,
+                packet.worldBounds,
+                packet.color,
+                packet.opacity,
+                cached.texture,
+              )
+              continue
+            }
+
+            // Avoid texture uploads during interaction and fall back only when
+            // there is no existing text texture to preview with.
+            interactiveTextFallbackCount += 1
+            drawCount += drawInteractiveTextFallback(
+              context,
+              pipeline,
+              effectiveFrame,
+              packet.worldBounds,
+              packet.color,
+              packet.opacity,
             )
             continue
           }
 
           // Try cached text texture first
-          const cached = textCache.get(packet.nodeId)
-          if (cached) {
+          if (cached && canReuseTextTexture(cached, textCacheKey, textRasterScale)) {
             textCacheHitCount += 1
             resourceBudget.markTextureUsed(packet.nodeId)
             drawCount += drawWebGLPacket(
               context,
               pipeline,
               effectiveFrame,
-              prepared.worldBounds,
-              resolveNodeColor(node),
+              packet.worldBounds,
+              packet.color,
               packet.opacity,
               cached.texture,
             )
@@ -412,15 +571,22 @@ export function createWebGLEngineRenderer(
           // If we have a modelSurface canvas from the canvas2d renderer,
           // crop the node rect and upload as texture.
           if (modelSurface && modelSurface.canvas) {
-            const pixelRatio = effectiveFrame.context.pixelRatio ?? 1
-            const sx = Math.round(prepared.worldBounds.x * pixelRatio)
-            const sy = Math.round(prepared.worldBounds.y * pixelRatio)
-            const sw = Math.max(1, Math.round(prepared.worldBounds.width * pixelRatio))
-            const sh = Math.max(1, Math.round(prepared.worldBounds.height * pixelRatio))
+            const textureSourceRect = resolvePacketTextureSourceRect(
+              packet.worldBounds,
+              effectiveFrame,
+            )
 
-            const cropped = createCanvasFromSource(modelSurface.canvas as unknown as HTMLCanvasElement, sx, sy, sw, sh)
-            const texture = context.createTexture()
+            const cropped = copyCanvasRegion(
+              modelSurface.canvas,
+              textCropSurface.canvas,
+              textureSourceRect.x,
+              textureSourceRect.y,
+              textureSourceRect.width,
+              textureSourceRect.height,
+            )
+            const texture = cached?.texture ?? context.createTexture()
             if (texture) {
+              const reusesCachedTexture = cached?.texture === texture
               context.bindTexture(context.TEXTURE_2D, texture)
               context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
               context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
@@ -436,22 +602,35 @@ export function createWebGLEngineRenderer(
                   context.UNSIGNED_BYTE,
                   cropped as unknown as TexImageSource,
                 )
-                textCache.set(packet.nodeId, {texture, width: sw, height: sh})
-                resourceBudget.markTextureResident(packet.nodeId, sw * sh * 4)
+                textCache.set(packet.nodeId, {
+                  texture,
+                  width: textureSourceRect.width,
+                  height: textureSourceRect.height,
+                  cacheKey: textCacheKey,
+                  rasterScale: textRasterScale,
+                })
+                resourceBudget.markTextureResident(
+                  packet.nodeId,
+                  textureSourceRect.width * textureSourceRect.height * 4,
+                )
                 resourceBudget.markTextureUsed(packet.nodeId)
                 textTextureUploadCount += 1
-                textTextureUploadBytes += sw * sh * 4
+                textTextureUploadBytes += textureSourceRect.width * textureSourceRect.height * 4
                 drawCount += drawWebGLPacket(
                   context,
                   pipeline,
                   effectiveFrame,
-                  prepared.worldBounds,
-                  resolveNodeColor(node),
+                  packet.worldBounds,
+                  packet.color,
                   packet.opacity,
                   texture,
                 )
                 continue
               } catch {
+                if (reusesCachedTexture) {
+                  textCache.delete(packet.nodeId)
+                  resourceBudget.releaseTexture(packet.nodeId)
+                }
                 context.deleteTexture(texture)
               }
             }
@@ -463,16 +642,11 @@ export function createWebGLEngineRenderer(
           context,
           pipeline,
           effectiveFrame,
-          prepared.worldBounds,
-          resolveNodeColor(node),
+          packet.worldBounds,
+          packet.color,
           packet.opacity,
           null,
         )
-      }
-
-      // Mark text cache usage for LRU tracking
-      for (const key of textCache.keys()) {
-        resourceBudget.markTextureUsed(key)
       }
 
       // Collect tile and initial render diagnostics
@@ -484,6 +658,8 @@ export function createWebGLEngineRenderer(
         drawCount,
         visibleCount: plan.stats.visibleCount,
         culledCount: plan.stats.culledCount,
+        groupCollapseCount: plan.stats.collapsedGroupCount,
+        groupCollapseCulledCount: plan.stats.collapsedDescendantCulledCount,
         cacheHits: 0,
         cacheMisses: 0,
         frameReuseHits: 0,
@@ -491,9 +667,19 @@ export function createWebGLEngineRenderer(
         webglRenderPath: 'packet',
         webglCompositeUploadBytes: 0,
         webglInteractiveTextFallbackCount: interactiveTextFallbackCount,
+        webglImageTextureUploadCount: imageTextureUploadCount,
+        webglImageTextureUploadBytes: imageTextureUploadBytes,
+        webglDeferredImageTextureCount: deferredImageTextureCount,
         webglTextTextureUploadCount: textTextureUploadCount,
         webglTextTextureUploadBytes: textTextureUploadBytes,
         webglTextCacheHitCount: textCacheHitCount,
+        l0PreviewHitCount,
+        l0PreviewMissCount,
+        l1CompositeHitCount,
+        l1CompositeMissCount,
+        l2TileHitCount,
+        l2TileMissCount,
+        cacheFallbackReason,
         tileCacheSize: tileStats?.tileCount,
         tileDirtyCount: tileStats?.dirtyCount,
         tileCacheTotalBytes: tileStats?.totalTextureBytes,
@@ -508,14 +694,12 @@ export function createWebGLEngineRenderer(
     dispose: () => {
       modelRenderer.dispose?.()
       context.deleteTexture(compositeTexture)
-      for (const entry of imageCache.values()) {
-        context.deleteTexture(entry.texture)
+      for (const texture of tileTextures.values()) {
+        context.deleteTexture(texture)
       }
-      for (const entry of textCache.values()) {
-        context.deleteTexture(entry.texture)
-      }
-      imageCache.clear()
-      textCache.clear()
+      tileTextures.clear()
+      disposeCachedTextures(context, imageCache, resourceBudget)
+      disposeCachedTextures(context, textCache, resourceBudget)
       disposeWebGLQuadPipeline(context, pipeline)
       // WebGL context lifecycle is owned by the host canvas environment.
     },
@@ -541,6 +725,448 @@ function createModelSurface(width: number, height: number) {
   return null
 }
 
+function copyCanvasRegion(
+  source: HTMLCanvasElement | OffscreenCanvas,
+  target: HTMLCanvasElement | OffscreenCanvas,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+) {
+  // Reuse one scratch surface so uncached text packets do not allocate a new
+  // temporary canvas on every crop/upload pass.
+  target.width = sw
+  target.height = sh
+  const context = target.getContext('2d')
+  if (context) {
+    context.clearRect(0, 0, sw, sh)
+    context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh)
+  }
+
+  return target
+}
+
+function clampTileZoomLevel(value: number): TileZoomLevel {
+  const rounded = Math.round(value)
+  if (rounded <= 0) return 0
+  if (rounded >= 5) return 5
+  return rounded as TileZoomLevel
+}
+
+function resolveViewportWorldBounds(frame: EngineRenderFrame) {
+  return {
+    x: -frame.viewport.offsetX / frame.viewport.scale,
+    y: -frame.viewport.offsetY / frame.viewport.scale,
+    width: frame.viewport.viewportWidth / frame.viewport.scale,
+    height: frame.viewport.viewportHeight / frame.viewport.scale,
+  }
+}
+
+function drawModelSurfaceAsTiles(options: {
+  context: WebGLRenderingContext | WebGL2RenderingContext
+  frame: EngineRenderFrame
+  tileCache: EngineTileCache
+  tileTextures: Map<number, WebGLTexture>
+  nextTileTextureId: () => number
+  modelSurface: HTMLCanvasElement | OffscreenCanvas
+  pipeline: WebGLQuadPipeline
+  previousZoomLevel?: TileZoomLevel | null
+}) {
+  const zoomLevel = getZoomLevelForScale(
+    options.frame.viewport.scale,
+    options.previousZoomLevel,
+  )
+  const viewportBounds = resolveViewportWorldBounds(options.frame)
+  const visibleTiles = options.tileCache.getVisibleTiles(viewportBounds, zoomLevel)
+  const pixelRatio = options.frame.context.pixelRatio ?? 1
+  const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * pixelRatio))
+  const viewportHeightPx = Math.max(1, Math.round(options.frame.viewport.viewportHeight * pixelRatio))
+
+  let drawCount = 0
+  let tileHitCount = 0
+  let tileMissCount = 0
+  let fallbackReason = 'none'
+
+  for (const tile of visibleTiles) {
+    const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
+    const cachedTexture = cachedEntry ? options.tileTextures.get(cachedEntry.textureId) : null
+    if (cachedEntry && !cachedEntry.isDirty && cachedTexture) {
+      tileHitCount += 1
+      drawCount += drawWebGLPacket(
+        options.context,
+        options.pipeline,
+        options.frame,
+        cachedEntry.bounds,
+        [1, 1, 1, 1],
+        1,
+        cachedTexture,
+      )
+      continue
+    }
+
+    tileMissCount += 1
+    const tileTextureSource = buildTileTextureSourceFromModelSurface({
+      modelSurface: options.modelSurface,
+      frame: options.frame,
+      tileBounds: tile.bounds,
+      viewportWidthPx,
+      viewportHeightPx,
+    })
+    if (!tileTextureSource) {
+      fallbackReason = 'l2-tile-source-build-failed'
+      return null
+    }
+
+    const existingTexture = cachedTexture ?? null
+    const uploaded = uploadTileTexture(
+      options.context,
+      existingTexture,
+      tileTextureSource,
+    )
+    if (!uploaded.texture) {
+      fallbackReason = 'l2-tile-upload-failed'
+      return null
+    }
+
+    const textureId = cachedEntry?.textureId ?? options.nextTileTextureId()
+    options.tileTextures.set(textureId, uploaded.texture)
+    options.tileCache.upsertEntry({
+      zoomLevel: tile.zoomLevel,
+      gridX: tile.gridX,
+      gridY: tile.gridY,
+      textureId,
+      textureBytes: uploaded.textureBytes,
+    })
+
+    drawCount += drawWebGLPacket(
+      options.context,
+      options.pipeline,
+      options.frame,
+      tile.bounds,
+      [1, 1, 1, 1],
+      1,
+      uploaded.texture,
+    )
+  }
+
+  return {
+    zoomLevel,
+    drawCount,
+    tileHitCount,
+    tileMissCount,
+    fallbackReason,
+  }
+}
+
+function uploadTileTexture(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  existingTexture: WebGLTexture | null,
+  tileSurface: HTMLCanvasElement | OffscreenCanvas,
+) {
+  const texture = existingTexture ?? context.createTexture()
+  if (!texture) {
+    return {
+      texture: null,
+      textureBytes: 0,
+    }
+  }
+
+  context.bindTexture(context.TEXTURE_2D, texture)
+  context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
+
+  try {
+    context.texImage2D(
+      context.TEXTURE_2D,
+      0,
+      context.RGBA,
+      context.RGBA,
+      context.UNSIGNED_BYTE,
+      tileSurface as unknown as TexImageSource,
+    )
+  } catch {
+    if (!existingTexture) {
+      context.deleteTexture(texture)
+    }
+    return {
+      texture: null,
+      textureBytes: 0,
+    }
+  }
+
+  const width = tileSurface.width
+  const height = tileSurface.height
+  return {
+    texture,
+    textureBytes: Math.max(1, width * height * 4),
+  }
+}
+
+function buildTileTextureSourceFromModelSurface(options: {
+  modelSurface: HTMLCanvasElement | OffscreenCanvas
+  frame: EngineRenderFrame
+  tileBounds: {x: number; y: number; width: number; height: number}
+  viewportWidthPx: number
+  viewportHeightPx: number
+}) {
+  const pixelRatio = options.frame.context.pixelRatio ?? 1
+  const matrix = options.frame.viewport.matrix
+  const tileScreenX = matrix[0] * options.tileBounds.x + matrix[1] * options.tileBounds.y + matrix[2]
+  const tileScreenY = matrix[3] * options.tileBounds.x + matrix[4] * options.tileBounds.y + matrix[5]
+  const tileScreenWidth = options.tileBounds.width * options.frame.viewport.scale
+  const tileScreenHeight = options.tileBounds.height * options.frame.viewport.scale
+
+  const tilePixelX = tileScreenX * pixelRatio
+  const tilePixelY = tileScreenY * pixelRatio
+  const tilePixelWidth = Math.max(1, Math.ceil(tileScreenWidth * pixelRatio))
+  const tilePixelHeight = Math.max(1, Math.ceil(tileScreenHeight * pixelRatio))
+
+  const sourceMinX = Math.max(0, Math.floor(tilePixelX))
+  const sourceMinY = Math.max(0, Math.floor(tilePixelY))
+  const sourceMaxX = Math.min(options.viewportWidthPx, Math.ceil(tilePixelX + tilePixelWidth))
+  const sourceMaxY = Math.min(options.viewportHeightPx, Math.ceil(tilePixelY + tilePixelHeight))
+  const sourceWidth = sourceMaxX - sourceMinX
+  const sourceHeight = sourceMaxY - sourceMinY
+
+  const tileSurface = createModelSurface(tilePixelWidth, tilePixelHeight)
+  if (!tileSurface) {
+    return null
+  }
+
+  const tileContext = tileSurface.canvas.getContext('2d')
+  if (!tileContext) {
+    return null
+  }
+
+  tileContext.clearRect(0, 0, tilePixelWidth, tilePixelHeight)
+
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    return tileSurface.canvas
+  }
+
+  const destinationX = sourceMinX - tilePixelX
+  const destinationY = sourceMinY - tilePixelY
+  tileContext.drawImage(
+    options.modelSurface,
+    sourceMinX,
+    sourceMinY,
+    sourceWidth,
+    sourceHeight,
+    destinationX,
+    destinationY,
+    sourceWidth,
+    sourceHeight,
+  )
+
+  return tileSurface.canvas
+}
+
+function resolveTextCacheKey(packet: { textCacheKey?: string }) {
+  // Keep cache reuse local to each text packet so unrelated scene revisions do
+  // not invalidate every text texture at once.
+  return packet.textCacheKey ?? 'text'
+}
+
+function resolveTextRasterScale(frame: EngineRenderFrame) {
+  // Track the effective text raster scale so we can reuse equal-or-higher
+  // fidelity textures across zoom-outs without forcing a new upload.
+  return (frame.context.pixelRatio ?? 1) * frame.viewport.scale
+}
+
+function countPendingImageTextureEstimate(
+  packets: ReadonlyArray<{ kind: string; assetId?: string }>,
+  imageCache: Map<string, CachedTextureEntry>,
+) {
+  let estimatedBytes = 0
+
+  for (const packet of packets) {
+    if (packet.kind !== 'image' || !packet.assetId || imageCache.has(packet.assetId)) {
+      continue
+    }
+
+    // Keep a coarse placeholder estimate for not-yet-uploaded images without
+    // recharging textures that are already resident in the cache.
+    estimatedBytes += 4 * 1024 * 1024
+  }
+
+  return estimatedBytes
+}
+
+function canReuseTextTexture(
+  cached: CachedTextureEntry | undefined,
+  textCacheKey: string,
+  textRasterScale: number,
+) {
+  if (!cached || cached.cacheKey !== textCacheKey) {
+    return false
+  }
+
+  const cachedRasterScale = cached.rasterScale ?? 0
+  return cachedRasterScale >= textRasterScale
+}
+
+function canReuseInteractiveTextTexture(
+  cached: CachedTextureEntry | undefined,
+  textCacheKey: string,
+) {
+  // Allow interactive previews to reuse any matching cached text texture so
+  // motion stays legible even when the cached raster is lower-resolution.
+  return Boolean(cached && cached.cacheKey === textCacheKey)
+}
+
+function resolvePacketTextureSourceRect(
+  worldBounds: {x: number; y: number; width: number; height: number},
+  frame: EngineRenderFrame,
+) {
+  const pixelRatio = frame.context.pixelRatio ?? 1
+  const scale = frame.viewport.scale
+  const offsetX = frame.viewport.offsetX
+  const offsetY = frame.viewport.offsetY
+  // Convert world-space bounds into the same device-pixel crop rect used by
+  // the Canvas2D model surface so texture uploads sample the correct pixels.
+  const minX = Math.floor((worldBounds.x * scale + offsetX) * pixelRatio)
+  const minY = Math.floor((worldBounds.y * scale + offsetY) * pixelRatio)
+  const maxX = Math.ceil((
+    (worldBounds.x + worldBounds.width) * scale + offsetX
+  ) * pixelRatio)
+  const maxY = Math.ceil((
+    (worldBounds.y + worldBounds.height) * scale + offsetY
+  ) * pixelRatio)
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  }
+}
+
+function drawInteractiveTextFallback(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  pipeline: WebGLQuadPipeline,
+  frame: EngineRenderFrame,
+  worldBounds: {x: number; y: number; width: number; height: number},
+  color: readonly [number, number, number, number],
+  opacity: number,
+) {
+  const stripeCount = resolveInteractiveTextStripeCount(worldBounds.height)
+  const insetX = Math.min(worldBounds.width * 0.08, worldBounds.width * 0.32)
+  const insetY = Math.min(worldBounds.height * 0.14, worldBounds.height * 0.28)
+  const availableHeight = Math.max(1, worldBounds.height - insetY * 2)
+  const stripeGap = Math.max(availableHeight * 0.12, worldBounds.height * 0.04)
+  const stripeHeight = Math.max(
+    1,
+    (availableHeight - stripeGap * Math.max(0, stripeCount - 1)) / Math.max(1, stripeCount),
+  )
+  const widthFactors = [0.92, 0.78, 0.58]
+
+  let drawCount = 0
+  for (let index = 0; index < stripeCount; index += 1) {
+    // Draw a few ragged text-line bars so interaction previews stay legible
+    // without paying the upload cost of a fresh text texture mid-gesture.
+    const stripeWidth = Math.max(
+      1,
+      (worldBounds.width - insetX * 2) * (widthFactors[index] ?? widthFactors[widthFactors.length - 1]),
+    )
+    const stripeY = worldBounds.y + insetY + index * (stripeHeight + stripeGap)
+    drawCount += drawWebGLPacket(
+      context,
+      pipeline,
+      frame,
+      {
+        x: worldBounds.x + insetX,
+        y: stripeY,
+        width: stripeWidth,
+        height: stripeHeight,
+      },
+      [color[0], color[1], color[2], color[3] * 0.88],
+      opacity,
+      null,
+    )
+  }
+
+  return drawCount
+}
+
+function resolveInteractiveTextStripeCount(worldHeight: number) {
+  if (worldHeight >= 56) {
+    return 3
+  }
+
+  if (worldHeight >= 24) {
+    return 2
+  }
+
+  return 1
+}
+
+function disposeCachedTextures(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  cache: Map<string, CachedTextureEntry>,
+  budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
+) {
+  // Keep cache-reset and dispose semantics aligned so GPU texture ownership is
+  // released consistently.
+  for (const [cacheKey, entry] of cache.entries()) {
+    context.deleteTexture(entry.texture)
+    budget.releaseTexture(cacheKey)
+  }
+
+  cache.clear()
+}
+
+function disposeEvictedTextures(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  imageCache: Map<string, CachedTextureEntry>,
+  textCache: Map<string, CachedTextureEntry>,
+  textureIds: readonly string[],
+) {
+  // Keep budget-driven eviction tied to actual GPU/cache disposal so resource
+  // pressure decisions reflect real residency instead of bookkeeping only.
+  for (const textureId of textureIds) {
+    const cachedImage = imageCache.get(textureId)
+    if (cachedImage) {
+      context.deleteTexture(cachedImage.texture)
+      imageCache.delete(textureId)
+      continue
+    }
+
+    const cachedText = textCache.get(textureId)
+    if (cachedText) {
+      context.deleteTexture(cachedText.texture)
+      textCache.delete(textureId)
+    }
+  }
+}
+
+function pruneTextCache(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  cache: Map<string, CachedTextureEntry>,
+  packets: ReadonlyArray<{ kind: string; nodeId: string }>,
+  budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
+) {
+  // Drop GPU textures for text nodes that are no longer part of the current
+  // packet plan so node-local caching does not retain removed text forever.
+  const activeTextNodeIds = new Set(
+    packets
+      .filter((packet) => packet.kind === 'text')
+      .map((packet) => packet.nodeId),
+  )
+
+  for (const [nodeId, entry] of cache.entries()) {
+    if (activeTextNodeIds.has(nodeId)) {
+      continue
+    }
+
+    context.deleteTexture(entry.texture)
+    cache.delete(nodeId)
+    budget.releaseTexture(nodeId)
+  }
+}
+
 interface WebGLQuadPipeline {
   program: WebGLProgram
   positionBuffer: WebGLBuffer
@@ -558,6 +1184,20 @@ interface CachedTextureEntry {
   texture: WebGLTexture
   width: number
   height: number
+  cacheKey?: string
+  rasterScale?: number
+}
+
+interface ImageUploadBudgetState {
+  remainingUploads: number
+  remainingBytes: number
+}
+
+interface ResolvedImageTextureResult {
+  texture: WebGLTexture | null
+  uploadCount: number
+  uploadBytes: number
+  deferred: boolean
 }
 
 function tryReuseInteractiveCompositeFrame(options: {
@@ -819,24 +1459,70 @@ function drawWebGLPacket(
 function resolveImageTexture(
   context: WebGLRenderingContext | WebGL2RenderingContext,
   frame: EngineRenderFrame,
-  node: EngineImageNode,
+  assetId: string,
   imageCache: Map<string, CachedTextureEntry>,
   budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
-) {
-  const existing = imageCache.get(node.assetId)
+  uploadBudget: ImageUploadBudgetState,
+): ResolvedImageTextureResult {
+  const existing = imageCache.get(assetId)
   if (existing) {
-    budget.markTextureUsed(node.assetId)
-    return existing.texture
+    budget.markTextureUsed(assetId)
+    return {
+      texture: existing.texture,
+      uploadCount: 0,
+      uploadBytes: 0,
+      deferred: false,
+    }
   }
 
-  const source = frame.context.loader?.resolveImage(node.assetId)
+  if (frame.context.quality === 'interactive') {
+    // Freeze expensive texture uploads during active interaction and rely on
+    // settled frames to populate missing image textures.
+    return {
+      texture: null,
+      uploadCount: 0,
+      uploadBytes: 0,
+      deferred: true,
+    }
+  }
+
+  const source = frame.context.loader?.resolveImage(assetId)
   if (!source) {
-    return null
+    return {
+      texture: null,
+      uploadCount: 0,
+      uploadBytes: 0,
+      deferred: false,
+    }
+  }
+
+  const size = resolveCanvasImageSourceSize(source)
+  const width = Math.max(1, size.width)
+  const height = Math.max(1, size.height)
+  const uploadBytes = width * height * 4
+  const canSpendOversizedSingleUpload =
+    uploadBudget.remainingUploads > 0 &&
+    uploadBudget.remainingBytes === MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME
+  if (
+    uploadBudget.remainingUploads <= 0 ||
+    (uploadBudget.remainingBytes < uploadBytes && !canSpendOversizedSingleUpload)
+  ) {
+    return {
+      texture: null,
+      uploadCount: 0,
+      uploadBytes: 0,
+      deferred: true,
+    }
   }
 
   const texture = context.createTexture()
   if (!texture) {
-    return null
+    return {
+      texture: null,
+      uploadCount: 0,
+      uploadBytes: 0,
+      deferred: false,
+    }
   }
 
   context.bindTexture(context.TEXTURE_2D, texture)
@@ -858,101 +1544,32 @@ function resolveImageTexture(
     )
   } catch {
     context.deleteTexture(texture)
-    return null
+    return {
+      texture: null,
+      uploadCount: 0,
+      uploadBytes: 0,
+      deferred: false,
+    }
   }
 
-  const size = resolveCanvasImageSourceSize(source)
-  const width = Math.max(1, size.width)
-  const height = Math.max(1, size.height)
-  imageCache.set(node.assetId, {
+  uploadBudget.remainingUploads -= 1
+  // Clamp to zero so one oversized upload can consume the whole frame budget
+  // without causing negative accounting or an infinite deferred loop.
+  uploadBudget.remainingBytes = Math.max(0, uploadBudget.remainingBytes - uploadBytes)
+  imageCache.set(assetId, {
     texture,
     width,
     height,
   })
-  budget.markTextureResident(node.assetId, width * height * 4)
-  budget.markTextureUsed(node.assetId)
+  budget.markTextureResident(assetId, uploadBytes)
+  budget.markTextureUsed(assetId)
 
-  return texture
-}
-
-function resolveNodeColor(node: EngineRenderableNode): readonly [number, number, number, number] {
-  if (node.type === 'shape') {
-    return parseEngineColor(node.fill ?? node.stroke ?? '#9ca3af')
+  return {
+    texture,
+    uploadCount: 1,
+    uploadBytes,
+    deferred: false,
   }
-
-  if (node.type === 'text') {
-    return parseEngineColor(node.style.fill ?? '#111827')
-  }
-
-  return [1, 1, 1, 1]
-}
-
-function parseEngineColor(value: string): readonly [number, number, number, number] {
-  const color = value.trim().toLowerCase()
-  const named = NAMED_COLORS[color]
-  if (named) {
-    return named
-  }
-
-  if (color.startsWith('#')) {
-    const hex = color.slice(1)
-    if (hex.length === 3) {
-      const r = parseInt(hex[0] + hex[0], 16)
-      const g = parseInt(hex[1] + hex[1], 16)
-      const b = parseInt(hex[2] + hex[2], 16)
-      return [r / 255, g / 255, b / 255, 1]
-    }
-
-    if (hex.length === 6 || hex.length === 8) {
-      const r = parseInt(hex.slice(0, 2), 16)
-      const g = parseInt(hex.slice(2, 4), 16)
-      const b = parseInt(hex.slice(4, 6), 16)
-      const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
-      return [r / 255, g / 255, b / 255, a]
-    }
-  }
-
-  const rgbaMatch = color.match(/^rgba?\(([^)]+)\)$/)
-  if (rgbaMatch) {
-    const components = rgbaMatch[1]
-      .split(',')
-      .map((entry) => entry.trim())
-    if (components.length === 3 || components.length === 4) {
-      const r = clamp255(Number(components[0]))
-      const g = clamp255(Number(components[1]))
-      const b = clamp255(Number(components[2]))
-      const a = components.length === 4 ? clamp01(Number(components[3])) : 1
-      return [r / 255, g / 255, b / 255, a]
-    }
-  }
-
-  return [0.5, 0.5, 0.5, 1]
-}
-
-const NAMED_COLORS: Record<string, readonly [number, number, number, number]> = {
-  transparent: [0, 0, 0, 0],
-  black: [0, 0, 0, 1],
-  white: [1, 1, 1, 1],
-  red: [1, 0, 0, 1],
-  green: [0, 0.5, 0, 1],
-  blue: [0, 0, 1, 1],
-  yellow: [1, 1, 0, 1],
-  gray: [0.5, 0.5, 0.5, 1],
-  grey: [0.5, 0.5, 0.5, 1],
-}
-
-function clamp01(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0
-  }
-  return Math.min(1, Math.max(0, value))
-}
-
-function clamp255(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0
-  }
-  return Math.min(255, Math.max(0, value))
 }
 
 function resolveCanvasImageSourceSize(source: CanvasImageSource) {
@@ -1042,47 +1659,10 @@ function resolveWebGLContext(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   attributes: WebGLContextAttributes,
 ) {
-
-  console.log(attributes);
-
   const webgl2 = canvas.getContext('webgl2', attributes) as WebGLRenderingContext | WebGL2RenderingContext | null
   if (webgl2) {
     return webgl2
   }
-  
 
   return canvas.getContext('webgl', attributes) as WebGLRenderingContext | null
-}
-
-function createCanvasFromSource(
-  source: HTMLCanvasElement,
-  sx: number,
-  sy: number,
-  sw: number,
-  sh: number,
-) {
-  if (sw <= 0 || sh <= 0) {
-    return null
-  }
-
-  if (typeof OffscreenCanvas !== 'undefined') {
-    const c = new OffscreenCanvas(sw, sh)
-    const ctx = c.getContext('2d')
-    if (!ctx) return c
-    ctx.drawImage(source as CanvasImageSource, sx, sy, sw, sh, 0, 0, sw, sh)
-    return c
-  }
-
-  if (typeof document !== 'undefined') {
-    const el = document.createElement('canvas')
-    el.width = sw
-    el.height = sh
-    const ctx = el.getContext('2d')
-    if (ctx) {
-      ctx.drawImage(source as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, sw, sh)
-    }
-    return el
-  }
-
-  return null
 }

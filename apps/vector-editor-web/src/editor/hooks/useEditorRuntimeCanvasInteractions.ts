@@ -1,4 +1,4 @@
-import {useMemo} from 'react'
+import {useMemo, useRef} from 'react'
 import {nid, type ToolName} from '@venus/document-core'
 import {
   collectResizeTransformTargets,
@@ -31,6 +31,16 @@ import {
 } from './useEditorRuntimePointerRelease.ts'
 
 const DEFAULT_MARQUEE_APPLY_MODE: MarqueeApplyMode = 'while-pointer-move'
+const HOVER_HIT_MIN_INTERVAL_MS = 24
+const HOVER_HIT_MIN_DISTANCE_PX = 2
+const HOVER_GATED_EDITING_MODES: ReadonlySet<string> = new Set([
+  'dragging',
+  'resizing',
+  'rotating',
+  'panning',
+  'zooming',
+  'marqueeSelecting',
+])
 
 function isPathSubSelectionEqual(left: PathSubSelection | null, right: PathSubSelection | null) {
   if (left === right) {
@@ -150,6 +160,35 @@ export function useEditorRuntimeCanvasInteractions(options: {
   transformPreview: TransformPreview | null
   marqueeApplyControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createMarqueeSelectionApplyController>>
 }) {
+  const hoverHitBudgetRef = useRef<{
+    lastAt: number
+    lastPoint: {x: number; y: number} | null
+  }>({
+    lastAt: 0,
+    lastPoint: null,
+  })
+
+  const shouldResolveHoverHit = (point: {x: number; y: number}) => {
+    const now = performance.now()
+    const elapsedMs = now - hoverHitBudgetRef.current.lastAt
+    const previousPoint = hoverHitBudgetRef.current.lastPoint
+    const movedDistance = previousPoint
+      ? Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y)
+      : Number.POSITIVE_INFINITY
+    if (
+      elapsedMs < HOVER_HIT_MIN_INTERVAL_MS &&
+      movedDistance < HOVER_HIT_MIN_DISTANCE_PX
+    ) {
+      return false
+    }
+
+    hoverHitBudgetRef.current = {
+      lastAt: now,
+      lastPoint: point,
+    }
+    return true
+  }
+
   return useMemo(() => ({
     onPointerMove: (point: {x: number; y: number}) => {
       const clearSnapGuides = () => {
@@ -180,7 +219,7 @@ export function useEditorRuntimeCanvasInteractions(options: {
       if (options.marquee) {
         clearSnapGuides()
         clearHoveredShape()
-        options.setMarquee((current) => {
+        options.setMarquee((current: ReturnType<typeof createMarqueeState> | null) => {
           if (!current) {
             return current
           }
@@ -298,8 +337,25 @@ export function useEditorRuntimeCanvasInteractions(options: {
         clearSnapGuides()
         return
       }
+
+      const currentEditingMode =
+        options.runtimeEditingModeControllerRef.current?.getCurrentMode()
+      if (
+        currentEditingMode &&
+        HOVER_GATED_EDITING_MODES.has(currentEditingMode)
+      ) {
+        clearHoveredShape()
+        return
+      }
+
+      if (!shouldResolveHoverHit(point)) {
+        return
+      }
+
       clearSnapGuides()
       setHoveredShape(resolveTopHitShapeId(options.interactionDocument, options.canvasRuntime.shapes, point, {
+        hitMode: 'bbox_then_exact',
+        maxExactCandidateCount: 3,
         allowFrameSelection: false,
         tolerance: 6,
         excludeClipBoundImage: true,

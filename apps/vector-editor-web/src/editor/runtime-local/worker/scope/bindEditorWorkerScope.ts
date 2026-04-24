@@ -132,6 +132,10 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     const hitCandidates = hitTestDocumentCandidates(documentState, spatialIndex, message.pointer, {
+      // Keep direct-selection precision while default selection uses bbox-first
+      // with capped exact refinement to reduce click-time spikes on dense scenes.
+      hitMode: currentToolName === 'dselector' ? 'exact' : 'bbox_then_exact',
+      maxExactCandidateCount: currentToolName === 'dselector' ? 12 : 4,
       allowFrameSelection,
       strictStrokeHitTest,
       preferGroupSelection: currentToolName === 'selector' && !(message.modifiers?.metaKey || message.modifiers?.ctrlKey),

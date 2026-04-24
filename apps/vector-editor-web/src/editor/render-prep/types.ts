@@ -37,6 +37,9 @@ export interface PreparedPass {
 export interface PreparedDirtyState {
   sceneStructureDirty: boolean
   sceneInstanceIds: string[]
+  previousFrameCandidateCount: number
+  dirtyCandidateCount: number
+  dirtyOffscreenCount: number
   overlayDirty: boolean
   pickingDirty: boolean
   cameraDirty: boolean

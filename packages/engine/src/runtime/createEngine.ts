@@ -5,10 +5,8 @@ import {
   zoomEngineViewportState,
   type EngineCanvasViewportState,
 } from '../interaction/viewport.ts'
-import { createCanvas2DEngineRenderer } from '../renderer/canvas2d.ts'
 import { createWebGLEngineRenderer } from '../renderer/webgl.ts'
 import type {
-  EngineBackend,
   EngineInteractionPreviewConfig,
   EngineRenderQuality,
   EngineRenderStats,
@@ -20,6 +18,14 @@ import {
   type EngineSceneStoreDiagnostics,
   type EngineSceneStoreTransaction,
 } from '../scene/store.ts'
+import {
+  prepareEngineFramePlan,
+  type EngineFramePlan,
+} from '../scene/framePlan.ts'
+import {
+  prepareEngineHitPlan,
+  type EngineHitPlan,
+} from '../scene/hitPlan.ts'
 import type { EngineHitTestResult } from '../scene/hitTest.ts'
 import type {
   EngineNodeId,
@@ -46,15 +52,12 @@ interface EnginePerformanceOptions {
 
 interface EngineRenderOptions {
   quality?: EngineRenderQuality
-  canvasClearColor?: string
   webglClearColor?: readonly [number, number, number, number]
   // Short alias for pixel ratio config.
   dpr?: number | 'auto'
   // `auto` resolves from `window.devicePixelRatio` when available.
   pixelRatio?: number | 'auto'
   maxPixelRatio?: number
-  imageSmoothing?: boolean
-  imageSmoothingQuality?: ImageSmoothingQuality
   webglAntialias?: boolean
   // Optional: LOD (level-of-detail) configuration
   lod?: EngineLodConfig
@@ -64,6 +67,14 @@ interface EngineRenderOptions {
   initialRender?: EngineInitialRenderConfig
   // Optional: interaction-time affine preview from last rendered frame.
   interactionPreview?: EngineInteractionPreviewConfig
+  // Optional: coarse frame-plan shortlist pruning controls.
+  shortlist?: {
+    enabled?: boolean
+    minSceneNodes?: number
+    ratioThreshold?: number
+    hysteresisRatio?: number
+    stableFrameCount?: number
+  }
 }
 
 interface EngineResourceOptions {
@@ -85,7 +96,6 @@ interface EngineViewportOptions {
 
 export interface CreateEngineOptions {
   canvas: HTMLCanvasElement | OffscreenCanvas
-  backend?: EngineBackend
   initialScene?: EngineSceneSnapshot
   viewport?: EngineViewportOptions
   performance?: EnginePerformanceOptions
@@ -96,10 +106,27 @@ export interface CreateEngineOptions {
 }
 
 export interface EngineRuntimeDiagnostics {
-  backend: EngineBackend
+  backend: 'webgl'
   renderStats: EngineRenderStats | null
   pixelRatio: number
   scene: EngineSceneStoreDiagnostics
+  framePlan: EngineFramePlan | null
+  hitPlan: EngineHitPlan | null
+  shortlist: {
+    active: boolean
+    candidateRatio: number
+    appliedCandidateCount: number
+    pendingState: boolean | null
+    pendingFrameCount: number
+    toggleCount: number
+    debounceBlockedToggleCount: number
+    minSceneNodes: number
+    ratioThreshold: number
+    hysteresisRatio: number
+    enterRatioThreshold: number
+    leaveRatioThreshold: number
+    stableFrameCount: number
+  }
   viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight'>
 }
 
@@ -110,6 +137,10 @@ export interface Engine {
     run: (transaction: EngineSceneStoreTransaction) => void,
     options?: {revision?: string | number},
   ): EngineScenePatchApplyResult | null
+  queryViewportCandidates(padding?: number): EngineNodeId[]
+  queryPointCandidates(point: {x: number; y: number}, tolerance?: number): EngineNodeId[]
+  prepareFramePlan(padding?: number): EngineFramePlan
+  prepareHitPlan(point: {x: number; y: number}, tolerance?: number): EngineHitPlan
   query(bounds: EngineRect): EngineNodeId[]
   hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
@@ -120,6 +151,7 @@ export interface Engine {
   resize(width: number, height: number): EngineCanvasViewportState
   setDpr(dpr: number | 'auto', options?: {maxDpr?: number}): number
   setQuality(quality: EngineRenderQuality): void
+  setProtectedNodeIds(nodeIds?: readonly EngineNodeId[]): void
   setResourceLoader(loader?: EngineResourceLoader): void
   setTextShaper(textShaper?: EngineTextShaper): void
   /** Mark world-space bounds as dirty for incremental tile invalidation. */
@@ -134,12 +166,28 @@ export interface Engine {
 
 /**
  * High-level engine facade with:
- * - one default renderer entry (`canvas2d` or `webgl`)
+ * - one default WebGL renderer entry
  * - batch-first scene mutation APIs
  * - optional render/resource/debug tuning grouped by concern
  */
 export function createEngine(options: CreateEngineOptions): Engine {
-  const backend = options.backend ?? 'webgl'
+  const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
+  const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
+    1,
+    options.render?.shortlist?.minSceneNodes ?? 1500,
+  )
+  const FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD = Math.min(
+    1,
+    Math.max(0, options.render?.shortlist?.ratioThreshold ?? 0.72),
+  )
+  const FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO = Math.min(
+    0.3,
+    Math.max(0, options.render?.shortlist?.hysteresisRatio ?? 0.06),
+  )
+  const FRAME_PLAN_SHORTLIST_STABLE_FRAME_COUNT = Math.max(
+    1,
+    Math.round(options.render?.shortlist?.stableFrameCount ?? 2),
+  )
   let maxPixelRatio = options.render?.maxPixelRatio ?? 2
   let pixelRatio = resolveEnginePixelRatio(
     options.render?.dpr ?? options.render?.pixelRatio,
@@ -148,31 +196,25 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
   })
-  const renderer = backend === 'webgl'
-    ? createWebGLEngineRenderer({
-      canvas: options.canvas,
-      enableCulling: options.performance?.culling,
-      clearColor: options.render?.webglClearColor,
-      antialias: options.render?.webglAntialias ?? true,
-      lod: options.render?.lod,
-      tileConfig: options.render?.tileConfig,
-      initialRender: options.render?.initialRender,
-      interactionPreview: options.render?.interactionPreview,
-    })
-    : createCanvas2DEngineRenderer({
-      canvas: options.canvas,
-      enableCulling: options.performance?.culling,
-      clearColor: options.render?.canvasClearColor,
-      imageSmoothing: options.render?.imageSmoothing ?? true,
-      imageSmoothingQuality: options.render?.imageSmoothingQuality ?? 'high',
-      interactionPreview: options.render?.interactionPreview,
-    })
+  const renderer = createWebGLEngineRenderer({
+    canvas: options.canvas,
+    enableCulling: options.performance?.culling,
+    clearColor: options.render?.webglClearColor,
+    antialias: options.render?.webglAntialias ?? true,
+    lod: options.render?.lod,
+    tileConfig: options.render?.tileConfig,
+    initialRender: options.render?.initialRender,
+    interactionPreview: options.render?.interactionPreview,
+  })
   const renderContext: {
     quality: EngineRenderQuality
     pixelRatio: number
     loader?: EngineResourceLoader
     textShaper?: EngineTextShaper
     dirtyRegions?: Array<{zoomLevel: number; gridX: number; gridY: number}>
+    framePlanCandidateIds?: readonly EngineNodeId[]
+    framePlanVersion?: number
+    protectedNodeIds?: readonly EngineNodeId[]
   } = {
     quality: options.render?.quality ?? 'full',
     pixelRatio,
@@ -182,15 +224,163 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const clock = options.clock ?? createSystemEngineClock()
   let viewport = resolveInitialViewport(options.canvas, options.viewport)
   let latestRenderStats: EngineRenderStats | null = null
+  let latestFramePlan: EngineFramePlan | null = null
+  let latestFramePlanSignature = ''
+  let shortlistActive = false
+  let shortlistCandidateRatio = 1
+  let shortlistAppliedCandidateCount = 0
+  let shortlistPendingState: boolean | null = null
+  let shortlistPendingFrameCount = 0
+  let shortlistToggleCount = 0
+  let shortlistDebounceBlockedToggleCount = 0
+  let shortlistEnterRatioThreshold =
+    FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD - FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
+  let shortlistLeaveRatioThreshold =
+    FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD + FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
+  let latestHitPlan: EngineHitPlan | null = null
+
+  // Keep frame-plan construction centralized so diagnostics and future
+  // planner-facing APIs use the same viewport candidate query contract.
+  const buildFramePlan = (scene: ReturnType<typeof store.getSnapshot>, padding = 0) => prepareEngineFramePlan({
+    scene,
+    viewport,
+    padding,
+    queryCandidates: (bounds) => store.queryCandidates(bounds),
+  })
+  const resolveFramePlanSignature = (
+    scene: ReturnType<typeof store.getSnapshot>,
+    padding = 0,
+  ) => {
+    return [
+      scene.revision,
+      scene.metadata?.planVersion ?? 0,
+      padding,
+      viewport.viewportWidth,
+      viewport.viewportHeight,
+      viewport.offsetX,
+      viewport.offsetY,
+      viewport.scale,
+    ].join(':')
+  }
+  // Build point shortlist diagnostics from the same coarse query surface the
+  // future hit planner will reuse.
+  const buildHitPlan = (point: {x: number; y: number}, tolerance = 0) => prepareEngineHitPlan({
+    scene: store.getSnapshot(),
+    point,
+    tolerance,
+    queryPointCandidates: (queryPoint, queryTolerance) => store.queryPointCandidates(queryPoint, queryTolerance),
+    hitTestAll: (queryPoint, queryTolerance) => store.hitTestAll(queryPoint, queryTolerance),
+  })
+  const resolveShortlistCandidateNodeIds = (
+    framePlan: EngineFramePlan,
+    protectedNodeIds: readonly EngineNodeId[] | undefined,
+  ) => {
+    const baseCandidateIds = framePlan.candidateNodeIds
+    if (!protectedNodeIds || protectedNodeIds.length === 0) {
+      return baseCandidateIds
+    }
+
+    // Keep currently active nodes in render planning even when coarse
+    // viewport candidates are narrow, so editing/selection visuals do not
+    // disappear from planner-side pruning.
+    const mergedCandidateIdSet = new Set(baseCandidateIds)
+    for (const nodeId of protectedNodeIds) {
+      mergedCandidateIdSet.add(nodeId)
+    }
+
+    return Array.from(mergedCandidateIdSet)
+  }
 
   const loop: EngineLoopController = createEngineLoop({
     clock,
     renderer,
-    resolveFrame: () => ({
-      scene: store.getSnapshot(),
-      viewport,
-      context: renderContext,
-    }),
+    resolveFrame: () => {
+      const scene = store.getSnapshot()
+      if (ENABLE_FRAME_PLAN_SHORTLIST) {
+        const framePlanSignature = resolveFramePlanSignature(scene)
+        if (!latestFramePlan || latestFramePlanSignature !== framePlanSignature) {
+          latestFramePlan = buildFramePlan(scene)
+          latestFramePlanSignature = framePlanSignature
+        }
+        const candidateRatio = latestFramePlan.sceneNodeCount > 0
+          ? latestFramePlan.candidateCount / latestFramePlan.sceneNodeCount
+          : 1
+        shortlistCandidateRatio = candidateRatio
+        shortlistEnterRatioThreshold =
+          FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD - FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
+        shortlistLeaveRatioThreshold =
+          FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD + FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
+        const canUseShortlist =
+          latestFramePlan.sceneNodeCount >= FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES &&
+          latestFramePlan.candidateCount > 0
+
+        const resolveTargetShortlistState = () => {
+          if (!canUseShortlist) {
+            return false
+          }
+
+          if (shortlistActive) {
+            return candidateRatio <= shortlistLeaveRatioThreshold
+          }
+
+          return candidateRatio <= shortlistEnterRatioThreshold
+        }
+        const targetShortlistState = resolveTargetShortlistState()
+
+        if (!canUseShortlist) {
+          shortlistActive = false
+          shortlistPendingState = null
+          shortlistPendingFrameCount = 0
+        } else if (targetShortlistState === shortlistActive) {
+          // Track transient shortlist flips that debounce intentionally blocked.
+          if (shortlistPendingState !== null && shortlistPendingFrameCount > 0) {
+            shortlistDebounceBlockedToggleCount += 1
+          }
+          shortlistPendingState = null
+          shortlistPendingFrameCount = 0
+        } else {
+          if (shortlistPendingState !== targetShortlistState) {
+            shortlistPendingState = targetShortlistState
+            shortlistPendingFrameCount = 1
+          } else {
+            shortlistPendingFrameCount += 1
+          }
+
+          if (shortlistPendingFrameCount >= FRAME_PLAN_SHORTLIST_STABLE_FRAME_COUNT) {
+            shortlistActive = targetShortlistState
+            shortlistToggleCount += 1
+            shortlistPendingState = null
+            shortlistPendingFrameCount = 0
+          }
+        }
+
+        // Feed the current frame-plan shortlist into renderer planning so render
+        // execution can start consuming the same coarse candidates as diagnostics.
+        renderContext.framePlanCandidateIds = shortlistActive
+          ? resolveShortlistCandidateNodeIds(
+            latestFramePlan,
+            renderContext.protectedNodeIds,
+          )
+          : undefined
+        shortlistAppliedCandidateCount = renderContext.framePlanCandidateIds?.length ?? 0
+        renderContext.framePlanVersion = latestFramePlan.planVersion
+      } else {
+        shortlistActive = false
+        shortlistCandidateRatio = 1
+        shortlistAppliedCandidateCount = 0
+        shortlistPendingState = null
+        shortlistPendingFrameCount = 0
+        shortlistToggleCount = 0
+        shortlistDebounceBlockedToggleCount = 0
+        renderContext.framePlanCandidateIds = undefined
+        renderContext.framePlanVersion = undefined
+      }
+      return {
+        scene,
+        viewport,
+        context: renderContext,
+      }
+    },
     onStats: (stats) => {
       latestRenderStats = stats
       options.debug?.onStats?.(stats)
@@ -216,11 +406,47 @@ export function createEngine(options: CreateEngineOptions): Engine {
     transaction(run, transactionOptions) {
       return store.transaction(run, transactionOptions)
     },
+    // Keep viewport candidate collection in the engine facade so callers do
+    // not need to duplicate viewport-to-world bounds conversion logic.
+    queryViewportCandidates(padding = 0) {
+      return store.queryCandidates({
+        x: -viewport.offsetX - padding,
+        y: -viewport.offsetY - padding,
+        width: viewport.viewportWidth / viewport.scale + padding * 2,
+        height: viewport.viewportHeight / viewport.scale + padding * 2,
+      })
+    },
+    queryPointCandidates(point, tolerance) {
+      return store.queryPointCandidates(point, tolerance)
+    },
+    prepareFramePlan(padding = 0) {
+      const scene = store.getSnapshot()
+      latestFramePlan = buildFramePlan(scene, padding)
+      latestFramePlanSignature = resolveFramePlanSignature(scene, padding)
+      return latestFramePlan
+    },
+    prepareHitPlan(point, tolerance = 0) {
+      latestHitPlan = buildHitPlan(point, tolerance)
+      return latestHitPlan
+    },
     query(bounds) {
-      return store.query(bounds)
+      return store.queryCandidates(bounds)
     },
     hitTest(point, tolerance) {
-      return store.hitTest(point, tolerance)
+      const resolvedTolerance = tolerance ?? 0
+      // Reuse one exact-hit pass for both the public result and diagnostics so
+      // hit planning does not duplicate the execution cost it is measuring.
+      const hitSummary = store.hitTestAllWithSummary(point, resolvedTolerance)
+      const hits = hitSummary.hits
+      latestHitPlan = prepareEngineHitPlan({
+        scene: store.getSnapshot(),
+        point,
+        tolerance: resolvedTolerance,
+        hits,
+        exactCheckCount: hitSummary.exactCheckCount,
+        queryPointCandidates: (queryPoint, queryTolerance) => store.queryPointCandidates(queryPoint, queryTolerance),
+      })
+      return hits[0] ?? null
     },
     getNode(nodeId) {
       return store.getNode(nodeId)
@@ -280,6 +506,15 @@ export function createEngine(options: CreateEngineOptions): Engine {
     setQuality(quality) {
       renderContext.quality = quality
     },
+    setProtectedNodeIds(nodeIds) {
+      if (!nodeIds || nodeIds.length === 0) {
+        renderContext.protectedNodeIds = undefined
+        return
+      }
+
+      // Keep protected ids de-duplicated and stable for planner-side guards.
+      renderContext.protectedNodeIds = Array.from(new Set(nodeIds))
+    },
     setResourceLoader(loader) {
       renderContext.loader = loader
     },
@@ -323,10 +558,27 @@ export function createEngine(options: CreateEngineOptions): Engine {
     },
     getDiagnostics() {
       return {
-        backend,
+        backend: 'webgl',
         renderStats: latestRenderStats,
         pixelRatio,
         scene: store.getDiagnostics(),
+        framePlan: latestFramePlan,
+        hitPlan: latestHitPlan,
+        shortlist: {
+          active: shortlistActive,
+          candidateRatio: shortlistCandidateRatio,
+          appliedCandidateCount: shortlistAppliedCandidateCount,
+          pendingState: shortlistPendingState,
+          pendingFrameCount: shortlistPendingFrameCount,
+          toggleCount: shortlistToggleCount,
+          debounceBlockedToggleCount: shortlistDebounceBlockedToggleCount,
+          minSceneNodes: FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES,
+          ratioThreshold: FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD,
+          hysteresisRatio: FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO,
+          enterRatioThreshold: shortlistEnterRatioThreshold,
+          leaveRatioThreshold: shortlistLeaveRatioThreshold,
+          stableFrameCount: FRAME_PLAN_SHORTLIST_STABLE_FRAME_COUNT,
+        },
         viewport: {
           scale: viewport.scale,
           offsetX: viewport.offsetX,

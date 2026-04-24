@@ -64,6 +64,14 @@ export interface EngineRendererContext {
     pixelRatio?: number;
     loader?: EngineResourceLoader;
     textShaper?: EngineTextShaper;
+    dirtyRegions?: Array<{
+        zoomLevel: number;
+        gridX: number;
+        gridY: number;
+    }>;
+    framePlanCandidateIds?: readonly string[];
+    framePlanVersion?: number;
+    protectedNodeIds?: readonly string[];
 }
 export interface EngineRenderFrame {
     scene: EngineSceneSnapshot;

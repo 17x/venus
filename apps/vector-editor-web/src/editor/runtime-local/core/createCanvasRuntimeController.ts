@@ -156,6 +156,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     },
     viewport: DEFAULT_VIEWPORT,
   }
+  let shouldAutoFitOnFirstResize = true
 
   const notify = () => {
     listeners.forEach((listener) => listener())
@@ -169,10 +170,12 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const fitViewport = () => {
+    shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => fitViewportToDocument(snapshot.document, viewport))
   }
 
   const panViewport = (deltaX: number, deltaY: number) => {
+    shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => panViewportState(viewport, deltaX, deltaY))
   }
 
@@ -187,16 +190,22 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     const hadViewport = snapshot.viewport.viewportWidth > 0 && snapshot.viewport.viewportHeight > 0
 
     if (!hadViewport) {
-      // First measured viewport previously triggered two notifications:
-      // 1) resize viewport
-      // 2) fit viewport
-      // Collapse both into one state transition to avoid an extra full redraw.
-      updateViewport((viewport) =>
-        fitViewportToDocument(
-          snapshot.document,
-          resizeViewportState(viewport, width, height),
-        ),
-      )
+      if (shouldAutoFitOnFirstResize) {
+        // First measured viewport previously triggered two notifications:
+        // 1) resize viewport
+        // 2) fit viewport
+        // Collapse both into one state transition to avoid an extra full redraw.
+        updateViewport((viewport) =>
+          fitViewportToDocument(
+            snapshot.document,
+            resizeViewportState(viewport, width, height),
+          ),
+        )
+      } else {
+        updateViewport((viewport) => resizeViewportState(viewport, width, height))
+      }
+
+      shouldAutoFitOnFirstResize = false
       return
     }
 
@@ -204,10 +213,12 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
+    shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
   }
 
   const setViewport = (viewport: CanvasViewportState) => {
+    shouldAutoFitOnFirstResize = false
     snapshot.viewport = viewport
     notify()
   }

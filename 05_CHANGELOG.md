@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-04-23
+
+- Continued engine-side WebGL-primary render-path convergence in
+  `packages/engine/src/runtime/createEngine.ts`,
+  `packages/engine/src/scene/framePlan.ts`,
+  `packages/engine/src/scene/hitPlan.ts`,
+  `packages/engine/src/scene/hitTest.ts`, and
+  `packages/engine/src/renderer/plan.ts`:
+  - engine now exposes explicit frame-plan and hit-plan read models
+  - render planning now consumes frame-plan shortlist candidates
+  - hit execution now narrows precise checks through coarse point candidates
+  - top-hit resolution now reuses shared `hitTestAll(...)` results for
+    diagnostics instead of recomputing them
+- Reduced repeated WebGL frame organization work in
+  `packages/engine/src/renderer/instances.ts`,
+  `packages/engine/src/renderer/webglPackets.ts`, and
+  `packages/engine/src/renderer/webgl.ts`:
+  - instance views are cached by render-plan identity
+  - packet plans are cached by `plan + instanceView` identity
+  - packet plans now precompute image/rich-text aggregates and immutable draw
+    metadata (`worldBounds`, color, image asset id)
+  - WebGL commit loops no longer rescan packets for image/rich-text decisions
+    or re-read prepared-node state for every draw
+- Tightened WebGL text texture behavior in
+  `packages/engine/src/renderer/webgl.ts`:
+  - text texture cache now invalidates by frame signature
+    (`scene.revision + pixelRatio + viewport.scale`)
+  - text crop uploads now reuse a scratch offscreen surface instead of
+    allocating one temporary canvas per uncached text packet
+  - text cache usage tracking now marks only actually used textures each frame
+- Expanded engine/vector diagnostics surfacing for planner visibility:
+  - engine runtime diagnostics now track latest frame plan and hit plan
+  - vector runtime events and debug UI now surface frame-plan/hit-plan counts
+    plus render-prep dirty candidate overlap metrics
+- Landed layered cache execution and diagnostics wiring for WebGL settled
+  frames:
+  - `packages/engine/src/renderer/tileManager.ts` now supports tile upsert,
+    explicit tile invalidation, and visible-tile queries
+  - `packages/engine/src/renderer/webgl.ts` now runs an L2 tile reuse/rebuild
+    branch in model-complete rendering, driven by dirty tile region messages,
+    with fallback to full composite when tile source/upload fails
+  - layered cache counters (`L0/L1/L2` hit/miss + fallback reason) now flow
+    through engine render stats, vector runtime events, and
+    `RuntimeDebugPanel.tsx`
+- Updated engine-facing documentation to reflect the current renderer
+  direction:
+  - WebGL is the only primary engine backend
+  - Canvas2D in engine is auxiliary/offscreen/composite support, not a peer
+    production backend
+
 - Upgraded engine LOD policy in
   `packages/engine/src/interaction/lodProfile.ts` from static
   scene-size thresholds to a velocity-aware profile that now considers:

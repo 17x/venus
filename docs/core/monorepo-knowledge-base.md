@@ -47,12 +47,12 @@ Knowledge` when they become long-term guidance.
 
 ### Current Renderer Direction
 
-- `Canvas2D` is the current default/stable development renderer for active app
-  work.
-- Runtime app surfaces consume Canvas2D via app-local runtime bridges over
-  `@venus/runtime` + `@venus/engine`.
-- `createEngine(...)` now defaults to `webgl`; use explicit
-  `backend: 'canvas2d'` when Canvas2D fallback behavior is required.
+- WebGL is the only primary engine backend for active renderer work.
+- Canvas2D remains in the stack as auxiliary/offscreen/composite support and
+  as legacy app/runtime diagnostics infrastructure.
+- `createEngine(...)` now defaults to `webgl`; any explicit `backend: 'canvas2d'`
+  usage should be treated as helper or migration behavior, not the target
+  renderer direction.
 
 ### Historical Notes
 

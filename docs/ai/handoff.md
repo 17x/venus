@@ -10,7 +10,8 @@
 6. `../../05_CHANGELOG.md`
 7. `../../06_TODO.md`
 8. `../architecture/overview.md`
-9. `./doc-update-rules.md`
+9. `../architecture/render-cache-layering.md`
+10. `./doc-update-rules.md`
 
 ## Required Output For Handoff Summary
 

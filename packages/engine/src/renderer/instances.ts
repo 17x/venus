@@ -19,6 +19,8 @@ export interface EngineRenderInstanceView {
   batches: EngineRenderInstanceBatch[]
 }
 
+const renderInstanceViewCache = new WeakMap<EngineRenderPlan, EngineRenderInstanceView>()
+
 /**
  * Build a backend-agnostic instance view from scene-store buffers.
  *
@@ -30,11 +32,18 @@ export function prepareEngineRenderInstanceView(
   frame: EngineRenderFrame,
   plan: EngineRenderPlan = prepareEngineRenderPlan(frame),
 ): EngineRenderInstanceView {
+  // Reuse the instance payload whenever the render plan object is reused.
+  // This avoids rebuilding typed arrays on duplicate frames after plan caching.
+  const cached = renderInstanceViewCache.get(plan)
+  if (cached) {
+    return cached
+  }
+
   const layout = resolveSceneBufferLayout(frame.scene)
   const drawCount = plan.drawList.length
 
   if (!layout) {
-    return {
+    const nextView = {
       count: drawCount,
       indices: Uint32Array.from(plan.drawList),
       transforms: new Float32Array(drawCount * 6),
@@ -47,6 +56,8 @@ export function prepareEngineRenderInstanceView(
         indices: Uint32Array.from(batch.indices),
       })),
     }
+    renderInstanceViewCache.set(plan, nextView)
+    return nextView
   }
 
   const indices = new Uint32Array(drawCount)
@@ -60,7 +71,7 @@ export function prepareEngineRenderInstanceView(
     copyBounds(layout, slot, bounds, drawIndex)
   }
 
-  return {
+  const nextView = {
     count: drawCount,
     indices,
     transforms,
@@ -73,6 +84,8 @@ export function prepareEngineRenderInstanceView(
       indices: Uint32Array.from(batch.indices),
     })),
   }
+  renderInstanceViewCache.set(plan, nextView)
+  return nextView
 }
 
 function resolveSceneBufferLayout(scene: EngineRenderFrame['scene']) {

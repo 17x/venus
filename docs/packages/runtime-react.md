@@ -40,11 +40,10 @@ Package-scoped note for the React adapter layer over the Venus runtime stack.
   can blit from that cached bitmap instead of re-drawing every visible shape on
   each frame. Cache diagnostics (`cacheHitCount`, `cacheMissCount`,
   `cacheMode`) are also exposed through `useCanvas2DRenderDiagnostics()`.
-- `Canvas2DRenderer` now accepts an optional engine backend preference
-  (`backend: 'canvas2d' | 'webgl'`) as a runtime-facing entry point. Current
-  behavior keeps one stable canvas2d path and warns once when `webgl` is
-  requested, so app/runtime wiring can adopt backend selection before the WebGL
-  renderer implementation lands.
+- `Canvas2DRenderer` still exposes a migration-era engine backend preference
+  surface (`backend: 'canvas2d' | 'webgl'`), but the current engine direction
+  is WebGL-primary. Treat Canvas2D here as legacy app-bridge and diagnostics
+  infrastructure, not as a peer renderer target for new engine work.
 
 ### 2026-04-12
 

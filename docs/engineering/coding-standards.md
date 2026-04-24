@@ -19,6 +19,7 @@
 
 - Use explicit names and intentional module boundaries.
 - Add concise comments only at non-obvious logic points.
+- Every newly added code block must include a concise intent comment so the next reader can understand why the block exists.
 - For migration and compatibility branches, include brief intent comments.
 
 ## Validation

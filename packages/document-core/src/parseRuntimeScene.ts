@@ -1,5 +1,5 @@
 import {getBoundingRectFromBezierPoints, getNormalizedBoundsFromBox, type BezierPoint} from './geometry.ts'
-import type {DocumentNode, EditorDocument, ShapeGradientStyle, StrokeArrowhead} from './index.ts'
+import type {DocumentNode, EditorDocument, ShapeGradientStop, ShapeGradientStyle, StrokeArrowhead} from './index.ts'
 import type {
   RuntimeFeatureEntryV5,
   RuntimeNodeFeatureV5,
@@ -419,7 +419,7 @@ function readGradient(
   }
 }
 
-function parseGradientStops(raw: string | undefined) {
+function parseGradientStops(raw: string | undefined): ShapeGradientStop[] | null {
   if (!raw) {
     return null
   }
@@ -430,29 +430,30 @@ function parseGradientStops(raw: string | undefined) {
       return null
     }
 
-    return parsed
-      .map((stop) => {
-        if (!stop || typeof stop !== 'object') {
-          return null
-        }
+    const stops: ShapeGradientStop[] = []
+    parsed.forEach((stop) => {
+      if (!stop || typeof stop !== 'object') {
+        return
+      }
 
-        const maybeOffset = Number((stop as {offset?: unknown}).offset)
-        const maybeColor = (stop as {color?: unknown}).color
-        const maybeOpacity = (stop as {opacity?: unknown}).opacity
+      const maybeOffset = Number((stop as {offset?: unknown}).offset)
+      const maybeColor = (stop as {color?: unknown}).color
+      const maybeOpacity = (stop as {opacity?: unknown}).opacity
 
-        if (!Number.isFinite(maybeOffset) || typeof maybeColor !== 'string') {
-          return null
-        }
+      if (!Number.isFinite(maybeOffset) || typeof maybeColor !== 'string') {
+        return
+      }
 
-        return {
-          offset: maybeOffset,
-          color: maybeColor,
-          opacity: typeof maybeOpacity === 'number' && Number.isFinite(maybeOpacity)
-            ? maybeOpacity
-            : undefined,
-        }
+      stops.push({
+        offset: maybeOffset,
+        color: maybeColor,
+        opacity: typeof maybeOpacity === 'number' && Number.isFinite(maybeOpacity)
+          ? maybeOpacity
+          : undefined,
       })
-      .filter((stop): stop is {offset: number; color: string; opacity?: number} => stop !== null)
+    })
+
+    return stops
   } catch {
     return null
   }

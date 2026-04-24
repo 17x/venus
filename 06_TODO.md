@@ -1,17 +1,176 @@
 # TODO
 
+## Execution Protocol (AI-led)
+
+- Execution order: Phase 1 -> Phase 2 -> Phase 3
+- Status flow: planned -> in-progress -> verified -> done
+- Done minimum: code landed + docs synced + validation command results recorded
+- Validation baseline: `pnpm typecheck`, `pnpm lint`, `pnpm build`
+- Reporting format per task: change summary, risk/regression notes, next task handoff
+
 ## In Progress
 
 - Vector capability completion: `connector` then `boolean`
 - Runtime/engine boundary checks on new feature diffs
 - Runtime monolith decomposition follow-up (`useEditorRuntime` adjacent paths)
+- Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
+- 100K performance optimization Phase 1 (stop worst spikes, AI execution queue):
+  - Progress 2026-04-23:
+    - Implemented: diagnostics publishing baseline in canvas adapter
+    - Implemented: pointermove hover-hit throttle (time + distance budget)
+    - Implemented: hover gating for `dragging/resizing/rotating/panning/zooming/marqueeSelecting`
+    - Implemented: zoom-time quality freeze via LOD (`zoom -> interactive` + lower DPR)
+    - Implemented: tiny-object render skip in engine render plan (screen-space threshold)
+    - Implemented: low-zoom text placeholder LOD in WebGL packet path
+    - Implemented: interactive image upload freeze (defer texture uploads until settled)
+    - Implemented: non-precision hover hit path defaults to `bbox_then_exact` with capped exact refinement budget
+    - Implemented: tile cache zoom-bucket hysteresis wiring (reuse previous bucket near threshold)
+    - Implemented: worker selection hit path defaults to `bbox_then_exact` for selector, preserving `exact` for direct selection
+    - Implemented: hit-plan exact-check diagnostics surfaced to runtime debug panel (`Hit Exact Checks`)
+    - Implemented: minimal tiny-group collapse policy in engine render planning (buffer-path subtree pruning under low zoom/interactive quality)
+    - Implemented: hit exact/candidate ratio visualization in runtime debug panel (`Hit Exact Ratio`)
+    - Implemented: tiny-group collapse policy extended to non-buffer render-plan path for traversal consistency
+    - Implemented: group-collapse diagnostics surfaced (`Collapsed Groups`, `Collapse-Culled Nodes`)
+    - Implemented: collapse protection hints for selected nodes/groups via engine `protectedNodeIds`, preventing selected/ancestor groups from low-zoom collapse
+    - Implemented: Canvas2D path-simplification bucket entry (low-zoom/interactive path fallback to simplified anchor polyline)
+    - Implemented: collapse protection coverage expanded from selection-only to active editing signals (`pathSubSelection` / `pathSubSelectionHover` / handle-drag shape / transform-preview shape ids)
+    - Implemented: Canvas2D path simplification upgraded to adaptive projected-density sampling (screen-space step + projected-length cap), replacing fixed-stride fallback
+    - Implemented: frame-plan shortlist pruning is now enabled in engine runtime for large scenes (scene-size threshold + ratio gate)
+    - Implemented: runtime shortlist candidate ids now merge `protectedNodeIds`, preventing active/editing nodes from being accidentally pruned by coarse viewport shortlist
+    - Implemented: frame-plan shortlist activation now uses hysteresis (enter/leave ratio window) to reduce threshold-edge toggling and planner churn during subtle viewport motion
+    - Implemented: engine render options now expose shortlist tuning knobs (`enabled`, `minSceneNodes`, `ratioThreshold`, `hysteresisRatio`)
+    - Implemented: shortlist diagnostics (`shortlistActive`, `shortlistCandidateRatio`) now flow from engine runtime diagnostics into vector runtime debug panel
+    - Implemented: shortlist state switching now uses consecutive-frame debounce (`stableFrameCount`) on top of hysteresis, reducing single-frame boundary noise toggles
+    - Implemented: shortlist diagnostics expanded with pending/apply internals (`appliedCandidateCount`, `pendingState`, `pendingFrameCount`) plus enter/leave threshold visibility
+    - Implemented: expanded shortlist diagnostics now flow through runtime events and are surfaced in Runtime Debug Panel for real-time toggle-cause inspection
+    - Implemented: shortlist diagnostics now track transition stability counters (`toggleCount`, `debounceBlockedToggleCount`) to quantify confirmed flips vs debounce-cancelled flips
+    - Implemented: Runtime Debug Panel now shows shortlist effectiveness indicators (`Shortlist Coverage`, `Shortlist Gap`, `Shortlist Threshold Zone`) to correlate shortlist pruning with frame-plan candidate volume
+    - Implemented: Runtime Debug Panel now adds derived shortlist stability metrics (`Shortlist Toggle / Min`, `Shortlist Debounce Blocked Rate`) for quick boundary-oscillation diagnosis without extending engine protocol
+    - Implemented: shortlist threshold zone is now color-coded in Runtime Debug Panel (`enter`/`hysteresis`/`leave`) for faster scan during stress sessions
+    - Implemented: Runtime Debug Panel now adds threshold-distance diagnostics (`Shortlist Distance To Enter`, `Shortlist Distance To Leave`) plus stability status (`stable`/`watch`/`unstable`)
+    - Implemented: Runtime Debug Panel now includes a compact `Shortlist Summary` row to reduce scan time during long-running perf verification
+    - Implemented: phase-based render policy baseline extracted into runtime service (`resolveRuntimeRenderPolicy`), centralizing interactive/settled DPR+quality decisions for canvas adapter
+    - Implemented: phase-based render policy expanded to explicit phases (`pan`/`zoom`/`drag`/`static`/`settled`) and wired from viewport interaction classification into canvas renderer
+    - Implemented: runtime diagnostics now publish current `renderPhase`, and Runtime Debug Panel now shows phase state to correlate interaction policy with frame behavior
+    - Implemented: `renderPhase` now prefers real runtime editing-mode signals (`dragging`/`resizing`/`rotating`/`panning`/`zooming`) before velocity fallback, reducing false `drag` classification in camera interactions
+    - Implemented: runtime diagnostics now publish `overlayMode` (`full`/`degraded`) from phase policy output, with Runtime Debug Panel visibility for overlay degradation tracking
+    - Implemented: overlay degradation now has effect at app layer: `useEditorRuntimeDerivedState` gates hover highlight and snap-guide overlay instructions during motion-heavy editing modes (`panning`/`zooming`/`dragging`/`resizing`/`rotating`/`drawing*`)
+    - Implemented: overlay guide degradation now keeps coarse guidance instead of full suppression (max one snap guide per axis in degraded mode), reducing visual churn while preserving alignment affordance
+    - Implemented: path-edit activity (`pathSubSelection` / hover / handle-drag) now whitelists overlay chrome to remain full-fidelity even when global overlay degradation would otherwise apply
+    - Implemented: degraded-mode snap guide selection is now relevance-prioritized per axis using current selected/moving bounds anchor distance (edge/center aware), replacing first-seen guide fallback
+    - Implemented: overlay degradation telemetry now flows end-to-end (`overlayDegraded`, guide input/kept counts, path-edit whitelist flag) from derived-state into runtime render diagnostics
+    - Implemented: Runtime Debug Panel now surfaces overlay degradation observability (`Overlay Degraded`, guide input/kept counts, retention %, path-edit whitelist active)
+    - Implemented: overlay telemetry now includes degraded-guide selection strategy (`full`/`axis-first`/`axis-relevance`) and guide dropped count/rate to explain why guides are reduced in degraded mode
+    - Implemented: phase policy now includes a precision-edit phase (`precision`) so `pathEditing` / `textEditing` avoid interaction degradation and keep full-fidelity overlay/render posture
+    - Implemented: runtime diagnostics now include policy output telemetry (`renderPolicyQuality`, `renderPolicyDpr`) plus viewport motion classification (`viewportInteractionType`)
+    - Implemented: Runtime Debug Panel now exposes render policy telemetry and per-reason render-request rates (scene-dirty/deferred-image/idle-redraw/interactive)
+    - Implemented: active transform preview (`dragging`/`resizing`/`rotating`) now defers to overlay preview instructions instead of mutating runtime preview scene shapes every frame, reducing transform-time scene-dirty churn
+    - Implemented: scene-dirty redraw now short-circuits for offscreen-only dirty updates (`dirtyCandidateCount === 0` with prior candidate set), while still applying scene patch state
+    - Implemented: dirty-region invalidation now always uses merged updated-node bounds for a single `markDirtyBounds(...)` call, improving local tile invalidation consistency
+    - Implemented: offscreen-only scene-dirty short-circuit now has starvation guard (`SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES`) to force periodic redraw after consecutive skips
+    - Implemented: runtime diagnostics now expose offscreen-skip scheduling counters (`offscreenSceneDirtySkipConsecutiveCount`, skip/forced request counts) for redraw-policy tuning
+    - Implemented: runtime diagnostics now expose dirty-mark metrics (`dirtyBoundsMarkCount`, `dirtyBoundsMarkArea`) to validate local invalidation behavior
+    - Implemented: Runtime Debug Panel now surfaces offscreen skip/force rates and dirty-mark metrics for dirty-region redraw inspection
+    - Implemented: runtime diagnostics now publish offscreen forced-render threshold (`offscreenSceneDirtyForceRenderFrameThreshold`) so configured starvation guard is visible in panel telemetry
+    - Implemented: dirty-mark telemetry now includes cumulative area-bucket counters (small/medium/large) to classify invalidation footprint distribution
+    - Implemented: Runtime Debug Panel now derives recent-window per-second trends (skip/forced/dirty-mark over last 90 frames) for short-horizon policy tuning
+    - Implemented: dirty-region diagnostics thresholds are now centralized in runtime render policy (`DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY`) so starvation/bucket tuning no longer requires touching adapter-local literals
+    - Implemented: runtime diagnostics now publish active dirty area thresholds (`dirtyBoundsSmallAreaThreshold`, `dirtyBoundsMediumAreaThreshold`) for panel-side parameter verification
+    - Implemented: Runtime Debug Panel now adds trend direction rows (`up/down/flat`) for offscreen skip, forced scene-dirty, and dirty-mark rates
+    - Implemented: Runtime Debug Panel now surfaces `Scene Dirty Risk Status` (`stable/watch/high/forcing`) based on skip ratio, forced rate, and consecutive-skip pressure
+    - Implemented: centralized dirty-region risk policy defaults (`DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY`) now define watch/high skip thresholds and high-risk forced-rate threshold in runtime policy module
+    - Implemented: runtime diagnostics now publish risk-policy thresholds and max consecutive offscreen-skip streak (`offscreenSceneDirtySkipConsecutiveMaxCount`) for long-horizon starvation analysis
+    - Implemented: Runtime Debug Panel now surfaces force-window remaining frames to quickly show distance-to-forced-redraw during skip streaks
+    - Implemented: Runtime Debug Panel now derives `Scene Dirty Trend Pressure` (`rising`/`mixed`/`easing`) from skip/forced direction signals
+    - Implemented: Runtime Debug Panel now publishes a bounded `Scene Dirty Risk Score` (0-100) combining skip ratio, forced-rate pressure, and streak pressure
+    - Implemented: Runtime Debug Panel now color-codes `Scene Dirty Risk Status` row (`stable/watch/high/forcing`) for faster live triage
+    - Implemented: runtime diagnostics now publish trend/spike/risk-score policy snapshots (`sceneDirtyTrendWindowFrames`, spike thresholds, risk-score high threshold) so panel logic can be policy-driven
+    - Implemented: Runtime Debug Panel trend-window calculation now uses diagnostics-provided frame window instead of a hardcoded local constant
+    - Implemented: runtime adapter now tracks and publishes max consecutive offscreen-skip streak (`offscreenSceneDirtySkipConsecutiveMaxCount`) for long-session starvation pressure visibility
+    - Implemented: Runtime Debug Panel now derives `Scene Dirty Spike Signal` (`none`/`skip`/`forced`/`forced+skip`) from recent per-second skip/forced rates
+    - Implemented: Runtime Debug Panel now derives `Scene Dirty Risk Score Band` (`low`/`medium`/`high`) and risk-status transition telemetry (transition count + seconds in current state)
+    - Implemented: Runtime Debug Panel now uses safe fallback thresholds when diagnostics snapshot values are zero and scales trend-history buffer with the active trend-window size
+    - Implemented: runtime render policy now defines risk-score composition defaults (`DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY`) so scoring math is centralized and tunable
+    - Implemented: runtime diagnostics now publish risk-score composition parameters (skip/forced/streak weights + forced-rate scale) to keep panel scoring aligned with runtime policy
+    - Implemented: Runtime Debug Panel now decomposes risk score into visible contribution rows (skip/forced/streak) for explainable tuning
+    - Implemented: Runtime Debug Panel now tracks and surfaces risk-status transition reason labels (`streak-force-threshold`, `skip-and-forced-threshold`, `skip-watch-threshold`, `cooling`, `recovered`)
+    - Implemented: Runtime Debug Panel now surfaces risk-status transition frequency (`Scene Dirty Risk Transitions / Min`) in addition to cumulative count
+    - Implemented: Runtime Debug Panel now provides one-click diagnostics snapshot export (`Copy JSON`) via clipboard for quick perf triage sharing
+    - Implemented: diagnostics export feedback state now auto-resets to idle after a short timeout to avoid stale copied/failed indicators
+    - Implemented: runtime render policy now defines risk-score composition parameters (`skipWeight`, `forcedWeight`, `streakWeight`, `forcedRateScale`) in `DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY`
+    - Implemented: runtime diagnostics now publish risk-score composition policy parameters so panel score calculation stays policy-aligned
+    - Implemented: Runtime Debug Panel now surfaces risk-score contribution percentages for skip/forced/streak components in addition to absolute contribution values
+    - Implemented: Runtime Debug Panel now classifies transition-rate status (`stable`/`watch`/`churning`) from transitions/min against policy threshold
+    - Implemented: Runtime Debug Panel now surfaces a prolonged high-risk signal (`Scene Dirty High Risk Sustained`) based on risk status and in-state duration threshold
+    - Implemented: diagnostics snapshot export now includes a derived-metrics section (risk status/score/trend/transition/contributions) with timestamp for richer triage sharing
+    - Implemented: panel-side threshold handling now includes safe fallbacks for prolonged-high-risk and transition-rate thresholds to avoid startup zero-threshold artifacts
+    - Implemented: mixed-scene perf gate now supports previous-report regression checks (`--previous-report`) with metric direction policy (`lower-better` / `higher-better`)
+    - Implemented: mixed-scene perf gate config now includes trend-regression defaults (`defaultMaxRegressionPercent`, `metricDirections`) to enforce CI-friendly drift bounds
+    - Implemented: mixed-scene perf gate now supports machine-readable output (`--output`) containing checks/trendChecks/failures for CI/report ingestion
+    - Implemented: vector app scripts now include `perf:gate:template` for quick baseline smoke execution
+    - Implemented: root workspace scripts now expose `perf:gate` to run gate from monorepo root without manual filter typing
+    - Implemented: added executable mixed-scene regression gate script (`apps/vector-editor-web/scripts/perf-gate.mjs`) with baseline config and report template
+    - Implemented: mixed-scene gate now enforces scene coverage (`10k`, `50k`, `100k`, `mixed(text/image/path)`) plus metric thresholds (frame p95, hit-test p95, cache hit-rate, visible candidates)
+    - Implemented: vector app package scripts now expose `perf:gate` command for direct perf gate execution
+    - Implemented: added targeted transform/hit-test overlap regression checklist (`docs/core/transform-hit-test-regression-checklist.md`) with required scenarios, expected outcomes, and diagnostics capture points
+    - Implemented: engineering testing docs now include mixed-scene gate usage and checklist entrypoints for repeatable validation
+    - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+  1. Runtime diagnostics baseline (owner: engine + app)
+  - Deliverable: frame/hit/cache counters wired from engine stats to debug panel
+  - Acceptance: panel shows `totalMs`, `hitTestMs`, `cacheHit/Miss`, `rendered/skipped`
+  2. Pointer-move hit-test throttle (owner: runtime)
+  - Deliverable: pointermove hit dispatch with frame-budget or interval throttling
+  - Acceptance: hover movement no longer triggers exact hit on every raw event
+  3. Hover gating during pan/drag (owner: runtime + app)
+  - Deliverable: interaction-phase switch disables normal hover path during pan/drag
+  - Acceptance: pan/drag stage has no continuous hover recompute
+  4. Zoom-time rebuild freeze (owner: engine)
+  - Deliverable: text/path/cache heavy rebuild deferred during zoom interaction
+  - Acceptance: continuous zoom avoids repeated rebuild spikes; settle phase restores quality
+  5. Tiny-object degradation (owner: engine)
+  - Deliverable: low screen-space nodes rendered as dot/bbox/skip
+  - Acceptance: low zoom rendered node count drops with no major interaction regression
+  6. Text placeholder LOD (owner: engine)
+  - Deliverable: low zoom text uses placeholder block instead of full shaping
+  - Acceptance: text-heavy scene pan/zoom frame jitter reduced
+  7. Bbox-first hit policy (owner: engine + runtime)
+  - Deliverable: `bbox_then_exact` default for non-precision interactions
+  - Acceptance: exact-hit count decreases while top-hit correctness stays stable
 
 ## Next
 
-- Add Figma coverage mapping for vector editor pages
 - Add targeted regression checklist for transform and hit-test overlap cases
 - Continue multi-hit candidate interpretation consistency across worker/runtime/product
 - Normalize package-level README responsibilities (`apps/*`, `packages/*`)
+- 100K performance optimization Phase 2 (runtime structure, next execution queue):
+  1. Phase-based render policy service (owner: runtime)
+  - Deliverable: explicit policy for `static/pan/zoom/drag/settled`
+  - Acceptance: render/hit/cache/overlay mode can switch by phase
+  2. Drag preview layer (owner: engine + runtime)
+  - Deliverable: selection drag rendered from interaction preview layer
+  - Acceptance: drag does not force full-scene invalidation each frame
+  3. Dirty-region redraw pipeline (owner: engine)
+  - Deliverable: redraw limited to union of old/new/overlay bounds
+  - Acceptance: local transforms no longer trigger full canvas redraw path
+  4. Group collapse policy (owner: engine)
+  - Deliverable: low zoom group/frame internals can collapse to proxy representation
+  - Acceptance: traversal node count decreases on deep hierarchy scenes
+  5. Path simplification buckets (owner: engine)
+  - Deliverable: per-zoom simplified path representations
+  - Acceptance: path build cost scales down when zoomed out
+  6. Cache zoom buckets + hysteresis (owner: engine)
+  - Deliverable: discrete bucketed cache selection with threshold hysteresis
+  - Acceptance: zoom oscillation no longer causes cache thrash
+- 100K performance optimization Phase 3 (scale hardening, queued):
+  1. Tiled bitmap cache for large static regions (owner: engine)
+  2. Multi-resolution image path (owner: engine)
+  3. Incremental spatial-index update for drag/move (owner: engine)
+  4. Worker precompute for path/text heavy prep (owner: engine + runtime)
+  5. Pan frame reuse path (framebuffer shift + edge redraw) (owner: engine)
+- Add 100K mixed-scene regression gate (owner: app + runtime):
+  1. Baseline scenes: `10k`, `50k`, `100k`, `mixed(text/image/path)`
+  2. Metrics gate: frame time, hit-test time, cache hit-rate, visible candidate count
+  3. CI/report rule: record trend and flag regression above agreed threshold
 
 ## Blocked
 

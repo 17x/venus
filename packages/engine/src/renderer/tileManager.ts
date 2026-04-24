@@ -12,6 +12,9 @@ import type { EngineRect } from '../scene/types.ts'
  */
 export type TileZoomLevel = 0 | 1 | 2 | 3 | 4 | 5
 
+const ZOOM_BUCKET_EDGE_SCALES: readonly number[] = [0.125, 0.25, 0.5, 1, 2]
+const ZOOM_BUCKET_HYSTERESIS_RATIO = 0.08
+
 /**
  * Tile cache entry: represents a single rendered tile at a specific zoom level.
  */
@@ -70,7 +73,32 @@ export function getTileSizeForZoom(zoomLevel: TileZoomLevel, baseTileSize: numbe
  * Determines which zoom level to use based on viewport scale.
  * Scale typically ranges [0.0625 (far out) to 4.0 (zoomed in)].
  */
-export function getZoomLevelForScale(scale: number): TileZoomLevel {
+export function getZoomLevelForScale(
+  scale: number,
+  previousZoomLevel?: TileZoomLevel | null,
+): TileZoomLevel {
+  const absScale = Math.max(0, Math.abs(scale))
+
+  // Keep the previous zoom bucket while scale remains inside a small
+  // hysteresis window so minor zoom oscillation does not thrash tile caches.
+  if (typeof previousZoomLevel === 'number') {
+    const lowerEdge = previousZoomLevel === 0
+      ? 0
+      : ZOOM_BUCKET_EDGE_SCALES[previousZoomLevel - 1]
+    const upperEdge = previousZoomLevel >= 5
+      ? Number.POSITIVE_INFINITY
+      : ZOOM_BUCKET_EDGE_SCALES[previousZoomLevel]
+    const lowerBound = previousZoomLevel === 0
+      ? 0
+      : lowerEdge * (1 - ZOOM_BUCKET_HYSTERESIS_RATIO)
+    const upperBound = previousZoomLevel >= 5
+      ? Number.POSITIVE_INFINITY
+      : upperEdge * (1 + ZOOM_BUCKET_HYSTERESIS_RATIO)
+    if (absScale >= lowerBound && absScale < upperBound) {
+      return previousZoomLevel
+    }
+  }
+
   // Map scale to zoom level 0-5
   // scale 0.0625 -> level 0
   // scale 0.125 -> level 0
@@ -79,11 +107,11 @@ export function getZoomLevelForScale(scale: number): TileZoomLevel {
   // scale 1.0 -> level 3
   // scale 2.0 -> level 4
   // scale 4.0 -> level 5
-  if (scale < 0.125) return 0
-  if (scale < 0.25) return 1
-  if (scale < 0.5) return 2
-  if (scale < 1.0) return 3
-  if (scale < 2.0) return 4
+  if (absScale < 0.125) return 0
+  if (absScale < 0.25) return 1
+  if (absScale < 0.5) return 2
+  if (absScale < 1.0) return 3
+  if (absScale < 2.0) return 4
   return 5
 }
 
@@ -153,6 +181,10 @@ export class EngineTileCache {
     return `z${zoomLevel}:${gridX},${gridY}`
   }
 
+  getTileSizePx(zoomLevel: TileZoomLevel): number {
+    return getTileSizeForZoom(zoomLevel, this.baseTileSize)
+  }
+
   /**
    * Get cached tile entry, or null if not cached.
    */
@@ -165,6 +197,32 @@ export class EngineTileCache {
     return entry ?? null
   }
 
+  upsertEntry(input: {
+    zoomLevel: TileZoomLevel
+    gridX: number
+    gridY: number
+    textureId: number
+    textureBytes: number
+  }): EngineTileCacheEntry {
+    const key = this.getTileKey(input.zoomLevel, input.gridX, input.gridY)
+    const tileSizePx = this.getTileSizeForZoomInternal(input.zoomLevel)
+    const nextEntry: EngineTileCacheEntry = {
+      zoomLevel: input.zoomLevel,
+      gridX: input.gridX,
+      gridY: input.gridY,
+      bounds: getTileBounds(input.gridX, input.gridY, tileSizePx),
+      textureId: input.textureId,
+      textureBytes: Math.max(0, input.textureBytes),
+      isDirty: false,
+      lastAccessAt: performance.now(),
+    }
+
+    this.cacheMap.set(key, nextEntry)
+    this.dirtyTiles.delete(key)
+    this.evictIfNeeded()
+    return nextEntry
+  }
+
   /**
    * Mark tiles intersecting bounds as dirty (need re-render).
    * Called when scene changes (element added/moved/deleted).
@@ -172,7 +230,7 @@ export class EngineTileCache {
   invalidateTilesInBounds(bounds: EngineRect, zoomLevel: TileZoomLevel): void {
     if (!this.config.enabled) return
 
-    const tileSizePx = getTileSizeForZoom(zoomLevel, this.baseTileSize)
+    const tileSizePx = this.getTileSizeForZoomInternal(zoomLevel)
     const tiles = getTilesIntersectingBounds(bounds, tileSizePx)
 
     for (const { gridX, gridY } of tiles) {
@@ -183,6 +241,33 @@ export class EngineTileCache {
         this.dirtyTiles.add(key)
       }
     }
+  }
+
+  invalidateTile(zoomLevel: TileZoomLevel, gridX: number, gridY: number): void {
+    if (!this.config.enabled) return
+
+    const key = this.getTileKey(zoomLevel, gridX, gridY)
+    const entry = this.cacheMap.get(key)
+    if (!entry) {
+      return
+    }
+
+    entry.isDirty = true
+    this.dirtyTiles.add(key)
+  }
+
+  getVisibleTiles(
+    viewportBounds: EngineRect,
+    zoomLevel: TileZoomLevel,
+  ): Array<{ zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: EngineRect }> {
+    const tileSizePx = this.getTileSizeForZoomInternal(zoomLevel)
+    const tiles = getTilesIntersectingBounds(viewportBounds, tileSizePx)
+    return tiles.map(({gridX, gridY}) => ({
+      zoomLevel,
+      gridX,
+      gridY,
+      bounds: getTileBounds(gridX, gridY, tileSizePx),
+    }))
   }
 
   /**
@@ -264,5 +349,9 @@ export class EngineTileCache {
       maxCacheSize: this.config.maxCacheSize,
       totalTextureBytes: Array.from(this.cacheMap.values()).reduce((sum, e) => sum + e.textureBytes, 0),
     }
+  }
+
+  private getTileSizeForZoomInternal(zoomLevel: TileZoomLevel) {
+    return getTileSizeForZoom(zoomLevel, this.baseTileSize)
   }
 }
