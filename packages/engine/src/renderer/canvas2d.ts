@@ -14,6 +14,7 @@ import type {
   EngineRenderableNode,
   EngineShapeNode,
   EngineTextNode,
+  EngineTextRun,
   EngineTextStyle,
 } from '../scene/types.ts'
 import type { EngineSceneBufferLayout } from '../scene/buffer.ts'
@@ -36,6 +37,10 @@ interface RenderCounters {
   cacheMisses: number
   frameReuseHits: number
   frameReuseMisses: number
+  trivialPathFastPathCount: number
+  contourParseCount: number
+  singleLineTextFastPathCount: number
+  precomputedTextLineHeightCount: number
 }
 
 interface PreparedNodeEntry {
@@ -44,11 +49,30 @@ interface PreparedNodeEntry {
   worldMatrix: EngineWorldMatrix
 }
 
+interface TextLineLayout {
+  lineHeight: number
+  segments: readonly EngineTextRun[]
+}
+
 const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   enabled: true,
   mode: 'interaction',
   maxScaleStep: 1.2,
   maxTranslatePx: 220,
+}
+
+const NULL_RENDER_COUNTERS: RenderCounters = {
+  drawCount: 0,
+  visibleCount: 0,
+  culledCount: 0,
+  cacheHits: 0,
+  cacheMisses: 0,
+  frameReuseHits: 0,
+  frameReuseMisses: 0,
+  trivialPathFastPathCount: 0,
+  contourParseCount: 0,
+  singleLineTextFastPathCount: 0,
+  precomputedTextLineHeightCount: 0,
 }
 
 interface FrameReuseSnapshot {
@@ -143,6 +167,10 @@ export function createCanvas2DEngineRenderer(
         cacheMisses: 0,
         frameReuseHits: 0,
         frameReuseMisses: 0,
+        trivialPathFastPathCount: 0,
+        contourParseCount: 0,
+        singleLineTextFastPathCount: 0,
+        precomputedTextLineHeightCount: 0,
       }
 
       const pixelRatio = frame.context.pixelRatio ?? 1
@@ -173,6 +201,10 @@ export function createCanvas2DEngineRenderer(
           cacheMisses: counters.cacheMisses,
           frameReuseHits: counters.frameReuseHits,
           frameReuseMisses: counters.frameReuseMisses,
+          canvas2dTrivialPathFastPathCount: counters.trivialPathFastPathCount,
+          canvas2dContourParseCount: counters.contourParseCount,
+          canvas2dSingleLineTextFastPathCount: counters.singleLineTextFastPathCount,
+          canvas2dPrecomputedTextLineHeightCount: counters.precomputedTextLineHeightCount,
           frameMs: performance.now() - startAt,
         }
       }
@@ -239,6 +271,10 @@ export function createCanvas2DEngineRenderer(
         cacheMisses: counters.cacheMisses,
         frameReuseHits: counters.frameReuseHits,
         frameReuseMisses: counters.frameReuseMisses,
+        canvas2dTrivialPathFastPathCount: counters.trivialPathFastPathCount,
+        canvas2dContourParseCount: counters.contourParseCount,
+        canvas2dSingleLineTextFastPathCount: counters.singleLineTextFastPathCount,
+        canvas2dPrecomputedTextLineHeightCount: counters.precomputedTextLineHeightCount,
         frameMs: performance.now() - startAt,
       }
     },
@@ -438,7 +474,7 @@ function drawPreparedNode(
 
   switch (node.type) {
     case 'text':
-      drawTextNode(context, node, localRect)
+      drawTextNode(context, node, localRect, counters)
       counters.drawCount += 1
       break
     case 'image':
@@ -451,6 +487,7 @@ function drawPreparedNode(
         localRect,
         resolvePathSimplificationBucket(frame),
         frame.viewport.scale,
+        counters,
       )
       counters.drawCount += 1
       break
@@ -465,11 +502,12 @@ function drawTextNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineTextNode,
   localRect: {x: number; y: number; width: number; height: number} | null,
+  counters: RenderCounters,
 ) {
   context.textBaseline = 'top'
   const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
   const originX = resolveTextAnchorX(node, localRect)
-  const lineLayouts = resolveTextLineLayouts(node)
+  const lineLayouts = resolveTextLineLayouts(node, counters)
   const totalHeight = lineLayouts.reduce((sum, line) => sum + line.lineHeight, 0)
   const originY = resolveTextAnchorY(node, localRect, totalHeight)
 
@@ -505,27 +543,53 @@ function drawTextNode(
   }
 }
 
-function resolveTextLineLayouts(node: EngineTextNode) {
+function resolveTextLineLayouts(node: EngineTextNode, counters: RenderCounters) {
+  if (node.lineCount === 1) {
+    counters.singleLineTextFastPathCount += 1
+    if (node.runs && node.runs.length > 0) {
+      const lineHeight = node.maxLineHeight ?? resolveMaxRunLineHeight(node)
+      if (node.maxLineHeight) {
+        counters.precomputedTextLineHeightCount += 1
+      }
+
+      return [{
+        lineHeight,
+        segments: node.runs,
+      }]
+    }
+
+    const lineHeight = node.style.lineHeight ?? node.style.fontSize
+    return [{lineHeight, segments: [{text: node.text ?? '', style: undefined}]}]
+  }
+
   if (node.runs && node.runs.length > 0) {
     return splitRunLines(node)
   }
 
   const lineHeight = node.style.lineHeight ?? node.style.fontSize
   const content = node.text ?? ''
-  const lines = content.split('\n')
-  if (lines.length === 0) {
-    return [{lineHeight, segments: [{text: '', style: undefined}]}]
-  }
+  const lines: TextLineLayout[] = []
 
-  return lines.map((line) => ({
-    lineHeight,
-    segments: [{text: line, style: undefined}],
-  }))
+  scanTextLines(content, (line) => {
+    lines.push({
+      lineHeight,
+      segments: [{text: line, style: undefined}],
+    })
+  })
+
+  return lines
+}
+
+function resolveMaxRunLineHeight(node: EngineTextNode) {
+  const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
+  return (node.runs ?? []).reduce((maxLineHeight, run) => {
+    return Math.max(maxLineHeight, run.style?.lineHeight ?? defaultLineHeight)
+  }, defaultLineHeight)
 }
 
 function splitRunLines(node: EngineTextNode) {
   const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
-  const lines: Array<{lineHeight: number; segments: Array<{text: string; style?: Partial<EngineTextStyle>}>}> = [
+  const lines: Array<{lineHeight: number; segments: EngineTextRun[]}> = [
     {
       lineHeight: defaultLineHeight,
       segments: [],
@@ -533,10 +597,9 @@ function splitRunLines(node: EngineTextNode) {
   ]
 
   for (const run of node.runs ?? []) {
-    const parts = run.text.split('\n')
     const runLineHeight = run.style?.lineHeight ?? defaultLineHeight
 
-    parts.forEach((part, index) => {
+    scanTextLines(run.text, (part, isLineBreak) => {
       const currentLine = lines[lines.length - 1]
       if (part.length > 0 || currentLine.segments.length === 0) {
         currentLine.segments.push({
@@ -546,7 +609,7 @@ function splitRunLines(node: EngineTextNode) {
       }
       currentLine.lineHeight = Math.max(currentLine.lineHeight, runLineHeight)
 
-      if (index < parts.length - 1) {
+      if (isLineBreak) {
         lines.push({
           lineHeight: defaultLineHeight,
           segments: [],
@@ -556,6 +619,24 @@ function splitRunLines(node: EngineTextNode) {
   }
 
   return lines
+}
+
+function scanTextLines(
+  text: string,
+  visit: (part: string, isLineBreak: boolean) => void,
+) {
+  let start = 0
+
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) !== 10) {
+      continue
+    }
+
+    visit(text.slice(start, index), true)
+    start = index + 1
+  }
+
+  visit(text.slice(start), false)
 }
 
 function resolveTextAnchorX(
@@ -642,6 +723,7 @@ function drawShapeNode(
   localRect: {x: number; y: number; width: number; height: number} | null,
   pathSimplificationBucket: 0 | 1 | 2,
   viewportScale: number,
+  counters: RenderCounters,
 ) {
   const drawX = localRect?.x ?? node.x
   const drawY = localRect?.y ?? node.y
@@ -674,7 +756,7 @@ function drawShapeNode(
     y: drawY,
     width: drawWidth,
     height: drawHeight,
-  }, pathSimplificationBucket, viewportScale)
+  }, pathSimplificationBucket, viewportScale, counters)
   if (!appended) {
     return
   }
@@ -732,6 +814,7 @@ function appendShapePath(
   rect: {x: number; y: number; width: number; height: number},
   pathSimplificationBucket: 0 | 1 | 2,
   viewportScale: number,
+  counters: RenderCounters,
 ) {
   if (node.shape === 'ellipse') {
     const cx = rect.x + rect.width / 2
@@ -782,7 +865,7 @@ function appendShapePath(
   }
 
   if (node.shape === 'path') {
-    return appendPathGeometry(context, node, pathSimplificationBucket, viewportScale)
+    return appendPathGeometry(context, node, pathSimplificationBucket, viewportScale, counters)
   }
 
   const hasCornerRadii = Boolean(
@@ -807,15 +890,29 @@ function appendPathGeometry(
   node: EngineShapeNode,
   pathSimplificationBucket: 0 | 1 | 2,
   viewportScale: number,
+  counters: RenderCounters,
 ) {
   const bezierPoints = node.bezierPoints ?? []
   const points = node.points ?? []
-  const pointContours = bezierPoints.length === 0
-    ? resolveClosedPointContours(points)
+  const bezierPointCount = node.bezierPointCount ?? bezierPoints.length
+  const pointCount = node.pointCount ?? points.length
+  const pointContours = bezierPointCount === 0 && node.closed && pointCount > 3
+    ? resolveClosedPointContours(points, counters)
     : []
 
   if (pathSimplificationBucket > 0) {
-    const sourcePoints = bezierPoints.length > 0
+    const sourcePointCount = bezierPointCount > 0 ? bezierPointCount : pointCount
+    const minimumDirectPointCount = node.closed ? 4 : 2
+
+    // Low-complexity paths do not benefit from projected-density simplification.
+    // Use worker-precomputed counts when available so interaction-time path prep
+    // can skip extra contour/simplification work for trivial geometry.
+    if (sourcePointCount <= minimumDirectPointCount && pointContours.length <= 1) {
+      counters.trivialPathFastPathCount += 1
+      return appendPathGeometry(context, node, 0, viewportScale, counters)
+    }
+
+    const sourcePoints = bezierPointCount > 0
       ? bezierPoints.map((point) => point.anchor)
       : points
 
@@ -905,7 +1002,14 @@ function appendPathGeometry(
   return true
 }
 
-function resolveClosedPointContours(points: readonly {x: number; y: number}[]) {
+function resolveClosedPointContours(
+  points: readonly {x: number; y: number}[],
+  counters?: Pick<RenderCounters, 'contourParseCount'>,
+) {
+  if (counters) {
+    counters.contourParseCount += 1
+  }
+
   const contours: Array<Array<{x: number; y: number}>> = []
   let cursor = 0
 
@@ -1084,16 +1188,36 @@ function resolveShapeEndpointSegment(
     }
   }
 
-  const anchors = node.bezierPoints?.map((point) => point.anchor) ?? node.points ?? []
-  if (anchors.length < 2) {
+  const bezierPointCount = node.bezierPointCount ?? node.bezierPoints?.length ?? 0
+  if (bezierPointCount >= 2 && node.bezierPoints) {
+    const first = node.bezierPoints[0]
+    const second = node.bezierPoints[1]
+    const previous = node.bezierPoints[bezierPointCount - 2]
+    const last = node.bezierPoints[bezierPointCount - 1]
+
+    if (!first || !second || !previous || !last) {
+      return null
+    }
+
+    return {
+      start: first.anchor,
+      next: second.anchor,
+      previous: previous.anchor,
+      end: last.anchor,
+    }
+  }
+
+  const pointCount = node.pointCount ?? node.points?.length ?? 0
+  const points = node.points ?? []
+  if (pointCount < 2) {
     return null
   }
 
   return {
-    start: anchors[0],
-    next: anchors[1],
-    previous: anchors[anchors.length - 2],
-    end: anchors[anchors.length - 1],
+    start: points[0],
+    next: points[1],
+    previous: points[pointCount - 2],
+    end: points[pointCount - 1],
   }
 }
 
@@ -1257,7 +1381,7 @@ function applyClipByNodeReference(
       y: clipNode.node.y,
       width: clipNode.node.width,
       height: clipNode.node.height,
-    }, 0, 1)
+    }, 0, 1, NULL_RENDER_COUNTERS)
     context.restore()
     if (appended) {
       context.clip(rule)

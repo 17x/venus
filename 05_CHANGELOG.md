@@ -1,5 +1,97 @@
 # Changelog
 
+## 2026-04-24
+
+- Completed Phase 3 closeout for the 100K scene-readiness track:
+  - `packages/engine/src/renderer/webgl.ts` now extends interactive composite
+    preview reuse with pan-time edge redraw, replaying packet draws only into
+    newly exposed scissored edge regions after framebuffer shift instead of
+    waiting for the next full redraw
+  - `packages/engine/src/renderer/types.ts`,
+    `apps/vector-editor-web/src/runtime/events/index.ts`,
+    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`, and
+    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    expose `WebGL Frame Reuse Edge Redraws` so the new pan edge-redraw path can
+    be verified live in runtime diagnostics
+  - `VT-20260424-47` worker-side render precompute work is now considered
+    complete after full baseline validation and mixed-scene perf gate coverage
+- Started `VT-20260424-47` worker-side render-precompute wiring for
+  text/path-heavy scenes:
+  - `apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts`
+    now stores stable text render hashes plus path/bezier point counts in
+    shared scene memory so worker writes can precompute render hints once per
+    shape update instead of leaving all hint derivation to frame-time readers
+  - `apps/vector-editor-web/src/editor/runtime-local/presets/engineSceneAdapter.ts`
+    now forwards the worker text hash as an engine text `cacheKey` and exposes
+    path geometry count hints on shape nodes for follow-up path-prep work
+  - `packages/engine/src/renderer/webglPackets.ts` now prefers the precomputed
+    engine text `cacheKey` before falling back to packet-time cache-key
+    synthesis
+  - `packages/engine/src/renderer/webglPackets.ts`,
+    `packages/engine/src/renderer/webgl.ts`,
+    `apps/vector-editor-web/src/runtime/events/index.ts`, and
+    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    expose precomputed-text-key vs fallback-text-key counters so the new
+    worker-side path can be verified live in the debug surface
+  - `packages/engine/src/renderer/canvas2d.ts` now consumes worker-provided
+    path point/bezier counts to skip simplification on trivial paths and avoid
+    allocating temporary bezier-anchor arrays when resolving line/path
+    arrowhead endpoint segments
+  - `packages/engine/src/renderer/canvas2d.ts`,
+    `apps/vector-editor-web/src/runtime/events/index.ts`,
+    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`, and
+    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    surface a `Canvas2D Trivial Path Fast Path` counter for live verification
+    of low-complexity path bypass hits
+  - `packages/engine/src/renderer/canvas2d.ts` and
+    `packages/engine/src/interaction/hitTest.ts` now skip multi-contour point
+    parsing for open point-only paths, leaving contour resolution to closed-path
+    candidates where it can actually affect render or hit behavior
+  - `packages/engine/src/renderer/canvas2d.ts`,
+    `apps/vector-editor-web/src/runtime/events/index.ts`,
+    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`, and
+    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    surface a `Canvas2D Contour Parses` counter for live visibility into
+    remaining closed-path contour work
+  - `packages/engine/src/interaction/hitTest.ts` now resolves closed-path state
+    once per path hit-test branch, reuses it across fill/stroke checks, gates
+    contour parsing behind a dedicated multi-contour candidate helper, and
+    accepts an optional `closed` hint on hit-test nodes for future callers
+  - `apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts`,
+    `apps/vector-editor-web/src/editor/runtime-local/presets/engineSceneAdapter.ts`,
+    `packages/engine/src/scene/types.ts`, and
+    `packages/engine/src/renderer/canvas2d.ts` now precompute and consume text
+    line counts so single-line text can bypass generic newline-splitting work,
+    with a `Canvas2D Single-Line Text Fast Path` counter exposed in runtime
+    diagnostics
+  - vector-editor path hit-test callers now forward precomputed `closed` hints
+    into engine shape/clip hit testing across runtime-local controller,
+    runtime-local worker hit-test scope, runtime-local interaction helpers, and
+    mirrored `editor/interaction/runtime/*` modules so the engine can reuse the
+    new closed-path fast path at product call sites
+  - `apps/vector-editor-web/src/editor/interaction/pathHitTestHints.ts` now
+    centralizes closed-path normalization for vector-editor hit-test call sites,
+    replacing duplicated helper implementations across runtime-local and
+    mirrored interaction modules
+  - shared scene-memory render hints now precompute single-line rich-text max
+    line height and thread it through engine text nodes into Canvas2D so the
+    single-line text fast path can skip per-frame rich-text line-height scans;
+    runtime diagnostics now expose `Canvas2D Precomputed Text Line Height`
+  - worker-side text render hint preparation in shared scene memory now uses a
+    single text metadata pass to derive hash, line count, and max line height,
+    reducing duplicate text traversal during precompute
+  - Canvas2D multiline text layout now uses a shared manual newline scanner for
+    both rich-text runs and plain text, removing `split('\n')` temporary array
+    allocation from hot multiline text render paths
+  - Canvas2D single-line rich-text layout now reuses `EngineTextRun[]`
+    directly instead of cloning runs into a duplicate segment array on each
+    frame of the fast path
+- Verification:
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm build`
+  - `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`
+
 ## 2026-04-23
 
 - Continued engine-side WebGL-primary render-path convergence in

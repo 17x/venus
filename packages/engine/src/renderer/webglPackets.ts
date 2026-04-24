@@ -21,6 +21,8 @@ export interface EngineWebGLPacketPlan {
   uploadBytesEstimate: number
   imagePacketCount: number
   richTextPacketCount: number
+  precomputedTextCacheKeyCount: number
+  fallbackTextCacheKeyCount: number
 }
 
 interface CachedPacketPlanEntry {
@@ -51,6 +53,8 @@ export function compileEngineWebGLPacketPlan(
   const packets: EngineWebGLRenderPacket[] = []
   let imagePacketCount = 0
   let richTextPacketCount = 0
+  let precomputedTextCacheKeyCount = 0
+  let fallbackTextCacheKeyCount = 0
 
   for (const preparedIndex of plan.drawList) {
     const prepared = plan.preparedNodes[preparedIndex]
@@ -73,6 +77,10 @@ export function compileEngineWebGLPacketPlan(
       richTextPacketCount += 1
     }
 
+    const textCacheKey = prepared.node.type === 'text'
+      ? resolvePreparedTextCacheKey(prepared.node)
+      : undefined
+
     packets.push({
       kind: packetKind,
       nodeId: prepared.node.id,
@@ -83,10 +91,16 @@ export function compileEngineWebGLPacketPlan(
       worldBounds: prepared.worldBounds,
       color: resolveNodeColor(prepared.node),
       assetId: prepared.node.type === 'image' ? prepared.node.assetId : undefined,
-      textCacheKey: prepared.node.type === 'text'
-        ? resolveTextPacketCacheKey(prepared.node)
-        : undefined,
+      textCacheKey,
     })
+
+    if (prepared.node.type === 'text') {
+      if (prepared.node.cacheKey) {
+        precomputedTextCacheKeyCount += 1
+      } else if (textCacheKey) {
+        fallbackTextCacheKeyCount += 1
+      }
+    }
   }
 
   // One upload estimate gives the resource manager a stable frame-level signal
@@ -102,12 +116,20 @@ export function compileEngineWebGLPacketPlan(
     uploadBytesEstimate,
     imagePacketCount,
     richTextPacketCount,
+    precomputedTextCacheKeyCount,
+    fallbackTextCacheKeyCount,
   }
   webglPacketPlanCache.set(plan, {
     instanceView,
     packetPlan,
   })
   return packetPlan
+}
+
+function resolvePreparedTextCacheKey(
+  node: Extract<EngineRenderableNode, { type: 'text' }>,
+) {
+  return node.cacheKey ?? resolveTextPacketCacheKey(node)
 }
 
 function resolvePacketKind(node: EngineRenderableNode): EngineWebGLPacketKind {

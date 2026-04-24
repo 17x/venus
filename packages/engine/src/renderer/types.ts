@@ -44,6 +44,9 @@ export interface EngineRenderStats {
   webglTextTextureUploadCount?: number
   webglTextTextureUploadBytes?: number
   webglTextCacheHitCount?: number
+  webglPrecomputedTextCacheKeyCount?: number
+  webglFallbackTextCacheKeyCount?: number
+  webglFrameReuseEdgeRedrawCount?: number
   webglImageTextureUploadCount?: number
   webglImageTextureUploadBytes?: number
   webglImageDownsampledUploadCount?: number
@@ -68,6 +71,10 @@ export interface EngineRenderStats {
   dirtyRegionCount?: number
   dirtyTileCount?: number
   incrementalUpdateCount?: number
+  canvas2dTrivialPathFastPathCount?: number
+  canvas2dContourParseCount?: number
+  canvas2dSingleLineTextFastPathCount?: number
+  canvas2dPrecomputedTextLineHeightCount?: number
 }
 
 export interface EngineRendererCapabilities {

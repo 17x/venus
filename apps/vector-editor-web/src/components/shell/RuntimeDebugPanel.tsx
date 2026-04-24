@@ -674,7 +674,14 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.webglTextTextureUploadCount', 'WebGL Text Upload Count')} value={String(diagnostics.webglTextTextureUploadCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglTextTextureUploadBytes', 'WebGL Text Upload Bytes')} value={formatDiagnosticBytes(diagnostics.webglTextTextureUploadBytes)}/>
       <DebugRow label={t('shell.variantB.debug.webglTextCacheHitCount', 'WebGL Text Cache Hit')} value={String(diagnostics.webglTextCacheHitCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglPrecomputedTextCacheKeyCount', 'WebGL Text Precomputed Keys')} value={String(diagnostics.webglPrecomputedTextCacheKeyCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglFallbackTextCacheKeyCount', 'WebGL Text Fallback Keys')} value={String(diagnostics.webglFallbackTextCacheKeyCount)}/>
+      <DebugRow label={t('shell.variantB.debug.webglFrameReuseEdgeRedrawCount', 'WebGL Frame Reuse Edge Redraws')} value={String(diagnostics.webglFrameReuseEdgeRedrawCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglCompositeUploadBytes', 'WebGL Composite Upload Bytes')} value={formatDiagnosticBytes(diagnostics.webglCompositeUploadBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.canvas2dTrivialPathFastPathCount', 'Canvas2D Trivial Path Fast Path')} value={String(diagnostics.canvas2dTrivialPathFastPathCount)}/>
+      <DebugRow label={t('shell.variantB.debug.canvas2dContourParseCount', 'Canvas2D Contour Parses')} value={String(diagnostics.canvas2dContourParseCount)}/>
+      <DebugRow label={t('shell.variantB.debug.canvas2dSingleLineTextFastPathCount', 'Canvas2D Single-Line Text Fast Path')} value={String(diagnostics.canvas2dSingleLineTextFastPathCount)}/>
+      <DebugRow label={t('shell.variantB.debug.canvas2dPrecomputedTextLineHeightCount', 'Canvas2D Precomputed Text Line Height')} value={String(diagnostics.canvas2dPrecomputedTextLineHeightCount)}/>
       <DebugRow label={t('shell.variantB.debug.l0PreviewHitCount', 'L0 Preview Hits')} value={String(diagnostics.l0PreviewHitCount)}/>
       <DebugRow label={t('shell.variantB.debug.l0PreviewMissCount', 'L0 Preview Misses')} value={String(diagnostics.l0PreviewMissCount)}/>
       <DebugRow label={t('shell.variantB.debug.l1CompositeHitCount', 'L1 Composite Hits')} value={String(diagnostics.l1CompositeHitCount)}/>

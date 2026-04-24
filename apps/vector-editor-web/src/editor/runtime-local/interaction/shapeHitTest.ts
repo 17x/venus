@@ -1,6 +1,7 @@
 import type {EditorDocument} from '@venus/document-core'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 import {isPointInsideEngineClipShape, isPointInsideEngineShapeHitArea} from '@venus/engine'
+import {withResolvedPathHints} from '../../interaction/pathHitTestHints.ts'
 
 export interface ResolveTopHitShapeIdOptions {
   hitMode?: 'exact' | 'bbox_then_exact' | 'bbox'
@@ -63,7 +64,7 @@ export function resolveTopHitShapeId(
 
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+      if (clipSource && !isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
         tolerance: clipTolerance,
         shapeById,
       })) {
@@ -73,7 +74,7 @@ export function resolveTopHitShapeId(
 
     exactCandidateCount += 1
 
-    if (isPointInsideEngineShapeHitArea(pointer, source, {
+    if (isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(source), {
       allowFrameSelection,
       tolerance,
       strictStrokeHitTest: options?.strictStrokeHitTest,

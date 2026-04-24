@@ -28,6 +28,9 @@ context starts, or work needs to resume after switching topics.
   - Phase 3 (scale hardening): tiled cache, image multi-resolution,
     incremental spatial-index update, worker precompute,
     pan framebuffer shift/edge redraw
+    Status: complete as of 2026-04-24; follow-up work should use the mixed-scene
+    regression gate and targeted diagnostics rather than reopening the same
+    implementation queue by default.
     Active execution status (2026-04-23):
   - canvas adapter now publishes runtime render diagnostics baseline and
     render-prep dirty overlap uses previous frame candidates from engine diagnostics
@@ -100,6 +103,13 @@ context starts, or work needs to resume after switching topics.
   - scene patch apply flow now maintains node map + spatial index
     incrementally via subtree remove/upsert helpers instead of rebuilding the
     coarse spatial index for every drag/move patch
+  - worker-side render-hint precompute now covers text hash, line count,
+    max line height, and path geometry counts in shared scene memory, and the
+    engine consumes those hints in packet compilation, Canvas2D text fast
+    paths, and path simplification/hit-test hot paths
+  - WebGL interactive preview now completes pan-time framebuffer reuse with
+    scissored edge redraw of newly exposed regions, and runtime diagnostics now
+    expose `WebGL Frame Reuse Edge Redraws` for live verification of the path
   - mixed-scene perf gate now supports previous-report trend regression
     enforcement and machine-readable result output for CI/report workflows
     window in engine runtime, reducing shortlist on/off oscillation near

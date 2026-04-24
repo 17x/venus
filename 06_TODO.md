@@ -242,6 +242,39 @@
     - Verified 2026-04-24: `VT-20260424-12` multi-resolution image baseline now downscales uploads to zoom-appropriate raster size, re-uploads higher fidelity on demand, and surfaces saved-byte diagnostics in Runtime Debug Panel (`packages/engine/src/renderer/webgl.ts`, `src/components/shell/RuntimeDebugPanel.tsx`)
     - Verified 2026-04-24: `VT-20260424-13` incremental spatial-index update path is active in scene patch apply flow via subtree upsert/remove helpers instead of full rebuilds (`packages/engine/src/scene/patch.ts`, `packages/engine/src/scene/indexing.ts`, `packages/engine/src/spatial/index.ts`)
     - Verified 2026-04-24: `VT-20260424-14` mixed-scene perf gate CI/report integration supports `--previous-report`, machine-readable `--output`, and trend regression enforcement (`apps/vector-editor-web/scripts/perf-gate.mjs`)
+    - In progress 2026-04-24: `VT-20260424-47` started worker-side render hint precompute by extending shared scene memory with stable text render hashes and path geometry counts, wiring the first text cache-key consumer through runtime scene adaptation and engine packet compilation
+    - Implemented: `VT-20260424-47` added diagnostics for worker-precomputed text cache-key usage vs packet-time fallback, surfacing the counts through engine render stats, runtime diagnostics, and Runtime Debug Panel for live validation of the new precompute path
+    - Implemented: `VT-20260424-47` now consumes worker-precomputed path point/bezier counts in Canvas2D path rendering to bypass simplification for trivial paths and avoid extra bezier-anchor array allocation during arrow endpoint resolution
+    - Implemented: `VT-20260424-47` added `Canvas2D Trivial Path Fast Path` diagnostics, wiring fast-path hit counts from engine Canvas2D render stats through runtime diagnostics into Runtime Debug Panel so low-complexity path bypasses can be observed live
+    - Implemented: `VT-20260424-47` pruned unnecessary contour parsing for open point-only paths in both Canvas2D rendering and engine hit-test flows, keeping multi-contour resolution gated to closed-path candidates only
+    - Implemented: `VT-20260424-47` added `Canvas2D Contour Parses` diagnostics and surfaced the counter through engine render stats, runtime diagnostics, and Runtime Debug Panel for live contour-path visibility
+    - Implemented: `VT-20260424-47` cached closed-path resolution once per path hit-test branch and threaded the result through fill/stroke helper checks, removing repeated closed-shape recomputation in engine hit testing
+    - Implemented: `VT-20260424-47` added `hasMultiContourPointPathCandidate(...)` gating in engine hit testing so contour parsing only runs for closed, point-only path candidates with enough points to possibly encode multiple contours
+    - Implemented: `VT-20260424-47` extended engine hit-test node shape with optional `closed` hint support so future callers can bypass endpoint-based closed-shape recomputation entirely
+    - Verified 2026-04-24: `VT-20260424-47` latest local optimization slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` extended shared scene-memory render hints with precomputed text line counts, exposing `textLineCount` in runtime snapshots for text-layout fast-path decisions
+    - Implemented: `VT-20260424-47` forwarded precomputed text line counts into engine text nodes and added `Canvas2D Single-Line Text Fast Path` stats so single-line text can bypass general newline splitting work
+    - Implemented: `VT-20260424-47` wired path `closed` hints from vector-editor app hit-test call sites into engine shape/clip hit testing across runtime-local controller, runtime-local interaction, worker hit-test scope, and mirrored runtime interaction helpers
+    - Implemented: `VT-20260424-47` kept mirrored runtime-local and interaction/runtime path-hit helpers in sync so product/runtime duplicate surfaces preserve the same path hint behavior
+    - Verified 2026-04-24: `VT-20260424-47` text line-count + closed-hint propagation slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` extracted shared `pathHitTestHints` helper in the vector-editor app so closed-path normalization now lives in one module instead of being duplicated across runtime-local and mirrored interaction surfaces
+    - Implemented: `VT-20260424-47` replaced duplicated per-file `withResolvedPathHints` helpers in runtime-local shape hit, runtime-local controller hit, runtime-local worker hit-test scope, runtime-local selection policy, mirrored runtime shape hit, and mirrored runtime selection policy with the shared helper
+    - Verified 2026-04-24: `VT-20260424-47` shared path-hit hint helper refactor passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` added worker-side precomputed `textMaxLineHeight` shared-memory hint for text nodes, quantized into render hints so single-line rich-text rendering can reuse worker-prepared line-height data
+    - Implemented: `VT-20260424-47` threaded precomputed text max line-height through runtime snapshot -> engine text node -> Canvas2D single-line text fast path, removing per-frame rich-text line-height reduction when the hint is present
+    - Implemented: `VT-20260424-47` surfaced `Canvas2D Precomputed Text Line Height` diagnostics through engine stats, runtime diagnostics, and RuntimeDebugPanel for live verification of worker text-precompute usage
+    - Verified 2026-04-24: `VT-20260424-47` text max line-height precompute slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` consolidated worker text render-hint prep into a single `resolveTextRenderMeta(...)` pass so text hash, line count, and max line height are derived from one text traversal instead of three separate scans
+    - Verified 2026-04-24: `VT-20260424-47` shared-memory text render-meta consolidation passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` replaced `Canvas2D` multiline rich-text `run.text.split('\n')` layout work with a shared manual line scanner so rich-text line layout no longer allocates a temporary parts array per run
+    - Implemented: `VT-20260424-47` reused the same manual line scanner for plain multiline `Canvas2D` text layout, removing `content.split('\n')` temporary line arrays from the non-rich-text path as well
+    - Verified 2026-04-24: `VT-20260424-47` Canvas2D multiline text line-scanner slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` updated the `Canvas2D` single-line rich-text fast path to reuse `EngineTextRun[]` directly instead of mapping runs into a redundant segment-copy array each frame
+    - Verified 2026-04-24: `VT-20260424-47` Canvas2D single-line rich-text segment reuse slice passed validation (`pnpm typecheck`)
+    - Verified 2026-04-24: `VT-20260424-47` worker-side render-hint precompute track is now complete for text/path-heavy prep (shared-memory text hash/line-count/max-line-height + path geometry hints through engine fast paths) and passed validation baseline plus mixed-scene perf gate (`pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`)
+    - Implemented: `VT-20260424-48` WebGL interactive pan preview now reuses the previous composite frame and scissor-redraws newly exposed edge regions through packet replay instead of leaving pan-time edge gaps to the next full redraw in `packages/engine/src/renderer/webgl.ts`
+    - Implemented: `VT-20260424-48` surfaced `WebGL Frame Reuse Edge Redraws` diagnostics from engine render stats through runtime diagnostics into Runtime Debug Panel for live verification of framebuffer-shift edge redraw behavior
+    - Verified 2026-04-24: `VT-20260424-48` pan frame reuse path now ships with framebuffer shift + edge redraw and passed validation baseline plus mixed-scene perf gate (`pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`)
   - `VT-20260423-P1-01` [verified]: Runtime diagnostics baseline (owner: engine + app)
     - Deliverable: frame/hit/cache counters wired from engine stats to debug panel
     - Acceptance: panel shows `totalMs`, `hitTestMs`, `cacheHit/Miss`, `rendered/skipped`
@@ -337,12 +370,12 @@
   6. Cache zoom buckets + hysteresis (owner: engine)
   - Deliverable: discrete bucketed cache selection with threshold hysteresis
   - Acceptance: zoom oscillation no longer causes cache thrash
-- 100K performance optimization Phase 3 (scale hardening, queued):
-  1. Tiled bitmap cache for large static regions (owner: engine)
-  2. Multi-resolution image path (owner: engine)
-  3. Incremental spatial-index update for drag/move (owner: engine)
-  4. Worker precompute for path/text heavy prep (owner: engine + runtime)
-  5. Pan frame reuse path (framebuffer shift + edge redraw) (owner: engine)
+- 100K performance optimization Phase 3 (scale hardening, verified):
+  1. Tiled bitmap cache for large static regions (owner: engine) [`VT-20260424-11` verified]
+  2. Multi-resolution image path (owner: engine) [`VT-20260424-12` verified]
+  3. Incremental spatial-index update for drag/move (owner: engine) [`VT-20260424-13` verified]
+  4. Worker precompute for path/text heavy prep (owner: engine + runtime) [`VT-20260424-47` verified]
+  5. Pan frame reuse path (framebuffer shift + edge redraw) (owner: engine) [`VT-20260424-48` verified]
 - Add 100K mixed-scene regression gate (owner: app + runtime):
   1. Baseline scenes: `10k`, `50k`, `100k`, `mixed(text/image/path)`
   2. Metrics gate: frame time, hit-test time, cache hit-rate, visible candidate count

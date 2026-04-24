@@ -629,7 +629,13 @@ export function Canvas2DRenderer({
             webglTextTextureUploadCount?: number
             webglTextTextureUploadBytes?: number
             webglTextCacheHitCount?: number
+            webglPrecomputedTextCacheKeyCount?: number
+            webglFallbackTextCacheKeyCount?: number
             webglCompositeUploadBytes?: number
+            canvas2dTrivialPathFastPathCount?: number
+            canvas2dContourParseCount?: number
+            canvas2dSingleLineTextFastPathCount?: number
+            canvas2dPrecomputedTextLineHeightCount?: number
             l0PreviewHitCount?: number
             l0PreviewMissCount?: number
             l1CompositeHitCount?: number
@@ -815,8 +821,22 @@ export function Canvas2DRenderer({
               webglStats.webglTextTextureUploadBytes ?? 0,
             webglTextCacheHitCount:
               webglStats.webglTextCacheHitCount ?? 0,
+            webglPrecomputedTextCacheKeyCount:
+              webglStats.webglPrecomputedTextCacheKeyCount ?? 0,
+            webglFallbackTextCacheKeyCount:
+              webglStats.webglFallbackTextCacheKeyCount ?? 0,
+            webglFrameReuseEdgeRedrawCount:
+              webglStats.webglFrameReuseEdgeRedrawCount ?? 0,
             webglCompositeUploadBytes:
               webglStats.webglCompositeUploadBytes ?? 0,
+            canvas2dTrivialPathFastPathCount:
+              webglStats.canvas2dTrivialPathFastPathCount ?? 0,
+            canvas2dContourParseCount:
+              webglStats.canvas2dContourParseCount ?? 0,
+            canvas2dSingleLineTextFastPathCount:
+              webglStats.canvas2dSingleLineTextFastPathCount ?? 0,
+            canvas2dPrecomputedTextLineHeightCount:
+              webglStats.canvas2dPrecomputedTextLineHeightCount ?? 0,
             l0PreviewHitCount:
               webglStats.l0PreviewHitCount ?? 0,
             l0PreviewMissCount:

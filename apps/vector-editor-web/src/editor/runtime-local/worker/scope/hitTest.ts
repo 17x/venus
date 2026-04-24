@@ -3,6 +3,7 @@ import {
   isPointInsideEngineClipShape,
   isPointInsideEngineShapeHitArea,
 } from '@venus/engine'
+import {withResolvedPathHints} from '../../../interaction/pathHitTestHints.ts'
 import type {WorkerSpatialIndex} from './types.ts'
 
 const LINE_HIT_TOLERANCE = 6
@@ -105,7 +106,7 @@ export function hitTestDocumentCandidates(
 
     exactCandidateCount += 1
 
-    if (!isPointInsideEngineShapeHitArea(pointer, shape, {
+    if (!isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(shape), {
       allowFrameSelection,
       tolerance: Math.max(LINE_HIT_TOLERANCE, PATH_HIT_TOLERANCE, POLYGON_EDGE_HIT_TOLERANCE),
       strictStrokeHitTest,
@@ -177,11 +178,12 @@ function isPointInsideClipSource(
   clipSource: DocumentNode,
   shapeById: Map<string, DocumentNode>,
 ) {
-  return isPointInsideEngineClipShape(pointer, clipSource, {
+  return isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
     tolerance: 1.5,
     shapeById,
   })
 }
+
 
 function resolveSelectableShape(shape: DocumentNode, shapeById: Map<string, DocumentNode>) {
   let current: DocumentNode = shape

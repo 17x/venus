@@ -46,6 +46,7 @@ export interface EngineEditorHitTestNode {
   }
   points?: EngineEditorPoint[]
   bezierPoints?: EngineEditorBezierPoint[]
+  closed?: boolean
   schema?: {sourceFeatureKinds?: string[]}
 }
 
@@ -201,12 +202,13 @@ export function isPointInsideEngineShapeHitArea(
   }
 
   if (shape.type === 'path') {
+    const closedShape = isClosedPathShape(shape)
     const hasStrokeArea = hasShapeStrokeHitArea(shape)
     const strokeOnly = strictStrokeHitTest && hasStrokeArea
-    if (hasStrokeArea && isPathStrokeHit(testPointer, shape, tolerance)) {
+    if (hasStrokeArea && isPathStrokeHit(testPointer, shape, tolerance, closedShape)) {
       return true
     }
-    return !strokeOnly && hasShapeFillHitArea(shape) && isPathFillHit(testPointer, shape, tolerance)
+    return !strokeOnly && hasShapeFillHitArea(shape, closedShape) && isPathFillHit(testPointer, shape, tolerance, closedShape)
   }
 
   return false
@@ -326,7 +328,7 @@ function isPointInsideBounds(
   )
 }
 
-function hasShapeFillHitArea(shape: EngineEditorHitTestNode) {
+function hasShapeFillHitArea(shape: EngineEditorHitTestNode, closedPathHint?: boolean) {
   if (shape.type === 'image' || shape.type === 'text') {
     return true
   }
@@ -345,7 +347,7 @@ function hasShapeFillHitArea(shape: EngineEditorHitTestNode) {
     return true
   }
 
-  return shape.type === 'path' && isClosedPathShape(shape)
+  return shape.type === 'path' && (closedPathHint ?? isClosedPathShape(shape))
 }
 
 function hasShapeStrokeHitArea(shape: EngineEditorHitTestNode) {
@@ -648,9 +650,15 @@ function isPathStrokeHit(
   pointer: EngineEditorPoint,
   shape: EngineEditorHitTestNode,
   tolerance: number,
+  closedShape: boolean,
 ) {
-  if (shape.points && shape.points.length > 1 && (!shape.bezierPoints || shape.bezierPoints.length === 0)) {
-    const contours = resolveClosedPointContours(shape.points)
+  if (hasMultiContourPointPathCandidate(shape, closedShape)) {
+    const pointPath = shape.points
+    if (!pointPath) {
+      return false
+    }
+
+    const contours = resolveClosedPointContours(pointPath)
     if (contours.length > 1) {
       for (const contour of contours) {
         const segments = resolveContourSegments(contour)
@@ -671,7 +679,7 @@ function isPathStrokeHit(
     }
   }
 
-  if (isClosedPathShape(shape) && segments.length > 1) {
+  if (closedShape && segments.length > 1) {
     const first = segments[0]
     const last = segments[segments.length - 1]
     if (isPointNearLineSegment(pointer, {
@@ -691,9 +699,15 @@ function isPathFillHit(
   pointer: EngineEditorPoint,
   shape: EngineEditorHitTestNode,
   tolerance: number,
+  closedShape: boolean,
 ) {
-  if (shape.points && shape.points.length > 1 && (!shape.bezierPoints || shape.bezierPoints.length === 0)) {
-    const contours = resolveClosedPointContours(shape.points)
+  if (hasMultiContourPointPathCandidate(shape, closedShape)) {
+    const pointPath = shape.points
+    if (!pointPath) {
+      return false
+    }
+
+    const contours = resolveClosedPointContours(pointPath)
     if (contours.length > 1) {
       for (const contour of contours) {
         if (isPointNearPolygonEdge(pointer, contour, tolerance)) {
@@ -710,6 +724,18 @@ function isPathFillHit(
   }
 
   return isPointInsidePolygon(pointer, polygon) || isPointNearPolygonEdge(pointer, polygon, tolerance)
+}
+
+function hasMultiContourPointPathCandidate(
+  shape: EngineEditorHitTestNode,
+  closedShape: boolean,
+) {
+  return Boolean(
+    closedShape &&
+    shape.points &&
+    shape.points.length > 3 &&
+    (!shape.bezierPoints || shape.bezierPoints.length === 0),
+  )
 }
 
 function resolvePathSegments(shape: EngineEditorHitTestNode) {
@@ -884,6 +910,10 @@ function sampleCubicBezierPoint(
 }
 
 function isClosedPathShape(shape: EngineEditorHitTestNode) {
+  if (typeof shape.closed === 'boolean') {
+    return shape.closed
+  }
+
   const compare = (left: EngineEditorPoint, right: EngineEditorPoint) => {
     return Math.hypot(left.x - right.x, left.y - right.y) <= CLOSED_SHAPE_EPSILON
   }

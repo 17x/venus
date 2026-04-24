@@ -93,7 +93,14 @@ export interface RuntimeRenderDiagnostics {
   webglTextTextureUploadCount: number
   webglTextTextureUploadBytes: number
   webglTextCacheHitCount: number
+  webglPrecomputedTextCacheKeyCount: number
+  webglFallbackTextCacheKeyCount: number
+  webglFrameReuseEdgeRedrawCount: number
   webglCompositeUploadBytes: number
+  canvas2dTrivialPathFastPathCount: number
+  canvas2dContourParseCount: number
+  canvas2dSingleLineTextFastPathCount: number
+  canvas2dPrecomputedTextLineHeightCount: number
   l0PreviewHitCount: number
   l0PreviewMissCount: number
   l1CompositeHitCount: number
@@ -201,7 +208,14 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   webglTextTextureUploadCount: 0,
   webglTextTextureUploadBytes: 0,
   webglTextCacheHitCount: 0,
+  webglPrecomputedTextCacheKeyCount: 0,
+  webglFallbackTextCacheKeyCount: 0,
+  webglFrameReuseEdgeRedrawCount: 0,
   webglCompositeUploadBytes: 0,
+  canvas2dTrivialPathFastPathCount: 0,
+  canvas2dContourParseCount: 0,
+  canvas2dSingleLineTextFastPathCount: 0,
+  canvas2dPrecomputedTextLineHeightCount: 0,
   l0PreviewHitCount: 0,
   l0PreviewMissCount: 0,
   l1CompositeHitCount: 0,

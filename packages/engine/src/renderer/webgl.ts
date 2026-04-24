@@ -33,6 +33,13 @@ interface WebGLEngineRendererOptions {
   interactionPreview?: EngineInteractionPreviewConfig
 }
 
+interface ScreenRectPx {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   enabled: true,
   mode: 'interaction',
@@ -367,8 +374,25 @@ export function createWebGLEngineRenderer(
       })
       if (previewReuse.reused) {
         l0PreviewHitCount += 1
+        let edgeRedrawCount = 0
+        if (previewReuse.edgeRedrawRegions && previewReuse.edgeRedrawRegions.length > 0) {
+          const plan = prepareEngineRenderPlan(effectiveFrame)
+          const instanceView = prepareEngineRenderInstanceView(effectiveFrame, plan)
+          const packetPlan = compileEngineWebGLPacketPlan(plan, instanceView)
+          edgeRedrawCount = drawInteractivePreviewEdgeRegions({
+            context,
+            pipeline,
+            frame: effectiveFrame,
+            packetPlan,
+            regions: previewReuse.edgeRedrawRegions,
+            imageCache,
+            textCache,
+            resourceBudget,
+          })
+        }
+
         return {
-          drawCount: 1,
+          drawCount: 1 + edgeRedrawCount,
           visibleCount: previewReuse.visibleCount,
           culledCount: previewReuse.culledCount,
           cacheHits: 1,
@@ -381,6 +405,7 @@ export function createWebGLEngineRenderer(
           webglTextTextureUploadCount: 0,
           webglTextTextureUploadBytes: 0,
           webglTextCacheHitCount: 0,
+          webglFrameReuseEdgeRedrawCount: edgeRedrawCount,
           l0PreviewHitCount,
           l0PreviewMissCount,
           l1CompositeHitCount,
@@ -680,6 +705,9 @@ export function createWebGLEngineRenderer(
         webglTextTextureUploadCount: textTextureUploadCount,
         webglTextTextureUploadBytes: textTextureUploadBytes,
         webglTextCacheHitCount: textCacheHitCount,
+        webglFrameReuseEdgeRedrawCount: 0,
+        webglPrecomputedTextCacheKeyCount: packetPlan.precomputedTextCacheKeyCount,
+        webglFallbackTextCacheKeyCount: packetPlan.fallbackTextCacheKeyCount,
         l0PreviewHitCount,
         l0PreviewMissCount,
         l1CompositeHitCount,
@@ -1327,7 +1355,7 @@ function tryReuseInteractiveCompositeFrame(options: {
   interactionPreview: Required<EngineInteractionPreviewConfig>
 }) {
   if (!options.interactionPreview.enabled || options.frame.context.quality !== 'interactive' || !options.snapshot) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
+    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
   }
 
   const snapshot = options.snapshot
@@ -1339,23 +1367,23 @@ function tryReuseInteractiveCompositeFrame(options: {
     snapshot.viewportHeight !== frame.viewport.viewportHeight ||
     snapshot.pixelRatio !== currentPixelRatio
   ) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
+    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
   }
 
   const scaleRatio = frame.viewport.scale / snapshot.scale
   if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
+    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
   }
 
   if (options.interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < 1e-3) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
+    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
   }
 
   if (
     scaleRatio > options.interactionPreview.maxScaleStep ||
     scaleRatio < 1 / options.interactionPreview.maxScaleStep
   ) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
+    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
   }
 
   const deltaX = frame.viewport.offsetX - scaleRatio * snapshot.offsetX
@@ -1364,7 +1392,7 @@ function tryReuseInteractiveCompositeFrame(options: {
     Math.abs(deltaX * currentPixelRatio) > options.interactionPreview.maxTranslatePx ||
     Math.abs(deltaY * currentPixelRatio) > options.interactionPreview.maxTranslatePx
   ) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
+    return {reused: false, visibleCount: 0, culledCount: 0, edgeRedrawRegions: [] as ScreenRectPx[]}
   }
 
   options.context.viewport(
@@ -1403,11 +1431,216 @@ function tryReuseInteractiveCompositeFrame(options: {
     options.texture,
   )
 
+  const edgeRedrawRegions = resolveInteractivePreviewEdgeRedrawRegions(
+    frame.viewport.viewportWidth * currentPixelRatio,
+    frame.viewport.viewportHeight * currentPixelRatio,
+    scaleRatio,
+    deltaX * currentPixelRatio,
+    deltaY * currentPixelRatio,
+  )
+
   return {
     reused: true,
     visibleCount: snapshot.visibleCount,
     culledCount: snapshot.culledCount,
+    edgeRedrawRegions,
   }
+}
+
+function resolveInteractivePreviewEdgeRedrawRegions(
+  viewportWidthPx: number,
+  viewportHeightPx: number,
+  scaleRatio: number,
+  deltaXPx: number,
+  deltaYPx: number,
+): ScreenRectPx[] {
+  if (Math.abs(scaleRatio - 1) > 1e-3) {
+    return []
+  }
+
+  const regions: ScreenRectPx[] = []
+  const horizontalShiftPx = Math.trunc(deltaXPx)
+  const verticalShiftPx = Math.trunc(deltaYPx)
+
+  if (horizontalShiftPx > 0) {
+    regions.push({
+      x: 0,
+      y: 0,
+      width: Math.min(viewportWidthPx, horizontalShiftPx),
+      height: viewportHeightPx,
+    })
+  } else if (horizontalShiftPx < 0) {
+    const width = Math.min(viewportWidthPx, Math.abs(horizontalShiftPx))
+    regions.push({
+      x: Math.max(0, viewportWidthPx - width),
+      y: 0,
+      width,
+      height: viewportHeightPx,
+    })
+  }
+
+  if (verticalShiftPx > 0) {
+    regions.push({
+      x: 0,
+      y: 0,
+      width: viewportWidthPx,
+      height: Math.min(viewportHeightPx, verticalShiftPx),
+    })
+  } else if (verticalShiftPx < 0) {
+    const height = Math.min(viewportHeightPx, Math.abs(verticalShiftPx))
+    regions.push({
+      x: 0,
+      y: Math.max(0, viewportHeightPx - height),
+      width: viewportWidthPx,
+      height,
+    })
+  }
+
+  return regions.filter((region) => region.width > 0 && region.height > 0)
+}
+
+function drawInteractivePreviewEdgeRegions(options: {
+  context: WebGLRenderingContext | WebGL2RenderingContext
+  pipeline: WebGLQuadPipeline
+  frame: EngineRenderFrame
+  packetPlan: ReturnType<typeof compileEngineWebGLPacketPlan>
+  regions: readonly ScreenRectPx[]
+  imageCache: Map<string, CachedTextureEntry>
+  textCache: Map<string, CachedTextureEntry>
+  resourceBudget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>
+}) {
+  const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * (options.frame.context.pixelRatio ?? 1)))
+  const viewportHeightPx = Math.max(1, Math.round(options.frame.viewport.viewportHeight * (options.frame.context.pixelRatio ?? 1)))
+  const imageUploadBudget: ImageUploadBudgetState = {
+    remainingUploads: 0,
+    remainingBytes: 0,
+  }
+  const useTextPlaceholderMode =
+    options.frame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
+  let drawCount = 0
+
+  options.context.enable(options.context.SCISSOR_TEST)
+  for (const region of options.regions) {
+    if (region.width <= 0 || region.height <= 0) {
+      continue
+    }
+
+    applyWebGLScissorRegion(options.context, region, viewportHeightPx)
+    options.context.clearColor(0, 0, 0, 0)
+    options.context.clear(options.context.COLOR_BUFFER_BIT)
+
+    for (const packet of options.packetPlan.packets) {
+      if (!packetIntersectsScreenRegion(packet.worldBounds, options.frame, region)) {
+        continue
+      }
+
+      if (packet.kind === 'image' && packet.assetId) {
+        const imageTexture = resolveImageTexture(
+          options.context,
+          options.frame,
+          packet.worldBounds,
+          packet.assetId,
+          options.imageCache,
+          options.resourceBudget,
+          imageUploadBudget,
+        )
+        drawCount += drawWebGLPacket(
+          options.context,
+          options.pipeline,
+          options.frame,
+          packet.worldBounds,
+          packet.color,
+          packet.opacity,
+          imageTexture.texture,
+        )
+        continue
+      }
+
+      if (packet.kind === 'text') {
+        const cached = options.textCache.get(packet.nodeId)
+        const textCacheKey = resolveTextCacheKey(packet)
+
+        if (useTextPlaceholderMode) {
+          drawCount += drawInteractiveTextFallback(
+            options.context,
+            options.pipeline,
+            options.frame,
+            packet.worldBounds,
+            packet.color,
+            packet.opacity,
+          )
+          continue
+        }
+
+        if (cached && canReuseInteractiveTextTexture(cached, textCacheKey)) {
+          options.resourceBudget.markTextureUsed(packet.nodeId)
+          drawCount += drawWebGLPacket(
+            options.context,
+            options.pipeline,
+            options.frame,
+            packet.worldBounds,
+            packet.color,
+            packet.opacity,
+            cached.texture,
+          )
+          continue
+        }
+
+        drawCount += drawInteractiveTextFallback(
+          options.context,
+          options.pipeline,
+          options.frame,
+          packet.worldBounds,
+          packet.color,
+          packet.opacity,
+        )
+        continue
+      }
+
+      drawCount += drawWebGLPacket(
+        options.context,
+        options.pipeline,
+        options.frame,
+        packet.worldBounds,
+        packet.color,
+        packet.opacity,
+        null,
+      )
+    }
+  }
+  options.context.disable(options.context.SCISSOR_TEST)
+
+  // Re-apply the full viewport after scissored redraws so the next render path
+  // starts from a predictable GL state.
+  options.context.viewport(0, 0, viewportWidthPx, viewportHeightPx)
+
+  return drawCount
+}
+
+function applyWebGLScissorRegion(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  region: ScreenRectPx,
+  viewportHeightPx: number,
+) {
+  const x = Math.max(0, Math.floor(region.x))
+  const y = Math.max(0, Math.floor(viewportHeightPx - region.y - region.height))
+  const width = Math.max(1, Math.ceil(region.width))
+  const height = Math.max(1, Math.ceil(region.height))
+  context.scissor(x, y, width, height)
+}
+
+function packetIntersectsScreenRegion(
+  worldBounds: {x: number; y: number; width: number; height: number},
+  frame: EngineRenderFrame,
+  region: ScreenRectPx,
+) {
+  const screenRect = resolvePacketTextureSourceRect(worldBounds, frame)
+  return !(
+    screenRect.x + screenRect.width <= region.x ||
+    region.x + region.width <= screenRect.x ||
+    screenRect.y + screenRect.height <= region.y ||
+    region.y + region.height <= screenRect.y
+  )
 }
 
 function createWebGLQuadPipeline(

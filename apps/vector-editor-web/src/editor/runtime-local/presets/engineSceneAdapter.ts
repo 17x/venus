@@ -111,6 +111,9 @@ export function createEngineSceneFromRuntimeSnapshot(
         transform: sourceTransform,
         shadow: resolveNodeShadow(sourceShape),
         clip,
+        cacheKey: shape.textRenderHash ? `worker:${shape.textRenderHash}` : undefined,
+        lineCount: shape.textLineCount,
+        maxLineHeight: shape.textMaxLineHeight,
         text: sourceShape?.text ?? shape.name ?? 'Text',
         runs: sourceShape?.textRuns?.map((run) => {
           const style = {
@@ -161,6 +164,8 @@ export function createEngineSceneFromRuntimeSnapshot(
       type: 'shape',
       shape: resolveEngineShapeKind(sourceType),
       ...resolveEngineShapeGeometry(shape, sourceShape, sourceBounds),
+      pointCount: shape.pathPointCount,
+      bezierPointCount: shape.pathBezierPointCount,
       cornerRadius: sourceShape?.cornerRadius,
       cornerRadii: sourceShape?.cornerRadii
         ? {

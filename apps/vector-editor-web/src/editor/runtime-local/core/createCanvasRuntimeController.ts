@@ -30,6 +30,7 @@ import {
   zoomViewportState,
 } from '../viewport/controller.ts'
 import type {CanvasViewportState} from '../viewport/types.ts'
+import {withResolvedPathHints} from '../../interaction/pathHitTestHints.ts'
 
 /**
  * Snapshot shape consumed by app shells.
@@ -412,14 +413,14 @@ function hitTestSnapshot(
     }
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+      if (clipSource && !isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
         tolerance: 1.5,
         shapeById,
       })) {
         continue
       }
     }
-    if (isPointInsideEngineShapeHitArea(pointer, source, {
+    if (isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(source), {
       allowFrameSelection,
       tolerance: HIT_TEST_TOLERANCE,
       strictStrokeHitTest,
@@ -431,3 +432,4 @@ function hitTestSnapshot(
 
   return -1
 }
+
