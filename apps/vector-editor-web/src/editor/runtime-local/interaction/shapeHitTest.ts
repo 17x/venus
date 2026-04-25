@@ -14,7 +14,7 @@ export interface ResolveTopHitShapeIdOptions {
   preferGroupSelection?: boolean
 }
 
-export function resolveTopHitShapeId(
+export function resolveHitShapeIdsAtPoint(
   document: EditorDocument,
   snapshots: SceneShapeSnapshot[],
   pointer: {x: number; y: number},
@@ -28,6 +28,8 @@ export function resolveTopHitShapeId(
   const clipTolerance = options?.clipTolerance ?? 1.5
   const excludeClipBoundImage = options?.excludeClipBoundImage ?? true
   const preferGroupSelection = options?.preferGroupSelection ?? false
+  const hitShapeIds: string[] = []
+  const emittedShapeIds = new Set<string>()
   let firstBoundsHitShapeId: string | null = null
   let exactCandidateCount = 0
 
@@ -42,8 +44,6 @@ export function resolveTopHitShapeId(
       continue
     }
 
-    // Coarse first-pass bounds filter keeps high-frequency hover hit-testing
-    // from running full geometry checks for obviously unrelated shapes.
     if (!isPointInsideSourceBounds(pointer, source, tolerance)) {
       continue
     }
@@ -54,8 +54,10 @@ export function resolveTopHitShapeId(
     if (!firstBoundsHitShapeId) {
       firstBoundsHitShapeId = resolvedHitShapeId
     }
+
     if (hitMode === 'bbox') {
-      return resolvedHitShapeId
+      appendHitShapeId(hitShapeIds, emittedShapeIds, resolvedHitShapeId)
+      continue
     }
 
     if (hitMode === 'bbox_then_exact' && exactCandidateCount >= maxExactCandidateCount) {
@@ -80,17 +82,37 @@ export function resolveTopHitShapeId(
       strictStrokeHitTest: options?.strictStrokeHitTest,
       shapeById,
     })) {
-      return resolvedHitShapeId
+      appendHitShapeId(hitShapeIds, emittedShapeIds, resolvedHitShapeId)
     }
   }
 
-  // If no exact match was found under the capped refinement budget, keep a
-  // stable top-most bounds candidate for non-precision interactions.
-  if (hitMode === 'bbox_then_exact') {
-    return firstBoundsHitShapeId
+  if (hitShapeIds.length === 0 && hitMode === 'bbox_then_exact' && firstBoundsHitShapeId) {
+    hitShapeIds.push(firstBoundsHitShapeId)
   }
 
-  return null
+  return hitShapeIds
+}
+
+export function resolveTopHitShapeId(
+  document: EditorDocument,
+  snapshots: SceneShapeSnapshot[],
+  pointer: {x: number; y: number},
+  options?: ResolveTopHitShapeIdOptions,
+) {
+  return resolveHitShapeIdsAtPoint(document, snapshots, pointer, options)[0] ?? null
+}
+
+function appendHitShapeId(
+  hitShapeIds: string[],
+  emittedShapeIds: Set<string>,
+  shapeId: string,
+) {
+  if (emittedShapeIds.has(shapeId)) {
+    return
+  }
+
+  emittedShapeIds.add(shapeId)
+  hitShapeIds.push(shapeId)
 }
 
 function isPointInsideSourceBounds(

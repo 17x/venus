@@ -296,6 +296,8 @@ function toDocumentShape(
       sourceNodeType: resolveRuntimeNodeType(shapeType),
       sourceNodeKind: shapeType,
       sourceFeatureKinds: resolveFeatureKinds(element, shapeType),
+      maskGroupId: typeof element.maskGroupId === 'string' ? element.maskGroupId : undefined,
+      maskRole: element.maskRole === 'host' || element.maskRole === 'source' ? element.maskRole : undefined,
     },
   }
 }
@@ -341,6 +343,8 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       asset: shape.assetId,
       clipPathId: shape.clipPathId,
       clipRule: shape.clipRule,
+      maskGroupId: shape.schema?.maskGroupId,
+      maskRole: shape.schema?.maskRole,
       points: shape.points?.map((point) => ({...point})),
       bezierPoints: shape.bezierPoints?.map((point) => ({
         anchor: {...point.anchor},

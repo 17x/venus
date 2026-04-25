@@ -244,6 +244,12 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
   if (typeof element.ellipseEndAngle === 'number') {
     metadataValues.ellipseEndAngle = element.ellipseEndAngle
   }
+  if (typeof element.maskGroupId === 'string') {
+    metadataValues.maskGroupId = element.maskGroupId
+  }
+  if (element.maskRole === 'host' || element.maskRole === 'source') {
+    metadataValues.maskRole = element.maskRole
+  }
   const featureEntries: RuntimeFeatureEntryV5[] = [
     createMetadataEntry(`${element.id}:metadata`, metadataValues, transformMetadataEntries),
   ]

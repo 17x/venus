@@ -28,6 +28,7 @@ import {
   asTransformBatch,
   createTransformPatches,
 } from './transformSerde.ts'
+import {resolveMaskSchemaPatches} from './maskGroupSemantics.ts'
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -184,7 +185,15 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shapeId = asStringOrNull(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape) return []
-    return [{type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId: asOptionalStringOrUndef(operation.payload?.clipPathId), prevClipRule: shape.clipRule, nextClipRule: asClipRuleValue(operation.payload?.clipRule)}]
+    const nextClipPathId = asOptionalStringOrUndef(operation.payload?.clipPathId)
+    return [
+      {type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId, prevClipRule: shape.clipRule, nextClipRule: asClipRuleValue(operation.payload?.clipRule)},
+      ...resolveMaskSchemaPatches({
+        document,
+        hostShapeId: shape.id,
+        nextClipPathId,
+      }),
+    ]
   }
 
   if (operation.type === 'shape.insert') {

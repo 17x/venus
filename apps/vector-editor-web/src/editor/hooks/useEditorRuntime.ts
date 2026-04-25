@@ -11,6 +11,7 @@ import {
 import {
   createMarqueeSelectionApplyController,
   createSelectionDragController,
+  resolveHitShapeIdsAtPoint,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   type MarqueeState,
@@ -40,7 +41,10 @@ import type {
   SelectedElementProps,
 } from './useEditorRuntime.types.ts'
 import {
+  resolveAutoMaskAction,
+  resolveClearMaskAction,
   resolveGroupIsolationTarget,
+  resolveHoverHitTestOptions,
   resolveMaskSelectionCommand,
   resolveRuntimeCommandSideEffects,
   resolveSelectedProps,
@@ -49,10 +53,6 @@ import {useEditorRuntimeDerivedState} from './useEditorRuntimeDerivedState.ts'
 import {
   useEditorRuntimeExecuteAction,
 } from './useEditorRuntimeExecuteAction.ts'
-import {
-  createAutoMaskHandler,
-  createClearMaskHandler,
-} from './useEditorRuntimeMaskActions.ts'
 import {useEditorRuntimeCoreCallbacks} from './useEditorRuntimeCoreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './useEditorRuntimeCanvasInteractions.ts'
 import {publishRuntimeShellSnapshot, resetRuntimeEventSnapshots} from '../../runtime/events/index.ts'
@@ -109,6 +109,7 @@ const useEditorRuntime = (options?: {
   const [isolationGroupId, setIsolationGroupId] = useState<string | null>(null)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
+  const lastCanvasPointRef = useRef<{x: number; y: number} | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
   const transformManagerRef = useRef(createTransformSessionManager())
   const runtimeToolRegistryRef = useRef(createRuntimeToolRegistry())
@@ -197,23 +198,27 @@ const useEditorRuntime = (options?: {
   }, [notify])
   const {t} = useTranslation()
 
-  const handleCommand = useCallback((command: import('@vector/runtime/worker').EditorRuntimeCommand) => {
+  const handleCommand = useCallback(function handleRuntimeCommand(
+    command: import('@vector/runtime/worker').EditorRuntimeCommand,
+  ) {
     if (command.type === 'mask.create') {
-      createAutoMaskHandler({
-        add,
+      const resolved = resolveAutoMaskAction({
         canvasShapes: canvasRuntime.document.shapes,
-        handleCommand,
         selectedNode,
-      })()
+      })
+      if (resolved.command) {
+        handleRuntimeCommand(resolved.command)
+      }
+      add(resolved.message, 'info')
       return
     }
 
     if (command.type === 'mask.release') {
-      createClearMaskHandler({
-        add,
-        handleCommand,
-        selectedNode,
-      })()
+      const resolved = resolveClearMaskAction(selectedNode)
+      if (resolved.command) {
+        handleRuntimeCommand(resolved.command)
+      }
+      add(resolved.message, 'info')
       return
     }
 
@@ -224,9 +229,48 @@ const useEditorRuntime = (options?: {
         target: command.type === 'mask.select-host' ? 'host' : 'source',
       })
       if (resolved.command) {
-        handleCommand(resolved.command)
+        handleRuntimeCommand(resolved.command)
       }
       add(resolved.message, 'info')
+      return
+    }
+
+    if (command.type === 'selection.cycle-hit-target') {
+      const pointer = lastCanvasPointRef.current
+      if (!pointer) {
+        add('Move the pointer over overlapping shapes to cycle selection.', 'info')
+        return
+      }
+
+      const hitShapeIds = resolveHitShapeIdsAtPoint(
+        interactionDocument,
+        previewShapes,
+        pointer,
+        {
+          ...resolveHoverHitTestOptions(),
+          maxExactCandidateCount: 12,
+          preferGroupSelection: currentTool === 'selector',
+        },
+      )
+
+      if (hitShapeIds.length === 0) {
+        add('No selectable shape found under the pointer.', 'info')
+        return
+      }
+
+      const currentIndex = selectedShapeIds.length === 1
+        ? hitShapeIds.indexOf(selectedShapeIds[0] ?? '')
+        : -1
+      const step = command.direction === 'backward' ? -1 : 1
+      const nextIndex = currentIndex >= 0
+        ? (currentIndex + step + hitShapeIds.length) % hitShapeIds.length
+        : (step > 0 ? 0 : hitShapeIds.length - 1)
+
+      handleRuntimeCommand({
+        type: 'selection.set',
+        shapeId: hitShapeIds[nextIndex],
+        mode: 'replace',
+      })
       return
     }
 
@@ -284,7 +328,16 @@ const useEditorRuntime = (options?: {
     }
 
     canvasRuntime.dispatchCommand(command)
-  }, [add, canvasRuntime, clearTransformPreview, currentTool, selectedNode, selectedShapeIds])
+  }, [
+    add,
+    canvasRuntime,
+    clearTransformPreview,
+    currentTool,
+    interactionDocument,
+    previewShapes,
+    selectedNode,
+    selectedShapeIds,
+  ])
 
   const insertElement = useCallback((element: ElementProps) => {
     handleCommand({
@@ -339,11 +392,11 @@ const useEditorRuntime = (options?: {
 
   const applyAutoMask = useCallback(() => {
     handleCommand({type: 'mask.create'})
-  }, [add, canvasRuntime.document.shapes, handleCommand, selectedNode])
+  }, [handleCommand])
 
   const clearMask = useCallback(() => {
     handleCommand({type: 'mask.release'})
-  }, [add, handleCommand, selectedNode])
+  }, [handleCommand])
 
   const activeToolCursor = runtimeToolRegistryRef.current.get(currentTool)?.getCursor?.()
   const activeRotation = selectedNode?.rotation ?? 0
@@ -489,6 +542,7 @@ const useEditorRuntime = (options?: {
       type: 'pointermove',
       point,
     })
+    lastCanvasPointRef.current = point
     worldPointRef.current?.set(point)
     canvasInteractions.onPointerMove(point)
   }, [canvasInteractions, runtimeInputRouter])
@@ -502,6 +556,8 @@ const useEditorRuntime = (options?: {
       point,
       modifiers,
     })
+    lastCanvasPointRef.current = point
+    worldPointRef.current?.set(point)
     canvasInteractions.onPointerDown(point, modifiers)
   }, [canvasInteractions, runtimeInputRouter])
 

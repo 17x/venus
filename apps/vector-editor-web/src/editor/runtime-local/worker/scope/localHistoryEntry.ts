@@ -4,6 +4,7 @@ import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@vector
 import type {HistoryEntry, HistoryPatch} from '../history.ts'
 import type {EditorRuntimeCommand} from '../protocol.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
+import {invertMaskSchemaPatches, resolveMaskSchemaPatches} from './maskGroupSemantics.ts'
 import {
   convertShapeToPathShape,
   createAlignMovePatches,
@@ -160,11 +161,22 @@ export function createLocalHistoryEntry(
   if (command.type === 'shape.set-clip') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) return createLogOnlyEntry(command.type, 'Clip Missing Shape')
+    const schemaPatches = resolveMaskSchemaPatches({
+      document,
+      hostShapeId: shape.id,
+      nextClipPathId: command.clipPathId,
+    })
     return {
       id: `shape.set-clip.${shape.id}`,
       label: `Mask ${shape.name}`,
-      forward: [{type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId: command.clipPathId, prevClipRule: shape.clipRule, nextClipRule: command.clipRule}],
-      backward: [{type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: command.clipPathId, nextClipPathId: shape.clipPathId, prevClipRule: command.clipRule, nextClipRule: shape.clipRule}],
+      forward: [
+        {type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId: command.clipPathId, prevClipRule: shape.clipRule, nextClipRule: command.clipRule},
+        ...schemaPatches,
+      ],
+      backward: [
+        {type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: command.clipPathId, nextClipPathId: shape.clipPathId, prevClipRule: command.clipRule, nextClipRule: shape.clipRule},
+        ...invertMaskSchemaPatches(schemaPatches),
+      ],
     }
   }
 

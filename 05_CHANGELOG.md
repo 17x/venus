@@ -14,6 +14,43 @@
     overlay/composition, handles, cursor categories, edit modes, aspect-ratio
     locking, transform ownership, and layer-icon path sampling reuse
   - `docs/index.md` now links the new task document from the task-plan section
+- Landed a first-pass vector runtime interaction slice against that handoff:
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts` now
+    includes runtime-local commands for group isolation, mask create/release,
+    mask host/source focus, and overlapping-hit selection cycling
+  - `apps/vector-editor-web/src/editor/runtime-local/cursor/index.ts` and
+    `apps/vector-editor-web/src/editor/runtime-local/chrome/index.ts` now
+    define shared runtime contracts for rotation-aware cursor resolution and
+    node-type/edit-mode-specific selection chrome behavior
+  - `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts` and
+    `apps/vector-editor-web/src/editor/hooks/useEditorRuntimeDerivedState.ts`
+    now keep group isolation as runtime-local state, filter preview and
+    interaction scenes to the isolated subtree, and feed cursor/chrome state
+    through the canvas runtime
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/shapeHitTest.ts`
+    now exposes ordered hit candidates so `selection.cycle-hit-target` can
+    rotate through overlapping selectable shapes under the current pointer
+  - `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` and
+    `apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx` now
+    apply resolved runtime cursor output to the actual viewport host
+  - `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx`
+    now consumes `selectionChrome.hideBounds` from derived runtime state so
+    selection bounds suppression is no longer limited to state derivation
+  - `apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx` now
+    renders a lightweight stage-level isolation affordance with the active
+    group name and an explicit exit action so runtime-local group isolation is
+    visible and escapable in the product UI
+  - `packages/document-core/src/index.ts`,
+    `apps/vector-editor-web/src/editor/runtime-local/worker/scope/maskGroupSemantics.ts`,
+    and the vector file adapters now persist first-pass product-level
+    `maskGroupId` / `maskRole` metadata through `shape.set-clip`, worker
+    history, save/load adapters, and runtime selection helpers without pushing
+    mask-group policy into engine
+  - `apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx`,
+    `apps/vector-editor-web/src/editor/hooks/useEditorRuntimeDerivedState.ts`,
+    and `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx`
+    now upgrade group isolation UI from a bare exit affordance to a breadcrumb
+    trail plus dimmed non-isolated context outlines in the overlay layer
 
 ## 2026-04-24
 

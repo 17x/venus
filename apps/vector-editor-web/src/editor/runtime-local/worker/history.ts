@@ -109,6 +109,14 @@ export type HistoryPatch =
       nextClipRule?: 'nonzero' | 'evenodd'
     }
   | {
+      type: 'set-shape-mask-schema'
+      shapeId: string
+      prevMaskGroupId?: string
+      nextMaskGroupId?: string
+      prevMaskRole?: 'host' | 'source'
+      nextMaskRole?: 'host' | 'source'
+    }
+  | {
       type: 'set-shape-parent'
       shapeId: string
       prevParentId?: string | null
@@ -140,6 +148,13 @@ export type HistoryPatch =
         assetUrl?: string
         clipPathId?: string
         clipRule?: 'nonzero' | 'evenodd'
+        schema?: {
+          sourceNodeType?: string
+          sourceNodeKind?: string
+          sourceFeatureKinds?: string[]
+          maskGroupId?: string
+          maskRole?: 'host' | 'source'
+        }
         x: number
         y: number
         width: number
@@ -194,6 +209,13 @@ export type HistoryPatch =
         assetUrl?: string
         clipPathId?: string
         clipRule?: 'nonzero' | 'evenodd'
+        schema?: {
+          sourceNodeType?: string
+          sourceNodeKind?: string
+          sourceFeatureKinds?: string[]
+          maskGroupId?: string
+          maskRole?: 'host' | 'source'
+        }
         x: number
         y: number
         width: number

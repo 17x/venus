@@ -17,12 +17,16 @@ import {
 function renderShapeStroke(
   shape: EditorDocument['shapes'][number],
   presentation: CanvasPresentationConfig,
-  tone: 'selected' | 'hover',
+  tone: 'selected' | 'hover' | 'isolation',
 ) {
   const strokeColor = tone === 'selected'
     ? presentation.overlay.selectionStroke
-    : presentation.overlay.hoverStroke
-  const strokeWidth = presentation.overlay.selectionStrokeWidth
+    : tone === 'hover'
+      ? presentation.overlay.hoverStroke
+      : 'rgba(100, 116, 139, 0.42)'
+  const strokeWidth = tone === 'isolation'
+    ? Math.max(1, presentation.overlay.selectionStrokeWidth - 0.5)
+    : presentation.overlay.selectionStrokeWidth
   const common = {
     role: 'presentation' as const,
     fill: 'none',
@@ -40,11 +44,10 @@ function renderShapeStroke(
   }
 
   if (shape.type === 'image' && shape.clipPathId) {
-    if (tone === 'selected') {
+    if (tone === 'selected' || tone === 'hover') {
       // Masked images already expose clip-shape chrome; suppress host bounds box to avoid duplicate selection frames.
       return null
     }
-    return null
   }
 
   if (shape.type === 'ellipse') {
@@ -145,6 +148,13 @@ export function renderHoveredShapeStroke(
   presentation: CanvasPresentationConfig,
 ) {
   return renderShapeStroke(shape, presentation, 'hover')
+}
+
+export function renderIsolationBackdropShapeStroke(
+  shape: EditorDocument['shapes'][number],
+  presentation: CanvasPresentationConfig,
+) {
+  return renderShapeStroke(shape, presentation, 'isolation')
 }
 
 export function renderDraftPrimitive(

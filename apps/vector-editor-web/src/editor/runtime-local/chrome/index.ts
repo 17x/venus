@@ -18,6 +18,7 @@ export interface RuntimeSelectionChromeInput {
   readonly nodeType?: string | null
   readonly editingMode?: RuntimeEditingMode | null
   readonly isMaskedImageHost?: boolean
+  readonly isMaskSource?: boolean
 }
 
 export interface RuntimeSelectionChromeResolver {
@@ -28,6 +29,14 @@ export function createRuntimeSelectionChromeRegistry(): RuntimeSelectionChromeRe
   return {
     resolve(input) {
       if (input.isMaskedImageHost) {
+        return {
+          kind: 'mask-source',
+          hideBounds: true,
+          hideTransformHandles: false,
+        }
+      }
+
+      if (input.isMaskSource) {
         return {
           kind: 'mask-source',
           hideBounds: true,

@@ -673,6 +673,22 @@ context starts, or work needs to resume after switching topics.
     core callback, and pointer-release lifecycle logic, while
     `useEditorRuntimeCanvasInteractions.ts` is reduced below the hard
     `>500` split threshold and build/lint remain green after the refactor
+  - runtime interaction follow-up now has a first-pass implementation slice:
+    command protocol includes `group.enter-isolation`,
+    `group.exit-isolation`, `mask.create`, `mask.release`,
+    `mask.select-host`, `mask.select-source`, and
+    `selection.cycle-hit-target`; group isolation is currently kept as
+    runtime-local state with derived-state filtering rather than persisted into
+    worker/document state; runtime-local cursor and selection-chrome
+    contracts now feed rotation-aware cursor output and node-type/mode chrome
+    behavior through the vector canvas host, and selection-bounds suppression
+    now reaches the actual overlay renderer; stage UI now exposes isolation
+    breadcrumb context plus an explicit exit action, overlay rendering now keeps
+    dimmed non-isolated context outlines during isolation, and first-pass
+    persisted `maskGroupId` / `maskRole` metadata now tracks `shape.set-clip`
+    through worker history and save/load adapters while engine still only
+    consumes clip semantics; remaining follow-up stays narrow around deeper
+    mask-group behaviors rather than basic persistence or visibility
 
 - `playground`
   Historical pure-canvas diagnostics bench.

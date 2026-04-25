@@ -74,6 +74,7 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
   const cornerBottomLeft = readNumber(metadata, 'cornerBottomLeft')
   const ellipseStartAngle = readNumber(metadata, 'ellipseStartAngle')
   const ellipseEndAngle = readNumber(metadata, 'ellipseEndAngle')
+  const maskRole = resolveMaskRole(readString(metadata, 'maskRole'))
 
   return {
     id: node.id,
@@ -163,8 +164,18 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
       sourceNodeType: node.type,
       sourceNodeKind: node.nodeKind,
       sourceFeatureKinds: node.featureEntries.map((entry) => entry.feature.kind),
+      maskGroupId: readString(metadata, 'maskGroupId') ?? undefined,
+      maskRole,
     },
   }
+}
+
+function resolveMaskRole(value: string | undefined) {
+  if (value === 'host' || value === 'source') {
+    return value
+  }
+
+  return undefined
 }
 
 function resolveShapeType(

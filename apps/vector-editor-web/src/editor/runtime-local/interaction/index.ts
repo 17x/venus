@@ -94,6 +94,7 @@ export {
 export { hasSelectedAncestorInDocument } from './selectionHierarchy.ts'
 // Hit test
 export {
+  resolveHitShapeIdsAtPoint,
   resolveTopHitShapeId,
   type ResolveTopHitShapeIdOptions,
 } from './shapeHitTest.ts'

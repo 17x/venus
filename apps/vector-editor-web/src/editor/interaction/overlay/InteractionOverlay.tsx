@@ -25,6 +25,7 @@ import {
 import {
   renderDraftPrimitive,
   renderHoveredShapeStroke,
+  renderIsolationBackdropShapeStroke,
   renderSelectedShapeStroke,
 } from './interactionOverlayRenderers.tsx'
 import {InteractionOverlayPathChrome} from './interactionOverlayPathChrome.tsx'
@@ -35,6 +36,8 @@ export interface InteractionOverlayProps {
   viewport: CanvasRendererProps['viewport']
   hoveredShapeId?: string | null
   marqueeBounds?: InteractionBounds | null
+  isolationBackdropShapes?: EditorDocument['shapes']
+  hideSelectionBounds?: boolean
   hideSelectionChrome?: boolean
   snapGuides?: SnapGuide[]
   pathSubSelection?: PathSubSelection | null
@@ -52,6 +55,8 @@ export function InteractionOverlay({
   viewport,
   hoveredShapeId = null,
   marqueeBounds = null,
+  isolationBackdropShapes = [],
+  hideSelectionBounds = false,
   hideSelectionChrome = false,
   snapGuides = [],
   pathSubSelection = null,
@@ -131,7 +136,7 @@ export function InteractionOverlay({
     [selectedShapes],
   )
   const selectedPolygon = useMemo(() => {
-    if (!selection.selectedBounds || hideSelectionChrome || shouldHideSelectionPolygon) {
+    if (!selection.selectedBounds || hideSelectionBounds || hideSelectionChrome || shouldHideSelectionPolygon) {
       return null
     }
     return buildRectPolygon(selection.selectedBounds, {
@@ -140,6 +145,7 @@ export function InteractionOverlay({
       flipY: singleSelectedShape?.flipY ?? false,
     })
   }, [
+    hideSelectionBounds,
     hideSelectionChrome,
     selection.selectedBounds,
     shouldHideSelectionPolygon,
@@ -371,6 +377,7 @@ export function InteractionOverlay({
           aria-label="interaction-overlay-world-group"
           transform={`matrix(${viewport.matrix[0]}, ${viewport.matrix[3]}, ${viewport.matrix[1]}, ${viewport.matrix[4]}, ${viewport.matrix[2]}, ${viewport.matrix[5]})`}
         >
+          {isolationBackdropShapes.map((shape) => renderIsolationBackdropShapeStroke(shape, presentation))}
           {hoveredShape && renderHoveredShapeStroke(hoveredShape, presentation)}
           {selectedShapes.map((shape) => renderSelectedShapeStroke(shape, presentation))}
           {draftPrimitive && renderDraftPrimitive(draftPrimitive, presentation)}

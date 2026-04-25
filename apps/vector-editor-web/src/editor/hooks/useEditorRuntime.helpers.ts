@@ -1114,6 +1114,21 @@ export function resolveMaskSelectionCommand(input: {
   }
 
   if (input.target === 'host') {
+    const maskGroupId = selectedNode.schema?.maskGroupId
+    if (maskGroupId) {
+      const maskHost = input.canvasShapes.find((shape) => shape.schema?.maskGroupId === maskGroupId && shape.schema?.maskRole === 'host')
+      if (maskHost) {
+        return {
+          command: {
+            type: 'selection.set' as const,
+            shapeIds: [maskHost.id],
+            mode: 'replace' as const,
+          },
+          message: `Selected host ${maskHost.name}.`,
+        }
+      }
+    }
+
     if (selectedNode.type === 'image' && selectedNode.clipPathId) {
       return {
         command: {
@@ -1139,6 +1154,21 @@ export function resolveMaskSelectionCommand(input: {
 
     return {
       message: 'No masked host found for the current selection.',
+    }
+  }
+
+  const maskGroupId = selectedNode.schema?.maskGroupId
+  if (maskGroupId) {
+    const maskSource = input.canvasShapes.find((shape) => shape.schema?.maskGroupId === maskGroupId && shape.schema?.maskRole === 'source')
+    if (maskSource) {
+      return {
+        command: {
+          type: 'selection.set' as const,
+          shapeIds: [maskSource.id],
+          mode: 'replace' as const,
+        },
+        message: `Selected mask source ${maskSource.name}.`,
+      }
     }
   }
 

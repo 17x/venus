@@ -170,6 +170,12 @@ export function useEditorRuntimeDerivedState(options: {
     () => filterDocumentToShapeSet(previewState.previewDocument, isolationVisibleIds),
     [isolationVisibleIds, previewState.previewDocument],
   )
+  const isolationBackdropShapes = useMemo(
+    () => isolationGroupId
+      ? previewState.previewDocument.shapes.filter((shape) => !(isolationVisibleIds?.has(shape.id) ?? false))
+      : [],
+    [isolationGroupId, isolationVisibleIds, previewState.previewDocument.shapes],
+  )
   const previewShapes = useMemo(
     () => filterSnapshotsToShapeSet(previewState.previewShapes, isolationVisibleIds),
     [isolationVisibleIds, previewState.previewShapes],
@@ -312,6 +318,7 @@ export function useEditorRuntimeDerivedState(options: {
     nodeType: selectedNode?.type ?? null,
     editingMode,
     isMaskedImageHost: selectedNode?.type === 'image' && Boolean(selectedNode.clipPathId),
+    isMaskSource: selectedNode?.schema?.maskRole === 'source',
   }), [editingMode, selectedNode, selectionChromeRegistry])
   const activePathShape = useMemo(() => {
     if (!activePathSubSelection) {
@@ -455,6 +462,7 @@ export function useEditorRuntimeDerivedState(options: {
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
     const overlayHoveredShapeId = effectiveHoveredShapeId
+    const hideSelectionBounds = selectionChrome.hideBounds
     const hideSelectionChrome = activeTransformHandle !== null || selectionChrome.hideTransformHandles
     const overlaySnapGuides = effectiveSnapGuides
     const overlayPathSubSelection = pathSubSelection
@@ -468,6 +476,8 @@ export function useEditorRuntimeDerivedState(options: {
         ...props,
         hoveredShapeId: overlayHoveredShapeId,
         marqueeBounds: overlayMarquee,
+        isolationBackdropShapes,
+        hideSelectionBounds,
         hideSelectionChrome,
         snapGuides: overlaySnapGuides,
         pathSubSelection: overlayPathSubSelection,
@@ -483,6 +493,8 @@ export function useEditorRuntimeDerivedState(options: {
     activeTransformHandle,
     draftPrimitive,
     effectiveHoveredShapeId,
+    isolationBackdropShapes,
+    selectionChrome.hideBounds,
     marqueeBounds,
     pathSubSelection,
     pathSubSelectionHover,

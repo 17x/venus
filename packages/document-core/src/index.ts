@@ -111,6 +111,8 @@ export interface DocumentSchemaMeta {
   sourceNodeType?: string
   sourceNodeKind?: string
   sourceFeatureKinds?: string[]
+  maskGroupId?: string
+  maskRole?: 'host' | 'source'
 }
 
 export interface DocumentNode {
