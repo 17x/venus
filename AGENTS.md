@@ -76,7 +76,9 @@ directly depend on engine internals.
 - Use `@venus/*` aliases when crossing package boundaries
 - No semicolons, no `@ts-ignore`
 - Every newly written or modified code block must include a comment.
-- Prefer concise intent comments, but do not leave fresh code uncommented.
+- Prefer concise but clear intent comments, but do not leave fresh code uncommented.
+- Keep source files under 500 lines where practical; split oversized files by
+  ownership/responsibility boundaries.
 - When changing public interfaces, update inline/API comments with parameter semantics
 
 ## Documentation

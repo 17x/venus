@@ -175,6 +175,7 @@ function prepareEngineRenderPlanFromBuffer(
         framePlanCandidateIdSet,
         frame.viewport.scale,
         frame.context.quality,
+        frame.context.lodEnabled ?? true,
       )
 
     preparedNodes[slot] = {
@@ -202,6 +203,7 @@ function prepareEngineRenderPlanFromBuffer(
     protectedCollapseGroupSlots,
     frame.viewport.scale,
     frame.context.quality,
+    frame.context.lodEnabled ?? true,
   )
   const collapsedGroupCount = collapsedGroupSlotSet.size
 
@@ -292,6 +294,7 @@ function prepareEngineRenderPlanFromNodes(
           framePlanCandidateIdSet,
           frame.viewport.scale,
           frame.context.quality,
+          frame.context.lodEnabled ?? true,
         )
 
       const preparedIndex = preparedNodes.push({
@@ -327,6 +330,7 @@ function prepareEngineRenderPlanFromNodes(
     protectedCollapseGroupSlots,
     frame.viewport.scale,
     frame.context.quality,
+    frame.context.lodEnabled ?? true,
   )
   const collapsedGroupCount = collapsedGroupSlotSet.size
 
@@ -423,6 +427,7 @@ function resolveCollapsedGroupSlots(
   protectedGroupSlots: Set<number>,
   viewportScale: number,
   renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
 ) {
   const collapsedGroupSlots = new Set<number>()
 
@@ -436,7 +441,7 @@ function resolveCollapsedGroupSlots(
       continue
     }
 
-    if (shouldCollapseGroupSubtree(groupAggregateBounds[slot], viewportScale, renderQuality)) {
+    if (shouldCollapseGroupSubtree(groupAggregateBounds[slot], viewportScale, renderQuality, lodEnabled)) {
       collapsedGroupSlots.add(slot)
     }
   }
@@ -483,7 +488,12 @@ function shouldCollapseGroupSubtree(
   groupBounds: EngineRect | null,
   viewportScale: number,
   renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
 ) {
+  if (!lodEnabled) {
+    return false
+  }
+
   if (!groupBounds) {
     return false
   }
@@ -547,12 +557,13 @@ function isPreparedNodeCulled(
   framePlanCandidateIdSet: Set<string> | null,
   viewportScale: number,
   renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
 ) {
   if (framePlanCandidateIdSet && !framePlanCandidateIdSet.has(nodeId)) {
     return true
   }
 
-  if (isTinyRenderableBounds(worldBounds, viewportScale, renderQuality)) {
+  if (isTinyRenderableBounds(worldBounds, viewportScale, renderQuality, lodEnabled)) {
     return true
   }
 
@@ -566,7 +577,12 @@ function isTinyRenderableBounds(
   worldBounds: EngineRect | null,
   viewportScale: number,
   renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
 ) {
+  if (!lodEnabled) {
+    return false
+  }
+
   if (!worldBounds) {
     return false
   }

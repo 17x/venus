@@ -20,8 +20,10 @@
 - Use explicit names and intentional module boundaries.
 - Every newly written or modified code block must include an intent comment.
 - Treat comments as required structure, not optional polish.
-- Prefer concise comments, but do not leave new or changed code uncommented.
+- Prefer concise but clear comments that explain intent and behavior, not vague labels.
 - For migration and compatibility branches, include brief intent comments.
+- Keep source files under 500 lines where practical; if a file grows past 500,
+  split by responsibility into focused modules.
 
 ## Validation
 

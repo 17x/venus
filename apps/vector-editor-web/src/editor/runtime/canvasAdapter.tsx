@@ -616,20 +616,23 @@ export function Canvas2DRenderer({
 
     const engine = createEngine({
       canvas,
-      performance: {
-        culling: true,
-        lod: false,
+      // Keep culling as a top-level engine option for clearer host config.
+      culling: true,
+      // LOD is now configured at createEngine top-level.
+      lod: ENGINE_RENDER_LOD_CONFIG as {
+        enabled: boolean
+        options?: {
+          mode?: 'conservative' | 'moderate' | 'aggressive'
+        }
+      },
+      // Overscan is also a top-level knob and will merge into tile config.
+      overscan: {
+        enabled: false,
+        borderPx: 240,
       },
       render: {
         quality: 'full',
         webglClearColor: [0.9529, 0.9569, 0.9647, 1],
-        // Enable LOD (level-of-detail) for performance with large scenes
-        lod: ENGINE_RENDER_LOD_CONFIG as {
-          enabled: boolean
-          options?: {
-            mode?: 'conservative' | 'moderate' | 'aggressive'
-          }
-        },
         // Enable tile-based caching with multiple zoom levels
         tileConfig: {
           // Tile cache path is not fully wired in WebGL yet (invalidation/render

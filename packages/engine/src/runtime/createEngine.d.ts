@@ -11,6 +11,10 @@ interface EnginePerformanceOptions {
     culling?: boolean;
     lod?: boolean;
 }
+interface EngineOverscanOptions {
+    enabled?: boolean;
+    borderPx?: number;
+}
 interface EngineRenderOptions {
     quality?: EngineRenderQuality;
     webglClearColor?: readonly [number, number, number, number];
@@ -48,6 +52,12 @@ export interface CreateEngineOptions {
     canvas: HTMLCanvasElement | OffscreenCanvas;
     initialScene?: EngineSceneSnapshot;
     viewport?: EngineViewportOptions;
+    /** Top-level culling switch for host integration. */
+    culling?: boolean;
+    /** Top-level LOD config; disabling keeps full-detail rendering. */
+    lod?: import("../index.ts").EngineLodConfig;
+    /** Top-level overscan config merged into tileConfig when present. */
+    overscan?: EngineOverscanOptions;
     performance?: EnginePerformanceOptions;
     render?: EngineRenderOptions;
     resource?: EngineResourceOptions;
@@ -112,7 +122,7 @@ export interface Engine {
         maxDpr?: number;
     }): number;
     setQuality(quality: EngineRenderQuality): void;
-        setProtectedNodeIds(nodeIds?: readonly EngineNodeId[]): void;
+    setProtectedNodeIds(nodeIds?: readonly EngineNodeId[]): void;
     setResourceLoader(loader?: EngineResourceLoader): void;
     setTextShaper(textShaper?: EngineTextShaper): void;
     markDirtyBounds(bounds: EngineRect, zoomLevel?: number): void;

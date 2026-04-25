@@ -85,6 +85,7 @@ export function createWebGLEngineRenderer(
 
   const clearColor = options.clearColor ?? [0, 0, 0, 0]
   const enableCulling = options.enableCulling ?? true
+  const lodEnabled = options.lod?.enabled ?? false
   // Prefer packet path by default for runtime responsiveness. Model-complete
   // composite remains opt-in for fidelity-focused scenarios.
   const modelCompleteComposite = options.modelCompleteComposite ?? false
@@ -154,7 +155,7 @@ export function createWebGLEngineRenderer(
       textRuns: modelCompleteComposite,
       imageClip: modelCompleteComposite,
       culling: enableCulling,
-      lod: options.lod?.enabled ?? false,
+      lod: lodEnabled,
     },
     resize: (width, height) => {
       if ('width' in options.canvas) {
@@ -538,11 +539,14 @@ export function createWebGLEngineRenderer(
         remainingUploads: MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
         remainingBytes: MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
       }
+      // Frame context can override renderer defaults, so honor per-frame LOD
+      // enablement when deciding whether to apply detail degradation.
+      const frameLodEnabled = effectiveFrame.context.lodEnabled ?? lodEnabled
       const useTextPlaceholderMode =
-        effectiveFrame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
+        frameLodEnabled && effectiveFrame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
       for (const packet of packetPlan.packets) {
         if (packet.kind === 'image' && packet.assetId) {
-          if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds)) {
+          if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
             continue
           }
 
@@ -582,7 +586,7 @@ export function createWebGLEngineRenderer(
           if (useTextPlaceholderMode) {
             // Low-zoom text is not legible at glyph fidelity. Render an
             // inexpensive placeholder and skip text raster uploads.
-            if (shouldSkipTextPlaceholderPacket(effectiveFrame, packet.worldBounds)) {
+            if (shouldSkipTextPlaceholderPacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
               continue
             }
 
@@ -900,7 +904,12 @@ function captureCompositeSnapshotFromCurrentFramebuffer(options: {
 function shouldSkipTextPlaceholderPacket(
   frame: EngineRenderFrame,
   worldBounds: { width: number; height: number },
+  lodEnabled: boolean,
 ) {
+  if (!lodEnabled) {
+    return false
+  }
+
   const scale = Math.max(0, Math.abs(frame.viewport.scale))
   const screenWidth = Math.abs(worldBounds.width) * scale
   const screenHeight = Math.abs(worldBounds.height) * scale
@@ -913,7 +922,12 @@ function shouldSkipTextPlaceholderPacket(
 function shouldSkipOverviewImagePacket(
   frame: EngineRenderFrame,
   worldBounds: { width: number; height: number },
+  lodEnabled: boolean,
 ) {
+  if (!lodEnabled) {
+    return false
+  }
+
   const scale = Math.max(0, Math.abs(frame.viewport.scale))
   if (scale > OVERVIEW_IMAGE_SKIP_MAX_SCALE) {
     return false
@@ -1776,8 +1790,11 @@ function drawInteractivePreviewEdgeRegions(options: {
     remainingUploads: 0,
     remainingBytes: 0,
   }
+  // Edge redraw path also needs the same per-frame LOD gating as the main
+  // packet loop to avoid unexpected detail loss when LOD is disabled.
+  const lodEnabled = options.frame.context.lodEnabled ?? true
   const useTextPlaceholderMode =
-    options.frame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
+    lodEnabled && options.frame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
   let drawCount = 0
 
   options.context.enable(options.context.SCISSOR_TEST)
@@ -1796,7 +1813,7 @@ function drawInteractivePreviewEdgeRegions(options: {
       }
 
       if (packet.kind === 'image' && packet.assetId) {
-        if (shouldSkipOverviewImagePacket(options.frame, packet.worldBounds)) {
+        if (shouldSkipOverviewImagePacket(options.frame, packet.worldBounds, lodEnabled)) {
           continue
         }
 
@@ -1826,7 +1843,7 @@ function drawInteractivePreviewEdgeRegions(options: {
         const textCacheKey = resolveTextCacheKey(packet)
 
         if (useTextPlaceholderMode) {
-          if (shouldSkipTextPlaceholderPacket(options.frame, packet.worldBounds)) {
+          if (shouldSkipTextPlaceholderPacket(options.frame, packet.worldBounds, lodEnabled)) {
             continue
           }
 

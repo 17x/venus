@@ -60,7 +60,10 @@ export interface EngineTextShaper {
     } | null;
 }
 export interface EngineRendererContext {
+    /** Render quality lane used for gesture responsiveness. */
     quality: EngineRenderQuality;
+    /** Explicit LOD gate for planner/renderer detail simplifications. */
+    lodEnabled?: boolean;
     pixelRatio?: number;
     loader?: EngineResourceLoader;
     textShaper?: EngineTextShaper;

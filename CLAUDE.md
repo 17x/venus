@@ -205,8 +205,10 @@ Do not:
 Comment rule:
 
 - Every newly written or modified code block must include a comment.
-- Prefer concise intent comments, but comment coverage is mandatory for fresh
-  code.
+- Prefer concise but clear intent comments, and keep comment coverage mandatory
+  for fresh code.
+- Keep source files under 500 lines where practical; split oversized files by
+  responsibility.
 
 Validation commands (repository standard):
 
