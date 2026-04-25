@@ -1,4 +1,9 @@
-import {getBoundingRectFromBezierPoints, type EditorDocument, type ShapeType} from '@venus/document-core'
+import {
+  applyAffineMatrixToPoint,
+  getBoundingRectFromBezierPoints,
+  type EditorDocument,
+  type ShapeType,
+} from '@venus/document-core'
 import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 
@@ -242,35 +247,63 @@ function resolveEngineShapeGeometry(
   sourceBounds: {x: number; y: number; width: number; height: number} | null,
 ) {
   const rawPoints = sourceShape?.points?.map((point) => ({x: point.x, y: point.y})) ?? undefined
-  const bezierPoints = sourceShape?.bezierPoints?.map((point) => ({
+  const rawBezierPoints = sourceShape?.bezierPoints?.map((point) => ({
     anchor: {x: point.anchor.x, y: point.anchor.y},
     cp1: point.cp1 ? {x: point.cp1.x, y: point.cp1.y} : point.cp1,
     cp2: point.cp2 ? {x: point.cp2.x, y: point.cp2.y} : point.cp2,
   })) ?? undefined
+  const usesWorldSpaceGeometry = (
+    sourceShape?.type === 'lineSegment' ||
+    sourceShape?.type === 'polygon' ||
+    sourceShape?.type === 'star' ||
+    sourceShape?.type === 'path'
+  )
+  const inverseMatrix = sourceShape && usesWorldSpaceGeometry
+    ? resolveNodeTransform(sourceShape).inverseMatrix
+    : null
+  const points = rawPoints && inverseMatrix
+    ? rawPoints.map((point) => applyAffineMatrixToPoint(inverseMatrix, point))
+    : rawPoints
+  const bezierPoints = rawBezierPoints && inverseMatrix
+    ? rawBezierPoints.map((point) => ({
+      anchor: applyAffineMatrixToPoint(inverseMatrix, point.anchor),
+      cp1: point.cp1 ? applyAffineMatrixToPoint(inverseMatrix, point.cp1) : point.cp1,
+      cp2: point.cp2 ? applyAffineMatrixToPoint(inverseMatrix, point.cp2) : point.cp2,
+    }))
+    : rawBezierPoints
   const fallbackRect = sourceBounds ?? {
     x: snapshotShape.x,
     y: snapshotShape.y,
     width: snapshotShape.width,
     height: snapshotShape.height,
   }
-  const points = (
+  const fallbackLinePoints = inverseMatrix
+    ? [
+      applyAffineMatrixToPoint(inverseMatrix, {x: fallbackRect.x, y: fallbackRect.y}),
+      applyAffineMatrixToPoint(inverseMatrix, {
+        x: fallbackRect.x + fallbackRect.width,
+        y: fallbackRect.y + fallbackRect.height,
+      }),
+    ]
+    : [
+      {x: fallbackRect.x, y: fallbackRect.y},
+      {x: fallbackRect.x + fallbackRect.width, y: fallbackRect.y + fallbackRect.height},
+    ]
+  const normalizedPoints = (
     sourceShape?.type === 'lineSegment' && (!rawPoints || rawPoints.length < 2)
-      ? [
-        {x: fallbackRect.x, y: fallbackRect.y},
-        {x: fallbackRect.x + fallbackRect.width, y: fallbackRect.y + fallbackRect.height},
-      ]
-      : rawPoints
+      ? fallbackLinePoints
+      : points
   )
-  const bounds = resolveShapePointBounds(points, bezierPoints)
+  const bounds = resolveShapePointBounds(normalizedPoints, bezierPoints)
 
   return {
     x: bounds?.x ?? sourceBounds?.x ?? snapshotShape.x,
     y: bounds?.y ?? sourceBounds?.y ?? snapshotShape.y,
     width: bounds?.width ?? sourceBounds?.width ?? snapshotShape.width,
     height: bounds?.height ?? sourceBounds?.height ?? snapshotShape.height,
-    points,
+    points: normalizedPoints,
     bezierPoints,
-    closed: resolveShapeClosed(sourceShape, points, bezierPoints),
+    closed: resolveShapeClosed(sourceShape, normalizedPoints, bezierPoints),
   }
 }
 

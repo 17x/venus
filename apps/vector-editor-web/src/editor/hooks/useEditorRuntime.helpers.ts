@@ -43,6 +43,8 @@ export interface RuntimePointerModifiersLike {
   altKey?: boolean
 }
 
+export type RuntimeMaskSelectionTarget = 'host' | 'source'
+
 const HOVER_GATED_EDITING_MODES: ReadonlySet<RuntimeEditingMode> = new Set([
   'dragging',
   'resizing',
@@ -469,6 +471,23 @@ export function resolveRuntimeCommandSideEffects(command: EditorRuntimeCommand) 
   if (command.type === 'snapping.resume') {
     return {
       nextSnappingEnabled: true,
+      clearSnapGuides: false,
+      resetTransientInteractionState: false,
+      shouldDispatch: false,
+    }
+  }
+
+  if (
+    command.type === 'group.enter-isolation' ||
+    command.type === 'group.exit-isolation' ||
+    command.type === 'mask.create' ||
+    command.type === 'mask.release' ||
+    command.type === 'mask.select-host' ||
+    command.type === 'mask.select-source' ||
+    command.type === 'selection.cycle-hit-target'
+  ) {
+    return {
+      nextSnappingEnabled: null,
       clearSnapGuides: false,
       resetTransientInteractionState: false,
       shouldDispatch: false,
@@ -995,6 +1014,160 @@ export function resolveSelectedGroups(input: {
   return input.selectedShapeIds
     .map((shapeId) => shapeById.get(shapeId))
     .filter((shape): shape is DocumentNode => Boolean(shape && shape.type === 'group'))
+}
+
+export function resolveIsolationShapeIdSet(input: {
+  shapes: DocumentNode[]
+  groupId: string | null
+}) {
+  if (!input.groupId) {
+    return null
+  }
+
+  const shapeById = new Map(input.shapes.map((shape) => [shape.id, shape]))
+  if (!shapeById.has(input.groupId)) {
+    return null
+  }
+
+  const childIdsByParent = new Map<string, string[]>()
+  input.shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+
+    const nextChildren = childIdsByParent.get(shape.parentId) ?? []
+    nextChildren.push(shape.id)
+    childIdsByParent.set(shape.parentId, nextChildren)
+  })
+
+  const visibleIds = new Set<string>()
+  const queue = [input.groupId]
+  while (queue.length > 0) {
+    const currentId = queue.shift()
+    if (!currentId || visibleIds.has(currentId)) {
+      continue
+    }
+
+    visibleIds.add(currentId)
+    const currentShape = shapeById.get(currentId)
+    const explicitChildren = currentShape?.childIds?.filter((childId) => shapeById.has(childId)) ?? []
+    const inferredChildren = childIdsByParent.get(currentId) ?? []
+    for (const childId of explicitChildren.length > 0 ? explicitChildren : inferredChildren) {
+      queue.push(childId)
+    }
+  }
+
+  return visibleIds
+}
+
+export function filterDocumentToShapeSet<TDocument extends EditorDocument>(
+  document: TDocument,
+  visibleIds: ReadonlySet<string> | null,
+) {
+  if (!visibleIds) {
+    return document
+  }
+
+  return {
+    ...document,
+    shapes: document.shapes.filter((shape) => visibleIds.has(shape.id)),
+  }
+}
+
+export function filterSnapshotsToShapeSet<TShape extends {id: string}>(
+  shapes: TShape[],
+  visibleIds: ReadonlySet<string> | null,
+) {
+  if (!visibleIds) {
+    return shapes
+  }
+
+  return shapes.filter((shape) => visibleIds.has(shape.id))
+}
+
+export function resolveGroupIsolationTarget(input: {
+  groupId?: string
+  selectedShapeIds: string[]
+  shapes: DocumentNode[]
+}) {
+  if (input.groupId) {
+    const selectedGroup = input.shapes.find((shape) => shape.id === input.groupId && shape.type === 'group')
+    return selectedGroup?.id ?? null
+  }
+
+  return resolveSelectedGroups({
+    selectedShapeIds: input.selectedShapeIds,
+    shapes: input.shapes,
+  })[0]?.id ?? null
+}
+
+export function resolveMaskSelectionCommand(input: {
+  selectedNode: DocumentNode | null
+  canvasShapes: EditorDocument['shapes']
+  target: RuntimeMaskSelectionTarget
+}) {
+  const selectedNode = input.selectedNode
+  if (!selectedNode) {
+    return {
+      message: 'Select a masked image or its mask source first.',
+    }
+  }
+
+  if (input.target === 'host') {
+    if (selectedNode.type === 'image' && selectedNode.clipPathId) {
+      return {
+        command: {
+          type: 'selection.set' as const,
+          shapeIds: [selectedNode.id],
+          mode: 'replace' as const,
+        },
+        message: `Selected host ${selectedNode.name}.`,
+      }
+    }
+
+    const hostImage = input.canvasShapes.find((shape) => shape.type === 'image' && shape.clipPathId === selectedNode.id)
+    if (hostImage) {
+      return {
+        command: {
+          type: 'selection.set' as const,
+          shapeIds: [hostImage.id],
+          mode: 'replace' as const,
+        },
+        message: `Selected host ${hostImage.name}.`,
+      }
+    }
+
+    return {
+      message: 'No masked host found for the current selection.',
+    }
+  }
+
+  if (selectedNode.type === 'image' && selectedNode.clipPathId) {
+    return {
+      command: {
+        type: 'selection.set' as const,
+        shapeIds: [selectedNode.clipPathId],
+        mode: 'replace' as const,
+      },
+      message: 'Selected mask source.',
+    }
+  }
+
+  const clipShape = input.canvasShapes.find((shape) => shape.type !== 'image' && shape.id === selectedNode.id)
+  if (clipShape) {
+    return {
+      command: {
+        type: 'selection.set' as const,
+        shapeIds: [clipShape.id],
+        mode: 'replace' as const,
+      },
+      message: `Selected mask source ${clipShape.name}.`,
+    }
+  }
+
+  return {
+    message: 'No mask source found for the current selection.',
+  }
 }
 
 export function resolveConvertOrAlignShapeAction(input: {

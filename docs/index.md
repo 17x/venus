@@ -63,6 +63,7 @@ Canonical entrypoint for project docs and Obsidian navigation.
 
 - [[task/plan-1]]
 - [[task/plan-2]]
+- [[task/engine-integration-interaction-requirements]]
 
 ## Package Knowledge
 

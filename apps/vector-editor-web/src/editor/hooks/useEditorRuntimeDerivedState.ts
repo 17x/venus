@@ -5,6 +5,7 @@ import {
   buildRuntimePathEditInstructions,
   buildRuntimeOverlayInstructions,
   buildRuntimePreviewInstructions,
+  createRuntimeSelectionChromeRegistry,
 } from '@vector/runtime'
 import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
 import type {OverlayDiagnostics} from '../runtime/canvasAdapter.tsx'
@@ -18,7 +19,12 @@ import type {
 } from '../interaction/index.ts'
 import {useCanvasRuntimeBridge} from './useCanvasRuntimeBridge.ts'
 import {useTransformPreviewCommitBridge} from './useTransformPreviewCommitBridge.ts'
-import {resolvePathHandlePreviewDocument} from './useEditorRuntime.helpers.ts'
+import {
+  filterDocumentToShapeSet,
+  filterSnapshotsToShapeSet,
+  resolveIsolationShapeIdSet,
+  resolvePathHandlePreviewDocument,
+} from './useEditorRuntime.helpers.ts'
 
 const SCENE_CAPACITY = 8192
 const DEFAULT_SELECTION_CONFIG = {
@@ -50,6 +56,7 @@ const DEFAULT_PRESENTATION_CONFIG = {
 export function useEditorRuntimeDerivedState(options: {
   document: EditorDocument
   editingMode: RuntimeEditingMode
+  isolationGroupId: string | null
   onContextMenu?: (position: {x: number; y: number}) => void
   hoveredShapeId: string | null
   marquee: MarqueeState | null
@@ -69,6 +76,7 @@ export function useEditorRuntimeDerivedState(options: {
   const {
     document,
     editingMode,
+    isolationGroupId,
     onContextMenu,
     hoveredShapeId,
     marquee,
@@ -152,8 +160,20 @@ export function useEditorRuntimeDerivedState(options: {
       : transformPreview?.shapes ?? null,
     {includeClipBoundImagePreview: true},
   ), [canvasRuntime.document, canvasRuntime.shapes, shouldDeferTransformPreviewToOverlay, transformPreview])
-  const previewDocument = previewState.previewDocument
-  const previewShapes = previewState.previewShapes
+  const isolationVisibleIds = useMemo(() => resolveIsolationShapeIdSet({
+    shapes: previewState.previewDocument.shapes,
+    groupId: isolationGroupId,
+  }), [isolationGroupId, previewState.previewDocument.shapes])
+  // Isolation is a runtime-only filter over the preview scene so engine and UI
+  // can reuse the same document model while narrowing interaction scope.
+  const previewDocument = useMemo(
+    () => filterDocumentToShapeSet(previewState.previewDocument, isolationVisibleIds),
+    [isolationVisibleIds, previewState.previewDocument],
+  )
+  const previewShapes = useMemo(
+    () => filterSnapshotsToShapeSet(previewState.previewShapes, isolationVisibleIds),
+    [isolationVisibleIds, previewState.previewShapes],
+  )
   const interactionDocument = useMemo(() => resolvePathHandlePreviewDocument(
     previewDocument,
     pathHandleDrag,
@@ -287,6 +307,12 @@ export function useEditorRuntimeDerivedState(options: {
   }, [effectiveHoveredShapeId, previewShapeById])
 
   const activePathSubSelection = pathSubSelectionHover ?? pathSubSelection
+  const selectionChromeRegistry = useMemo(() => createRuntimeSelectionChromeRegistry(), [])
+  const selectionChrome = useMemo(() => selectionChromeRegistry.resolve({
+    nodeType: selectedNode?.type ?? null,
+    editingMode,
+    isMaskedImageHost: selectedNode?.type === 'image' && Boolean(selectedNode.clipPathId),
+  }), [editingMode, selectedNode, selectionChromeRegistry])
   const activePathShape = useMemo(() => {
     if (!activePathSubSelection) {
       return null
@@ -429,7 +455,7 @@ export function useEditorRuntimeDerivedState(options: {
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
     const overlayHoveredShapeId = effectiveHoveredShapeId
-    const hideSelectionChrome = activeTransformHandle !== null
+    const hideSelectionChrome = activeTransformHandle !== null || selectionChrome.hideTransformHandles
     const overlaySnapGuides = effectiveSnapGuides
     const overlayPathSubSelection = pathSubSelection
     const overlayPathSubSelectionHover = pathSubSelectionHover
@@ -486,6 +512,7 @@ export function useEditorRuntimeDerivedState(options: {
     interactionDocument,
     previewShapeById,
     selectionState,
+    selectionChrome,
     marqueeBounds,
     overlayInstructions,
     previewInstructions,

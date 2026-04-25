@@ -75,6 +75,7 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
               document={props.canvas.document}
               renderer={props.canvas.Renderer}
               overlayRenderer={props.canvas.OverlayRenderer}
+              cursor={props.canvas.cursor}
               shapes={props.canvas.shapes}
               stats={props.canvas.stats}
               viewport={props.canvas.viewport}

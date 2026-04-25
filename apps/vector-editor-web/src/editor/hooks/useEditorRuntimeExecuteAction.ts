@@ -154,12 +154,32 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
     }
 
     if (type === 'image-mask-with-shape') {
-      options.applyAutoMask()
+      options.handleCommand({type: 'mask.create'})
       return
     }
 
     if (type === 'image-clear-mask') {
-      options.clearMask()
+      options.handleCommand({type: 'mask.release'})
+      return
+    }
+
+    if (type === 'mask-select-host') {
+      options.handleCommand({type: 'mask.select-host'})
+      return
+    }
+
+    if (type === 'mask-select-source') {
+      options.handleCommand({type: 'mask.select-source'})
+      return
+    }
+
+    if (type === 'group-enter-isolation' || type === 'groupEnterIsolation') {
+      options.handleCommand({type: 'group.enter-isolation'})
+      return
+    }
+
+    if (type === 'group-exit-isolation' || type === 'groupExitIsolation') {
+      options.handleCommand({type: 'group.exit-isolation'})
       return
     }
 

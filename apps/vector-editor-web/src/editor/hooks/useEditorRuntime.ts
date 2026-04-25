@@ -4,6 +4,7 @@ import {type EditorDocument, type ToolName} from '@venus/document-core'
 import {
   createRuntimeEditingModeController,
   createRuntimeInputRouter,
+  resolveRuntimeCursor,
   createRuntimeToolRegistry,
   type RuntimeEditingMode,
 } from '@vector/runtime'
@@ -38,7 +39,12 @@ import type {
   EditorRuntimeState,
   SelectedElementProps,
 } from './useEditorRuntime.types.ts'
-import {resolveRuntimeCommandSideEffects, resolveSelectedProps} from './useEditorRuntime.helpers.ts'
+import {
+  resolveGroupIsolationTarget,
+  resolveMaskSelectionCommand,
+  resolveRuntimeCommandSideEffects,
+  resolveSelectedProps,
+} from './useEditorRuntime.helpers.ts'
 import {useEditorRuntimeDerivedState} from './useEditorRuntimeDerivedState.ts'
 import {
   useEditorRuntimeExecuteAction,
@@ -100,6 +106,7 @@ const useEditorRuntime = (options?: {
   const [draftPrimitive, setDraftPrimitive] = useState<DraftPrimitive | null>(null)
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   const [snappingEnabled, setSnappingEnabled] = useState(true)
+  const [isolationGroupId, setIsolationGroupId] = useState<string | null>(null)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
@@ -135,10 +142,12 @@ const useEditorRuntime = (options?: {
     previewInstructions,
     overlayDiagnostics,
     protectedNodeIds,
+    selectionChrome,
     OverlayRenderer,
   } = useEditorRuntimeDerivedState({
     document,
     editingMode,
+    isolationGroupId,
     onContextMenu,
     hoveredShapeId,
     marquee,
@@ -189,6 +198,67 @@ const useEditorRuntime = (options?: {
   const {t} = useTranslation()
 
   const handleCommand = useCallback((command: import('@vector/runtime/worker').EditorRuntimeCommand) => {
+    if (command.type === 'mask.create') {
+      createAutoMaskHandler({
+        add,
+        canvasShapes: canvasRuntime.document.shapes,
+        handleCommand,
+        selectedNode,
+      })()
+      return
+    }
+
+    if (command.type === 'mask.release') {
+      createClearMaskHandler({
+        add,
+        handleCommand,
+        selectedNode,
+      })()
+      return
+    }
+
+    if (command.type === 'mask.select-host' || command.type === 'mask.select-source') {
+      const resolved = resolveMaskSelectionCommand({
+        selectedNode,
+        canvasShapes: canvasRuntime.document.shapes,
+        target: command.type === 'mask.select-host' ? 'host' : 'source',
+      })
+      if (resolved.command) {
+        handleCommand(resolved.command)
+      }
+      add(resolved.message, 'info')
+      return
+    }
+
+    if (command.type === 'group.enter-isolation') {
+      const nextGroupId = resolveGroupIsolationTarget({
+        groupId: command.groupId,
+        selectedShapeIds,
+        shapes: canvasRuntime.document.shapes,
+      })
+      if (!nextGroupId) {
+        add('Select a group to enter isolation.', 'info')
+        return
+      }
+
+      setIsolationGroupId(nextGroupId)
+      runtimeEditingModeControllerRef.current?.transition({
+        to: 'isolatedGroupEditing',
+        reason: 'group-isolation:enter',
+        metadata: {groupId: nextGroupId},
+      })
+      return
+    }
+
+    if (command.type === 'group.exit-isolation') {
+      setIsolationGroupId(null)
+      runtimeEditingModeControllerRef.current?.transition({
+        to: currentTool === 'dselector' ? 'directSelecting' : 'selecting',
+        reason: 'group-isolation:exit',
+      })
+      return
+    }
+
     const sideEffects = resolveRuntimeCommandSideEffects(command)
 
     if (sideEffects.nextSnappingEnabled !== null) {
@@ -214,7 +284,7 @@ const useEditorRuntime = (options?: {
     }
 
     canvasRuntime.dispatchCommand(command)
-  }, [canvasRuntime, clearTransformPreview])
+  }, [add, canvasRuntime, clearTransformPreview, currentTool, selectedNode, selectedShapeIds])
 
   const insertElement = useCallback((element: ElementProps) => {
     handleCommand({
@@ -268,21 +338,22 @@ const useEditorRuntime = (options?: {
   })
 
   const applyAutoMask = useCallback(() => {
-    createAutoMaskHandler({
-      add,
-      canvasShapes: canvasRuntime.document.shapes,
-      handleCommand,
-      selectedNode,
-    })()
+    handleCommand({type: 'mask.create'})
   }, [add, canvasRuntime.document.shapes, handleCommand, selectedNode])
 
   const clearMask = useCallback(() => {
-    createClearMaskHandler({
-      add,
-      handleCommand,
-      selectedNode,
-    })()
+    handleCommand({type: 'mask.release'})
   }, [add, handleCommand, selectedNode])
+
+  const activeToolCursor = runtimeToolRegistryRef.current.get(currentTool)?.getCursor?.()
+  const activeRotation = selectedNode?.rotation ?? 0
+  const cursorState = useMemo(() => resolveRuntimeCursor({
+    toolCursor: activeToolCursor,
+    editingMode,
+    activeHandle: activeTransformHandle,
+    rotationDegrees: activeRotation,
+    pathHitType: (pathSubSelectionHover ?? pathSubSelection)?.hitType ?? null,
+  }), [activeRotation, activeToolCursor, activeTransformHandle, editingMode, pathSubSelection, pathSubSelectionHover])
 
   const executeAction = useEditorRuntimeExecuteAction({
     add,
@@ -465,6 +536,10 @@ const useEditorRuntime = (options?: {
       stats: canvasRuntime.stats,
       viewport: canvasRuntime.viewport,
       editingMode,
+      cursor: cursorState.cursor,
+      cursorState,
+      selectionChrome,
+      isolationGroupId,
       ready: canvasRuntime.ready,
       protectedNodeIds,
       overlayInstructions,

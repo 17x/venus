@@ -3,6 +3,7 @@ import type {ToolName} from '@venus/document-core'
 import type {CanvasViewportState} from '@vector/runtime'
 import type {RuntimeEditingMode} from '@vector/runtime'
 import type {RuntimeOverlayInstruction, RuntimePreviewInstruction} from '@vector/runtime'
+import type {RuntimeCursorState, RuntimeSelectionChromeState} from '@vector/runtime'
 import type {
   OverlayDiagnostics,
   CanvasOverlayRenderer as CanvasOverlayRendererCompat,
@@ -73,6 +74,10 @@ export interface EditorRuntimeState {
     stats: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['stats']
     viewport: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['viewport']
     editingMode: RuntimeEditingMode
+    cursor?: string
+    cursorState?: RuntimeCursorState
+    selectionChrome?: RuntimeSelectionChromeState
+    isolationGroupId?: string | null
     ready: boolean
     protectedNodeIds?: readonly string[]
     overlayInstructions?: RuntimeOverlayInstruction[]

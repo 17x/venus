@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-04-25
+
+- Added an engine integration and interaction requirement handoff slice:
+  - `packages/engine/README.md` now reflects the current engine reality more
+    accurately: WebGL-primary backend direction, `createEngine(...)` as the
+    integration entry, current `group` and `clip` support, the lack of a
+    formal engine-owned static/interaction layer API, and the actual
+    vector-editor scene-load / incremental-patch / overlay split used today
+  - `docs/task/engine-integration-interaction-requirements.md` now captures a
+    cross-layer breakdown of current findings and next-step requirements for
+    selection, multi-select modifiers, group nesting/isolation, masking,
+    overlay/composition, handles, cursor categories, edit modes, aspect-ratio
+    locking, transform ownership, and layer-icon path sampling reuse
+  - `docs/index.md` now links the new task document from the task-plan section
+
 ## 2026-04-24
 
 - Fixed a renderer correctness slice for settled frames and incremental redraw:
@@ -30,6 +45,11 @@
     now uses exact bezier extrema bounds when adapting path geometry into the
     engine scene snapshot, replacing the previous control-point envelope
     approximation that could misstate path bounding boxes
+  - `apps/vector-editor-web/src/editor/runtime-local/presets/engineSceneAdapter.ts`
+    now converts world-space path/polygon/star/line geometry into shape-local
+    coordinates before handing it to the engine, aligning those point sets
+    with engine world-matrix application so transformed vector strokes do not
+    get effectively double-transformed during rendering
 - Fixed a toolbar hydration warning:
   - `apps/vector-editor-web/src/components/toolbelt/Toolbelt.tsx` now renders
     the text-tool tooltip trigger with `asChild`, avoiding a nested

@@ -62,6 +62,13 @@ export type EditorRuntimeCommand =
   | { type: 'history.redo' }
   | { type: 'snapping.pause' }
   | { type: 'snapping.resume' }
+  | { type: 'group.enter-isolation'; groupId?: string }
+  | { type: 'group.exit-isolation' }
+  | { type: 'mask.create' }
+  | { type: 'mask.release' }
+  | { type: 'mask.select-host' }
+  | { type: 'mask.select-source' }
+  | { type: 'selection.cycle-hit-target'; direction?: 'forward' | 'backward' }
   | { type: 'viewport.fit' }
   | { type: 'viewport.zoomIn' }
   | { type: 'viewport.zoomOut' }

@@ -71,6 +71,7 @@ interface CanvasViewportProps {
   document: EditorDocument
   renderer?: CanvasRenderer
   overlayRenderer?: CanvasOverlayRenderer
+  cursor?: string
   shapes: SceneShapeSnapshot[]
   stats: SceneStats
   viewport: CanvasViewportState
@@ -93,6 +94,7 @@ export function CanvasViewport({
   document,
   renderer: Renderer,
   overlayRenderer: OverlayRenderer,
+  cursor,
   shapes,
   stats,
   viewport,
@@ -323,6 +325,7 @@ export function CanvasViewport({
         className={'relative h-full w-full min-h-0 min-w-0 overflow-hidden'}
         style={{
           background: 'radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 30%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)',
+          cursor,
           touchAction: 'none',
           overscrollBehavior: 'none',
         }}

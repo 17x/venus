@@ -135,6 +135,10 @@ context starts, or work needs to resume after switching topics.
   - runtime-local engine scene adaptation now feeds exact bezier bounds for
     path geometry into engine snapshots, targeting the recent path bbox
     precision regressions before those bounds reach engine culling/indexing
+  - runtime-local engine scene adaptation now normalizes path/polygon/star/
+    line geometry from document world-space into engine-local point sets before
+    engine transforms are applied, targeting the recent missing stroke / wrong
+    placement regressions for transformed vector geometry
   - engine render options now expose shortlist policy tuning (`enabled`,
     `minSceneNodes`, `ratioThreshold`, `hysteresisRatio`) so behavior can be
     adjusted per host without changing engine source constants
