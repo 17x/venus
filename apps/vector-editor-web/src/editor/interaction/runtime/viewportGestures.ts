@@ -108,6 +108,12 @@ export function bindViewportGestures({
       }
 
       const rect = element.getBoundingClientRect()
+      const measuredViewport = getViewportState()
+      // Defer wheel zoom until resize has produced a concrete viewport size.
+      // Cold-start zoom on a 0x0 viewport can lock in invalid transforms.
+      if (measuredViewport.viewportWidth <= 1 || measuredViewport.viewportHeight <= 1) {
+        return
+      }
       const nextZoom = handleEngineZoomWheel(zoomSession, {
         clientX: event.clientX - rect.left,
         clientY: event.clientY - rect.top,
@@ -131,8 +137,26 @@ export function bindViewportGestures({
         onZoomingChange?.(false)
       }, nextZoom.settleDelay)
 
-      const baseViewport = getViewportState()
-      const commitBaseViewport = pendingZoomViewport ?? baseViewport
+      const baseViewport = measuredViewport
+      // Mouse-wheel zoom uses discrete preset stepping. Keep each wheel event
+      // anchored to the latest committed viewport so one RAF burst does not
+      // accidentally skip multiple zoom levels before a commit happens.
+      const commitBaseViewport = nextZoom.source === 'trackpad'
+        ? (pendingZoomViewport ?? baseViewport)
+        : baseViewport
+      // For mouse-wheel preset stepping, anchor zoom at viewport center so
+      // cold-start wheel input over empty canvas regions does not eject the
+      // content from view in one burst.
+      const zoomAnchor = nextZoom.source === 'trackpad'
+        ? nextZoom.anchor
+        : {
+          x: commitBaseViewport.viewportWidth > 0
+            ? commitBaseViewport.viewportWidth * 0.5
+            : rect.width * 0.5,
+          y: commitBaseViewport.viewportHeight > 0
+            ? commitBaseViewport.viewportHeight * 0.5
+            : rect.height * 0.5,
+        }
       const proposedScale = commitBaseViewport.scale * nextZoom.factor
       const resolvedScale = resolveRuntimeZoomGestureScale(
         commitBaseViewport.scale,
@@ -142,7 +166,7 @@ export function bindViewportGestures({
       const nextViewport = zoomEngineViewportState(
         commitBaseViewport,
         resolvedScale,
-        nextZoom.anchor,
+        zoomAnchor,
       )
       pendingZoomViewport = nextViewport
 

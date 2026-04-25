@@ -163,6 +163,14 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     listeners.forEach((listener) => listener())
   }
 
+  // Keep first-resize auto-fit enabled until runtime has a measured viewport.
+  // Cold-start zoom/pan can otherwise disable auto-fit before dimensions are
+  // known, leaving the scene outside the initial visible bounds.
+  const hasMeasuredViewport = () => (
+    snapshot.viewport.viewportWidth > 0 &&
+    snapshot.viewport.viewportHeight > 0
+  )
+
   // Viewport updates stay local to runtime and do not round-trip through
   // the worker because they only affect presentation, not document truth.
   const updateViewport = (updater: (viewport: CanvasViewportState) => CanvasViewportState) => {
@@ -176,6 +184,11 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const panViewport = (deltaX: number, deltaY: number) => {
+    // Ignore early pan gestures until viewport dimensions are measured.
+    // Applying deltas against a 0x0 viewport can push first-fit framing off.
+    if (!hasMeasuredViewport()) {
+      return
+    }
     shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => panViewportState(viewport, deltaX, deltaY))
   }
@@ -214,12 +227,28 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
+    // Ignore cold-start zoom before first measured viewport. Zooming a
+    // zero-sized viewport can freeze an invalid transform baseline.
+    if (!hasMeasuredViewport()) {
+      return
+    }
     shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
   }
 
   const setViewport = (viewport: CanvasViewportState) => {
-    shouldAutoFitOnFirstResize = false
+    // Ignore pre-measure viewport writes when both current and incoming
+    // dimensions are unresolved. Let first resize+fit establish baseline.
+    if (
+      !hasMeasuredViewport() &&
+      (viewport.viewportWidth <= 0 || viewport.viewportHeight <= 0)
+    ) {
+      return
+    }
+
+    if (viewport.viewportWidth > 0 && viewport.viewportHeight > 0) {
+      shouldAutoFitOnFirstResize = false
+    }
     snapshot.viewport = viewport
     notify()
   }
