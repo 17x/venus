@@ -280,6 +280,8 @@ function prepareEngineRenderPlanFromNodes(
   ) => {
     for (const node of nodes) {
       const worldMatrix = multiplyMatrix(parentWorldMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
+      // Shortlist candidate ids are ancestor-aware, so skipping unmatched
+      // groups here safely prunes entire offscreen subtrees.
       if (node.type === 'group' && framePlanCandidateIdSet && !framePlanCandidateIdSet.has(node.id)) {
         continue
       }

@@ -1523,6 +1523,62 @@ function resolveExpandedChangedIds(
 
   const changedIdSet = new Set(changedIds)
   const expanded = new Set(changedIds)
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  const childrenByParentId = new Map<string, string[]>()
+
+  for (const shape of document.shapes) {
+    if (!shape.parentId) {
+      continue
+    }
+
+    const siblings = childrenByParentId.get(shape.parentId)
+    if (siblings) {
+      siblings.push(shape.id)
+      continue
+    }
+
+    childrenByParentId.set(shape.parentId, [shape.id])
+  }
+
+  // Keep incremental patch ids closed over hierarchy so grouped edits do not
+  // emit only container/group nodes and accidentally drop visible descendants.
+  const includeDescendants = (parentId: string) => {
+    const queue = [...(childrenByParentId.get(parentId) ?? [])]
+    while (queue.length > 0) {
+      const childId = queue.shift()
+      if (!childId) {
+        continue
+      }
+
+      if (!expanded.has(childId)) {
+        expanded.add(childId)
+      }
+
+      const grandChildren = childrenByParentId.get(childId)
+      if (grandChildren && grandChildren.length > 0) {
+        queue.push(...grandChildren)
+      }
+    }
+  }
+
+  // Also keep ancestor groups in the patch set so parent bounds and hierarchy
+  // metadata remain synchronized when only child geometry changes.
+  const includeAncestors = (shapeId: string) => {
+    let parentId = shapeById.get(shapeId)?.parentId ?? null
+    while (parentId) {
+      if (expanded.has(parentId)) {
+        break
+      }
+
+      expanded.add(parentId)
+      parentId = shapeById.get(parentId)?.parentId ?? null
+    }
+  }
+
+  for (const shapeId of changedIds) {
+    includeDescendants(shapeId)
+    includeAncestors(shapeId)
+  }
 
   // If a clip source changed, clipped images also need refresh.
   // If a clipped image changed, keep its clip source in the patch set too.
