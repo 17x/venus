@@ -67,6 +67,10 @@ interface EngineRenderOptions {
   initialRender?: EngineInitialRenderConfig
   // Optional: interaction-time affine preview from last rendered frame.
   interactionPreview?: EngineInteractionPreviewConfig
+  // Optional: promote settled full-quality frames through the model-complete
+  // composite path so WebGL packets do not have to approximate unsupported
+  // fidelity features like image clips or non-rect shape strokes.
+  modelCompleteComposite?: boolean
   // Optional: coarse frame-plan shortlist pruning controls.
   shortlist?: {
     enabled?: boolean
@@ -201,6 +205,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
     enableCulling: options.performance?.culling,
     clearColor: options.render?.webglClearColor,
     antialias: options.render?.webglAntialias ?? true,
+    modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
     lod: options.render?.lod,
     tileConfig: options.render?.tileConfig,
     initialRender: options.render?.initialRender,
@@ -211,7 +216,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
     pixelRatio: number
     loader?: EngineResourceLoader
     textShaper?: EngineTextShaper
-    dirtyRegions?: Array<{zoomLevel: number; gridX: number; gridY: number}>
+    dirtyRegions?: Array<{zoomLevel?: number; bounds: EngineRect}>
     framePlanCandidateIds?: readonly EngineNodeId[]
     framePlanVersion?: number
     protectedNodeIds?: readonly EngineNodeId[]
@@ -521,24 +526,15 @@ export function createEngine(options: CreateEngineOptions): Engine {
     setTextShaper(textShaper) {
       renderContext.textShaper = textShaper
     },
-    markDirtyBounds(bounds, zoomLevel = 3) {
-      // Convert world-space bounds to tile grid coordinates and queue for invalidation
-      // Uses a simple approximation: tileSizePx = 512 by default
-      const tileSizePx = options.render?.tileConfig?.tileSizePx ?? 512
-      if (tileSizePx <= 0) return
-      const gridX0 = Math.floor(bounds.x / tileSizePx)
-      const gridY0 = Math.floor(bounds.y / tileSizePx)
-      const gridX1 = Math.ceil((bounds.x + bounds.width) / tileSizePx)
-      const gridY1 = Math.ceil((bounds.y + bounds.height) / tileSizePx)
-      const regions: Array<{zoomLevel: number; gridX: number; gridY: number}> = []
-      for (let gx = gridX0; gx < gridX1; gx++) {
-        for (let gy = gridY0; gy < gridY1; gy++) {
-          regions.push({zoomLevel, gridX: gx, gridY: gy})
-        }
+    markDirtyBounds(bounds, zoomLevel) {
+      if (bounds.width <= 0 || bounds.height <= 0) {
+        return
       }
-      if (regions.length > 0) {
-        renderContext.dirtyRegions = (renderContext.dirtyRegions ?? []).concat(regions)
-      }
+
+      renderContext.dirtyRegions = (renderContext.dirtyRegions ?? []).concat({
+        zoomLevel,
+        bounds,
+      })
     },
     renderFrame: async () => {
       const stats = await loop.renderOnce()

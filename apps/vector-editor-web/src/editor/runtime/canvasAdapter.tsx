@@ -1014,7 +1014,14 @@ export function Canvas2DRenderer({
           })
           // Coalesce dirty marks to one merged region so tile invalidation can
           // stay local even when many nodes are updated in one patch burst.
-          const mergedDirtyBounds = resolveMergedNodeBounds(upsertNodes)
+          // Include both previous and next positions so moved nodes invalidate
+          // the tiles they vacated as well as the tiles they now occupy.
+          const mergedDirtyBounds = resolveMergedNodeBounds({
+            nodes: upsertNodes,
+            currentDocument: document,
+            previousDocument: previous.document,
+            changedIds,
+          })
           if (mergedDirtyBounds) {
             engine.markDirtyBounds(mergedDirtyBounds)
             dirtyBoundsMarkCount = 1
@@ -1314,31 +1321,62 @@ export function Canvas2DRenderer({
   )
 }
 
-function resolveMergedNodeBounds(nodes: ReadonlyArray<object>) {
+function resolveMergedNodeBounds(input: {
+  nodes: ReadonlyArray<object>
+  currentDocument?: EditorDocument | null
+  previousDocument?: EditorDocument | null
+  changedIds?: readonly string[]
+}) {
   let minX = Number.POSITIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
   let maxX = Number.NEGATIVE_INFINITY
   let maxY = Number.NEGATIVE_INFINITY
 
-  for (const node of nodes) {
-    const boundsNode = node as {
-      x?: unknown
-      y?: unknown
-      width?: unknown
-      height?: unknown
-    }
-    const x = typeof boundsNode.x === 'number' ? boundsNode.x : null
-    const y = typeof boundsNode.y === 'number' ? boundsNode.y : null
-    const width = typeof boundsNode.width === 'number' ? boundsNode.width : null
-    const height = typeof boundsNode.height === 'number' ? boundsNode.height : null
+  const includeBounds = (bounds: {
+    x?: unknown
+    y?: unknown
+    width?: unknown
+    height?: unknown
+  }) => {
+    const x = typeof bounds.x === 'number' ? bounds.x : null
+    const y = typeof bounds.y === 'number' ? bounds.y : null
+    const width = typeof bounds.width === 'number' ? bounds.width : null
+    const height = typeof bounds.height === 'number' ? bounds.height : null
     if (x === null || y === null || width === null || height === null) {
-      continue
+      return
     }
 
     minX = Math.min(minX, x)
     minY = Math.min(minY, y)
     maxX = Math.max(maxX, x + width)
     maxY = Math.max(maxY, y + height)
+  }
+
+  for (const node of input.nodes) {
+    const boundsNode = node as {
+      x?: unknown
+      y?: unknown
+      width?: unknown
+      height?: unknown
+    }
+    includeBounds(boundsNode)
+  }
+
+  const changedIdSet = input.changedIds ? new Set(input.changedIds) : null
+  if (changedIdSet && input.currentDocument) {
+    for (const shape of input.currentDocument.shapes) {
+      if (changedIdSet.has(shape.id)) {
+        includeBounds(shape)
+      }
+    }
+  }
+
+  if (changedIdSet && input.previousDocument) {
+    for (const shape of input.previousDocument.shapes) {
+      if (changedIdSet.has(shape.id)) {
+        includeBounds(shape)
+      }
+    }
   }
 
   if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {

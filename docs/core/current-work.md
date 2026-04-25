@@ -118,6 +118,23 @@ context starts, or work needs to resume after switching topics.
     100K scene-readiness track: required scenes, threshold checks, trend
     regression, and machine-readable result output are all wired and should be
     treated as the default performance closeout path for future tuning slices
+    Renderer correctness follow-up (2026-04-24):
+  - settled full-quality WebGL frames now default to the model-complete
+    composite path from engine runtime wiring; validated on the default scene
+    with `Render Phase = static` and `WebGL Render Path = model-complete`
+  - engine shape world bounds now use geometry-aware path/polygon/bezier
+    bounds plus stroke expansion in both scene indexing and render planning,
+    targeting the recent path bbox precision and stale-cull/dirty-region bugs
+  - canvas adapter incremental dirty invalidation now unions previous and next
+    bounds for changed nodes, targeting move-time tile ghosting and text/image
+    residue at the old location after patch-driven transforms
+  - engine dirty-region propagation now passes world bounds into renderer tile
+    invalidation instead of pre-quantized grid cells from engine runtime,
+    reducing tile-cache invalidation drift when zoom buckets or tile sizing are
+    resolved inside the renderer
+  - runtime-local engine scene adaptation now feeds exact bezier bounds for
+    path geometry into engine snapshots, targeting the recent path bbox
+    precision regressions before those bounds reach engine culling/indexing
   - engine render options now expose shortlist policy tuning (`enabled`,
     `minSceneNodes`, `ratioThreshold`, `hysteresisRatio`) so behavior can be
     adjusted per host without changing engine source constants

@@ -6,6 +6,7 @@ import type {
   EngineRenderableNode,
 } from '../scene/types.ts'
 import type { EngineSceneBufferLayout } from '../scene/buffer.ts'
+import {resolveLeafNodeWorldBounds, toWorldAxisAlignedBounds} from '../scene/worldBounds.ts'
 
 export type EngineWorldMatrix = readonly [number, number, number, number, number, number]
 
@@ -676,43 +677,15 @@ function resolveNodeWorldBounds(
   worldMatrix: EngineWorldMatrix,
 ): EngineRect | null {
   switch (node.type) {
-    case 'text': {
-      const estimatedWidth = node.width ?? estimateTextWidth(node)
-      const estimatedHeight = node.height ?? Math.max(node.style.fontSize, node.style.lineHeight ?? node.style.fontSize)
-      return toWorldAxisAlignedBounds({
-        x: node.x,
-        y: node.y,
-        width: estimatedWidth,
-        height: estimatedHeight,
-      }, worldMatrix)
-    }
+    case 'text':
     case 'image':
-      return toWorldAxisAlignedBounds({
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height,
-      }, worldMatrix)
     case 'shape':
-      return toWorldAxisAlignedBounds({
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height,
-      }, worldMatrix)
+      return resolveLeafNodeWorldBounds(node, worldMatrix)
     case 'group':
       return null
     default:
       return null
   }
-}
-
-function estimateTextWidth(node: Extract<EngineRenderableNode, {type: 'text'}>) {
-  if (node.runs && node.runs.length > 0) {
-    return node.runs.reduce((width, run) => width + run.text.length * (run.style?.fontSize ?? node.style.fontSize) * 0.6, 0)
-  }
-
-  return (node.text ?? '').length * node.style.fontSize * 0.6
 }
 
 export function multiplyMatrix(
@@ -729,34 +702,4 @@ export function multiplyMatrix(
   ]
 }
 
-function applyMatrixToPoint(
-  matrix: EngineWorldMatrix,
-  point: {x: number; y: number},
-) {
-  return {
-    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
-    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
-  }
-}
 
-function toWorldAxisAlignedBounds(
-  rect: EngineRect,
-  worldMatrix: EngineWorldMatrix,
-): EngineRect {
-  const p1 = applyMatrixToPoint(worldMatrix, {x: rect.x, y: rect.y})
-  const p2 = applyMatrixToPoint(worldMatrix, {x: rect.x + rect.width, y: rect.y})
-  const p3 = applyMatrixToPoint(worldMatrix, {x: rect.x, y: rect.y + rect.height})
-  const p4 = applyMatrixToPoint(worldMatrix, {x: rect.x + rect.width, y: rect.y + rect.height})
-
-  const minX = Math.min(p1.x, p2.x, p3.x, p4.x)
-  const maxX = Math.max(p1.x, p2.x, p3.x, p4.x)
-  const minY = Math.min(p1.y, p2.y, p3.y, p4.y)
-  const maxY = Math.max(p1.y, p2.y, p3.y, p4.y)
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
-}

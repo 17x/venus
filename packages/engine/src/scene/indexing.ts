@@ -1,5 +1,6 @@
 import {createEngineSpatialIndex, type EngineSpatialIndex, type EngineSpatialItem} from '../spatial/index.ts'
 import type {EngineNodeId, EngineRect, EngineRenderableNode} from './types.ts'
+import {resolveLeafNodeWorldBounds} from './worldBounds.ts'
 
 type Matrix2D = readonly [number, number, number, number, number, number]
 
@@ -114,15 +115,9 @@ function resolveNodeWorldBounds(
 ): EngineRect | null {
   switch (node.type) {
     case 'image':
-      return transformRectBounds(node.x, node.y, node.width, node.height, worldMatrix)
-    case 'text': {
-      const width = node.width ?? estimateTextWidth(node)
-      const lineHeight = node.style.lineHeight ?? node.style.fontSize * 1.2
-      const height = node.height ?? lineHeight
-      return transformRectBounds(node.x, node.y, width, height, worldMatrix)
-    }
+    case 'text':
     case 'shape':
-      return transformRectBounds(node.x, node.y, node.width, node.height, worldMatrix)
+      return resolveLeafNodeWorldBounds(node, worldMatrix)
     case 'group':
       return resolveGroupWorldBounds(node.children, worldMatrix)
     default:
@@ -151,44 +146,6 @@ function resolveGroupWorldBounds(
   return union
 }
 
-function transformRectBounds(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  matrix: Matrix2D,
-): EngineRect {
-  const corners = [
-    applyMatrix(matrix, {x, y}),
-    applyMatrix(matrix, {x: x + width, y}),
-    applyMatrix(matrix, {x, y: y + height}),
-    applyMatrix(matrix, {x: x + width, y: y + height}),
-  ]
-  const minX = Math.min(...corners.map((point) => point.x))
-  const maxX = Math.max(...corners.map((point) => point.x))
-  const minY = Math.min(...corners.map((point) => point.y))
-  const maxY = Math.max(...corners.map((point) => point.y))
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
-}
-
-function estimateTextWidth(node: Extract<EngineRenderableNode, {type: 'text'}>) {
-  if (node.runs && node.runs.length > 0) {
-    let length = 0
-    node.runs.forEach((run) => {
-      length += run.text.length
-    })
-    return length * node.style.fontSize * 0.6
-  }
-
-  return (node.text ?? '').length * node.style.fontSize * 0.6
-}
-
 function unionRect(left: EngineRect, right: EngineRect): EngineRect {
   const minX = Math.min(left.x, right.x)
   const minY = Math.min(left.y, right.y)
@@ -214,9 +171,3 @@ function multiplyMatrix(left: Matrix2D, right: Matrix2D): Matrix2D {
   ]
 }
 
-function applyMatrix(matrix: Matrix2D, point: {x: number; y: number}) {
-  return {
-    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
-    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
-  }
-}

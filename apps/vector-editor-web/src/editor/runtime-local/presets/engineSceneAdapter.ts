@@ -1,4 +1,4 @@
-import type {EditorDocument, ShapeType} from '@venus/document-core'
+import {getBoundingRectFromBezierPoints, type EditorDocument, type ShapeType} from '@venus/document-core'
 import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 
@@ -282,25 +282,29 @@ function resolveShapePointBounds(
     cp2?: {x: number; y: number} | null
   }[],
 ) {
-  const pool: Array<{x: number; y: number}> = []
-  points?.forEach((point) => pool.push(point))
-  bezierPoints?.forEach((point) => {
-    pool.push(point.anchor)
-    if (point.cp1) {
-      pool.push(point.cp1)
+  if (bezierPoints && bezierPoints.length > 0) {
+    const bounds = getBoundingRectFromBezierPoints(bezierPoints.map((point) => ({
+      anchor: point.anchor,
+      cp1: point.cp1 ?? null,
+      cp2: point.cp2 ?? null,
+    })))
+
+    return {
+      x: bounds.x,
+      y: bounds.y,
+      width: Math.max(1, bounds.width),
+      height: Math.max(1, bounds.height),
     }
-    if (point.cp2) {
-      pool.push(point.cp2)
-    }
-  })
-  if (pool.length === 0) {
+  }
+
+  if (!points || points.length === 0) {
     return null
   }
 
-  const minX = Math.min(...pool.map((point) => point.x))
-  const minY = Math.min(...pool.map((point) => point.y))
-  const maxX = Math.max(...pool.map((point) => point.x))
-  const maxY = Math.max(...pool.map((point) => point.y))
+  const minX = Math.min(...points.map((point) => point.x))
+  const minY = Math.min(...points.map((point) => point.y))
+  const maxX = Math.max(...points.map((point) => point.x))
+  const maxY = Math.max(...points.map((point) => point.y))
 
   return {
     x: minX,

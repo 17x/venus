@@ -124,9 +124,8 @@ export interface EngineRendererContext {
   // Optional: dirty regions for incremental tile updates.
   // When provided, renderers can use this to optimize which tiles to re-render.
   dirtyRegions?: Array<{
-    zoomLevel: number
-    gridX: number
-    gridY: number
+    zoomLevel?: number
+    bounds: EngineRect
   }>
   // Optional: viewport-scoped coarse candidates from the engine frame plan.
   // Render planning can use this to avoid traversing obviously offscreen work.

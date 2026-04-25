@@ -2,6 +2,34 @@
 
 ## 2026-04-24
 
+- Fixed a renderer correctness slice for settled frames and incremental redraw:
+  - `packages/engine/src/runtime/createEngine.ts` now defaults
+    `modelCompleteComposite` on, and browser validation on the default scene
+    now shows `Render Phase = static`, `Engine Frame Quality = full`, and
+    `WebGL Render Path = model-complete` instead of routing settled full-
+    quality frames through the packet path
+  - `packages/engine/src/scene/worldBounds.ts` adds geometry-aware world-bounds
+    helpers for shape/image/text nodes, including exact cubic bezier extrema
+    bounds plus stroke expansion for shape dirty/cull coverage
+  - `packages/engine/src/scene/indexing.ts` and
+    `packages/engine/src/renderer/plan.ts` now reuse those geometry-aware
+    world bounds so spatial indexing and render culling no longer fall back to
+    coarse shape `x/y/width/height` rectangles for paths/polygons/stroked
+    geometry
+  - `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` now merges
+    both previous and next bounds when marking incremental dirty regions so
+    moved nodes invalidate the tiles they vacated as well as the tiles they
+    now occupy, reducing move-time ghosting/residue
+  - `packages/engine/src/runtime/createEngine.ts`,
+    `packages/engine/src/renderer/types.ts`, and
+    `packages/engine/src/renderer/webgl.ts` now carry dirty-region world
+    bounds through the render context and let the tile cache invalidate
+    intersecting tiles via `invalidateTilesInBounds(...)`, removing the older
+    create-engine-side grid approximation from incremental tile invalidation
+  - `apps/vector-editor-web/src/editor/runtime-local/presets/engineSceneAdapter.ts`
+    now uses exact bezier extrema bounds when adapting path geometry into the
+    engine scene snapshot, replacing the previous control-point envelope
+    approximation that could misstate path bounding boxes
 - Fixed a toolbar hydration warning:
   - `apps/vector-editor-web/src/components/toolbelt/Toolbelt.tsx` now renders
     the text-tool tooltip trigger with `asChild`, avoiding a nested

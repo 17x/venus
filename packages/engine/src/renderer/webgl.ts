@@ -202,10 +202,17 @@ export function createWebGLEngineRenderer(
       const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
       let dirtyTileCount = 0
       if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
+        const zoomLevels: TileZoomLevel[] = [0, 1, 2, 3, 4, 5]
         for (const dirtyRegion of effectiveFrame.context.dirtyRegions) {
-          const zoomLevel = clampTileZoomLevel(dirtyRegion.zoomLevel)
-          tileCache.invalidateTile(zoomLevel, dirtyRegion.gridX, dirtyRegion.gridY)
-          dirtyTileCount += 1
+          const targetZoomLevels = typeof dirtyRegion.zoomLevel === 'number'
+            ? [clampTileZoomLevel(dirtyRegion.zoomLevel)]
+            : zoomLevels
+
+          for (const zoomLevel of targetZoomLevels) {
+            const dirtyTilesBefore = tileCache.getDirtyTiles().length
+            tileCache.invalidateTilesInBounds(dirtyRegion.bounds, zoomLevel)
+            dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
+          }
         }
       }
 
