@@ -618,6 +618,7 @@ export function Canvas2DRenderer({
       canvas,
       performance: {
         culling: true,
+        lod: false,
       },
       render: {
         quality: 'full',

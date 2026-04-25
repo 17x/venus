@@ -28,7 +28,7 @@
 - App-local implementation docs -> owning app README or app-local docs
 - Package-local implementation docs -> owning package README or package-local docs
 - Runtime and product-adoption notes for vector ->
-	`apps/vector-editor-web/docs/*`
+  `apps/vector-editor-web/docs/*`
 
 ## Anti-Drift Rules
 
@@ -39,4 +39,4 @@
   `docs/` when a local documentation home exists.
 - Do not write local absolute filesystem paths in documentation.
 - Prefer repository-relative paths, package names, logical import paths, or
-	domain docs when referring to code locations.
+  domain docs when referring to code locations.

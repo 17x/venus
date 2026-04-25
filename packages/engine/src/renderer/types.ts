@@ -116,6 +116,9 @@ export interface EngineRendererContext {
   // `interactive` allows renderers to trade fidelity for responsiveness during
   // high-frequency gestures (pan/zoom/drag).
   quality: EngineRenderQuality
+  // Explicit LOD toggle used by planner/renderer detail-degradation gates.
+  // When false, LOD-specific simplifications should be bypassed.
+  lodEnabled?: boolean
   // Pixel ratio used by renderers to map CSS-space viewport math to backing
   // store resolution on high-DPI displays.
   pixelRatio?: number

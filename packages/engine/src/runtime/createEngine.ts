@@ -50,6 +50,11 @@ interface EnginePerformanceOptions {
   lod?: boolean
 }
 
+interface EngineOverscanOptions {
+  enabled?: boolean
+  borderPx?: number
+}
+
 interface EngineRenderOptions {
   quality?: EngineRenderQuality
   webglClearColor?: readonly [number, number, number, number]
@@ -102,6 +107,13 @@ export interface CreateEngineOptions {
   canvas: HTMLCanvasElement | OffscreenCanvas
   initialScene?: EngineSceneSnapshot
   viewport?: EngineViewportOptions
+  // Top-level culling switch kept alongside LOD/overscan for clearer host setup.
+  culling?: boolean
+  // Top-level LOD config; when disabled, engine keeps full-detail rendering.
+  lod?: EngineLodConfig
+  // Top-level overscan control; merged into tileConfig when tile cache is configured.
+  overscan?: EngineOverscanOptions
+  // Legacy nested performance options retained for backward compatibility.
   performance?: EnginePerformanceOptions
   render?: EngineRenderOptions
   resource?: EngineResourceOptions
@@ -176,6 +188,16 @@ export interface Engine {
  * - optional render/resource/debug tuning grouped by concern
  */
 export function createEngine(options: CreateEngineOptions): Engine {
+  // Resolve top-level optimization options first and keep legacy nested
+  // options as fallback so existing hosts do not break.
+  const resolvedCulling = options.culling ?? options.performance?.culling
+  const resolvedLodConfig = options.lod ?? options.render?.lod
+  const resolvedLodEnabled = resolvedLodConfig?.enabled ?? false
+  const resolvedTileConfig = resolveEngineTileConfig(
+    options.render?.tileConfig,
+    options.overscan,
+  )
+
   const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
   const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
     1,
@@ -203,17 +225,18 @@ export function createEngine(options: CreateEngineOptions): Engine {
   })
   const renderer = createWebGLEngineRenderer({
     canvas: options.canvas,
-    enableCulling: options.performance?.culling,
+    enableCulling: resolvedCulling,
     clearColor: options.render?.webglClearColor,
     antialias: options.render?.webglAntialias ?? true,
     modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
-    lod: options.render?.lod,
-    tileConfig: options.render?.tileConfig,
+    lod: resolvedLodConfig,
+    tileConfig: resolvedTileConfig,
     initialRender: options.render?.initialRender,
     interactionPreview: options.render?.interactionPreview,
   })
   const renderContext: {
     quality: EngineRenderQuality
+    lodEnabled: boolean
     pixelRatio: number
     loader?: EngineResourceLoader
     textShaper?: EngineTextShaper
@@ -222,7 +245,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
     framePlanVersion?: number
     protectedNodeIds?: readonly EngineNodeId[]
   } = {
-    quality: options.render?.quality ?? 'full',
+    // Force full quality when LOD is disabled so detail degradation paths
+    // cannot lower fidelity via interaction-mode quality switches.
+    quality: resolvedLodEnabled
+      ? (options.render?.quality ?? 'full')
+      : 'full',
+    lodEnabled: resolvedLodEnabled,
     pixelRatio,
     loader: options.resource?.loader,
     textShaper: options.resource?.textShaper,
@@ -510,7 +538,11 @@ export function createEngine(options: CreateEngineOptions): Engine {
       return pixelRatio
     },
     setQuality(quality) {
-      renderContext.quality = quality
+      // LOD-disabled mode keeps full-detail rendering while preserving
+      // non-LOD optimization features (culling, shortlist, tile cache).
+      renderContext.quality = renderContext.lodEnabled
+        ? quality
+        : 'full'
     },
     setInteractionPreview(config) {
       renderer.setInteractionPreview?.(config)
@@ -592,6 +624,23 @@ export function createEngine(options: CreateEngineOptions): Engine {
       loop.stop()
       renderer.dispose?.()
     },
+  }
+}
+
+function resolveEngineTileConfig(
+  tileConfig: EngineTileConfig | undefined,
+  overscan: EngineOverscanOptions | undefined,
+) {
+  if (!tileConfig || !overscan) {
+    return tileConfig
+  }
+
+  // Merge top-level overscan knobs into tile config without changing any
+  // unrelated tile-cache feature flags.
+  return {
+    ...tileConfig,
+    overscanEnabled: overscan.enabled ?? tileConfig.overscanEnabled,
+    overscanBorderPx: overscan.borderPx ?? tileConfig.overscanBorderPx,
   }
 }
 

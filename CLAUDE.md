@@ -206,7 +206,7 @@ Comment rule:
 
 - Every newly written or modified code block must include a comment.
 - Prefer concise intent comments, but comment coverage is mandatory for fresh
-   code.
+  code.
 
 Validation commands (repository standard):
 

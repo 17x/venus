@@ -57,6 +57,6 @@ Planned package direction for the active runtime family:
 - Treat `@venus/runtime` as the framework-agnostic bridge between app UI and concrete worker/renderer packages
 - Treat `@venus/runtime/interaction` as the shared editing-interaction layer
 - Treat persisted model semantics as app-owned; vector currently uses the
-	app-local alias `@vector/model`
+  app-local alias `@vector/model`
 - Treat framework adapters as sibling packages, not part of the framework-agnostic runtime core
 - Treat runtime behavior presets as policy layers, not as core runtime ownership
