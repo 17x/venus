@@ -10,6 +10,7 @@ import {applyPatchBatch} from './patchBatch.ts'
 import {applyPatches} from './scenePatches.ts'
 import {createLocalOperation} from './operationPayload.ts'
 import {createLocalHistoryEntry} from './localHistoryEntry.ts'
+import {expandMaskLinkedShapeIds} from './maskGroupSemantics.ts'
 import {createRemotePatches} from './remotePatches.ts'
 import {createWorkerLocalCommandDispatcher} from './commandDispatchRegistry.ts'
 
@@ -44,7 +45,13 @@ const localCommandHandlers: Array<{
     }
 
     const mode = command.mode ?? 'replace'
-    const ids = Array.isArray(command.shapeIds) ? command.shapeIds : command.shapeId === undefined ? [] : [command.shapeId]
+    const rawIds = Array.isArray(command.shapeIds) ? command.shapeIds : command.shapeId === undefined ? [] : [command.shapeId]
+    const ids = command.preserveExactShapeIds
+      ? rawIds
+      : expandMaskLinkedShapeIds(
+          context.document,
+          rawIds.filter((shapeId: string | null | undefined): shapeId is string => typeof shapeId === 'string'),
+        )
     const indices = ids.map((shapeId: string | null) => (shapeId ? context.document.shapes.findIndex((shape) => shape.id === shapeId) : -1)).filter((index: number) => index >= 0)
     if (mode === 'clear' || (ids.length === 1 && ids[0] === null)) {
       const changed = setSelectedShapes(context.scene, [], 'clear')

@@ -28,7 +28,12 @@ import {
   asTransformBatch,
   createTransformPatches,
 } from './transformSerde.ts'
-import {resolveMaskSchemaPatches} from './maskGroupSemantics.ts'
+import {
+  createMaskLinkedReorderPatches,
+  expandMaskLinkedShapeIds,
+  includesMaskLinkedShapeIds,
+  resolveMaskSchemaPatches,
+} from './maskGroupSemantics.ts'
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -214,7 +219,12 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shapeId = asStringOrNull(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape) return []
-    return [{type: 'remove-shape', index: document.shapes.findIndex((item) => item.id === shape.id), shape}]
+    const expandedShapeIds = new Set(expandMaskLinkedShapeIds(document, [shape.id]))
+    return document.shapes
+      .map((candidate, index) => ({index, shape: candidate}))
+      .filter((item) => expandedShapeIds.has(item.shape.id))
+      .sort((left, right) => right.index - left.index)
+      .map(({index, shape}) => ({type: 'remove-shape' as const, index, shape}))
   }
 
   if (operation.type === 'shape.reorder') {
@@ -222,7 +232,11 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const toIndex = asNumberOrNull(operation.payload?.toIndex)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape || toIndex === null) return []
-    return [{type: 'reorder-shape', shapeId: shape.id, fromIndex: document.shapes.findIndex((item) => item.id === shape.id), toIndex}]
+    return createMaskLinkedReorderPatches({
+      document,
+      shapeId: shape.id,
+      toIndex,
+    })
   }
 
   if (operation.type === 'shape.group') {
@@ -231,7 +245,8 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const groupName = asStringOrNull(operation.payload?.name) ?? 'Group'
     if (selectedShapeIds.length < 2 || groupId === null) return []
 
-    const selectedShapes = selectedShapeIds
+    const expandedSelectedShapeIds = expandMaskLinkedShapeIds(document, selectedShapeIds)
+    const selectedShapes = expandedSelectedShapeIds
       .map((shapeId) => findShapeById(document, shapeId))
       .filter((shape): shape is import('@venus/document-core').DocumentNode => shape !== null)
     if (selectedShapes.length < 2) return []
@@ -345,6 +360,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
   if (operation.type === 'shape.convert-to-path') {
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     if (shapeIds.length === 0) return []
+    if (includesMaskLinkedShapeIds(document, shapeIds)) return []
 
     const patches: HistoryPatch[] = []
     shapeIds.forEach((shapeId) => {
@@ -364,6 +380,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     const mode = asBooleanMode(operation.payload?.mode)
     if (shapeIds.length < 2 || mode === null) return []
+    if (includesMaskLinkedShapeIds(document, shapeIds)) return []
     const resolved = createBooleanReplacePatches(document, shapeIds, mode)
     return resolved?.patches ?? []
   }
@@ -372,14 +389,19 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     const mode = asAlignMode(operation.payload?.mode)
     if (shapeIds.length < 2 || mode === null) return []
-    return createAlignMovePatches(document, shapeIds, mode, asAlignReference(operation.payload?.reference))
+    return createAlignMovePatches(
+      document,
+      expandMaskLinkedShapeIds(document, shapeIds),
+      mode,
+      asAlignReference(operation.payload?.reference),
+    )
   }
 
   if (operation.type === 'shape.distribute') {
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     const mode = asDistributeMode(operation.payload?.mode)
     if (shapeIds.length < 3 || mode === null) return []
-    return createDistributeMovePatches(document, shapeIds, mode)
+    return createDistributeMovePatches(document, expandMaskLinkedShapeIds(document, shapeIds), mode)
   }
 
   return []

@@ -6,6 +6,7 @@ import {
 
 interface ShapeActionsContext {
   selectedShapeIds: string[]
+  shapes?: import('@venus/document-core').DocumentNode[]
   dispatchCommand: (command: EditorRuntimeCommand) => void
   notify?: (message: string) => void
 }
@@ -17,10 +18,14 @@ export function handleShapeActions(
   const convertOrAlign = resolveConvertOrAlignShapeAction({
     actionType,
     selectedShapeIds: context.selectedShapeIds,
+    shapes: context.shapes,
   })
   if (convertOrAlign.handled) {
     if (convertOrAlign.command) {
       context.dispatchCommand(convertOrAlign.command)
+    }
+    if (convertOrAlign.message) {
+      context.notify?.(convertOrAlign.message)
     }
     return true
   }
@@ -28,6 +33,7 @@ export function handleShapeActions(
   const distributeOrBoolean = resolveDistributeOrBooleanShapeAction({
     actionType,
     selectedShapeIds: context.selectedShapeIds,
+    shapes: context.shapes,
   })
   if (distributeOrBoolean.handled) {
     if (distributeOrBoolean.command) {

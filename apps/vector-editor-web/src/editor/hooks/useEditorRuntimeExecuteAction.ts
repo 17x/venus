@@ -147,6 +147,7 @@ export function useEditorRuntimeExecuteAction(options: UseEditorRuntimeExecuteAc
 
     if (handleShapeActions(type, {
       selectedShapeIds: options.selectedShapeIds,
+      shapes: options.canvasRuntime.document.shapes,
       dispatchCommand: options.handleCommand,
       notify: (message) => options.add(message, 'info'),
     })) {

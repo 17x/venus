@@ -46,6 +46,39 @@
     `maskGroupId` / `maskRole` metadata through `shape.set-clip`, worker
     history, save/load adapters, and runtime selection helpers without pushing
     mask-group policy into engine
+  - `apps/vector-editor-web/src/editor/interaction/maskGroup.ts` plus the
+    selection-drag, transform-preview, and selection-bounds pipelines now use
+    that metadata so mask host/source pairs move together, preview together,
+    and resolve bounds through the shared mask source instead of relying only
+    on image `clipPathId` lookups
+  - worker local-history and remote patch generation now also treat linked
+    `mask-group` members as one product unit for delete and reorder flows, so
+    removing or layer-moving one member keeps the paired host/source from being
+    orphaned or split in stack order
+  - worker `shape.group` handling now expands linked `mask-group` members before
+    assigning the new parent group, so grouping a masked image also brings its
+    shared mask source along instead of splitting the pair across containers
+  - UI-layer `resolveGroupableShapeIds(...)` now expands linked `mask-group`
+    members before enabling group actions, keeping toolbar/menu affordances in
+    sync with the worker's mask-aware group command behavior
+  - `convert-to-path` and `boolean` now explicitly reject selections that touch
+    linked `mask-group` members at both the UI action layer and worker patch
+    generation layer, preventing replace-shape operations from silently
+    breaking host/source relationships before a deeper replacement policy exists
+  - `align` and `distribute` now expand through linked `mask-group` members in
+    both UI action dispatch and worker patch generation, so layout commands move
+    masked hosts and sources together instead of stretching them apart
+  - copy, cut, and duplicate now expand through linked `mask-group` members when
+    exporting selected element props, preventing clipboard and duplicate flows
+    from capturing only half of a masked host/source pair
+  - pasted and duplicated masked pairs now rebuild their internal `clipPathId`
+    and `maskGroupId` references from freshly allocated ids, so copied hosts and
+    sources stay linked to each other instead of accidentally retaining links to
+    the original pair
+  - generic `selection.set` now expands through linked `mask-group` members so
+    click, marquee, selection-all, and other normal selection flows treat the
+    pair as one unit, while explicit mask host/source jump commands keep an
+    exact-id escape hatch for targeted inspection
   - `apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx`,
     `apps/vector-editor-web/src/editor/hooks/useEditorRuntimeDerivedState.ts`,
     and `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx`

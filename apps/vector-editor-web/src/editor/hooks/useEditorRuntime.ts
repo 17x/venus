@@ -49,6 +49,7 @@ import {
   resolveRuntimeCommandSideEffects,
   resolveSelectedProps,
 } from './useEditorRuntime.helpers.ts'
+import {resolveMaskLinkedShapeIds} from '../interaction/maskGroup.ts'
 import {useEditorRuntimeDerivedState} from './useEditorRuntimeDerivedState.ts'
 import {
   useEditorRuntimeExecuteAction,
@@ -258,9 +259,7 @@ const useEditorRuntime = (options?: {
         return
       }
 
-      const currentIndex = selectedShapeIds.length === 1
-        ? hitShapeIds.indexOf(selectedShapeIds[0] ?? '')
-        : -1
+      const currentIndex = hitShapeIds.findIndex((shapeId) => resolveMaskLinkedShapeIds(interactionDocument, shapeId).some((linkedShapeId) => selectedShapeIds.includes(linkedShapeId)))
       const step = command.direction === 'backward' ? -1 : 1
       const nextIndex = currentIndex >= 0
         ? (currentIndex + step + hitShapeIds.length) % hitShapeIds.length

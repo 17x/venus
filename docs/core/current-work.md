@@ -687,8 +687,29 @@ context starts, or work needs to resume after switching topics.
     dimmed non-isolated context outlines during isolation, and first-pass
     persisted `maskGroupId` / `maskRole` metadata now tracks `shape.set-clip`
     through worker history and save/load adapters while engine still only
-    consumes clip semantics; remaining follow-up stays narrow around deeper
-    mask-group behaviors rather than basic persistence or visibility
+    consumes clip semantics; selection drag, transform preview, and selection
+    bounds now also consume that metadata so host/source pairs behave more like
+    one product-level unit during everyday interaction; worker delete and layer
+    reorder paths now also expand through linked mask members so the pair stays
+    coupled during destructive and stack-order actions; worker group creation
+    now expands through linked mask members before reparenting as well, so the
+    pair is not split across group containers; UI group affordances now expand
+    through the same linked mask members too, so command availability and
+    execution stay aligned; convert-to-path and boolean now also hard-block on
+    linked mask members in both UI and worker flows, avoiding silent
+    host/source breakage while replacement semantics remain undefined;
+    align and distribute now also expand through linked mask members so layout
+    commands preserve host/source coupling instead of splitting them spatially;
+    copy/cut/duplicate now also export linked mask members together so everyday
+    clipboard flows stop producing half-masked duplicates; pasted and duplicated
+    copies now also rebuild clip and mask-group references onto their newly
+    allocated ids instead of retaining links back to the original pair; generic
+    selection.set now also expands through linked mask members, with explicit
+    host/source selection commands opting into exact-id behavior for targeted
+    mask inspection;
+    remaining follow-up stays narrow around deeper mask-group behaviors rather
+    than basic persistence, visibility, motion coupling, or simple command
+    dispatch
 
 - `playground`
   Historical pure-canvas diagnostics bench.

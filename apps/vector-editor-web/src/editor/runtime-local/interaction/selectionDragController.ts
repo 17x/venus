@@ -5,6 +5,7 @@ import {
   getNormalizedBoundsFromBox,
 } from '@venus/engine'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
+import {resolveMaskLinkedShapeIds} from '../../interaction/maskGroup.ts'
 import {hasSelectedAncestorInDocument} from './selectionHierarchy.ts'
 import {resolveTopHitShapeId} from './shapeHitTest.ts'
 
@@ -258,18 +259,20 @@ function collectClipLinkedShapeIds(
   shapeId: string,
   out: Set<string>,
 ) {
-  const shape = shapeById.get(shapeId)
-  if (!shape) {
+  if (!shapeById.has(shapeId)) {
     return
   }
 
-  if (shape.type === 'image' && shape.clipPathId && shapeById.has(shape.clipPathId)) {
-    out.add(shape.clipPathId)
+  const document: EditorDocument = {
+    id: 'selection-drag',
+    name: 'selection-drag',
+    width: 0,
+    height: 0,
+    shapes: Array.from(shapeById.values()),
   }
-
-  shapeById.forEach((candidate) => {
-    if (candidate.type === 'image' && candidate.clipPathId === shape.id) {
-      out.add(candidate.id)
+  resolveMaskLinkedShapeIds(document, shapeId).forEach((linkedShapeId) => {
+    if (linkedShapeId !== shapeId) {
+      out.add(linkedShapeId)
     }
   })
 }

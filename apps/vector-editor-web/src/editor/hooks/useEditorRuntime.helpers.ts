@@ -29,6 +29,11 @@ import type {
   HandleKind,
   PathSubSelection,
 } from '../interaction/index.ts'
+import {
+  expandMaskLinkedShapeIds,
+  includesMaskLinkedShapeIds,
+  resolveMaskLinkedShapeIds,
+} from '../interaction/maskGroup.ts'
 import type {TransformBounds} from '../runtime-local/interaction/transformSessionManager.ts'
 import type {
   SelectedElementProps,
@@ -331,6 +336,8 @@ export function toElementPropsFromNode(selectedNode: DocumentNode): ElementProps
     cornerRadii: selectedNode.cornerRadii ? {...selectedNode.cornerRadii} : undefined,
     ellipseStartAngle: selectedNode.ellipseStartAngle,
     ellipseEndAngle: selectedNode.ellipseEndAngle,
+    maskGroupId: selectedNode.schema?.maskGroupId,
+    maskRole: selectedNode.schema?.maskRole,
   }
 }
 
@@ -339,7 +346,13 @@ export function resolveSelectedNonFrameElementProps(input: {
   selectedShapeIds: string[]
   clone?: boolean
 }) {
-  const selectedSet = new Set(input.selectedShapeIds)
+  const selectedSet = new Set(expandMaskLinkedShapeIds({
+    id: 'selection-elements',
+    name: 'selection-elements',
+    width: 0,
+    height: 0,
+    shapes: input.shapes,
+  }, input.selectedShapeIds))
   const elements = input.shapes
     .filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
     .map((shape) => toElementPropsFromNode(shape))
@@ -636,6 +649,53 @@ export function allocateUniqueShapeId(existingIds: Set<string>) {
   return nextId
 }
 
+function remapCopiedElements(input: {
+  elements: ElementProps[]
+  existingShapeIds: Set<string>
+  project: (element: ElementProps) => ElementProps
+}) {
+  const oldToNewId = new Map<string, string>()
+  input.elements.forEach((element) => {
+    oldToNewId.set(String(element.id), allocateUniqueShapeId(input.existingShapeIds))
+  })
+
+  const membersByMaskGroupId = new Map<string, ElementProps[]>()
+  input.elements.forEach((element) => {
+    if (typeof element.maskGroupId !== 'string') {
+      return
+    }
+    const members = membersByMaskGroupId.get(element.maskGroupId) ?? []
+    members.push(element)
+    membersByMaskGroupId.set(element.maskGroupId, members)
+  })
+
+  // Rebuild copied mask groups from copied host/source ids so new copies don't remain linked to originals.
+  const nextMaskGroupIdByPrevious = new Map<string, string>()
+  membersByMaskGroupId.forEach((members, previousMaskGroupId) => {
+    const host = members.find((element) => element.maskRole === 'host')
+    const source = members.find((element) => element.maskRole === 'source')
+    const nextHostId = host ? oldToNewId.get(String(host.id)) : undefined
+    const nextSourceId = source ? oldToNewId.get(String(source.id)) : undefined
+    if (nextHostId && nextSourceId) {
+      nextMaskGroupIdByPrevious.set(previousMaskGroupId, `mask-group:${nextHostId}:${nextSourceId}`)
+    }
+  })
+
+  return input.elements.map((element) => {
+    const nextElement = input.project(element)
+    return {
+      ...nextElement,
+      id: oldToNewId.get(String(element.id)) ?? String(element.id),
+      clipPathId: typeof element.clipPathId === 'string'
+        ? (oldToNewId.get(element.clipPathId) ?? element.clipPathId)
+        : element.clipPathId,
+      maskGroupId: typeof element.maskGroupId === 'string'
+        ? nextMaskGroupIdByPrevious.get(element.maskGroupId) ?? element.maskGroupId
+        : element.maskGroupId,
+    }
+  })
+}
+
 export function resolvePastedElements(input: {
   clipboard: ElementProps[]
   pasteSerial: number
@@ -655,26 +715,32 @@ export function resolvePastedElements(input: {
   const deltaX = pasteTargetX - anchorX
   const deltaY = pasteTargetY - anchorY
 
-  return input.clipboard.map((item) => ({
-    ...offsetElementPosition(
-      item,
-      (item.x ?? 0) + deltaX,
-      (item.y ?? 0) + deltaY,
-    ),
-    id: allocateUniqueShapeId(input.existingShapeIds),
-    name: `${item.name ?? item.type} Copy`,
-  }))
+  return remapCopiedElements({
+    elements: input.clipboard,
+    existingShapeIds: input.existingShapeIds,
+    project: (item) => ({
+      ...offsetElementPosition(
+        item,
+        (item.x ?? 0) + deltaX,
+        (item.y ?? 0) + deltaY,
+      ),
+      name: `${item.name ?? item.type} Copy`,
+    }),
+  })
 }
 
 export function resolveDuplicatedElements(input: {
   elements: ElementProps[]
   existingShapeIds: Set<string>
 }) {
-  return input.elements.map((item) => ({
-    ...offsetElementPosition(item, (item.x ?? 0) + 24, (item.y ?? 0) + 24),
-    id: allocateUniqueShapeId(input.existingShapeIds),
-    name: `${item.name ?? item.type} Copy`,
-  }))
+  return remapCopiedElements({
+    elements: input.elements,
+    existingShapeIds: input.existingShapeIds,
+    project: (item) => ({
+      ...offsetElementPosition(item, (item.x ?? 0) + 24, (item.y ?? 0) + 24),
+      name: `${item.name ?? item.type} Copy`,
+    }),
+  })
 }
 
 export function resolveSelectionModifyCommand(data: unknown): EditorRuntimeCommand | null {
@@ -986,8 +1052,20 @@ export function resolveGroupableShapeIds(input: {
   shapes: DocumentNode[]
 }) {
   const shapeById = new Map(input.shapes.map((shape) => [shape.id, shape]))
+  const document: EditorDocument = {
+    id: 'groupable-selection',
+    name: 'groupable-selection',
+    width: 0,
+    height: 0,
+    shapes: input.shapes,
+  }
+  // Keep UI grouping affordances aligned with worker grouping by expanding linked mask members first.
+  const expandedSelectedShapeIds = [...new Set(
+    input.selectedShapeIds.flatMap((shapeId) => resolveMaskLinkedShapeIds(document, shapeId)),
+  )]
+  const expandedSelectedShapeIdSet = new Set(expandedSelectedShapeIds)
 
-  return input.selectedShapeIds.filter((shapeId) => {
+  return expandedSelectedShapeIds.filter((shapeId) => {
     const shape = shapeById.get(shapeId)
     if (!shape || shape.type === 'frame') {
       return false
@@ -995,7 +1073,7 @@ export function resolveGroupableShapeIds(input: {
 
     let parentId = shape.parentId
     while (parentId) {
-      if (input.selectedShapeIds.includes(parentId)) {
+      if (expandedSelectedShapeIdSet.has(parentId)) {
         return false
       }
       parentId = shapeById.get(parentId)?.parentId ?? null
@@ -1123,6 +1201,7 @@ export function resolveMaskSelectionCommand(input: {
             type: 'selection.set' as const,
             shapeIds: [maskHost.id],
             mode: 'replace' as const,
+            preserveExactShapeIds: true,
           },
           message: `Selected host ${maskHost.name}.`,
         }
@@ -1135,6 +1214,7 @@ export function resolveMaskSelectionCommand(input: {
           type: 'selection.set' as const,
           shapeIds: [selectedNode.id],
           mode: 'replace' as const,
+          preserveExactShapeIds: true,
         },
         message: `Selected host ${selectedNode.name}.`,
       }
@@ -1147,6 +1227,7 @@ export function resolveMaskSelectionCommand(input: {
           type: 'selection.set' as const,
           shapeIds: [hostImage.id],
           mode: 'replace' as const,
+          preserveExactShapeIds: true,
         },
         message: `Selected host ${hostImage.name}.`,
       }
@@ -1166,6 +1247,7 @@ export function resolveMaskSelectionCommand(input: {
           type: 'selection.set' as const,
           shapeIds: [maskSource.id],
           mode: 'replace' as const,
+          preserveExactShapeIds: true,
         },
         message: `Selected mask source ${maskSource.name}.`,
       }
@@ -1178,6 +1260,7 @@ export function resolveMaskSelectionCommand(input: {
         type: 'selection.set' as const,
         shapeIds: [selectedNode.clipPathId],
         mode: 'replace' as const,
+        preserveExactShapeIds: true,
       },
       message: 'Selected mask source.',
     }
@@ -1190,6 +1273,7 @@ export function resolveMaskSelectionCommand(input: {
         type: 'selection.set' as const,
         shapeIds: [clipShape.id],
         mode: 'replace' as const,
+        preserveExactShapeIds: true,
       },
       message: `Selected mask source ${clipShape.name}.`,
     }
@@ -1203,10 +1287,27 @@ export function resolveMaskSelectionCommand(input: {
 export function resolveConvertOrAlignShapeAction(input: {
   actionType: string
   selectedShapeIds: string[]
+  shapes?: DocumentNode[]
 }) {
   if (input.actionType === 'convert-to-path' || input.actionType === 'convertToPath') {
     if (input.selectedShapeIds.length === 0) {
       return {handled: true as const}
+    }
+
+    const document = input.shapes
+      ? {
+          id: 'runtime-actions',
+          name: 'runtime-actions',
+          width: 0,
+          height: 0,
+          shapes: input.shapes,
+        }
+      : null
+    if (document && includesMaskLinkedShapeIds(document, input.selectedShapeIds)) {
+      return {
+        handled: true as const,
+        message: 'Convert to path is unavailable for masked images or mask sources.',
+      }
     }
 
     return {
@@ -1232,11 +1333,21 @@ export function resolveConvertOrAlignShapeAction(input: {
       return {handled: true as const}
     }
 
+    const expandedSelectedShapeIds = input.shapes
+      ? expandMaskLinkedShapeIds({
+          id: 'runtime-actions',
+          name: 'runtime-actions',
+          width: 0,
+          height: 0,
+          shapes: input.shapes,
+        }, input.selectedShapeIds)
+      : input.selectedShapeIds
+
     return {
       handled: true as const,
       command: {
         type: 'shape.align' as const,
-        shapeIds: input.selectedShapeIds,
+        shapeIds: expandedSelectedShapeIds,
         mode: alignModeMap[input.actionType as keyof typeof alignModeMap],
         reference: 'selection' as const,
       },
@@ -1249,6 +1360,7 @@ export function resolveConvertOrAlignShapeAction(input: {
 export function resolveDistributeOrBooleanShapeAction(input: {
   actionType: string
   selectedShapeIds: string[]
+  shapes?: DocumentNode[]
 }) {
   const distributeModeMap = {
     'distribute-horizontal': 'hspace',
@@ -1260,11 +1372,21 @@ export function resolveDistributeOrBooleanShapeAction(input: {
       return {handled: true as const}
     }
 
+    const expandedSelectedShapeIds = input.shapes
+      ? expandMaskLinkedShapeIds({
+          id: 'runtime-actions',
+          name: 'runtime-actions',
+          width: 0,
+          height: 0,
+          shapes: input.shapes,
+        }, input.selectedShapeIds)
+      : input.selectedShapeIds
+
     return {
       handled: true as const,
       command: {
         type: 'shape.distribute' as const,
-        shapeIds: input.selectedShapeIds,
+        shapeIds: expandedSelectedShapeIds,
         mode: distributeModeMap[input.actionType as keyof typeof distributeModeMap],
       },
     }
@@ -1284,6 +1406,22 @@ export function resolveDistributeOrBooleanShapeAction(input: {
       return {handled: true as const}
     }
 
+    const document = input.shapes
+      ? {
+          id: 'runtime-actions',
+          name: 'runtime-actions',
+          width: 0,
+          height: 0,
+          shapes: input.shapes,
+        }
+      : null
+    if (document && includesMaskLinkedShapeIds(document, input.selectedShapeIds)) {
+      return {
+        handled: true as const,
+        message: 'Boolean operations are unavailable for masked images or mask sources.',
+      }
+    }
+
     return {
       handled: true as const,
       command: {
@@ -1291,7 +1429,7 @@ export function resolveDistributeOrBooleanShapeAction(input: {
         shapeIds: input.selectedShapeIds,
         mode: booleanModeMap[input.actionType as keyof typeof booleanModeMap],
       },
-      message: 'Boolean command baseline dispatched (geometry merge pending)',
+      message: 'Boolean command dispatched.',
     }
   }
 

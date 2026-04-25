@@ -4,7 +4,13 @@ import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@vector
 import type {HistoryEntry, HistoryPatch} from '../history.ts'
 import type {EditorRuntimeCommand} from '../protocol.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
-import {invertMaskSchemaPatches, resolveMaskSchemaPatches} from './maskGroupSemantics.ts'
+import {
+  createMaskLinkedReorderPatches,
+  expandMaskLinkedShapeIds,
+  includesMaskLinkedShapeIds,
+  invertMaskSchemaPatches,
+  resolveMaskSchemaPatches,
+} from './maskGroupSemantics.ts'
 import {
   convertShapeToPathShape,
   createAlignMovePatches,
@@ -38,9 +44,14 @@ export function createLocalHistoryEntry(
 ): Omit<HistoryEntry, 'source'> {
   if (command.type === 'selection.delete') {
     const selectedIndices = getSelectedShapeIndices(scene).sort((left, right) => left - right)
-    const selectedShapes = selectedIndices
-      .map((index) => ({index, shape: document.shapes[index]}))
-      .filter((item): item is {index: number; shape: DocumentNode} => Boolean(item.shape))
+    const selectedShapeIds = selectedIndices
+      .map((index) => document.shapes[index]?.id)
+      .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    // Expand through mask-group membership so delete keeps host/source pairs consistent.
+    const expandedSelectedShapeIds = new Set(expandMaskLinkedShapeIds(document, selectedShapeIds))
+    const selectedShapes = document.shapes
+      .map((shape, index) => ({index, shape}))
+      .filter((item): item is {index: number; shape: DocumentNode} => expandedSelectedShapeIds.has(item.shape.id))
 
     if (selectedShapes.length === 0) {
       return {
@@ -183,13 +194,25 @@ export function createLocalHistoryEntry(
   if (command.type === 'shape.reorder') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) return createLogOnlyEntry(command.type, 'Reorder Missing Shape')
-    const fromIndex = document.shapes.findIndex((item) => item.id === shape.id)
-    if (fromIndex < 0 || fromIndex === command.toIndex) return createLogOnlyEntry(command.type, 'Reorder Shape')
+    const forward = createMaskLinkedReorderPatches({
+      document,
+      shapeId: shape.id,
+      toIndex: command.toIndex,
+    })
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Reorder Shape')
     return {
       id: `shape.reorder.${shape.id}`,
-      label: `Reorder ${shape.name}`,
-      forward: [{type: 'reorder-shape', shapeId: shape.id, fromIndex, toIndex: command.toIndex}],
-      backward: [{type: 'reorder-shape', shapeId: shape.id, fromIndex: command.toIndex, toIndex: fromIndex}],
+      label: forward.length > 1 ? `Reorder ${forward.length} Shapes` : `Reorder ${shape.name}`,
+      forward,
+      backward: forward
+        .filter((patch): patch is Extract<HistoryPatch, {type: 'reorder-shape'}> => patch.type === 'reorder-shape')
+        .slice()
+        .reverse()
+        .map((patch) => ({
+        ...patch,
+        fromIndex: patch.toIndex,
+        toIndex: patch.fromIndex,
+      })),
     }
   }
 
@@ -219,12 +242,21 @@ export function createLocalHistoryEntry(
   if (command.type === 'shape.remove') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) return createLogOnlyEntry(command.type, 'Remove Missing Shape')
-    const index = document.shapes.findIndex((item) => item.id === shape.id)
+    // Removing one mask member removes the whole linked pair to avoid orphaned hosts/sources.
+    const expandedShapeIds = new Set(expandMaskLinkedShapeIds(document, [shape.id]))
+    const removedShapes = document.shapes
+      .map((candidate, index) => ({index, shape: candidate}))
+      .filter((item): item is {index: number; shape: DocumentNode} => expandedShapeIds.has(item.shape.id))
+    if (removedShapes.length === 0) return createLogOnlyEntry(command.type, 'Remove Missing Shape')
     return {
       id: `shape.remove.${shape.id}`,
-      label: `Remove ${shape.name}`,
-      forward: [{type: 'remove-shape', index, shape}],
-      backward: [{type: 'insert-shape', index, shape}],
+      label: removedShapes.length > 1 ? `Remove ${removedShapes.length} Shapes` : `Remove ${shape.name}`,
+      forward: removedShapes
+        .slice()
+        .sort((left, right) => right.index - left.index)
+        .map(({index, shape}) => ({type: 'remove-shape' as const, index, shape})),
+      backward: removedShapes
+        .map(({index, shape}) => ({type: 'insert-shape' as const, index, shape})),
     }
   }
 
@@ -234,7 +266,9 @@ export function createLocalHistoryEntry(
       : getSelectedShapeIndices(scene)
         .map((index) => document.shapes[index]?.id)
         .filter((shapeId): shapeId is string => typeof shapeId === 'string')
-    const selectedShapes = selectedShapeIds
+    // Expand explicit picks so a mask host/source pair cannot be grouped into different parents.
+    const expandedSelectedShapeIds = expandMaskLinkedShapeIds(document, selectedShapeIds)
+    const selectedShapes = expandedSelectedShapeIds
       .map((shapeId: string) => findShapeById(document, shapeId))
       .filter((shape: DocumentNode | null): shape is DocumentNode => shape !== null)
     if (selectedShapes.length < 2) return createLogOnlyEntry(command.type, 'Group Noop')
@@ -401,6 +435,9 @@ export function createLocalHistoryEntry(
       : getSelectedShapeIndices(scene)
         .map((index) => document.shapes[index]?.id)
         .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    if (includesMaskLinkedShapeIds(document, candidateIds)) {
+      return createLogOnlyEntry(command.type, 'Convert To Path Blocked By Mask')
+    }
 
     const targetShapes = candidateIds
       .map((shapeId: string) => ({
@@ -438,6 +475,9 @@ export function createLocalHistoryEntry(
       : getSelectedShapeIndices(scene)
         .map((index) => document.shapes[index]?.id)
         .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    if (includesMaskLinkedShapeIds(document, candidateIds)) {
+      return createLogOnlyEntry(command.type, 'Boolean Blocked By Mask')
+    }
 
     const resolved = createBooleanReplacePatches(document, candidateIds, command.mode)
     if (!resolved || resolved.patches.length === 0) {
@@ -480,8 +520,9 @@ export function createLocalHistoryEntry(
       : getSelectedShapeIndices(scene)
         .map((index) => document.shapes[index]?.id)
         .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    const expandedShapeIds = expandMaskLinkedShapeIds(document, shapeIds)
 
-    const forward = createAlignMovePatches(document, shapeIds, command.mode, command.reference ?? 'selection')
+    const forward = createAlignMovePatches(document, expandedShapeIds, command.mode, command.reference ?? 'selection')
     if (forward.length === 0) return createLogOnlyEntry(command.type, 'Align Noop')
     const backward = forward
       .slice()
@@ -509,8 +550,9 @@ export function createLocalHistoryEntry(
       : getSelectedShapeIndices(scene)
         .map((index) => document.shapes[index]?.id)
         .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    const expandedShapeIds = expandMaskLinkedShapeIds(document, shapeIds)
 
-    const forward = createDistributeMovePatches(document, shapeIds, command.mode)
+    const forward = createDistributeMovePatches(document, expandedShapeIds, command.mode)
     if (forward.length === 0) return createLogOnlyEntry(command.type, 'Distribute Noop')
     const backward = forward
       .slice()

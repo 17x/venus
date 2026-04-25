@@ -78,6 +78,7 @@ export type EditorRuntimeCommand =
       shapeId?: string | null
       shapeIds?: string[]
       mode?: 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
+      preserveExactShapeIds?: boolean
     }
   | { type: 'tool.select'; tool: ToolId; toolName?: ToolName }
   | { type: 'shape.rename'; shapeId: string; name: string; text?: string }
