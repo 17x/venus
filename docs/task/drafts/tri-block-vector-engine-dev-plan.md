@@ -18,7 +18,7 @@ Source blocks:
 
 ### 1.2 Unified domain model ownership
 
-1. Document semantics stay in `@venus/document-core` (node, paint, stroke, effect, export settings).
+1. Vector document semantics stay in `@vector/model` (node, paint, stroke, effect, export settings).
 2. Runtime interaction/session state stays in app/runtime bridge (`currentTool`, marquee, transform session, panel visibility).
 3. Engine owns mechanism-only responsibilities (render, hit-test, spatial, bounds/matrix operations).
 

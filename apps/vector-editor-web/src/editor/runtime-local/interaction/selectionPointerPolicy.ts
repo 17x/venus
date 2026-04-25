@@ -1,4 +1,4 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import {isPointInsideEngineShapeHitArea, isPointInsideRotatedBounds} from '@venus/engine'
 import {hasSelectedAncestorInDocument} from './selectionHierarchy.ts'
 import {withResolvedPathHints} from '../../interaction/pathHitTestHints.ts'

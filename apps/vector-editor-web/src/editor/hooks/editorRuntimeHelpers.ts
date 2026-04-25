@@ -5,7 +5,7 @@ import {
   type DocumentNode,
   type ToolId,
   type ToolName,
-} from '@venus/document-core'
+} from '@vector/model'
 import {getNormalizedBoundsFromBox} from '@vector/runtime/engine'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {HistorySummary} from '@vector/runtime/worker'

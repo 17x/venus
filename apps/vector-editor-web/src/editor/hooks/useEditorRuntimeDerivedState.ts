@@ -1,5 +1,5 @@
 import {createElement, useMemo, useRef} from 'react'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {RuntimeEditingMode} from '@vector/runtime'
 import {
   buildRuntimePathEditInstructions,
@@ -146,20 +146,12 @@ export function useEditorRuntimeDerivedState(options: {
     ? canvasRuntime.document.shapes.find((shape) => shape.id === selectedShape.id) ?? null
     : null
   const selectedShapeId = selectedShape?.id ?? null
-  const shouldDeferTransformPreviewToOverlay =
-    editingMode === 'dragging' ||
-    editingMode === 'resizing' ||
-    editingMode === 'rotating'
   const previewState = useMemo(() => resolveTransformPreviewRuntimeState(
     canvasRuntime.document,
     canvasRuntime.shapes,
-    // Keep drag/resize/rotate visuals in preview overlay only so the main
-    // scene snapshot stays stable during high-frequency transform gestures.
-    shouldDeferTransformPreviewToOverlay
-      ? null
-      : transformPreview?.shapes ?? null,
+    transformPreview?.shapes ?? null,
     {includeClipBoundImagePreview: true},
-  ), [canvasRuntime.document, canvasRuntime.shapes, shouldDeferTransformPreviewToOverlay, transformPreview])
+  ), [canvasRuntime.document, canvasRuntime.shapes, transformPreview])
   const isolationVisibleIds = useMemo(() => resolveIsolationShapeIdSet({
     shapes: previewState.previewDocument.shapes,
     groupId: isolationGroupId,
@@ -296,22 +288,6 @@ export function useEditorRuntimeDerivedState(options: {
     return resolveMarqueeBounds(marquee)
   }, [marquee])
 
-  const hoveredShapeBounds = useMemo(() => {
-    if (!effectiveHoveredShapeId) {
-      return null
-    }
-    const hoveredShape = previewShapeById.get(effectiveHoveredShapeId)
-    if (!hoveredShape) {
-      return null
-    }
-    return {
-      minX: Math.min(hoveredShape.x, hoveredShape.x + hoveredShape.width),
-      minY: Math.min(hoveredShape.y, hoveredShape.y + hoveredShape.height),
-      maxX: Math.max(hoveredShape.x, hoveredShape.x + hoveredShape.width),
-      maxY: Math.max(hoveredShape.y, hoveredShape.y + hoveredShape.height),
-    }
-  }, [effectiveHoveredShapeId, previewShapeById])
-
   const activePathSubSelection = pathSubSelectionHover ?? pathSubSelection
   const selectionChromeRegistry = useMemo(() => createRuntimeSelectionChromeRegistry(), [])
   const selectionChrome = useMemo(() => selectionChromeRegistry.resolve({
@@ -393,10 +369,17 @@ export function useEditorRuntimeDerivedState(options: {
     return {from, to}
   }, [activePathAnchors, activePathSubSelection])
 
+  const shouldSuppressSelectionBoundsOverlay = (
+    Boolean(transformPreview?.shapes?.length) ||
+    editingMode === 'dragging' ||
+    editingMode === 'resizing' ||
+    editingMode === 'rotating'
+  )
+
   const baseOverlayInstructions = useMemo(() => buildRuntimeOverlayInstructions({
-    selectedBounds: selectionState.selectedBounds,
+    selectedBounds: shouldSuppressSelectionBoundsOverlay ? null : selectionState.selectedBounds,
     marqueeBounds,
-    hoveredShapeBounds,
+    hoveredShapeBounds: null,
     snapGuides: effectiveSnapGuides,
     canvasBounds: {
       minX: 0,
@@ -405,10 +388,10 @@ export function useEditorRuntimeDerivedState(options: {
       maxY: interactionDocument.height,
     },
   }), [
-    hoveredShapeBounds,
     interactionDocument.height,
     interactionDocument.width,
     marqueeBounds,
+    shouldSuppressSelectionBoundsOverlay,
     selectionState.selectedBounds,
     effectiveSnapGuides,
   ])
@@ -432,9 +415,19 @@ export function useEditorRuntimeDerivedState(options: {
     [baseOverlayInstructions, pathEditInstructions],
   )
 
-  const previewInstructions = useMemo(() => buildRuntimePreviewInstructions({
-    transformPreview,
-  }), [transformPreview])
+  const previewInstructions = useMemo(() => {
+    if (
+      editingMode === 'dragging' ||
+      editingMode === 'resizing' ||
+      editingMode === 'rotating'
+    ) {
+      return []
+    }
+
+    return buildRuntimePreviewInstructions({
+      transformPreview,
+    })
+  }, [editingMode, transformPreview])
 
   const protectedNodeIds = useMemo(() => {
     const ids = new Set<string>(selectedShapeIds)
@@ -462,8 +455,14 @@ export function useEditorRuntimeDerivedState(options: {
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
     const overlayHoveredShapeId = effectiveHoveredShapeId
-    const hideSelectionBounds = selectionChrome.hideBounds
-    const hideSelectionChrome = activeTransformHandle !== null || selectionChrome.hideTransformHandles
+    const hidePreviewSelectionChrome = Boolean(transformPreview?.shapes?.length)
+    const hideTransformSelectionChrome = (
+      editingMode === 'dragging' ||
+      editingMode === 'resizing' ||
+      editingMode === 'rotating'
+    )
+    const hideSelectionBounds = hidePreviewSelectionChrome || hideTransformSelectionChrome || activeTransformHandle !== null || selectionChrome.hideBounds
+    const hideSelectionChrome = hidePreviewSelectionChrome || hideTransformSelectionChrome || activeTransformHandle !== null || selectionChrome.hideTransformHandles
     const overlaySnapGuides = effectiveSnapGuides
     const overlayPathSubSelection = pathSubSelection
     const overlayPathSubSelectionHover = pathSubSelectionHover
@@ -492,8 +491,10 @@ export function useEditorRuntimeDerivedState(options: {
   }, [
     activeTransformHandle,
     draftPrimitive,
+    editingMode,
     effectiveHoveredShapeId,
     isolationBackdropShapes,
+    transformPreview,
     selectionChrome.hideBounds,
     marqueeBounds,
     pathSubSelection,

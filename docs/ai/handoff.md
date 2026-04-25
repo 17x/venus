@@ -12,6 +12,8 @@
 8. `../architecture/overview.md`
 9. `../architecture/render-cache-layering.md`
 10. `./doc-update-rules.md`
+11. `./project-rules.md`
+12. `../../AI_CHANGELOG.md`
 
 ## Required Output For Handoff Summary
 

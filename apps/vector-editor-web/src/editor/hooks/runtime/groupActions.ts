@@ -1,4 +1,4 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import type {EditorRuntimeCommand} from '@vector/runtime/worker'
 import {resolveGroupableShapeIds, resolveSelectedGroups} from '../useEditorRuntime.helpers.ts'
 

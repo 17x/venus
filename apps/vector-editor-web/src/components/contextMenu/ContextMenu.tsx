@@ -4,7 +4,7 @@ import {I18nHistoryDataItem} from '../../i18n/type'
 import {MenuItemType} from '../header/menu/type'
 import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
 import {ElementProps} from '@lite-u/editor/types'
-import {Point} from '@venus/document-core'
+import {Point} from '@vector/model'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
 import {
   DropdownMenu,

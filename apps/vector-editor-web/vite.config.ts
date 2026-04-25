@@ -11,6 +11,7 @@ export default defineConfig({
     alias: [
       {find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url))},
       {find: 'i18next', replacement: fileURLToPath(new URL('./src/shims/i18next.js', import.meta.url))},
+      {find: '@vector/model', replacement: fileURLToPath(new URL('./src/model/index.ts', import.meta.url))},
       {find: '@vector/ui', replacement: fileURLToPath(new URL('./src/ui/index.ts', import.meta.url))},
       {find: '@vector/runtime/worker', replacement: fileURLToPath(new URL('./src/editor/runtime-local/worker/index.ts', import.meta.url))},
       {find: '@vector/runtime/interaction', replacement: fileURLToPath(new URL('./src/runtime/interaction/index.ts', import.meta.url))},

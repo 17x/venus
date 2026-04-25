@@ -58,9 +58,9 @@ const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
 
 const MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME = 2
 const MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME = 16 * 1024 * 1024
-const TEXT_PLACEHOLDER_MAX_SCALE = 0.3
+const TEXT_PLACEHOLDER_MAX_SCALE = 0.16
 const TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX = 2.2
-const OVERVIEW_IMAGE_SKIP_MAX_SCALE = 0.05
+const OVERVIEW_IMAGE_SKIP_MAX_SCALE = 0.02
 const OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX = 2.8
 
 /**
@@ -92,7 +92,7 @@ export function createWebGLEngineRenderer(
   const pipeline = createWebGLQuadPipeline(context)
   const imageCache = new Map<string, CachedTextureEntry>()
   const textCache = new Map<string, CachedTextureEntry>()
-  const interactionPreview = {
+  let interactionPreview = {
     ...DEFAULT_INTERACTION_PREVIEW,
     ...options.interactionPreview,
   }
@@ -108,8 +108,8 @@ export function createWebGLEngineRenderer(
     culledCount: number
   } | null = null
   
-  // Initialize tile cache (optional)
-  const tileCache = options.tileConfig ? new EngineTileCache(options.tileConfig) : null
+  // Only create the tile cache when the feature is explicitly enabled.
+  const tileCache = options.tileConfig?.enabled ? new EngineTileCache(options.tileConfig) : null
   const tileTextures = new Map<number, WebGLTexture>()
   let nextTileTextureId = 1
   let previousTileZoomLevel: TileZoomLevel | null = null
@@ -165,6 +165,12 @@ export function createWebGLEngineRenderer(
       }
       modelRenderer.resize?.(width, height)
       context.viewport(0, 0, width, height)
+    },
+    setInteractionPreview: (config) => {
+      interactionPreview = {
+        ...DEFAULT_INTERACTION_PREVIEW,
+        ...config,
+      }
     },
     render: async (frame: EngineRenderFrame) => {
       const startAt = performance.now()

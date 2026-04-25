@@ -4,7 +4,7 @@ import {
   createAffineMatrixAroundPoint,
   getNormalizedBoundsFromBox,
 } from '@vector/runtime/engine'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
 
 export function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {

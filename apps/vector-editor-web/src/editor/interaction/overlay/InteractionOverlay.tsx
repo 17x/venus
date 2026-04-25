@@ -9,7 +9,7 @@ import {
 import {
   resolveNodeTransform,
 } from '@vector/runtime/engine'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import {resolveSnapGuideLines, type SnapGuide} from '../runtime/index.ts'
 import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
@@ -379,7 +379,7 @@ export function InteractionOverlay({
         >
           {isolationBackdropShapes.map((shape) => renderIsolationBackdropShapeStroke(shape, presentation))}
           {hoveredShape && renderHoveredShapeStroke(hoveredShape, presentation)}
-          {selectedShapes.map((shape) => renderSelectedShapeStroke(shape, presentation))}
+          {!hideSelectionChrome && selectedShapes.map((shape) => renderSelectedShapeStroke(shape, presentation))}
           {draftPrimitive && renderDraftPrimitive(draftPrimitive, presentation)}
           {penDraftPoints && penDraftPoints.length >= 2 && (
             <polyline

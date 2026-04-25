@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 
 export function hasSelectedAncestorInDocument(
   shapeById: Map<string, EditorDocument['shapes'][number]>,

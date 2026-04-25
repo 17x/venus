@@ -1,6 +1,6 @@
 import {
   type EditorDocument,
-} from '@venus/document-core'
+} from '@vector/model'
 import {
   getNormalizedBoundsFromBox,
 } from '@vector/runtime/engine'

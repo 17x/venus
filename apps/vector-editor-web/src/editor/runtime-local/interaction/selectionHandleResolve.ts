@@ -1,4 +1,4 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import {buildSelectionHandlesFromBounds, pickSelectionHandleAtPoint, type SelectionHandle} from './selectionHandles.ts'
 import {resolveSelectedNodesByIds, resolveSingleSelectedRotation} from './selectionResolve.ts'
 

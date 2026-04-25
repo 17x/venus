@@ -19,7 +19,7 @@ Also read when relevant:
 
 - `docs/core/current-work.md` — active implementation status details
 - `docs/core/review-checklist.md` — review and risk checklist
-- `docs/vector-editor-architecture.md` — vector editor module map, data flows, gaps, migration plan
+- `apps/vector-editor-web/docs/architecture.md` — vector app module map, product boundary, and local integration notes
 - `docs/architecture/runtime.md` — runtime-specific integration notes
 
 If docs conflict, follow `docs/engineering/doc-versioning.md` priority order.
@@ -53,7 +53,7 @@ apps/* -> @venus/runtime + @venus/runtime/interaction -> @venus/runtime/worker +
 ### Package roles
 
 - `@venus/runtime` — framework-agnostic bridge between app UI and worker/renderer
-- `@venus/document-core` — source of truth for persisted scene/document semantics
+- `@vector/model` — vector app-local model alias for persisted scene/document semantics
 - `@venus/engine` — mechanism owner (render, hit-test, math, spatial index)
 - `@venus/runtime/interaction` — shared editing interaction algorithms
 - `@venus/runtime/presets` — default behavior packs (not core contracts)
@@ -75,7 +75,8 @@ directly depend on engine internals.
 - Preserve existing TypeScript, React, import, and formatting patterns
 - Use `@venus/*` aliases when crossing package boundaries
 - No semicolons, no `@ts-ignore`
-- Add concise comments at non-obvious logic points (state transitions, algorithmic transforms, compatibility edges)
+- Every newly written or modified code block must include a comment.
+- Prefer concise intent comments, but do not leave fresh code uncommented.
 - When changing public interfaces, update inline/API comments with parameter semantics
 
 ## Documentation

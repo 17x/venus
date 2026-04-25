@@ -12,12 +12,14 @@
   shared interaction policy.
 - Engine owns rendering, geometry, hit-testing, spatial indexing, and backend
   mechanism.
-- Persisted document semantics stay in `@venus/document-core`.
+- Persisted document semantics are app-owned; vector currently exposes them via
+  the app-local alias `@vector/model`.
 - Renderer consumes snapshot + viewport, not product policy.
 
 ## Package Responsibilities
 
-- `@venus/document-core`: persisted scene/document contracts and geometry primitives.
+- `@vector/model` (vector app alias): persisted scene/document contracts and
+  geometry primitives for `apps/vector-editor-web`.
 - `@venus/runtime`: framework-agnostic runtime core and worker bridge.
 - `@venus/runtime/interaction`: shared editing interaction algorithms.
 - `@venus/runtime/worker`: command execution, history, mutation flow.
@@ -34,4 +36,4 @@
 - Layer boundary: `./layering.md`
 - Runtime details: `./runtime.md`
 - Data flow: `./data-flow.md`
-- Detailed vector architecture: `../vector-editor-architecture.md`
+- Detailed vector architecture: `../../apps/vector-editor-web/docs/architecture.md`

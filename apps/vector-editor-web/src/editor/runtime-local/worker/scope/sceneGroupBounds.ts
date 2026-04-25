@@ -1,4 +1,4 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import type {DocumentNode, EditorDocument} from '@vector/model'
 import {getNormalizedBoundsFromBox} from '@venus/engine'
 import {incrementSceneVersion, type SceneMemory} from '@vector/runtime/shared-memory'
 import type {WorkerSpatialIndex} from './types.ts'

@@ -1,4 +1,4 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import {toLegacyShapeTransformRecord, type MatrixFirstNodeTransform, type ShapeTransformRecord} from '@venus/engine'
 import type {HistoryPatch} from '../history.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke} from './model.ts'

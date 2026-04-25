@@ -1,4 +1,4 @@
-import {nid, type DocumentNode, type EditorDocument} from '@venus/document-core'
+import {nid, type DocumentNode, type EditorDocument} from '@vector/model'
 import type {MatrixFirstNodeTransform} from '@venus/engine'
 import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '@vector/runtime/shared-memory'
 import type {HistoryEntry, HistoryPatch} from '../history.ts'

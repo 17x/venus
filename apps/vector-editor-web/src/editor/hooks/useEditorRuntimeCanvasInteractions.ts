@@ -1,5 +1,5 @@
 import {useMemo, useRef} from 'react'
-import {type ToolName} from '@venus/document-core'
+import {type ToolName} from '@vector/model'
 import {
   createMarqueeState,
   resolveSelectionHandleHitAtPoint,
@@ -75,7 +75,7 @@ export function useEditorRuntimeCanvasInteractions(options: {
   pathSubSelection: PathSubSelection | null
   pathSubSelectionHover: PathSubSelection | null
   penTool: ReturnType<typeof import('./usePenTool.ts').usePenTool>
-  previewShapeById: Map<string, import('@venus/document-core').DocumentNode>
+  previewShapeById: Map<string, import('@vector/model').DocumentNode>
   previewShapes: ReturnType<typeof import('./useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['shapes']
   resolveDraftPrimitiveType: (toolName: ToolName) => DraftPrimitiveType | null
   runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('@vector/runtime').createRuntimeEditingModeController>>

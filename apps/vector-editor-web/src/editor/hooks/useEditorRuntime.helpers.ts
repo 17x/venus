@@ -5,7 +5,7 @@ import {
   type DocumentNode,
   type EditorDocument,
   type ToolName,
-} from '@venus/document-core'
+} from '@vector/model'
 import {doNormalizedBoundsOverlap, getNormalizedBoundsFromBox} from '@vector/runtime/engine'
 import type {ElementProps} from '@lite-u/editor/types'
 import {
@@ -610,7 +610,13 @@ export function resolveSelectedNonFrameNodes(input: {
   shapes: DocumentNode[]
   selectedShapeIds: string[]
 }) {
-  const selectedSet = new Set(input.selectedShapeIds)
+  const selectedSet = new Set(expandMaskLinkedShapeIds({
+    id: 'selection-move',
+    name: 'selection-move',
+    width: 0,
+    height: 0,
+    shapes: input.shapes,
+  }, input.selectedShapeIds))
   return input.shapes.filter((shape) => selectedSet.has(shape.id) && shape.type !== 'frame')
 }
 

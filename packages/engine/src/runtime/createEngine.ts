@@ -155,6 +155,7 @@ export interface Engine {
   resize(width: number, height: number): EngineCanvasViewportState
   setDpr(dpr: number | 'auto', options?: {maxDpr?: number}): number
   setQuality(quality: EngineRenderQuality): void
+  setInteractionPreview(config?: EngineInteractionPreviewConfig): void
   setProtectedNodeIds(nodeIds?: readonly EngineNodeId[]): void
   setResourceLoader(loader?: EngineResourceLoader): void
   setTextShaper(textShaper?: EngineTextShaper): void
@@ -510,6 +511,9 @@ export function createEngine(options: CreateEngineOptions): Engine {
     },
     setQuality(quality) {
       renderContext.quality = quality
+    },
+    setInteractionPreview(config) {
+      renderer.setInteractionPreview?.(config)
     },
     setProtectedNodeIds(nodeIds) {
       if (!nodeIds || nodeIds.length === 0) {

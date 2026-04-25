@@ -1,4 +1,4 @@
-import {nid} from '@venus/document-core'
+import {nid} from '@vector/model'
 import type {VisionFileAsset} from '../../editor/hooks/useEditorRuntime.types.ts'
 
 const readImageHelper = (file: File): Promise<VisionFileAsset> => {

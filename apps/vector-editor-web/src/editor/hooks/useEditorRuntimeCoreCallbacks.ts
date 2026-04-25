@@ -1,5 +1,5 @@
 import {useCallback} from 'react'
-import {type ToolName} from '@venus/document-core'
+import {type ToolName} from '@vector/model'
 import {resolveRuntimeZoomPresetScale} from '../../runtime/interaction/index.ts'
 import readFileHelper from '../../contexts/fileContext/readFileHelper.ts'
 import {isDragCreateTool, mapToolNameToToolId} from './editorRuntimeHelpers.ts'
@@ -15,7 +15,7 @@ export function useEditorRuntimeCoreCallbacks(options: {
   canvasRuntime: ReturnType<typeof import('./useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']
   handleCommand: (command: import('@vector/runtime/worker').EditorRuntimeCommand) => void
   openFile: (file: import('./useEditorRuntime.types.ts').VisionFileType) => void
-  previewDocument: import('@venus/document-core').EditorDocument
+  previewDocument: import('@vector/model').EditorDocument
   runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('@vector/runtime').createRuntimeEditingModeController>>
   runtimeToolRegistryRef: React.RefObject<ReturnType<typeof import('@vector/runtime').createRuntimeToolRegistry>>
   selectedShapeId: string | null

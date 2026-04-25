@@ -1,4 +1,4 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import type {DocumentNode, EditorDocument} from '@vector/model'
 
 /**
  * Resolve leaf shape targets for resize handles from a mixed single/multi/group

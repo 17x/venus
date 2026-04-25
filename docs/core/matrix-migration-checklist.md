@@ -10,18 +10,18 @@ decomposed runtime node fields.
   `apps/*` -> `@venus/runtime` + `@venus/runtime/interaction` +
   app-local runtime bridge -> `@venus/runtime/worker` ->
   renderer + shared-memory packages
-- Source of shared transform truth: `@venus/document-core`
+- Source of vector transform truth: `@vector/model`
 - Current storage compatibility: keep `x/y/width/height/rotation/flipX/flipY`
   until an explicit runtime model switch is approved
 
 ## Phase 1: Shared Helper Baseline
 
-- [x] Add shared affine helpers in `document-core` geometry layer
+- [x] Add shared affine helpers in vector model geometry layer
 - [x] Add shared transform compatibility contracts (`resolveNodeTransform`,
       normalized bounds, transform records)
 - [x] Route shared hit-testing to inverse-affine local-space projection
 - [x] Route Canvas2D renderer transform application through shared contracts
-- [x] Export shared transform batch command/item typing from `document-core`
+- [x] Export shared transform batch command/item typing from vector model module
 
 Exit criteria:
 

@@ -1,5 +1,5 @@
 import {getNormalizedBoundsFromBox} from '@vector/runtime/engine'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 import {resolveMaskSourceNode} from '../maskGroup.ts'
 import type {InteractionBounds, SelectionState} from '../types.ts'

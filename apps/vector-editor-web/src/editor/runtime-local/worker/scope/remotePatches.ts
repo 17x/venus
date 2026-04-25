@@ -1,5 +1,5 @@
 import type {CollaborationOperation} from '../collaboration.ts'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import {readSceneStats, type SceneMemory} from '@vector/runtime/shared-memory'
 import type {HistoryPatch} from '../history.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
@@ -65,7 +65,7 @@ function asBooleanMode(value: unknown): ShapeBooleanMode | null {
   return null
 }
 
-function getNodeBounds(nodes: import('@venus/document-core').DocumentNode[]) {
+function getNodeBounds(nodes: import('@vector/model').DocumentNode[]) {
   const minX = Math.min(...nodes.map((node) => node.x))
   const minY = Math.min(...nodes.map((node) => node.y))
   const maxX = Math.max(...nodes.map((node) => node.x + node.width))
@@ -248,7 +248,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const expandedSelectedShapeIds = expandMaskLinkedShapeIds(document, selectedShapeIds)
     const selectedShapes = expandedSelectedShapeIds
       .map((shapeId) => findShapeById(document, shapeId))
-      .filter((shape): shape is import('@venus/document-core').DocumentNode => shape !== null)
+      .filter((shape): shape is import('@vector/model').DocumentNode => shape !== null)
     if (selectedShapes.length < 2) return []
 
     const selectedIndices = selectedShapes
@@ -265,7 +265,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const parentPrevChildIds = parentGroup?.childIds?.slice()
     const selectedIdSet = new Set(selectedIndices.map((item) => item.shape.id))
     const affectedParentGroups = document.shapes
-      .filter((shape): shape is import('@venus/document-core').DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
+      .filter((shape): shape is import('@vector/model').DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
       .map((group) => ({
         groupId: group.id,
         prevChildIds: group.childIds?.slice() ?? [],

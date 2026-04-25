@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import {
   incrementSceneVersion,
   insertShapeIntoScene,
@@ -272,7 +272,7 @@ export function applyPatches(
     if (patch.type === 'insert-shape') {
       document.shapes.splice(patch.index, 0, {
         ...patch.shape,
-        type: patch.shape.type as import('@venus/document-core').DocumentNode['type'],
+        type: patch.shape.type as import('@vector/model').DocumentNode['type'],
         parentId: patch.shape.parentId,
         childIds: patch.shape.childIds?.slice(),
         text: patch.shape.text,

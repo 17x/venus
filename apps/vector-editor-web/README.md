@@ -2,6 +2,13 @@
 
 `vector-editor-web` is the product-facing editor app in the Venus monorepo.
 
+## Local Docs
+
+- Product architecture and app-only integration notes live in
+  `./docs/architecture.md`.
+- Keep vector-specific documentation in this app directory instead of under
+  global `docs/`.
+
 ## Run
 
 From repo root:
@@ -37,6 +44,7 @@ Key points:
 - High-frequency scene mutation runs in worker.
 - Scene hot data lives in SAB and is read by renderer/runtime.
 - `CanvasViewport` is a React adapter; gesture and zoom logic are extracted into shared modules.
+- Product-specific documentation and adoption notes live with this app.
 
 ## Important Files
 

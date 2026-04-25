@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import type {EditorDocument, DocumentNode, Point} from '@venus/document-core'
+import type {EditorDocument, DocumentNode, Point} from '@vector/model'
 import {createSceneMemory, attachSceneMemory, writeDocumentToScene} from '../src/editor/runtime-local/shared-memory/index.ts'
 import {createBooleanReplacePatches} from '../src/editor/runtime-local/worker/scope/shapeCommandHelpers.ts'
 import {createLocalHistoryEntry} from '../src/editor/runtime-local/worker/scope/localHistoryEntry.ts'

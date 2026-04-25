@@ -1,4 +1,4 @@
-import {type EditorDocument, type ShapeType} from '@venus/document-core'
+import {type EditorDocument, type ShapeType} from '@vector/model'
 
 export interface PointerState {
   x: number

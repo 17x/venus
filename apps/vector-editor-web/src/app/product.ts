@@ -6,8 +6,8 @@ export const vectorEditorDescriptor = {
     runtime: '@vector/runtime',
     worker: '@vector/runtime/worker',
     renderer: '@venus/engine',
-    model: '@venus/document-core',
+    model: '@vector/model',
     sharedMemory: '@vector/runtime/shared-memory',
-    protocol: '@venus/document-core',
+    protocol: '@vector/model',
   },
 } as const

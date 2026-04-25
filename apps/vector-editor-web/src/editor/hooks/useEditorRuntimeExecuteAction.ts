@@ -1,5 +1,5 @@
 import {useCallback} from 'react'
-import {type ToolName} from '@venus/document-core'
+import {type ToolName} from '@vector/model'
 import {applyMatrixToPoint} from '@vector/runtime'
 import type {ElementProps} from '@lite-u/editor/types'
 import {
@@ -39,7 +39,7 @@ interface UseEditorRuntimeExecuteActionOptions {
   pasteSerial: number
   reorderSelectedShape: (direction: 'up' | 'down' | 'top' | 'bottom') => void
   saveFile: (document: ReturnType<typeof import('./useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
-  selectedNode: import('@venus/document-core').DocumentNode | null
+  selectedNode: import('@vector/model').DocumentNode | null
   selectedShapeIds: string[]
   setClipboard: React.Dispatch<React.SetStateAction<ElementProps[]>>
   setCurrentTool: (toolName: ToolName) => void

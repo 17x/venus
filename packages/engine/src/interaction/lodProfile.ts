@@ -39,11 +39,11 @@ export function resolveEngineCanvasLodProfile(
   // quality in settle frames.
   if (interactionType === 'zoom') {
     return {
-      lodLevel: 2,
+      lodLevel: 1,
       renderQuality: 'interactive',
-      targetDpr: 1.25,
-      imageSmoothingQuality: 'low',
-      interactiveIntervalMs: 10,
+      targetDpr: 1.5,
+      imageSmoothingQuality: 'medium',
+      interactiveIntervalMs: 8,
     }
   }
 
@@ -57,15 +57,19 @@ export function resolveEngineCanvasLodProfile(
         ? 1
         : 0
 
-  if (options.scale < 0.22 && lodLevel < 3) {
+  if (
+    options.scale < 0.12 &&
+    lodLevel < 3 &&
+    (options.shapeCount >= 20_000 || options.imageCount >= 500)
+  ) {
     lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
   }
 
-  if (interactionVelocity >= 3_200 && lodLevel < 3) {
+  if (interactionVelocity >= 4_200 && lodLevel < 3) {
     lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
   }
 
-  if (interactionVelocity >= 5_600 && lodLevel < 3) {
+  if (interactionVelocity >= 7_200 && lodLevel < 3) {
     lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
   }
 

@@ -2,7 +2,7 @@ import type {ElementProps} from '@lite-u/editor/types'
 import {resolveElementModifyCommands} from './useEditorRuntime.helpers.ts'
 
 export function applyElementModifyAction(options: {
-  canvasShapes: import('@venus/document-core').EditorDocument['shapes']
+  canvasShapes: import('@vector/model').EditorDocument['shapes']
   data: unknown[]
   handleCommand: (command: import('@vector/runtime/worker').EditorRuntimeCommand) => void
 }) {

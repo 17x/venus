@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import {createCollaborationManager} from '../collaboration.ts'
-import type {EditorDocument, ToolName} from '@venus/document-core'
+import type {EditorDocument, ToolName} from '@vector/model'
 import {createHistoryManager} from '../history.ts'
 import {createEngineSpatialIndex} from '@venus/engine'
 import {
@@ -35,7 +35,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
 
   const spatialIndex = createEngineSpatialIndex<{
     shapeId: string
-    type: import('@venus/document-core').DocumentNode['type']
+    type: import('@vector/model').DocumentNode['type']
     order: number
   }>()
 

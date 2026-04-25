@@ -3,7 +3,7 @@ import {
   getBoundingRectFromBezierPoints,
   type EditorDocument,
   type ShapeType,
-} from '@venus/document-core'
+} from '@vector/model'
 import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 

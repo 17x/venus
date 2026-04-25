@@ -3,7 +3,23 @@
  * Allows fine-grained control over degradation strategies during interaction.
  */
 
+import type { EngineRenderQuality } from '../renderer/types.ts'
+
 export type LodDegradationMode = 'conservative' | 'moderate' | 'aggressive'
+export type EngineLodInteractionPhase = 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
+
+export interface EngineLodInteractionCapability {
+  quality?: EngineRenderQuality
+  dpr?: number | 'auto'
+  interactionActive?: boolean
+  interactiveIntervalMs?: number
+}
+
+export interface ResolveEngineLodInteractionCapabilityInput {
+  config?: EngineLodConfig
+  phase: EngineLodInteractionPhase
+  fallback: Required<EngineLodInteractionCapability>
+}
 
 export interface EngineLodOptions {
   /**
@@ -49,6 +65,15 @@ export interface EngineLodConfig {
    * LOD-specific options. Only used if enabled=true.
    */
   options?: EngineLodOptions
+
+  /**
+   * Optional per-phase render capabilities for pan/zoom/drag style scenarios.
+   *
+   * This is intentionally separate from `enabled`: the legacy `enabled` flag
+   * controls screen/detail simplification heuristics, while interaction
+   * capabilities let hosts centralize phase-specific render behavior.
+   */
+  interactionCapabilities?: Partial<Record<EngineLodInteractionPhase, EngineLodInteractionCapability>>
 }
 
 /**
@@ -92,5 +117,19 @@ export function mergeWithPreset(
     extremeVelocityThreshold: userOptions?.extremeVelocityThreshold ?? preset.extremeVelocityThreshold,
     zoomScaleThreshold: userOptions?.zoomScaleThreshold ?? preset.zoomScaleThreshold,
     respectScenePressure: userOptions?.respectScenePressure ?? preset.respectScenePressure,
+  }
+}
+
+export function resolveEngineLodInteractionCapability(
+  input: ResolveEngineLodInteractionCapabilityInput,
+) {
+  const capability = input.config?.interactionCapabilities?.[input.phase]
+
+  return {
+    quality: capability?.quality ?? input.fallback.quality,
+    dpr: capability?.dpr ?? input.fallback.dpr,
+    interactionActive: capability?.interactionActive ?? input.fallback.interactionActive,
+    interactiveIntervalMs:
+      capability?.interactiveIntervalMs ?? input.fallback.interactiveIntervalMs,
   }
 }

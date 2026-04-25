@@ -2,7 +2,7 @@ import {
   getBoundingRectFromBezierPoints,
   type BezierPoint,
   type Point,
-} from '@venus/document-core'
+} from '@vector/model'
 import {VisionFileType} from '../../editor/hooks/useEditorRuntime.ts'
 
 function createHeroImageDataUrl() {

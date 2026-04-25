@@ -6,8 +6,8 @@
 
 ## Model Truth
 
-- Persisted scene/document semantics: `@venus/document-core`.
-- Runtime adapter model: `@venus/document-core` (`DocumentNode`).
+- Persisted scene/document semantics are app-owned (vector uses `@vector/model`).
+- Runtime adapter model in vector: `@vector/model` (`DocumentNode`).
 - Prefer JSON runtime scene `node + feature` semantics for compatibility reasoning.
 
 ## Layer Boundaries
@@ -26,4 +26,5 @@
 ## Shared Memory Note
 
 - SharedArrayBuffer is runtime transport, not persistence format.
-- Save/export document state through document adapters in `@venus/document-core`, not SAB memory.
+- Save/export document state through the owning app model adapters
+  (vector: `@vector/model`), not SAB memory.

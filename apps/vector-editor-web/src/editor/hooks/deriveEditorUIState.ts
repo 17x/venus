@@ -1,6 +1,6 @@
 import {buildHistoryArray, buildSelectedProps} from './editorRuntimeHelpers.ts'
 import type {EditorUIState} from './useEditorRuntime.types.ts'
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {LayerItem} from './useEditorRuntime.types.ts'
@@ -12,7 +12,7 @@ const layerItemsCache = new WeakMap<DocumentNode[], LayerItem[]>()
  * their own projection of runtime state.
  */
 export function deriveEditorUIState(options: {
-  canvasRuntime: CanvasRuntimeBridgeState<import('@venus/document-core').EditorDocument>
+  canvasRuntime: CanvasRuntimeBridgeState<import('@vector/model').EditorDocument>
   clipboard: ElementProps[]
   selectedNode: DocumentNode | null
   selectedIds: string[]

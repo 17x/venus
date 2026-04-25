@@ -18,8 +18,9 @@
 ## Readability Rules
 
 - Use explicit names and intentional module boundaries.
-- Add concise comments only at non-obvious logic points.
-- Every newly added code block must include a concise intent comment so the next reader can understand why the block exists.
+- Every newly written or modified code block must include an intent comment.
+- Treat comments as required structure, not optional polish.
+- Prefer concise comments, but do not leave new or changed code uncommented.
 - For migration and compatibility branches, include brief intent comments.
 
 ## Validation

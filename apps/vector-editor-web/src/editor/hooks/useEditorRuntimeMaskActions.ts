@@ -2,9 +2,9 @@ import {resolveAutoMaskAction, resolveClearMaskAction} from './useEditorRuntime.
 
 export function createAutoMaskHandler(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
-  canvasShapes: import('@venus/document-core').EditorDocument['shapes']
+  canvasShapes: import('@vector/model').EditorDocument['shapes']
   handleCommand: (command: import('@vector/runtime/worker').EditorRuntimeCommand) => void
-  selectedNode: import('@venus/document-core').DocumentNode | null
+  selectedNode: import('@vector/model').DocumentNode | null
 }) {
   return () => {
     const resolved = resolveAutoMaskAction({
@@ -22,7 +22,7 @@ export function createAutoMaskHandler(options: {
 export function createClearMaskHandler(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
   handleCommand: (command: import('@vector/runtime/worker').EditorRuntimeCommand) => void
-  selectedNode: import('@venus/document-core').DocumentNode | null
+  selectedNode: import('@vector/model').DocumentNode | null
 }) {
   return () => {
     const resolved = resolveClearMaskAction(options.selectedNode)

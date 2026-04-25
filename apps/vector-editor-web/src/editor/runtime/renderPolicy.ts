@@ -6,17 +6,40 @@ export type RuntimeRenderPhase =
   | 'precision'
   | 'settled'
 
+export type RuntimeLodLevel = 0 | 1 | 2 | 3
+
+export interface RuntimeInteractionPreviewConfig {
+  enabled?: boolean
+  mode?: 'interaction' | 'zoom-only'
+  maxScaleStep?: number
+  maxTranslatePx?: number
+}
+
+export interface RuntimeLodInteractionCapability {
+  quality?: 'full' | 'interactive'
+  dpr?: number | 'auto'
+  interactionActive?: boolean
+  interactiveIntervalMs?: number
+  interactionPreview?: RuntimeInteractionPreviewConfig | false
+}
+
+export interface RuntimeLodConfig {
+  lodLevelCapabilities?: Partial<Record<RuntimeLodLevel, RuntimeLodInteractionCapability>>
+  interactionCapabilities?: Partial<Record<RuntimeRenderPhase, RuntimeLodInteractionCapability>>
+}
+
 export interface ResolveRuntimeRenderPolicyInput {
   phase: RuntimeRenderPhase
-  lodLevel: 0 | 1 | 2 | 3
-  renderQuality?: 'full' | 'interactive'
-  targetDpr?: number | 'auto'
+  lodLevel: RuntimeLodLevel
+  lodConfig?: RuntimeLodConfig
 }
 
 export interface RuntimeRenderPolicy {
   quality: 'full' | 'interactive'
   dpr: number | 'auto'
   interactionActive: boolean
+  interactiveIntervalMs: number
+  interactionPreview: RuntimeInteractionPreviewConfig | false
   overlayMode: 'full' | 'degraded'
 }
 
@@ -76,24 +99,106 @@ export const DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY: RuntimeDirtyRegionR
   forcedRateScale: 120,
 }
 
+function resolveRuntimeLodInteractionCapability(input: {
+  config?: RuntimeLodConfig
+  lodLevel: RuntimeLodLevel
+  phase: RuntimeRenderPhase
+  fallback?: RuntimeLodInteractionCapability
+}) {
+  const baseCapability = {
+    ...resolveDefaultRuntimeLodLevelCapability(input.lodLevel),
+    ...input.config?.lodLevelCapabilities?.[input.lodLevel],
+  }
+  const capability = input.config?.interactionCapabilities?.[input.phase]
+
+  return {
+    quality: capability?.quality ?? input.fallback?.quality ?? baseCapability.quality,
+    dpr: capability?.dpr ?? input.fallback?.dpr ?? baseCapability.dpr,
+    interactionActive:
+      capability?.interactionActive ?? input.fallback?.interactionActive ?? baseCapability.interactionActive,
+    interactiveIntervalMs:
+      capability?.interactiveIntervalMs
+      ?? input.fallback?.interactiveIntervalMs
+      ?? baseCapability.interactiveIntervalMs,
+    interactionPreview:
+      capability?.interactionPreview ?? input.fallback?.interactionPreview ?? baseCapability.interactionPreview,
+  }
+}
+
+function resolveDefaultRuntimeLodLevelCapability(
+  lodLevel: RuntimeLodLevel,
+): Required<RuntimeLodInteractionCapability> {
+  if (lodLevel === 0) {
+    return {
+      quality: 'full',
+      dpr: 'auto',
+      interactionActive: false,
+      interactiveIntervalMs: 8,
+      interactionPreview: false,
+    }
+  }
+
+  if (lodLevel === 1) {
+    return {
+      quality: 'full',
+      dpr: 'auto',
+      interactionActive: false,
+      interactiveIntervalMs: 10,
+      interactionPreview: false,
+    }
+  }
+
+  if (lodLevel === 2) {
+    return {
+      quality: 'interactive',
+      dpr: 1.25,
+      interactionActive: false,
+      interactiveIntervalMs: 12,
+      interactionPreview: false,
+    }
+  }
+
+  return {
+    quality: 'interactive',
+    dpr: 1,
+    interactionActive: false,
+    interactiveIntervalMs: 16,
+    interactionPreview: false,
+  }
+}
+
 export function resolveRuntimeRenderPolicy(
   input: ResolveRuntimeRenderPolicyInput,
 ): RuntimeRenderPolicy {
   // Keep phase ownership explicit so interaction degrade/restore rules live in one place.
   if (input.phase === 'pan') {
+    const capability = resolveRuntimeLodInteractionCapability({
+      config: input.lodConfig,
+      lodLevel: input.lodLevel,
+      phase: 'pan',
+      fallback: {
+        quality: 'interactive',
+        interactionActive: true,
+      },
+    })
     return {
-      quality: 'interactive',
-      dpr: 'auto',
-      interactionActive: true,
+      ...capability,
       overlayMode: 'degraded',
     }
   }
 
   if (input.phase === 'zoom') {
+    const capability = resolveRuntimeLodInteractionCapability({
+      config: input.lodConfig,
+      lodLevel: input.lodLevel,
+      phase: 'zoom',
+      fallback: {
+        quality: 'interactive',
+        interactionActive: true,
+      },
+    })
     return {
-      quality: 'interactive',
-      dpr: 'auto',
-      interactionActive: true,
+      ...capability,
       overlayMode: 'degraded',
     }
   }
@@ -101,31 +206,46 @@ export function resolveRuntimeRenderPolicy(
   if (
     input.phase === 'drag'
   ) {
+    const capability = resolveRuntimeLodInteractionCapability({
+      config: input.lodConfig,
+      lodLevel: input.lodLevel,
+      phase: 'drag',
+      fallback: {
+        quality: 'interactive',
+        interactionActive: true,
+      },
+    })
     return {
-      quality:
-        input.renderQuality === 'interactive' || input.lodLevel >= 2
-          ? 'interactive'
-          : 'full',
-      dpr: input.targetDpr ?? 'auto',
-      interactionActive: true,
+      ...capability,
       overlayMode: 'degraded',
     }
   }
 
   if (input.phase === 'precision') {
+    const capability = resolveRuntimeLodInteractionCapability({
+      config: input.lodConfig,
+      lodLevel: input.lodLevel,
+      phase: 'precision',
+      fallback: {
+        quality: 'full',
+        interactionActive: false,
+      },
+    })
     // Path/text precision editing should stay full-fidelity even when actively manipulating.
     return {
-      quality: 'full',
-      dpr: 'auto',
-      interactionActive: false,
+      ...capability,
       overlayMode: 'full',
     }
   }
 
+  const capability = resolveRuntimeLodInteractionCapability({
+    config: input.lodConfig,
+    lodLevel: input.lodLevel,
+    phase: input.phase === 'static' ? 'static' : 'settled',
+  })
+
   return {
-    quality: input.renderQuality === 'interactive' ? 'interactive' : 'full',
-    dpr: 'auto',
-    interactionActive: false,
+    ...capability,
     overlayMode: 'full',
   }
 }

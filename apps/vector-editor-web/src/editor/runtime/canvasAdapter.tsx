@@ -1,5 +1,5 @@
 import * as React from 'react'
-import {type EditorDocument} from '@venus/document-core'
+import {type EditorDocument} from '@vector/model'
 import type {CanvasViewportState, RuntimeEditingMode} from '@vector/runtime'
 import type {
   Engine,
@@ -31,6 +31,7 @@ import {
   DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY,
   DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY,
   DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY,
+  type RuntimeLodConfig,
   type RuntimeRenderPhase,
 } from './renderPolicy.ts'
 
@@ -52,9 +53,8 @@ export interface CanvasRendererProps {
   overlayDiagnostics?: OverlayDiagnostics
   interactionPhase?: RuntimeRenderPhase
   viewportInteractionType?: 'pan' | 'zoom' | 'other'
-  renderQuality?: 'full' | 'interactive'
   lodLevel?: 0 | 1 | 2 | 3
-  targetDpr?: number | 'auto'
+  lodConfig?: RuntimeLodConfig
 }
 
 export interface CanvasOverlayProps {
@@ -89,6 +89,76 @@ interface CanvasViewportProps {
 }
 
 const ENABLE_RUNTIME_RENDER_DIAGNOSTICS = true
+
+const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
+  enabled: boolean
+  options: {
+    mode: 'conservative'
+  }
+} = {
+  enabled: false,
+  options: {
+    mode: 'conservative',
+  },
+  lodLevelCapabilities: {
+    0: {
+      quality: 'full',
+      dpr: 'auto',
+      interactiveIntervalMs: 8,
+    },
+    1: {
+      quality: 'full',
+      dpr: 'auto',
+      interactiveIntervalMs: 10,
+    },
+    2: {
+      quality: 'interactive',
+      dpr: 1.25,
+      interactiveIntervalMs: 12,
+    },
+    3: {
+      quality: 'interactive',
+      dpr: 1,
+      interactiveIntervalMs: 16,
+    },
+  },
+  interactionCapabilities: {
+    pan: {
+      quality: 'interactive',
+      dpr: 'auto',
+      interactionActive: true,
+      interactiveIntervalMs: 8,
+      interactionPreview: {
+        enabled: true,
+        mode: 'interaction',
+        maxScaleStep: 1.2,
+        maxTranslatePx: 220,
+      },
+    },
+    zoom: {
+      quality: 'interactive',
+      dpr: 1.5,
+      interactionActive: true,
+      interactiveIntervalMs: 8,
+      interactionPreview: {
+        enabled: true,
+        mode: 'interaction',
+        maxScaleStep: 1.2,
+        maxTranslatePx: 220,
+      },
+    },
+    drag: {
+      quality: 'interactive',
+      interactionActive: true,
+      interactionPreview: false,
+    },
+    precision: {
+      quality: 'full',
+      interactionActive: false,
+      interactionPreview: false,
+    },
+  },
+}
 
 export function CanvasViewport({
   document,
@@ -340,9 +410,8 @@ export function CanvasViewport({
             overlayDiagnostics={overlayDiagnostics}
             interactionPhase={runtimeRenderPhase}
             viewportInteractionType={viewportInteractionType}
-            renderQuality={lodProfile.renderQuality}
             lodLevel={lodProfile.lodLevel}
-            targetDpr={lodProfile.targetDpr}
+            lodConfig={ENGINE_RENDER_LOD_CONFIG}
           />
         )}
         {OverlayRenderer && (
@@ -367,14 +436,11 @@ export function Canvas2DRenderer({
   overlayDiagnostics,
   interactionPhase = 'settled',
   viewportInteractionType = 'other',
-  renderQuality = 'full',
   lodLevel = 0,
-  targetDpr = 'auto',
+  lodConfig,
 }: CanvasRendererProps) {
   const INTERACTION_SETTLE_MS = 120
   const PLAN_DIAGNOSTIC_SAMPLE_MS = 1200
-  // 12ms keeps interaction cadence near display refresh without saturating CPU.
-  const INTERACTIVE_RENDER_INTERVAL_MS = 12
   const FULL_REDRAW_QUIET_WINDOW_MS = 140
   const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
   const FULL_REDRAW_DEFER_MS = 32
@@ -468,7 +534,9 @@ export function Canvas2DRenderer({
   })
   const lastPlanDiagnosticSampleAtRef = React.useRef(0)
   const protectedNodeSignatureRef = React.useRef('')
+  const previewSceneRevisionRef = React.useRef(0)
   const previousRenderPrepRef = React.useRef<{
+    revision: number
     document: EditorDocument
     shapes: SceneShapeSnapshot[]
     viewport: CanvasViewportState
@@ -482,6 +550,14 @@ export function Canvas2DRenderer({
       backgroundStroke: '#d0d7de',
     }),
     [document, shapes, stats.version],
+  )
+  const renderPolicy = React.useMemo(
+    () => resolveRuntimeRenderPolicy({
+      phase: interactionPhase,
+      lodLevel,
+      lodConfig,
+    }),
+    [interactionPhase, lodConfig, lodLevel],
   )
 
   isInteractingRef.current = isInteracting
@@ -547,11 +623,11 @@ export function Canvas2DRenderer({
         quality: 'full',
         webglClearColor: [0.9529, 0.9569, 0.9647, 1],
         // Enable LOD (level-of-detail) for performance with large scenes
-        lod: {
-          enabled: true,
-          options: {
-            mode: 'conservative', // conservative | moderate | aggressive
-          },
+        lod: ENGINE_RENDER_LOD_CONFIG as {
+          enabled: boolean
+          options?: {
+            mode?: 'conservative' | 'moderate' | 'aggressive'
+          }
         },
         // Enable tile-based caching with multiple zoom levels
         tileConfig: {
@@ -571,12 +647,7 @@ export function Canvas2DRenderer({
           detailPassDelayMs: 200,  // Start detail pass after 200ms
         },
         interactionPreview: {
-          // Keep pan/zoom on the affine-preview path now that edge-redraw and
-          // overview packet skips are in place for large-scene navigation.
-          enabled: true,
-          mode: 'interaction',
-          maxScaleStep: 1.2,
-          maxTranslatePx: 220,
+          enabled: false,
         },
       },
       resource: {
@@ -900,7 +971,7 @@ export function Canvas2DRenderer({
     engineRef.current = engine
     renderSchedulerRef.current = createEngineRenderScheduler({
       render: () => engine.renderFrame(),
-      interactiveIntervalMs: INTERACTIVE_RENDER_INTERVAL_MS,
+      interactiveIntervalMs: renderPolicy.interactiveIntervalMs,
     })
 
     return () => {
@@ -923,7 +994,25 @@ export function Canvas2DRenderer({
       engineRef.current = null
       engine.dispose()
     }
-  }, [cancelDeferredFullRedraw, cancelScheduledRender])
+  }, [cancelDeferredFullRedraw, cancelScheduledRender, renderPolicy.interactiveIntervalMs])
+
+  React.useEffect(() => {
+    const engine = engineRef.current
+    if (!engine) {
+      return
+    }
+
+    renderSchedulerRef.current?.dispose()
+    renderSchedulerRef.current = createEngineRenderScheduler({
+      render: () => engine.renderFrame(),
+      interactiveIntervalMs: renderPolicy.interactiveIntervalMs,
+    })
+
+    return () => {
+      renderSchedulerRef.current?.dispose()
+      renderSchedulerRef.current = null
+    }
+  }, [renderPolicy.interactiveIntervalMs])
 
   React.useEffect(() => {
     lastInteractionAtRef.current = performance.now()
@@ -942,6 +1031,11 @@ export function Canvas2DRenderer({
     if (!engine) {
       return
     }
+
+    const sceneDirtyRenderMode: 'interactive' | 'normal' =
+      interactionPhase === 'pan' || interactionPhase === 'zoom'
+        ? 'interactive'
+        : 'normal'
 
     const normalizedProtectedNodeIds = (
       protectedNodeIds
@@ -984,10 +1078,20 @@ export function Canvas2DRenderer({
         previous.viewport.viewportWidth !== viewport.viewportWidth ||
         previous.viewport.viewportHeight !== viewport.viewportHeight,
     })
-    if (preparedFrame.scene.dirty) {
+    const shouldForcePreviewOnlySceneReload = Boolean(
+      previous &&
+      previous.revision === stats.version &&
+      previous.document !== document &&
+      !preparedFrame.scene.dirty &&
+      interactionPhase !== 'pan' &&
+      interactionPhase !== 'zoom',
+    )
+
+    if (preparedFrame.scene.dirty || shouldForcePreviewOnlySceneReload) {
       let dirtyBoundsMarkCount = 0
       let dirtyBoundsMarkArea = 0
       const shouldRenderSceneDirtyNow =
+        shouldForcePreviewOnlySceneReload ||
         preparedFrame.dirtyState.sceneStructureDirty ||
         preparedFrame.dirtyState.dirtyCandidateCount > 0 ||
         preparedFrame.dirtyState.previousFrameCandidateCount === 0
@@ -996,8 +1100,15 @@ export function Canvas2DRenderer({
         : latestRenderPrepStatsRef.current.offscreenSceneDirtySkipConsecutiveCount + 1
       const shouldForceOffscreenSceneDirtyRender =
         nextOffscreenSceneDirtySkipConsecutiveCount >= SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES
-      if (preparedFrame.dirtyState.sceneStructureDirty || !previous) {
-        const nextEngineScene = createEngineSceneFromRuntimeSnapshot(replayScenePayload)
+      if (preparedFrame.dirtyState.sceneStructureDirty || !previous || shouldForcePreviewOnlySceneReload) {
+        const nextEngineScene = createEngineSceneFromRuntimeSnapshot(
+          shouldForcePreviewOnlySceneReload
+            ? {
+                ...replayScenePayload,
+                revision: `${stats.version}:preview:${++previewSceneRevisionRef.current}`,
+              }
+            : replayScenePayload,
+        )
         engine.loadScene(nextEngineScene)
       } else {
         const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, document)
@@ -1064,7 +1175,7 @@ export function Canvas2DRenderer({
           renderRequestStatsRef.current.forcedSceneDirtyRenderCount += 1
         }
       } else {
-        requestEngineRender('normal', 'scene-dirty')
+        requestEngineRender(sceneDirtyRenderMode, 'scene-dirty')
         if (shouldForceOffscreenSceneDirtyRender) {
           renderRequestStatsRef.current.forcedSceneDirtyRenderCount += 1
         }
@@ -1091,6 +1202,7 @@ export function Canvas2DRenderer({
     }
 
     previousRenderPrepRef.current = {
+      revision: stats.version,
       document,
       shapes,
       viewport,
@@ -1100,6 +1212,7 @@ export function Canvas2DRenderer({
     protectedNodeIds,
     replayScenePayload,
     requestEngineRender,
+    interactionPhase,
     shapes,
     stats.version,
     viewport,
@@ -1112,12 +1225,6 @@ export function Canvas2DRenderer({
       return
     }
 
-    const renderPolicy = resolveRuntimeRenderPolicy({
-      phase: interactionPhase,
-      lodLevel,
-      renderQuality,
-      targetDpr,
-    })
     const previousPhase = renderRequestStatsRef.current.renderPhase
     const previousQuality = renderRequestStatsRef.current.renderPolicyQuality
     const previousDpr = renderRequestStatsRef.current.renderPolicyDpr
@@ -1148,6 +1255,15 @@ export function Canvas2DRenderer({
       engine.setQuality(nextQuality)
       appliedQualityRef.current = nextQuality
     }
+
+    const previewConfigurableEngine = engine as Engine & {
+      setInteractionPreview?: (config?: {enabled?: boolean; mode?: 'interaction' | 'zoom-only'; maxScaleStep?: number; maxTranslatePx?: number}) => void
+    }
+    previewConfigurableEngine.setInteractionPreview?.(
+      renderPolicy.interactionPreview === false
+        ? {enabled: false}
+        : renderPolicy.interactionPreview,
+    )
 
     // Keep a compact transition trail so policy tuning can verify phase and
     // degradation switches instead of relying only on the current snapshot.
@@ -1296,7 +1412,6 @@ export function Canvas2DRenderer({
     cancelDeferredFullRedraw,
     cancelScheduledRender,
     isInteracting,
-    targetDpr,
     overlayDiagnostics,
     interactionPhase,
     viewportInteractionType,

@@ -1,4 +1,4 @@
-import {nid, type DocumentNode, type EditorDocument, type Point} from '@venus/document-core'
+import {nid, type DocumentNode, type EditorDocument, type Point} from '@vector/model'
 import * as polygonClipping from 'polygon-clipping'
 import type {HistoryPatch} from '../history.ts'
 

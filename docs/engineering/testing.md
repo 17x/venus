@@ -5,6 +5,8 @@
 - Run `pnpm typecheck` for type safety.
 - Run `pnpm lint` for static quality checks.
 - Run `pnpm build` for integration sanity.
+- Run `pnpm --filter @venus/engine test` for the current engine geometry/math
+  unit-test baseline.
 
 ## Product Verification
 
@@ -12,9 +14,13 @@
   - `apps/vector-editor-web`
   - `apps/playground`
 
-## Known Constraint
+## Current Test Baseline
 
-- `pnpm test` is currently placeholder-only.
+- Root `pnpm test` now delegates to package-local `test` scripts when present.
+- `@venus/engine` currently provides the first active unit-test slice, focused
+  on pure geometry/math behavior.
+- Other packages may still have no test script until they own a stable test
+  surface worth enforcing.
 
 ## Regression Focus Areas
 

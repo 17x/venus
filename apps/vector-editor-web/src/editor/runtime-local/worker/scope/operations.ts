@@ -1,6 +1,6 @@
 import type {CollaborationOperation} from '../collaboration.ts'
 import {createCollaborationManager} from '../collaboration.ts'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {SceneMemory} from '@vector/runtime/shared-memory'
 import {setSelectedShapes} from '@vector/runtime/shared-memory'
 import {createHistoryManager} from '../history.ts'

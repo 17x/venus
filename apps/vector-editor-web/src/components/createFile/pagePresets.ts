@@ -1,4 +1,4 @@
-import {Unit, UnitType} from '@venus/document-core'
+import {Unit, UnitType} from '@vector/model'
 
 export interface PagePreset {
   name: string

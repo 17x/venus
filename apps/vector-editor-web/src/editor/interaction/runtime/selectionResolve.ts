@@ -1,4 +1,4 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 
 export function resolveSelectedNodesByIds(
   shapeById: Map<string, DocumentNode>,

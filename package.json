@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.json",
     "perf:gate": "pnpm --filter @venus/vector-editor-web perf:gate",
-    "test": "echo \"No tests configured yet\"",
+    "test": "pnpm -r --if-present test",
     "gh:pr": "gh pr create --fill",
     "cpr": "sh -c 'msg=\"$1\"; if [ -z \"$msg\" ] || [ \"$msg\" = \"--\" ]; then echo \"Usage: pnpm gh:cpr -- \\\"commit message\\\"\"; exit 1; fi; git add -A && git commit -m \"$msg\" && git push && gh pr create --fill' --"
   },

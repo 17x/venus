@@ -1,4 +1,4 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import type {DocumentNode, EditorDocument} from '@vector/model'
 import type {HistoryPatch} from '../history.ts'
 import {findShapeById} from './model.ts'
 

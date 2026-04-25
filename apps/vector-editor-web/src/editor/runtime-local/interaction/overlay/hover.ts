@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 import {
   resolveTopHitShapeId,

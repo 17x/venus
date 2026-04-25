@@ -147,6 +147,7 @@ export interface EngineRenderer {
   readonly capabilities: EngineRendererCapabilities
   init?(): void | Promise<void>
   resize?(width: number, height: number): void
+  setInteractionPreview?(config?: EngineInteractionPreviewConfig): void
   render(frame: EngineRenderFrame): EngineRenderStats | Promise<EngineRenderStats>
   dispose?(): void
 }

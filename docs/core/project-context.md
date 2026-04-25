@@ -56,6 +56,7 @@ Planned package direction for the active runtime family:
 - Keep React focused on orchestration and product UI, not high-frequency runtime state
 - Treat `@venus/runtime` as the framework-agnostic bridge between app UI and concrete worker/renderer packages
 - Treat `@venus/runtime/interaction` as the shared editing-interaction layer
-- Treat `@venus/document-core` as the home for shared document model and primitive editor types
+- Treat persisted model semantics as app-owned; vector currently uses the
+	app-local alias `@vector/model`
 - Treat framework adapters as sibling packages, not part of the framework-agnostic runtime core
 - Treat runtime behavior presets as policy layers, not as core runtime ownership

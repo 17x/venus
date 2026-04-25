@@ -1,4 +1,4 @@
-import {Unit} from '@venus/document-core'
+import {Unit} from '@vector/model'
 import type {ElementProps, TextRun} from '@lite-u/editor/types'
 import {VISION_VERSION} from '../../shared/constants/version.ts'
 import type {VisionFileAsset, VisionFileType} from '../../editor/hooks/useEditorRuntime.types.ts'

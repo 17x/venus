@@ -1,4 +1,4 @@
-import {type ToolName} from '@venus/document-core'
+import {type ToolName} from '@vector/model'
 import {
   Button,
   cn,

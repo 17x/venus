@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {DefaultCanvasRuntimeOptions} from './defaultRuntime.ts'
 import {
   createDefaultCanvasRuntimeInstanceOptions,

@@ -1,12 +1,13 @@
 # Package Knowledge Notes
 
-Use this directory for package-scoped implementation notes so behavior and
-architecture changes can be recorded closer to the code they affect.
+Use this directory only for cross-package routing notes and temporary
+transition references. Package-scoped implementation documentation should live
+next to the owning package when the package has a local documentation home.
 
 ## How To Use
 
-- Prefer updating the nearest package note first when a change is mostly scoped
-  to one package.
+- Prefer updating the owning package README or local docs first when a change
+  is mostly scoped to one package.
 - Fall back to `docs/core/monorepo-knowledge-base.md` only when a
   change spans multiple layers or no narrower package note exists yet.
 - Keep notes short and factual:
@@ -17,8 +18,4 @@ architecture changes can be recorded closer to the code they affect.
 ## Current Package Notes
 
 - `document-core.md`
-- `engine.md`
-- `runtime.md`
-- `runtime-interaction.md`
-- `runtime-presets.md`
 - `ui.md`

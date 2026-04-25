@@ -1,5 +1,5 @@
 import {type ReactNode} from 'react'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import {
   resolveNodeTransform,
   toResolvedNodeSvgTransform,

@@ -1,5 +1,5 @@
 import type * as React from 'react'
-import type {ToolName} from '@venus/document-core'
+import type {ToolName} from '@vector/model'
 import type {CanvasViewportState} from '@vector/runtime'
 import type {RuntimeEditingMode} from '@vector/runtime'
 import type {RuntimeOverlayInstruction, RuntimePreviewInstruction} from '@vector/runtime'

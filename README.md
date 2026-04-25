@@ -12,9 +12,9 @@ The current active apps are `vector-editor-web` and `playground`.
 
 - `apps/*`: runnable applications
   - `apps/vector-editor-web`: product-facing vector editor shell
+    - app-local model alias: `@vector/model` -> `apps/vector-editor-web/src/model/index.ts`
   - `apps/playground`: runtime playground and rendering stress test app
 - `packages/*`: shared editor infrastructure
-  - `@venus/document-core`: document model and core types
   - `@venus/engine`: renderer contracts, scene render node model, frame clock, and animation primitives
   - `@venus/runtime`: consolidated runtime package
     - `@venus/runtime`: core runtime and controller

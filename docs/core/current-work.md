@@ -17,7 +17,7 @@ context starts, or work needs to resume after switching topics.
 
 - `vector editor architecture buildout`
   Focus on filling structural gaps in the vector/runtime/engine stack.
-  Reference doc: `docs/vector-editor-architecture.md`
+  Reference doc: `apps/vector-editor-web/docs/architecture.md`
   Performance track (100K scene readiness):
   - Phase 1 (spike stop): frame stats, pointermove hit throttling,
     hover gating during pan/drag, zoom-time rebuild freeze
@@ -706,7 +706,8 @@ context starts, or work needs to resume after switching topics.
     allocated ids instead of retaining links back to the original pair; generic
     selection.set now also expands through linked mask members, with explicit
     host/source selection commands opting into exact-id behavior for targeted
-    mask inspection;
+    mask inspection; selection move target resolution now expands through the
+    same linked members as well, closing the remaining keyboard nudge gap;
     remaining follow-up stays narrow around deeper mask-group behaviors rather
     than basic persistence, visibility, motion coupling, or simple command
     dispatch
@@ -925,8 +926,8 @@ context starts, or work needs to resume after switching topics.
 - Do not assume runtime snapshots are immutable.
 - When optimizing viewport interactions, verify both `playground` and
   `vector-editor-web` before treating the result as stable.
-- For model/geometry questions, check `@venus/document-core` runtime scene
-  contracts first and defer to its `node + feature` structure before inventing
-  runtime-only terminology.
+- For model/geometry questions, check the owning app model runtime-scene
+  contracts first (vector: `@vector/model`) and defer to its `node + feature`
+  structure before inventing runtime-only terminology.
 - SAB with Atomic
 - offscreen render for canvas

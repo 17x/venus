@@ -2,6 +2,88 @@
 
 ## 2026-04-25
 
+- Moved vector product-doc folder into app-local docs:
+  - moved `docs/product/vector/index.md`,
+    `docs/product/vector/session-development-rules.md`, and
+    `docs/product/vector/doc-separation-migration-plan.md` to
+    `apps/vector-editor-web/docs/product/*`
+  - updated `docs/index.md` product navigation to point to the app-local vector
+    product doc home
+
+- Consolidated runtime and product-adoption docs into vector app docs:
+  - moved `docs/packages/runtime.md`,
+    `docs/packages/runtime-interaction.md`,
+    `docs/packages/runtime-presets.md`, and `docs/packages/runtime-react.md`
+    into `apps/vector-editor-web/docs/runtime/*`
+  - updated `docs/index.md` and `docs/packages/README.md` so global docs no
+    longer carry those runtime package notes
+  - removed the cross-reference from `apps/vector-editor-web/src/ui/README.md`
+    so app-level doc routing stays in `apps/vector-editor-web/docs/*`
+
+- Re-routed documentation ownership so local docs live with local code:
+  - moved vector-specific architecture and app integration notes out of `docs/`
+    and into `apps/vector-editor-web/docs/architecture.md`
+  - removed the duplicate global engine package note so engine-specific
+    capability docs now live in `packages/engine/README.md`
+  - updated `docs/index.md`, `docs/packages/README`, and
+    `docs/engineering/doc-versioning.md` so global docs stay navigation- and
+    governance-focused
+
+- Slimmed and re-routed documentation ownership:
+  - `docs/engineering/doc-versioning.md` and `docs/ai/project-rules.md` now
+    explicitly forbid local absolute filesystem paths in repository docs
+  - `docs/packages/runtime.md`, `docs/packages/runtime-interaction.md`, and
+    `docs/packages/runtime-presets.md` now focus on stable package ownership
+    and reusable capability instead of carrying product/app-specific adoption
+    detail
+  - `docs/apps-vector.md` now acts as the vector-app landing place for
+    product-specific adoption notes that do not belong in package docs
+  - `docs/packages/engine.md` and `packages/engine/README.md` now use more
+    generic product-facing wording and lighter routing notes instead of
+    package docs carrying product-specific examples
+
+- Promoted a repository-wide comment requirement for future code changes:
+  - `docs/engineering/coding-standards.md`, `docs/ai/project-rules.md`,
+    `AGENTS.md`, and `CLAUDE.md` now state that all newly written or modified
+    code blocks must include comments, replacing the older narrower guidance
+    that limited comments to only non-obvious logic
+
+- Added the first active unit-test baseline for pure engine geometry/math:
+  - root `pnpm test` now delegates to package-local test scripts when present
+  - `@venus/engine` now exposes a package-local test command using Node's
+    built-in TypeScript strip-types runner
+  - `packages/engine/src/math/matrix.test.ts` and
+    `packages/engine/src/interaction/viewport.test.ts` now cover deterministic
+    matrix application and viewport scale/pan/zoom/fit behavior
+  - `packages/engine/src/interaction/hitTest.test.ts` now covers frame/group
+    selection rules, strict stroke-only rectangle hits, rounded clip behavior,
+    and parent-rotation-aware world-transform hit testing
+
+- Added project-governance guidance for AI and module quality gates:
+  - `docs/ai/project-rules.md` now defines project-level expectations for
+    public APIs, command/history ownership, geometry/math tests, naming,
+    phased quality gates, and when to skip non-owning concerns
+  - `docs/decisions/ADR-003-module-boundary-and-quality-gates.md` records the
+    decision to apply boundary/test/governance requirements by owning
+    capability rather than forcing every package to host every test surface
+  - `AI_CHANGELOG.md` now exists as a dedicated log for AI-authored structural
+    and workflow changes
+  - `eslint.config.js` now blocks `@venus/*/src/*` and `@venus/*/dist/*`
+    imports so new code cannot couple to internal package paths through public
+    namespace aliases
+
+- Clarified the engine capability model in documentation:
+  - `packages/engine/README.md` now groups engine responsibility into scene,
+    render, query/hit-test, viewport/scheduling, and interaction-helper
+    mechanisms, and documents what still belongs in runtime/app layers for
+    hosts like a mindmap or XMind-style editor
+  - `docs/packages/engine.md` now states the stable boundary more directly:
+    `@venus/engine` owns pure mechanism APIs, while product semantics,
+    command/history, and overlay UI stay outside the package
+  - both docs now explicitly clarify that DPR is a standalone engine render
+    capability that LOD policy may coordinate, rather than treating DPR and
+    LOD as the same concept
+
 - Added an engine integration and interaction requirement handoff slice:
   - `packages/engine/README.md` now reflects the current engine reality more
     accurately: WebGL-primary backend direction, `createEngine(...)` as the
@@ -79,6 +161,9 @@
     click, marquee, selection-all, and other normal selection flows treat the
     pair as one unit, while explicit mask host/source jump commands keep an
     exact-id escape hatch for targeted inspection
+  - selection move target resolution now expands through linked `mask-group`
+    members too, so keyboard nudges and other selection-batch move commands do
+    not leave masked hosts and sources behind
   - `apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx`,
     `apps/vector-editor-web/src/editor/hooks/useEditorRuntimeDerivedState.ts`,
     and `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx`

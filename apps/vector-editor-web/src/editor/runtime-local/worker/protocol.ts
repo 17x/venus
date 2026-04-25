@@ -1,4 +1,4 @@
-import type { DocumentNode, EditorDocument, ToolId, ToolName } from '@venus/document-core'
+import type { DocumentNode, EditorDocument, ToolId, ToolName } from '@vector/model'
 import type { ShapeTransformBatchCommand } from '@venus/engine'
 import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
 import type { HistorySummary } from './history.ts'

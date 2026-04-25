@@ -18,7 +18,7 @@ Ownership:
 - App layer (apps/\*): product UI orchestration and feature composition only.
 - Runtime layer (@venus/runtime\*): command dispatch, viewport/runtime policy, worker bridge.
 - Engine layer (@venus/engine): render/hit-test/math/spatial mechanism only.
-- Persistence semantics (@venus/document-core): source of truth for persisted document model.
+- Persistence semantics are app-owned (vector currently uses `@vector/model`).
 
 Do not:
 
@@ -201,6 +201,12 @@ Do not:
 - Put product-specific behavior into engine/runtime packages.
 
 ## 9. Verification and Documentation Rules
+
+Comment rule:
+
+- Every newly written or modified code block must include a comment.
+- Prefer concise intent comments, but comment coverage is mandatory for fresh
+   code.
 
 Validation commands (repository standard):
 

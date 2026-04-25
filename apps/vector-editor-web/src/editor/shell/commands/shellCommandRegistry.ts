@@ -1,6 +1,6 @@
 import type {InspectorContext, InspectorPanelId} from '../state/inspectorState.ts'
 import type {ToolbeltMode} from '../state/toolbeltState.ts'
-import type {ToolName} from '@venus/document-core'
+import type {ToolName} from '@vector/model'
 
 export type ShellCommandId =
   | 'shell.setZoom'

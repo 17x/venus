@@ -1,4 +1,23 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+// Keep mindmap mock self-contained so it does not depend on the removed shared model package.
+interface DocumentNode {
+  id: string
+  type: 'rectangle' | 'text' | 'lineSegment' | 'frame'
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  text?: string
+}
+
+// Minimal document shape consumed by the app preview/runtime bridge.
+interface EditorDocument {
+  id: string
+  name: string
+  width: number
+  height: number
+  shapes: DocumentNode[]
+}
 
 interface TopicNode {
   id: string

@@ -6,7 +6,7 @@ import {
 
 interface ShapeActionsContext {
   selectedShapeIds: string[]
-  shapes?: import('@venus/document-core').DocumentNode[]
+  shapes?: import('@vector/model').DocumentNode[]
   dispatchCommand: (command: EditorRuntimeCommand) => void
   notify?: (message: string) => void
 }

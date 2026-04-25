@@ -1,6 +1,6 @@
 import React from 'react'
 import {cn, Tooltip} from '@vector/ui'
-import {ToolName} from '@venus/document-core'
+import {ToolName} from '@vector/model'
 import {
   LuCircle,
   LuHand,

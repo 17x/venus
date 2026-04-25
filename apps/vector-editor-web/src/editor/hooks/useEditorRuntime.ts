@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@vector/ui'
-import {type EditorDocument, type ToolName} from '@venus/document-core'
+import {type EditorDocument, type ToolName} from '@vector/model'
 import {
   createRuntimeEditingModeController,
   createRuntimeInputRouter,
@@ -49,7 +49,7 @@ import {
   resolveRuntimeCommandSideEffects,
   resolveSelectedProps,
 } from './useEditorRuntime.helpers.ts'
-import {resolveMaskLinkedShapeIds} from '../interaction/maskGroup.ts'
+import {expandMaskLinkedShapeIds, resolveMaskLinkedShapeIds} from '../interaction/maskGroup.ts'
 import {useEditorRuntimeDerivedState} from './useEditorRuntimeDerivedState.ts'
 import {
   useEditorRuntimeExecuteAction,
@@ -462,14 +462,20 @@ const useEditorRuntime = (options?: {
     })
   }, [selectedShapeIds.length, uiState.layerItems.length])
 
-  const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
-    interactionDocument.shapes,
-    resolveMarqueeBounds(nextMarquee),
-    {
-      matchMode: 'contain',
-      excludeShape: (shape: EditorDocument['shapes'][number]) => shape.type === 'frame',
-    },
-  ), [interactionDocument.shapes])
+  const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => expandMaskLinkedShapeIds(
+    interactionDocument,
+    resolveMarqueeSelection(
+      interactionDocument.shapes,
+      resolveMarqueeBounds(nextMarquee),
+      {
+        matchMode: 'contain',
+        excludeShape: (shape: EditorDocument['shapes'][number]) => (
+          shape.type === 'frame' ||
+          (shape.type === 'image' && Boolean(shape.clipPathId))
+        ),
+      },
+    ),
+  ), [interactionDocument])
 
   const effectiveSnappingEnabled = snappingEnabled && interactionDocument.shapes.length < SNAP_AUTO_DISABLE_SHAPE_COUNT
 
