@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
+import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {useTranslation} from 'react-i18next'
 import {
   EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
@@ -11,6 +11,17 @@ function DebugRow(props: {label: string; value: string}) {
     <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
       <span className={'text-slate-500 dark:text-slate-400'}>{props.label}</span>
       <span className={'font-mono'}>{props.value}</span>
+    </div>
+  )
+}
+
+function DebugSection(props: {title: string; children: ReactNode}) {
+  return (
+    <div className={'flex flex-col gap-1.5 rounded border border-slate-200/70 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-950/40'}>
+      <h3 className={'px-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'}>
+        {props.title}
+      </h3>
+      {props.children}
     </div>
   )
 }
@@ -79,6 +90,9 @@ export function RuntimeDebugPanel() {
     getRuntimeRenderDiagnosticsSnapshot,
     () => EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
   )
+  // Prefer sectioned diagnostics for UI grouping while keeping flat fallback.
+  const stats = diagnostics.stats ?? EMPTY_RUNTIME_RENDER_DIAGNOSTICS.stats
+  const performanceLodStats = stats?.performance.lod
 
   const cacheTotal = diagnostics.cacheHitCount + diagnostics.cacheMissCount
   const cacheHitRate = cacheTotal > 0
@@ -531,6 +545,7 @@ export function RuntimeDebugPanel() {
 
   return (
     <section id={'variant-b-tabpanel-debug'} role={'tabpanel'} className={'scrollbar-custom flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3'}>
+      <DebugSection title={t('shell.variantB.debug.sectionEngineCore', 'Engine Core')}>
       <DebugRow label={t('shell.variantB.debug.engineFrameCount', 'Engine Frame Count')} value={String(diagnostics.frameCount)}/>
       <DebugRow label={t('shell.variantB.debug.engineDrawCount', 'Engine Draw Calls')} value={String(diagnostics.drawCount)}/>
       <DebugRow label={t('shell.variantB.debug.drawMs', 'Draw Ms')} value={diagnostics.drawMs.toFixed(2)}/>
@@ -540,16 +555,40 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.fpsEstimatePeak', 'FPS Peak (Smooth)')} value={diagnostics.fpsEstimatePeak.toFixed(1)}/>
       <DebugRow label={t('shell.variantB.debug.fpsReached60', 'Reached 60 FPS')} value={diagnostics.fpsReached60 ? 'yes' : 'no'}/>
       <DebugRow label={t('shell.variantB.debug.fpsReached120', 'Reached 120 FPS')} value={diagnostics.fpsReached120 ? 'yes' : 'no'}/>
-      <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={diagnostics.renderPhase}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionPerformanceLod', 'Performance / LOD')}>
+      <DebugRow
+        label={t('shell.variantB.debug.renderPhase', 'Render Phase')}
+        value={performanceLodStats?.renderPhase ?? diagnostics.renderPhase}
+      />
       <DebugRow label={t('shell.variantB.debug.renderPhaseTransitionCount', 'Render Phase Transitions')} value={String(diagnostics.renderPhaseTransitionCount)}/>
       <DebugRow label={t('shell.variantB.debug.lastRenderPhaseTransition', 'Last Render Phase Transition')} value={diagnostics.lastRenderPhaseTransition}/>
-      <DebugRow label={t('shell.variantB.debug.viewportInteractionType', 'Viewport Interaction')} value={diagnostics.viewportInteractionType}/>
-      <DebugRow label={t('shell.variantB.debug.engineFrameQuality', 'Engine Frame Quality')} value={diagnostics.engineFrameQuality}/>
-      <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Render Policy Quality')} value={diagnostics.renderPolicyQuality}/>
-      <DebugRow label={t('shell.variantB.debug.renderPolicyDpr', 'Render Policy DPR')} value={String(diagnostics.renderPolicyDpr)}/>
-      <DebugRow label={t('shell.variantB.debug.overlayMode', 'Overlay Mode')} value={diagnostics.overlayMode}/>
+      <DebugRow
+        label={t('shell.variantB.debug.viewportInteractionType', 'Viewport Interaction')}
+        value={performanceLodStats?.viewportInteractionType ?? diagnostics.viewportInteractionType}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.engineFrameQuality', 'Engine Frame Quality')}
+        value={performanceLodStats?.engineFrameQuality ?? diagnostics.engineFrameQuality}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.renderPolicyQuality', 'Render Policy Quality')}
+        value={performanceLodStats?.renderPolicyQuality ?? diagnostics.renderPolicyQuality}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.renderPolicyDpr', 'Render Policy DPR')}
+        value={String(performanceLodStats?.renderPolicyDpr ?? diagnostics.renderPolicyDpr)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.overlayMode', 'Overlay Mode')}
+        value={performanceLodStats?.overlayMode ?? diagnostics.overlayMode}
+      />
       <DebugRow label={t('shell.variantB.debug.renderPolicyTransitionCount', 'Render Policy Transitions')} value={String(diagnostics.renderPolicyTransitionCount)}/>
       <DebugRow label={t('shell.variantB.debug.lastRenderPolicyTransition', 'Last Render Policy Transition')} value={diagnostics.lastRenderPolicyTransition}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionOverlay', 'Overlay')}>
       <DebugRow label={t('shell.variantB.debug.overlayDegraded', 'Overlay Degraded')} value={diagnostics.overlayDegraded ? 'yes' : 'no'}/>
       <DebugRow label={t('shell.variantB.debug.overlayGuideInputCount', 'Overlay Guides Input')} value={String(diagnostics.overlayGuideInputCount)}/>
       <DebugRow label={t('shell.variantB.debug.overlayGuideKeptCount', 'Overlay Guides Kept')} value={String(diagnostics.overlayGuideKeptCount)}/>
@@ -558,6 +597,9 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.overlayGuideDroppedRate', 'Overlay Guide Dropped Rate')} value={`${overlayGuideDroppedRatePercent.toFixed(1)}%`}/>
       <DebugRow label={t('shell.variantB.debug.overlayGuideSelectionStrategy', 'Overlay Guide Strategy')} value={diagnostics.overlayGuideSelectionStrategy}/>
       <DebugRow label={t('shell.variantB.debug.overlayPathEditWhitelistActive', 'Overlay Path-Edit Whitelist')} value={diagnostics.overlayPathEditWhitelistActive ? 'yes' : 'no'}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionPlanner', 'Planner / Frame / Hit')}>
       <DebugRow label={t('shell.variantB.debug.framePlanVersion', 'Frame Plan Version')} value={String(diagnostics.framePlanVersion)}/>
       <DebugRow label={t('shell.variantB.debug.visibleShapeCount', 'Visible Shapes')} value={String(diagnostics.visibleShapeCount)}/>
       <DebugRow label={t('shell.variantB.debug.groupCollapseCount', 'Collapsed Groups')} value={String(diagnostics.groupCollapseCount)}/>
@@ -598,6 +640,9 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.hitPlanHitCount', 'Hit Count')} value={String(diagnostics.hitPlanHitCount)}/>
       <DebugRow label={t('shell.variantB.debug.hitPlanExactCheckCount', 'Hit Exact Checks')} value={String(diagnostics.hitPlanExactCheckCount)}/>
       <DebugRow label={t('shell.variantB.debug.hitPlanExactRatio', 'Hit Exact Ratio')} value={`${hitExactRatioPercent.toFixed(1)}%`}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionDirtyRegion', 'Dirty Region / Risk')}>
       <DebugRow label={t('shell.variantB.debug.renderPrepDirtyCandidateCount', 'Dirty In Candidates')} value={String(diagnostics.renderPrepDirtyCandidateCount)}/>
       <DebugRow label={t('shell.variantB.debug.renderPrepDirtyOffscreenCount', 'Dirty Outside Candidates')} value={String(diagnostics.renderPrepDirtyOffscreenCount)}/>
       <DebugRow label={t('shell.variantB.debug.offscreenSceneDirtySkipConsecutiveCount', 'Offscreen Dirty Skip (Consecutive)')} value={String(diagnostics.offscreenSceneDirtySkipConsecutiveCount)}/>
@@ -652,6 +697,9 @@ export function RuntimeDebugPanel() {
         <span className={'text-slate-500 dark:text-slate-400'}>{t('shell.variantB.debug.sceneDirtyRiskStatus', 'Scene Dirty Risk Status')}</span>
         <span className={`font-mono ${sceneDirtyRiskStatusClassName}`}>{sceneDirtyRiskStatus}</span>
       </div>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
       <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
         <span className={'text-slate-500 dark:text-slate-400'}>{t('shell.variantB.debug.exportDiagnosticsSnapshot', 'Export Diagnostics Snapshot')}</span>
         <button
@@ -694,6 +742,9 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.l2TileHitCount', 'L2 Tile Hits')} value={String(diagnostics.l2TileHitCount)}/>
       <DebugRow label={t('shell.variantB.debug.l2TileMissCount', 'L2 Tile Misses')} value={String(diagnostics.l2TileMissCount)}/>
       <DebugRow label={t('shell.variantB.debug.cacheFallbackReason', 'Cache Fallback Reason')} value={diagnostics.cacheFallbackReason}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionRequests', 'Render Requests')}>
       <DebugRow label={t('shell.variantB.debug.lastRenderRequestReason', 'Last Render Request')} value={diagnostics.lastRenderRequestReason}/>
       <DebugRow label={t('shell.variantB.debug.sceneDirtyRequestCount', 'Scene Dirty Requests')} value={String(diagnostics.sceneDirtyRequestCount)}/>
       <DebugRow label={t('shell.variantB.debug.sceneDirtyRequestRate', 'Scene Dirty Request Rate')} value={`${sceneDirtyRequestRatePercent.toFixed(1)}%`}/>
@@ -707,6 +758,7 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.idleRedrawRequestRate', 'Idle Redraw Request Rate')} value={`${idleRedrawRequestRatePercent.toFixed(1)}%`}/>
       <DebugRow label={t('shell.variantB.debug.interactiveRequestCount', 'Interactive Requests')} value={String(diagnostics.interactiveRequestCount)}/>
       <DebugRow label={t('shell.variantB.debug.interactiveRequestRate', 'Interactive Request Rate')} value={`${interactiveRequestRatePercent.toFixed(1)}%`}/>
+      </DebugSection>
     </section>
   )
 }

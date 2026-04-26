@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@vector/ui'
-import {type EditorDocument, type ToolName} from '@vector/model'
+import {type ToolName} from '@vector/model'
 import {
   createRuntimeEditingModeController,
   createRuntimeInputRouter,
@@ -469,9 +469,11 @@ const useEditorRuntime = (options?: {
       resolveMarqueeBounds(nextMarquee),
       {
         matchMode: 'contain',
-        excludeShape: (shape: EditorDocument['shapes'][number]) => (
+        // Keep marquee exclusion compatible with engine-level selectable shape
+        // contracts, which are narrower than full document node types.
+        excludeShape: (shape) => (
           shape.type === 'frame' ||
-          (shape.type === 'image' && Boolean(shape.clipPathId))
+          (shape.type === 'image' && Boolean((shape as {clipPathId?: string}).clipPathId))
         ),
       },
     ),

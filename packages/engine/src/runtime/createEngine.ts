@@ -45,14 +45,30 @@ import type {
   EngineInitialRenderConfig,
 } from '../index.ts'
 
-interface EnginePerformanceOptions {
-  culling?: boolean
-  lod?: boolean
+type EnginePerformanceToggle<TOptions> = boolean | TOptions
+
+export interface EngineCullingOptions {
+  enabled?: boolean
 }
 
-interface EngineOverscanOptions {
+export interface EngineOverscanOptions {
   enabled?: boolean
   borderPx?: number
+}
+
+export interface EnginePerformanceOptionsObject {
+  overscan?: EnginePerformanceToggle<EngineOverscanOptions>
+  tiles?: EnginePerformanceToggle<EngineTileConfig>
+  culling?: EnginePerformanceToggle<EngineCullingOptions>
+  lod?: EnginePerformanceToggle<EngineLodConfig>
+}
+
+export type EnginePerformanceOptions = boolean | EnginePerformanceOptionsObject
+
+interface ResolvedEnginePerformanceOptions {
+  culling: boolean
+  lodConfig: EngineLodConfig | undefined
+  tileConfig: EngineTileConfig | undefined
 }
 
 interface EngineRenderOptions {
@@ -107,13 +123,13 @@ export interface CreateEngineOptions {
   canvas: HTMLCanvasElement | OffscreenCanvas
   initialScene?: EngineSceneSnapshot
   viewport?: EngineViewportOptions
-  // Top-level culling switch kept alongside LOD/overscan for clearer host setup.
+  // Legacy top-level culling switch retained for compatibility.
   culling?: boolean
-  // Top-level LOD config; when disabled, engine keeps full-detail rendering.
+  // Legacy top-level LOD config retained for compatibility.
   lod?: EngineLodConfig
-  // Top-level overscan control; merged into tileConfig when tile cache is configured.
+  // Legacy top-level overscan retained for compatibility.
   overscan?: EngineOverscanOptions
-  // Legacy nested performance options retained for backward compatibility.
+  // Unified performance options. Defaults to enabled for all feature switches.
   performance?: EnginePerformanceOptions
   render?: EngineRenderOptions
   resource?: EngineResourceOptions
@@ -188,15 +204,10 @@ export interface Engine {
  * - optional render/resource/debug tuning grouped by concern
  */
 export function createEngine(options: CreateEngineOptions): Engine {
-  // Resolve top-level optimization options first and keep legacy nested
-  // options as fallback so existing hosts do not break.
-  const resolvedCulling = options.culling ?? options.performance?.culling
-  const resolvedLodConfig = options.lod ?? options.render?.lod
-  const resolvedLodEnabled = resolvedLodConfig?.enabled ?? false
-  const resolvedTileConfig = resolveEngineTileConfig(
-    options.render?.tileConfig,
-    options.overscan,
-  )
+  // Resolve all performance knobs through one model so each capability can be
+  // toggled independently while preserving legacy option compatibility.
+  const resolvedPerformance = resolveEnginePerformanceOptions(options)
+  const resolvedLodEnabled = resolvedPerformance.lodConfig?.enabled ?? false
 
   const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
   const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
@@ -225,12 +236,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
   })
   const renderer = createWebGLEngineRenderer({
     canvas: options.canvas,
-    enableCulling: resolvedCulling,
+    enableCulling: resolvedPerformance.culling,
     clearColor: options.render?.webglClearColor,
     antialias: options.render?.webglAntialias ?? true,
     modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
-    lod: resolvedLodConfig,
-    tileConfig: resolvedTileConfig,
+    lod: resolvedPerformance.lodConfig,
+    tileConfig: resolvedPerformance.tileConfig,
     initialRender: options.render?.initialRender,
     interactionPreview: options.render?.interactionPreview,
   })
@@ -712,6 +723,133 @@ function resolveEngineTileConfig(
     ...tileConfig,
     overscanEnabled: overscan.enabled ?? tileConfig.overscanEnabled,
     overscanBorderPx: overscan.borderPx ?? tileConfig.overscanBorderPx,
+  }
+}
+
+function resolveEnginePerformanceOptions(
+  options: CreateEngineOptions,
+): ResolvedEnginePerformanceOptions {
+  const legacyCulling = options.culling
+  const legacyLodConfig = options.lod ?? options.render?.lod
+  const legacyTileConfig = options.render?.tileConfig
+  const legacyOverscan = options.overscan
+  const performance = options.performance
+
+  // Default to all performance features enabled unless callers opt out.
+  if (performance === undefined || performance === true) {
+    return {
+      culling: legacyCulling ?? true,
+      lodConfig: legacyLodConfig ?? {enabled: true},
+      tileConfig: resolveEngineTileConfig(
+        legacyTileConfig ?? {enabled: true},
+        legacyOverscan ?? {enabled: true},
+      ),
+    }
+  }
+
+  if (performance === false) {
+    return {
+      culling: false,
+      lodConfig: {enabled: false},
+      tileConfig: resolveEngineTileConfig(
+        {enabled: false},
+        {enabled: false},
+      ),
+    }
+  }
+
+  const culling = resolveEngineCullingEnabled(
+    performance.culling,
+    legacyCulling,
+  )
+  const lodConfig = resolveEngineLodConfig(
+    performance.lod,
+    legacyLodConfig,
+  )
+  const tileConfig = resolveEngineTileConfig(
+    resolveEngineTileFeatureConfig(performance.tiles, legacyTileConfig),
+    resolveEngineOverscanFeatureConfig(performance.overscan, legacyOverscan),
+  )
+
+  return {
+    culling,
+    lodConfig,
+    tileConfig,
+  }
+}
+
+function resolveEngineCullingEnabled(
+  culling: EnginePerformanceOptionsObject['culling'],
+  legacyCulling: boolean | undefined,
+) {
+  if (culling === undefined) {
+    return legacyCulling ?? true
+  }
+
+  if (typeof culling === 'boolean') {
+    return culling
+  }
+
+  return culling.enabled ?? legacyCulling ?? true
+}
+
+function resolveEngineLodConfig(
+  lod: EnginePerformanceOptionsObject['lod'],
+  legacyLodConfig: EngineLodConfig | undefined,
+) {
+  if (lod === undefined) {
+    return legacyLodConfig ?? {enabled: true}
+  }
+
+  if (typeof lod === 'boolean') {
+    return lod
+      ? (legacyLodConfig ?? {enabled: true})
+      : {enabled: false}
+  }
+
+  return {
+    ...lod,
+    enabled: lod.enabled ?? true,
+  }
+}
+
+function resolveEngineTileFeatureConfig(
+  tiles: EnginePerformanceOptionsObject['tiles'],
+  legacyTileConfig: EngineTileConfig | undefined,
+) {
+  if (tiles === undefined) {
+    return legacyTileConfig ?? {enabled: true}
+  }
+
+  if (typeof tiles === 'boolean') {
+    return tiles
+      ? (legacyTileConfig ?? {enabled: true})
+      : {enabled: false}
+  }
+
+  return {
+    ...tiles,
+    enabled: tiles.enabled ?? true,
+  }
+}
+
+function resolveEngineOverscanFeatureConfig(
+  overscan: EnginePerformanceOptionsObject['overscan'],
+  legacyOverscan: EngineOverscanOptions | undefined,
+) {
+  if (overscan === undefined) {
+    return legacyOverscan ?? {enabled: true}
+  }
+
+  if (typeof overscan === 'boolean') {
+    return overscan
+      ? (legacyOverscan ?? {enabled: true})
+      : {enabled: false}
+  }
+
+  return {
+    ...overscan,
+    enabled: overscan.enabled ?? true,
   }
 }
 

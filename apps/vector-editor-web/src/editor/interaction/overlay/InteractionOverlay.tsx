@@ -11,7 +11,7 @@ import {
 } from '@vector/runtime/engine'
 import type {EditorDocument} from '@vector/model'
 import {resolveSnapGuideLines, type SnapGuide} from '../runtime/index.ts'
-import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
+import type {EngineRendererProps} from '../../runtime/engineAdapter.tsx'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 import {buildSelectionHandles} from '../selection/handleManager.ts'
 import {buildSelectionState} from '../selection/selectionManager.ts'
@@ -33,7 +33,7 @@ import {InteractionOverlayPathChrome} from './interactionOverlayPathChrome.tsx'
 export interface InteractionOverlayProps {
   document: EditorDocument
   shapes: SceneShapeSnapshot[]
-  viewport: CanvasRendererProps['viewport']
+  viewport: EngineRendererProps['viewport']
   hoveredShapeId?: string | null
   marqueeBounds?: InteractionBounds | null
   isolationBackdropShapes?: EditorDocument['shapes']

@@ -7,6 +7,7 @@ import {
   type EngineRenderFrame,
   type EngineRenderQuality,
   type EngineReplayRenderRequest,
+  type EngineReplayWorkerEvent,
   type EngineReplayWorkerMessage,
 } from '@vector/runtime/engine'
 import {
@@ -28,7 +29,8 @@ let replayCanvas: OffscreenCanvas | null = null
 
 const replayCoordinator = createEngineReplayCoordinator<ReplayScenePayload>({
   renderFrameBitmap: renderReplayFrameBitmap,
-  postEvent: (message: EngineReplayWorkerMessage<ReplayScenePayload>, transfer?: Transferable[]) => {
+  // Coordinator emits replay worker events, not inbound worker messages.
+  postEvent: (message: EngineReplayWorkerEvent, transfer?: Transferable[]) => {
     if (transfer && transfer.length > 0) {
       postMessage(message, transfer)
       return

@@ -6,9 +6,9 @@ import type {RuntimeOverlayInstruction, RuntimePreviewInstruction} from '@vector
 import type {RuntimeCursorState, RuntimeSelectionChromeState} from '@vector/runtime'
 import type {
   OverlayDiagnostics,
-  CanvasOverlayRenderer as CanvasOverlayRendererCompat,
-  CanvasRenderer as CanvasRendererCompat,
-} from '../runtime/canvasAdapter.tsx'
+  EngineOverlayRenderer as EngineOverlayRendererCompat,
+  EngineRendererComponent as EngineRendererComponentCompat,
+} from '../runtime/engineAdapter.tsx'
 import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../../components/statusBar/StatusBar.tsx'
@@ -67,8 +67,9 @@ export interface EditorDocumentState {
 
 export interface EditorRuntimeState {
   canvas: {
-    Renderer: CanvasRendererCompat
-    OverlayRenderer?: CanvasOverlayRendererCompat
+    // Keep compat aliases local to hook state to avoid leaking adapter implementation names.
+    Renderer: EngineRendererComponentCompat
+    OverlayRenderer?: EngineOverlayRendererCompat
     document: ReturnType<typeof createEditorDocumentFromFile>
     shapes: SceneShapeSnapshot[]
     stats: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['stats']

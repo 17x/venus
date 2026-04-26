@@ -5,7 +5,7 @@ import {
   getNormalizedBoundsFromBox,
 } from '@vector/runtime/engine'
 import type {EditorDocument} from '@vector/model'
-import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
+import type {EngineRendererProps} from '../../runtime/engineAdapter.tsx'
 
 export function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {
   if (shape.bezierPoints && shape.bezierPoints.length > 1) {
@@ -225,14 +225,14 @@ export function buildDraftStarPoints(x: number, y: number, width: number, height
 
 export function projectPolygon(
   points: Array<{x: number; y: number}>,
-  matrix: CanvasRendererProps['viewport']['matrix'],
+  matrix: EngineRendererProps['viewport']['matrix'],
 ) {
   return points.map((point) => projectPoint(point, matrix))
 }
 
 export function projectPoint(
   point: {x: number; y: number},
-  matrix: CanvasRendererProps['viewport']['matrix'],
+  matrix: EngineRendererProps['viewport']['matrix'],
 ) {
   return applyMatrixToPoint(matrix, point)
 }

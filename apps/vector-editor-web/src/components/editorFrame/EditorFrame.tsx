@@ -7,7 +7,7 @@ import FileReceiver from '../fileReceiver.tsx'
 import {Button, Col, useTheme} from '@vector/ui'
 import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@vector/runtime'
-import {CanvasViewport} from '../../editor/runtime/canvasAdapter.tsx'
+import {EngineViewport} from '../../editor/runtime/engineAdapter.tsx'
 import {generateTemplateFile} from '../../features/templatePresets/generators.ts'
 import type {InspectorContext, InspectorPanelId} from '../../editor/shell/state/inspectorState.ts'
 import {
@@ -31,7 +31,7 @@ const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
 const MemoToolbelt = memo(Toolbelt)
 
-const MemoCanvasViewport = memo(CanvasViewport)
+const MemoEngineViewport = memo(EngineViewport)
 
 interface StageCanvasLayerProps {
   canvas: ReturnType<typeof useEditorRuntime>['runtimeState']['canvas']
@@ -96,7 +96,7 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
               </div>
             )}
 
-            <MemoCanvasViewport
+            <MemoEngineViewport
               document={props.canvas.document}
               renderer={props.canvas.Renderer}
               overlayRenderer={props.canvas.OverlayRenderer}

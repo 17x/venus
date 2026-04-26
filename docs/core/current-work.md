@@ -34,6 +34,9 @@ context starts, or work needs to resume after switching topics.
     Active execution status (2026-04-23):
   - canvas adapter now publishes runtime render diagnostics baseline and
     render-prep dirty overlap uses previous frame candidates from engine diagnostics
+  - canvas adapter implementation is now folderized behind a stable entry file,
+    splitting viewport orchestration, renderer orchestration, shared types,
+    and scene-patch helpers into dedicated modules for maintainability
   - pointermove hover resolution now uses a time+distance budget to avoid
     resolving top-hit on every high-frequency move tick
   - hover recompute is now gated for interaction modes:

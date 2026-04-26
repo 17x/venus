@@ -7,8 +7,8 @@ import {
   buildRuntimePreviewInstructions,
   createRuntimeSelectionChromeRegistry,
 } from '@vector/runtime'
-import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
-import type {OverlayDiagnostics} from '../runtime/canvasAdapter.tsx'
+import {EngineRenderer} from '../runtime/engineAdapter.tsx'
+import type {OverlayDiagnostics} from '../runtime/engineAdapter.tsx'
 import {buildSelectionState, InteractionOverlay} from '../interaction/index.ts'
 import {resolveTransformPreviewRuntimeState, resolveMarqueeBounds, type MarqueeState, type SnapGuide} from '../../runtime/interaction/index.ts'
 import type {
@@ -108,8 +108,9 @@ export function useEditorRuntimeDerivedState(options: {
   } = useCanvasRuntimeBridge(runtimeBridgeOptions)
 
   const RuntimeRenderer = useMemo(() => {
-    return function RuntimeCanvasRenderer(props: Parameters<typeof Canvas2DRenderer>[0]) {
-      return createElement(Canvas2DRenderer, props)
+    // Wrap runtime renderer so hook consumers stay decoupled from adapter internals.
+    return function RuntimeEngineRenderer(props: Parameters<typeof EngineRenderer>[0]) {
+      return createElement(EngineRenderer, props)
     }
   }, [])
 

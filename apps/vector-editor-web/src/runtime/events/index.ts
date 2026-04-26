@@ -26,6 +26,113 @@ export interface RuntimeInputSink {
   onInput(event: RuntimeInputEvent): void
 }
 
+export interface RuntimeRenderDiagnosticsStats {
+  performance: {
+    timing: {
+      drawMs: number
+      fpsInstantaneous: number
+      fpsEstimate: number
+      fpsPeak: number
+      fpsEstimatePeak: number
+      fpsReached60: boolean
+      fpsReached120: boolean
+    }
+    lod: {
+      engineFrameQuality: 'full' | 'interactive'
+      renderPolicyQuality: 'full' | 'interactive'
+      renderPolicyDpr: number | 'auto'
+      renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
+      viewportInteractionType: 'pan' | 'zoom' | 'other'
+      overlayMode: 'full' | 'degraded'
+    }
+    cache: {
+      cacheMode: 'none' | 'frame'
+      cacheHitCount: number
+      cacheMissCount: number
+      frameReuseHitCount: number
+      frameReuseMissCount: number
+      cacheFallbackReason: string
+    }
+    webgl: {
+      webglRenderPath: 'model-complete' | 'packet' | 'none'
+      webglInteractiveTextFallbackCount: number
+      webglImageTextureUploadCount: number
+      webglImageTextureUploadBytes: number
+      webglImageDownsampledUploadCount: number
+      webglImageDownsampledUploadBytesSaved: number
+      webglDeferredImageTextureCount: number
+      webglTextTextureUploadCount: number
+      webglTextTextureUploadBytes: number
+      webglTextCacheHitCount: number
+      webglPrecomputedTextCacheKeyCount: number
+      webglFallbackTextCacheKeyCount: number
+      webglFrameReuseEdgeRedrawCount: number
+      webglCompositeUploadBytes: number
+      l0PreviewHitCount: number
+      l0PreviewMissCount: number
+      l1CompositeHitCount: number
+      l1CompositeMissCount: number
+      l2TileHitCount: number
+      l2TileMissCount: number
+    }
+  }
+  planner: {
+    frame: {
+      framePlanVersion: number
+      framePlanCandidateCount: number
+      framePlanSceneNodeCount: number
+      framePlanVisibleRatio: number
+      framePlanShortlistActive: boolean
+      framePlanShortlistCandidateRatio: number
+      framePlanShortlistAppliedCandidateCount: number
+      framePlanShortlistPendingState: boolean | null
+      framePlanShortlistPendingFrameCount: number
+      framePlanShortlistToggleCount: number
+      framePlanShortlistDebounceBlockedToggleCount: number
+      framePlanShortlistEnterRatioThreshold: number
+      framePlanShortlistLeaveRatioThreshold: number
+      framePlanShortlistStableFrameCount: number
+    }
+    hit: {
+      hitPlanVersion: number
+      hitPlanCandidateCount: number
+      hitPlanHitCount: number
+      hitPlanExactCheckCount: number
+    }
+    dirtyRegion: {
+      renderPrepDirtyCandidateCount: number
+      renderPrepDirtyOffscreenCount: number
+      offscreenSceneDirtyForceRenderFrameThreshold: number
+      offscreenSceneDirtySkipConsecutiveCount: number
+      offscreenSceneDirtySkipConsecutiveMaxCount: number
+      dirtyBoundsSmallAreaThreshold: number
+      dirtyBoundsMediumAreaThreshold: number
+      dirtyBoundsMarkCount: number
+      dirtyBoundsMarkArea: number
+      dirtyBoundsMarkSmallAreaCount: number
+      dirtyBoundsMarkMediumAreaCount: number
+      dirtyBoundsMarkLargeAreaCount: number
+    }
+  }
+  overlay: {
+    overlayDegraded: boolean
+    overlayGuideInputCount: number
+    overlayGuideKeptCount: number
+    overlayGuideDroppedCount: number
+    overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
+    overlayPathEditWhitelistActive: boolean
+  }
+  requests: {
+    lastRenderRequestReason: string
+    sceneDirtyRequestCount: number
+    deferredImageDrainRequestCount: number
+    idleRedrawRequestCount: number
+    interactiveRequestCount: number
+    offscreenSceneDirtySkipRequestCount: number
+    forcedSceneDirtyRequestCount: number
+  }
+}
+
 export interface RuntimeRenderDiagnostics {
   frameCount: number
   drawCount: number
@@ -135,6 +242,8 @@ export interface RuntimeRenderDiagnostics {
   interactiveRequestCount: number
   offscreenSceneDirtySkipRequestCount: number
   forcedSceneDirtyRequestCount: number
+  // Sectioned diagnostics mirror of flat fields for structured debug surfaces.
+  stats?: RuntimeRenderDiagnosticsStats
 }
 
 export interface RuntimeViewportSnapshot {
@@ -255,6 +364,112 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   interactiveRequestCount: 0,
   offscreenSceneDirtySkipRequestCount: 0,
   forcedSceneDirtyRequestCount: 0,
+  stats: {
+    performance: {
+      timing: {
+        drawMs: 0,
+        fpsInstantaneous: 0,
+        fpsEstimate: 0,
+        fpsPeak: 0,
+        fpsEstimatePeak: 0,
+        fpsReached60: false,
+        fpsReached120: false,
+      },
+      lod: {
+        engineFrameQuality: 'full',
+        renderPolicyQuality: 'full',
+        renderPolicyDpr: 'auto',
+        renderPhase: 'settled',
+        viewportInteractionType: 'other',
+        overlayMode: 'full',
+      },
+      cache: {
+        cacheMode: 'none',
+        cacheHitCount: 0,
+        cacheMissCount: 0,
+        frameReuseHitCount: 0,
+        frameReuseMissCount: 0,
+        cacheFallbackReason: 'none',
+      },
+      webgl: {
+        webglRenderPath: 'none',
+        webglInteractiveTextFallbackCount: 0,
+        webglImageTextureUploadCount: 0,
+        webglImageTextureUploadBytes: 0,
+        webglImageDownsampledUploadCount: 0,
+        webglImageDownsampledUploadBytesSaved: 0,
+        webglDeferredImageTextureCount: 0,
+        webglTextTextureUploadCount: 0,
+        webglTextTextureUploadBytes: 0,
+        webglTextCacheHitCount: 0,
+        webglPrecomputedTextCacheKeyCount: 0,
+        webglFallbackTextCacheKeyCount: 0,
+        webglFrameReuseEdgeRedrawCount: 0,
+        webglCompositeUploadBytes: 0,
+        l0PreviewHitCount: 0,
+        l0PreviewMissCount: 0,
+        l1CompositeHitCount: 0,
+        l1CompositeMissCount: 0,
+        l2TileHitCount: 0,
+        l2TileMissCount: 0,
+      },
+    },
+    planner: {
+      frame: {
+        framePlanVersion: 0,
+        framePlanCandidateCount: 0,
+        framePlanSceneNodeCount: 0,
+        framePlanVisibleRatio: 0,
+        framePlanShortlistActive: false,
+        framePlanShortlistCandidateRatio: 0,
+        framePlanShortlistAppliedCandidateCount: 0,
+        framePlanShortlistPendingState: null,
+        framePlanShortlistPendingFrameCount: 0,
+        framePlanShortlistToggleCount: 0,
+        framePlanShortlistDebounceBlockedToggleCount: 0,
+        framePlanShortlistEnterRatioThreshold: 0,
+        framePlanShortlistLeaveRatioThreshold: 0,
+        framePlanShortlistStableFrameCount: 0,
+      },
+      hit: {
+        hitPlanVersion: 0,
+        hitPlanCandidateCount: 0,
+        hitPlanHitCount: 0,
+        hitPlanExactCheckCount: 0,
+      },
+      dirtyRegion: {
+        renderPrepDirtyCandidateCount: 0,
+        renderPrepDirtyOffscreenCount: 0,
+        offscreenSceneDirtyForceRenderFrameThreshold: 0,
+        offscreenSceneDirtySkipConsecutiveCount: 0,
+        offscreenSceneDirtySkipConsecutiveMaxCount: 0,
+        dirtyBoundsSmallAreaThreshold: 0,
+        dirtyBoundsMediumAreaThreshold: 0,
+        dirtyBoundsMarkCount: 0,
+        dirtyBoundsMarkArea: 0,
+        dirtyBoundsMarkSmallAreaCount: 0,
+        dirtyBoundsMarkMediumAreaCount: 0,
+        dirtyBoundsMarkLargeAreaCount: 0,
+      },
+    },
+    overlay: {
+      overlayDegraded: false,
+      overlayGuideInputCount: 0,
+      overlayGuideKeptCount: 0,
+      overlayGuideDroppedCount: 0,
+      overlayGuideSelectionStrategy: 'full',
+      overlayPathEditWhitelistActive: false,
+    },
+    requests: {
+      lastRenderRequestReason: 'none',
+      sceneDirtyRequestCount: 0,
+      deferredImageDrainRequestCount: 0,
+      idleRedrawRequestCount: 0,
+      interactiveRequestCount: 0,
+      offscreenSceneDirtySkipRequestCount: 0,
+      forcedSceneDirtyRequestCount: 0,
+    },
+  },
 }
 
 const renderDiagnosticsListeners = new Set<VoidFunction>()
@@ -315,7 +530,7 @@ export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) 
   peakInstantaneousFps = Math.max(peakInstantaneousFps, Math.min(Math.max(instantaneousFps, 0), 1000))
   peakSmoothedFpsEstimate = Math.max(peakSmoothedFpsEstimate, smoothedFpsEstimate)
 
-  currentRenderDiagnostics = {
+  const baseDiagnostics: RuntimeRenderDiagnostics = {
     ...next,
     fpsInstantaneous: Math.min(Math.max(instantaneousFps, 0), 1000),
     fpsEstimate: smoothedFpsEstimate,
@@ -324,7 +539,124 @@ export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) 
     fpsReached60: peakInstantaneousFps >= 60,
     fpsReached120: peakInstantaneousFps >= 120,
   }
+  // Keep a sectioned mirror so engine and UI debug surfaces can consume
+  // hierarchical groups (for example: stats.performance.lod).
+  currentRenderDiagnostics = {
+    ...baseDiagnostics,
+    stats: baseDiagnostics.stats ?? resolveRuntimeRenderDiagnosticsStats(baseDiagnostics),
+  }
   renderDiagnosticsListeners.forEach((listener) => listener())
+}
+
+function resolveRuntimeRenderDiagnosticsStats(
+  diagnostics: RuntimeRenderDiagnostics,
+): RuntimeRenderDiagnosticsStats {
+  return {
+    performance: {
+      timing: {
+        drawMs: diagnostics.drawMs,
+        fpsInstantaneous: diagnostics.fpsInstantaneous,
+        fpsEstimate: diagnostics.fpsEstimate,
+        fpsPeak: diagnostics.fpsPeak,
+        fpsEstimatePeak: diagnostics.fpsEstimatePeak,
+        fpsReached60: diagnostics.fpsReached60,
+        fpsReached120: diagnostics.fpsReached120,
+      },
+      lod: {
+        engineFrameQuality: diagnostics.engineFrameQuality,
+        renderPolicyQuality: diagnostics.renderPolicyQuality,
+        renderPolicyDpr: diagnostics.renderPolicyDpr,
+        renderPhase: diagnostics.renderPhase,
+        viewportInteractionType: diagnostics.viewportInteractionType,
+        overlayMode: diagnostics.overlayMode,
+      },
+      cache: {
+        cacheMode: diagnostics.cacheMode,
+        cacheHitCount: diagnostics.cacheHitCount,
+        cacheMissCount: diagnostics.cacheMissCount,
+        frameReuseHitCount: diagnostics.frameReuseHitCount,
+        frameReuseMissCount: diagnostics.frameReuseMissCount,
+        cacheFallbackReason: diagnostics.cacheFallbackReason,
+      },
+      webgl: {
+        webglRenderPath: diagnostics.webglRenderPath,
+        webglInteractiveTextFallbackCount: diagnostics.webglInteractiveTextFallbackCount,
+        webglImageTextureUploadCount: diagnostics.webglImageTextureUploadCount,
+        webglImageTextureUploadBytes: diagnostics.webglImageTextureUploadBytes,
+        webglImageDownsampledUploadCount: diagnostics.webglImageDownsampledUploadCount,
+        webglImageDownsampledUploadBytesSaved: diagnostics.webglImageDownsampledUploadBytesSaved,
+        webglDeferredImageTextureCount: diagnostics.webglDeferredImageTextureCount,
+        webglTextTextureUploadCount: diagnostics.webglTextTextureUploadCount,
+        webglTextTextureUploadBytes: diagnostics.webglTextTextureUploadBytes,
+        webglTextCacheHitCount: diagnostics.webglTextCacheHitCount,
+        webglPrecomputedTextCacheKeyCount: diagnostics.webglPrecomputedTextCacheKeyCount,
+        webglFallbackTextCacheKeyCount: diagnostics.webglFallbackTextCacheKeyCount,
+        webglFrameReuseEdgeRedrawCount: diagnostics.webglFrameReuseEdgeRedrawCount,
+        webglCompositeUploadBytes: diagnostics.webglCompositeUploadBytes,
+        l0PreviewHitCount: diagnostics.l0PreviewHitCount,
+        l0PreviewMissCount: diagnostics.l0PreviewMissCount,
+        l1CompositeHitCount: diagnostics.l1CompositeHitCount,
+        l1CompositeMissCount: diagnostics.l1CompositeMissCount,
+        l2TileHitCount: diagnostics.l2TileHitCount,
+        l2TileMissCount: diagnostics.l2TileMissCount,
+      },
+    },
+    planner: {
+      frame: {
+        framePlanVersion: diagnostics.framePlanVersion,
+        framePlanCandidateCount: diagnostics.framePlanCandidateCount,
+        framePlanSceneNodeCount: diagnostics.framePlanSceneNodeCount,
+        framePlanVisibleRatio: diagnostics.framePlanVisibleRatio,
+        framePlanShortlistActive: diagnostics.framePlanShortlistActive,
+        framePlanShortlistCandidateRatio: diagnostics.framePlanShortlistCandidateRatio,
+        framePlanShortlistAppliedCandidateCount: diagnostics.framePlanShortlistAppliedCandidateCount,
+        framePlanShortlistPendingState: diagnostics.framePlanShortlistPendingState,
+        framePlanShortlistPendingFrameCount: diagnostics.framePlanShortlistPendingFrameCount,
+        framePlanShortlistToggleCount: diagnostics.framePlanShortlistToggleCount,
+        framePlanShortlistDebounceBlockedToggleCount: diagnostics.framePlanShortlistDebounceBlockedToggleCount,
+        framePlanShortlistEnterRatioThreshold: diagnostics.framePlanShortlistEnterRatioThreshold,
+        framePlanShortlistLeaveRatioThreshold: diagnostics.framePlanShortlistLeaveRatioThreshold,
+        framePlanShortlistStableFrameCount: diagnostics.framePlanShortlistStableFrameCount,
+      },
+      hit: {
+        hitPlanVersion: diagnostics.hitPlanVersion,
+        hitPlanCandidateCount: diagnostics.hitPlanCandidateCount,
+        hitPlanHitCount: diagnostics.hitPlanHitCount,
+        hitPlanExactCheckCount: diagnostics.hitPlanExactCheckCount,
+      },
+      dirtyRegion: {
+        renderPrepDirtyCandidateCount: diagnostics.renderPrepDirtyCandidateCount,
+        renderPrepDirtyOffscreenCount: diagnostics.renderPrepDirtyOffscreenCount,
+        offscreenSceneDirtyForceRenderFrameThreshold: diagnostics.offscreenSceneDirtyForceRenderFrameThreshold,
+        offscreenSceneDirtySkipConsecutiveCount: diagnostics.offscreenSceneDirtySkipConsecutiveCount,
+        offscreenSceneDirtySkipConsecutiveMaxCount: diagnostics.offscreenSceneDirtySkipConsecutiveMaxCount,
+        dirtyBoundsSmallAreaThreshold: diagnostics.dirtyBoundsSmallAreaThreshold,
+        dirtyBoundsMediumAreaThreshold: diagnostics.dirtyBoundsMediumAreaThreshold,
+        dirtyBoundsMarkCount: diagnostics.dirtyBoundsMarkCount,
+        dirtyBoundsMarkArea: diagnostics.dirtyBoundsMarkArea,
+        dirtyBoundsMarkSmallAreaCount: diagnostics.dirtyBoundsMarkSmallAreaCount,
+        dirtyBoundsMarkMediumAreaCount: diagnostics.dirtyBoundsMarkMediumAreaCount,
+        dirtyBoundsMarkLargeAreaCount: diagnostics.dirtyBoundsMarkLargeAreaCount,
+      },
+    },
+    overlay: {
+      overlayDegraded: diagnostics.overlayDegraded,
+      overlayGuideInputCount: diagnostics.overlayGuideInputCount,
+      overlayGuideKeptCount: diagnostics.overlayGuideKeptCount,
+      overlayGuideDroppedCount: diagnostics.overlayGuideDroppedCount,
+      overlayGuideSelectionStrategy: diagnostics.overlayGuideSelectionStrategy,
+      overlayPathEditWhitelistActive: diagnostics.overlayPathEditWhitelistActive,
+    },
+    requests: {
+      lastRenderRequestReason: diagnostics.lastRenderRequestReason,
+      sceneDirtyRequestCount: diagnostics.sceneDirtyRequestCount,
+      deferredImageDrainRequestCount: diagnostics.deferredImageDrainRequestCount,
+      idleRedrawRequestCount: diagnostics.idleRedrawRequestCount,
+      interactiveRequestCount: diagnostics.interactiveRequestCount,
+      offscreenSceneDirtySkipRequestCount: diagnostics.offscreenSceneDirtySkipRequestCount,
+      forcedSceneDirtyRequestCount: diagnostics.forcedSceneDirtyRequestCount,
+    },
+  }
 }
 
 export function getRuntimeRenderDiagnosticsSnapshot() {
