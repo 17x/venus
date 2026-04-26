@@ -8,6 +8,15 @@
 - Validation baseline: `pnpm typecheck`, `pnpm lint`, `pnpm build`
 - Reporting format per task: change summary, risk/regression notes, next task handoff
 
+## Engine Task Ledger (Single Source)
+
+- Active engine task ledger: [docs/task/engine/execution-backlog.md](docs/task/engine/execution-backlog.md)
+- Design source for this ledger: [docs/task/engine/draft-01.md](docs/task/engine/draft-01.md)
+- AI update rule:
+  - Before engine coding: read ledger first, then read draft-01
+  - After each implementation slice: update task status + touched files + validation evidence
+  - Keep this file as global index, keep detailed execution only in the engine ledger
+
 ## Task ID Convention
 
 - Format: `VT-YYYYMMDD-XX` (example: `VT-20260424-01`)

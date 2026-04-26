@@ -7,12 +7,17 @@ import type {
 
 export type EngineBackend = 'canvas2d' | 'webgl'
 export type EngineRenderQuality = 'full' | 'interactive'
+// Base scene lane selection reflects vector-live/tile-cache/progressive-refresh mode.
+export type BaseSceneRenderMode = 'vector-live' | 'tile-cache' | 'progressive-refresh'
 
 export interface EngineInteractionPreviewConfig {
   // Enables temporary affine preview from last rendered frame during interaction.
   enabled?: boolean
   // `interaction`: allow pan/zoom preview; `zoom-only`: only scale gestures.
   mode?: 'interaction' | 'zoom-only'
+  // When enabled, interactive frames prefer cache preview only and avoid
+  // packet/model fallback rendering while snapshot reuse is possible.
+  cacheOnly?: boolean
   // Max allowed preview scale step against cached frame before falling back.
   maxScaleStep?: number
   // Max allowed translation in pixels before falling back.
@@ -33,6 +38,9 @@ export interface EngineRenderStats {
   visibleCount: number
   culledCount: number
   engineFrameQuality?: EngineRenderQuality
+  baseSceneRenderMode?: BaseSceneRenderMode
+  // True when tile cache is used strictly for base scene composition, not overlays.
+  tileCacheBaseSceneOnly?: boolean
   groupCollapseCount?: number
   groupCollapseCulledCount?: number
   cacheHits: number
@@ -48,6 +56,12 @@ export interface EngineRenderStats {
   webglPrecomputedTextCacheKeyCount?: number
   webglFallbackTextCacheKeyCount?: number
   webglFrameReuseEdgeRedrawCount?: number
+  webglPreviewReuseMs?: number
+  webglPlanBuildMs?: number
+  webglTextureUploadMs?: number
+  webglDrawSubmitMs?: number
+  webglSnapshotCaptureMs?: number
+  webglModelRenderMs?: number
   webglImageTextureUploadCount?: number
   webglImageTextureUploadBytes?: number
   webglImageDownsampledUploadCount?: number
@@ -61,10 +75,19 @@ export interface EngineRenderStats {
   l2TileHitCount?: number
   l2TileMissCount?: number
   cacheFallbackReason?: string
+  cameraAnimationActive?: boolean
+  cameraAnimationCachePreviewOnly?: boolean
+  cameraAnimationPreviewHitCount?: number
+  cameraAnimationPreviewMissCount?: number
   // Tile cache diagnostics
   tileCacheSize?: number
   tileDirtyCount?: number
   tileCacheTotalBytes?: number
+  tileUploadCount?: number
+  tileRenderCount?: number
+  visibleTileCount?: number
+  gpuTextureBytes?: number
+  imageTextureBytes?: number
   // Initial render diagnostics
   initialRenderPhase?: string
   initialRenderProgress?: number
@@ -128,6 +151,8 @@ export interface EngineRendererContext {
   // When provided, renderers can use this to optimize which tiles to re-render.
   dirtyRegions?: Array<{
     zoomLevel?: number
+    // Optional previous bounds for move/transform updates.
+    previousBounds?: EngineRect
     bounds: EngineRect
   }>
   // Optional: viewport-scoped coarse candidates from the engine frame plan.

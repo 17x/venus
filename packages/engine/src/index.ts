@@ -11,6 +11,7 @@ export type {
   EngineBackend,
   EngineInteractionPreviewConfig,
   EngineRenderFrame,
+  BaseSceneRenderMode,
   EngineRenderStats,
   EngineRenderer,
   EngineRendererCapabilities,
@@ -55,17 +56,46 @@ export { createEngineReplayCoordinator } from './renderer/replayWorker.ts'
 export { createCanvas2DEngineRenderer } from './renderer/canvas2d.ts'
 export { createWebGLEngineRenderer } from './renderer/webgl.ts'
 export type {
+  CreateTileKeyInput,
   EngineTileConfig,
   EngineTileCacheEntry,
+  TilePriority,
+  TileCoord,
+  TileKey,
+  TileTextureResolveLevel,
+  TileTextureResolveResult,
+  TileTextureResolver,
+  TileRenderReason,
+  TileRenderRequest,
+  TileRenderer,
+  TileTextureEntry,
+  TileViewportCamera,
   TileZoomLevel,
+  VisibleTileProjection,
 } from './renderer/tileManager.ts'
 export {
   EngineTileCache,
+  createTileKey,
+  getActiveZoomBuckets,
+  getVisibleTilesForCamera,
+  getViewportWorldBounds,
+  getWorldTileSize,
+  getZoomBucket,
+  unionEngineRectBounds,
+  resolveTileTextureWithFallback,
   getTileSizeForZoom,
   getZoomLevelForScale,
   getTileBounds,
   getTilesIntersectingBounds,
+  ZOOM_BUCKETS,
 } from './renderer/tileManager.ts'
+export type {
+  TileSchedulerCancelOptions,
+  TileSchedulerTickOptions,
+} from './renderer/tileScheduler.ts'
+export {
+  TileScheduler,
+} from './renderer/tileScheduler.ts'
 export type {
   DirtyRegionUpdate,
   DirtyUpdateMode,

@@ -8,6 +8,36 @@ interface RenderStatsSnapshot {
   cacheMisses: number
   frameReuseHits: number
   frameReuseMisses: number
+  cameraAnimationActive?: boolean
+  cameraAnimationCachePreviewOnly?: boolean
+  cameraAnimationPreviewHitCount?: number
+  cameraAnimationPreviewMissCount?: number
+  tileCacheSize?: number
+  tileDirtyCount?: number
+  tileCacheTotalBytes?: number
+  tileUploadCount?: number
+  tileRenderCount?: number
+  visibleTileCount?: number
+  gpuTextureBytes?: number
+  imageTextureBytes?: number
+  initialRenderPhase?: string
+  initialRenderProgress?: number
+  dirtyRegionCount?: number
+  dirtyTileCount?: number
+  incrementalUpdateCount?: number
+}
+
+interface RuntimeStageTimingSnapshot {
+  scenePrepareMs: number
+  sceneApplyMs: number
+  viewportCommitMs: number
+  viewportResizeMs: number
+  viewportStateUpdateMs: number
+  diagnosticsPublishMs: number
+  plannerSampleMs: number
+  schedulerQueueWaitMs: number
+  schedulerThrottleDelayMs: number
+  presentRafDelayMs: number
 }
 
 interface WebglStatsSnapshot {
@@ -37,6 +67,12 @@ interface WebglStatsSnapshot {
   l2TileHitCount?: number
   l2TileMissCount?: number
   cacheFallbackReason?: string
+  webglPreviewReuseMs?: number
+  webglPlanBuildMs?: number
+  webglTextureUploadMs?: number
+  webglDrawSubmitMs?: number
+  webglSnapshotCaptureMs?: number
+  webglModelRenderMs?: number
 }
 
 interface GroupCollapseStatsSnapshot {
@@ -105,6 +141,7 @@ interface RenderRequestStatsSnapshot {
 export interface BuildRuntimeDiagnosticsPayloadInput {
   frameCount: number
   renderStats: RenderStatsSnapshot
+  runtimeStageTimingMs: RuntimeStageTimingSnapshot
   webglStats: WebglStatsSnapshot
   groupCollapseStats: GroupCollapseStatsSnapshot
   planDiagnostics: PlanDiagnosticsSnapshot
@@ -136,6 +173,17 @@ export function buildRuntimeDiagnosticsPayload(
     frameCount: input.frameCount,
     drawCount: input.renderStats.drawCount,
     drawMs: input.renderStats.frameMs,
+    // Keep stage timings explicit so debug panel can pinpoint hot sections quickly.
+    scenePrepareMs: input.runtimeStageTimingMs.scenePrepareMs,
+    sceneApplyMs: input.runtimeStageTimingMs.sceneApplyMs,
+    viewportCommitMs: input.runtimeStageTimingMs.viewportCommitMs,
+    viewportResizeMs: input.runtimeStageTimingMs.viewportResizeMs,
+    viewportStateUpdateMs: input.runtimeStageTimingMs.viewportStateUpdateMs,
+    diagnosticsPublishMs: input.runtimeStageTimingMs.diagnosticsPublishMs,
+    plannerSampleMs: input.runtimeStageTimingMs.plannerSampleMs,
+    schedulerQueueWaitMs: input.runtimeStageTimingMs.schedulerQueueWaitMs,
+    schedulerThrottleDelayMs: input.runtimeStageTimingMs.schedulerThrottleDelayMs,
+    presentRafDelayMs: input.runtimeStageTimingMs.presentRafDelayMs,
     engineFrameQuality: input.webglStats.engineFrameQuality ?? 'full',
     fpsInstantaneous: 0,
     fpsEstimate: 0,
@@ -262,6 +310,18 @@ export function buildRuntimeDiagnosticsPayload(
       input.webglStats.l2TileHitCount ?? 0,
     l2TileMissCount:
       input.webglStats.l2TileMissCount ?? 0,
+    webglPreviewReuseMs:
+      input.webglStats.webglPreviewReuseMs ?? 0,
+    webglPlanBuildMs:
+      input.webglStats.webglPlanBuildMs ?? 0,
+    webglTextureUploadMs:
+      input.webglStats.webglTextureUploadMs ?? 0,
+    webglDrawSubmitMs:
+      input.webglStats.webglDrawSubmitMs ?? 0,
+    webglSnapshotCaptureMs:
+      input.webglStats.webglSnapshotCaptureMs ?? 0,
+    webglModelRenderMs:
+      input.webglStats.webglModelRenderMs ?? 0,
     cacheFallbackReason:
       input.webglStats.cacheFallbackReason ?? 'none',
     lastRenderRequestReason: input.renderRequestStats.lastReason,
@@ -294,5 +354,22 @@ export function buildRuntimeDiagnosticsPayload(
       input.renderRequestStats.offscreenSceneDirtySkipCount,
     forcedSceneDirtyRequestCount:
       input.renderRequestStats.forcedSceneDirtyRenderCount,
+    cameraAnimationActive: input.renderStats.cameraAnimationActive ?? false,
+    cameraAnimationCachePreviewOnly: input.renderStats.cameraAnimationCachePreviewOnly ?? false,
+    cameraAnimationPreviewHitCount: input.renderStats.cameraAnimationPreviewHitCount ?? 0,
+    cameraAnimationPreviewMissCount: input.renderStats.cameraAnimationPreviewMissCount ?? 0,
+    tileCacheSize: input.renderStats.tileCacheSize ?? 0,
+    tileDirtyCount: input.renderStats.tileDirtyCount ?? 0,
+    tileCacheTotalBytes: input.renderStats.tileCacheTotalBytes ?? 0,
+    tileUploadCount: input.renderStats.tileUploadCount ?? 0,
+    tileRenderCount: input.renderStats.tileRenderCount ?? 0,
+    visibleTileCount: input.renderStats.visibleTileCount ?? 0,
+    gpuTextureBytes: input.renderStats.gpuTextureBytes ?? 0,
+    imageTextureBytes: input.renderStats.imageTextureBytes ?? 0,
+    initialRenderPhase: input.renderStats.initialRenderPhase ?? 'none',
+    initialRenderProgress: input.renderStats.initialRenderProgress ?? 0,
+    dirtyRegionCount: input.renderStats.dirtyRegionCount ?? 0,
+    dirtyTileCount: input.renderStats.dirtyTileCount ?? 0,
+    incrementalUpdateCount: input.renderStats.incrementalUpdateCount ?? 0,
   }
 }

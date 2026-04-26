@@ -32,6 +32,14 @@ import {resolveExpandedChangedIds, resolveMergedNodeBounds} from './scenePatch.t
 import {ENGINE_RENDER_LOD_CONFIG, type EngineRendererProps} from './engineTypes.ts'
 
 const ENABLE_RUNTIME_RENDER_DIAGNOSTICS = true
+// Gate camera animation integration for controlled rollout during tuning.
+const ENABLE_CAMERA_ANIMATION = true
+// Keep cache-only disabled by default until preview-hit stability is verified.
+const CAMERA_ANIMATION_ZOOM_CACHE_PREVIEW_ONLY = false
+// Use immediate camera updates for pan to avoid lag/offset drift under dense input.
+const CAMERA_ANIMATION_PAN_DURATION_MS = 0
+// Use immediate zoom target updates to prevent repeated animation restarts from stalling.
+const CAMERA_ANIMATION_ZOOM_DURATION_MS = 0
 
 // Keep renderer orchestration in a dedicated module so viewport and scene-patch
 // concerns can evolve independently without growing one monolithic file.
@@ -47,18 +55,42 @@ export function EngineRenderer({
   lodLevel = 0,
   lodConfig,
 }: EngineRendererProps) {
+  // Derive camera animation behavior by interaction type so cache-only policy
+  // can favor smooth zoom while keeping pan resilient to preview misses.
+  const resolveCameraAnimationPolicy = React.useCallback(() => {
+    if (viewportInteractionType === 'zoom') {
+      return {
+        durationMs: CAMERA_ANIMATION_ZOOM_DURATION_MS,
+        easing: 'linear' as const,
+        cachePreviewOnly: CAMERA_ANIMATION_ZOOM_CACHE_PREVIEW_ONLY,
+      }
+    }
+
+    return {
+      durationMs: CAMERA_ANIMATION_PAN_DURATION_MS,
+      easing: 'linear' as const,
+      cachePreviewOnly: false,
+    }
+  }, [viewportInteractionType])
+
   const INTERACTION_SETTLE_MS = 120
   const PLAN_DIAGNOSTIC_SAMPLE_MS = 1200
   const FULL_REDRAW_QUIET_WINDOW_MS = 140
   const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
   const FULL_REDRAW_DEFER_MS = 32
+  const DPR_RESTORE_DEFER_MS = 220
+  const RESIZE_COMMIT_DEFER_MS = 260
+  const RESIZE_COMMIT_THRESHOLD_PX = 96
+  const FORCE_STABLE_DPR = true
+  const STABLE_DPR_VALUE = 1.5
   const SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES =
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames
   const DIRTY_BOUNDS_SMALL_AREA_PX2 =
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsSmallAreaPx2
   const DIRTY_BOUNDS_MEDIUM_AREA_PX2 =
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsMediumAreaPx2
-  const OVERSCAN_PX = 240
+  // Keep moderate overscan so panning stays stable without oversized render targets.
+  const OVERSCAN_PX = 96
   // Keep host surface naming engine-centric even though the DOM element is a canvas.
   const renderSurfaceRef = React.useRef<HTMLCanvasElement | null>(null)
   const engineRef = React.useRef<Engine | null>(null)
@@ -83,6 +115,9 @@ export function EngineRenderer({
   const lastInteractionAtRef = React.useRef(0)
   const interactionSettleTimerRef = React.useRef<number | null>(null)
   const deferredFullRedrawHandleRef = React.useRef<number | null>(null)
+  const deferredDprRestoreHandleRef = React.useRef<number | null>(null)
+  const deferredResizeCommitHandleRef = React.useRef<number | null>(null)
+  const pendingRenderSizeRef = React.useRef<{width: number; height: number} | null>(null)
   const deferredFullRedrawTokenRef = React.useRef(0)
   const renderSchedulerRef = React.useRef<EngineRenderScheduler | null>(null)
   const deferredImageWakeupPendingRef = React.useRef(false)
@@ -149,11 +184,26 @@ export function EngineRenderer({
     sceneLoadCount: 0,
     scenePatchCount: 0,
   })
+  const runtimeStageTimingMsRef = React.useRef({
+    scenePrepareMs: 0,
+    sceneApplyMs: 0,
+    viewportCommitMs: 0,
+    viewportResizeMs: 0,
+    viewportStateUpdateMs: 0,
+    diagnosticsPublishMs: 0,
+    plannerSampleMs: 0,
+    schedulerQueueWaitMs: 0,
+    schedulerThrottleDelayMs: 0,
+    presentRafDelayMs: 0,
+  })
+  const presentLatencyRafPendingRef = React.useRef(false)
   const lastZeroVisibilityDebugFrameRef = React.useRef(0)
   const lastPlanDiagnosticSampleAtRef = React.useRef(0)
   const protectedNodeSignatureRef = React.useRef('')
   const previewSceneRevisionRef = React.useRef(0)
   const hasLoadedSceneInEngineRef = React.useRef(false)
+  const cameraAnimationActiveRef = React.useRef(false)
+  const measuredSurfaceSizeRef = React.useRef<{width: number; height: number} | null>(null)
   const previousRenderPrepRef = React.useRef<{
     revision: number
     document: EditorDocument
@@ -178,6 +228,15 @@ export function EngineRenderer({
     }),
     [interactionPhase, lodConfig, lodLevel],
   )
+  const effectiveInteractiveIntervalMs = React.useMemo(() => {
+    // Keep interaction frames unthrottled so scheduler delay does not dominate
+    // pan/zoom frame pacing under continuous pointer input.
+    if (renderPolicy.interactionActive) {
+      return 0
+    }
+
+    return renderPolicy.interactiveIntervalMs
+  }, [renderPolicy.interactionActive, renderPolicy.interactiveIntervalMs])
 
   isInteractingRef.current = isInteracting
 
@@ -204,9 +263,29 @@ export function EngineRenderer({
     renderSchedulerRef.current?.cancel()
   }, [])
 
+  const cancelDeferredResizeCommit = React.useCallback(() => {
+    if (deferredResizeCommitHandleRef.current === null) {
+      return
+    }
+
+    // Coalesce viewport resize commits so canvas realloc does not thrash.
+    window.clearTimeout(deferredResizeCommitHandleRef.current)
+    deferredResizeCommitHandleRef.current = null
+  }, [])
+
+  const cancelDeferredDprRestore = React.useCallback(() => {
+    if (deferredDprRestoreHandleRef.current === null) {
+      return
+    }
+
+    // Clear deferred DPR restore when interaction resumes to avoid resize thrash.
+    window.clearTimeout(deferredDprRestoreHandleRef.current)
+    deferredDprRestoreHandleRef.current = null
+  }, [])
+
   const requestEngineRender = React.useCallback((
     mode: 'interactive' | 'normal' = 'normal',
-    reason: 'scene-dirty' | 'deferred-image-drain' | 'idle-redraw' | 'interactive-viewport' = 'scene-dirty',
+    reason: 'scene-dirty' | 'deferred-image-drain' | 'idle-redraw' | 'interactive-viewport' | 'camera-animation' = 'scene-dirty',
   ) => {
     // Track request sources in the app adapter so idle redraw churn can be
     // attributed without touching the engine scheduler contract.
@@ -218,6 +297,8 @@ export function EngineRenderer({
     } else if (reason === 'idle-redraw') {
       renderRequestStatsRef.current.idleRedrawCount += 1
     } else if (reason === 'interactive-viewport') {
+      renderRequestStatsRef.current.interactiveCount += 1
+    } else if (reason === 'camera-animation') {
       renderRequestStatsRef.current.interactiveCount += 1
     }
     renderSchedulerRef.current?.request(mode)
@@ -247,14 +328,14 @@ export function EngineRenderer({
         },
         // Keep tile cache disabled until incremental tile reuse is stable.
         tiles: {
-          enabled: false,
+          enabled: true,
           tileSizePx: 512,
           maxCacheSize: 64,
         },
         // Keep overscan disabled because app-side render overscan is managed
         // separately through viewport sizing in this adapter.
         overscan: {
-          enabled: false,
+          enabled: true,
           borderPx: 240,
         },
       },
@@ -333,9 +414,31 @@ export function EngineRenderer({
             l2TileHitCount?: number
             l2TileMissCount?: number
             cacheFallbackReason?: string
+            webglPreviewReuseMs?: number
+            webglPlanBuildMs?: number
+            webglTextureUploadMs?: number
+            webglDrawSubmitMs?: number
+            webglSnapshotCaptureMs?: number
+            webglModelRenderMs?: number
+            cameraAnimationActive?: boolean
+            cameraAnimationCachePreviewOnly?: boolean
+            cameraAnimationPreviewHitCount?: number
+            cameraAnimationPreviewMissCount?: number
+          }
+          const schedulerDiagnostics = renderSchedulerRef.current?.getDiagnostics?.()
+          if (schedulerDiagnostics) {
+            // Capture scheduler-side wait/throttle attribution per published frame.
+            runtimeStageTimingMsRef.current.schedulerQueueWaitMs =
+              schedulerDiagnostics.lastQueueWaitMs
+            runtimeStageTimingMsRef.current.schedulerThrottleDelayMs =
+              schedulerDiagnostics.lastInteractiveThrottleDelayMs
           }
           const now = performance.now()
+          let plannerSampleMs = 0
           if (now - lastPlanDiagnosticSampleAtRef.current >= PLAN_DIAGNOSTIC_SAMPLE_MS) {
+            // Sample planner diagnostics cost so debug panel can separate
+            // sampling overhead from draw/scene workloads.
+            const plannerSampleStart = performance.now()
             // Poll planner diagnostics at a lower cadence so debug introspection
             // does not add fixed per-frame overhead to interactive rendering.
             const runtimeDiagnostics = engineRef.current?.getDiagnostics()
@@ -390,7 +493,9 @@ export function EngineRenderer({
               )?.exactCheckCount ?? 0,
             }
             lastPlanDiagnosticSampleAtRef.current = now
+            plannerSampleMs = performance.now() - plannerSampleStart
           }
+          runtimeStageTimingMsRef.current.plannerSampleMs = plannerSampleMs
           const planDiagnostics = latestPlanDiagnosticsRef.current
           const renderPrepDirtyCandidateCount = latestRenderPrepStatsRef.current.dirtyCandidateCount
           const renderPrepDirtyOffscreenCount = latestRenderPrepStatsRef.current.dirtyOffscreenCount
@@ -439,9 +544,8 @@ export function EngineRenderer({
           deferredImageWakeupPendingRef.current = false
 
           drawSerialRef.current += 1
-          // Build diagnostics payload in a dedicated module to keep this
-          // adapter focused on orchestration and lifecycle responsibilities.
-          publishRuntimeRenderDiagnostics(buildRuntimeDiagnosticsPayload({
+          const diagnosticsPublishStart = performance.now()
+          const diagnosticsPayload = buildRuntimeDiagnosticsPayload({
             frameCount: drawSerialRef.current,
             renderStats: {
               drawCount: nextStats.drawCount,
@@ -451,7 +555,28 @@ export function EngineRenderer({
               cacheMisses: nextStats.cacheMisses,
               frameReuseHits: nextStats.frameReuseHits,
               frameReuseMisses: nextStats.frameReuseMisses,
+              // Forward renderer-owned frame diagnostics so debug panel can
+              // correlate low FPS with tile/dirty/initial-render behavior.
+              tileCacheSize: nextStats.tileCacheSize,
+              tileDirtyCount: nextStats.tileDirtyCount,
+              tileCacheTotalBytes: nextStats.tileCacheTotalBytes,
+              tileUploadCount: nextStats.tileUploadCount,
+              tileRenderCount: nextStats.tileRenderCount,
+              visibleTileCount: nextStats.visibleTileCount,
+              gpuTextureBytes: nextStats.gpuTextureBytes,
+              imageTextureBytes: nextStats.imageTextureBytes,
+              initialRenderPhase: nextStats.initialRenderPhase,
+              initialRenderProgress: nextStats.initialRenderProgress,
+              dirtyRegionCount: nextStats.dirtyRegionCount,
+              dirtyTileCount: nextStats.dirtyTileCount,
+              incrementalUpdateCount: nextStats.incrementalUpdateCount,
+              cameraAnimationActive: webglStats.cameraAnimationActive,
+              cameraAnimationCachePreviewOnly: webglStats.cameraAnimationCachePreviewOnly,
+              cameraAnimationPreviewHitCount: webglStats.cameraAnimationPreviewHitCount,
+              cameraAnimationPreviewMissCount: webglStats.cameraAnimationPreviewMissCount,
             },
+            // Publish stage-level timings for frame-time hotspot analysis.
+            runtimeStageTimingMs: runtimeStageTimingMsRef.current,
             webglStats: {
               ...webglStats,
               webglDeferredImageTextureCount: deferredImageTextureCount,
@@ -496,7 +621,36 @@ export function EngineRenderer({
               DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY.streakWeight,
             sceneDirtyRiskScoreForcedRateScale:
               DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY.forcedRateScale,
-          }))
+          })
+          runtimeStageTimingMsRef.current.diagnosticsPublishMs =
+            performance.now() - diagnosticsPublishStart
+          // Build diagnostics payload in a dedicated module to keep this
+          // adapter focused on orchestration and lifecycle responsibilities.
+          publishRuntimeRenderDiagnostics({
+            ...diagnosticsPayload,
+            diagnosticsPublishMs: runtimeStageTimingMsRef.current.diagnosticsPublishMs,
+            cameraAnimationActive: webglStats.cameraAnimationActive ?? false,
+            cameraAnimationCachePreviewOnly: webglStats.cameraAnimationCachePreviewOnly ?? false,
+            cameraAnimationPreviewHitCount: webglStats.cameraAnimationPreviewHitCount ?? 0,
+            cameraAnimationPreviewMissCount: webglStats.cameraAnimationPreviewMissCount ?? 0,
+          })
+
+          if (!presentLatencyRafPendingRef.current) {
+            presentLatencyRafPendingRef.current = true
+            const presentProbeStart = performance.now()
+            // Approximate request->next-paint delay as a present-latency proxy.
+            requestAnimationFrame(() => {
+              runtimeStageTimingMsRef.current.presentRafDelayMs =
+                performance.now() - presentProbeStart
+              presentLatencyRafPendingRef.current = false
+            })
+          }
+
+          if (webglStats.cameraAnimationActive && !isInteractingRef.current) {
+            // Drive camera-only settle animations, but avoid duplicate scheduling
+            // while pointer interaction already requests interactive frames.
+            requestEngineRender('interactive', 'camera-animation')
+          }
 
           // No auto-drain chaining here: image uploads wake rendering via
           // image.onload to prevent self-sustaining deferred request loops.
@@ -509,11 +663,37 @@ export function EngineRenderer({
     hasLoadedSceneInEngineRef.current = false
     renderSchedulerRef.current = createEngineRenderScheduler({
       render: () => engine.renderFrame(),
-      interactiveIntervalMs: renderPolicy.interactiveIntervalMs,
+      interactiveIntervalMs: effectiveInteractiveIntervalMs,
     })
 
+    // Cache host canvas dimensions via ResizeObserver to avoid per-frame
+    // layout reads in viewport commit path.
+    measuredSurfaceSizeRef.current = {
+      width: renderSurface.clientWidth,
+      height: renderSurface.clientHeight,
+    }
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver((entries) => {
+        const entry = entries[0]
+        if (!entry) {
+          return
+        }
+
+        const measuredWidth = Math.max(1, Math.floor(entry.contentRect.width))
+        const measuredHeight = Math.max(1, Math.floor(entry.contentRect.height))
+        measuredSurfaceSizeRef.current = {
+          width: measuredWidth,
+          height: measuredHeight,
+        }
+      })
+      : null
+    resizeObserver?.observe(renderSurface)
+
     return () => {
+      resizeObserver?.disconnect()
       cancelDeferredFullRedraw()
+      cancelDeferredDprRestore()
+      cancelDeferredResizeCommit()
       cancelScheduledRender()
       if (interactionSettleTimerRef.current !== null) {
         window.clearTimeout(interactionSettleTimerRef.current)
@@ -530,10 +710,19 @@ export function EngineRenderer({
       pendingSceneRenderRef.current = false
       deferredImageWakeupPendingRef.current = false
       hasLoadedSceneInEngineRef.current = false
+      cameraAnimationActiveRef.current = false
+      pendingRenderSizeRef.current = null
+      measuredSurfaceSizeRef.current = null
       engineRef.current = null
       engine.dispose()
     }
-  }, [cancelDeferredFullRedraw, cancelScheduledRender, renderPolicy.interactiveIntervalMs])
+  }, [
+    cancelDeferredDprRestore,
+    cancelDeferredFullRedraw,
+    cancelDeferredResizeCommit,
+    cancelScheduledRender,
+    effectiveInteractiveIntervalMs,
+  ])
 
   React.useEffect(() => {
     const engine = engineRef.current
@@ -544,14 +733,14 @@ export function EngineRenderer({
     renderSchedulerRef.current?.dispose()
     renderSchedulerRef.current = createEngineRenderScheduler({
       render: () => engine.renderFrame(),
-      interactiveIntervalMs: renderPolicy.interactiveIntervalMs,
+      interactiveIntervalMs: effectiveInteractiveIntervalMs,
     })
 
     return () => {
       renderSchedulerRef.current?.dispose()
       renderSchedulerRef.current = null
     }
-  }, [renderPolicy.interactiveIntervalMs])
+  }, [effectiveInteractiveIntervalMs])
 
   React.useEffect(() => {
     lastInteractionAtRef.current = performance.now()
@@ -570,6 +759,8 @@ export function EngineRenderer({
     if (!engine) {
       return
     }
+    let scenePrepareMs = 0
+    let sceneApplyMs = 0
 
     const sceneDirtyRenderMode: 'interactive' | 'normal' =
       interactionPhase === 'pan' || interactionPhase === 'zoom'
@@ -593,8 +784,40 @@ export function EngineRenderer({
     }
 
     const previous = previousRenderPrepRef.current
+    const shouldBootstrapScene = !hasLoadedSceneInEngineRef.current
+    const sceneRevisionStable = Boolean(
+      previous &&
+      previous.revision === stats.version &&
+      previous.document === document,
+    )
+
+    // Skip expensive scene diff/prep for viewport-only updates (common during
+    // wheel/pinch zoom) when scene revision and document identity are stable.
+    if (!shouldBootstrapScene && sceneRevisionStable) {
+      // Explicitly record fast-path scene timings so viewport-only frames are
+      // distinguishable from full scene-prep frames in diagnostics.
+      runtimeStageTimingMsRef.current.scenePrepareMs = 0
+      runtimeStageTimingMsRef.current.sceneApplyMs = 0
+      latestRenderPrepStatsRef.current = {
+        dirtyCandidateCount: 0,
+        dirtyOffscreenCount: 0,
+        offscreenSceneDirtySkipConsecutiveCount: 0,
+        dirtyBoundsMarkCount: 0,
+        dirtyBoundsMarkArea: 0,
+      }
+      renderRequestStatsRef.current.lastReason = 'viewport-only-scene-skip'
+      previousRenderPrepRef.current = {
+        revision: stats.version,
+        document,
+        shapes,
+        viewport,
+      }
+      return
+    }
+
     const previousFrameCandidateIds =
       engine.getDiagnostics().framePlan?.candidateNodeIds
+    const scenePrepareStart = performance.now()
     const preparedFrame = prepareRenderFrame({
       revision: stats.version,
       document,
@@ -617,6 +840,7 @@ export function EngineRenderer({
         previous.viewport.viewportWidth !== viewport.viewportWidth ||
         previous.viewport.viewportHeight !== viewport.viewportHeight,
     })
+    scenePrepareMs = performance.now() - scenePrepareStart
     const shouldForcePreviewOnlySceneReload = Boolean(
       previous &&
       previous.revision === stats.version &&
@@ -625,9 +849,9 @@ export function EngineRenderer({
       interactionPhase !== 'pan' &&
       interactionPhase !== 'zoom',
     )
-    const shouldBootstrapScene = !hasLoadedSceneInEngineRef.current
 
     if (shouldBootstrapScene || preparedFrame.scene.dirty || shouldForcePreviewOnlySceneReload) {
+      const sceneApplyStart = performance.now()
       let dirtyBoundsMarkCount = 0
       let dirtyBoundsMarkArea = 0
       const shouldRenderSceneDirtyNow =
@@ -752,6 +976,7 @@ export function EngineRenderer({
         dirtyBoundsMarkCount,
         dirtyBoundsMarkArea,
       }
+      sceneApplyMs = performance.now() - sceneApplyStart
     } else {
       latestRenderPrepStatsRef.current = {
         dirtyCandidateCount: preparedFrame.dirtyState.dirtyCandidateCount,
@@ -760,6 +985,7 @@ export function EngineRenderer({
         dirtyBoundsMarkCount: 0,
         dirtyBoundsMarkArea: 0,
       }
+      sceneApplyMs = 0
     }
 
     previousRenderPrepRef.current = {
@@ -768,6 +994,9 @@ export function EngineRenderer({
       shapes,
       viewport,
     }
+    // Record scene-stage timing after effect work so onStats can publish it.
+    runtimeStageTimingMsRef.current.scenePrepareMs = scenePrepareMs
+    runtimeStageTimingMsRef.current.sceneApplyMs = sceneApplyMs
   }, [
     document,
     protectedNodeIds,
@@ -785,6 +1014,16 @@ export function EngineRenderer({
     if (!renderSurface || !engine) {
       return
     }
+    const viewportCommitStart = performance.now()
+    let viewportResizeMs = 0
+    let viewportStateUpdateMs = 0
+    const recordViewportCommitMs = () => {
+      // Track viewport policy/commit overhead independently from draw time.
+      runtimeStageTimingMsRef.current.viewportCommitMs =
+        performance.now() - viewportCommitStart
+      runtimeStageTimingMsRef.current.viewportResizeMs = viewportResizeMs
+      runtimeStageTimingMsRef.current.viewportStateUpdateMs = viewportStateUpdateMs
+    }
 
     const previousPhase = renderRequestStatsRef.current.renderPhase
     const previousQuality = renderRequestStatsRef.current.renderPolicyQuality
@@ -800,12 +1039,37 @@ export function EngineRenderer({
       overlayDiagnostics?.guideSelectionStrategy ?? 'full'
     renderRequestStatsRef.current.overlayPathEditWhitelistActive =
       overlayDiagnostics?.pathEditWhitelistActive ?? false
-    const nextDpr = renderPolicy.dpr
+    const nextDpr = FORCE_STABLE_DPR ? STABLE_DPR_VALUE : renderPolicy.dpr
     const dprChanged = appliedDprRef.current !== nextDpr
     renderRequestStatsRef.current.renderPolicyDpr = nextDpr
     if (appliedDprRef.current !== nextDpr) {
-      engine.setDpr(nextDpr, {maxDpr: 2})
-      appliedDprRef.current = nextDpr
+      const shouldDeferDprRestore =
+        !renderPolicy.interactionActive &&
+        nextDpr === 'auto' &&
+        typeof appliedDprRef.current === 'number'
+
+      if (shouldDeferDprRestore) {
+        cancelDeferredDprRestore()
+        // Defer post-interaction DPR restoration to avoid one-frame resize spikes.
+        deferredDprRestoreHandleRef.current = window.setTimeout(() => {
+          deferredDprRestoreHandleRef.current = null
+          const liveEngine = engineRef.current
+          if (!liveEngine || isInteractingRef.current) {
+            return
+          }
+
+          liveEngine.setDpr('auto', {maxDpr: 2})
+          appliedDprRef.current = 'auto'
+          requestEngineRender('normal', 'idle-redraw')
+        }, DPR_RESTORE_DEFER_MS)
+      } else {
+        cancelDeferredDprRestore()
+        engine.setDpr(nextDpr, {maxDpr: 2})
+        appliedDprRef.current = nextDpr
+      }
+    } else if (renderPolicy.interactionActive) {
+      // Interaction should cancel pending DPR restore to keep viewport updates cheap.
+      cancelDeferredDprRestore()
     }
 
     // Keep quality transitions policy-driven so phase tuning does not spread.
@@ -818,7 +1082,16 @@ export function EngineRenderer({
     }
 
     const previewConfigurableEngine = engine as Engine & {
-      setInteractionPreview?: (config?: {enabled?: boolean; mode?: 'interaction' | 'zoom-only'; maxScaleStep?: number; maxTranslatePx?: number}) => void
+      setInteractionPreview?: (config?: {enabled?: boolean; mode?: 'interaction' | 'zoom-only'; cacheOnly?: boolean; maxScaleStep?: number; maxTranslatePx?: number}) => void
+      startCameraAnimation?: (
+        target: {viewportWidth: number; viewportHeight: number; offsetX: number; offsetY: number; scale: number},
+        options?: {durationMs?: number; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'; cachePreviewOnly?: boolean},
+      ) => void
+      updateCameraAnimation?: (
+        target: {viewportWidth: number; viewportHeight: number; offsetX: number; offsetY: number; scale: number},
+        options?: {durationMs?: number; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'; cachePreviewOnly?: boolean},
+      ) => void
+      stopCameraAnimation?: (options?: {commitTarget?: boolean}) => void
     }
     previewConfigurableEngine.setInteractionPreview?.(
       renderPolicy.interactionPreview === false
@@ -844,34 +1117,94 @@ export function EngineRenderer({
         `->${nextQuality}/${String(nextDpr)}/${renderPolicy.overlayMode}`
     }
 
-    if (viewport.viewportWidth <= 1 || viewport.viewportHeight <= 1) {
+    const measuredViewportWidth = measuredSurfaceSizeRef.current?.width ?? viewport.viewportWidth
+    const measuredViewportHeight = measuredSurfaceSizeRef.current?.height ?? viewport.viewportHeight
+
+    if (measuredViewportWidth <= 1 || measuredViewportHeight <= 1) {
       // Only trust runtime-measured viewport dimensions here.
       // Rendering against DOM fallback size can paint one pre-fit frame and
       // then snap when runtime applies the first fitViewport transform.
       viewportReadyRef.current = false
+      recordViewportCommitMs()
       return
     }
 
     viewportReadyRef.current = true
-    const width = Math.max(1, Math.floor(viewport.viewportWidth))
-    const height = Math.max(1, Math.floor(viewport.viewportHeight))
+    // Use host canvas client size as resize baseline so zoom-time viewport
+    // math changes do not force backing-store reallocations.
+    const width = Math.max(1, Math.floor(measuredViewportWidth))
+    const height = Math.max(1, Math.floor(measuredViewportHeight))
     const renderWidth = width + OVERSCAN_PX * 2
     const renderHeight = height + OVERSCAN_PX * 2
     const renderSizeChanged =
       !appliedRenderSizeRef.current ||
       appliedRenderSizeRef.current.width !== renderWidth ||
       appliedRenderSizeRef.current.height !== renderHeight
+    const renderSizeDeltaWidth = Math.abs((appliedRenderSizeRef.current?.width ?? renderWidth) - renderWidth)
+    const renderSizeDeltaHeight = Math.abs((appliedRenderSizeRef.current?.height ?? renderHeight) - renderHeight)
+    const shouldCommitResize =
+      renderSizeDeltaWidth >= RESIZE_COMMIT_THRESHOLD_PX ||
+      renderSizeDeltaHeight >= RESIZE_COMMIT_THRESHOLD_PX
     if (
       !appliedRenderSizeRef.current ||
       appliedRenderSizeRef.current.width !== renderWidth ||
       appliedRenderSizeRef.current.height !== renderHeight
     ) {
-      engine.resize(renderWidth, renderHeight)
-      appliedRenderSizeRef.current = {width: renderWidth, height: renderHeight}
+      if (!appliedRenderSizeRef.current) {
+        // First frame needs an immediate resize for correct initial backing store.
+        const resizeStart = performance.now()
+        engine.resize(renderWidth, renderHeight)
+        viewportResizeMs += performance.now() - resizeStart
+        appliedRenderSizeRef.current = {width: renderWidth, height: renderHeight}
+        pendingRenderSizeRef.current = null
+      } else if (renderPolicy.interactionActive) {
+        // Freeze backing-store realloc while interacting; commit once settled.
+        pendingRenderSizeRef.current = {width: renderWidth, height: renderHeight}
+        cancelDeferredResizeCommit()
+      } else if (!shouldCommitResize) {
+        // Ignore micro resize jitter to avoid repeated expensive realloc.
+        pendingRenderSizeRef.current = {width: renderWidth, height: renderHeight}
+        cancelDeferredResizeCommit()
+      } else {
+        // Defer follow-up resizes to collapse rapid layout size changes.
+        pendingRenderSizeRef.current = {width: renderWidth, height: renderHeight}
+        cancelDeferredResizeCommit()
+        deferredResizeCommitHandleRef.current = window.setTimeout(() => {
+          const commitResizeWhenQuiet = () => {
+            const liveEngine = engineRef.current
+            const pendingRenderSize = pendingRenderSizeRef.current
+            if (!liveEngine || !pendingRenderSize) {
+              deferredResizeCommitHandleRef.current = null
+              return
+            }
+
+            const quietForMs = performance.now() - lastInteractionAtRef.current
+            if (quietForMs < FULL_REDRAW_QUIET_WINDOW_MS) {
+              deferredResizeCommitHandleRef.current = window.setTimeout(
+                commitResizeWhenQuiet,
+                Math.max(0, FULL_REDRAW_QUIET_WINDOW_MS - quietForMs),
+              )
+              return
+            }
+
+            deferredResizeCommitHandleRef.current = null
+            liveEngine.resize(pendingRenderSize.width, pendingRenderSize.height)
+            appliedRenderSizeRef.current = pendingRenderSize
+            pendingRenderSizeRef.current = null
+            requestEngineRender('normal', 'idle-redraw')
+          }
+
+          commitResizeWhenQuiet()
+        }, RESIZE_COMMIT_DEFER_MS)
+      }
+    }
+    const committedRenderSize = appliedRenderSizeRef.current ?? {
+      width: renderWidth,
+      height: renderHeight,
     }
     const nextViewportState = {
-      viewportWidth: renderWidth,
-      viewportHeight: renderHeight,
+      viewportWidth: committedRenderSize.width,
+      viewportHeight: committedRenderSize.height,
       offsetX: viewport.offsetX + OVERSCAN_PX,
       offsetY: viewport.offsetY + OVERSCAN_PX,
       scale: viewport.scale,
@@ -884,8 +1217,48 @@ export function EngineRenderer({
       appliedViewportRef.current.offsetY !== nextViewportState.offsetY ||
       appliedViewportRef.current.scale !== nextViewportState.scale
     if (viewportChanged) {
-      engine.setViewport(nextViewportState)
+      const viewportStateUpdateStart = performance.now()
+      const shouldUseCameraAnimation =
+        ENABLE_CAMERA_ANIMATION &&
+        (interactionPhase === 'pan' || interactionPhase === 'zoom')
+      if (shouldUseCameraAnimation) {
+        const animationPolicy = resolveCameraAnimationPolicy()
+        if (animationPolicy.durationMs <= 0) {
+          // Bypass animation controller in zero-duration mode to avoid extra
+          // animation bookkeeping on high-frequency viewport updates.
+          previewConfigurableEngine.stopCameraAnimation?.({commitTarget: false})
+          cameraAnimationActiveRef.current = false
+          engine.setViewport(nextViewportState)
+        } else {
+          // Drive camera interpolation through engine animation hooks during gestures.
+          if (!cameraAnimationActiveRef.current) {
+            previewConfigurableEngine.startCameraAnimation?.(nextViewportState, {
+              durationMs: animationPolicy.durationMs,
+              easing: animationPolicy.easing,
+              cachePreviewOnly: animationPolicy.cachePreviewOnly,
+            })
+            cameraAnimationActiveRef.current = true
+          } else {
+            previewConfigurableEngine.updateCameraAnimation?.(nextViewportState, {
+              durationMs: animationPolicy.durationMs,
+              easing: animationPolicy.easing,
+              cachePreviewOnly: animationPolicy.cachePreviewOnly,
+            })
+          }
+        }
+      } else {
+        previewConfigurableEngine.stopCameraAnimation?.({commitTarget: false})
+        cameraAnimationActiveRef.current = false
+        engine.setViewport(nextViewportState)
+      }
       appliedViewportRef.current = nextViewportState
+      viewportStateUpdateMs += performance.now() - viewportStateUpdateStart
+    }
+
+    if (!renderPolicy.interactionActive && cameraAnimationActiveRef.current) {
+      // Commit final animation target on settle so camera does not freeze at an in-between frame.
+      previewConfigurableEngine.stopCameraAnimation?.({commitTarget: true})
+      cameraAnimationActiveRef.current = false
     }
 
     const renderStateChanged =
@@ -900,10 +1273,12 @@ export function EngineRenderer({
       cancelDeferredFullRedraw()
       cancelScheduledRender()
       requestEngineRender('interactive', 'interactive-viewport')
+      recordViewportCommitMs()
       return
     }
 
     if (!renderStateChanged && !shouldFlushPendingSceneRender) {
+      recordViewportCommitMs()
       return
     }
 
@@ -919,6 +1294,7 @@ export function EngineRenderer({
       } else {
         requestEngineRender('normal', 'idle-redraw')
       }
+      recordViewportCommitMs()
       return
     }
 
@@ -927,6 +1303,7 @@ export function EngineRenderer({
       cancelDeferredFullRedraw()
       cancelScheduledRender()
       requestEngineRender('normal', 'scene-dirty')
+      recordViewportCommitMs()
       return
     }
 
@@ -966,18 +1343,26 @@ export function EngineRenderer({
       deferredFullRedrawHandleRef.current = null
       runDeferredFullRedraw()
     }, FULL_REDRAW_DEFER_MS)
+    recordViewportCommitMs()
   }, [
     FULL_REDRAW_DEFER_MS,
     FULL_REDRAW_IDLE_TIMEOUT_MS,
     FULL_REDRAW_QUIET_WINDOW_MS,
+    DPR_RESTORE_DEFER_MS,
+    cancelDeferredDprRestore,
     cancelDeferredFullRedraw,
+    cancelDeferredResizeCommit,
     cancelScheduledRender,
     isInteracting,
     overlayDiagnostics,
     interactionPhase,
+    FULL_REDRAW_QUIET_WINDOW_MS,
     viewportInteractionType,
     viewport,
+    resolveCameraAnimationPolicy,
     requestEngineRender,
+    RESIZE_COMMIT_DEFER_MS,
+    RESIZE_COMMIT_THRESHOLD_PX,
   ])
 
   React.useEffect(() => {

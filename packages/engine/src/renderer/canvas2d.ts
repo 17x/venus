@@ -57,6 +57,8 @@ interface TextLineLayout {
 const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   enabled: true,
   mode: 'interaction',
+  // Keep Canvas2D preview behavior aligned with WebGL default unless overridden.
+  cacheOnly: false,
   maxScaleStep: 1.2,
   maxTranslatePx: 220,
 }

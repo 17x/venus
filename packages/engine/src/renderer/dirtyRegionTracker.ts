@@ -10,7 +10,7 @@
 
 import type { EngineRect } from '../scene/types.ts'
 import type { TileZoomLevel } from './tileManager.ts'
-import { getTileSizeForZoom, getTilesIntersectingBounds } from './tileManager.ts'
+import { getTileSizeForZoom, getTilesIntersectingBounds, unionEngineRectBounds } from './tileManager.ts'
 
 export type DirtyUpdateMode = 'hover' | 'selection' | 'shape' | 'transform'
 
@@ -22,6 +22,10 @@ export interface DirtyRegionUpdate {
    * For batch: use union of all affected bounds.
    */
   bounds: EngineRect
+  /**
+   * Optional previous world-space bounds before a move/transform update.
+   */
+  previousBounds?: EngineRect
   /**
    * Zoom level at which this update occurred.
    * Used to invalidate tiles at the correct granularity.
@@ -76,8 +80,12 @@ export class EngineDirtyRegionTracker {
       }
 
       // Get tiles intersecting this update's bounds
+      // If previous bounds are provided, union both regions to keep invalidation local.
+      const dirtyBounds = update.previousBounds
+        ? unionEngineRectBounds(update.previousBounds, update.bounds)
+        : update.bounds
       const tileSizePx = getTileSizeForZoom(update.zoomLevel, this.baseTileSize)
-      const tiles = getTilesIntersectingBounds(update.bounds, tileSizePx)
+      const tiles = getTilesIntersectingBounds(dirtyBounds, tileSizePx)
 
       for (const { gridX, gridY } of tiles) {
         const key = `z${update.zoomLevel}:${gridX},${gridY}`

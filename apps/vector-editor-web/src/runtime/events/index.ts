@@ -30,6 +30,16 @@ export interface RuntimeRenderDiagnosticsStats {
   performance: {
     timing: {
       drawMs: number
+      scenePrepareMs: number
+      sceneApplyMs: number
+      viewportCommitMs: number
+      viewportResizeMs: number
+      viewportStateUpdateMs: number
+      diagnosticsPublishMs: number
+      plannerSampleMs: number
+      schedulerQueueWaitMs: number
+      schedulerThrottleDelayMs: number
+      presentRafDelayMs: number
       fpsInstantaneous: number
       fpsEstimate: number
       fpsPeak: number
@@ -74,6 +84,25 @@ export interface RuntimeRenderDiagnosticsStats {
       l1CompositeMissCount: number
       l2TileHitCount: number
       l2TileMissCount: number
+      webglPreviewReuseMs: number
+      webglPlanBuildMs: number
+      webglTextureUploadMs: number
+      webglDrawSubmitMs: number
+      webglSnapshotCaptureMs: number
+      webglModelRenderMs: number
+      tileCacheSize: number
+      tileDirtyCount: number
+      tileCacheTotalBytes: number
+      tileUploadCount: number
+      tileRenderCount: number
+      visibleTileCount: number
+      gpuTextureBytes: number
+      imageTextureBytes: number
+      initialRenderPhase: string
+      initialRenderProgress: number
+      dirtyRegionCount: number
+      dirtyTileCount: number
+      incrementalUpdateCount: number
     }
   }
   planner: {
@@ -137,6 +166,16 @@ export interface RuntimeRenderDiagnostics {
   frameCount: number
   drawCount: number
   drawMs: number
+  scenePrepareMs: number
+  sceneApplyMs: number
+  viewportCommitMs: number
+  viewportResizeMs: number
+  viewportStateUpdateMs: number
+  diagnosticsPublishMs: number
+  plannerSampleMs: number
+  schedulerQueueWaitMs: number
+  schedulerThrottleDelayMs: number
+  presentRafDelayMs: number
   engineFrameQuality: 'full' | 'interactive'
   fpsInstantaneous: number
   fpsEstimate: number
@@ -219,6 +258,12 @@ export interface RuntimeRenderDiagnostics {
   l1CompositeMissCount: number
   l2TileHitCount: number
   l2TileMissCount: number
+  webglPreviewReuseMs: number
+  webglPlanBuildMs: number
+  webglTextureUploadMs: number
+  webglDrawSubmitMs: number
+  webglSnapshotCaptureMs: number
+  webglModelRenderMs: number
   cacheFallbackReason: string
   lastRenderRequestReason: string
   renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
@@ -242,6 +287,23 @@ export interface RuntimeRenderDiagnostics {
   interactiveRequestCount: number
   offscreenSceneDirtySkipRequestCount: number
   forcedSceneDirtyRequestCount: number
+  cameraAnimationActive: boolean
+  cameraAnimationCachePreviewOnly: boolean
+  cameraAnimationPreviewHitCount: number
+  cameraAnimationPreviewMissCount: number
+  tileCacheSize: number
+  tileDirtyCount: number
+  tileCacheTotalBytes: number
+  tileUploadCount: number
+  tileRenderCount: number
+  visibleTileCount: number
+  gpuTextureBytes: number
+  imageTextureBytes: number
+  initialRenderPhase: string
+  initialRenderProgress: number
+  dirtyRegionCount: number
+  dirtyTileCount: number
+  incrementalUpdateCount: number
   // Sectioned diagnostics mirror of flat fields for structured debug surfaces.
   stats?: RuntimeRenderDiagnosticsStats
 }
@@ -259,6 +321,16 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   frameCount: 0,
   drawCount: 0,
   drawMs: 0,
+  scenePrepareMs: 0,
+  sceneApplyMs: 0,
+  viewportCommitMs: 0,
+  viewportResizeMs: 0,
+  viewportStateUpdateMs: 0,
+  diagnosticsPublishMs: 0,
+  plannerSampleMs: 0,
+  schedulerQueueWaitMs: 0,
+  schedulerThrottleDelayMs: 0,
+  presentRafDelayMs: 0,
   engineFrameQuality: 'full',
   fpsInstantaneous: 0,
   fpsEstimate: 0,
@@ -341,6 +413,12 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   l1CompositeMissCount: 0,
   l2TileHitCount: 0,
   l2TileMissCount: 0,
+  webglPreviewReuseMs: 0,
+  webglPlanBuildMs: 0,
+  webglTextureUploadMs: 0,
+  webglDrawSubmitMs: 0,
+  webglSnapshotCaptureMs: 0,
+  webglModelRenderMs: 0,
   cacheFallbackReason: 'none',
   lastRenderRequestReason: 'none',
   renderPhase: 'settled',
@@ -364,10 +442,37 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   interactiveRequestCount: 0,
   offscreenSceneDirtySkipRequestCount: 0,
   forcedSceneDirtyRequestCount: 0,
+  cameraAnimationActive: false,
+  cameraAnimationCachePreviewOnly: false,
+  cameraAnimationPreviewHitCount: 0,
+  cameraAnimationPreviewMissCount: 0,
+  tileCacheSize: 0,
+  tileDirtyCount: 0,
+  tileCacheTotalBytes: 0,
+  tileUploadCount: 0,
+  tileRenderCount: 0,
+  visibleTileCount: 0,
+  gpuTextureBytes: 0,
+  imageTextureBytes: 0,
+  initialRenderPhase: 'none',
+  initialRenderProgress: 0,
+  dirtyRegionCount: 0,
+  dirtyTileCount: 0,
+  incrementalUpdateCount: 0,
   stats: {
     performance: {
       timing: {
         drawMs: 0,
+        scenePrepareMs: 0,
+        sceneApplyMs: 0,
+        viewportCommitMs: 0,
+        viewportResizeMs: 0,
+        viewportStateUpdateMs: 0,
+        diagnosticsPublishMs: 0,
+        plannerSampleMs: 0,
+        schedulerQueueWaitMs: 0,
+        schedulerThrottleDelayMs: 0,
+        presentRafDelayMs: 0,
         fpsInstantaneous: 0,
         fpsEstimate: 0,
         fpsPeak: 0,
@@ -412,6 +517,25 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
         l1CompositeMissCount: 0,
         l2TileHitCount: 0,
         l2TileMissCount: 0,
+        webglPreviewReuseMs: 0,
+        webglPlanBuildMs: 0,
+        webglTextureUploadMs: 0,
+        webglDrawSubmitMs: 0,
+        webglSnapshotCaptureMs: 0,
+        webglModelRenderMs: 0,
+        tileCacheSize: 0,
+        tileDirtyCount: 0,
+        tileCacheTotalBytes: 0,
+        tileUploadCount: 0,
+        tileRenderCount: 0,
+        visibleTileCount: 0,
+        gpuTextureBytes: 0,
+        imageTextureBytes: 0,
+        initialRenderPhase: 'none',
+        initialRenderProgress: 0,
+        dirtyRegionCount: 0,
+        dirtyTileCount: 0,
+        incrementalUpdateCount: 0,
       },
     },
     planner: {
@@ -555,6 +679,16 @@ function resolveRuntimeRenderDiagnosticsStats(
     performance: {
       timing: {
         drawMs: diagnostics.drawMs,
+        scenePrepareMs: diagnostics.scenePrepareMs,
+        sceneApplyMs: diagnostics.sceneApplyMs,
+        viewportCommitMs: diagnostics.viewportCommitMs,
+        viewportResizeMs: diagnostics.viewportResizeMs,
+        viewportStateUpdateMs: diagnostics.viewportStateUpdateMs,
+        diagnosticsPublishMs: diagnostics.diagnosticsPublishMs,
+        plannerSampleMs: diagnostics.plannerSampleMs,
+        schedulerQueueWaitMs: diagnostics.schedulerQueueWaitMs,
+        schedulerThrottleDelayMs: diagnostics.schedulerThrottleDelayMs,
+        presentRafDelayMs: diagnostics.presentRafDelayMs,
         fpsInstantaneous: diagnostics.fpsInstantaneous,
         fpsEstimate: diagnostics.fpsEstimate,
         fpsPeak: diagnostics.fpsPeak,
@@ -599,6 +733,25 @@ function resolveRuntimeRenderDiagnosticsStats(
         l1CompositeMissCount: diagnostics.l1CompositeMissCount,
         l2TileHitCount: diagnostics.l2TileHitCount,
         l2TileMissCount: diagnostics.l2TileMissCount,
+        webglPreviewReuseMs: diagnostics.webglPreviewReuseMs,
+        webglPlanBuildMs: diagnostics.webglPlanBuildMs,
+        webglTextureUploadMs: diagnostics.webglTextureUploadMs,
+        webglDrawSubmitMs: diagnostics.webglDrawSubmitMs,
+        webglSnapshotCaptureMs: diagnostics.webglSnapshotCaptureMs,
+        webglModelRenderMs: diagnostics.webglModelRenderMs,
+        tileCacheSize: diagnostics.tileCacheSize,
+        tileDirtyCount: diagnostics.tileDirtyCount,
+        tileCacheTotalBytes: diagnostics.tileCacheTotalBytes,
+        tileUploadCount: diagnostics.tileUploadCount,
+        tileRenderCount: diagnostics.tileRenderCount,
+        visibleTileCount: diagnostics.visibleTileCount,
+        gpuTextureBytes: diagnostics.gpuTextureBytes,
+        imageTextureBytes: diagnostics.imageTextureBytes,
+        initialRenderPhase: diagnostics.initialRenderPhase,
+        initialRenderProgress: diagnostics.initialRenderProgress,
+        dirtyRegionCount: diagnostics.dirtyRegionCount,
+        dirtyTileCount: diagnostics.dirtyTileCount,
+        incrementalUpdateCount: diagnostics.incrementalUpdateCount,
       },
     },
     planner: {

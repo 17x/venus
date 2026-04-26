@@ -92,11 +92,32 @@ export function RuntimeDebugPanel() {
   )
   // Prefer sectioned diagnostics for UI grouping while keeping flat fallback.
   const stats = diagnostics.stats ?? EMPTY_RUNTIME_RENDER_DIAGNOSTICS.stats
+  const performanceTimingStats = stats?.performance.timing
   const performanceLodStats = stats?.performance.lod
+  // Separate host CPU work from scheduling/present wait to avoid inflated totals.
+  const hostWorkTotalMs =
+    (performanceTimingStats?.scenePrepareMs ?? diagnostics.scenePrepareMs) +
+    (performanceTimingStats?.sceneApplyMs ?? diagnostics.sceneApplyMs) +
+    (performanceTimingStats?.viewportCommitMs ?? diagnostics.viewportCommitMs) +
+    (performanceTimingStats?.diagnosticsPublishMs ?? diagnostics.diagnosticsPublishMs) +
+    (performanceTimingStats?.plannerSampleMs ?? diagnostics.plannerSampleMs)
+  const hostWaitTotalMs =
+    (performanceTimingStats?.schedulerQueueWaitMs ?? diagnostics.schedulerQueueWaitMs) +
+    (performanceTimingStats?.schedulerThrottleDelayMs ?? diagnostics.schedulerThrottleDelayMs) +
+    (performanceTimingStats?.presentRafDelayMs ?? diagnostics.presentRafDelayMs)
+  const frameCpuTotalMs = diagnostics.drawMs + hostWorkTotalMs
+  const frameObservedTotalMs = frameCpuTotalMs + hostWaitTotalMs
 
   const cacheTotal = diagnostics.cacheHitCount + diagnostics.cacheMissCount
   const cacheHitRate = cacheTotal > 0
     ? (diagnostics.cacheHitCount / cacheTotal) * 100
+    : 0
+  // Keep camera animation preview hit rate explicit for cache-only tuning.
+  const cameraAnimationPreviewTotal =
+    diagnostics.cameraAnimationPreviewHitCount +
+    diagnostics.cameraAnimationPreviewMissCount
+  const cameraAnimationPreviewHitRate = cameraAnimationPreviewTotal > 0
+    ? (diagnostics.cameraAnimationPreviewHitCount / cameraAnimationPreviewTotal) * 100
     : 0
   const overlayGuideRetentionPercent = diagnostics.overlayGuideInputCount > 0
     ? (diagnostics.overlayGuideKeptCount / diagnostics.overlayGuideInputCount) * 100
@@ -549,6 +570,50 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.engineFrameCount', 'Engine Frame Count')} value={String(diagnostics.frameCount)}/>
       <DebugRow label={t('shell.variantB.debug.engineDrawCount', 'Engine Draw Calls')} value={String(diagnostics.drawCount)}/>
       <DebugRow label={t('shell.variantB.debug.drawMs', 'Draw Ms')} value={diagnostics.drawMs.toFixed(2)}/>
+      <DebugRow
+        label={t('shell.variantB.debug.scenePrepareMs', 'Scene Prepare Ms')}
+        value={(performanceTimingStats?.scenePrepareMs ?? diagnostics.scenePrepareMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.sceneApplyMs', 'Scene Apply Ms')}
+        value={(performanceTimingStats?.sceneApplyMs ?? diagnostics.sceneApplyMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.viewportCommitMs', 'Viewport Commit Ms')}
+        value={(performanceTimingStats?.viewportCommitMs ?? diagnostics.viewportCommitMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.viewportResizeMs', 'Viewport Resize Ms')}
+        value={(performanceTimingStats?.viewportResizeMs ?? diagnostics.viewportResizeMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.viewportStateUpdateMs', 'Viewport State Update Ms')}
+        value={(performanceTimingStats?.viewportStateUpdateMs ?? diagnostics.viewportStateUpdateMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.diagnosticsPublishMs', 'Diagnostics Publish Ms')}
+        value={(performanceTimingStats?.diagnosticsPublishMs ?? diagnostics.diagnosticsPublishMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.plannerSampleMs', 'Planner Sample Ms')}
+        value={(performanceTimingStats?.plannerSampleMs ?? diagnostics.plannerSampleMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.schedulerQueueWaitMs', 'Scheduler Queue Wait Ms')}
+        value={(performanceTimingStats?.schedulerQueueWaitMs ?? diagnostics.schedulerQueueWaitMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.schedulerThrottleDelayMs', 'Scheduler Throttle Delay Ms')}
+        value={(performanceTimingStats?.schedulerThrottleDelayMs ?? diagnostics.schedulerThrottleDelayMs).toFixed(2)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.presentRafDelayMs', 'Present RAF Delay Ms')}
+        value={(performanceTimingStats?.presentRafDelayMs ?? diagnostics.presentRafDelayMs).toFixed(2)}
+      />
+      <DebugRow label={t('shell.variantB.debug.hostWorkTotalMs', 'Host Work Total Ms')} value={hostWorkTotalMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.hostWaitTotalMs', 'Host Wait Total Ms')} value={hostWaitTotalMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.frameCpuTotalMs', 'Frame CPU Total Ms')} value={frameCpuTotalMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.frameObservedTotalMs', 'Frame Observed Total Ms')} value={frameObservedTotalMs.toFixed(2)}/>
       <DebugRow label={t('shell.variantB.debug.fps', 'FPS (Smooth)')} value={diagnostics.fpsEstimate.toFixed(1)}/>
       <DebugRow label={t('shell.variantB.debug.fpsInstant', 'FPS (Instant)')} value={diagnostics.fpsInstantaneous.toFixed(1)}/>
       <DebugRow label={t('shell.variantB.debug.fpsPeak', 'FPS Peak (Instant)')} value={diagnostics.fpsPeak.toFixed(1)}/>
@@ -716,6 +781,11 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate')} value={`${cacheHitRate.toFixed(1)}%`}/>
       <DebugRow label={t('shell.variantB.debug.frameReuseHitCount', 'Frame Reuse Hit')} value={String(diagnostics.frameReuseHitCount)}/>
       <DebugRow label={t('shell.variantB.debug.frameReuseMissCount', 'Frame Reuse Miss')} value={String(diagnostics.frameReuseMissCount)}/>
+      <DebugRow label={t('shell.variantB.debug.cameraAnimationActive', 'Camera Animation Active')} value={diagnostics.cameraAnimationActive ? 'yes' : 'no'}/>
+      <DebugRow label={t('shell.variantB.debug.cameraAnimationCachePreviewOnly', 'Camera Animation Cache-Only')} value={diagnostics.cameraAnimationCachePreviewOnly ? 'yes' : 'no'}/>
+      <DebugRow label={t('shell.variantB.debug.cameraAnimationPreviewHitCount', 'Camera Animation Preview Hits')} value={String(diagnostics.cameraAnimationPreviewHitCount)}/>
+      <DebugRow label={t('shell.variantB.debug.cameraAnimationPreviewMissCount', 'Camera Animation Preview Misses')} value={String(diagnostics.cameraAnimationPreviewMissCount)}/>
+      <DebugRow label={t('shell.variantB.debug.cameraAnimationPreviewHitRate', 'Camera Animation Preview Hit Rate')} value={`${cameraAnimationPreviewHitRate.toFixed(1)}%`}/>
       <DebugRow label={t('shell.variantB.debug.cacheMode', 'Cache Mode')} value={diagnostics.cacheMode}/>
       <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnostics.webglRenderPath}/>
       <DebugRow label={t('shell.variantB.debug.webglInteractiveTextFallbackCount', 'WebGL Text Fallback')} value={String(diagnostics.webglInteractiveTextFallbackCount)}/>
@@ -731,6 +801,12 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.webglFallbackTextCacheKeyCount', 'WebGL Text Fallback Keys')} value={String(diagnostics.webglFallbackTextCacheKeyCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglFrameReuseEdgeRedrawCount', 'WebGL Frame Reuse Edge Redraws')} value={String(diagnostics.webglFrameReuseEdgeRedrawCount)}/>
       <DebugRow label={t('shell.variantB.debug.webglCompositeUploadBytes', 'WebGL Composite Upload Bytes')} value={formatDiagnosticBytes(diagnostics.webglCompositeUploadBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.webglPreviewReuseMs', 'WebGL Preview Reuse Ms')} value={diagnostics.webglPreviewReuseMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.webglPlanBuildMs', 'WebGL Plan Build Ms')} value={diagnostics.webglPlanBuildMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.webglTextureUploadMs', 'WebGL Texture Upload Ms')} value={diagnostics.webglTextureUploadMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.webglDrawSubmitMs', 'WebGL Draw Submit Ms')} value={diagnostics.webglDrawSubmitMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.webglSnapshotCaptureMs', 'WebGL Snapshot Capture Ms')} value={diagnostics.webglSnapshotCaptureMs.toFixed(2)}/>
+      <DebugRow label={t('shell.variantB.debug.webglModelRenderMs', 'WebGL Model Render Ms')} value={diagnostics.webglModelRenderMs.toFixed(2)}/>
       <DebugRow label={t('shell.variantB.debug.canvas2dTrivialPathFastPathCount', 'Canvas2D Trivial Path Fast Path')} value={String(diagnostics.canvas2dTrivialPathFastPathCount)}/>
       <DebugRow label={t('shell.variantB.debug.canvas2dContourParseCount', 'Canvas2D Contour Parses')} value={String(diagnostics.canvas2dContourParseCount)}/>
       <DebugRow label={t('shell.variantB.debug.canvas2dSingleLineTextFastPathCount', 'Canvas2D Single-Line Text Fast Path')} value={String(diagnostics.canvas2dSingleLineTextFastPathCount)}/>
@@ -741,6 +817,19 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.l1CompositeMissCount', 'L1 Composite Misses')} value={String(diagnostics.l1CompositeMissCount)}/>
       <DebugRow label={t('shell.variantB.debug.l2TileHitCount', 'L2 Tile Hits')} value={String(diagnostics.l2TileHitCount)}/>
       <DebugRow label={t('shell.variantB.debug.l2TileMissCount', 'L2 Tile Misses')} value={String(diagnostics.l2TileMissCount)}/>
+      <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnostics.tileCacheSize)}/>
+      <DebugRow label={t('shell.variantB.debug.tileDirtyCount', 'Tile Dirty Count')} value={String(diagnostics.tileDirtyCount)}/>
+      <DebugRow label={t('shell.variantB.debug.tileCacheTotalBytes', 'Tile Cache Bytes')} value={formatDiagnosticBytes(diagnostics.tileCacheTotalBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnostics.tileUploadCount)}/>
+      <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnostics.tileRenderCount)}/>
+      <DebugRow label={t('shell.variantB.debug.visibleTileCount', 'Visible Tile Count')} value={String(diagnostics.visibleTileCount)}/>
+      <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnostics.gpuTextureBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnostics.imageTextureBytes)}/>
+      <DebugRow label={t('shell.variantB.debug.initialRenderPhase', 'Initial Render Phase')} value={diagnostics.initialRenderPhase}/>
+      <DebugRow label={t('shell.variantB.debug.initialRenderProgress', 'Initial Render Progress')} value={`${(diagnostics.initialRenderProgress * 100).toFixed(1)}%`}/>
+      <DebugRow label={t('shell.variantB.debug.dirtyRegionCount', 'Dirty Regions')} value={String(diagnostics.dirtyRegionCount)}/>
+      <DebugRow label={t('shell.variantB.debug.dirtyTileCount', 'Dirty Tiles')} value={String(diagnostics.dirtyTileCount)}/>
+      <DebugRow label={t('shell.variantB.debug.incrementalUpdateCount', 'Incremental Updates')} value={String(diagnostics.incrementalUpdateCount)}/>
       <DebugRow label={t('shell.variantB.debug.cacheFallbackReason', 'Cache Fallback Reason')} value={diagnostics.cacheFallbackReason}/>
       </DebugSection>
 

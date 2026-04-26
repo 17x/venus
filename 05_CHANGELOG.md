@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-04-26
+
+- Unified visible tile uploads under scheduler orchestration:
+  - `packages/engine/src/renderer/webgl.ts` now enqueues visible tile misses
+    as urgent scheduler requests, then drains visible work before running
+    bounded nearby preload ticks, so visible and preload paths share a single
+    dedupe/cancel/priority queue model
+  - kept direct-upload fallback branch for scheduler-unavailable compatibility
+    and preserved same-frame visible composition behavior
+  - verified with `pnpm typecheck` and mixed-scene perf gate PASS
+    (`pnpm --filter @venus/vector-editor-web perf:gate`)
+
+- Completed engine tile diagnostics Phase F propagation and panel mapping:
+  - added `tileUploadCount`, `tileRenderCount`, `visibleTileCount`,
+    `gpuTextureBytes`, and `imageTextureBytes` to vector runtime diagnostics
+    payload + runtime event snapshots
+  - mapped the new metrics through
+    `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`
+    and surfaced them in Runtime Debug Panel WebGL/cache section rows
+  - updated `docs/task/engine/execution-backlog.md` and
+    `docs/core/current-work.md` to mark Phase F complete and capture validation
+    status/risk notes
+  - verified baseline with `pnpm typecheck`, `pnpm lint`, `pnpm build`, and
+    vector perf gate PASS (`pnpm --filter @venus/vector-editor-web perf:gate`)
+
+- Added first-pass camera animation runtime integration for vector viewport
+  interactions:
+  - `packages/engine/src/runtime/createEngine.ts` now exposes
+    `startCameraAnimation`, `updateCameraAnimation`, and
+    `stopCameraAnimation` for app-driven camera motion
+  - `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`
+    now routes active `pan`/`zoom` viewport commits through camera animation
+    control and requests interactive redraw while animation stays active
+
+- Added cache-preview-only behavior and diagnostics for camera animation:
+  - interaction preview config now supports `cacheOnly`, including Canvas2D
+    defaults in `packages/engine/src/renderer/canvas2d.ts`
+  - runtime diagnostics payload and event snapshots now include camera
+    animation state plus preview hit/miss counters
+  - Runtime Debug Panel now shows camera animation active/cache-only status,
+    preview hit/miss totals, and preview hit rate for tuning
+
 ## 2026-04-25
 
 - Moved vector product-doc folder into app-local docs:

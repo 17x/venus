@@ -37,6 +37,9 @@ context starts, or work needs to resume after switching topics.
   - canvas adapter implementation is now folderized behind a stable entry file,
     splitting viewport orchestration, renderer orchestration, shared types,
     and scene-patch helpers into dedicated modules for maintainability
+  - engine adapter renderer now short-circuits scene prepare/diff on
+    viewport-only updates when scene revision and document identity are stable,
+    reducing zoom-time CPU overhead from repeated render-prep work
   - pointermove hover resolution now uses a time+distance budget to avoid
     resolving top-hit on every high-frequency move tick
   - hover recompute is now gated for interaction modes:
@@ -215,6 +218,26 @@ context starts, or work needs to resume after switching topics.
   - canvas runtime adapter now skips immediate `scene-dirty` redraw when
     incremental dirty ids are fully outside the previous frame candidate set,
     while still applying scene patch updates to engine state for correctness
+  - engine runtime now exposes camera animation control (`start/update/stop`)
+    and the vector engine adapter routes pan/zoom viewport commits through
+    that API, with cache-preview-only mode enabled during animation frames
+  - runtime diagnostics now include camera animation activity and cache-preview
+    hit/miss counters, and Runtime Debug Panel now surfaces the cache-only
+    switch plus camera preview hit-rate for tuning
+  - camera animation settle flow now commits the animation target viewport
+    (instead of stopping on intermediate frame), fixing zoom-settle offset
+    drift in vector runtime integration
+  - WebGL cache-only miss path now repaints the last composite snapshot instead
+    of relying on implicit framebuffer persistence, fixing pan-time black frame
+    behavior on browsers/GPUs that discard previous frame contents
+  - cache-only mode now skips interactive snapshot advancement from transformed
+    preview frames, avoiding progressive zoom drift/blur accumulation during
+    repeated animation-time affine reuse
+  - runtime debug diagnostics now include full frame decomposition coverage:
+    scheduler wait/throttle timings, present-RAF delay proxy, and WebGL
+    segmented timings (`previewReuse`, `planBuild`, `textureUpload`,
+    `drawSubmit`, `snapshotCapture`, `modelRender`) surfaced end-to-end from
+    engine renderer stats through runtime events into Runtime Debug Panel
   - dirty-region invalidation now always coalesces incremental upsert nodes to
     one merged bounds mark (`markDirtyBounds`) instead of gating by node-count
     threshold, improving local invalidation signal consistency for tile cache
@@ -332,6 +355,19 @@ context starts, or work needs to resume after switching topics.
   - workspace and vector package scripts now expose direct perf-gate entry
     points (`perf:gate`, `perf:gate:template`) to reduce command friction in
     iterative performance validation loops
+  - engine tile diagnostics propagation is now fully wired end-to-end for
+    `tileUploadCount` / `tileRenderCount` / `visibleTileCount` /
+    `gpuTextureBytes` / `imageTextureBytes` across engine renderer stats,
+    vector runtime diagnostics payloads, runtime event snapshots, and Runtime
+    Debug Panel display rows
+  - post-integration baseline validation now includes monorepo lint/build
+    confirmation after diagnostics wiring (`pnpm lint`, `pnpm build` both
+    passing), with current known non-blocking risk limited to bundle-size
+    warning on vector-editor-web build output
+  - WebGL tile production now routes visible misses through the same
+    TileScheduler queue as nearby preload (urgent-first then bounded preload),
+    reducing visible-vs-preload path divergence while preserving same-frame
+    viewport composition correctness for visible tiles
     Recently landed:
   - command registry (`packages/runtime/src/commands/registry.ts`)
   - hit-test adapter (`packages/runtime/src/interaction/hitTestAdapter.ts`)

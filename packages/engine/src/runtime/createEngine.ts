@@ -44,6 +44,10 @@ import type {
   EngineTileConfig,
   EngineInitialRenderConfig,
 } from '../index.ts'
+import {
+  createEngineAnimationController,
+  type EngineEasingDefinition,
+} from '../animation/index.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 
@@ -119,6 +123,19 @@ interface EngineViewportOptions {
   scale?: number
 }
 
+export interface EngineCameraAnimationOptions {
+  durationMs?: number
+  easing?: EngineEasingDefinition
+  cachePreviewOnly?: boolean
+}
+
+interface EngineCameraAnimationState {
+  active: boolean
+  cachePreviewOnly: boolean
+  previewHitCount: number
+  previewMissCount: number
+}
+
 export interface CreateEngineOptions {
   canvas: HTMLCanvasElement | OffscreenCanvas
   initialScene?: EngineSceneSnapshot
@@ -160,6 +177,7 @@ export interface EngineRuntimeDiagnostics {
     stableFrameCount: number
   }
   viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight'>
+  cameraAnimation: EngineCameraAnimationState
 }
 
 export interface Engine {
@@ -180,6 +198,9 @@ export interface Engine {
   setViewport(next: EngineViewportOptions): EngineCanvasViewportState
   panBy(deltaX: number, deltaY: number): EngineCanvasViewportState
   zoomTo(scale: number, anchor?: {x: number; y: number}): EngineCanvasViewportState
+  startCameraAnimation(target: EngineViewportOptions, options?: EngineCameraAnimationOptions): void
+  updateCameraAnimation(target: EngineViewportOptions, options?: EngineCameraAnimationOptions): void
+  stopCameraAnimation(options?: {commitTarget?: boolean}): void
   resize(width: number, height: number): EngineCanvasViewportState
   setDpr(dpr: number | 'auto', options?: {maxDpr?: number}): number
   setQuality(quality: EngineRenderQuality): void
@@ -283,6 +304,42 @@ export function createEngine(options: CreateEngineOptions): Engine {
   let shortlistLeaveRatioThreshold =
     FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD + FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
   let latestHitPlan: EngineHitPlan | null = null
+  let hostRenderQuality: EngineRenderQuality = renderContext.quality
+  let hostInteractionPreviewConfig: EngineInteractionPreviewConfig | undefined =
+    options.render?.interactionPreview
+  const cameraAnimationController = createEngineAnimationController()
+  const CAMERA_ANIMATION_ID = 'engine.camera.viewport'
+  let cameraAnimationTarget: EngineCanvasViewportState | null = null
+  const cameraAnimationState: EngineCameraAnimationState = {
+    active: false,
+    cachePreviewOnly: false,
+    previewHitCount: 0,
+    previewMissCount: 0,
+  }
+
+  const applyRenderQualityPolicy = () => {
+    // Keep animation playback responsive by forcing interactive quality while
+    // camera animation is active.
+    renderContext.quality = cameraAnimationState.active
+      ? 'interactive'
+      : (renderContext.lodEnabled ? hostRenderQuality : 'full')
+  }
+
+  const applyInteractionPreviewPolicy = () => {
+    if (cameraAnimationState.active && cameraAnimationState.cachePreviewOnly) {
+      // Allow broad affine reuse during camera animation to maximize preview hits.
+      renderer.setInteractionPreview?.({
+        enabled: true,
+        mode: 'interaction',
+        cacheOnly: true,
+        maxScaleStep: 8,
+        maxTranslatePx: 100_000,
+      })
+      return
+    }
+
+    renderer.setInteractionPreview?.(hostInteractionPreviewConfig)
+  }
 
   // Keep frame-plan construction centralized so diagnostics and future
   // planner-facing APIs use the same viewport candidate query contract.
@@ -406,9 +463,88 @@ export function createEngine(options: CreateEngineOptions): Engine {
     return Array.from(mergedCandidateIdSet)
   }
 
+  const resolveViewportAnimationTarget = (target: EngineViewportOptions) => {
+    return resolveEngineViewportState({
+      viewportWidth: target.viewportWidth ?? viewport.viewportWidth,
+      viewportHeight: target.viewportHeight ?? viewport.viewportHeight,
+      offsetX: target.offsetX ?? viewport.offsetX,
+      offsetY: target.offsetY ?? viewport.offsetY,
+      scale: target.scale ?? viewport.scale,
+    })
+  }
+
+  const stopCameraAnimationInternal = (commitTarget = true) => {
+    cameraAnimationController.stop(CAMERA_ANIMATION_ID)
+    if (commitTarget && cameraAnimationTarget) {
+      viewport = cameraAnimationTarget
+    }
+    cameraAnimationTarget = null
+    cameraAnimationState.active = false
+    cameraAnimationState.cachePreviewOnly = false
+    applyRenderQualityPolicy()
+    applyInteractionPreviewPolicy()
+  }
+
+  const startCameraAnimationInternal = (
+    target: EngineViewportOptions,
+    animationOptions?: EngineCameraAnimationOptions,
+  ) => {
+    const resolvedTarget = resolveViewportAnimationTarget(target)
+    cameraAnimationTarget = resolvedTarget
+    cameraAnimationState.active = true
+    cameraAnimationState.cachePreviewOnly = Boolean(animationOptions?.cachePreviewOnly)
+    cameraAnimationState.previewHitCount = 0
+    cameraAnimationState.previewMissCount = 0
+    applyRenderQualityPolicy()
+    applyInteractionPreviewPolicy()
+
+    cameraAnimationController.start<EngineCanvasViewportState>({
+      id: CAMERA_ANIMATION_ID,
+      from: viewport,
+      to: resolvedTarget,
+      duration: Math.max(0, animationOptions?.durationMs ?? 110),
+      easing: animationOptions?.easing ?? 'easeOut',
+      interpolate: (from, to, progress) => {
+        return resolveEngineViewportState({
+          viewportWidth: from.viewportWidth + (to.viewportWidth - from.viewportWidth) * progress,
+          viewportHeight: from.viewportHeight + (to.viewportHeight - from.viewportHeight) * progress,
+          offsetX: from.offsetX + (to.offsetX - from.offsetX) * progress,
+          offsetY: from.offsetY + (to.offsetY - from.offsetY) * progress,
+          scale: from.scale + (to.scale - from.scale) * progress,
+        })
+      },
+      onUpdate: (nextViewport) => {
+        viewport = nextViewport
+      },
+      onComplete: () => {
+        stopCameraAnimationInternal(true)
+      },
+    })
+  }
+
+  const handleRenderStats = (stats: EngineRenderStats) => {
+    if (cameraAnimationState.active) {
+      cameraAnimationState.previewHitCount += stats.l0PreviewHitCount ?? 0
+      cameraAnimationState.previewMissCount += stats.l0PreviewMissCount ?? 0
+    }
+
+    const enrichedStats: EngineRenderStats = {
+      ...stats,
+      cameraAnimationActive: cameraAnimationState.active,
+      cameraAnimationCachePreviewOnly: cameraAnimationState.cachePreviewOnly,
+      cameraAnimationPreviewHitCount: cameraAnimationState.previewHitCount,
+      cameraAnimationPreviewMissCount: cameraAnimationState.previewMissCount,
+    }
+    latestRenderStats = enrichedStats
+    options.debug?.onStats?.(enrichedStats)
+  }
+
   const loop: EngineLoopController = createEngineLoop({
     clock,
     renderer,
+    beforeRender: (frame) => {
+      cameraAnimationController.tick(frame)
+    },
     resolveFrame: () => {
       const scene = store.getSnapshot()
       if (ENABLE_FRAME_PLAN_SHORTLIST) {
@@ -497,10 +633,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
         context: renderContext,
       }
     },
-    onStats: (stats) => {
-      latestRenderStats = stats
-      options.debug?.onStats?.(stats)
-    },
+    onStats: handleRenderStats,
   })
 
   // Keep renderer and viewport dimensions in sync so callers can just pass the
@@ -571,6 +704,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
       return store.getSnapshot()
     },
     setViewport(next) {
+      stopCameraAnimationInternal(false)
       viewport = resolveEngineViewportState({
         viewportWidth: next.viewportWidth ?? viewport.viewportWidth,
         viewportHeight: next.viewportHeight ?? viewport.viewportHeight,
@@ -581,12 +715,25 @@ export function createEngine(options: CreateEngineOptions): Engine {
       return viewport
     },
     panBy(deltaX, deltaY) {
+      stopCameraAnimationInternal(false)
       viewport = panEngineViewportState(viewport, deltaX, deltaY)
       return viewport
     },
     zoomTo(scale, anchor) {
+      stopCameraAnimationInternal(false)
       viewport = zoomEngineViewportState(viewport, scale, anchor)
       return viewport
+    },
+    startCameraAnimation(target, animationOptions) {
+      startCameraAnimationInternal(target, animationOptions)
+    },
+    updateCameraAnimation(target, animationOptions) {
+      // Updates restart from the current viewport to keep pan/zoom targets
+      // responsive to high-frequency input streams.
+      startCameraAnimationInternal(target, animationOptions)
+    },
+    stopCameraAnimation(stopOptions) {
+      stopCameraAnimationInternal(stopOptions?.commitTarget ?? true)
     },
     resize(width, height) {
       if (renderer.resize) {
@@ -620,14 +767,14 @@ export function createEngine(options: CreateEngineOptions): Engine {
       return pixelRatio
     },
     setQuality(quality) {
+      hostRenderQuality = quality
       // LOD-disabled mode keeps full-detail rendering while preserving
       // non-LOD optimization features (culling, shortlist, tile cache).
-      renderContext.quality = renderContext.lodEnabled
-        ? quality
-        : 'full'
+      applyRenderQualityPolicy()
     },
     setInteractionPreview(config) {
-      renderer.setInteractionPreview?.(config)
+      hostInteractionPreviewConfig = config
+      applyInteractionPreviewPolicy()
     },
     setProtectedNodeIds(nodeIds) {
       if (!nodeIds || nodeIds.length === 0) {
@@ -655,11 +802,14 @@ export function createEngine(options: CreateEngineOptions): Engine {
       })
     },
     renderFrame: async () => {
+      cameraAnimationController.tick({
+        now: clock.now(),
+        dt: 0,
+      })
       const stats = await loop.renderOnce()
-      latestRenderStats = stats
       // Clear dirty regions after each render so they don't stale-accumulate
       renderContext.dirtyRegions = undefined
-      return stats
+      return latestRenderStats ?? stats
     },
     start() {
       loop.start()
@@ -700,10 +850,17 @@ export function createEngine(options: CreateEngineOptions): Engine {
           viewportWidth: viewport.viewportWidth,
           viewportHeight: viewport.viewportHeight,
         },
+        cameraAnimation: {
+          active: cameraAnimationState.active,
+          cachePreviewOnly: cameraAnimationState.cachePreviewOnly,
+          previewHitCount: cameraAnimationState.previewHitCount,
+          previewMissCount: cameraAnimationState.previewMissCount,
+        },
       }
     },
     dispose() {
       loop.stop()
+      cameraAnimationController.stopAll()
       renderer.dispose?.()
     },
   }
