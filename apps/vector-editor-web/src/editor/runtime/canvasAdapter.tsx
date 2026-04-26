@@ -189,6 +189,7 @@ export function CanvasViewport({
   )
   const [viewportVelocity, setViewportVelocity] = React.useState(0)
   const [viewportInteractionType, setViewportInteractionType] = React.useState<'pan' | 'zoom' | 'other'>('other')
+  const zoomGestureActiveRef = React.useRef(false)
   const previousLodLevelRef = React.useRef<0 | 1 | 2 | 3>(0)
   const velocitySettleHandleRef = React.useRef<number | null>(null)
   const viewportMotionRef = React.useRef({
@@ -262,6 +263,18 @@ export function CanvasViewport({
   const onPointerDownRef = React.useRef(onPointerDown)
   const onPointerUpRef = React.useRef(onPointerUp)
   const onPointerLeaveRef = React.useRef(onPointerLeave)
+  const lastZoomDiagnosticRef = React.useRef<{
+    phase: 'wheel' | 'commit'
+    source: string
+    factor: number
+    baseScale: number
+    nextScale: number
+    anchorX: number
+    anchorY: number
+    viewportWidth: number
+    viewportHeight: number
+    at: number
+  } | null>(null)
 
   viewportStateRef.current = viewport
   onViewportChangeRef.current = onViewportChange
@@ -286,11 +299,15 @@ export function CanvasViewport({
     // Classify the dominant viewport motion so engine LOD can preserve full
     // fidelity for pan/zoom while leaving other interaction degradation intact.
     const nextInteractionType: 'pan' | 'zoom' | 'other' =
-      panDistance > VIEWPORT_INTERACTION_EPSILON && panDistance >= zoomDistance
-        ? 'pan'
-        : zoomDistance > VIEWPORT_INTERACTION_EPSILON
-          ? 'zoom'
-          : 'other'
+      // Keep wheel/pinch sessions pinned to zoom so render policy does not
+      // misclassify anchor-induced offset changes as pan.
+      zoomGestureActiveRef.current
+        ? 'zoom'
+        : panDistance > VIEWPORT_INTERACTION_EPSILON && panDistance >= zoomDistance
+          ? 'pan'
+          : zoomDistance > VIEWPORT_INTERACTION_EPSILON
+            ? 'zoom'
+            : 'other'
 
     setViewportVelocity((current) =>
       Math.abs(current - nextVelocity) < 24
@@ -366,20 +383,46 @@ export function CanvasViewport({
       onPointerDown: (pointer, modifiers) => onPointerDownRef.current?.(pointer, modifiers),
       onPointerUp: () => onPointerUpRef.current?.(),
       onPointerLeave: () => onPointerLeaveRef.current?.(),
+      onZoomingChange: (active) => {
+        zoomGestureActiveRef.current = active
+        if (active) {
+          setViewportInteractionType('zoom')
+        }
+      },
+      onZoomDiagnostic: (diagnostic) => {
+        // Keep a local/event-entry trace so visible=0 investigations can map
+        // render failures back to the exact wheel/commit zoom payload.
+        const nextEntry = {
+          ...diagnostic,
+          at: performance.now(),
+        }
+        lastZoomDiagnosticRef.current = nextEntry
+
+        const hostWindow = window as Window & {
+          __venusZoomDebugLog?: Array<typeof nextEntry>
+          __venusLastZoomDiagnostic?: typeof nextEntry
+        }
+        hostWindow.__venusLastZoomDiagnostic = nextEntry
+        const log = hostWindow.__venusZoomDebugLog ?? []
+        log.push(nextEntry)
+        if (log.length > 240) {
+          log.splice(0, log.length - 240)
+        }
+        hostWindow.__venusZoomDebugLog = log
+      },
       onZoomCommitViewport: (targetViewport) => {
         if (onViewportChangeRef.current) {
           onViewportChangeRef.current(targetViewport)
-          return
-        }
-
-        const current = viewportStateRef.current
-        if (current.scale !== targetViewport.scale) {
-          onViewportZoomRef.current?.(targetViewport.scale)
-        }
-        const deltaX = targetViewport.offsetX - current.offsetX
-        const deltaY = targetViewport.offsetY - current.offsetY
-        if (deltaX !== 0 || deltaY !== 0) {
-          onViewportPanRef.current?.(deltaX, deltaY)
+        } else {
+          const current = viewportStateRef.current
+          if (current.scale !== targetViewport.scale) {
+            onViewportZoomRef.current?.(targetViewport.scale)
+          }
+          const deltaX = targetViewport.offsetX - current.offsetX
+          const deltaY = targetViewport.offsetY - current.offsetY
+          if (deltaX !== 0 || deltaY !== 0) {
+            onViewportPanRef.current?.(deltaX, deltaY)
+          }
         }
       },
       onPanCommit: (deltaX, deltaY) => {
@@ -532,9 +575,19 @@ export function Canvas2DRenderer({
     hitPlanHitCount: 0,
     hitPlanExactCheckCount: 0,
   })
+  const sceneApplyDebugRef = React.useRef({
+    lastSceneApplyMode: 'none' as 'none' | 'full-load' | 'preview-load' | 'incremental-patch',
+    lastSceneApplyRevision: 'none' as string,
+    lastSceneShapeCount: 0,
+    lastScenePatchUpsertCount: 0,
+    sceneLoadCount: 0,
+    scenePatchCount: 0,
+  })
+  const lastZeroVisibilityDebugFrameRef = React.useRef(0)
   const lastPlanDiagnosticSampleAtRef = React.useRef(0)
   const protectedNodeSignatureRef = React.useRef('')
   const previewSceneRevisionRef = React.useRef(0)
+  const hasLoadedSceneInEngineRef = React.useRef(false)
   const previousRenderPrepRef = React.useRef<{
     revision: number
     document: EditorDocument
@@ -795,6 +848,36 @@ export function Canvas2DRenderer({
             groupCollapseCulledCount?: number
           }
 
+          if (
+            nextStats.visibleCount <= 0 &&
+            planDiagnostics.framePlanSceneNodeCount <= 0 &&
+            drawSerialRef.current !== lastZeroVisibilityDebugFrameRef.current
+          ) {
+            // Capture first-class debug context when rendering drops to 0/0 so
+            // root-cause analysis can start from event entry instead of guesswork.
+            const hostWindow = window as Window & {
+              __venusZeroVisibilityDebug?: {
+                at: number
+                frameCount: number
+                renderPhase: RuntimeRenderPhase
+                viewportInteractionType: 'pan' | 'zoom' | 'other'
+                lastRenderRequestReason: string
+                sceneApply: typeof sceneApplyDebugRef.current
+                lastZoomDiagnostic?: unknown
+              }
+            }
+            hostWindow.__venusZeroVisibilityDebug = {
+              at: performance.now(),
+              frameCount: drawSerialRef.current,
+              renderPhase: renderRequestStats.renderPhase,
+              viewportInteractionType: renderRequestStats.viewportInteractionType,
+              lastRenderRequestReason: renderRequestStats.lastReason,
+              sceneApply: sceneApplyDebugRef.current,
+              lastZoomDiagnostic: (window as Window & {__venusLastZoomDiagnostic?: unknown}).__venusLastZoomDiagnostic,
+            }
+            lastZeroVisibilityDebugFrameRef.current = drawSerialRef.current
+          }
+
           deferredImageWakeupPendingRef.current = false
 
           drawSerialRef.current += 1
@@ -973,6 +1056,9 @@ export function Canvas2DRenderer({
       },
     })
     engineRef.current = engine
+    // Reset bootstrap state for each engine lifecycle so scene ingestion does
+    // not rely on stale diff state from a previous engine instance.
+    hasLoadedSceneInEngineRef.current = false
     renderSchedulerRef.current = createEngineRenderScheduler({
       render: () => engine.renderFrame(),
       interactiveIntervalMs: renderPolicy.interactiveIntervalMs,
@@ -995,6 +1081,7 @@ export function Canvas2DRenderer({
       viewportReadyRef.current = false
       pendingSceneRenderRef.current = false
       deferredImageWakeupPendingRef.current = false
+      hasLoadedSceneInEngineRef.current = false
       engineRef.current = null
       engine.dispose()
     }
@@ -1090,11 +1177,13 @@ export function Canvas2DRenderer({
       interactionPhase !== 'pan' &&
       interactionPhase !== 'zoom',
     )
+    const shouldBootstrapScene = !hasLoadedSceneInEngineRef.current
 
-    if (preparedFrame.scene.dirty || shouldForcePreviewOnlySceneReload) {
+    if (shouldBootstrapScene || preparedFrame.scene.dirty || shouldForcePreviewOnlySceneReload) {
       let dirtyBoundsMarkCount = 0
       let dirtyBoundsMarkArea = 0
       const shouldRenderSceneDirtyNow =
+        shouldBootstrapScene ||
         shouldForcePreviewOnlySceneReload ||
         preparedFrame.dirtyState.sceneStructureDirty ||
         preparedFrame.dirtyState.dirtyCandidateCount > 0 ||
@@ -1104,9 +1193,13 @@ export function Canvas2DRenderer({
         : latestRenderPrepStatsRef.current.offscreenSceneDirtySkipConsecutiveCount + 1
       const shouldForceOffscreenSceneDirtyRender =
         nextOffscreenSceneDirtySkipConsecutiveCount >= SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES
-      if (preparedFrame.dirtyState.sceneStructureDirty || !previous || shouldForcePreviewOnlySceneReload) {
+      if (shouldBootstrapScene || preparedFrame.dirtyState.sceneStructureDirty || !previous || shouldForcePreviewOnlySceneReload) {
+        const isPreviewLoad = shouldForcePreviewOnlySceneReload
+        const debugRevision = isPreviewLoad
+          ? `${stats.version}:preview:${previewSceneRevisionRef.current + 1}`
+          : String(stats.version)
         const nextEngineScene = createEngineSceneFromRuntimeSnapshot(
-          shouldForcePreviewOnlySceneReload
+          isPreviewLoad
             ? {
                 ...replayScenePayload,
                 revision: `${stats.version}:preview:${++previewSceneRevisionRef.current}`,
@@ -1114,6 +1207,14 @@ export function Canvas2DRenderer({
             : replayScenePayload,
         )
         engine.loadScene(nextEngineScene)
+          hasLoadedSceneInEngineRef.current = true
+        // Track scene load mode/count so visible=0 episodes can be tied back
+        // to the last scene mutation path before render diagnostics dropped.
+        sceneApplyDebugRef.current.lastSceneApplyMode = isPreviewLoad ? 'preview-load' : 'full-load'
+        sceneApplyDebugRef.current.lastSceneApplyRevision = debugRevision
+        sceneApplyDebugRef.current.lastSceneShapeCount = replayScenePayload.shapes.length
+        sceneApplyDebugRef.current.lastScenePatchUpsertCount = 0
+        sceneApplyDebugRef.current.sceneLoadCount += 1
       } else {
         const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, document)
         const incrementalScene = createEngineSceneFromRuntimeSnapshot({
@@ -1130,6 +1231,14 @@ export function Canvas2DRenderer({
               upsertNodes,
             }],
           })
+          hasLoadedSceneInEngineRef.current = true
+          // Keep incremental patch telemetry so event-entry debugging can
+          // confirm whether the scene was patched or fully replaced.
+          sceneApplyDebugRef.current.lastSceneApplyMode = 'incremental-patch'
+          sceneApplyDebugRef.current.lastSceneApplyRevision = String(stats.version)
+          sceneApplyDebugRef.current.lastSceneShapeCount = replayScenePayload.shapes.length
+          sceneApplyDebugRef.current.lastScenePatchUpsertCount = upsertNodes.length
+          sceneApplyDebugRef.current.scenePatchCount += 1
           // Coalesce dirty marks to one merged region so tile invalidation can
           // stay local even when many nodes are updated in one patch burst.
           // Include both previous and next positions so moved nodes invalidate
