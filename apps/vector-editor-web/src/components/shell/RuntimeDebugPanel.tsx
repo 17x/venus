@@ -49,6 +49,8 @@ const DEFAULT_RISK_SCORE_FORCED_RATE_SCALE = 120
 const DEFAULT_PROLONGED_HIGH_RISK_SECONDS_THRESHOLD = 8
 const DEFAULT_TRANSITION_RATE_WATCH_THRESHOLD = 5
 const TREND_HISTORY_LIMIT = 240
+// Keep diagnostics readable in day-to-day debugging by hiding non-essential rows.
+const SHOW_VERBOSE_DEBUG = false
 
 type SceneDirtyTrendSample = {
   frameCount: number
@@ -564,6 +566,36 @@ export function RuntimeDebugPanel() {
     }
   }, [copyDiagnosticsState])
 
+  if (!SHOW_VERBOSE_DEBUG) {
+    return (
+      <section id={'variant-b-tabpanel-debug'} role={'tabpanel'} className={'scrollbar-custom flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3'}>
+        <DebugSection title={t('shell.variantB.debug.sectionEngineCore', 'Engine Core')}>
+          <DebugRow label={t('shell.variantB.debug.drawMs', 'Draw Ms')} value={diagnostics.drawMs.toFixed(2)}/>
+          <DebugRow label={t('shell.variantB.debug.fps', 'FPS (Smooth)')} value={diagnostics.fpsEstimate.toFixed(1)}/>
+          <DebugRow label={t('shell.variantB.debug.fpsInstant', 'FPS (Instant)')} value={diagnostics.fpsInstantaneous.toFixed(1)}/>
+          <DebugRow label={t('shell.variantB.debug.fpsPeak', 'FPS Peak (Instant)')} value={diagnostics.fpsPeak.toFixed(1)}/>
+          <DebugRow label={t('shell.variantB.debug.fpsReached60', 'Reached 60 FPS')} value={diagnostics.fpsReached60 ? 'yes' : 'no'}/>
+          <DebugRow label={t('shell.variantB.debug.fpsReached120', 'Reached 120 FPS')} value={diagnostics.fpsReached120 ? 'yes' : 'no'}/>
+          <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={diagnostics.renderPhase}/>
+          <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnostics.webglRenderPath}/>
+        </DebugSection>
+
+        <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
+          <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate')} value={`${cacheHitRate.toFixed(1)}%`}/>
+          <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnostics.tileCacheSize)}/>
+          <DebugRow label={t('shell.variantB.debug.tileDirtyCount', 'Tile Dirty Count')} value={String(diagnostics.tileDirtyCount)}/>
+          <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnostics.tileUploadCount)}/>
+          <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnostics.tileRenderCount)}/>
+          <DebugRow label={t('shell.variantB.debug.visibleTileCount', 'Visible Tile Count')} value={String(diagnostics.visibleTileCount)}/>
+          <DebugRow label={t('shell.variantB.debug.tileSchedulerPendingCount', 'Tile Scheduler Pending')} value={String(diagnostics.tileSchedulerPendingCount)}/>
+          <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnostics.gpuTextureBytes)}/>
+          <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnostics.imageTextureBytes)}/>
+          <DebugRow label={t('shell.variantB.debug.cacheFallbackReason', 'Cache Fallback Reason')} value={diagnostics.cacheFallbackReason}/>
+        </DebugSection>
+      </section>
+    )
+  }
+
   return (
     <section id={'variant-b-tabpanel-debug'} role={'tabpanel'} className={'scrollbar-custom flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3'}>
       <DebugSection title={t('shell.variantB.debug.sectionEngineCore', 'Engine Core')}>
@@ -823,6 +855,7 @@ export function RuntimeDebugPanel() {
       <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnostics.tileUploadCount)}/>
       <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnostics.tileRenderCount)}/>
       <DebugRow label={t('shell.variantB.debug.visibleTileCount', 'Visible Tile Count')} value={String(diagnostics.visibleTileCount)}/>
+      <DebugRow label={t('shell.variantB.debug.tileSchedulerPendingCount', 'Tile Scheduler Pending')} value={String(diagnostics.tileSchedulerPendingCount)}/>
       <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnostics.gpuTextureBytes)}/>
       <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnostics.imageTextureBytes)}/>
       <DebugRow label={t('shell.variantB.debug.initialRenderPhase', 'Initial Render Phase')} value={diagnostics.initialRenderPhase}/>

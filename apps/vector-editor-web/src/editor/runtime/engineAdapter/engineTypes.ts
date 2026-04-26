@@ -96,24 +96,32 @@ export const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
       quality: 'interactive',
       dpr: 'auto',
       interactionActive: true,
+      // Keep pan cadence responsive; wider intervals reduced measured interaction FPS.
       interactiveIntervalMs: 8,
       interactionPreview: {
         enabled: true,
         mode: 'interaction',
-        maxScaleStep: 1.2,
-        maxTranslatePx: 220,
+        // Favor stable cached affine preview during pan to keep motion smooth.
+        cacheOnly: true,
+        // Widen tolerance so interaction stays in cache-preview path longer.
+        maxScaleStep: 8,
+        maxTranslatePx: 100_000,
       },
     },
     zoom: {
       quality: 'interactive',
       dpr: 1.5,
       interactionActive: true,
+      // Keep zoom cadence responsive; wider intervals reduced measured interaction FPS.
       interactiveIntervalMs: 8,
       interactionPreview: {
         enabled: true,
         mode: 'interaction',
-        maxScaleStep: 1.2,
-        maxTranslatePx: 220,
+        // Favor stable cached affine preview during zoom to avoid packet thrash.
+        cacheOnly: true,
+        // Widen tolerance so interaction stays in cache-preview path longer.
+        maxScaleStep: 8,
+        maxTranslatePx: 100_000,
       },
     },
     drag: {

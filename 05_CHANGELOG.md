@@ -2,6 +2,46 @@
 
 ## 2026-04-26
 
+- Stabilized tile composition path and simplified diagnostics surface:
+  - `packages/engine/src/renderer/webgl.ts` now keeps visible tile uploads on
+    synchronous in-frame path and limits scheduler work to nearby preload,
+    reducing visible-tile composition instability risk
+  - `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
+    defaults to a minimal debug subset showing only essential performance and
+    tile/cache counters
+  - 100K target replay after tuning: idle `60.00`, interaction `37.15`
+    under `>=60` gate (interaction still below target)
+
+- Added all-scale tiny-shape interaction LOD culling in WebGL fallback:
+  - `packages/engine/src/renderer/webgl.ts` now drops imperceptibly small
+    shape packets during interactive packet fallback regardless of scale band,
+    while retaining existing low-scale tiny-packet culling
+  - latest Playwright 100K replay range improved to interaction
+    `42.95~44.20` (idle stays around `60`), and mixed-scene perf gate remains
+    PASS
+
+- Introduced visibility-driven LOD policy and started replacing zoom-threshold
+  branching:
+  - added `packages/engine/src/interaction/visibilityLod.ts` for shared
+    visibility score/tier resolution and hit-test budget mapping
+  - switched WebGL interactive tiny-packet skipping from scale thresholds to
+    visibility tiers and semantic boosts
+  - switched tile cache residency to one persistent zoom domain in WebGL tile
+    path to reduce multi-level drift and invalidation complexity
+  - wired worker click hit-test pipeline to visibility budget so
+    `hitMode/maxExactCandidateCount` adapt to candidate visibility and density
+
+- Fixed interaction FPS regression in vector runtime policy:
+  - `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`
+    now uses stable DPR `1` for interaction-time rendering to reduce per-frame
+    raster workload
+  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts` and
+    `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineTypes.ts`
+    now support/use `cacheOnly` interaction preview on `pan`/`zoom` to avoid
+    expensive packet fallback during high-frequency gestures
+  - validated with Playwright FPS check PASS: idle `60.00`, interaction `41.65`
+    (threshold `>=30`), plus mixed-scene perf gate PASS
+
 - Unified visible tile uploads under scheduler orchestration:
   - `packages/engine/src/renderer/webgl.ts` now enqueues visible tile misses
     as urgent scheduler requests, then drains visible work before running
@@ -9,6 +49,15 @@
     dedupe/cancel/priority queue model
   - kept direct-upload fallback branch for scheduler-unavailable compatibility
     and preserved same-frame visible composition behavior
+  - verified with `pnpm typecheck` and mixed-scene perf gate PASS
+    (`pnpm --filter @venus/vector-editor-web perf:gate`)
+
+- Added scheduler queue-depth observability for tile pipeline tuning:
+  - `packages/engine/src/renderer/types.ts` and
+    `packages/engine/src/renderer/webgl.ts` now publish
+    `tileSchedulerPendingCount` in engine render stats
+  - vector runtime diagnostics payload/event snapshots and Runtime Debug Panel
+    now surface `Tile Scheduler Pending` for live queue-pressure inspection
   - verified with `pnpm typecheck` and mixed-scene perf gate PASS
     (`pnpm --filter @venus/vector-editor-web perf:gate`)
 

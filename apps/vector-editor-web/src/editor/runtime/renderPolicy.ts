@@ -11,6 +11,8 @@ export type RuntimeLodLevel = 0 | 1 | 2 | 3
 export interface RuntimeInteractionPreviewConfig {
   enabled?: boolean
   mode?: 'interaction' | 'zoom-only'
+  // Cache-only preview skips expensive packet fallback during active gestures.
+  cacheOnly?: boolean
   maxScaleStep?: number
   maxTranslatePx?: number
 }

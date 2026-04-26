@@ -264,6 +264,17 @@ export {
   resolveEngineLodProfile,
 } from './interaction/lodProfile.ts'
 export type {
+  EngineVisibilityHitTestBudget,
+  EngineVisibilityHitTestBudgetInput,
+  EngineVisibilityMetricInput,
+  EngineVisibilityProfile,
+  EngineVisibilityTier,
+} from './interaction/visibilityLod.ts'
+export {
+  resolveEngineVisibilityHitTestBudget,
+  resolveEngineVisibilityProfile,
+} from './interaction/visibilityLod.ts'
+export type {
   EngineEditorBezierPoint,
   EngineEditorHitTestNode,
   EngineEditorNodeType,

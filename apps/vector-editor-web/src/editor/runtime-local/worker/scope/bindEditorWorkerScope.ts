@@ -136,6 +136,9 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
       // with capped exact refinement to reduce click-time spikes on dense scenes.
       hitMode: currentToolName === 'dselector' ? 'exact' : 'bbox_then_exact',
       maxExactCandidateCount: currentToolName === 'dselector' ? 12 : 4,
+      // Tool-aware boosts bias visibility budget toward active precision workflows.
+      visibilityInteractionBoost: currentToolName === 'dselector' ? 0.25 : 0.1,
+      visibilitySemanticBoost: currentToolName === 'dselector' ? 0.2 : 0,
       allowFrameSelection,
       strictStrokeHitTest,
       preferGroupSelection: currentToolName === 'selector' && !(message.modifiers?.metaKey || message.modifiers?.ctrlKey),

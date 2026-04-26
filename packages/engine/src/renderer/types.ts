@@ -86,6 +86,8 @@ export interface EngineRenderStats {
   tileUploadCount?: number
   tileRenderCount?: number
   visibleTileCount?: number
+  // Scheduler backlog helps diagnose visible/preload queue pressure.
+  tileSchedulerPendingCount?: number
   gpuTextureBytes?: number
   imageTextureBytes?: number
   // Initial render diagnostics

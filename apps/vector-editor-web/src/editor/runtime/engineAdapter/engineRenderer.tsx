@@ -82,7 +82,8 @@ export function EngineRenderer({
   const RESIZE_COMMIT_DEFER_MS = 260
   const RESIZE_COMMIT_THRESHOLD_PX = 96
   const FORCE_STABLE_DPR = true
-  const STABLE_DPR_VALUE = 1.5
+  // Keep interaction-time backing resolution conservative to protect frame pacing.
+  const STABLE_DPR_VALUE = 1
   const SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES =
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames
   const DIRTY_BOUNDS_SMALL_AREA_PX2 =
@@ -563,6 +564,7 @@ export function EngineRenderer({
               tileUploadCount: nextStats.tileUploadCount,
               tileRenderCount: nextStats.tileRenderCount,
               visibleTileCount: nextStats.visibleTileCount,
+              tileSchedulerPendingCount: nextStats.tileSchedulerPendingCount,
               gpuTextureBytes: nextStats.gpuTextureBytes,
               imageTextureBytes: nextStats.imageTextureBytes,
               initialRenderPhase: nextStats.initialRenderPhase,

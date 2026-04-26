@@ -18,6 +18,7 @@ interface RenderStatsSnapshot {
   tileUploadCount?: number
   tileRenderCount?: number
   visibleTileCount?: number
+  tileSchedulerPendingCount?: number
   gpuTextureBytes?: number
   imageTextureBytes?: number
   initialRenderPhase?: string
@@ -364,6 +365,7 @@ export function buildRuntimeDiagnosticsPayload(
     tileUploadCount: input.renderStats.tileUploadCount ?? 0,
     tileRenderCount: input.renderStats.tileRenderCount ?? 0,
     visibleTileCount: input.renderStats.visibleTileCount ?? 0,
+    tileSchedulerPendingCount: input.renderStats.tileSchedulerPendingCount ?? 0,
     gpuTextureBytes: input.renderStats.gpuTextureBytes ?? 0,
     imageTextureBytes: input.renderStats.imageTextureBytes ?? 0,
     initialRenderPhase: input.renderStats.initialRenderPhase ?? 'none',

@@ -96,6 +96,7 @@ export interface RuntimeRenderDiagnosticsStats {
       tileUploadCount: number
       tileRenderCount: number
       visibleTileCount: number
+      tileSchedulerPendingCount: number
       gpuTextureBytes: number
       imageTextureBytes: number
       initialRenderPhase: string
@@ -297,6 +298,7 @@ export interface RuntimeRenderDiagnostics {
   tileUploadCount: number
   tileRenderCount: number
   visibleTileCount: number
+  tileSchedulerPendingCount: number
   gpuTextureBytes: number
   imageTextureBytes: number
   initialRenderPhase: string
@@ -452,6 +454,7 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   tileUploadCount: 0,
   tileRenderCount: 0,
   visibleTileCount: 0,
+  tileSchedulerPendingCount: 0,
   gpuTextureBytes: 0,
   imageTextureBytes: 0,
   initialRenderPhase: 'none',
@@ -529,6 +532,7 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
         tileUploadCount: 0,
         tileRenderCount: 0,
         visibleTileCount: 0,
+        tileSchedulerPendingCount: 0,
         gpuTextureBytes: 0,
         imageTextureBytes: 0,
         initialRenderPhase: 'none',
@@ -745,6 +749,7 @@ function resolveRuntimeRenderDiagnosticsStats(
         tileUploadCount: diagnostics.tileUploadCount,
         tileRenderCount: diagnostics.tileRenderCount,
         visibleTileCount: diagnostics.visibleTileCount,
+        tileSchedulerPendingCount: diagnostics.tileSchedulerPendingCount,
         gpuTextureBytes: diagnostics.gpuTextureBytes,
         imageTextureBytes: diagnostics.imageTextureBytes,
         initialRenderPhase: diagnostics.initialRenderPhase,

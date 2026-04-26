@@ -13,12 +13,11 @@ import type { EngineTileConfig, EngineLodConfig, EngineInitialRenderConfig } fro
 import {
   EngineTileCache,
   createTileKey,
-  getZoomLevelForScale,
-  type TileRenderRequest,
   type TileZoomLevel,
 } from './tileManager.ts'
 import { EngineInitialRenderController } from './initialRender.ts'
 import { TileScheduler } from './tileScheduler.ts'
+import { resolveEngineVisibilityProfile } from '../interaction/visibilityLod.ts'
 
 interface WebGLEngineRendererOptions {
   id?: string
@@ -67,6 +66,13 @@ const TEXT_PLACEHOLDER_MAX_SCALE = 0.16
 const TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX = 2.2
 const OVERVIEW_IMAGE_SKIP_MAX_SCALE = 0.02
 const OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX = 2.8
+// Visibility-tier thresholds replace scale-bucket packet skipping for interaction frames.
+const INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX = 3.2
+const INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX = 2.2
+const INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX = 1.2
+const INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 = 6
+// Keep tile cache on one persistent zoom domain to reduce multi-layer drift complexity.
+const TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL: TileZoomLevel = 5
 
 /**
  * Built-in WebGL renderer entry for engine standalone/runtime integrations.
@@ -230,26 +236,20 @@ export function createWebGLEngineRenderer(
       const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
       let dirtyTileCount = 0
       if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
-        const zoomLevels: TileZoomLevel[] = [0, 1, 2, 3, 4, 5]
         for (const dirtyRegion of effectiveFrame.context.dirtyRegions) {
-          const targetZoomLevels = typeof dirtyRegion.zoomLevel === 'number'
-            ? [clampTileZoomLevel(dirtyRegion.zoomLevel)]
-            : zoomLevels
-
-          for (const zoomLevel of targetZoomLevels) {
-            const dirtyTilesBefore = tileCache.getDirtyTiles().length
-            // Use old/new union when previous bounds are available to keep updates local.
-            if (dirtyRegion.previousBounds) {
-              tileCache.invalidateTilesForBoundsDelta(
-                dirtyRegion.previousBounds,
-                dirtyRegion.bounds,
-                zoomLevel,
-              )
-            } else {
-              tileCache.invalidateTilesInBounds(dirtyRegion.bounds, zoomLevel)
-            }
-            dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
+          const zoomLevel = TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL
+          const dirtyTilesBefore = tileCache.getDirtyTiles().length
+          // Single-layer invalidation keeps dirty propagation deterministic during interaction.
+          if (dirtyRegion.previousBounds) {
+            tileCache.invalidateTilesForBoundsDelta(
+              dirtyRegion.previousBounds,
+              dirtyRegion.bounds,
+              zoomLevel,
+            )
+          } else {
+            tileCache.invalidateTilesInBounds(dirtyRegion.bounds, zoomLevel)
           }
+          dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
         }
       }
 
@@ -343,6 +343,8 @@ export function createWebGLEngineRenderer(
             tileUploadCount: tileDrawResult.tileUploadCount,
             tileRenderCount: tileDrawResult.tileRenderCount,
             visibleTileCount: tileDrawResult.visibleTileCount,
+            // Report queue depth after visible/preload processing for frame-level tuning.
+            tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
             gpuTextureBytes,
             imageTextureBytes,
             initialRenderPhase: initialRenderPhase?.toString(),
@@ -452,6 +454,7 @@ export function createWebGLEngineRenderer(
           webglDrawSubmitMs,
           webglSnapshotCaptureMs,
           webglModelRenderMs,
+          tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
           gpuTextureBytes: resourceBudget.getTextureBytes(),
           imageTextureBytes: resolveCachedTextureBytes(imageCache),
           frameMs: performance.now() - startAt,
@@ -471,7 +474,8 @@ export function createWebGLEngineRenderer(
       if (previewReuse.reused) {
         l0PreviewHitCount += 1
         let edgeRedrawCount = 0
-        if (previewReuse.edgeRedrawRegions && previewReuse.edgeRedrawRegions.length > 0) {
+        // Cache-only mode intentionally skips edge redraw to keep interaction frames cheap.
+        if (!interactionPreview.cacheOnly && previewReuse.edgeRedrawRegions && previewReuse.edgeRedrawRegions.length > 0) {
           const edgePlanBuildStart = performance.now()
           const plan = prepareEngineRenderPlan(effectiveFrame)
           const instanceView = prepareEngineRenderInstanceView(effectiveFrame, plan)
@@ -540,6 +544,7 @@ export function createWebGLEngineRenderer(
           webglDrawSubmitMs,
           webglSnapshotCaptureMs,
           webglModelRenderMs,
+          tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
           gpuTextureBytes: resourceBudget.getTextureBytes(),
           imageTextureBytes: resolveCachedTextureBytes(imageCache),
           frameMs: performance.now() - startAt,
@@ -627,6 +632,7 @@ export function createWebGLEngineRenderer(
           webglDrawSubmitMs,
           webglSnapshotCaptureMs,
           webglModelRenderMs,
+          tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
           gpuTextureBytes: resourceBudget.getTextureBytes(),
           imageTextureBytes: resolveCachedTextureBytes(imageCache),
           frameMs: performance.now() - startAt,
@@ -722,6 +728,14 @@ export function createWebGLEngineRenderer(
       const textureUploadBeforeLoop = webglTextureUploadMs
       const packetLoopStart = performance.now()
       for (const packet of packetPlan.packets) {
+        if (
+          interactiveQuality &&
+          shouldSkipInteractiveTinyPacket(effectiveFrame, packet.kind, packet.worldBounds)
+        ) {
+          // Skip imperceptible packets in interaction fallback to preserve frame budget.
+          continue
+        }
+
         if (packet.kind === 'image' && packet.assetId) {
           if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
             continue
@@ -972,6 +986,7 @@ export function createWebGLEngineRenderer(
         tileUploadCount: 0,
         tileRenderCount: 0,
         visibleTileCount: 0,
+        tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
         gpuTextureBytes: (tileStats?.totalTextureBytes ?? 0) + resourceBudget.getTextureBytes(),
         imageTextureBytes: resolveCachedTextureBytes(imageCache),
         initialRenderPhase: initialRenderPhase?.toString(),
@@ -1152,6 +1167,47 @@ function shouldSkipOverviewImagePacket(
   )
 }
 
+function shouldSkipInteractiveTinyPacket(
+  frame: EngineRenderFrame,
+  packetKind: 'shape' | 'text' | 'image',
+  worldBounds: { width: number; height: number },
+) {
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  const screenWidth = Math.abs(worldBounds.width) * scale
+  const screenHeight = Math.abs(worldBounds.height) * scale
+  const minEdge = Math.min(screenWidth, screenHeight)
+  const screenArea = screenWidth * screenHeight
+  // Visibility score is computed from current screen contribution plus semantic weight.
+  const visibility = resolveEngineVisibilityProfile({
+    screenAreaPx2: screenArea,
+    screenMinEdgePx: minEdge,
+    viewportAreaPx2: Math.max(1, frame.viewport.viewportWidth * frame.viewport.viewportHeight),
+    interactionBoost: 0.1,
+    semanticBoost: packetKind === 'text' ? 0.08 : packetKind === 'image' ? 0.04 : 0,
+  })
+
+  // Keep a tiny-shape hard floor so ultra-dense shape packets cannot starve interaction frames.
+  if (packetKind === 'shape' && visibility.tier !== 'tier-a' && screenArea <= INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2) {
+    return true
+  }
+
+  // Tier D receives the strongest culling because visibility contribution is negligible.
+  if (visibility.tier === 'tier-d') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX
+  }
+  // Tier C keeps medium objects but drops tiny packets that are visually imperceptible.
+  if (visibility.tier === 'tier-c') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX
+  }
+  // Tier B culling is conservative and limited to sub-pixel-ish packets.
+  if (visibility.tier === 'tier-b') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX
+  }
+
+  // Tier A stays full-fidelity to preserve perceived foreground quality.
+  return false
+}
+
 // Compositor entries carry only geometry bounds plus texture payload.
 interface TileCompositorDrawEntry {
   bounds: {x: number; y: number; width: number; height: number}
@@ -1196,10 +1252,8 @@ function drawModelSurfaceAsTiles(options: {
   preloadBudgetMs?: number
   maxPreloadUploads?: number
 }) {
-  const zoomLevel = getZoomLevelForScale(
-    options.frame.viewport.scale,
-    options.previousZoomLevel,
-  )
+  // Keep one cache zoom domain to avoid multi-level residency and positional drift.
+  const zoomLevel = resolveTileCacheZoomLevel(options.previousZoomLevel)
   const viewportBounds = resolveViewportWorldBounds(options.frame)
   const visibleTiles = options.tileCache.getVisibleTiles(viewportBounds, zoomLevel)
   const preloadTiles = resolveNearbyPreloadTiles(
@@ -1224,7 +1278,6 @@ function drawModelSurfaceAsTiles(options: {
   const preloadStartAt = performance.now()
   const maxPreloadUploads = Math.max(0, options.maxPreloadUploads ?? Number.POSITIVE_INFINITY)
   const preloadBudgetMs = Math.max(0, options.preloadBudgetMs ?? 0)
-  const visibleUploadRequests: TileRenderRequest[] = []
 
   const upsertTileTexture = (tile: { zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} }) => {
     const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
@@ -1342,34 +1395,7 @@ function drawModelSurfaceAsTiles(options: {
     }
 
     tileMissCount += 1
-    // Route visible misses through scheduler as urgent requests for one-path orchestration.
-    if (options.tileScheduler) {
-      const dpr = options.frame.context.pixelRatio ?? 1
-      const renderVersion = typeof options.frame.scene.revision === 'number'
-        ? options.frame.scene.revision
-        : 0
-      visibleUploadRequests.push({
-        key: createTileKey({
-          tileX: tile.gridX,
-          tileY: tile.gridY,
-          zoomBucket: tile.zoomLevel,
-          dpr,
-          themeVersion: 0,
-          renderVersion,
-        }),
-        coord: {
-          x: tile.gridX,
-          y: tile.gridY,
-          zoomBucket: tile.zoomLevel,
-        },
-        worldBounds: tile.bounds,
-        priority: 'urgent',
-        reason: cachedEntry ? 'dirty' : 'missing',
-      })
-      continue
-    }
-
-    // Keep direct upload as a compatibility fallback when scheduler is unavailable.
+    // Keep visible tile upload synchronous so this frame's tile positions stay deterministic.
     const uploadedEntry = upsertTileTexture(tile)
     if (!uploadedEntry.texture) {
       fallbackReason = seededFramebufferForTiles
@@ -1387,32 +1413,33 @@ function drawModelSurfaceAsTiles(options: {
     })
   }
 
-  // In progressive-refresh mode, visible + nearby requests share one scheduler queue.
-  if (options.tileScheduler && (visibleUploadRequests.length > 0 || preloadTiles.length > 0)) {
+  // In progressive-refresh mode, queue nearby preload work through scheduler.
+  if (options.tileScheduler && preloadTiles.length > 0) {
     const dpr = options.frame.context.pixelRatio ?? 1
     const renderVersion = typeof options.frame.scene.revision === 'number'
       ? options.frame.scene.revision
       : 0
-    const preloadRequests: TileRenderRequest[] = preloadTiles.map((tile) => ({
-      key: createTileKey({
-        tileX: tile.gridX,
-        tileY: tile.gridY,
-        zoomBucket: tile.zoomLevel,
-        dpr,
-        themeVersion: 0,
-        renderVersion,
-      }),
-      coord: {
-        x: tile.gridX,
-        y: tile.gridY,
-        zoomBucket: tile.zoomLevel,
-      },
-      worldBounds: tile.bounds,
-      priority: 'nearby',
-      reason: 'preload',
-    }))
+    options.tileScheduler.requestMany(
+      preloadTiles.map((tile) => ({
+        key: createTileKey({
+          tileX: tile.gridX,
+          tileY: tile.gridY,
+          zoomBucket: tile.zoomLevel,
+          dpr,
+          themeVersion: 0,
+          renderVersion,
+        }),
+        coord: {
+          x: tile.gridX,
+          y: tile.gridY,
+          zoomBucket: tile.zoomLevel,
+        },
+        worldBounds: tile.bounds,
+        priority: 'nearby',
+        reason: 'preload',
+      })),
+    )
 
-    // Trim stale requests first so this frame's visible/nearby set owns scheduler budget.
     options.tileScheduler.cancelOutdatedRequests({
       camera: {
         viewportWidth: options.frame.viewport.viewportWidth,
@@ -1425,70 +1452,11 @@ function drawModelSurfaceAsTiles(options: {
       nearbyRing: Math.max(0, options.preloadRing ?? 0),
     })
 
-    options.tileScheduler.requestMany(
-      [...visibleUploadRequests, ...preloadRequests],
-    )
-
-    let visibleProcessFailed = false
-    // Drain visible urgent requests first so this frame can composite a complete viewport.
-    options.tileScheduler.tick({
-      frameBudgetMs: Number.POSITIVE_INFINITY,
-      maxRequests: visibleUploadRequests.length,
-      process: (request) => {
-        // First pass handles non-preload requests to guarantee visible composition.
-        if (request.reason === 'preload') {
-          return
-        }
-
-        const tile = {
-          zoomLevel: clampTileZoomLevel(request.coord.zoomBucket),
-          gridX: request.coord.x,
-          gridY: request.coord.y,
-          bounds: request.worldBounds,
-        }
-        const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
-        const cachedTexture = cachedEntry ? options.tileTextures.get(cachedEntry.textureId) : null
-        if (cachedEntry && !cachedEntry.isDirty && cachedTexture) {
-          drawEntries.push({
-            bounds: cachedEntry.bounds,
-            texture: cachedTexture,
-          })
-          return
-        }
-
-        const uploadedEntry = upsertTileTexture(tile)
-        if (!uploadedEntry.texture) {
-          visibleProcessFailed = true
-          return
-        }
-
-        tileUploadCount += 1
-        drawEntries.push({
-          bounds: tile.bounds,
-          texture: uploadedEntry.texture,
-        })
-      },
-    })
-
-    if (visibleProcessFailed) {
-      fallbackReason = seededFramebufferForTiles
-        ? 'l2-visible-scheduler-upload-failed'
-        : 'l2-visible-scheduler-source-build-failed'
-      if (sourceTexture) {
-        options.context.deleteTexture(sourceTexture)
-      }
-      return null
-    }
-
-    // Then process only a bounded preload slice each frame to avoid input starvation.
+    // Process only a bounded preload slice each frame to avoid input starvation.
     options.tileScheduler.tick({
       frameBudgetMs: preloadBudgetMs,
       maxRequests: maxPreloadUploads,
       process: (request) => {
-        if (request.reason !== 'preload') {
-          return
-        }
-
         const tile = {
           zoomLevel: clampTileZoomLevel(request.coord.zoomBucket),
           gridX: request.coord.x,
@@ -1541,6 +1509,14 @@ function drawModelSurfaceAsTiles(options: {
     preloadedTileCount,
     fallbackReason,
   }
+}
+
+function resolveTileCacheZoomLevel(previousZoomLevel?: TileZoomLevel | null): TileZoomLevel {
+  // Preserve single-layer policy explicitly so future tuning has one entrypoint.
+  if (typeof previousZoomLevel === 'number' && previousZoomLevel === TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL) {
+    return previousZoomLevel
+  }
+  return TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL
 }
 
 function resolveNearbyPreloadTiles(
@@ -2400,7 +2376,10 @@ function resolveInteractionPreviewMaxTranslatePx(
   return {x: baseTranslatePx, y: baseTranslatePx}
 }
 
-function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: number) {
+function resolveInteractionPreviewMaxScaleStep(
+  baseScaleStep: number,
+  scale: number,
+) {
   if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
     return Math.max(baseScaleStep, INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP)
   }

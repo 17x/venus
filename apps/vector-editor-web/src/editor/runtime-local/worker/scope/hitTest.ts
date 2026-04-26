@@ -1,6 +1,7 @@
 import type {DocumentNode, EditorDocument} from '@vector/model'
 import {
   isPointInsideEngineClipShape,
+  resolveEngineVisibilityHitTestBudget,
   isPointInsideEngineShapeHitArea,
 } from '@venus/engine'
 import {withResolvedPathHints} from '../../../interaction/pathHitTestHints.ts'
@@ -29,6 +30,8 @@ export function hitTestDocument(
     maxExactCandidateCount?: number
     allowFrameSelection?: boolean
     strictStrokeHitTest?: boolean
+    visibilityInteractionBoost?: number
+    visibilitySemanticBoost?: number
   },
 ) {
   const candidates = hitTestDocumentCandidates(document, spatialIndex, pointer, options)
@@ -45,10 +48,12 @@ export function hitTestDocumentCandidates(
     allowFrameSelection?: boolean
     strictStrokeHitTest?: boolean
     preferGroupSelection?: boolean
+    visibilityInteractionBoost?: number
+    visibilitySemanticBoost?: number
   },
 ) {
-  const hitMode = options?.hitMode ?? 'exact'
-  const maxExactCandidateCount = Math.max(1, options?.maxExactCandidateCount ?? 4)
+  const requestedHitMode = options?.hitMode ?? 'exact'
+  const requestedMaxExactCandidateCount = Math.max(1, options?.maxExactCandidateCount ?? 4)
   const allowFrameSelection = options?.allowFrameSelection ?? true
   const strictStrokeHitTest = options?.strictStrokeHitTest ?? false
   const preferGroupSelection = options?.preferGroupSelection ?? false
@@ -61,6 +66,23 @@ export function hitTestDocumentCandidates(
   })
 
   const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
+  const topCandidate = sortedCandidates[0] ?? null
+  const topCandidateWidth = topCandidate ? Math.max(0, topCandidate.maxX - topCandidate.minX) : 0
+  const topCandidateHeight = topCandidate ? Math.max(0, topCandidate.maxY - topCandidate.minY) : 0
+  // Visibility budget maps local candidate visibility to hit-test precision cost.
+  const visibilityBudget = resolveEngineVisibilityHitTestBudget({
+    candidateCount: sortedCandidates.length,
+    topCandidateAreaPx2: topCandidateWidth * topCandidateHeight,
+    topCandidateMinEdgePx: Math.min(topCandidateWidth, topCandidateHeight),
+    interactionBoost: options?.visibilityInteractionBoost,
+    semanticBoost: options?.visibilitySemanticBoost,
+  })
+  // Direct-selection tool keeps exact mode, while default selection follows visibility budget.
+  const hitMode = requestedHitMode === 'exact' ? 'exact' : visibilityBudget.hitMode
+  const maxExactCandidateCount = requestedHitMode === 'exact'
+    ? Math.max(requestedMaxExactCandidateCount, visibilityBudget.maxExactCandidateCount)
+    : Math.max(1, visibilityBudget.maxExactCandidateCount)
+
   const hits: WorkerHitTestCandidate[] = []
   const emittedShapeIds = new Set<string>()
   let exactCandidateCount = 0

@@ -18,7 +18,16 @@ context starts, or work needs to resume after switching topics.
 - `vector editor architecture buildout`
   Focus on filling structural gaps in the vector/runtime/engine stack.
   Reference doc: `apps/vector-editor-web/docs/architecture.md`
-  Performance track (100K scene readiness):
+  Visibility-first LOD status (2026-04-26):
+  - added shared engine module `interaction/visibilityLod.ts` to resolve
+    visibility score/tier and hit-test budgets from screen contribution
+  - WebGL interaction packet culling no longer branches by zoom buckets and is
+    now tiered by visibility score with semantic boosts
+  - tile caching in WebGL is now pinned to a single persistent zoom domain to
+    reduce multi-layer cache drift and invalidation complexity
+  - runtime-local worker hit-test now consumes the same visibility budget to
+    adapt `hitMode` and exact-candidate count in dense pointer neighborhoods
+    Performance track (100K scene readiness):
   - Phase 1 (spike stop): frame stats, pointermove hit throttling,
     hover gating during pan/drag, zoom-time rebuild freeze
     (cache/text/path), tiny-object LOD, text placeholder, bbox-first hit
@@ -368,6 +377,23 @@ context starts, or work needs to resume after switching topics.
     TileScheduler queue as nearby preload (urgent-first then bounded preload),
     reducing visible-vs-preload path divergence while preserving same-frame
     viewport composition correctness for visible tiles
+  - runtime diagnostics now publish `tileSchedulerPendingCount` from engine
+    renderer stats, and Runtime Debug Panel now surfaces `Tile Scheduler Pending`
+    so queue-pressure behavior after visible/preload unification is observable
+  - interaction render policy tuning now uses conservative stable DPR (`1`) and
+    cache-only affine preview for `pan`/`zoom`, resolving the prior Playwright
+    interaction FPS regression (`10.34`) and restoring validation pass
+    (`41.65`, threshold `>=30`)
+  - Runtime Debug Panel now defaults to a minimal operational subset (FPS,
+    render phase/path, cache hit rate, tile/cache/gpu core counters) so debug
+    reads focus on necessary diagnostics instead of the previous full telemetry
+    surface
+  - latest 100K target replay shows idle `60.00` but interaction `37.15` under
+    `>=60` baseline gate; next optimization round focuses on interaction path
+    convergence toward the 60/120 target ladder
+  - interaction fallback now applies an all-scale tiny-shape culling gate in
+    WebGL packet path; current Playwright replay range improved to
+    `42.95~44.20` interaction FPS while keeping perf gate PASS
     Recently landed:
   - command registry (`packages/runtime/src/commands/registry.ts`)
   - hit-test adapter (`packages/runtime/src/interaction/hitTestAdapter.ts`)

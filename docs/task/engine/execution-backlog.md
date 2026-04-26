@@ -32,6 +32,53 @@
 - selection/handles/guides live layer
 - tile cache soft budget 256MB
 
+## 3.2 性能目标（100K）
+
+- 基线目标：60 FPS（idle + interaction）
+- 冲刺目标：120 FPS（idle + interaction）
+- 当前实测（Playwright）：
+  - idle：59.67~60.02 FPS（约达 60 基线，未达到 120）
+  - interaction：42.95~44.20 FPS（未达到 60/120）
+
+## 3.1 自测清单（单测 + Playwright FPS）
+
+- [x] 清单项 A：Engine 单元测试覆盖调度器关键行为
+  - 目标：覆盖 request dedupe、priority 顺序、cancelOutdatedRequests 行为
+  - 结果：通过（`pnpm --filter @venus/engine test`）
+
+- [x] 清单项 B：类型完整性验证
+  - 目标：确保测试脚本和诊断链路变更无类型回归
+  - 结果：通过（`pnpm typecheck`）
+
+- [x] 清单项 C：Playwright 空闲帧率验证
+  - 目标：`idle FPS >= 45`
+  - 结果：通过（59.65 FPS）
+
+- [x] 清单项 D：Playwright 交互帧率验证
+  - 目标：`interaction FPS >= 30`
+  - 结果：失败（10.34 FPS）
+  - 结论：当前存在交互性能问题，需进入专项优化修复
+
+- [x] 清单项 E：Playwright 交互帧率复测（修复后）
+  - 目标：`interaction FPS >= 30`
+  - 结果：通过（41.65 FPS）
+  - 结论：交互帧率已恢复到验收阈值以上
+
+- [x] 清单项 F：100K 60/120 目标复测
+  - 目标：`idle >= 60` 且 `interaction >= 60`（基线）；`idle >= 120` 且 `interaction >= 120`（冲刺）
+  - 结果：`idle = 60.00`，`interaction = 37.15`
+  - 结论：idle 达到 60 基线；interaction 尚未达到 60；120 目标整体未达成
+
+  - [x] 清单项 G：screen-size LOD 细分复测
+    - 目标：进一步提升 interaction FPS 并保持渲染稳定
+    - 结果：交互回退路径引入 tiny packet 分层裁剪 + cache-only 边缘补绘关闭后，interaction 区间提升到 `37.87~42.64`
+      - 结论：较最初 `10.34` 明显提升，但仍未达到 `60/120` 目标
+
+    - [x] 清单项 H：全缩放 tiny-shape LOD 裁剪复测
+      - 目标：进一步压低交互回退路径 packet 成本
+      - 结果：interaction 区间提升到 `42.95~44.20`
+      - 结论：方向有效，仍需后续轮次收敛到 `>=60`
+
 ## 4. 工作分解（WBS）
 
 ## Phase A: Tile 基础类型与可见域计算
@@ -122,6 +169,42 @@
   - 交付：10K/50K/100K + 图文混合 + 快速 zoom/pan
   - 验收：至少记录 frame p95、tile hit rate、input latency
 
+## Phase I: 可见度驱动 LOD 重构（planned）
+
+- [x] ENG-20260426-16 done
+  - 标题：定义可见度评分模型（替代按缩放等级分层）
+  - 交付：visibility score + tier（A/B/C/D）统一规则
+  - 规则：以屏幕覆盖面积、焦点邻近度、最近交互热度、语义权重综合评分
+  - 验收：同一缩放下不同可见度元素可进入不同 tier；缩放变化不直接触发 tier 跳变
+
+- [x] ENG-20260426-17 done
+  - 标题：统一 render 与 hittest 的可见度预算分配器
+  - 交付：按 tier 分配每帧渲染预算与 hittest 精度预算
+  - 规则：A 层 full fidelity，B 层轻降级，C 层占位/近似，D 层延迟/跳过
+  - 验收：render/hittest 共用同一可见度 tier，不再出现策略漂移
+
+- [x] ENG-20260426-18 done
+  - 标题：tile 缓存收敛为单层主缓存
+  - 交付：仅保留 current camera domain 主缓存（L0），移除持久多 zoom 层驻留
+  - 规则：邻域与历史视角只保留短时预热队列（非持久层）
+  - 验收：显存占用下降且无明显错位/跳帧回归
+
+- [x] ENG-20260426-19 done
+  - 标题：hittest 可见度分级执行链路
+  - 交付：A/B 层 exact，C 层 bbox_then_exact(k)，D 层 bbox
+  - 规则：指针附近与最近命中对象自动升档；拖拽中的对象强制 A 层
+  - 验收：交互命中稳定，无“选不中主目标”回归
+
+- [ ] ENG-20260426-20 planned
+  - 标题：诊断最小化 + 可见度策略可观测
+  - 交付：仅保留 tier 占比、预算消耗、hittest 命中质量三个关键指标
+  - 验收：debug 面板默认不膨胀，且可追踪策略有效性
+
+- [ ] ENG-20260426-21 planned
+  - 标题：100K 目标回归验收（可见度 LOD）
+  - 交付：Playwright + perf gate 对比报告
+  - 验收：interaction 先达 60 基线，再冲刺 120；渲染位置正确且无 tile 错乱
+
 ## 5. 更新日志（AI持续维护）
 
 - 2026-04-26
@@ -143,7 +226,14 @@
   - ENG-20260426-15 完成：执行 mixed-scene perf gate 并生成机器可读结果报告（PASS）
   - Phase E integration polish 完成：TileScheduler 已接入 WebGL nearby preload 主循环，启用 requestMany + cancelOutdatedRequests + tick 预算出队
   - Phase F runtime debug panel mapping 完成：新增 tileUpload/tileRender/visibleTile/gpuTexture/imageTexture 诊断字段已从 engine -> payload -> runtime events -> debug panel 全链路打通
-  - 当前活动任务：none（MVP scope complete）
+  - Phase G scheduler observability 完成：新增 tileSchedulerPendingCount 并接入 runtime debug 诊断面板
+  - Phase H self-test 完成：engine 单测通过；Playwright FPS 校验显示 idle 通过、interaction 失败（10.34 < 30）
+  - Phase H.1 interaction FPS 修复完成：交互策略切换为 cache-only preview + 交互稳定 DPR=1，Playwright FPS 复测通过（41.65 >= 30）
+  - Phase H.2 100K 目标对齐复测完成：idle 约 60，interaction 提升到 42.95~44.20（较 10.34 明显提升），但 60/120 目标仍有差距
+  - 当前活动任务：Phase H.3 interaction 60fps 收敛（进行中）
+  - Phase I.1 可见度 LOD 重构完成：新增 engine 可见度评分与 tier 模块，WebGL 交互 packet 裁剪改为 visibility-tier 驱动
+  - Phase I.2 单层 tile 缓存切换完成：tile dirty invalidation 与 tile draw 统一收敛到单一缓存 zoom domain
+  - Phase I.3 hittest 预算接线完成：worker 点击命中链路接入 visibility budget，动态分配 hitMode 与 maxExactCandidateCount
 
 ## 6. 执行记录模板
 
@@ -307,4 +397,12 @@
 - 变更文件：packages/engine/src/renderer/webgl.ts；apps/vector-editor-web/scripts/perf-gate.result.json；docs/task/engine/execution-backlog.md；docs/core/current-work.md；05_CHANGELOG.md
 - 验证命令：pnpm typecheck（通过）；pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json（PASS）
 - 风险与回归点：visible miss 已并入同一 scheduler 队列并通过 urgent 优先级保障同帧可见合成；scheduler 不可用时保留 direct upload 兼容分支
+- 下一步：none（等待下一阶段需求）
+
+- 日期：2026-04-26
+- 任务ID：Phase-G-scheduler-observability
+- 状态：done
+- 变更文件：packages/engine/src/renderer/types.ts；packages/engine/src/renderer/webgl.ts；apps/vector-editor-web/src/editor/runtime/runtimeDiagnosticsPayload.ts；apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx；apps/vector-editor-web/src/runtime/events/index.ts；apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx；apps/vector-editor-web/scripts/perf-gate.result.json；docs/core/current-work.md；docs/task/engine/execution-backlog.md
+- 验证命令：pnpm typecheck（通过）；pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json（PASS）
+- 风险与回归点：pending 值为 frame 末端队列深度快照，用于趋势观测而非严格逐请求时序分析
 - 下一步：none（等待下一阶段需求）
