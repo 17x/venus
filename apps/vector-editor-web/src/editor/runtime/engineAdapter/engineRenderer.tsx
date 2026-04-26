@@ -90,8 +90,8 @@ export function EngineRenderer({
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsSmallAreaPx2
   const DIRTY_BOUNDS_MEDIUM_AREA_PX2 =
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsMediumAreaPx2
-  // Keep moderate overscan so panning stays stable without oversized render targets.
-  const OVERSCAN_PX = 96
+  // Keep host overscan disabled so base and overlay layers share one viewport origin.
+  const OVERSCAN_PX = 0
   // Keep host surface naming engine-centric even though the DOM element is a canvas.
   const renderSurfaceRef = React.useRef<HTMLCanvasElement | null>(null)
   const engineRef = React.useRef<Engine | null>(null)
