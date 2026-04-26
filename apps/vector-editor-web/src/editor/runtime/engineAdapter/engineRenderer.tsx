@@ -81,9 +81,6 @@ export function EngineRenderer({
   const DPR_RESTORE_DEFER_MS = 220
   const RESIZE_COMMIT_DEFER_MS = 260
   const RESIZE_COMMIT_THRESHOLD_PX = 96
-  const FORCE_STABLE_DPR = true
-  // Keep interaction-time backing resolution conservative to protect frame pacing.
-  const STABLE_DPR_VALUE = 1
   const SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES =
     DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames
   const DIRTY_BOUNDS_SMALL_AREA_PX2 =
@@ -222,12 +219,15 @@ export function EngineRenderer({
     [document, shapes, stats.version],
   )
   const renderPolicy = React.useMemo(
+    // Resolve policy with live scale/system DPR so runtime can apply LOD DPR ladder.
     () => resolveRuntimeRenderPolicy({
       phase: interactionPhase,
       lodLevel,
+      viewportScale: viewport.scale,
+      deviceDpr: window.devicePixelRatio || 1,
       lodConfig,
     }),
-    [interactionPhase, lodConfig, lodLevel],
+    [interactionPhase, lodConfig, lodLevel, viewport.scale],
   )
   const effectiveInteractiveIntervalMs = React.useMemo(() => {
     // Keep interaction frames unthrottled so scheduler delay does not dominate
@@ -1041,7 +1041,8 @@ export function EngineRenderer({
       overlayDiagnostics?.guideSelectionStrategy ?? 'full'
     renderRequestStatsRef.current.overlayPathEditWhitelistActive =
       overlayDiagnostics?.pathEditWhitelistActive ?? false
-    const nextDpr = FORCE_STABLE_DPR ? STABLE_DPR_VALUE : renderPolicy.dpr
+    // Apply DPR directly from runtime policy so zoom/interaction follow LOD rules.
+    const nextDpr = renderPolicy.dpr
     const dprChanged = appliedDprRef.current !== nextDpr
     renderRequestStatsRef.current.renderPolicyDpr = nextDpr
     if (appliedDprRef.current !== nextDpr) {

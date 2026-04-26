@@ -101,6 +101,20 @@ export interface EngineRenderStats {
   canvas2dContourParseCount?: number
   canvas2dSingleLineTextFastPathCount?: number
   canvas2dPrecomputedTextLineHeightCount?: number
+  // LOD debug counters expose visibility degradation buckets for runtime diagnostics.
+  hiddenCount?: number
+  pointCount?: number
+  blockCount?: number
+  bboxCount?: number
+  simplifiedCount?: number
+  normalCount?: number
+  fullCount?: number
+  shadowSkippedCount?: number
+  filterSkippedCount?: number
+  thumbnailImageCount?: number
+  fullImageCount?: number
+  groupThumbnailCount?: number
+  lodDecisionTimeMs?: number
 }
 
 export interface EngineRendererCapabilities {

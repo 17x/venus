@@ -13,6 +13,9 @@ export interface EngineWebGLRenderPacket {
   color: readonly [number, number, number, number]
   assetId?: string
   textCacheKey?: string
+  shapeHasFill?: boolean
+  shapeHasStroke?: boolean
+  shapeStrokeWidth?: number
 }
 
 export interface EngineWebGLPacketPlan {
@@ -92,6 +95,17 @@ export function compileEngineWebGLPacketPlan(
       color: resolveNodeColor(prepared.node),
       assetId: prepared.node.type === 'image' ? prepared.node.assetId : undefined,
       textCacheKey,
+      // Shape paint metadata is carried in packets so commit-time LOD can
+      // apply stroke-specific degradation without re-reading scene nodes.
+      shapeHasFill: prepared.node.type === 'shape'
+        ? Boolean(prepared.node.fill && prepared.node.fill.trim().length > 0)
+        : undefined,
+      shapeHasStroke: prepared.node.type === 'shape'
+        ? Boolean(prepared.node.stroke && prepared.node.stroke.trim().length > 0)
+        : undefined,
+      shapeStrokeWidth: prepared.node.type === 'shape'
+        ? prepared.node.strokeWidth
+        : undefined,
     })
 
     if (prepared.node.type === 'text') {

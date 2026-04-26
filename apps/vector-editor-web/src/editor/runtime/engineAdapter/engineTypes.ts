@@ -72,22 +72,26 @@ export const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
   lodLevelCapabilities: {
     0: {
       quality: 'full',
+      // Let runtime policy derive DPR from viewport scale and interaction phase.
       dpr: 'auto',
       interactiveIntervalMs: 8,
     },
     1: {
       quality: 'full',
+      // Let runtime policy derive DPR from viewport scale and interaction phase.
       dpr: 'auto',
       interactiveIntervalMs: 10,
     },
     2: {
       quality: 'interactive',
-      dpr: 1.25,
+      // Let runtime policy derive DPR from viewport scale and interaction phase.
+      dpr: 'auto',
       interactiveIntervalMs: 12,
     },
     3: {
       quality: 'interactive',
-      dpr: 1,
+      // Let runtime policy derive DPR from viewport scale and interaction phase.
+      dpr: 'auto',
       interactiveIntervalMs: 16,
     },
   },
@@ -110,7 +114,8 @@ export const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
     },
     zoom: {
       quality: 'interactive',
-      dpr: 1.5,
+      // Keep zoom DPR policy centralized in runtime render policy.
+      dpr: 'auto',
       interactionActive: true,
       // Keep zoom cadence responsive; wider intervals reduced measured interaction FPS.
       interactiveIntervalMs: 8,

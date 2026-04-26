@@ -43,6 +43,17 @@ interface ScreenRectPx {
   height: number
 }
 
+type PacketCommonLodLevel = 'hidden' | 'point' | 'block' | 'bbox' | 'simplified' | 'normal'
+
+interface PacketCommonLodCounters {
+  hiddenCount: number
+  pointCount: number
+  blockCount: number
+  bboxCount: number
+  simplifiedCount: number
+  normalCount: number
+}
+
 const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   enabled: true,
   mode: 'interaction',
@@ -71,6 +82,18 @@ const INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX = 3.2
 const INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX = 2.2
 const INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX = 1.2
 const INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 = 6
+const COMMON_PACKET_LOD_HIDE_MAX_AREA_PX2 = 0.25
+const COMMON_PACKET_LOD_POINT_MAX_AREA_PX2 = 1
+const COMMON_PACKET_LOD_BLOCK_MAX_AREA_PX2 = 9
+const COMMON_PACKET_LOD_BBOX_MAX_AREA_PX2 = 64
+const COMMON_PACKET_LOD_SIMPLIFIED_MAX_AREA_PX2 = 4096
+const TEXT_LOD_HIDE_FONT_PX = 3
+const TEXT_LOD_BLOCK_FONT_PX = 6
+const TEXT_LOD_SIMPLIFIED_FONT_PX = 10
+const TEXT_LOD_INTERACTION_READABLE_MIN_FONT_PX = 12
+const STROKE_LOD_SKIP_AREA_MAX_PX2 = 9
+const STROKE_LOD_SKIP_PROJECTED_WIDTH_PX = 0.5
+const IMAGE_LOD_THUMBNAIL_BUCKETS_PX = [64, 128, 256, 512, 1024] as const
 // Keep tile cache on one persistent zoom domain to reduce multi-layer drift complexity.
 const TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL: TileZoomLevel = 5
 // Correctness-first guard: bypass tile compositor when investigating global
@@ -735,6 +758,18 @@ export function createWebGLEngineRenderer(
       let imageDownsampledUploadCount = 0
       let imageDownsampledUploadBytesSaved = 0
       let deferredImageTextureCount = 0
+      // Track common LOD buckets so runtime diagnostics can verify degradation behavior.
+      const commonLodCounters: PacketCommonLodCounters = {
+        hiddenCount: 0,
+        pointCount: 0,
+        blockCount: 0,
+        bboxCount: 0,
+        simplifiedCount: 0,
+        normalCount: 0,
+      }
+      let thumbnailImageCount = 0
+      let fullImageCount = 0
+      let lodDecisionTimeMs = 0
       const imageUploadBudget: ImageUploadBudgetState = {
         remainingUploads: MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
         remainingBytes: MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
@@ -747,6 +782,38 @@ export function createWebGLEngineRenderer(
       const textureUploadBeforeLoop = webglTextureUploadMs
       const packetLoopStart = performance.now()
       for (const packet of packetPlan.packets) {
+        const commonLodDecisionStart = performance.now()
+        const commonLodLevel = resolveCommonPacketLodLevel({
+          frame: effectiveFrame,
+          worldBounds: packet.worldBounds,
+          lodEnabled: frameLodEnabled,
+        })
+        lodDecisionTimeMs += performance.now() - commonLodDecisionStart
+        recordCommonPacketLodCount(commonLodCounters, commonLodLevel)
+        if (commonLodLevel === 'hidden') {
+          continue
+        }
+
+        if (packet.kind === 'shape' && packet.shapeHasStroke && !packet.shapeHasFill) {
+          const scale = Math.max(0, Math.abs(effectiveFrame.viewport.scale))
+          const screenAreaPx2 =
+            Math.abs(packet.worldBounds.width) * scale *
+            Math.abs(packet.worldBounds.height) * scale
+          const projectedStrokeWidthPx = resolveProjectedStrokeWidthPx({
+            strokeWidth: packet.shapeStrokeWidth,
+            frame: effectiveFrame,
+          })
+
+          // Stroke-only tiny packets are not visually meaningful below these
+          // thresholds, so skip them to save fragment work during dense scenes.
+          if (
+            screenAreaPx2 < STROKE_LOD_SKIP_AREA_MAX_PX2 ||
+            projectedStrokeWidthPx < STROKE_LOD_SKIP_PROJECTED_WIDTH_PX
+          ) {
+            continue
+          }
+        }
+
         if (
           interactiveQuality &&
           shouldSkipInteractiveTinyPacket(effectiveFrame, packet.kind, packet.worldBounds)
@@ -756,6 +823,25 @@ export function createWebGLEngineRenderer(
         }
 
         if (packet.kind === 'image' && packet.assetId) {
+          if (
+            commonLodLevel === 'point' ||
+            commonLodLevel === 'block' ||
+            commonLodLevel === 'bbox'
+          ) {
+            // Low-area image packets use a color fallback to avoid expensive texture uploads.
+            thumbnailImageCount += 1
+            drawCount += drawWebGLPacket(
+              context,
+              pipeline,
+              effectiveFrame,
+              packet.worldBounds,
+              packet.color,
+              packet.opacity,
+              null,
+            )
+            continue
+          }
+
           if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
             continue
           }
@@ -777,6 +863,11 @@ export function createWebGLEngineRenderer(
           imageTextureUploadBytes += imageTexture.uploadBytes
           imageDownsampledUploadCount += imageTexture.downsampledUploadCount
           imageDownsampledUploadBytesSaved += imageTexture.downsampledBytesSaved
+          if (imageTexture.usesThumbnail) {
+            thumbnailImageCount += 1
+          } else {
+            fullImageCount += 1
+          }
           drawCount += drawWebGLPacket(
             context,
             pipeline,
@@ -793,6 +884,20 @@ export function createWebGLEngineRenderer(
           const cached = textCache.get(packet.nodeId)
           const textCacheKey = resolveTextCacheKey(packet)
           const textRasterScale = resolveTextRasterScale(effectiveFrame)
+          const projectedTextSizePx = resolveProjectedTextSizePx(packet.worldBounds, effectiveFrame)
+
+          if (projectedTextSizePx < TEXT_LOD_HIDE_FONT_PX) {
+            continue
+          }
+
+          const shouldUseTextBlockFallback =
+            projectedTextSizePx < TEXT_LOD_BLOCK_FONT_PX ||
+            (
+              interactiveQuality &&
+              projectedTextSizePx < TEXT_LOD_INTERACTION_READABLE_MIN_FONT_PX
+            )
+          const shouldUseTextSimplifiedFallback =
+            projectedTextSizePx < TEXT_LOD_SIMPLIFIED_FONT_PX
 
           if (useTextPlaceholderMode) {
             // Low-zoom text is not legible at glyph fidelity. Render an
@@ -801,6 +906,26 @@ export function createWebGLEngineRenderer(
               continue
             }
 
+            interactiveTextFallbackCount += 1
+            drawCount += drawInteractiveTextFallback(
+              context,
+              pipeline,
+              effectiveFrame,
+              packet.worldBounds,
+              packet.color,
+              packet.opacity,
+            )
+            continue
+          }
+
+          if (
+            commonLodLevel === 'point' ||
+            commonLodLevel === 'block' ||
+            commonLodLevel === 'bbox' ||
+            shouldUseTextBlockFallback ||
+            shouldUseTextSimplifiedFallback
+          ) {
+            // Small text packets stay in lightweight fallback mode outside rich-text uploads.
             interactiveTextFallbackCount += 1
             drawCount += drawInteractiveTextFallback(
               context,
@@ -1010,6 +1135,19 @@ export function createWebGLEngineRenderer(
         imageTextureBytes: resolveCachedTextureBytes(imageCache),
         initialRenderPhase: initialRenderPhase?.toString(),
         initialRenderProgress: initialRenderProgress,
+        hiddenCount: commonLodCounters.hiddenCount,
+        pointCount: commonLodCounters.pointCount,
+        blockCount: commonLodCounters.blockCount,
+        bboxCount: commonLodCounters.bboxCount,
+        simplifiedCount: commonLodCounters.simplifiedCount,
+        normalCount: commonLodCounters.normalCount,
+        fullCount: commonLodCounters.normalCount,
+        shadowSkippedCount: 0,
+        filterSkippedCount: 0,
+        thumbnailImageCount,
+        fullImageCount,
+        groupThumbnailCount: 0,
+        lodDecisionTimeMs,
         dirtyRegionCount: dirtyRegionCount,
         dirtyTileCount: dirtyTileCount,
         incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
@@ -1162,6 +1300,74 @@ function shouldSkipTextPlaceholderPacket(
     screenWidth <= TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX &&
     screenHeight <= TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX
   )
+}
+
+function resolveCommonPacketLodLevel(input: {
+  frame: EngineRenderFrame
+  worldBounds: { width: number; height: number }
+  lodEnabled: boolean
+}): PacketCommonLodLevel {
+  if (!input.lodEnabled) {
+    return 'normal'
+  }
+
+  // Keep common LOD gates area-driven so zoomed-out scenes can drop cost early.
+  const scale = Math.max(0, Math.abs(input.frame.viewport.scale))
+  const screenWidth = Math.abs(input.worldBounds.width) * scale
+  const screenHeight = Math.abs(input.worldBounds.height) * scale
+  const screenArea = screenWidth * screenHeight
+
+  if (screenArea < COMMON_PACKET_LOD_HIDE_MAX_AREA_PX2) {
+    return 'hidden'
+  }
+
+  if (screenArea < COMMON_PACKET_LOD_POINT_MAX_AREA_PX2) {
+    return 'point'
+  }
+
+  if (screenArea < COMMON_PACKET_LOD_BLOCK_MAX_AREA_PX2) {
+    return 'block'
+  }
+
+  if (screenArea < COMMON_PACKET_LOD_BBOX_MAX_AREA_PX2) {
+    return 'bbox'
+  }
+
+  if (screenArea < COMMON_PACKET_LOD_SIMPLIFIED_MAX_AREA_PX2) {
+    return 'simplified'
+  }
+
+  return 'normal'
+}
+
+function recordCommonPacketLodCount(counters: PacketCommonLodCounters, level: PacketCommonLodLevel) {
+  // Keep counters explicit for debug overlays and regression tracking.
+  if (level === 'hidden') {
+    counters.hiddenCount += 1
+    return
+  }
+
+  if (level === 'point') {
+    counters.pointCount += 1
+    return
+  }
+
+  if (level === 'block') {
+    counters.blockCount += 1
+    return
+  }
+
+  if (level === 'bbox') {
+    counters.bboxCount += 1
+    return
+  }
+
+  if (level === 'simplified') {
+    counters.simplifiedCount += 1
+    return
+  }
+
+  counters.normalCount += 1
 }
 
 function shouldSkipOverviewImagePacket(
@@ -1868,7 +2074,57 @@ function resolveImageRasterScale(
 
   // Bias slightly above the current display size so small zoom-ins can reuse
   // the uploaded texture before a higher-resolution upload is needed.
-  return Math.min(1, Math.max(widthRatio, heightRatio) * 1.25)
+  const baseRasterScale = Math.min(1, Math.max(widthRatio, heightRatio) * 1.25)
+  const maxUploadSide = resolveImageThumbnailMaxUploadSidePx(worldBounds, frame)
+  const sourceMaxSide = Math.max(1, size.width, size.height)
+
+  if (!Number.isFinite(maxUploadSide)) {
+    return baseRasterScale
+  }
+
+  // Clamp image raster scale to thumbnail buckets so small on-screen images
+  // do not upload unnecessary high-resolution textures.
+  const thumbnailRasterScale = Math.min(1, Math.max(1, maxUploadSide) / sourceMaxSide)
+  return Math.min(baseRasterScale, thumbnailRasterScale)
+}
+
+function resolveImageThumbnailMaxUploadSidePx(
+  worldBounds: {width: number; height: number},
+  frame: EngineRenderFrame,
+) {
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  const screenMaxSideCss = Math.max(
+    Math.abs(worldBounds.width) * scale,
+    Math.abs(worldBounds.height) * scale,
+  )
+
+  for (const bucket of IMAGE_LOD_THUMBNAIL_BUCKETS_PX) {
+    if (screenMaxSideCss <= bucket) {
+      return bucket * Math.max(1, frame.context.pixelRatio ?? 1)
+    }
+  }
+
+  // Large on-screen images can use original resolution in settled frames.
+  return Number.POSITIVE_INFINITY
+}
+
+function resolveProjectedTextSizePx(
+  worldBounds: {width: number; height: number},
+  frame: EngineRenderFrame,
+) {
+  // Approximate projected font size from text world height to keep packet-time
+  // text LOD cheap without requiring full text layout introspection.
+  return Math.max(0, Math.abs(worldBounds.height) * Math.max(0, Math.abs(frame.viewport.scale)))
+}
+
+function resolveProjectedStrokeWidthPx(input: {
+  strokeWidth?: number
+  frame: EngineRenderFrame
+}) {
+  // Project stroke width with viewport scale so stroke-only nodes can be
+  // skipped when their stroke is below a perceptible screen-space threshold.
+  const strokeWidth = Math.max(0, input.strokeWidth ?? 0)
+  return strokeWidth * Math.max(0, Math.abs(input.frame.viewport.scale))
 }
 
 function canReuseImageTexture(
@@ -2134,6 +2390,7 @@ interface ResolvedImageTextureResult {
   uploadMs: number
   downsampledUploadCount: number
   downsampledBytesSaved: number
+  usesThumbnail: boolean
   deferred: boolean
 }
 
@@ -2473,6 +2730,26 @@ function drawInteractivePreviewEdgeRegions(options: {
         continue
       }
 
+      if (packet.kind === 'shape' && packet.shapeHasStroke && !packet.shapeHasFill) {
+        const scale = Math.max(0, Math.abs(options.frame.viewport.scale))
+        const screenAreaPx2 =
+          Math.abs(packet.worldBounds.width) * scale *
+          Math.abs(packet.worldBounds.height) * scale
+        const projectedStrokeWidthPx = resolveProjectedStrokeWidthPx({
+          strokeWidth: packet.shapeStrokeWidth,
+          frame: options.frame,
+        })
+
+        // Edge redraw applies the same stroke-only skip thresholds so reused
+        // interaction frames stay visually consistent with full packet draws.
+        if (
+          screenAreaPx2 < STROKE_LOD_SKIP_AREA_MAX_PX2 ||
+          projectedStrokeWidthPx < STROKE_LOD_SKIP_PROJECTED_WIDTH_PX
+        ) {
+          continue
+        }
+      }
+
       if (packet.kind === 'image' && packet.assetId) {
         if (shouldSkipOverviewImagePacket(options.frame, packet.worldBounds, lodEnabled)) {
           continue
@@ -2770,6 +3047,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: (existing.rasterScale ?? 1) < 0.99,
       deferred: false,
     }
   }
@@ -2784,6 +3062,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: false,
       deferred: true,
     }
   }
@@ -2797,6 +3076,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: false,
       deferred: false,
     }
   }
@@ -2814,6 +3094,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: imageRasterScale < 0.99,
       deferred: false,
     }
   }
@@ -2837,6 +3118,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: false,
       deferred: true,
     }
   }
@@ -2850,6 +3132,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: false,
       deferred: false,
     }
   }
@@ -2881,6 +3164,7 @@ function resolveImageTexture(
       uploadMs: 0,
       downsampledUploadCount: 0,
       downsampledBytesSaved: 0,
+      usesThumbnail: false,
       deferred: false,
     }
   }
@@ -2907,6 +3191,7 @@ function resolveImageTexture(
     uploadMs: imageUploadMs,
     downsampledUploadCount: uploadSource.downsampled ? 1 : 0,
     downsampledBytesSaved,
+    usesThumbnail: imageRasterScale < 0.99,
     deferred: false,
   }
 }

@@ -26,6 +26,19 @@ interface RenderStatsSnapshot {
   dirtyRegionCount?: number
   dirtyTileCount?: number
   incrementalUpdateCount?: number
+  hiddenCount?: number
+  pointCount?: number
+  blockCount?: number
+  bboxCount?: number
+  simplifiedCount?: number
+  normalCount?: number
+  fullCount?: number
+  shadowSkippedCount?: number
+  filterSkippedCount?: number
+  thumbnailImageCount?: number
+  fullImageCount?: number
+  groupThumbnailCount?: number
+  lodDecisionTimeMs?: number
 }
 
 interface RuntimeStageTimingSnapshot {
@@ -373,5 +386,19 @@ export function buildRuntimeDiagnosticsPayload(
     dirtyRegionCount: input.renderStats.dirtyRegionCount ?? 0,
     dirtyTileCount: input.renderStats.dirtyTileCount ?? 0,
     incrementalUpdateCount: input.renderStats.incrementalUpdateCount ?? 0,
+    // Expose packet-level LOD counters so debug surfaces can validate degradation policy hits.
+    hiddenCount: input.renderStats.hiddenCount ?? 0,
+    pointCount: input.renderStats.pointCount ?? 0,
+    blockCount: input.renderStats.blockCount ?? 0,
+    bboxCount: input.renderStats.bboxCount ?? 0,
+    simplifiedCount: input.renderStats.simplifiedCount ?? 0,
+    normalCount: input.renderStats.normalCount ?? 0,
+    fullCount: input.renderStats.fullCount ?? 0,
+    shadowSkippedCount: input.renderStats.shadowSkippedCount ?? 0,
+    filterSkippedCount: input.renderStats.filterSkippedCount ?? 0,
+    thumbnailImageCount: input.renderStats.thumbnailImageCount ?? 0,
+    fullImageCount: input.renderStats.fullImageCount ?? 0,
+    groupThumbnailCount: input.renderStats.groupThumbnailCount ?? 0,
+    lodDecisionTimeMs: input.renderStats.lodDecisionTimeMs ?? 0,
   }
 }

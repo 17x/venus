@@ -33,6 +33,8 @@ export interface RuntimeLodConfig {
 export interface ResolveRuntimeRenderPolicyInput {
   phase: RuntimeRenderPhase
   lodLevel: RuntimeLodLevel
+  viewportScale: number
+  deviceDpr?: number
   lodConfig?: RuntimeLodConfig
 }
 
@@ -99,6 +101,34 @@ export const DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY: RuntimeDirtyRegionR
   forcedWeight: 0.3,
   streakWeight: 0.15,
   forcedRateScale: 120,
+}
+
+function resolveRuntimeDprByViewportScale(input: {
+  viewportScale: number
+  deviceDpr: number
+  phase: RuntimeRenderPhase
+}): number {
+  // Follow LOD doc DPR ladder by projected zoom scale so low-scale frames stay cheap.
+  const scale = Math.max(0, input.viewportScale)
+  const systemDpr = Math.max(0.5, input.deviceDpr)
+  let resolvedDpr = systemDpr
+
+  if (scale < 0.05) {
+    resolvedDpr = 0.5
+  } else if (scale < 0.125) {
+    resolvedDpr = 0.75
+  } else if (scale < 0.25) {
+    resolvedDpr = 1
+  } else if (scale < 1) {
+    resolvedDpr = Math.min(systemDpr, 1.5)
+  }
+
+  if (input.phase === 'pan' || input.phase === 'zoom' || input.phase === 'drag') {
+    // Interaction override: cap base scene DPR to 1 to keep frame pacing stable.
+    resolvedDpr = Math.min(resolvedDpr, 1)
+  }
+
+  return resolvedDpr
 }
 
 function resolveRuntimeLodInteractionCapability(input: {
@@ -172,6 +202,13 @@ function resolveDefaultRuntimeLodLevelCapability(
 export function resolveRuntimeRenderPolicy(
   input: ResolveRuntimeRenderPolicyInput,
 ): RuntimeRenderPolicy {
+  // Keep DPR derivation centralized so all phases follow one visibility policy.
+  const resolvedDpr = resolveRuntimeDprByViewportScale({
+    viewportScale: input.viewportScale,
+    deviceDpr: input.deviceDpr ?? 1,
+    phase: input.phase,
+  })
+
   // Keep phase ownership explicit so interaction degrade/restore rules live in one place.
   if (input.phase === 'pan') {
     const capability = resolveRuntimeLodInteractionCapability({
@@ -185,6 +222,7 @@ export function resolveRuntimeRenderPolicy(
     })
     return {
       ...capability,
+      dpr: resolvedDpr,
       overlayMode: 'degraded',
     }
   }
@@ -201,6 +239,7 @@ export function resolveRuntimeRenderPolicy(
     })
     return {
       ...capability,
+      dpr: resolvedDpr,
       overlayMode: 'degraded',
     }
   }
@@ -219,6 +258,7 @@ export function resolveRuntimeRenderPolicy(
     })
     return {
       ...capability,
+      dpr: resolvedDpr,
       overlayMode: 'degraded',
     }
   }
@@ -236,6 +276,7 @@ export function resolveRuntimeRenderPolicy(
     // Path/text precision editing should stay full-fidelity even when actively manipulating.
     return {
       ...capability,
+      dpr: resolvedDpr,
       overlayMode: 'full',
     }
   }
@@ -248,6 +289,7 @@ export function resolveRuntimeRenderPolicy(
 
   return {
     ...capability,
+    dpr: resolvedDpr,
     overlayMode: 'full',
   }
 }

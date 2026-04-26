@@ -104,6 +104,19 @@ export interface RuntimeRenderDiagnosticsStats {
       dirtyRegionCount: number
       dirtyTileCount: number
       incrementalUpdateCount: number
+      hiddenCount: number
+      pointCount: number
+      blockCount: number
+      bboxCount: number
+      simplifiedCount: number
+      normalCount: number
+      fullCount: number
+      shadowSkippedCount: number
+      filterSkippedCount: number
+      thumbnailImageCount: number
+      fullImageCount: number
+      groupThumbnailCount: number
+      lodDecisionTimeMs: number
     }
   }
   planner: {
@@ -306,6 +319,19 @@ export interface RuntimeRenderDiagnostics {
   dirtyRegionCount: number
   dirtyTileCount: number
   incrementalUpdateCount: number
+  hiddenCount: number
+  pointCount: number
+  blockCount: number
+  bboxCount: number
+  simplifiedCount: number
+  normalCount: number
+  fullCount: number
+  shadowSkippedCount: number
+  filterSkippedCount: number
+  thumbnailImageCount: number
+  fullImageCount: number
+  groupThumbnailCount: number
+  lodDecisionTimeMs: number
   // Sectioned diagnostics mirror of flat fields for structured debug surfaces.
   stats?: RuntimeRenderDiagnosticsStats
 }
@@ -462,6 +488,19 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   dirtyRegionCount: 0,
   dirtyTileCount: 0,
   incrementalUpdateCount: 0,
+  hiddenCount: 0,
+  pointCount: 0,
+  blockCount: 0,
+  bboxCount: 0,
+  simplifiedCount: 0,
+  normalCount: 0,
+  fullCount: 0,
+  shadowSkippedCount: 0,
+  filterSkippedCount: 0,
+  thumbnailImageCount: 0,
+  fullImageCount: 0,
+  groupThumbnailCount: 0,
+  lodDecisionTimeMs: 0,
   stats: {
     performance: {
       timing: {
@@ -540,6 +579,19 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
         dirtyRegionCount: 0,
         dirtyTileCount: 0,
         incrementalUpdateCount: 0,
+        hiddenCount: 0,
+        pointCount: 0,
+        blockCount: 0,
+        bboxCount: 0,
+        simplifiedCount: 0,
+        normalCount: 0,
+        fullCount: 0,
+        shadowSkippedCount: 0,
+        filterSkippedCount: 0,
+        thumbnailImageCount: 0,
+        fullImageCount: 0,
+        groupThumbnailCount: 0,
+        lodDecisionTimeMs: 0,
       },
     },
     planner: {
@@ -757,6 +809,19 @@ function resolveRuntimeRenderDiagnosticsStats(
         dirtyRegionCount: diagnostics.dirtyRegionCount,
         dirtyTileCount: diagnostics.dirtyTileCount,
         incrementalUpdateCount: diagnostics.incrementalUpdateCount,
+        hiddenCount: diagnostics.hiddenCount,
+        pointCount: diagnostics.pointCount,
+        blockCount: diagnostics.blockCount,
+        bboxCount: diagnostics.bboxCount,
+        simplifiedCount: diagnostics.simplifiedCount,
+        normalCount: diagnostics.normalCount,
+        fullCount: diagnostics.fullCount,
+        shadowSkippedCount: diagnostics.shadowSkippedCount,
+        filterSkippedCount: diagnostics.filterSkippedCount,
+        thumbnailImageCount: diagnostics.thumbnailImageCount,
+        fullImageCount: diagnostics.fullImageCount,
+        groupThumbnailCount: diagnostics.groupThumbnailCount,
+        lodDecisionTimeMs: diagnostics.lodDecisionTimeMs,
       },
     },
     planner: {
