@@ -27,6 +27,9 @@ context starts, or work needs to resume after switching topics.
     reduce multi-layer cache drift and invalidation complexity
   - runtime-local worker hit-test now consumes the same visibility budget to
     adapt `hitMode` and exact-candidate count in dense pointer neighborhoods
+  - attempted tier-quota limiting and tighter visibility thresholds for
+    interaction frames, but both regressed measured FPS and were rolled back;
+    stable baseline remains visibility-tier culling without extra quota caps
     Performance track (100K scene readiness):
   - Phase 1 (spike stop): frame stats, pointermove hit throttling,
     hover gating during pan/drag, zoom-time rebuild freeze

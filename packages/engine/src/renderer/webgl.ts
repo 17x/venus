@@ -73,6 +73,12 @@ const INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX = 1.2
 const INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 = 6
 // Keep tile cache on one persistent zoom domain to reduce multi-layer drift complexity.
 const TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL: TileZoomLevel = 5
+// Correctness-first guard: bypass tile compositor when investigating global
+// transform drift so settled frames use direct model-complete composite.
+const DISABLE_TILE_COMPOSITOR = true
+// Correctness-first guard: temporarily bypass affine preview reuse to prevent
+// interaction-time scale/offset drift while renderer coordinates are stabilized.
+const DISABLE_INTERACTION_PREVIEW_REUSE = true
 
 /**
  * Built-in WebGL renderer entry for engine standalone/runtime integrations.
@@ -272,7 +278,7 @@ export function createWebGLEngineRenderer(
         context.clear(context.COLOR_BUFFER_BIT)
 
         const tileDrawStart = performance.now()
-        const tileDrawResult = tileCache
+        const tileDrawResult = tileCache && !DISABLE_TILE_COMPOSITOR
           ? drawModelSurfaceAsTiles({
             context,
             frame: effectiveFrame,
@@ -368,6 +374,8 @@ export function createWebGLEngineRenderer(
           ...effectiveFrame,
           viewport: {
             ...effectiveFrame.viewport,
+            // Keep matrix aligned with override so fullscreen composite draw has no transform drift.
+            matrix: createViewportMatrixForRender(1, 0, 0),
             scale: 1,
             offsetX: 0,
             offsetY: 0,
@@ -462,14 +470,23 @@ export function createWebGLEngineRenderer(
       }
 
       const previewReuseStart = performance.now()
-      const previewReuse = tryReuseInteractiveCompositeFrame({
-        context,
-        pipeline,
-        frame: effectiveFrame,
-        texture: compositeTexture,
-        snapshot: compositeSnapshot,
-        interactionPreview,
-      })
+      const previewReuse = DISABLE_INTERACTION_PREVIEW_REUSE
+        ? {
+          reused: false,
+          // Use no-snapshot miss reason so cache-only hold path is also bypassed.
+          missReason: 'l0-no-snapshot',
+          visibleCount: 0,
+          culledCount: 0,
+          edgeRedrawRegions: [] as ScreenRectPx[],
+        }
+        : tryReuseInteractiveCompositeFrame({
+          context,
+          pipeline,
+          frame: effectiveFrame,
+          texture: compositeTexture,
+          snapshot: compositeSnapshot,
+          interactionPreview,
+        })
       webglPreviewReuseMs += performance.now() - previewReuseStart
       if (previewReuse.reused) {
         l0PreviewHitCount += 1
@@ -578,6 +595,8 @@ export function createWebGLEngineRenderer(
           ...effectiveFrame,
           viewport: {
             ...effectiveFrame.viewport,
+            // Cache-hold path must also use identity matrix for the identity viewport override.
+            matrix: createViewportMatrixForRender(1, 0, 0),
             scale: 1,
             offsetX: 0,
             offsetY: 0,
@@ -1191,17 +1210,19 @@ function shouldSkipInteractiveTinyPacket(
     return true
   }
 
-  // Tier D receives the strongest culling because visibility contribution is negligible.
-  if (visibility.tier === 'tier-d') {
-    return minEdge <= INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX
+  // Tier B keeps conservative culling and applies a packet budget cap.
+  if (visibility.tier === 'tier-b') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX
   }
+
   // Tier C keeps medium objects but drops tiny packets that are visually imperceptible.
   if (visibility.tier === 'tier-c') {
     return minEdge <= INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX
   }
-  // Tier B culling is conservative and limited to sub-pixel-ish packets.
-  if (visibility.tier === 'tier-b') {
-    return minEdge <= INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX
+
+  // Tier D receives the strongest culling because visibility contribution is negligible.
+  if (visibility.tier === 'tier-d') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX
   }
 
   // Tier A stays full-fidelity to preserve perceived foreground quality.
@@ -1294,6 +1315,8 @@ function drawModelSurfaceAsTiles(options: {
           ...options.frame,
           viewport: {
             ...options.frame.viewport,
+            // Tile seed draw is identity in screen space, so matrix must be identity as well.
+            matrix: createViewportMatrixForRender(1, 0, 0),
             scale: 1,
             offsetX: 0,
             offsetY: 0,
@@ -1323,13 +1346,18 @@ function drawModelSurfaceAsTiles(options: {
       viewportWidthPx,
       viewportHeightPx,
     })
-    const uploaded = seededFramebufferForTiles
-      ? copyTileTextureFromFramebuffer(
-        options.context,
-        existingTexture,
-        tileRegion,
-      )
-      : { texture: null, textureBytes: 0 }
+
+    // Partial edge captures cannot represent full tile world-bounds and will drift when reused.
+    if (tileRegion.isClipped) {
+      fallbackReason = 'l2-tile-partial-region-fallback-composite'
+      return {
+        texture: null,
+      }
+    }
+
+    // Keep tile uploads on canvas-crop path for correctness: framebuffer-copy
+    // extraction can introduce stable-position drift under viewport transforms.
+    const uploaded = { texture: null, textureBytes: 0 }
 
     // Keep old canvas-crop path as fallback for unsupported/failed framebuffer copy.
     const uploadedWithFallback = uploaded.texture
@@ -1519,6 +1547,19 @@ function resolveTileCacheZoomLevel(previousZoomLevel?: TileZoomLevel | null): Ti
   return TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL
 }
 
+function createViewportMatrixForRender(
+  scale: number,
+  offsetX: number,
+  offsetY: number,
+) {
+  // WebGL packet path expects viewport.matrix to match scale/offset overrides.
+  return [
+    scale, 0, offsetX,
+    0, scale, offsetY,
+    0, 0, 1,
+  ] as const
+}
+
 function resolveNearbyPreloadTiles(
   visibleTiles: Array<{ zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} }>,
   zoomLevel: TileZoomLevel,
@@ -1582,11 +1623,14 @@ function resolveTileFramebufferRegion(options: {
   viewportHeightPx: number
 }) {
   const pixelRatio = options.frame.context.pixelRatio ?? 1
-  const matrix = options.frame.viewport.matrix
-  const tileScreenX = matrix[0] * options.tileBounds.x + matrix[1] * options.tileBounds.y + matrix[2]
-  const tileScreenY = matrix[3] * options.tileBounds.x + matrix[4] * options.tileBounds.y + matrix[5]
-  const tileScreenWidth = options.tileBounds.width * options.frame.viewport.scale
-  const tileScreenHeight = options.tileBounds.height * options.frame.viewport.scale
+  const scale = options.frame.viewport.scale
+  const offsetX = options.frame.viewport.offsetX
+  const offsetY = options.frame.viewport.offsetY
+  // Keep tile capture math consistent with drawWebGLPacket world->screen transform.
+  const tileScreenX = options.tileBounds.x * scale + offsetX
+  const tileScreenY = options.tileBounds.y * scale + offsetY
+  const tileScreenWidth = options.tileBounds.width * scale
+  const tileScreenHeight = options.tileBounds.height * scale
   const tilePixelX = tileScreenX * pixelRatio
   const tilePixelY = tileScreenY * pixelRatio
   const tilePixelWidth = Math.max(1, Math.ceil(tileScreenWidth * pixelRatio))
@@ -1595,6 +1639,12 @@ function resolveTileFramebufferRegion(options: {
   const sourceMinY = Math.max(0, Math.floor(tilePixelY))
   const sourceMaxX = Math.min(options.viewportWidthPx, Math.ceil(tilePixelX + tilePixelWidth))
   const sourceMaxY = Math.min(options.viewportHeightPx, Math.ceil(tilePixelY + tilePixelHeight))
+  // If capture bounds are clamped by viewport edges, the extracted texture is only partial.
+  const isClipped =
+    sourceMinX > Math.floor(tilePixelX) ||
+    sourceMinY > Math.floor(tilePixelY) ||
+    sourceMaxX < Math.ceil(tilePixelX + tilePixelWidth) ||
+    sourceMaxY < Math.ceil(tilePixelY + tilePixelHeight)
 
   return {
     sourceX: sourceMinX,
@@ -1602,6 +1652,7 @@ function resolveTileFramebufferRegion(options: {
     sourceWidth: Math.max(1, sourceMaxX - sourceMinX),
     sourceHeight: Math.max(1, sourceMaxY - sourceMinY),
     framebufferHeight: options.viewportHeightPx,
+    isClipped,
   }
 }
 
@@ -1636,74 +1687,6 @@ function uploadSurfaceTexture(
   }
 
   return texture
-}
-
-function copyTileTextureFromFramebuffer(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  existingTexture: WebGLTexture | null,
-  source: {
-    sourceX: number
-    sourceY: number
-    sourceWidth: number
-    sourceHeight: number
-    framebufferHeight: number
-  },
-) {
-  const texture = existingTexture ?? context.createTexture()
-  if (!texture) {
-    return {
-      texture: null,
-      textureBytes: 0,
-    }
-  }
-
-  context.bindTexture(context.TEXTURE_2D, texture)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
-
-  const framebufferSourceY = Math.max(
-    0,
-    source.framebufferHeight - source.sourceY - source.sourceHeight,
-  )
-
-  try {
-    context.texImage2D(
-      context.TEXTURE_2D,
-      0,
-      context.RGBA,
-      source.sourceWidth,
-      source.sourceHeight,
-      0,
-      context.RGBA,
-      context.UNSIGNED_BYTE,
-      null,
-    )
-    context.copyTexSubImage2D(
-      context.TEXTURE_2D,
-      0,
-      0,
-      0,
-      source.sourceX,
-      framebufferSourceY,
-      source.sourceWidth,
-      source.sourceHeight,
-    )
-  } catch {
-    if (!existingTexture) {
-      context.deleteTexture(texture)
-    }
-    return {
-      texture: null,
-      textureBytes: 0,
-    }
-  }
-
-  return {
-    texture,
-    textureBytes: Math.max(1, source.sourceWidth * source.sourceHeight * 4),
-  }
 }
 
 function uploadTileTexture(
@@ -1761,11 +1744,14 @@ function buildTileTextureSourceFromModelSurface(options: {
   viewportHeightPx: number
 }) {
   const pixelRatio = options.frame.context.pixelRatio ?? 1
-  const matrix = options.frame.viewport.matrix
-  const tileScreenX = matrix[0] * options.tileBounds.x + matrix[1] * options.tileBounds.y + matrix[2]
-  const tileScreenY = matrix[3] * options.tileBounds.x + matrix[4] * options.tileBounds.y + matrix[5]
-  const tileScreenWidth = options.tileBounds.width * options.frame.viewport.scale
-  const tileScreenHeight = options.tileBounds.height * options.frame.viewport.scale
+  const scale = options.frame.viewport.scale
+  const offsetX = options.frame.viewport.offsetX
+  const offsetY = options.frame.viewport.offsetY
+  // Use the same transform basis as runtime draw submission to avoid tile/overlay drift.
+  const tileScreenX = options.tileBounds.x * scale + offsetX
+  const tileScreenY = options.tileBounds.y * scale + offsetY
+  const tileScreenWidth = options.tileBounds.width * scale
+  const tileScreenHeight = options.tileBounds.height * scale
 
   const tilePixelX = tileScreenX * pixelRatio
   const tilePixelY = tileScreenY * pixelRatio
@@ -2301,6 +2287,8 @@ function tryReuseInteractiveCompositeFrame(options: {
       scale: scaleRatio,
       offsetX: deltaX,
       offsetY: deltaY,
+      // Preview transform reprojects cached frame; matrix must track the derived transform.
+      matrix: createViewportMatrixForRender(scaleRatio, deltaX, deltaY),
     },
   }
 

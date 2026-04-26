@@ -31,6 +31,15 @@
   - wired worker click hit-test pipeline to visibility budget so
     `hitMode/maxExactCandidateCount` adapt to candidate visibility and density
 
+- Tried two interaction optimization experiments and rolled both back due
+  measured regression:
+  - visibility-tier packet quota cap during interaction (`tier-b/c/d` per-frame
+    draw quotas) reduced interaction FPS to `34.78`
+  - tighter visibility thresholds + lower boost tuning reduced interaction FPS
+    to `38.20`
+  - both reverted; restored baseline visibility-tier culling recovered
+    interaction replay to `44.63` while keeping mixed-scene perf gate PASS
+
 - Fixed interaction FPS regression in vector runtime policy:
   - `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`
     now uses stable DPR `1` for interaction-time rendering to reduce per-frame

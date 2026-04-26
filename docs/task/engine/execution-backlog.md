@@ -234,6 +234,7 @@
   - Phase I.1 可见度 LOD 重构完成：新增 engine 可见度评分与 tier 模块，WebGL 交互 packet 裁剪改为 visibility-tier 驱动
   - Phase I.2 单层 tile 缓存切换完成：tile dirty invalidation 与 tile draw 统一收敛到单一缓存 zoom domain
   - Phase I.3 hittest 预算接线完成：worker 点击命中链路接入 visibility budget，动态分配 hitMode 与 maxExactCandidateCount
+  - Phase I.4 交互预算实验回归并回滚：tier 配额限流与更激进阈值均导致 interaction FPS 下滑（34.78 / 38.20），已回滚到稳定策略；当前 replay 恢复到 interaction `44.63`
 
 ## 6. 执行记录模板
 
