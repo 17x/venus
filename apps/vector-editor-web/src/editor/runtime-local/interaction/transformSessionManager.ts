@@ -1,12 +1,12 @@
 import {
   applyAffineMatrixToPoint,
+  type AffineMatrix,
   createAffineMatrixAroundPoint,
   createMatrixFirstNodeTransform,
+  type NormalizedBounds,
   resolveShapeTransformRecord,
-  type ResolvedShapeTransformRecord,
   type ShapeTransformBatchCommand,
   type ShapeTransformBatchItem,
-  type ShapeTransformRecord,
 } from '@venus/engine'
 
 export type TransformHandleKind =
@@ -33,12 +33,30 @@ export interface TransformPoint {
   y: number
 }
 
-export interface TransformSessionShape extends ResolvedShapeTransformRecord {
+export interface TransformSessionShape {
   shapeId: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  flipX?: boolean
+  flipY?: boolean
+  bounds: NormalizedBounds
+  center: TransformPoint
+  matrix: AffineMatrix
+  inverseMatrix: AffineMatrix
 }
 
-export interface TransformPreviewShape extends ShapeTransformRecord {
+export interface TransformPreviewShape {
   shapeId: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  flipX?: boolean
+  flipY?: boolean
 }
 
 export interface TransformPreview {

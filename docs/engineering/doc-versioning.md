@@ -25,9 +25,18 @@
 - Product requirements/scope -> `docs/product/*`
 - Long-term system boundaries and flows -> `docs/architecture/*`
 - AI workflows and prompt governance -> `docs/ai/*`
+- App-local implementation docs -> owning app README or app-local docs
+- Package-local implementation docs -> owning package README or package-local docs
+- Runtime and product-adoption notes for vector ->
+  `apps/vector-editor-web/docs/*`
 
 ## Anti-Drift Rules
 
 - Do not overload root README with long requirement/architecture detail.
 - When a topic grows stable and reusable, split it to a dedicated domain doc.
 - Add new long-term docs to `docs/index.md` and `docs/ai/handoff.md`.
+- Keep app-specific and package-specific implementation detail out of global
+  `docs/` when a local documentation home exists.
+- Do not write local absolute filesystem paths in documentation.
+- Prefer repository-relative paths, package names, logical import paths, or
+  domain docs when referring to code locations.

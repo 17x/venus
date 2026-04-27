@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import {createCollaborationManager} from '../collaboration.ts'
-import type {EditorDocument, ToolName} from '@venus/document-core'
+import type {EditorDocument, ToolName} from '@vector/model'
 import {createHistoryManager} from '../history.ts'
 import {createEngineSpatialIndex} from '@venus/engine'
 import {
@@ -35,7 +35,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
 
   const spatialIndex = createEngineSpatialIndex<{
     shapeId: string
-    type: import('@venus/document-core').DocumentNode['type']
+    type: import('@vector/model').DocumentNode['type']
     order: number
   }>()
 
@@ -132,6 +132,13 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
     }
 
     const hitCandidates = hitTestDocumentCandidates(documentState, spatialIndex, message.pointer, {
+      // Keep direct-selection precision while default selection uses bbox-first
+      // with capped exact refinement to reduce click-time spikes on dense scenes.
+      hitMode: currentToolName === 'dselector' ? 'exact' : 'bbox_then_exact',
+      maxExactCandidateCount: currentToolName === 'dselector' ? 12 : 4,
+      // Tool-aware boosts bias visibility budget toward active precision workflows.
+      visibilityInteractionBoost: currentToolName === 'dselector' ? 0.25 : 0.1,
+      visibilitySemanticBoost: currentToolName === 'dselector' ? 0.2 : 0,
       allowFrameSelection,
       strictStrokeHitTest,
       preferGroupSelection: currentToolName === 'selector' && !(message.modifiers?.metaKey || message.modifiers?.ctrlKey),

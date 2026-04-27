@@ -60,7 +60,8 @@ Current chain:
 
 - Mechanism in engine, policy in runtime/interaction, product behavior in apps.
 - Runtime remains framework-agnostic. Framework adapters stay in app-local bridge files.
-- Persisted document truth stays in `@venus/document-core` runtime scene contracts (`node + feature`).
+- Persisted document truth is app-owned; vector maps this through app-local
+  `@vector/model` runtime scene contracts (`node + feature`).
 - Runtime document structures are adapters, not persistence source-of-truth.
 
 ## API Boundary Rules

@@ -9,7 +9,9 @@ export type {
 export { createEngineAnimationController } from './animation/index.ts'
 export type {
   EngineBackend,
+  EngineInteractionPreviewConfig,
   EngineRenderFrame,
+  BaseSceneRenderMode,
   EngineRenderStats,
   EngineRenderer,
   EngineRendererCapabilities,
@@ -53,6 +55,71 @@ export { buildEngineReplayTiles } from './renderer/replay.ts'
 export { createEngineReplayCoordinator } from './renderer/replayWorker.ts'
 export { createCanvas2DEngineRenderer } from './renderer/canvas2d.ts'
 export { createWebGLEngineRenderer } from './renderer/webgl.ts'
+export type {
+  CreateTileKeyInput,
+  EngineTileConfig,
+  EngineTileCacheEntry,
+  TilePriority,
+  TileCoord,
+  TileKey,
+  TileTextureResolveLevel,
+  TileTextureResolveResult,
+  TileTextureResolver,
+  TileRenderReason,
+  TileRenderRequest,
+  TileRenderer,
+  TileTextureEntry,
+  TileViewportCamera,
+  TileZoomLevel,
+  VisibleTileProjection,
+} from './renderer/tileManager.ts'
+export {
+  EngineTileCache,
+  createTileKey,
+  getActiveZoomBuckets,
+  getVisibleTilesForCamera,
+  getViewportWorldBounds,
+  getWorldTileSize,
+  getZoomBucket,
+  unionEngineRectBounds,
+  resolveTileTextureWithFallback,
+  getTileSizeForZoom,
+  getZoomLevelForScale,
+  getTileBounds,
+  getTilesIntersectingBounds,
+  ZOOM_BUCKETS,
+} from './renderer/tileManager.ts'
+export type {
+  TileSchedulerCancelOptions,
+  TileSchedulerTickOptions,
+} from './renderer/tileScheduler.ts'
+export {
+  TileScheduler,
+} from './renderer/tileScheduler.ts'
+export type {
+  DirtyRegionUpdate,
+  DirtyUpdateMode,
+} from './renderer/dirtyRegionTracker.ts'
+export {
+  EngineDirtyRegionTracker,
+} from './renderer/dirtyRegionTracker.ts'
+export type { EngineInitialRenderConfig } from './renderer/initialRender.ts'
+export {
+  EngineInitialRenderController,
+  InitialRenderPhase,
+} from './renderer/initialRender.ts'
+export type {
+  EngineLodConfig,
+  EngineLodInteractionCapability,
+  EngineLodInteractionPhase,
+  EngineLodOptions,
+  LodDegradationMode,
+} from './interaction/lodConfig.ts'
+export {
+  getLodPreset,
+  mergeWithPreset,
+  resolveEngineLodInteractionCapability,
+} from './interaction/lodConfig.ts'
 export type { Mat3, Point2D } from './math/matrix.ts'
 export { applyMatrixToPoint } from './math/matrix.ts'
 export type {
@@ -73,6 +140,14 @@ export type {
   EngineTransform2D,
 } from './scene/types.ts'
 export type { EngineSceneBufferLayout } from './scene/buffer.ts'
+export type {
+  EngineFramePlan,
+  PrepareEngineFramePlanOptions,
+} from './scene/framePlan.ts'
+export type {
+  EngineHitPlan,
+  PrepareEngineHitPlanOptions,
+} from './scene/hitPlan.ts'
 export type {
   CreateEngineSceneStoreOptions,
   EngineSceneStore,
@@ -95,6 +170,8 @@ export {
   resolveNodeByFlattenedIndex,
 } from './scene/patch.ts'
 export { createEngineSceneStore } from './scene/store.ts'
+export { prepareEngineFramePlan } from './scene/framePlan.ts'
+export { prepareEngineHitPlan } from './scene/hitPlan.ts'
 export { hitTestEngineSceneState, hitTestEngineSceneStateAll } from './scene/hitTest.ts'
 export type {
   EngineClock,
@@ -109,6 +186,7 @@ export type {
   EngineRenderScheduler,
 } from './runtime/renderScheduler.ts'
 export type {
+  EngineHostEnvironment,
   CreateEngineOptions,
   Engine,
   EngineRuntimeDiagnostics,
@@ -176,10 +254,27 @@ export {
   resolveEngineMoveSnapPreview,
 } from './interaction/snapping.ts'
 export type {
+  EngineLodInteractionType,
+  EngineLodProfile,
+  EngineLodProfileInput,
   EngineCanvasLodProfile,
   EngineCanvasLodProfileInput,
 } from './interaction/lodProfile.ts'
-export { resolveEngineCanvasLodProfile } from './interaction/lodProfile.ts'
+export {
+  resolveEngineCanvasLodProfile,
+  resolveEngineLodProfile,
+} from './interaction/lodProfile.ts'
+export type {
+  EngineVisibilityHitTestBudget,
+  EngineVisibilityHitTestBudgetInput,
+  EngineVisibilityMetricInput,
+  EngineVisibilityProfile,
+  EngineVisibilityTier,
+} from './interaction/visibilityLod.ts'
+export {
+  resolveEngineVisibilityHitTestBudget,
+  resolveEngineVisibilityProfile,
+} from './interaction/visibilityLod.ts'
 export type {
   EngineEditorBezierPoint,
   EngineEditorHitTestNode,

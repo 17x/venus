@@ -31,11 +31,12 @@ checks, use `docs/core/code-style-checklist.md` together with this document.
 - Use strict typing to model the domain instead of bypassing errors with assertions or ignore comments
 - Prefer extending existing `@venus/*` modules over creating parallel helpers in app code
 - Preserve the repository's existing import and formatting style, including extension-bearing local imports where already used
-- Treat `@venus/document-core` as the source of truth for persisted scene/document
-  semantics; describe runtime or app-only structures as adapters, not competing
-  canonical models
-- Prefer the JSON runtime scene `node + feature` model in `@venus/document-core`
-  when reasoning about geometry, content, and serialization behavior
+- Treat persisted scene/document semantics as app-owned; for vector work,
+  `@vector/model` is the active alias source of truth, and runtime/app-only
+  structures should be described as adapters
+- Prefer the JSON runtime scene `node + feature` model from the owning app
+  model module (for vector: `@vector/model`) when reasoning about geometry,
+  content, and serialization behavior
 - Keep framework code out of framework-agnostic runtime packages; runtime core packages must not depend on React, Vue, or another UI framework
 - Separate mechanism from policy: runtime core owns lifecycle, transport, viewport state, and shared contracts, while presets and app layers own opinionated behavior
 - Keep renderer mechanism contracts in `@venus/engine` (renderer adapters,

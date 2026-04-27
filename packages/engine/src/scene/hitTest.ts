@@ -11,6 +11,11 @@ export interface EngineHitTestResult {
   hitPoint: EnginePoint
 }
 
+export interface EngineHitExecutionSummary {
+  hits: EngineHitTestResult[]
+  exactCheckCount: number
+}
+
 type Matrix2D = readonly [number, number, number, number, number, number]
 const IDENTITY_MATRIX: Matrix2D = [1, 0, 0, 0, 1, 0]
 
@@ -28,27 +33,92 @@ export function hitTestEngineSceneStateAll(
   point: EnginePoint,
   tolerance = 0,
 ): EngineHitTestResult[] {
-  const flattened = flattenNodesWithWorldTransform(state.nodes)
-  const hits: EngineHitTestResult[] = []
+  return hitTestEngineSceneStateAllWithSummary(state, point, tolerance).hits
+}
 
-  for (let index = flattened.length - 1; index >= 0; index -= 1) {
-    const entry = flattened[index]
-    if (!isPointInsideNode(point, entry.node, entry.worldMatrix, tolerance)) {
-      continue
+export function hitTestEngineSceneStateAllWithSummary(
+  state: MutableEngineSceneState,
+  point: EnginePoint,
+  tolerance = 0,
+): EngineHitExecutionSummary {
+  const candidateIdSet = resolveHitCandidateIdSet(state, point, tolerance)
+  if (candidateIdSet && candidateIdSet.size === 0) {
+    return {
+      hits: [],
+      exactCheckCount: 0,
     }
-
-    hits.push({
-      index,
-      nodeId: entry.node.id,
-      nodeType: entry.node.type,
-      hitType: 'shape-body',
-      score: flattened.length - index,
-      zOrder: index,
-      hitPoint: point,
-    })
   }
 
-  return hits
+  const totalNodeCount = countSceneNodes(state.nodes)
+  const hits: EngineHitTestResult[] = []
+  let traversalIndex = totalNodeCount
+  let exactCheckCount = 0
+
+  // Walk the scene in reverse paint order and prune subtrees that have no
+  // coarse point candidates so hit execution does not rebuild a full flattened
+  // scene for every pointer query.
+  const visitReverse = (
+    nodes: readonly EngineRenderableNode[],
+    parentMatrix: Matrix2D,
+  ) => {
+    for (let index = nodes.length - 1; index >= 0; index -= 1) {
+      const node = nodes[index]
+      const worldMatrix = multiplyMatrix(parentMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
+
+      if (node.type === 'group') {
+        if (!candidateIdSet || candidateIdSet.has(node.id)) {
+          visitReverse(node.children, worldMatrix)
+        }
+      }
+
+      traversalIndex -= 1
+      const flattenedIndex = traversalIndex
+
+      if (candidateIdSet && !candidateIdSet.has(node.id)) {
+        continue
+      }
+
+      exactCheckCount += 1
+      if (!isPointInsideNode(point, node, worldMatrix, tolerance)) {
+        continue
+      }
+
+      hits.push({
+        index: flattenedIndex,
+        nodeId: node.id,
+        nodeType: node.type,
+        hitType: 'shape-body',
+        score: totalNodeCount - flattenedIndex,
+        zOrder: flattenedIndex,
+        hitPoint: point,
+      })
+    }
+  }
+
+  visitReverse(state.nodes, IDENTITY_MATRIX)
+
+  return {
+    hits,
+    exactCheckCount,
+  }
+}
+
+// Reuse the engine spatial index as a coarse shortlist so hit execution can
+// skip exact geometry checks for nodes that do not intersect the point region.
+function resolveHitCandidateIdSet(
+  state: MutableEngineSceneState,
+  point: EnginePoint,
+  tolerance: number,
+) {
+  const radius = Math.max(0, tolerance)
+  const candidateIds = state.spatialIndex.search({
+    minX: point.x - radius,
+    minY: point.y - radius,
+    maxX: point.x + radius,
+    maxY: point.y + radius,
+  }).map((item) => item.id)
+
+  return new Set(candidateIds)
 }
 
 function isPointInsideNode(
@@ -132,23 +202,19 @@ function estimateTextWidth(node: Extract<EngineRenderableNode, { type: 'text' }>
   return text.length * node.style.fontSize * 0.6
 }
 
-function flattenNodesWithWorldTransform(nodes: readonly EngineRenderableNode[]) {
-  const flattened: Array<{node: EngineRenderableNode; worldMatrix: Matrix2D}> = []
+// Count flattened nodes without allocating the flattened array so hit scoring
+// and z-order can stay compatible with the previous traversal contract.
+function countSceneNodes(nodes: readonly EngineRenderableNode[]) {
+  let count = 0
 
-  const walk = (entries: readonly EngineRenderableNode[], parentMatrix: Matrix2D) => {
-    for (const node of entries) {
-      const localMatrix = node.transform?.matrix ?? IDENTITY_MATRIX
-      const worldMatrix = multiplyMatrix(parentMatrix, localMatrix)
-      flattened.push({node, worldMatrix})
-
-      if (node.type === 'group') {
-        walk(node.children, worldMatrix)
-      }
+  for (const node of nodes) {
+    count += 1
+    if (node.type === 'group') {
+      count += countSceneNodes(node.children)
     }
   }
 
-  walk(nodes, IDENTITY_MATRIX)
-  return flattened
+  return count
 }
 
 function multiplyMatrix(left: Matrix2D, right: Matrix2D): Matrix2D {

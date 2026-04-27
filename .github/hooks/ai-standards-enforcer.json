@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "bash ./.agents/skills/venus-standards-enforcer/scripts/posttooluse-enforce.sh",
+        "timeout": 180
+      }
+    ]
+  }
+}

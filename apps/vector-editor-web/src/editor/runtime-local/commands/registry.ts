@@ -1,4 +1,4 @@
-import type { EditorDocument, DocumentNode } from '@venus/document-core'
+import type { EditorDocument, DocumentNode } from '@vector/model'
 
 // --- Command descriptor types ---
 

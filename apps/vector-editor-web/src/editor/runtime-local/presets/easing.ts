@@ -26,7 +26,7 @@ export const EASING_PRESET_EMPHASIS: CubicBezierTuple = [0.2, 0.8, 0.2, 1]
  */
 export function resolvePresetEasing(easing: PresetEasing | undefined): EngineEasingFunction {
   if (!easing) {
-    return (t) => t
+    return (t: number) => t
   }
 
   if (Array.isArray(easing)) {
@@ -39,14 +39,14 @@ export function resolvePresetEasing(easing: PresetEasing | undefined): EngineEas
 
   switch (easing) {
     case 'easeIn':
-      return (t) => t * t
+      return (t: number) => t * t
     case 'easeOut':
-      return (t) => 1 - (1 - t) * (1 - t)
+      return (t: number) => 1 - (1 - t) * (1 - t)
     case 'easeInOut':
-      return (t) => (t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2)
+      return (t: number) => (t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2)
     case 'linear':
     default:
-      return (t) => t
+      return (t: number) => t
   }
 }
 
@@ -73,7 +73,7 @@ function createCubicBezierEasing(x1: number, y1: number, x2: number, y2: number)
     6 * (1 - t) * t * (clampedX2 - clampedX1) +
     3 * t * t * (1 - clampedX2)
 
-  return (t) => {
+  return (t: number) => {
     const x = clampUnitInterval(t)
     let guess = x
 

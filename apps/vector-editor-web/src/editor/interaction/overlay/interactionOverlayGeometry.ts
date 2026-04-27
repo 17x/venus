@@ -4,8 +4,8 @@ import {
   createAffineMatrixAroundPoint,
   getNormalizedBoundsFromBox,
 } from '@vector/runtime/engine'
-import type {EditorDocument} from '@venus/document-core'
-import type {CanvasRendererProps} from '../../runtime/canvasAdapter.tsx'
+import type {EditorDocument} from '@vector/model'
+import type {EngineRendererProps} from '../../runtime/engineAdapter.tsx'
 
 export function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {
   if (shape.bezierPoints && shape.bezierPoints.length > 1) {
@@ -22,11 +22,58 @@ export function buildPathStrokeD(shape: EditorDocument['shapes'][number]) {
   }
 
   if (shape.points && shape.points.length > 1) {
+    const contours = splitClosedPointContours(shape.points)
+    if (contours.length > 1) {
+      return contours
+        .map((contour) => {
+          const [head, ...rest] = contour
+          return `M ${head.x} ${head.y} ${rest.map((point) => `L ${point.x} ${point.y}`).join(' ')}`
+        })
+        .join(' ')
+    }
+
     const [first, ...rest] = shape.points
     return `M ${first.x} ${first.y} ${rest.map((point) => `L ${point.x} ${point.y}`).join(' ')}`
   }
 
   return null
+}
+
+function splitClosedPointContours(points: Array<{x: number; y: number}>) {
+  const contours: Array<Array<{x: number; y: number}>> = []
+  let cursor = 0
+
+  while (cursor < points.length) {
+    const start = points[cursor]
+    if (!start) {
+      break
+    }
+
+    const contour: Array<{x: number; y: number}> = [{x: start.x, y: start.y}]
+    let closedIndex = -1
+
+    for (let index = cursor + 1; index < points.length; index += 1) {
+      const point = points[index]
+      if (!point) {
+        continue
+      }
+      contour.push({x: point.x, y: point.y})
+
+      if (point.x === start.x && point.y === start.y && contour.length >= 4) {
+        closedIndex = index
+        break
+      }
+    }
+
+    if (closedIndex < 0) {
+      break
+    }
+
+    contours.push(contour)
+    cursor = closedIndex + 1
+  }
+
+  return contours
 }
 
 export interface RoundedRectCornerRadii {
@@ -178,14 +225,14 @@ export function buildDraftStarPoints(x: number, y: number, width: number, height
 
 export function projectPolygon(
   points: Array<{x: number; y: number}>,
-  matrix: CanvasRendererProps['viewport']['matrix'],
+  matrix: EngineRendererProps['viewport']['matrix'],
 ) {
   return points.map((point) => projectPoint(point, matrix))
 }
 
 export function projectPoint(
   point: {x: number; y: number},
-  matrix: CanvasRendererProps['viewport']['matrix'],
+  matrix: EngineRendererProps['viewport']['matrix'],
 ) {
   return applyMatrixToPoint(matrix, point)
 }

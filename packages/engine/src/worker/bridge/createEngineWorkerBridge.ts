@@ -14,14 +14,14 @@ import type {
   EngineScenePatch,
   EngineScenePatchBatch,
   EngineWorkerResponseMessage,
-} from '../protocol.ts'
+} from '../runtime.ts'
 import {
   attachSharedHitTestViews,
   createSharedHitTestBuffer,
   isSharedHit,
   readSharedHitTestResponse,
   writeSharedHitTestRequest,
-} from '../sharedHitTest.ts'
+} from '../runtime.ts'
 
 export interface EngineWorkerBridgeOptions extends ResolveEngineWorkerModeOptions {
   createWorker?: () => Worker

@@ -1,4 +1,4 @@
-import {type EditorDocument, type ShapeType} from '@venus/document-core'
+import {type EditorDocument, type ShapeType} from '@vector/model'
 
 export interface PointerState {
   x: number
@@ -10,6 +10,7 @@ export interface SceneMemory {
   capacity: number
   meta: Int32Array
   geometry: Float32Array
+  renderHints: Uint32Array
   kind: Uint8Array
   flags: Uint8Array
 }
@@ -22,6 +23,11 @@ export interface SceneShapeSnapshot {
   y: number
   width: number
   height: number
+  textRenderHash?: number
+  textLineCount?: number
+  textMaxLineHeight?: number
+  pathPointCount?: number
+  pathBezierPointCount?: number
   isHovered: boolean
   isSelected: boolean
 }
@@ -39,6 +45,8 @@ export type SceneSelectionMode = 'replace' | 'add' | 'remove' | 'toggle' | 'clea
 const META_LENGTH = 6
 // geometry[Float32]: [x, y, width, height] per shape
 const GEOMETRY_STRIDE = 4
+// renderHints[Uint32]: [textRenderHash, textLineCount, textMaxLineHeight*100, pathPointCount, pathBezierPointCount] per shape
+const RENDER_HINT_STRIDE = 5
 
 const enum MetaIndex {
   Version = 0,
@@ -52,6 +60,14 @@ const enum MetaIndex {
 const enum ShapeFlag {
   Selected = 1,
   Hovered = 2,
+}
+
+const enum RenderHintIndex {
+  TextRenderHash = 0,
+  TextLineCount = 1,
+  TextMaxLineHeight = 2,
+  PathPointCount = 3,
+  PathBezierPointCount = 4,
 }
 
 const TYPE_TO_KIND: Record<ShapeType, number> = {
@@ -73,13 +89,15 @@ const TYPE_TO_KIND: Record<ShapeType, number> = {
  * Buffer segments:
  * 1) meta (Int32Array)
  * 2) geometry (Float32Array)
- * 3) kind (Uint8Array)
- * 4) flags (Uint8Array)
+ * 3) renderHints (Uint32Array)
+ * 4) kind (Uint8Array)
+ * 5) flags (Uint8Array)
  */
 export function getSceneMemoryByteLength(capacity: number) {
   return (
     META_LENGTH * Int32Array.BYTES_PER_ELEMENT +
     capacity * GEOMETRY_STRIDE * Float32Array.BYTES_PER_ELEMENT +
+    capacity * RENDER_HINT_STRIDE * Uint32Array.BYTES_PER_ELEMENT +
     capacity * Uint8Array.BYTES_PER_ELEMENT +
     capacity * Uint8Array.BYTES_PER_ELEMENT
   )
@@ -109,6 +127,9 @@ export function attachSceneMemory(buffer: SharedArrayBuffer, capacity: number): 
   const geometry = new Float32Array(buffer, offset, capacity * GEOMETRY_STRIDE)
   offset += capacity * GEOMETRY_STRIDE * Float32Array.BYTES_PER_ELEMENT
 
+  const renderHints = new Uint32Array(buffer, offset, capacity * RENDER_HINT_STRIDE)
+  offset += capacity * RENDER_HINT_STRIDE * Uint32Array.BYTES_PER_ELEMENT
+
   const kind = new Uint8Array(buffer, offset, capacity)
   offset += capacity * Uint8Array.BYTES_PER_ELEMENT
 
@@ -119,6 +140,7 @@ export function attachSceneMemory(buffer: SharedArrayBuffer, capacity: number): 
     capacity,
     meta,
     geometry,
+    renderHints,
     kind,
     flags,
   }
@@ -144,13 +166,7 @@ export function writeDocumentToScene(scene: SceneMemory, document: EditorDocumen
   scene.meta[MetaIndex.SelectedIndex] = -1
 
   for (let index = 0; index < count; index += 1) {
-    const shape = document.shapes[index]
-    const geometryOffset = index * GEOMETRY_STRIDE
-    scene.geometry[geometryOffset] = shape.x
-    scene.geometry[geometryOffset + 1] = shape.y
-    scene.geometry[geometryOffset + 2] = shape.width
-    scene.geometry[geometryOffset + 3] = shape.height
-    scene.kind[index] = TYPE_TO_KIND[shape.type]
+    writeShapeToScene(scene, index, document.shapes[index])
     scene.flags[index] = 0
   }
 
@@ -174,6 +190,7 @@ export function writeShapeToScene(
   scene.geometry[geometryOffset + 1] = shape.y
   scene.geometry[geometryOffset + 2] = shape.width
   scene.geometry[geometryOffset + 3] = shape.height
+  writeSceneRenderHints(scene, index, shape)
   scene.kind[index] = TYPE_TO_KIND[shape.type]
 }
 
@@ -464,6 +481,11 @@ export function readSceneSnapshot(scene: SceneMemory, document: EditorDocument):
       y: scene.geometry[geometryOffset + 1],
       width: scene.geometry[geometryOffset + 2],
       height: scene.geometry[geometryOffset + 3],
+      textRenderHash: readSceneRenderHint(scene, index, RenderHintIndex.TextRenderHash) || undefined,
+      textLineCount: readSceneRenderHint(scene, index, RenderHintIndex.TextLineCount) || undefined,
+      textMaxLineHeight: readSceneRenderHintFloat100(scene, index, RenderHintIndex.TextMaxLineHeight) || undefined,
+      pathPointCount: readSceneRenderHint(scene, index, RenderHintIndex.PathPointCount) || undefined,
+      pathBezierPointCount: readSceneRenderHint(scene, index, RenderHintIndex.PathBezierPointCount) || undefined,
       isHovered: (flags & ShapeFlag.Hovered) !== 0,
       isSelected: (flags & ShapeFlag.Selected) !== 0,
     })
@@ -484,21 +506,34 @@ export function incrementSceneVersion(scene: SceneMemory) {
 function copySceneShape(scene: SceneMemory, fromIndex: number, toIndex: number) {
   const fromOffset = fromIndex * GEOMETRY_STRIDE
   const toOffset = toIndex * GEOMETRY_STRIDE
+  const fromHintOffset = fromIndex * RENDER_HINT_STRIDE
+  const toHintOffset = toIndex * RENDER_HINT_STRIDE
 
   scene.geometry[toOffset] = scene.geometry[fromOffset]
   scene.geometry[toOffset + 1] = scene.geometry[fromOffset + 1]
   scene.geometry[toOffset + 2] = scene.geometry[fromOffset + 2]
   scene.geometry[toOffset + 3] = scene.geometry[fromOffset + 3]
+  scene.renderHints[toHintOffset] = scene.renderHints[fromHintOffset]
+  scene.renderHints[toHintOffset + 1] = scene.renderHints[fromHintOffset + 1]
+  scene.renderHints[toHintOffset + 2] = scene.renderHints[fromHintOffset + 2]
+  scene.renderHints[toHintOffset + 3] = scene.renderHints[fromHintOffset + 3]
+  scene.renderHints[toHintOffset + 4] = scene.renderHints[fromHintOffset + 4]
   scene.kind[toIndex] = scene.kind[fromIndex]
   scene.flags[toIndex] = scene.flags[fromIndex]
 }
 
 function clearSceneShape(scene: SceneMemory, index: number) {
   const offset = index * GEOMETRY_STRIDE
+  const hintOffset = index * RENDER_HINT_STRIDE
   scene.geometry[offset] = 0
   scene.geometry[offset + 1] = 0
   scene.geometry[offset + 2] = 0
   scene.geometry[offset + 3] = 0
+  scene.renderHints[hintOffset] = 0
+  scene.renderHints[hintOffset + 1] = 0
+  scene.renderHints[hintOffset + 2] = 0
+  scene.renderHints[hintOffset + 3] = 0
+  scene.renderHints[hintOffset + 4] = 0
   scene.kind[index] = 0
   scene.flags[index] = 0
 }
@@ -509,11 +544,17 @@ function readSceneShape(scene: SceneMemory, index: number) {
   }
 
   const offset = index * GEOMETRY_STRIDE
+  const hintOffset = index * RENDER_HINT_STRIDE
   return {
     x: scene.geometry[offset],
     y: scene.geometry[offset + 1],
     width: scene.geometry[offset + 2],
     height: scene.geometry[offset + 3],
+    textRenderHash: scene.renderHints[hintOffset],
+    textLineCount: scene.renderHints[hintOffset + 1],
+    textMaxLineHeight: decodeSceneHintFloat100(scene.renderHints[hintOffset + 2]),
+    pathPointCount: scene.renderHints[hintOffset + 3],
+    pathBezierPointCount: scene.renderHints[hintOffset + 4],
     kind: scene.kind[index],
     flags: scene.flags[index],
   }
@@ -522,15 +563,137 @@ function readSceneShape(scene: SceneMemory, index: number) {
 function writeSceneShape(
   scene: SceneMemory,
   index: number,
-  snapshot: {x: number; y: number; width: number; height: number; kind: number; flags: number},
+  snapshot: {
+    x: number
+    y: number
+    width: number
+    height: number
+    textRenderHash?: number
+    textLineCount?: number
+    textMaxLineHeight?: number
+    pathPointCount?: number
+    pathBezierPointCount?: number
+    kind: number
+    flags: number
+  },
 ) {
   const offset = index * GEOMETRY_STRIDE
+  const hintOffset = index * RENDER_HINT_STRIDE
   scene.geometry[offset] = snapshot.x
   scene.geometry[offset + 1] = snapshot.y
   scene.geometry[offset + 2] = snapshot.width
   scene.geometry[offset + 3] = snapshot.height
+  scene.renderHints[hintOffset] = snapshot.textRenderHash ?? 0
+  scene.renderHints[hintOffset + 1] = snapshot.textLineCount ?? 0
+  scene.renderHints[hintOffset + 2] = encodeSceneHintFloat100(snapshot.textMaxLineHeight)
+  scene.renderHints[hintOffset + 3] = snapshot.pathPointCount ?? 0
+  scene.renderHints[hintOffset + 4] = snapshot.pathBezierPointCount ?? 0
   scene.kind[index] = snapshot.kind
   scene.flags[index] = snapshot.flags
+}
+
+function writeSceneRenderHints(
+  scene: SceneMemory,
+  index: number,
+  shape: EditorDocument['shapes'][number],
+) {
+  const hintOffset = index * RENDER_HINT_STRIDE
+  const textMeta = resolveTextRenderMeta(shape)
+  scene.renderHints[hintOffset + RenderHintIndex.TextRenderHash] = textMeta.hash
+  scene.renderHints[hintOffset + RenderHintIndex.TextLineCount] = textMeta.lineCount
+  scene.renderHints[hintOffset + RenderHintIndex.TextMaxLineHeight] = encodeSceneHintFloat100(textMeta.maxLineHeight)
+  scene.renderHints[hintOffset + RenderHintIndex.PathPointCount] = shape.points?.length ?? 0
+  scene.renderHints[hintOffset + RenderHintIndex.PathBezierPointCount] = shape.bezierPoints?.length ?? 0
+}
+
+function readSceneRenderHint(
+  scene: SceneMemory,
+  index: number,
+  hintIndex: RenderHintIndex,
+) {
+  return scene.renderHints[index * RENDER_HINT_STRIDE + hintIndex]
+}
+
+function readSceneRenderHintFloat100(
+  scene: SceneMemory,
+  index: number,
+  hintIndex: RenderHintIndex,
+) {
+  return decodeSceneHintFloat100(readSceneRenderHint(scene, index, hintIndex))
+}
+
+function resolveTextRenderMeta(shape: EditorDocument['shapes'][number]) {
+  if (shape.type !== 'text') {
+    return {
+      hash: 0,
+      lineCount: 0,
+      maxLineHeight: 0,
+    }
+  }
+
+  const content = shape.text ?? ''
+  let hash = 2166136261
+  hash = hashString(content, hash)
+
+  let lineCount = 1
+  if (content.length > 0) {
+    for (let index = 0; index < content.length; index += 1) {
+      if (content.charCodeAt(index) === 10) {
+        lineCount += 1
+      }
+    }
+  }
+
+  const firstRun = shape.textRuns?.[0]
+  const defaultLineHeight = firstRun?.style?.lineHeight ?? firstRun?.style?.fontSize ?? 16
+  let maxLineHeight = defaultLineHeight
+
+  shape.textRuns?.forEach((run) => {
+    maxLineHeight = Math.max(maxLineHeight, run.style?.lineHeight ?? defaultLineHeight)
+    hash = hashString(String(run.start), hash)
+    hash = hashString(String(run.end), hash)
+    hash = hashString(run.style?.color ?? '', hash)
+    hash = hashString(run.style?.fontFamily ?? '', hash)
+    hash = hashString(String(run.style?.fontSize ?? ''), hash)
+    hash = hashString(String(run.style?.fontWeight ?? ''), hash)
+    hash = hashString(String(run.style?.lineHeight ?? ''), hash)
+    hash = hashString(String(run.style?.letterSpacing ?? ''), hash)
+    hash = hashString(run.style?.textAlign ?? '', hash)
+    hash = hashString(run.style?.verticalAlign ?? '', hash)
+  })
+
+  return {
+    hash: hash >>> 0,
+    lineCount,
+    maxLineHeight,
+  }
+}
+
+function encodeSceneHintFloat100(value?: number) {
+  if (!value || !Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.max(0, Math.round(value * 100))
+}
+
+function decodeSceneHintFloat100(value: number) {
+  if (!value) {
+    return 0
+  }
+
+  return value / 100
+}
+
+function hashString(value: string, seed: number) {
+  let hash = seed >>> 0
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return hash >>> 0
 }
 
 function shiftTrackedIndices(scene: SceneMemory, startIndex: number, delta: 1 | -1) {

@@ -1,6 +1,7 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import {isPointInsideEngineShapeHitArea, isPointInsideRotatedBounds} from '@venus/engine'
 import {hasSelectedAncestorInDocument} from './selectionHierarchy.ts'
+import {withResolvedPathHints} from '../../interaction/pathHitTestHints.ts'
 
 export interface ShouldClearSelectionOnPointerDownOptions {
   selectedBounds: {minX: number; minY: number; maxX: number; maxY: number} | null | undefined
@@ -23,7 +24,7 @@ export function shouldClearSelectionOnPointerDown(
   }
 
   const tolerance = options.tolerance ?? 6
-  return !options.selectedNodes.some((shape) => isPointInsideEngineShapeHitArea(pointer, shape, {
+  return !options.selectedNodes.some((shape) => isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(shape), {
     tolerance,
     shapeById: options.shapeById,
   }))
@@ -61,3 +62,4 @@ export function shouldPreserveGroupDragSelection(
     hasSelectedAncestorInDocument(options.shapeById, options.hoveredShapeId, selectedIdSet)
   )
 }
+

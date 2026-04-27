@@ -1,4 +1,4 @@
-import type { ToolName } from '@venus/document-core'
+import type { ToolName } from '@vector/model'
 import type {
   RuntimeEditingMode,
   RuntimeEditingModeController,
@@ -24,6 +24,7 @@ function resolveEditingModeForTool(tool: ToolName): RuntimeEditingMode {
       return 'drawingPencil'
     case 'rectangle':
     case 'ellipse':
+    case 'connector':
     case 'lineSegment':
     case 'polygon':
     case 'star':
@@ -40,6 +41,7 @@ const DEFAULT_TOOLS: ToolName[] = [
   'text',
   'ellipse',
   'panning',
+  'connector',
   'lineSegment',
   'polygon',
   'star',

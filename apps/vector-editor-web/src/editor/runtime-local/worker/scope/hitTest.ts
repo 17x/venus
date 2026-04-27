@@ -1,8 +1,10 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import type {DocumentNode, EditorDocument} from '@vector/model'
 import {
   isPointInsideEngineClipShape,
+  resolveEngineVisibilityHitTestBudget,
   isPointInsideEngineShapeHitArea,
 } from '@venus/engine'
+import {withResolvedPathHints} from '../../../interaction/pathHitTestHints.ts'
 import type {WorkerSpatialIndex} from './types.ts'
 
 const LINE_HIT_TOLERANCE = 6
@@ -24,8 +26,12 @@ export function hitTestDocument(
   spatialIndex: WorkerSpatialIndex,
   pointer: {x: number; y: number},
   options?: {
+    hitMode?: 'exact' | 'bbox_then_exact' | 'bbox'
+    maxExactCandidateCount?: number
     allowFrameSelection?: boolean
     strictStrokeHitTest?: boolean
+    visibilityInteractionBoost?: number
+    visibilitySemanticBoost?: number
   },
 ) {
   const candidates = hitTestDocumentCandidates(document, spatialIndex, pointer, options)
@@ -37,11 +43,17 @@ export function hitTestDocumentCandidates(
   spatialIndex: WorkerSpatialIndex,
   pointer: {x: number; y: number},
   options?: {
+    hitMode?: 'exact' | 'bbox_then_exact' | 'bbox'
+    maxExactCandidateCount?: number
     allowFrameSelection?: boolean
     strictStrokeHitTest?: boolean
     preferGroupSelection?: boolean
+    visibilityInteractionBoost?: number
+    visibilitySemanticBoost?: number
   },
 ) {
+  const requestedHitMode = options?.hitMode ?? 'exact'
+  const requestedMaxExactCandidateCount = Math.max(1, options?.maxExactCandidateCount ?? 4)
   const allowFrameSelection = options?.allowFrameSelection ?? true
   const strictStrokeHitTest = options?.strictStrokeHitTest ?? false
   const preferGroupSelection = options?.preferGroupSelection ?? false
@@ -54,9 +66,29 @@ export function hitTestDocumentCandidates(
   })
 
   const sortedCandidates = [...candidates].sort((left, right) => right.meta.order - left.meta.order)
-  const hits: WorkerHitTestCandidate[] = []
+  const topCandidate = sortedCandidates[0] ?? null
+  const topCandidateWidth = topCandidate ? Math.max(0, topCandidate.maxX - topCandidate.minX) : 0
+  const topCandidateHeight = topCandidate ? Math.max(0, topCandidate.maxY - topCandidate.minY) : 0
+  // Visibility budget maps local candidate visibility to hit-test precision cost.
+  const visibilityBudget = resolveEngineVisibilityHitTestBudget({
+    candidateCount: sortedCandidates.length,
+    topCandidateAreaPx2: topCandidateWidth * topCandidateHeight,
+    topCandidateMinEdgePx: Math.min(topCandidateWidth, topCandidateHeight),
+    interactionBoost: options?.visibilityInteractionBoost,
+    semanticBoost: options?.visibilitySemanticBoost,
+  })
+  // Direct-selection tool keeps exact mode, while default selection follows visibility budget.
+  const hitMode = requestedHitMode === 'exact' ? 'exact' : visibilityBudget.hitMode
+  const maxExactCandidateCount = requestedHitMode === 'exact'
+    ? Math.max(requestedMaxExactCandidateCount, visibilityBudget.maxExactCandidateCount)
+    : Math.max(1, visibilityBudget.maxExactCandidateCount)
 
-  for (const candidate of sortedCandidates) {
+  const hits: WorkerHitTestCandidate[] = []
+  const emittedShapeIds = new Set<string>()
+  let exactCandidateCount = 0
+
+  for (let candidateRank = 0; candidateRank < sortedCandidates.length; candidateRank += 1) {
+    const candidate = sortedCandidates[candidateRank]
     const shape = shapeById.get(candidate.meta.shapeId)
     if (!shape) {
       continue
@@ -69,6 +101,22 @@ export function hitTestDocumentCandidates(
       continue
     }
 
+    // Coarse bounds prefilter before exact geometry checks so non-precision
+    // interactions can avoid paying exact cost for all spatial candidates.
+    if (!isPointInsideShapeBounds(pointer, shape, PATH_HIT_TOLERANCE)) {
+      continue
+    }
+
+    if (hitMode === 'bbox') {
+      appendHitCandidate(hits, emittedShapeIds, document, sortedCandidates.length, candidateRank, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+      continue
+    }
+
+    if (hitMode === 'bbox_then_exact' && exactCandidateCount >= maxExactCandidateCount) {
+      appendHitCandidate(hits, emittedShapeIds, document, sortedCandidates.length, candidateRank, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
+      continue
+    }
+
     // For clipped elements, gate hit-test by clip source first so we do not
     // accidentally select through the unclipped host bounds.
     if (shape.clipPathId) {
@@ -78,7 +126,9 @@ export function hitTestDocumentCandidates(
       }
     }
 
-    if (!isPointInsideEngineShapeHitArea(pointer, shape, {
+    exactCandidateCount += 1
+
+    if (!isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(shape), {
       allowFrameSelection,
       tolerance: Math.max(LINE_HIT_TOLERANCE, PATH_HIT_TOLERANCE, POLYGON_EDGE_HIT_TOLERANCE),
       strictStrokeHitTest,
@@ -87,26 +137,62 @@ export function hitTestDocumentCandidates(
       continue
     }
 
-    const resolvedShape = preferGroupSelection
-      ? resolveSelectableShape(shape, shapeById)
-      : shape
-    const shapeIndex = document.shapes.findIndex((item) => item.id === resolvedShape.id)
-    if (shapeIndex < 0) {
-      continue
-    }
-
-    hits.push({
-      index: shapeIndex,
-      shapeId: resolvedShape.id,
-      shapeType: resolvedShape.type,
-      hitType: 'shape-body',
-      score: sortedCandidates.length - hits.length,
-      zOrder: candidate.meta.order,
-      hitPoint: pointer,
-    })
+    appendHitCandidate(hits, emittedShapeIds, document, sortedCandidates.length, candidateRank, candidate.meta.order, pointer, shape, shapeById, preferGroupSelection)
   }
 
   return hits
+}
+
+function isPointInsideShapeBounds(
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  tolerance: number,
+) {
+  const minX = Math.min(shape.x, shape.x + shape.width) - tolerance
+  const maxX = Math.max(shape.x, shape.x + shape.width) + tolerance
+  const minY = Math.min(shape.y, shape.y + shape.height) - tolerance
+  const maxY = Math.max(shape.y, shape.y + shape.height) + tolerance
+  return (
+    pointer.x >= minX &&
+    pointer.x <= maxX &&
+    pointer.y >= minY &&
+    pointer.y <= maxY
+  )
+}
+
+function appendHitCandidate(
+  hits: WorkerHitTestCandidate[],
+  emittedShapeIds: Set<string>,
+  document: EditorDocument,
+  candidateCount: number,
+  candidateRank: number,
+  zOrder: number,
+  pointer: {x: number; y: number},
+  shape: DocumentNode,
+  shapeById: Map<string, DocumentNode>,
+  preferGroupSelection: boolean,
+) {
+  const resolvedShape = preferGroupSelection
+    ? resolveSelectableShape(shape, shapeById)
+    : shape
+  const shapeIndex = document.shapes.findIndex((item) => item.id === resolvedShape.id)
+  if (shapeIndex < 0) {
+    return
+  }
+  if (emittedShapeIds.has(resolvedShape.id)) {
+    return
+  }
+  emittedShapeIds.add(resolvedShape.id)
+
+  hits.push({
+    index: shapeIndex,
+    shapeId: resolvedShape.id,
+    shapeType: resolvedShape.type,
+    hitType: 'shape-body',
+    score: Math.max(1, candidateCount - candidateRank),
+    zOrder,
+    hitPoint: pointer,
+  })
 }
 
 function isPointInsideClipSource(
@@ -114,11 +200,12 @@ function isPointInsideClipSource(
   clipSource: DocumentNode,
   shapeById: Map<string, DocumentNode>,
 ) {
-  return isPointInsideEngineClipShape(pointer, clipSource, {
+  return isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
     tolerance: 1.5,
     shapeById,
   })
 }
+
 
 function resolveSelectableShape(shape: DocumentNode, shapeById: Map<string, DocumentNode>) {
   let current: DocumentNode = shape

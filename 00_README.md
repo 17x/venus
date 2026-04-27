@@ -6,7 +6,8 @@ and whiteboard editor products.
 ## Current Stage
 
 - Stage: vector editor capability buildout with runtime/engine boundary hardening
-- Active apps: `apps/vector-editor-web`, `apps/playground`
+- Active app: `apps/vector-editor-web`
+- Deprecated app: `apps/playground` (historical diagnostics surface, no new feature work)
 
 ## Source Of Truth Priority
 

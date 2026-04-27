@@ -7,8 +7,5 @@
     "dev": "echo \"Scaffold only. Hook this app to your runtime/dev server.\"",
     "build": "echo \"Scaffold only. Add app build pipeline.\"",
     "lint": "echo \"Scaffold only. Lint from monorepo root.\""
-  },
-  "dependencies": {
-    "@venus/document-core": "workspace:*"
   }
 }

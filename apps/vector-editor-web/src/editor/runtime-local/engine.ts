@@ -4,6 +4,8 @@
 // implementation detail behind runtime package boundaries.
 export type {
   EngineCanvasViewportState,
+  EngineRenderFrame,
+  EngineRenderQuality,
   EngineMarqueeApplyMode,
   EngineMarqueeBounds,
   EngineMoveSnapOptions,
@@ -21,7 +23,6 @@ export type {
   EngineSelectionHandleKind,
   EngineSelectionHandlePoint,
   Engine,
-  EngineBackend,
   EngineRenderScheduler,
   EngineReplayRenderRequest,
   EngineReplayWorkerEvent,
@@ -40,6 +41,7 @@ export {
   createEngineViewportPanOrigin,
   createEngineRenderScheduler,
   createEngineReplayCoordinator,
+  createCanvas2DEngineRenderer,
   doNormalizedBoundsOverlap,
   getEngineNormalizedBounds,
   getNormalizedBoundsFromBox,
@@ -53,6 +55,7 @@ export {
   resolveEngineMarqueeBounds,
   resolveEngineMarqueeSelection,
   resolveEngineMoveSnapPreview,
+  resolveEngineViewportState,
   resolveNodeTransform,
   toResolvedNodeSvgTransform,
   updateEngineMarqueeState,

@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import {
   incrementSceneVersion,
   insertShapeIntoScene,
@@ -18,6 +18,7 @@ import {
   cloneShadow,
   cloneStroke,
 } from './model.ts'
+import {applyMaskSchemaPatch} from './maskGroupSemantics.ts'
 import {
   applyShapeMoveDelta,
   getDescendants,
@@ -224,6 +225,20 @@ export function applyPatches(
       return
     }
 
+    if (patch.type === 'set-shape-mask-schema') {
+      const shape = findShapeById(document, patch.shapeId)
+      if (!shape) {
+        return
+      }
+
+      applyMaskSchemaPatch(shape, patch)
+      const index = document.shapes.findIndex((item) => item.id === shape.id)
+      writeRuntimeShapeToScene(scene, document, index, shape)
+      incrementSceneVersion(scene)
+      changedShapeIds.add(shape.id)
+      return
+    }
+
     if (patch.type === 'set-shape-parent') {
       const shape = findShapeById(document, patch.shapeId)
       if (!shape) {
@@ -257,7 +272,7 @@ export function applyPatches(
     if (patch.type === 'insert-shape') {
       document.shapes.splice(patch.index, 0, {
         ...patch.shape,
-        type: patch.shape.type as import('@venus/document-core').DocumentNode['type'],
+        type: patch.shape.type as import('@vector/model').DocumentNode['type'],
         parentId: patch.shape.parentId,
         childIds: patch.shape.childIds?.slice(),
         text: patch.shape.text,

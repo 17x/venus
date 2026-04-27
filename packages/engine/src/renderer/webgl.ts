@@ -1,4 +1,6 @@
 import type {
+  EngineCanvasSurfaceFactory,
+  EngineInteractionPreviewConfig,
   EngineRenderFrame,
   EngineRenderer,
 } from './types.ts'
@@ -7,23 +9,100 @@ import { prepareEngineRenderPlan } from './plan.ts'
 import { prepareEngineRenderInstanceView } from './instances.ts'
 import { compileEngineWebGLPacketPlan } from './webglPackets.ts'
 import { createEngineWebGLResourceBudgetTracker } from './webglResources.ts'
-import type { EngineImageNode, EngineRenderableNode } from '../scene/types.ts'
+import type { EngineTileConfig, EngineLodConfig, EngineInitialRenderConfig } from '../index.ts'
+import {
+  EngineTileCache,
+  getZoomLevelForScale,
+  type TileZoomLevel,
+} from './tileManager.ts'
+import { EngineInitialRenderController } from './initialRender.ts'
+import { TileScheduler } from './tileScheduler.ts'
+import { resolveEngineVisibilityProfile } from '../interaction/visibilityLod.ts'
+import {
+  createViewportMatrixForRender,
+  createWebGLQuadPipeline,
+  disposeWebGLQuadPipeline,
+  drawWebGLPacket,
+  resolveWebGLContext,
+  type WebGLQuadPipeline,
+} from './webglPipeline.ts'
+import {
+  shouldAdvanceInteractionPreviewSnapshot,
+  tryReuseInteractiveCompositeFrame,
+  type ScreenRectPx,
+} from './webglInteractionPreview.ts'
+import {
+  MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
+  MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
+  canReuseInteractiveTextTexture,
+  canReuseTextTexture,
+  countPendingImageTextureEstimate,
+  resolveImageTexture,
+  resolvePacketTextureSourceRect,
+  resolveTextCacheKey,
+  resolveTextRasterScale,
+  type CachedTextureEntry,
+  type ImageUploadBudgetState,
+} from './webglTextures.ts'
+import {
+  copyCanvasRegion,
+  createModelSurface,
+  drawInteractiveTextFallback,
+  resolveBaseSceneRenderMode,
+  resolveCachedTextureBytes,
+  TEXT_PLACEHOLDER_MAX_SCALE,
+  shouldSkipTextPlaceholderPacket,
+} from './webglSurfaceHelpers.ts'
+import {
+  captureCompositeSnapshotFromCurrentFramebuffer,
+  drawCompositeTextureFrame,
+  resolveCompositeSnapshotPixelRatio,
+  type InteractionCompositeSnapshot,
+} from './webglComposite.ts'
+import { drawModelSurfaceAsTiles } from './webglTiles.ts'
 
 interface WebGLEngineRendererOptions {
   id?: string
   canvas: HTMLCanvasElement | OffscreenCanvas
+  createCanvasSurface?: EngineCanvasSurfaceFactory['createSurface']
   enableCulling?: boolean
   clearColor?: readonly [number, number, number, number]
   antialias?: boolean
   modelCompleteComposite?: boolean
+  // New: LOD configuration
+  lod?: EngineLodConfig
+  // New: Tile caching configuration
+  tileConfig?: EngineTileConfig
+  // New: Initial render optimization
+  initialRender?: EngineInitialRenderConfig
+  // Optional: interactive affine preview from last composite frame.
+  interactionPreview?: EngineInteractionPreviewConfig
 }
 
+const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
+  enabled: true,
+  mode: 'interaction',
+  // TODO(engine-zoom): set this default back to false after transform-drift
+  // regression checklist is green for tile compositor + interaction preview.
+  disableReuse: false,
+  cacheOnly: false,
+  maxScaleStep: 1.2,
+  maxTranslatePx: 220,
+}
+
+const OVERVIEW_IMAGE_SKIP_MAX_SCALE = 0.02
+const OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX = 2.8
+// Visibility-tier thresholds replace scale-bucket packet skipping for interaction frames.
+const INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX = 3.2
+const INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX = 2.2
+const INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX = 1.2
+const INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 = 6
 /**
  * Built-in WebGL renderer entry for engine standalone/runtime integrations.
  *
- * Current stage keeps one shared plan+instance pipeline and a minimal clear
- * commit so Canvas2D/WebGL can evolve with the same front-half optimization
- * path before WebGL draw-program wiring lands.
+ * Current implementation is the primary engine backend and intentionally
+ * reuses shared planning/packet prep while keeping Canvas2D limited to
+ * auxiliary model-complete and offscreen helper work.
  */
 export function createWebGLEngineRenderer(
   options: WebGLEngineRendererOptions,
@@ -40,18 +119,47 @@ export function createWebGLEngineRenderer(
 
   const clearColor = options.clearColor ?? [0, 0, 0, 0]
   const enableCulling = options.enableCulling ?? true
-  const modelCompleteComposite = options.modelCompleteComposite ?? true
+  const lodEnabled = options.lod?.enabled ?? false
+  // Prefer packet path by default for runtime responsiveness. Model-complete
+  // composite remains opt-in for fidelity-focused scenarios.
+  const modelCompleteComposite = options.modelCompleteComposite ?? false
   const resourceBudget = createEngineWebGLResourceBudgetTracker()
   const pipeline = createWebGLQuadPipeline(context)
   const imageCache = new Map<string, CachedTextureEntry>()
   const textCache = new Map<string, CachedTextureEntry>()
-  const modelSurface = createModelSurface(1, 1)
+  let interactionPreview = {
+    ...DEFAULT_INTERACTION_PREVIEW,
+    ...options.interactionPreview,
+  }
+  let compositeSnapshot: InteractionCompositeSnapshot | null = null
+
+  // Only create the tile cache when the feature is explicitly enabled.
+  const tileCache = options.tileConfig?.enabled ? new EngineTileCache(options.tileConfig) : null
+  // Tile scheduler keeps preload requests bounded and deduplicated across frames.
+  const tileScheduler = tileCache ? new TileScheduler() : null
+  const tileTextures = new Map<number, WebGLTexture>()
+  let nextTileTextureId = 1
+  let previousTileZoomLevel: TileZoomLevel | null = null
+
+  // Initialize initial render controller (optional)
+  const initialRenderController = options.initialRender
+    ? new EngineInitialRenderController(options.initialRender)
+    : null
+  // Track whether the initial render sequence has been kicked off
+  let initialRenderStarted = false
+
+  const modelSurface = createModelSurface(1, 1, options.createCanvasSurface)
   if (!modelSurface) {
     throw new Error('webgl model-complete surface allocation failed')
+  }
+  const textCropSurface = createModelSurface(1, 1, options.createCanvasSurface)
+  if (!textCropSurface) {
+    throw new Error('webgl text crop surface allocation failed')
   }
   const modelRenderer = createCanvas2DEngineRenderer({
     id: `${options.id ?? 'engine.renderer.webgl'}.model-canvas2d`,
     canvas: modelSurface.canvas,
+    createCanvasSurface: options.createCanvasSurface,
     enableCulling,
     clearColor: 'transparent',
     imageSmoothing: true,
@@ -74,33 +182,115 @@ export function createWebGLEngineRenderer(
       textRuns: modelCompleteComposite,
       imageClip: modelCompleteComposite,
       culling: enableCulling,
-      lod: false,
+      lod: lodEnabled,
     },
-    resize: (width, height) => {
-      if ('width' in options.canvas) {
-        options.canvas.width = width
+    resize: (size) => {
+      // Keep main canvas ownership in the app; renderer only consumes the
+      // provided output size and updates GPU state from that contract.
+      modelRenderer.resize?.(size)
+      context.viewport(0, 0, size.outputWidth, size.outputHeight)
+    },
+    setInteractionPreview: (config) => {
+      interactionPreview = {
+        ...DEFAULT_INTERACTION_PREVIEW,
+        ...config,
       }
-      if ('height' in options.canvas) {
-        options.canvas.height = height
-      }
-      modelRenderer.resize?.(width, height)
-      context.viewport(0, 0, width, height)
     },
     render: async (frame: EngineRenderFrame) => {
       const startAt = performance.now()
+      const interactiveQuality = frame.context.quality === 'interactive'
+      // Resolve one base-scene mode value per frame so all return paths report consistent state.
+      const baseSceneRenderMode = resolveBaseSceneRenderMode({
+        interactiveQuality,
+        tileCacheEnabled: Boolean(tileCache),
+      })
+      // Engine WebGL renderer composes base scene only; overlays remain app/runtime-owned.
+      const tileCacheBaseSceneOnly = true
+      let l0PreviewHitCount = 0
+      let l0PreviewMissCount = 0
+      let l1CompositeHitCount = 0
+      let l1CompositeMissCount = 0
+      let l2TileHitCount = 0
+      let l2TileMissCount = 0
+      let cacheFallbackReason = 'none'
+      // Keep WebGL pipeline timing slices explicit for frame-time attribution.
+      let webglPreviewReuseMs = 0
+      let webglPlanBuildMs = 0
+      let webglTextureUploadMs = 0
+      let webglDrawSubmitMs = 0
+      let webglSnapshotCaptureMs = 0
+      let webglModelRenderMs = 0
 
-      if (modelCompleteComposite) {
-        const modelStats = await modelRenderer.render(frame)
-        const compositeFrame: EngineRenderFrame = {
-          ...frame,
-          viewport: {
-            ...frame.viewport,
-            scale: 1,
-            offsetX: 0,
-            offsetY: 0,
+      // Apply initial render DPR optimization if configured
+      let effectiveFrame = frame
+      if (initialRenderController) {
+        // Kick off the progressive render sequence on the very first render
+        if (!initialRenderStarted) {
+          initialRenderStarted = true
+          initialRenderController.beginInitialRender()
+        }
+        const dprForPhase = initialRenderController.getDprForPhase()
+        if (dprForPhase !== 1.0) {
+          // Apply low-DPR for preview phase
+          effectiveFrame = {
+            ...frame,
+            context: {
+              ...frame.context,
+              pixelRatio: (frame.context.pixelRatio ?? 1) * dprForPhase,
+            },
+          }
+        }
+      }
+
+      // Process dirty regions for incremental tile updates
+      const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
+      let dirtyTileCount = 0
+      if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
+        // Invalidate tiles on the active zoom bucket so overview and deep-zoom
+        // frames stop aliasing everything onto the 100% cache layer.
+        const dirtyZoomLevel = getZoomLevelForScale(
+          effectiveFrame.viewport.scale,
+          previousTileZoomLevel,
+        )
+        for (const dirtyRegion of effectiveFrame.context.dirtyRegions) {
+          const dirtyTilesBefore = tileCache.getDirtyTiles().length
+          // Keep invalidation aligned with the bucket that this frame will render.
+          if (dirtyRegion.previousBounds) {
+            tileCache.invalidateTilesForBoundsDelta(
+              dirtyRegion.previousBounds,
+              dirtyRegion.bounds,
+              dirtyZoomLevel,
+            )
+          } else {
+            tileCache.invalidateTilesInBounds(dirtyRegion.bounds, dirtyZoomLevel)
+          }
+          dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
+        }
+      }
+
+      // Keep full-fidelity composite for settled frames, but fall back to the
+      // packet pipeline during interaction so pan/zoom can keep frame pace.
+      if (modelCompleteComposite && !interactiveQuality) {
+        l1CompositeHitCount += 1
+        const modelSurfacePixelRatio = effectiveFrame.context.pixelRatio ?? effectiveFrame.context.outputPixelRatio ?? 1
+        // Size the model-complete offscreen surface from its own DPR lane so
+        // side-target degradation never rewrites the app-owned main canvas.
+        modelRenderer.resize?.({
+          viewportWidth: effectiveFrame.viewport.viewportWidth,
+          viewportHeight: effectiveFrame.viewport.viewportHeight,
+          outputWidth: Math.max(1, Math.round(effectiveFrame.viewport.viewportWidth * modelSurfacePixelRatio)),
+          outputHeight: Math.max(1, Math.round(effectiveFrame.viewport.viewportHeight * modelSurfacePixelRatio)),
+        })
+        const modelFrame: EngineRenderFrame = {
+          ...effectiveFrame,
+          context: {
+            ...effectiveFrame.context,
+            outputPixelRatio: modelSurfacePixelRatio,
           },
         }
-
+        const modelRenderStart = performance.now()
+        const modelStats = await modelRenderer.render(modelFrame)
+        webglModelRenderMs += performance.now() - modelRenderStart
         context.viewport(
           0,
           0,
@@ -111,6 +301,134 @@ export function createWebGLEngineRenderer(
         context.blendFunc(context.ONE, context.ONE_MINUS_SRC_ALPHA)
         context.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3])
         context.clear(context.COLOR_BUFFER_BIT)
+
+        const tileDrawStart = performance.now()
+        // Resolve the active tile bucket from viewport scale so overview and
+        // deep-zoom frames use their own cache layer instead of the 100% layer.
+        const currentTileZoomLevel = getZoomLevelForScale(
+          effectiveFrame.viewport.scale,
+          previousTileZoomLevel,
+        )
+        const shouldBypassTileCompositor = tileCache
+          ? shouldBypassTileCompositorForFrame(
+            effectiveFrame,
+            tileCache,
+            Math.max(
+              64,
+              options.tileConfig?.maxCacheSize ?? 64,
+            ),
+            currentTileZoomLevel,
+          )
+          : false
+        // Keep tile compositor availability driven by runtime tile config only.
+        const tileDrawResult = tileCache && !shouldBypassTileCompositor
+          ? drawModelSurfaceAsTiles({
+            context,
+            frame: effectiveFrame,
+            tileCache,
+            tileTextures,
+            nextTileTextureId: () => nextTileTextureId++,
+            modelSurface: modelSurface.canvas,
+            pipeline,
+            tileScheduler,
+            previousZoomLevel: previousTileZoomLevel,
+            preloadRing: baseSceneRenderMode === 'progressive-refresh' ? 1 : 0,
+            preloadBudgetMs: baseSceneRenderMode === 'progressive-refresh' ? 10 : 0,
+            maxPreloadUploads: baseSceneRenderMode === 'progressive-refresh' ? 8 : 0,
+          })
+          : null
+        webglDrawSubmitMs += performance.now() - tileDrawStart
+
+        if (tileDrawResult) {
+          previousTileZoomLevel = tileDrawResult.zoomLevel
+          l2TileHitCount += tileDrawResult.tileHitCount
+          l2TileMissCount += tileDrawResult.tileMissCount
+          if (tileDrawResult.fallbackReason !== 'none') {
+            cacheFallbackReason = tileDrawResult.fallbackReason
+          }
+
+          const tileSnapshotCaptureStart = performance.now()
+          const tileSnapshot = captureCompositeSnapshotFromCurrentFramebuffer({
+            context,
+            texture: compositeTexture,
+            frame: effectiveFrame,
+            visibleCount: modelStats.visibleCount,
+            culledCount: modelStats.culledCount,
+          })
+          webglSnapshotCaptureMs += performance.now() - tileSnapshotCaptureStart
+          if (tileSnapshot) {
+            compositeSnapshot = tileSnapshot
+          }
+
+          const tileStats = tileCache?.getStats()
+          const initialRenderPhase = initialRenderController?.getPhase()
+          const initialRenderProgress = initialRenderController?.getDetailPassProgress()
+          const imageTextureBytes = resolveCachedTextureBytes(imageCache)
+          const gpuTextureBytes = (tileStats?.totalTextureBytes ?? 0) + resourceBudget.getTextureBytes()
+
+          return {
+            ...modelStats,
+            drawCount: Math.max(1, tileDrawResult.drawCount),
+            engineFrameQuality: effectiveFrame.context.quality,
+            baseSceneRenderMode,
+            tileCacheBaseSceneOnly,
+            cacheHits: tileDrawResult.tileHitCount,
+            cacheMisses: tileDrawResult.tileMissCount,
+            webglRenderPath: 'model-complete',
+            webglCompositeUploadBytes: 0,
+            webglInteractiveTextFallbackCount: 0,
+            webglTextTextureUploadCount: 0,
+            webglTextTextureUploadBytes: 0,
+            webglTextCacheHitCount: 0,
+            l0PreviewHitCount,
+            l0PreviewMissCount,
+            l1CompositeHitCount,
+            l1CompositeMissCount,
+            l2TileHitCount,
+            l2TileMissCount,
+            cacheFallbackReason,
+            tileCacheSize: tileStats?.tileCount,
+            tileDirtyCount: tileStats?.dirtyCount,
+            tileCacheTotalBytes: tileStats?.totalTextureBytes,
+            tileUploadCount: tileDrawResult.tileUploadCount,
+            tileRenderCount: tileDrawResult.tileRenderCount,
+            visibleTileCount: tileDrawResult.visibleTileCount,
+            // Report queue depth after visible/preload processing for frame-level tuning.
+            tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
+            gpuTextureBytes,
+            imageTextureBytes,
+            initialRenderPhase: initialRenderPhase?.toString(),
+            initialRenderProgress: initialRenderProgress,
+            dirtyRegionCount,
+            dirtyTileCount,
+            incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
+            webglPreviewReuseMs,
+            webglPlanBuildMs,
+            webglTextureUploadMs,
+            webglDrawSubmitMs,
+            webglSnapshotCaptureMs,
+            webglModelRenderMs,
+            frameMs: performance.now() - startAt,
+          }
+        }
+
+        cacheFallbackReason = tileCache
+          ? (shouldBypassTileCompositor
+            ? 'l2-bypass-visible-tile-pressure'
+            : 'l2-tile-fallback-to-composite')
+          : cacheFallbackReason
+
+        const compositeFrame: EngineRenderFrame = {
+          ...effectiveFrame,
+          viewport: {
+            ...effectiveFrame.viewport,
+            // Keep matrix aligned with override so fullscreen composite draw has no transform drift.
+            matrix: createViewportMatrixForRender(1, 0, 0),
+            scale: 1,
+            offsetX: 0,
+            offsetY: 0,
+          },
+        }
 
         context.bindTexture(context.TEXTURE_2D, compositeTexture)
         context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
@@ -126,46 +444,281 @@ export function createWebGLEngineRenderer(
         } catch {
           return {
             ...modelStats,
+            baseSceneRenderMode,
+            tileCacheBaseSceneOnly,
             frameMs: performance.now() - startAt,
           }
         }
 
-        drawWebGLPacket(
+        const compositeDrawStart = performance.now()
+        drawCompositeTextureFrame({
           context,
           pipeline,
-          compositeFrame,
-          {
-            x: 0,
-            y: 0,
-            width: frame.viewport.viewportWidth,
-            height: frame.viewport.viewportHeight,
-          },
-          [1, 1, 1, 1],
-          1,
-          compositeTexture,
-        )
+          frame: compositeFrame,
+          texture: compositeTexture,
+          viewportWidth: frame.viewport.viewportWidth,
+          viewportHeight: frame.viewport.viewportHeight,
+          textureSource: 'canvas-upload',
+        })
+        webglDrawSubmitMs += performance.now() - compositeDrawStart
+
+        compositeSnapshot = {
+          revision: effectiveFrame.scene.revision,
+          scale: effectiveFrame.viewport.scale,
+          offsetX: effectiveFrame.viewport.offsetX,
+          offsetY: effectiveFrame.viewport.offsetY,
+          viewportWidth: effectiveFrame.viewport.viewportWidth,
+          viewportHeight: effectiveFrame.viewport.viewportHeight,
+          pixelRatio: resolveCompositeSnapshotPixelRatio(effectiveFrame),
+          visibleCount: modelStats.visibleCount,
+          culledCount: modelStats.culledCount,
+          textureSource: 'canvas-upload',
+        }
 
         return {
           ...modelStats,
           drawCount: Math.max(1, modelStats.drawCount),
+          baseSceneRenderMode,
+          tileCacheBaseSceneOnly,
+          cacheHits: 0,
+          cacheMisses: 0,
+          webglRenderPath: 'model-complete',
+          webglCompositeUploadBytes:
+            Math.max(1, effectiveFrame.viewport.viewportWidth) *
+            Math.max(1, effectiveFrame.viewport.viewportHeight) *
+            Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
+            Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
+            4,
+          webglInteractiveTextFallbackCount: 0,
+          webglTextTextureUploadCount: 0,
+          webglTextTextureUploadBytes: 0,
+          webglTextCacheHitCount: 0,
+          l0PreviewHitCount,
+          l0PreviewMissCount,
+          l1CompositeHitCount,
+          l1CompositeMissCount,
+          l2TileHitCount,
+          l2TileMissCount,
+          cacheFallbackReason,
+          webglPreviewReuseMs,
+          webglPlanBuildMs,
+          webglTextureUploadMs,
+          webglDrawSubmitMs,
+          webglSnapshotCaptureMs,
+          webglModelRenderMs,
+          tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
+          gpuTextureBytes: resourceBudget.getTextureBytes(),
+          imageTextureBytes: resolveCachedTextureBytes(imageCache),
           frameMs: performance.now() - startAt,
         }
       }
 
-      const plan = prepareEngineRenderPlan(frame)
-      // Prepare typed-array instance payload once per frame so upcoming WebGL
-      // draw pipelines can focus on upload/commit without repeating traversal.
-      const instanceView = prepareEngineRenderInstanceView(frame, plan)
-      const packetPlan = compileEngineWebGLPacketPlan(plan, instanceView)
+      const previewReuseStart = performance.now()
+      const previewReuse = interactionPreview.disableReuse
+        ? {
+          reused: false,
+          // Use no-snapshot miss reason so cache-only hold path is also bypassed.
+          missReason: 'l0-no-snapshot',
+          visibleCount: 0,
+          culledCount: 0,
+          edgeRedrawRegions: [] as ScreenRectPx[],
+        }
+        : tryReuseInteractiveCompositeFrame({
+          context,
+          pipeline,
+          frame: effectiveFrame,
+          texture: compositeTexture,
+          snapshot: compositeSnapshot,
+          interactionPreview,
+        })
+      webglPreviewReuseMs += performance.now() - previewReuseStart
+      if (previewReuse.reused) {
+        l0PreviewHitCount += 1
+        let edgeRedrawCount = 0
+        // Cache-only mode intentionally skips edge redraw to keep interaction frames cheap.
+        if (!interactionPreview.cacheOnly && previewReuse.edgeRedrawRegions && previewReuse.edgeRedrawRegions.length > 0) {
+          const edgePlanBuildStart = performance.now()
+          const plan = prepareEngineRenderPlan(effectiveFrame)
+          const instanceView = prepareEngineRenderInstanceView(effectiveFrame, plan)
+          const packetPlan = compileEngineWebGLPacketPlan(plan, instanceView)
+          webglPlanBuildMs += performance.now() - edgePlanBuildStart
+          const edgeDrawStart = performance.now()
+          edgeRedrawCount = drawInteractivePreviewEdgeRegions({
+            context,
+            pipeline,
+            frame: effectiveFrame,
+            packetPlan,
+            regions: previewReuse.edgeRedrawRegions,
+            imageCache,
+            textCache,
+            resourceBudget,
+          })
+          webglDrawSubmitMs += performance.now() - edgeDrawStart
+        }
 
-      let frameTextureEstimate = resourceBudget.getTextureBytes()
-      for (const packet of packetPlan.packets) {
-        if (packet.kind === 'image') {
-          // Keep a conservative placeholder estimate so texture budgeting
-          // behavior is active before concrete texture allocation lands.
-          frameTextureEstimate += 4 * 1024 * 1024
+        if (
+          !interactionPreview.cacheOnly &&
+          shouldAdvanceInteractionPreviewSnapshot(effectiveFrame.viewport.scale)
+        ) {
+          const snapshotCaptureStart = performance.now()
+          const refreshedSnapshot = captureCompositeSnapshotFromCurrentFramebuffer({
+            context,
+            texture: compositeTexture,
+            frame: effectiveFrame,
+            visibleCount: previewReuse.visibleCount,
+            culledCount: previewReuse.culledCount,
+          })
+          webglSnapshotCaptureMs += performance.now() - snapshotCaptureStart
+          if (refreshedSnapshot) {
+            compositeSnapshot = refreshedSnapshot
+          }
+        }
+
+        return {
+          drawCount: 1 + edgeRedrawCount,
+          engineFrameQuality: effectiveFrame.context.quality,
+          baseSceneRenderMode,
+          tileCacheBaseSceneOnly,
+          visibleCount: previewReuse.visibleCount,
+          culledCount: previewReuse.culledCount,
+          cacheHits: 1,
+          cacheMisses: 0,
+          frameReuseHits: 1,
+          frameReuseMisses: 0,
+          webglRenderPath: 'packet',
+          webglCompositeUploadBytes: 0,
+          webglInteractiveTextFallbackCount: 0,
+          webglTextTextureUploadCount: 0,
+          webglTextTextureUploadBytes: 0,
+          webglTextCacheHitCount: 0,
+          webglFrameReuseEdgeRedrawCount: edgeRedrawCount,
+          l0PreviewHitCount,
+          l0PreviewMissCount,
+          l1CompositeHitCount,
+          l1CompositeMissCount,
+          l2TileHitCount,
+          l2TileMissCount,
+          cacheFallbackReason,
+          webglPreviewReuseMs,
+          webglPlanBuildMs,
+          webglTextureUploadMs,
+          webglDrawSubmitMs,
+          webglSnapshotCaptureMs,
+          webglModelRenderMs,
+          tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
+          gpuTextureBytes: resourceBudget.getTextureBytes(),
+          imageTextureBytes: resolveCachedTextureBytes(imageCache),
+          frameMs: performance.now() - startAt,
         }
       }
+      l0PreviewMissCount += 1
+      if (interactiveQuality) {
+        cacheFallbackReason = previewReuse.missReason ?? 'l0-preview-miss'
+      }
+
+      if (
+        interactiveQuality &&
+        interactionPreview.cacheOnly &&
+        compositeSnapshot &&
+        previewReuse.missReason !== 'l0-no-snapshot'
+      ) {
+        // Repaint the last cached composite explicitly because WebGL buffers
+        // are not guaranteed to persist across frames on all browsers.
+        context.viewport(
+          0,
+          0,
+          ('width' in options.canvas ? options.canvas.width : frame.viewport.viewportWidth),
+          ('height' in options.canvas ? options.canvas.height : frame.viewport.viewportHeight),
+        )
+        context.enable(context.BLEND)
+        context.blendFunc(context.ONE, context.ONE_MINUS_SRC_ALPHA)
+        context.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3])
+        context.clear(context.COLOR_BUFFER_BIT)
+
+        const cachedHoldFrame: EngineRenderFrame = {
+          ...effectiveFrame,
+          viewport: {
+            ...effectiveFrame.viewport,
+            // Cache-hold path must also use identity matrix for the identity viewport override.
+            matrix: createViewportMatrixForRender(1, 0, 0),
+            scale: 1,
+            offsetX: 0,
+            offsetY: 0,
+          },
+        }
+
+        const cacheHoldDrawStart = performance.now()
+        drawCompositeTextureFrame({
+          context,
+          pipeline,
+          frame: cachedHoldFrame,
+          texture: compositeTexture,
+          viewportWidth: compositeSnapshot.viewportWidth,
+          viewportHeight: compositeSnapshot.viewportHeight,
+          textureSource: compositeSnapshot.textureSource,
+        })
+        webglDrawSubmitMs += performance.now() - cacheHoldDrawStart
+
+        return {
+          drawCount: 1,
+          engineFrameQuality: effectiveFrame.context.quality,
+          baseSceneRenderMode,
+          tileCacheBaseSceneOnly,
+          visibleCount: compositeSnapshot.visibleCount,
+          culledCount: compositeSnapshot.culledCount,
+          cacheHits: 0,
+          cacheMisses: 1,
+          frameReuseHits: 0,
+          frameReuseMisses: 1,
+          webglRenderPath: 'packet',
+          webglCompositeUploadBytes: 0,
+          webglInteractiveTextFallbackCount: 0,
+          webglTextTextureUploadCount: 0,
+          webglTextTextureUploadBytes: 0,
+          webglTextCacheHitCount: 0,
+          webglFrameReuseEdgeRedrawCount: 0,
+          l0PreviewHitCount,
+          l0PreviewMissCount,
+          l1CompositeHitCount,
+          l1CompositeMissCount,
+          l2TileHitCount,
+          l2TileMissCount,
+          cacheFallbackReason: previewReuse.missReason ?? 'l0-cache-only-hold',
+          webglPreviewReuseMs,
+          webglPlanBuildMs,
+          webglTextureUploadMs,
+          webglDrawSubmitMs,
+          webglSnapshotCaptureMs,
+          webglModelRenderMs,
+          tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
+          gpuTextureBytes: resourceBudget.getTextureBytes(),
+          imageTextureBytes: resolveCachedTextureBytes(imageCache),
+          frameMs: performance.now() - startAt,
+        }
+      }
+
+      const planBuildStart = performance.now()
+      const plan = prepareEngineRenderPlan(effectiveFrame)
+      if (interactiveQuality || !modelCompleteComposite) {
+        l1CompositeMissCount += 1
+        if (cacheFallbackReason === 'none') {
+          cacheFallbackReason = interactiveQuality
+            ? 'l1-bypass-interactive'
+            : 'l1-disabled'
+        }
+      }
+      // Prepare typed-array instance payload once per frame so upcoming WebGL
+      // draw pipelines can focus on upload/commit without repeating traversal.
+      const instanceView = prepareEngineRenderInstanceView(effectiveFrame, plan)
+      const packetPlan = compileEngineWebGLPacketPlan(plan, instanceView)
+      pruneTextCache(context, textCache, packetPlan.packets, resourceBudget)
+      webglPlanBuildMs += performance.now() - planBuildStart
+
+      // Estimate only not-yet-resident image textures so budget pressure does
+      // not keep charging cached images as if every frame were a fresh upload.
+      const frameTextureEstimate =
+        resourceBudget.getTextureBytes() +
+        countPendingImageTextureEstimate(packetPlan.packets, imageCache)
 
       const budgetState = resourceBudget.recordFrameUsage({
         bufferBytes: packetPlan.uploadBytesEstimate,
@@ -174,7 +727,10 @@ export function createWebGLEngineRenderer(
 
       if (budgetState.overTextureBudget) {
         if (budgetState.textureOverflowBytes > 0) {
-          resourceBudget.evictLeastRecentlyUsedTextures(budgetState.textureOverflowBytes)
+          const evictedTextureIds = resourceBudget.evictLeastRecentlyUsedTextures(
+            budgetState.textureOverflowBytes,
+          )
+          disposeEvictedTextures(context, imageCache, textCache, evictedTextureIds)
         }
       }
 
@@ -193,61 +749,151 @@ export function createWebGLEngineRenderer(
       // If there are text packets that require run-level fidelity, use the
       // canvas2d model renderer as a fallback compositor to produce accurate
       // text run output which we then upload to textures per-node.
-      const needsModelTextComposite = packetPlan.packets.some((p) => {
-        if (p.kind !== 'text') return false
-        const prepared = plan.preparedNodes[p.preparedIndex]
-        return !!(prepared && prepared.node && prepared.node.type === 'text' && (prepared.node.runs && prepared.node.runs.length > 0))
-      })
+      const needsModelTextComposite =
+        !interactiveQuality && packetPlan.richTextPacketCount > 0
 
       if (needsModelTextComposite) {
         // Render the full model into the modelSurface canvas so we can crop
         // per-node text rects. Ignore returned stats.
         try {
-          await modelRenderer.render(frame)
+          const modelTextRenderStart = performance.now()
+          await modelRenderer.render(effectiveFrame)
+          webglModelRenderMs += performance.now() - modelTextRenderStart
         } catch {
           // If modelRenderer fails, continue without text composite fallback.
         }
       }
 
       let drawCount = 0
+      let interactiveTextFallbackCount = 0
+      let textTextureUploadCount = 0
+      let textTextureUploadBytes = 0
+      let textCacheHitCount = 0
+      let imageTextureUploadCount = 0
+      let imageTextureUploadBytes = 0
+      let imageDownsampledUploadCount = 0
+      let imageDownsampledUploadBytesSaved = 0
+      let deferredImageTextureCount = 0
+      const imageUploadBudget: ImageUploadBudgetState = {
+        remainingUploads: MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
+        remainingBytes: MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
+      }
+      // Frame context can override renderer defaults, so honor per-frame LOD
+      // enablement when deciding whether to apply detail degradation.
+      const frameLodEnabled = effectiveFrame.context.lodEnabled ?? lodEnabled
+      const useTextPlaceholderMode =
+        frameLodEnabled && effectiveFrame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
+      const textureUploadBeforeLoop = webglTextureUploadMs
+      const packetLoopStart = performance.now()
       for (const packet of packetPlan.packets) {
-        const prepared = plan.preparedNodes[packet.preparedIndex]
-        if (!prepared || !prepared.worldBounds) {
+        if (
+          interactiveQuality &&
+          shouldSkipInteractiveTinyPacket(effectiveFrame, packet.kind, packet.worldBounds)
+        ) {
+          // Skip imperceptible packets in interaction fallback to preserve frame budget.
           continue
         }
 
-        const node = prepared.node
-        if (node.type === 'image') {
-          const drawImageTexture = resolveImageTexture(
+        if (packet.kind === 'image' && packet.assetId) {
+          if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
+            continue
+          }
+
+          const imageTexture = resolveImageTexture(
             context,
-            frame,
-            node,
+            effectiveFrame,
+            packet.worldBounds,
+            packet.assetId,
             imageCache,
             resourceBudget,
+            imageUploadBudget,
           )
+          webglTextureUploadMs += imageTexture.uploadMs
+          if (imageTexture.deferred) {
+            deferredImageTextureCount += 1
+          }
+          imageTextureUploadCount += imageTexture.uploadCount
+          imageTextureUploadBytes += imageTexture.uploadBytes
+          imageDownsampledUploadCount += imageTexture.downsampledUploadCount
+          imageDownsampledUploadBytesSaved += imageTexture.downsampledBytesSaved
           drawCount += drawWebGLPacket(
             context,
             pipeline,
-            frame,
-            prepared.worldBounds,
-            resolveNodeColor(node),
+            effectiveFrame,
+            packet.worldBounds,
+            packet.color,
             packet.opacity,
-            drawImageTexture,
+            imageTexture.texture,
           )
           continue
         }
 
         if (packet.kind === 'text') {
-          // Try cached text texture first
           const cached = textCache.get(packet.nodeId)
-          if (cached) {
+          const textCacheKey = resolveTextCacheKey(packet)
+          const textRasterScale = resolveTextRasterScale(effectiveFrame)
+
+          if (useTextPlaceholderMode) {
+            // Low-zoom text is not legible at glyph fidelity. Render an
+            // inexpensive placeholder and skip text raster uploads.
+            if (shouldSkipTextPlaceholderPacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
+              continue
+            }
+
+            interactiveTextFallbackCount += 1
+            drawCount += drawInteractiveTextFallback(
+              context,
+              pipeline,
+              effectiveFrame,
+              packet.worldBounds,
+              packet.color,
+              packet.opacity,
+            )
+            continue
+          }
+
+          if (interactiveQuality) {
+            // Interactive mode prefers cached text textures when content is
+            // unchanged so pan/zoom previews avoid collapsing to solid blocks.
+            if (cached && canReuseInteractiveTextTexture(cached, textCacheKey)) {
+              textCacheHitCount += 1
+              resourceBudget.markTextureUsed(packet.nodeId)
+              drawCount += drawWebGLPacket(
+                context,
+                pipeline,
+                effectiveFrame,
+                packet.worldBounds,
+                packet.color,
+                packet.opacity,
+                cached.texture,
+              )
+              continue
+            }
+
+            // Avoid texture uploads during interaction and fall back only when
+            // there is no existing text texture to preview with.
+            interactiveTextFallbackCount += 1
+            drawCount += drawInteractiveTextFallback(
+              context,
+              pipeline,
+              effectiveFrame,
+              packet.worldBounds,
+              packet.color,
+              packet.opacity,
+            )
+            continue
+          }
+
+          // Try cached text texture first
+          if (cached && canReuseTextTexture(cached, textCacheKey, textRasterScale)) {
+            textCacheHitCount += 1
             resourceBudget.markTextureUsed(packet.nodeId)
             drawCount += drawWebGLPacket(
               context,
               pipeline,
-              frame,
-              prepared.worldBounds,
-              resolveNodeColor(node),
+              effectiveFrame,
+              packet.worldBounds,
+              packet.color,
               packet.opacity,
               cached.texture,
             )
@@ -257,15 +903,22 @@ export function createWebGLEngineRenderer(
           // If we have a modelSurface canvas from the canvas2d renderer,
           // crop the node rect and upload as texture.
           if (modelSurface && modelSurface.canvas) {
-            const pixelRatio = frame.context.pixelRatio ?? 1
-            const sx = Math.round(prepared.worldBounds.x * pixelRatio)
-            const sy = Math.round(prepared.worldBounds.y * pixelRatio)
-            const sw = Math.max(1, Math.round(prepared.worldBounds.width * pixelRatio))
-            const sh = Math.max(1, Math.round(prepared.worldBounds.height * pixelRatio))
+            const textureSourceRect = resolvePacketTextureSourceRect(
+              packet.worldBounds,
+              effectiveFrame,
+            )
 
-            const cropped = createCanvasFromSource(modelSurface.canvas as unknown as HTMLCanvasElement, sx, sy, sw, sh)
-            const texture = context.createTexture()
+            const cropped = copyCanvasRegion(
+              modelSurface.canvas,
+              textCropSurface.canvas,
+              textureSourceRect.x,
+              textureSourceRect.y,
+              textureSourceRect.width,
+              textureSourceRect.height,
+            )
+            const texture = cached?.texture ?? context.createTexture()
             if (texture) {
+              const reusesCachedTexture = cached?.texture === texture
               context.bindTexture(context.TEXTURE_2D, texture)
               context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
               context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
@@ -273,6 +926,7 @@ export function createWebGLEngineRenderer(
               context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
               context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
               try {
+                const textUploadStart = performance.now()
                 context.texImage2D(
                   context.TEXTURE_2D,
                   0,
@@ -281,20 +935,36 @@ export function createWebGLEngineRenderer(
                   context.UNSIGNED_BYTE,
                   cropped as unknown as TexImageSource,
                 )
-                textCache.set(packet.nodeId, {texture, width: sw, height: sh})
-                resourceBudget.markTextureResident(packet.nodeId, sw * sh * 4)
+                webglTextureUploadMs += performance.now() - textUploadStart
+                textCache.set(packet.nodeId, {
+                  texture,
+                  width: textureSourceRect.width,
+                  height: textureSourceRect.height,
+                  cacheKey: textCacheKey,
+                  rasterScale: textRasterScale,
+                })
+                resourceBudget.markTextureResident(
+                  packet.nodeId,
+                  textureSourceRect.width * textureSourceRect.height * 4,
+                )
                 resourceBudget.markTextureUsed(packet.nodeId)
+                textTextureUploadCount += 1
+                textTextureUploadBytes += textureSourceRect.width * textureSourceRect.height * 4
                 drawCount += drawWebGLPacket(
                   context,
                   pipeline,
-                  frame,
-                  prepared.worldBounds,
-                  resolveNodeColor(node),
+                  effectiveFrame,
+                  packet.worldBounds,
+                  packet.color,
                   packet.opacity,
                   texture,
                 )
                 continue
               } catch {
+                if (reusesCachedTexture) {
+                  textCache.delete(packet.nodeId)
+                  resourceBudget.releaseTexture(packet.nodeId)
+                }
                 context.deleteTexture(texture)
               }
             }
@@ -305,506 +975,407 @@ export function createWebGLEngineRenderer(
         drawCount += drawWebGLPacket(
           context,
           pipeline,
-          frame,
-          prepared.worldBounds,
-          resolveNodeColor(node),
+          effectiveFrame,
+          packet.worldBounds,
+          packet.color,
           packet.opacity,
           null,
         )
       }
+      const packetLoopMs = performance.now() - packetLoopStart
+      const textureUploadDeltaMs = webglTextureUploadMs - textureUploadBeforeLoop
+      webglDrawSubmitMs += Math.max(0, packetLoopMs - textureUploadDeltaMs)
 
-      // Mark text cache usage for LRU tracking
-      for (const key of textCache.keys()) {
-        resourceBudget.markTextureUsed(key)
+      // Collect tile and initial render diagnostics
+      const tileStats = tileCache?.getStats()
+      const initialRenderPhase = initialRenderController?.getPhase()
+      const initialRenderProgress = initialRenderController?.getDetailPassProgress()
+
+      const snapshotCaptureStart = performance.now()
+      const snapshot = captureCompositeSnapshotFromCurrentFramebuffer({
+        context,
+        texture: compositeTexture,
+        frame: effectiveFrame,
+        visibleCount: plan.stats.visibleCount,
+        culledCount: plan.stats.culledCount,
+      })
+      webglSnapshotCaptureMs += performance.now() - snapshotCaptureStart
+      if (snapshot) {
+        compositeSnapshot = snapshot
       }
 
       return {
         drawCount,
+        engineFrameQuality: effectiveFrame.context.quality,
+        baseSceneRenderMode,
+        tileCacheBaseSceneOnly,
         visibleCount: plan.stats.visibleCount,
         culledCount: plan.stats.culledCount,
+        groupCollapseCount: plan.stats.collapsedGroupCount,
+        groupCollapseCulledCount: plan.stats.collapsedDescendantCulledCount,
         cacheHits: 0,
         cacheMisses: 0,
         frameReuseHits: 0,
         frameReuseMisses: 0,
+        webglRenderPath: 'packet',
+        webglCompositeUploadBytes: 0,
+        webglInteractiveTextFallbackCount: interactiveTextFallbackCount,
+        webglImageTextureUploadCount: imageTextureUploadCount,
+        webglImageTextureUploadBytes: imageTextureUploadBytes,
+        webglImageDownsampledUploadCount: imageDownsampledUploadCount,
+        webglImageDownsampledUploadBytesSaved: imageDownsampledUploadBytesSaved,
+        webglDeferredImageTextureCount: deferredImageTextureCount,
+        webglTextTextureUploadCount: textTextureUploadCount,
+        webglTextTextureUploadBytes: textTextureUploadBytes,
+        webglTextCacheHitCount: textCacheHitCount,
+        webglFrameReuseEdgeRedrawCount: 0,
+        webglPrecomputedTextCacheKeyCount: packetPlan.precomputedTextCacheKeyCount,
+        webglFallbackTextCacheKeyCount: packetPlan.fallbackTextCacheKeyCount,
+        l0PreviewHitCount,
+        l0PreviewMissCount,
+        l1CompositeHitCount,
+        l1CompositeMissCount,
+        l2TileHitCount,
+        l2TileMissCount,
+        cacheFallbackReason,
+        tileCacheSize: tileStats?.tileCount,
+        tileDirtyCount: tileStats?.dirtyCount,
+        tileCacheTotalBytes: tileStats?.totalTextureBytes,
+        tileUploadCount: 0,
+        tileRenderCount: 0,
+        visibleTileCount: 0,
+        tileSchedulerPendingCount: tileScheduler?.getPendingCount() ?? 0,
+        gpuTextureBytes: (tileStats?.totalTextureBytes ?? 0) + resourceBudget.getTextureBytes(),
+        imageTextureBytes: resolveCachedTextureBytes(imageCache),
+        initialRenderPhase: initialRenderPhase?.toString(),
+        initialRenderProgress: initialRenderProgress,
+        dirtyRegionCount: dirtyRegionCount,
+        dirtyTileCount: dirtyTileCount,
+        incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
+        webglPreviewReuseMs,
+        webglPlanBuildMs,
+        webglTextureUploadMs,
+        webglDrawSubmitMs,
+        webglSnapshotCaptureMs,
+        webglModelRenderMs,
         frameMs: performance.now() - startAt,
       }
     },
     dispose: () => {
       modelRenderer.dispose?.()
       context.deleteTexture(compositeTexture)
-      for (const entry of imageCache.values()) {
-        context.deleteTexture(entry.texture)
+      for (const texture of tileTextures.values()) {
+        context.deleteTexture(texture)
       }
-      for (const entry of textCache.values()) {
-        context.deleteTexture(entry.texture)
-      }
-      imageCache.clear()
-      textCache.clear()
+      tileTextures.clear()
+      disposeCachedTextures(context, imageCache, resourceBudget)
+      disposeCachedTextures(context, textCache, resourceBudget)
       disposeWebGLQuadPipeline(context, pipeline)
       // WebGL context lifecycle is owned by the host canvas environment.
     },
   }
 }
 
-function createModelSurface(width: number, height: number) {
-  if (typeof OffscreenCanvas !== 'undefined') {
-    return {
-      canvas: new OffscreenCanvas(width, height),
-    }
-  }
-
-  if (typeof document !== 'undefined') {
-    const element = document.createElement('canvas')
-    element.width = width
-    element.height = height
-    return {
-      canvas: element,
-    }
-  }
-
-  return null
-}
-
-interface WebGLQuadPipeline {
-  program: WebGLProgram
-  positionBuffer: WebGLBuffer
-  attributePosition: number
-  uniformRect: WebGLUniformLocation
-  uniformScale: WebGLUniformLocation
-  uniformOffset: WebGLUniformLocation
-  uniformViewport: WebGLUniformLocation
-  uniformColor: WebGLUniformLocation
-  uniformUseTexture: WebGLUniformLocation
-  uniformSampler: WebGLUniformLocation
-}
-
-interface CachedTextureEntry {
-  texture: WebGLTexture
-  width: number
-  height: number
-}
-
-function createWebGLQuadPipeline(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-): WebGLQuadPipeline {
-  const vertexShader = createShader(context, context.VERTEX_SHADER, `
-attribute vec2 aPosition;
-uniform vec4 uRect;
-uniform vec2 uScale;
-uniform vec2 uOffset;
-uniform vec2 uViewport;
-varying vec2 vUv;
-
-void main() {
-  vec2 world = uRect.xy + aPosition * uRect.zw;
-  vec2 screen = vec2(world.x * uScale.x + uOffset.x, world.y * uScale.y + uOffset.y);
-  vec2 clip = vec2(
-    (screen.x / uViewport.x) * 2.0 - 1.0,
-    1.0 - (screen.y / uViewport.y) * 2.0
-  );
-  gl_Position = vec4(clip, 0.0, 1.0);
-  vUv = aPosition;
-}
-`)
-  const fragmentShader = createShader(context, context.FRAGMENT_SHADER, `
-precision mediump float;
-uniform vec4 uColor;
-uniform float uUseTexture;
-uniform sampler2D uSampler;
-varying vec2 vUv;
-
-void main() {
-  vec4 color = uColor;
-  if (uUseTexture > 0.5) {
-    color = texture2D(uSampler, vUv);
-  }
-  gl_FragColor = color;
-}
-`)
-
-  const program = createProgram(context, vertexShader, fragmentShader)
-  const positionBuffer = context.createBuffer()
-  if (!positionBuffer) {
-    throw new Error('webgl position buffer allocation failed')
-  }
-
-  context.bindBuffer(context.ARRAY_BUFFER, positionBuffer)
-  context.bufferData(
-    context.ARRAY_BUFFER,
-    new Float32Array([
-      0, 0,
-      1, 0,
-      0, 1,
-      1, 1,
-    ]),
-    context.STATIC_DRAW,
-  )
-
-  const attributePosition = context.getAttribLocation(program, 'aPosition')
-  const uniformRect = context.getUniformLocation(program, 'uRect')
-  const uniformScale = context.getUniformLocation(program, 'uScale')
-  const uniformOffset = context.getUniformLocation(program, 'uOffset')
-  const uniformViewport = context.getUniformLocation(program, 'uViewport')
-  const uniformColor = context.getUniformLocation(program, 'uColor')
-  const uniformUseTexture = context.getUniformLocation(program, 'uUseTexture')
-  const uniformSampler = context.getUniformLocation(program, 'uSampler')
-
-  if (
-    attributePosition < 0 ||
-    !uniformRect ||
-    !uniformScale ||
-    !uniformOffset ||
-    !uniformViewport ||
-    !uniformColor ||
-    !uniformUseTexture ||
-    !uniformSampler
-  ) {
-    context.deleteBuffer(positionBuffer)
-    context.deleteProgram(program)
-    throw new Error('webgl quad pipeline uniforms/attributes are incomplete')
-  }
-
-  return {
-    program,
-    positionBuffer,
-    attributePosition,
-    uniformRect,
-    uniformScale,
-    uniformOffset,
-    uniformViewport,
-    uniformColor,
-    uniformUseTexture,
-    uniformSampler,
-  }
-}
-
-function drawWebGLPacket(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  pipeline: WebGLQuadPipeline,
+function shouldBypassTileCompositorForFrame(
   frame: EngineRenderFrame,
-  worldBounds: {x: number; y: number; width: number; height: number},
-  color: readonly [number, number, number, number],
-  opacity: number,
-  texture: WebGLTexture | null,
+  tileCache: EngineTileCache,
+  visibleTileLimit: number,
+  zoomLevel: TileZoomLevel,
 ) {
-  const pixelRatio = frame.context.pixelRatio ?? 1
+  // Skip tile composition when the current zoom level would require more
+  // visible tiles than the cache can hold with any stability.
+  const safeScale = Math.max(Number.EPSILON, Math.abs(frame.viewport.scale))
+  const visibleTiles = tileCache.getVisibleTiles({
+    x: -frame.viewport.offsetX / safeScale,
+    y: -frame.viewport.offsetY / safeScale,
+    width: frame.viewport.viewportWidth / safeScale,
+    height: frame.viewport.viewportHeight / safeScale,
+  }, zoomLevel)
 
-  context.useProgram(pipeline.program)
-  context.bindBuffer(context.ARRAY_BUFFER, pipeline.positionBuffer)
-  context.enableVertexAttribArray(pipeline.attributePosition)
-  context.vertexAttribPointer(pipeline.attributePosition, 2, context.FLOAT, false, 0, 0)
-
-  context.uniform4f(
-    pipeline.uniformRect,
-    worldBounds.x,
-    worldBounds.y,
-    Math.max(0, worldBounds.width),
-    Math.max(0, worldBounds.height),
-  )
-  // Keep world->screen math in device-pixel space, matching Canvas2D path.
-  context.uniform2f(
-    pipeline.uniformScale,
-    frame.viewport.scale * pixelRatio,
-    frame.viewport.scale * pixelRatio,
-  )
-  context.uniform2f(
-    pipeline.uniformOffset,
-    frame.viewport.offsetX * pixelRatio,
-    frame.viewport.offsetY * pixelRatio,
-  )
-
-  const viewportWidth = Math.max(1, frame.viewport.viewportWidth * pixelRatio)
-  const viewportHeight = Math.max(1, frame.viewport.viewportHeight * pixelRatio)
-  context.uniform2f(pipeline.uniformViewport, viewportWidth, viewportHeight)
-
-  context.uniform4f(
-    pipeline.uniformColor,
-    color[0],
-    color[1],
-    color[2],
-    color[3] * opacity,
-  )
-
-  if (texture) {
-    context.activeTexture(context.TEXTURE0)
-    context.bindTexture(context.TEXTURE_2D, texture)
-    context.uniform1i(pipeline.uniformSampler, 0)
-    context.uniform1f(pipeline.uniformUseTexture, 1)
-  } else {
-    context.uniform1f(pipeline.uniformUseTexture, 0)
-  }
-
-  context.drawArrays(context.TRIANGLE_STRIP, 0, 4)
-  return 1
+  return visibleTiles.length > visibleTileLimit
 }
 
-function resolveImageTexture(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
+function shouldSkipOverviewImagePacket(
   frame: EngineRenderFrame,
-  node: EngineImageNode,
-  imageCache: Map<string, CachedTextureEntry>,
+  worldBounds: { width: number; height: number },
+  lodEnabled: boolean,
+) {
+  if (!lodEnabled) {
+    return false
+  }
+
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  if (scale > OVERVIEW_IMAGE_SKIP_MAX_SCALE) {
+    return false
+  }
+
+  const screenWidth = Math.abs(worldBounds.width) * scale
+  const screenHeight = Math.abs(worldBounds.height) * scale
+  return (
+    screenWidth <= OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX &&
+    screenHeight <= OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX
+  )
+}
+
+function shouldSkipInteractiveTinyPacket(
+  frame: EngineRenderFrame,
+  packetKind: 'shape' | 'text' | 'image',
+  worldBounds: { width: number; height: number },
+) {
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  const screenWidth = Math.abs(worldBounds.width) * scale
+  const screenHeight = Math.abs(worldBounds.height) * scale
+  const minEdge = Math.min(screenWidth, screenHeight)
+  const screenArea = screenWidth * screenHeight
+  // Visibility score is computed from current screen contribution plus semantic weight.
+  const visibility = resolveEngineVisibilityProfile({
+    screenAreaPx2: screenArea,
+    screenMinEdgePx: minEdge,
+    viewportAreaPx2: Math.max(1, frame.viewport.viewportWidth * frame.viewport.viewportHeight),
+    interactionBoost: 0.1,
+    semanticBoost: packetKind === 'text' ? 0.08 : packetKind === 'image' ? 0.04 : 0,
+  })
+
+  // Keep a tiny-shape hard floor so ultra-dense shape packets cannot starve interaction frames.
+  if (packetKind === 'shape' && visibility.tier !== 'tier-a' && screenArea <= INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2) {
+    return true
+  }
+
+  // Tier B keeps conservative culling and applies a packet budget cap.
+  if (visibility.tier === 'tier-b') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX
+  }
+
+  // Tier C keeps medium objects but drops tiny packets that are visually imperceptible.
+  if (visibility.tier === 'tier-c') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX
+  }
+
+  // Tier D receives the strongest culling because visibility contribution is negligible.
+  if (visibility.tier === 'tier-d') {
+    return minEdge <= INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX
+  }
+
+  // Tier A stays full-fidelity to preserve perceived foreground quality.
+  return false
+}
+
+function disposeCachedTextures(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  cache: Map<string, CachedTextureEntry>,
   budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
 ) {
-  const existing = imageCache.get(node.assetId)
-  if (existing) {
-    budget.markTextureUsed(node.assetId)
-    return existing.texture
+  // Keep cache-reset and dispose semantics aligned so GPU texture ownership is
+  // released consistently.
+  for (const [cacheKey, entry] of cache.entries()) {
+    context.deleteTexture(entry.texture)
+    budget.releaseTexture(cacheKey)
   }
 
-  const source = frame.context.loader?.resolveImage(node.assetId)
-  if (!source) {
-    return null
-  }
-
-  const texture = context.createTexture()
-  if (!texture) {
-    return null
-  }
-
-  context.bindTexture(context.TEXTURE_2D, texture)
-  context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
-
-  try {
-    const textureSource = source as unknown as TexImageSource
-    context.texImage2D(
-      context.TEXTURE_2D,
-      0,
-      context.RGBA,
-      context.RGBA,
-      context.UNSIGNED_BYTE,
-      textureSource,
-    )
-  } catch {
-    context.deleteTexture(texture)
-    return null
-  }
-
-  const size = resolveCanvasImageSourceSize(source)
-  const width = Math.max(1, size.width)
-  const height = Math.max(1, size.height)
-  imageCache.set(node.assetId, {
-    texture,
-    width,
-    height,
-  })
-  budget.markTextureResident(node.assetId, width * height * 4)
-  budget.markTextureUsed(node.assetId)
-
-  return texture
+  cache.clear()
 }
 
-function resolveNodeColor(node: EngineRenderableNode): readonly [number, number, number, number] {
-  if (node.type === 'shape') {
-    return parseEngineColor(node.fill ?? node.stroke ?? '#9ca3af')
-  }
-
-  if (node.type === 'text') {
-    return parseEngineColor(node.style.fill ?? '#111827')
-  }
-
-  return [1, 1, 1, 1]
-}
-
-function parseEngineColor(value: string): readonly [number, number, number, number] {
-  const color = value.trim().toLowerCase()
-  const named = NAMED_COLORS[color]
-  if (named) {
-    return named
-  }
-
-  if (color.startsWith('#')) {
-    const hex = color.slice(1)
-    if (hex.length === 3) {
-      const r = parseInt(hex[0] + hex[0], 16)
-      const g = parseInt(hex[1] + hex[1], 16)
-      const b = parseInt(hex[2] + hex[2], 16)
-      return [r / 255, g / 255, b / 255, 1]
-    }
-
-    if (hex.length === 6 || hex.length === 8) {
-      const r = parseInt(hex.slice(0, 2), 16)
-      const g = parseInt(hex.slice(2, 4), 16)
-      const b = parseInt(hex.slice(4, 6), 16)
-      const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
-      return [r / 255, g / 255, b / 255, a]
-    }
-  }
-
-  const rgbaMatch = color.match(/^rgba?\(([^)]+)\)$/)
-  if (rgbaMatch) {
-    const components = rgbaMatch[1]
-      .split(',')
-      .map((entry) => entry.trim())
-    if (components.length === 3 || components.length === 4) {
-      const r = clamp255(Number(components[0]))
-      const g = clamp255(Number(components[1]))
-      const b = clamp255(Number(components[2]))
-      const a = components.length === 4 ? clamp01(Number(components[3])) : 1
-      return [r / 255, g / 255, b / 255, a]
-    }
-  }
-
-  return [0.5, 0.5, 0.5, 1]
-}
-
-const NAMED_COLORS: Record<string, readonly [number, number, number, number]> = {
-  transparent: [0, 0, 0, 0],
-  black: [0, 0, 0, 1],
-  white: [1, 1, 1, 1],
-  red: [1, 0, 0, 1],
-  green: [0, 0.5, 0, 1],
-  blue: [0, 0, 1, 1],
-  yellow: [1, 1, 0, 1],
-  gray: [0.5, 0.5, 0.5, 1],
-  grey: [0.5, 0.5, 0.5, 1],
-}
-
-function clamp01(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0
-  }
-  return Math.min(1, Math.max(0, value))
-}
-
-function clamp255(value: number) {
-  if (!Number.isFinite(value)) {
-    return 0
-  }
-  return Math.min(255, Math.max(0, value))
-}
-
-function resolveCanvasImageSourceSize(source: CanvasImageSource) {
-  const candidate = source as {
-    width?: number
-    height?: number
-    naturalWidth?: number
-    naturalHeight?: number
-    videoWidth?: number
-    videoHeight?: number
-  }
-
-  const width =
-    candidate.naturalWidth ??
-    candidate.videoWidth ??
-    candidate.width ??
-    1
-  const height =
-    candidate.naturalHeight ??
-    candidate.videoHeight ??
-    candidate.height ??
-    1
-
-  return {
-    width,
-    height,
-  }
-}
-
-function createShader(
+function disposeEvictedTextures(
   context: WebGLRenderingContext | WebGL2RenderingContext,
-  type: number,
-  source: string,
+  imageCache: Map<string, CachedTextureEntry>,
+  textCache: Map<string, CachedTextureEntry>,
+  textureIds: readonly string[],
 ) {
-  const shader = context.createShader(type)
-  if (!shader) {
-    throw new Error('webgl shader allocation failed')
-  }
-
-  context.shaderSource(shader, source)
-  context.compileShader(shader)
-  if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
-    const log = context.getShaderInfoLog(shader) ?? 'unknown error'
-    context.deleteShader(shader)
-    throw new Error(`webgl shader compile failed: ${log}`)
-  }
-
-  return shader
-}
-
-function createProgram(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  vertexShader: WebGLShader,
-  fragmentShader: WebGLShader,
-) {
-  const program = context.createProgram()
-  if (!program) {
-    context.deleteShader(vertexShader)
-    context.deleteShader(fragmentShader)
-    throw new Error('webgl program allocation failed')
-  }
-
-  context.attachShader(program, vertexShader)
-  context.attachShader(program, fragmentShader)
-  context.linkProgram(program)
-  context.deleteShader(vertexShader)
-  context.deleteShader(fragmentShader)
-
-  if (!context.getProgramParameter(program, context.LINK_STATUS)) {
-    const log = context.getProgramInfoLog(program) ?? 'unknown error'
-    context.deleteProgram(program)
-    throw new Error(`webgl program link failed: ${log}`)
-  }
-
-  return program
-}
-
-function disposeWebGLQuadPipeline(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  pipeline: WebGLQuadPipeline,
-) {
-  context.deleteBuffer(pipeline.positionBuffer)
-  context.deleteProgram(pipeline.program)
-}
-
-function resolveWebGLContext(
-  canvas: HTMLCanvasElement | OffscreenCanvas,
-  attributes: WebGLContextAttributes,
-) {
-
-  console.log(attributes);
-
-  const webgl2 = canvas.getContext('webgl2', attributes) as WebGLRenderingContext | WebGL2RenderingContext | null
-  if (webgl2) {
-    return webgl2
-  }
-  
-
-  return canvas.getContext('webgl', attributes) as WebGLRenderingContext | null
-}
-
-function createCanvasFromSource(
-  source: HTMLCanvasElement,
-  sx: number,
-  sy: number,
-  sw: number,
-  sh: number,
-) {
-  if (sw <= 0 || sh <= 0) {
-    return null
-  }
-
-  if (typeof OffscreenCanvas !== 'undefined') {
-    const c = new OffscreenCanvas(sw, sh)
-    const ctx = c.getContext('2d')
-    if (!ctx) return c
-    ctx.drawImage(source as CanvasImageSource, sx, sy, sw, sh, 0, 0, sw, sh)
-    return c
-  }
-
-  if (typeof document !== 'undefined') {
-    const el = document.createElement('canvas')
-    el.width = sw
-    el.height = sh
-    const ctx = el.getContext('2d')
-    if (ctx) {
-      ctx.drawImage(source as unknown as CanvasImageSource, sx, sy, sw, sh, 0, 0, sw, sh)
+  // Keep budget-driven eviction tied to actual GPU/cache disposal so resource
+  // pressure decisions reflect real residency instead of bookkeeping only.
+  for (const textureId of textureIds) {
+    const cachedImage = imageCache.get(textureId)
+    if (cachedImage) {
+      context.deleteTexture(cachedImage.texture)
+      imageCache.delete(textureId)
+      continue
     }
-    return el
-  }
 
-  return null
+    const cachedText = textCache.get(textureId)
+    if (cachedText) {
+      context.deleteTexture(cachedText.texture)
+      textCache.delete(textureId)
+    }
+  }
+}
+
+function pruneTextCache(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  cache: Map<string, CachedTextureEntry>,
+  packets: ReadonlyArray<{ kind: string; nodeId: string }>,
+  budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
+) {
+  // Drop GPU textures for text nodes that are no longer part of the current
+  // packet plan so node-local caching does not retain removed text forever.
+  const activeTextNodeIds = new Set(
+    packets
+      .filter((packet) => packet.kind === 'text')
+      .map((packet) => packet.nodeId),
+  )
+
+  for (const [nodeId, entry] of cache.entries()) {
+    if (activeTextNodeIds.has(nodeId)) {
+      continue
+    }
+
+    context.deleteTexture(entry.texture)
+    cache.delete(nodeId)
+    budget.releaseTexture(nodeId)
+  }
+}
+
+function drawInteractivePreviewEdgeRegions(options: {
+  context: WebGLRenderingContext | WebGL2RenderingContext
+  pipeline: WebGLQuadPipeline
+  frame: EngineRenderFrame
+  packetPlan: ReturnType<typeof compileEngineWebGLPacketPlan>
+  regions: readonly ScreenRectPx[]
+  imageCache: Map<string, CachedTextureEntry>
+  textCache: Map<string, CachedTextureEntry>
+  resourceBudget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>
+}) {
+  const outputPixelRatio = options.frame.context.outputPixelRatio ?? options.frame.context.pixelRatio ?? 1
+  const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * outputPixelRatio))
+  const viewportHeightPx = Math.max(1, Math.round(options.frame.viewport.viewportHeight * outputPixelRatio))
+  const imageUploadBudget: ImageUploadBudgetState = {
+    remainingUploads: 0,
+    remainingBytes: 0,
+  }
+  // Edge redraw path also needs the same per-frame LOD gating as the main
+  // packet loop to avoid unexpected detail loss when LOD is disabled.
+  const lodEnabled = options.frame.context.lodEnabled ?? true
+  const useTextPlaceholderMode =
+    lodEnabled && options.frame.viewport.scale <= TEXT_PLACEHOLDER_MAX_SCALE
+  let drawCount = 0
+
+  options.context.enable(options.context.SCISSOR_TEST)
+  for (const region of options.regions) {
+    if (region.width <= 0 || region.height <= 0) {
+      continue
+    }
+
+    applyWebGLScissorRegion(options.context, region, viewportHeightPx)
+    options.context.clearColor(0, 0, 0, 0)
+    options.context.clear(options.context.COLOR_BUFFER_BIT)
+
+    for (const packet of options.packetPlan.packets) {
+      if (!packetIntersectsScreenRegion(packet.worldBounds, options.frame, region)) {
+        continue
+      }
+
+      if (packet.kind === 'image' && packet.assetId) {
+        if (shouldSkipOverviewImagePacket(options.frame, packet.worldBounds, lodEnabled)) {
+          continue
+        }
+
+        const imageTexture = resolveImageTexture(
+          options.context,
+          options.frame,
+          packet.worldBounds,
+          packet.assetId,
+          options.imageCache,
+          options.resourceBudget,
+          imageUploadBudget,
+        )
+        drawCount += drawWebGLPacket(
+          options.context,
+          options.pipeline,
+          options.frame,
+          packet.worldBounds,
+          packet.color,
+          packet.opacity,
+          imageTexture.texture,
+        )
+        continue
+      }
+
+      if (packet.kind === 'text') {
+        const cached = options.textCache.get(packet.nodeId)
+        const textCacheKey = resolveTextCacheKey(packet)
+
+        if (useTextPlaceholderMode) {
+          if (shouldSkipTextPlaceholderPacket(options.frame, packet.worldBounds, lodEnabled)) {
+            continue
+          }
+
+          drawCount += drawInteractiveTextFallback(
+            options.context,
+            options.pipeline,
+            options.frame,
+            packet.worldBounds,
+            packet.color,
+            packet.opacity,
+          )
+          continue
+        }
+
+        if (cached && canReuseInteractiveTextTexture(cached, textCacheKey)) {
+          options.resourceBudget.markTextureUsed(packet.nodeId)
+          drawCount += drawWebGLPacket(
+            options.context,
+            options.pipeline,
+            options.frame,
+            packet.worldBounds,
+            packet.color,
+            packet.opacity,
+            cached.texture,
+          )
+          continue
+        }
+
+        drawCount += drawInteractiveTextFallback(
+          options.context,
+          options.pipeline,
+          options.frame,
+          packet.worldBounds,
+          packet.color,
+          packet.opacity,
+        )
+        continue
+      }
+
+      drawCount += drawWebGLPacket(
+        options.context,
+        options.pipeline,
+        options.frame,
+        packet.worldBounds,
+        packet.color,
+        packet.opacity,
+        null,
+      )
+    }
+  }
+  options.context.disable(options.context.SCISSOR_TEST)
+
+  // Re-apply the full viewport after scissored redraws so the next render path
+  // starts from a predictable GL state.
+  options.context.viewport(0, 0, viewportWidthPx, viewportHeightPx)
+
+  return drawCount
+}
+
+function applyWebGLScissorRegion(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  region: ScreenRectPx,
+  viewportHeightPx: number,
+) {
+  const x = Math.max(0, Math.floor(region.x))
+  const y = Math.max(0, Math.floor(viewportHeightPx - region.y - region.height))
+  const width = Math.max(1, Math.ceil(region.width))
+  const height = Math.max(1, Math.ceil(region.height))
+  context.scissor(x, y, width, height)
+}
+
+function packetIntersectsScreenRegion(
+  worldBounds: {x: number; y: number; width: number; height: number},
+  frame: EngineRenderFrame,
+  region: ScreenRectPx,
+) {
+  const screenRect = resolvePacketTextureSourceRect(worldBounds, frame)
+  return !(
+    screenRect.x + screenRect.width <= region.x ||
+    region.x + region.width <= screenRect.x ||
+    screenRect.y + screenRect.height <= region.y ||
+    region.y + region.height <= screenRect.y
+  )
 }

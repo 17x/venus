@@ -1,4 +1,5 @@
-import type {DocumentNode, EditorDocument} from '@venus/document-core'
+import type {DocumentNode, EditorDocument} from '@vector/model'
+import {buildMaskLinkedShapeIdsBySource} from '../../interaction/maskGroup.ts'
 
 export interface TransformPreviewGeometry {
   shapeId: string
@@ -52,25 +53,15 @@ export function buildGroupAwareTransformPreviewMap(
   const childrenByParent = new Map<string, string[]>()
   const includeClipBoundImagePreview = !!options?.includeClipBoundImagePreview
   const runtimeShapeById = new Map((options?.runtimeShapes ?? []).map((shape) => [shape.id, shape]))
-  const imagesByClipId = new Map<string, string[]>()
+  const imagesByClipId = buildMaskLinkedShapeIdsBySource(document)
 
   document.shapes.forEach((shape) => {
     if (!shape.parentId) {
-      if (includeClipBoundImagePreview && shape.type === 'image' && shape.clipPathId) {
-        const boundImages = imagesByClipId.get(shape.clipPathId) ?? []
-        boundImages.push(shape.id)
-        imagesByClipId.set(shape.clipPathId, boundImages)
-      }
       return
     }
     const siblings = childrenByParent.get(shape.parentId) ?? []
     siblings.push(shape.id)
     childrenByParent.set(shape.parentId, siblings)
-    if (includeClipBoundImagePreview && shape.type === 'image' && shape.clipPathId) {
-      const boundImages = imagesByClipId.get(shape.clipPathId) ?? []
-      boundImages.push(shape.id)
-      imagesByClipId.set(shape.clipPathId, boundImages)
-    }
   })
 
   for (const previewShape of previewShapes) {

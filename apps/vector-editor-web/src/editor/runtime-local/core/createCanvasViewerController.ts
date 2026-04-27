@@ -1,4 +1,4 @@
-import { type EditorDocument } from '@venus/document-core'
+import { type EditorDocument } from '@vector/model'
 import type {EditorRuntimeCommand} from '../worker/index.ts'
 import type {PointerState, SceneShapeSnapshot, SceneStats} from '@vector/runtime/shared-memory'
 import type {Point2D} from '../viewport/matrix.ts'

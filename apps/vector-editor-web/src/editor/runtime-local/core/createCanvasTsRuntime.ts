@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {PointerState} from '@vector/runtime/shared-memory'
 import type {EditorRuntimeCommand, CollaborationOperation} from '../worker/index.ts'
 import {

@@ -1,63 +1,47 @@
 import type {EditorRuntimeCommand} from '@vector/runtime/worker'
-
-const ALIGN_ACTION_MODE_MAP = {
-  'align-left': 'left',
-  'align-center-horizontal': 'hcenter',
-  'align-right': 'right',
-  'align-top': 'top',
-  'align-middle': 'vcenter',
-  'align-bottom': 'bottom',
-} as const
-
-const DISTRIBUTE_ACTION_MODE_MAP = {
-  'distribute-horizontal': 'hspace',
-  'distribute-vertical': 'vspace',
-} as const
+import {
+  resolveConvertOrAlignShapeAction,
+  resolveDistributeOrBooleanShapeAction,
+} from '../useEditorRuntime.helpers.ts'
 
 interface ShapeActionsContext {
   selectedShapeIds: string[]
+  shapes?: import('@vector/model').DocumentNode[]
   dispatchCommand: (command: EditorRuntimeCommand) => void
+  notify?: (message: string) => void
 }
 
 export function handleShapeActions(
   actionType: string,
   context: ShapeActionsContext,
 ) {
-  if (actionType === 'convert-to-path' || actionType === 'convertToPath') {
-    if (context.selectedShapeIds.length === 0) {
-      return true
+  const convertOrAlign = resolveConvertOrAlignShapeAction({
+    actionType,
+    selectedShapeIds: context.selectedShapeIds,
+    shapes: context.shapes,
+  })
+  if (convertOrAlign.handled) {
+    if (convertOrAlign.command) {
+      context.dispatchCommand(convertOrAlign.command)
     }
-    context.dispatchCommand({
-      type: 'shape.convert-to-path',
-      shapeIds: context.selectedShapeIds,
-    })
+    if (convertOrAlign.message) {
+      context.notify?.(convertOrAlign.message)
+    }
     return true
   }
 
-  if (actionType in ALIGN_ACTION_MODE_MAP) {
-    if (context.selectedShapeIds.length < 2) {
-      return true
+  const distributeOrBoolean = resolveDistributeOrBooleanShapeAction({
+    actionType,
+    selectedShapeIds: context.selectedShapeIds,
+    shapes: context.shapes,
+  })
+  if (distributeOrBoolean.handled) {
+    if (distributeOrBoolean.command) {
+      context.dispatchCommand(distributeOrBoolean.command)
     }
-
-    context.dispatchCommand({
-      type: 'shape.align',
-      shapeIds: context.selectedShapeIds,
-      mode: ALIGN_ACTION_MODE_MAP[actionType as keyof typeof ALIGN_ACTION_MODE_MAP],
-      reference: 'selection',
-    })
-    return true
-  }
-
-  if (actionType in DISTRIBUTE_ACTION_MODE_MAP) {
-    if (context.selectedShapeIds.length < 3) {
-      return true
+    if (distributeOrBoolean.message) {
+      context.notify?.(distributeOrBoolean.message)
     }
-
-    context.dispatchCommand({
-      type: 'shape.distribute',
-      shapeIds: context.selectedShapeIds,
-      mode: DISTRIBUTE_ACTION_MODE_MAP[actionType as keyof typeof DISTRIBUTE_ACTION_MODE_MAP],
-    })
     return true
   }
 

@@ -12,6 +12,20 @@ import type { PointerState } from '@vector/runtime/shared-memory'
 import { resolveRuntimeZoomGestureScale } from './zoomPresets.ts'
 
 const POINTER_SUPPRESS_AFTER_WHEEL_MS = 180
+const MAX_ZOOM_STEP_FACTOR_PER_COMMIT = 1.8
+const TRACKPAD_CENTER_ANCHOR_FACTOR_THRESHOLD = 1.35
+
+export interface ViewportZoomDiagnostic {
+  phase: 'wheel' | 'commit'
+  source: string
+  factor: number
+  baseScale: number
+  nextScale: number
+  anchorX: number
+  anchorY: number
+  viewportWidth: number
+  viewportHeight: number
+}
 
 export interface ViewportGestureBindingOptions {
   element: HTMLElement
@@ -25,6 +39,7 @@ export interface ViewportGestureBindingOptions {
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction
   onZoomingChange?: (active: boolean) => void
+  onZoomDiagnostic?: (diagnostic: ViewportZoomDiagnostic) => void
   onZoomCommitViewport?: (viewport: EngineCanvasViewportState) => void
   onPanCommit?: (deltaX: number, deltaY: number) => void
 }
@@ -46,6 +61,7 @@ export function bindViewportGestures({
   onPointerUp,
   onPointerLeave,
   onZoomingChange,
+  onZoomDiagnostic,
   onZoomCommitViewport,
   onPanCommit,
 }: ViewportGestureBindingOptions) {
@@ -58,6 +74,7 @@ export function bindViewportGestures({
   let zoomCommitFrame: number | null = null
   let panCommitFrame: number | null = null
   let pendingZoomViewport: EngineCanvasViewportState | null = null
+  let pendingZoomDiagnostic: Omit<ViewportZoomDiagnostic, 'phase'> | null = null
   let interactionPointerId: number | null = null
   let suppressPointerUntil = 0
 
@@ -108,6 +125,12 @@ export function bindViewportGestures({
       }
 
       const rect = element.getBoundingClientRect()
+      const measuredViewport = getViewportState()
+      // Defer wheel zoom until resize has produced a concrete viewport size.
+      // Cold-start zoom on a 0x0 viewport can lock in invalid transforms.
+      if (measuredViewport.viewportWidth <= 1 || measuredViewport.viewportHeight <= 1) {
+        return
+      }
       const nextZoom = handleEngineZoomWheel(zoomSession, {
         clientX: event.clientX - rect.left,
         clientY: event.clientY - rect.top,
@@ -131,20 +154,64 @@ export function bindViewportGestures({
         onZoomingChange?.(false)
       }, nextZoom.settleDelay)
 
-      const baseViewport = getViewportState()
-      const commitBaseViewport = pendingZoomViewport ?? baseViewport
+      const baseViewport = measuredViewport
+      // Always anchor each wheel event to the latest committed viewport.
+      // This avoids rapid event bursts compounding against pending transforms
+      // and pushing content outside the visible candidate window.
+      const commitBaseViewport = baseViewport
+      // Use center anchoring for mouse-wheel and bursty trackpad deltas so
+      // fast zoom input cannot fling content out of view around cursor edges.
+      const useCenterAnchor = nextZoom.source !== 'trackpad'
+        || nextZoom.factor >= TRACKPAD_CENTER_ANCHOR_FACTOR_THRESHOLD
+        || nextZoom.factor <= (1 / TRACKPAD_CENTER_ANCHOR_FACTOR_THRESHOLD)
+      const zoomAnchor = useCenterAnchor
+        ? {
+          x: commitBaseViewport.viewportWidth > 0
+            ? commitBaseViewport.viewportWidth * 0.5
+            : rect.width * 0.5,
+          y: commitBaseViewport.viewportHeight > 0
+            ? commitBaseViewport.viewportHeight * 0.5
+            : rect.height * 0.5,
+        }
+        : nextZoom.anchor
       const proposedScale = commitBaseViewport.scale * nextZoom.factor
       const resolvedScale = resolveRuntimeZoomGestureScale(
         commitBaseViewport.scale,
         proposedScale,
         nextZoom.source,
       )
+      // Cap each committed zoom step so burst wheel input cannot jump to a
+      // distant scale in one frame and temporarily eject visible content.
+      const boundedScale = Math.min(
+        commitBaseViewport.scale * MAX_ZOOM_STEP_FACTOR_PER_COMMIT,
+        Math.max(
+          commitBaseViewport.scale / MAX_ZOOM_STEP_FACTOR_PER_COMMIT,
+          resolvedScale,
+        ),
+      )
       const nextViewport = zoomEngineViewportState(
         commitBaseViewport,
-        resolvedScale,
-        nextZoom.anchor,
+        boundedScale,
+        zoomAnchor,
       )
       pendingZoomViewport = nextViewport
+        // Emit wheel-stage diagnostics before commit so blank-frame reports can
+        // be tied back to the exact source/factor/base-scale chain.
+        const nextDiagnostic = {
+          source: nextZoom.source,
+          factor: nextZoom.factor,
+          baseScale: commitBaseViewport.scale,
+          nextScale: nextViewport.scale,
+          anchorX: zoomAnchor.x,
+          anchorY: zoomAnchor.y,
+          viewportWidth: commitBaseViewport.viewportWidth,
+          viewportHeight: commitBaseViewport.viewportHeight,
+        } satisfies Omit<ViewportZoomDiagnostic, 'phase'>
+        pendingZoomDiagnostic = nextDiagnostic
+        onZoomDiagnostic?.({
+          ...nextDiagnostic,
+          phase: 'wheel',
+        })
 
       if (zoomCommitFrame === null) {
         zoomCommitFrame = requestAnimationFrame(() => {
@@ -153,7 +220,15 @@ export function bindViewportGestures({
             return
           }
           const targetViewport = pendingZoomViewport
+            const commitDiagnostic = pendingZoomDiagnostic
           pendingZoomViewport = null
+            pendingZoomDiagnostic = null
+            if (commitDiagnostic) {
+              onZoomDiagnostic?.({
+                ...commitDiagnostic,
+                phase: 'commit',
+              })
+            }
           onZoomCommitViewport(targetViewport)
         })
       }

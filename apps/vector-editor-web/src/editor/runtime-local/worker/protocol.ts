@@ -1,4 +1,4 @@
-import type { DocumentNode, EditorDocument, ToolId, ToolName } from '@venus/document-core'
+import type { DocumentNode, EditorDocument, ToolId, ToolName } from '@vector/model'
 import type { ShapeTransformBatchCommand } from '@venus/engine'
 import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
 import type { HistorySummary } from './history.ts'
@@ -62,6 +62,13 @@ export type EditorRuntimeCommand =
   | { type: 'history.redo' }
   | { type: 'snapping.pause' }
   | { type: 'snapping.resume' }
+  | { type: 'group.enter-isolation'; groupId?: string }
+  | { type: 'group.exit-isolation' }
+  | { type: 'mask.create' }
+  | { type: 'mask.release' }
+  | { type: 'mask.select-host' }
+  | { type: 'mask.select-source' }
+  | { type: 'selection.cycle-hit-target'; direction?: 'forward' | 'backward' }
   | { type: 'viewport.fit' }
   | { type: 'viewport.zoomIn' }
   | { type: 'viewport.zoomOut' }
@@ -71,6 +78,7 @@ export type EditorRuntimeCommand =
       shapeId?: string | null
       shapeIds?: string[]
       mode?: 'replace' | 'add' | 'remove' | 'toggle' | 'clear'
+      preserveExactShapeIds?: boolean
     }
   | { type: 'tool.select'; tool: ToolId; toolName?: ToolName }
   | { type: 'shape.rename'; shapeId: string; name: string; text?: string }
@@ -108,6 +116,11 @@ export type EditorRuntimeCommand =
   | { type: 'shape.group'; shapeIds?: string[]; groupId?: string; name?: string }
   | { type: 'shape.ungroup'; groupId?: string }
   | { type: 'shape.convert-to-path'; shapeIds?: string[] }
+  | {
+      type: 'shape.boolean'
+      shapeIds?: string[]
+      mode: 'union' | 'subtract' | 'intersect'
+    }
   | {
       type: 'shape.align'
       shapeIds?: string[]

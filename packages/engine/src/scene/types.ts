@@ -94,6 +94,9 @@ export interface EngineTextNode extends EngineNodeBase {
   text?: string
   runs?: readonly EngineTextRun[]
   wrap?: 'none' | 'word' | 'char'
+  cacheKey?: string
+  lineCount?: number
+  maxLineHeight?: number
 }
 
 export interface EngineImageNode extends EngineNodeBase {
@@ -140,6 +143,8 @@ export interface EngineShapeNode extends EngineNodeBase {
   strokeEndArrowhead?: 'none' | 'triangle' | 'diamond' | 'circle' | 'bar'
   points?: readonly EnginePoint[]
   bezierPoints?: readonly EngineBezierPoint[]
+  pointCount?: number
+  bezierPointCount?: number
   closed?: boolean
   fill?: string
   stroke?: string

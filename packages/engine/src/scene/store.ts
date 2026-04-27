@@ -1,6 +1,8 @@
 import {
   hitTestEngineSceneState,
   hitTestEngineSceneStateAll,
+  hitTestEngineSceneStateAllWithSummary,
+  type EngineHitExecutionSummary,
   type EngineHitTestResult,
 } from './hitTest.ts'
 import {
@@ -50,9 +52,12 @@ export interface EngineSceneStore {
     run: (transaction: EngineSceneStoreTransaction) => void,
     options?: {revision?: string | number},
   ): EngineScenePatchApplyResult | null
+  queryCandidates(bounds: EngineRect): EngineNodeId[]
+  queryPointCandidates(point: {x: number; y: number}, tolerance?: number): EngineNodeId[]
   query(bounds: EngineRect): EngineNodeId[]
   hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
   hitTestAll(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult[]
+  hitTestAllWithSummary(point: {x: number; y: number}, tolerance?: number): EngineHitExecutionSummary
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
   getSnapshot(): EngineSceneSnapshot
   getMutableState(): MutableEngineSceneState
@@ -209,7 +214,9 @@ export function createEngineSceneStore(
     applyScenePatch,
     applyScenePatchBatch,
     transaction,
-    query(bounds) {
+    // Expose coarse bounds queries explicitly so render and interaction
+    // planners can share the same candidate gathering surface.
+    queryCandidates(bounds) {
       return state.spatialIndex.search({
         minX: bounds.x,
         minY: bounds.y,
@@ -217,11 +224,28 @@ export function createEngineSceneStore(
         maxY: bounds.y + bounds.height,
       }).map((item) => item.id)
     },
+    // Point queries remain bbox-based at this layer so exact refinement stays
+    // in the hit-test pipeline instead of leaking into the spatial index.
+    queryPointCandidates(point, tolerance = 0) {
+      const radius = Math.max(0, tolerance)
+      return state.spatialIndex.search({
+        minX: point.x - radius,
+        minY: point.y - radius,
+        maxX: point.x + radius,
+        maxY: point.y + radius,
+      }).map((item) => item.id)
+    },
+    query(bounds) {
+      return this.queryCandidates(bounds)
+    },
     hitTest(point, tolerance = 0) {
       return hitTestEngineSceneState(state, point, tolerance)
     },
     hitTestAll(point, tolerance = 0) {
       return hitTestEngineSceneStateAll(state, point, tolerance)
+    },
+    hitTestAllWithSummary(point, tolerance = 0) {
+      return hitTestEngineSceneStateAllWithSummary(state, point, tolerance)
     },
     getNode(nodeId) {
       return state.nodeMap.get(nodeId) ?? null
@@ -239,12 +263,9 @@ export function createEngineSceneStore(
       return {
         revision: state.revision,
         nodeCount: state.nodeMap.size,
-        indexedNodeCount: state.spatialIndex.search({
-          minX: Number.NEGATIVE_INFINITY,
-          minY: Number.NEGATIVE_INFINITY,
-          maxX: Number.POSITIVE_INFINITY,
-          maxY: Number.POSITIVE_INFINITY,
-        }).length,
+        // Keep diagnostics reads cheap: full-index scans here would run on
+        // frame-time debug polling paths and can tank FPS on small scenes too.
+        indexedNodeCount: state.nodeMap.size,
         planVersion: snapshot.metadata?.planVersion ?? 0,
         bufferVersion: snapshot.metadata?.bufferVersion ?? 0,
         width: state.width,

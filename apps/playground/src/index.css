@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
+/* Define playground surface tokens for consistent shell, panel, and stage contrast. */
 :root {
-  color: #e5eef7;
-  background:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%),
-    linear-gradient(180deg, #0f172a 0%, #111827 100%);
+  color: #dbeafe;
+  background: radial-gradient(circle at 8% 10%, #18304f, #0b1220 52%, #070c14 100%);
   font-family:
     "IBM Plex Sans",
     "SF Pro Display",
     sans-serif;
 }
 
+/* Keep layout math predictable across panel and canvas frame sizing. */
 * {
   box-sizing: border-box;
 }
@@ -18,6 +18,7 @@
 html,
 body,
 #root {
+  /* Force full-viewport shell for stable canvas resize behavior. */
   margin: 0;
   width: 100%;
   height: 100%;
@@ -26,22 +27,150 @@ body,
 }
 
 body {
+  /* Provide subtle depth behind centered canvas frame. */
   overflow: hidden;
+  background: transparent;
 }
 
-.stage-shell {
+/* Place left command rail and centered stage in a two-column shell. */
+.playground-shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+/* Keep command area dense and always reachable. */
+.command-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 14px;
+  border-right: 1px solid rgb(51 65 85 / 0.6);
+  background: linear-gradient(180deg, rgb(15 23 42 / 0.92), rgb(15 23 42 / 0.7));
+}
+
+/* Command headers identify the test bench purpose quickly. */
+.command-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  font-weight: 650;
+}
+
+.command-subtitle {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Use one-column command stack so stress controls remain obvious. */
+.command-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+/* Keep command buttons tactile with clear hover and active states. */
+.command-button {
+  border: 1px solid rgb(71 85 105 / 0.9);
+  background: linear-gradient(180deg, #1e293b, #17212f);
+  color: #dbeafe;
+  border-radius: 10px;
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.command-button:hover {
+  border-color: #60a5fa;
+  transform: translateY(-1px);
+}
+
+.command-button:active {
+  transform: translateY(0);
+}
+
+.command-button-active {
+  border-color: #22c55e;
+  background: linear-gradient(180deg, #14532d, #134e2b);
+}
+
+/* Keep the test canvas centered and moderately sized by default. */
+.canvas-stage {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.canvas-frame {
+  width: min(860px, calc(100vw - 320px));
+  height: min(560px, calc(100vh - 80px));
+  border: 1px solid rgb(59 130 246 / 0.45);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #07131f, #050b15);
+  box-shadow: 0 20px 36px rgb(3 7 18 / 0.45);
+  padding: 8px;
+}
+
+/* Fill frame with rendering surface while keeping rounded clip. */
+.playground-canvas {
   display: block;
   width: 100%;
   height: 100%;
-  min-width: 0;
-  min-height: 0;
+  border-radius: 10px;
 }
 
-.stage-viewport {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+/* Show quick runtime telemetry beneath the canvas. */
+.status-line {
+  color: #bfdbfe;
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+/* Reduce frame size and keep command rail width sensible on narrow screens. */
+@media (max-width: 980px) {
+  .playground-shell {
+    grid-template-columns: 208px minmax(0, 1fr);
+  }
+
+  .canvas-frame {
+    width: min(700px, calc(100vw - 260px));
+    height: min(460px, calc(100vh - 78px));
+  }
+}
+
+/* Stack command panel on top for mobile while preserving full control access. */
+@media (max-width: 760px) {
+  .playground-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .command-panel {
+    border-right: 0;
+    border-bottom: 1px solid rgb(51 65 85 / 0.6);
+  }
+
+  .command-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .canvas-stage {
+    padding: 10px;
+  }
+
+  .canvas-frame {
+    width: min(92vw, 560px);
+    height: min(56vh, 360px);
+  }
 }

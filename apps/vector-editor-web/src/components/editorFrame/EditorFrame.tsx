@@ -4,10 +4,10 @@ import Toolbelt from '../toolbelt/Toolbelt.tsx'
 import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
 import {Print} from '../print/print.tsx'
 import FileReceiver from '../fileReceiver.tsx'
-import {Col, useTheme} from '@vector/ui'
+import {Button, Col, useTheme} from '@vector/ui'
 import useEditorRuntime from '../../editor/hooks/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '@vector/runtime'
-import {CanvasViewport} from '../../editor/runtime/canvasAdapter.tsx'
+import {EngineViewport} from '../../editor/runtime/engineAdapter.tsx'
 import {generateTemplateFile} from '../../features/templatePresets/generators.ts'
 import type {InspectorContext, InspectorPanelId} from '../../editor/shell/state/inspectorState.ts'
 import {
@@ -31,7 +31,7 @@ const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
 const MemoToolbelt = memo(Toolbelt)
 
-const MemoCanvasViewport = memo(CanvasViewport)
+const MemoEngineViewport = memo(EngineViewport)
 
 interface StageCanvasLayerProps {
   canvas: ReturnType<typeof useEditorRuntime>['runtimeState']['canvas']
@@ -42,6 +42,7 @@ interface StageCanvasLayerProps {
   onContextMenu: (event: React.MouseEvent<HTMLDivElement>) => void
   currentTool: ReturnType<typeof useEditorRuntime>['runtimeState']['currentTool']
   onSelectTool: ReturnType<typeof useEditorFrameShell>['onSelectTool']
+  isolationTrail?: string[]
 }
 
 const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerProps) {
@@ -71,13 +72,41 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
             className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
             onContextMenu={props.onContextMenu}
           >
-            <MemoCanvasViewport
+            {props.canvas.isolationGroupId && (
+              <div className={'pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/90'}>
+                <div className={'flex min-w-0 flex-col'}>
+                  <span className={'text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400'}>
+                    Isolation
+                  </span>
+                  <span className={'max-w-[300px] truncate text-sm font-medium text-slate-900 dark:text-slate-100'}>
+                    {(props.isolationTrail && props.isolationTrail.length > 0 ? props.isolationTrail : ['Unnamed group']).join(' / ')}
+                  </span>
+                </div>
+                <Button
+                  size={'sm'}
+                  variant={'outline'}
+                  noTooltip={true}
+                  className={'pointer-events-auto shrink-0'}
+                  onClick={() => {
+                    props.executeAction('group-exit-isolation')
+                  }}
+                >
+                  Exit isolation
+                </Button>
+              </div>
+            )}
+
+            <MemoEngineViewport
               document={props.canvas.document}
               renderer={props.canvas.Renderer}
               overlayRenderer={props.canvas.OverlayRenderer}
+              cursor={props.canvas.cursor}
               shapes={props.canvas.shapes}
               stats={props.canvas.stats}
               viewport={props.canvas.viewport}
+              editingMode={props.canvas.editingMode}
+              protectedNodeIds={props.canvas.protectedNodeIds}
+              overlayDiagnostics={props.canvas.overlayDiagnostics}
               onPointerMove={props.canvas.onPointerMove}
               onPointerDown={props.canvas.onPointerDown}
               onPointerUp={props.canvas.onPointerUp}
@@ -134,6 +163,25 @@ function EditorFrameRuntime() {
   } = runtime
   const {file} = documentState
   const {canvas, currentTool, focused} = runtimeState
+  const isolationTrail = useMemo(() => {
+    if (!canvas.isolationGroupId) {
+      return [] as string[]
+    }
+
+    const shapeById = new Map(documentState.document.shapes.map((shape) => [shape.id, shape]))
+    const trail: string[] = []
+    let current = shapeById.get(canvas.isolationGroupId) ?? null
+
+    while (current) {
+      trail.unshift(current.name || current.text || 'Unnamed group')
+      if (!current.parentId) {
+        break
+      }
+      current = shapeById.get(current.parentId) ?? null
+    }
+
+    return trail
+  }, [canvas.isolationGroupId, documentState.document.shapes])
   const {
     copiedItems,
     hasUnsavedChanges,
@@ -263,6 +311,7 @@ function EditorFrameRuntime() {
             onContextMenu={handleStageContextMenu}
             currentTool={currentTool}
             onSelectTool={shell.onSelectTool}
+            isolationTrail={isolationTrail}
           />
 
           <EditorFrameSidePanels

@@ -8,6 +8,31 @@ export default tseslint.config(
     ignores: ["**/dist/**", "**/node_modules/**", "**/.turbo/**"],
   },
   {
+    files: ["**/*.{ts,tsx,js,mjs,cjs}"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@venus/*/src/*", "@venus/*/dist/*"],
+              message:
+                "Import package public APIs only. Do not couple to internal source or build-output paths.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: [
       "apps/vector-editor-web/src/App.tsx",
       "apps/vector-editor-web/src/main.tsx",

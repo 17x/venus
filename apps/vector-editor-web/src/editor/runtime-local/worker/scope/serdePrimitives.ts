@@ -1,4 +1,4 @@
-import type {BezierPoint, DocumentNode} from '@venus/document-core'
+import type {BezierPoint, DocumentNode} from '@vector/model'
 import {getBezierPathBounds, getPathBounds} from './model.ts'
 
 function asString(value: unknown) {

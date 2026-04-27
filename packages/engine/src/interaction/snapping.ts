@@ -57,6 +57,7 @@ export interface EngineSnapScene {
 type EngineSnapSpatialIndex = ReturnType<typeof createEngineSpatialIndex<{shapeId: string}>>
 
 const snapIndexCache = new WeakMap<EngineSnapScene, EngineSnapSpatialIndex>()
+const snapIndexShapesCache = new WeakMap<EngineSnapScene['shapes'], EngineSnapSpatialIndex>()
 
 export function resolveEngineMoveSnapPreview<TShape extends EngineMoveSnapShape>(
   preview: {shapes: TShape[]},
@@ -216,6 +217,12 @@ function getOrCreateSnapIndex(scene: EngineSnapScene) {
     return cached
   }
 
+  const byShapes = snapIndexShapesCache.get(scene.shapes)
+  if (byShapes) {
+    snapIndexCache.set(scene, byShapes)
+    return byShapes
+  }
+
   const index = createEngineSpatialIndex<{shapeId: string}>()
   index.load(scene.shapes.map((shape) => {
     const bounds = toBounds(shape.x, shape.y, shape.width, shape.height)
@@ -231,6 +238,7 @@ function getOrCreateSnapIndex(scene: EngineSnapScene) {
     }
   }))
   snapIndexCache.set(scene, index)
+  snapIndexShapesCache.set(scene.shapes, index)
   return index
 }
 

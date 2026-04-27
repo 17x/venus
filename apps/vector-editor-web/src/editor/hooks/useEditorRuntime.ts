@@ -1,16 +1,17 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNotification} from '@vector/ui'
-import {type ToolName} from '@venus/document-core'
+import {type ToolName} from '@vector/model'
 import {
-  createRuntimeCanvasInputBridge,
   createRuntimeEditingModeController,
   createRuntimeInputRouter,
+  resolveRuntimeCursor,
   createRuntimeToolRegistry,
   type RuntimeEditingMode,
 } from '@vector/runtime'
 import {
   createMarqueeSelectionApplyController,
   createSelectionDragController,
+  resolveHitShapeIdsAtPoint,
   resolveMarqueeBounds,
   resolveMarqueeSelection,
   type MarqueeState,
@@ -39,18 +40,25 @@ import type {
   EditorRuntimeState,
   SelectedElementProps,
 } from './useEditorRuntime.types.ts'
-import {resolveSelectedProps} from './useEditorRuntime.helpers.ts'
+import {
+  resolveAutoMaskAction,
+  resolveClearMaskAction,
+  resolveGroupIsolationTarget,
+  resolveHoverHitTestOptions,
+  resolveMaskSelectionCommand,
+  resolveRuntimeCommandSideEffects,
+  resolveSelectedProps,
+} from './useEditorRuntime.helpers.ts'
+import {expandMaskLinkedShapeIds, resolveMaskLinkedShapeIds} from '../interaction/maskGroup.ts'
 import {useEditorRuntimeDerivedState} from './useEditorRuntimeDerivedState.ts'
 import {
   useEditorRuntimeExecuteAction,
 } from './useEditorRuntimeExecuteAction.ts'
-import {
-  createAutoMaskHandler,
-  createClearMaskHandler,
-} from './useEditorRuntimeMaskActions.ts'
 import {useEditorRuntimeCoreCallbacks} from './useEditorRuntimeCoreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './useEditorRuntimeCanvasInteractions.ts'
 import {publishRuntimeShellSnapshot, resetRuntimeEventSnapshots} from '../../runtime/events/index.ts'
+
+const SNAP_AUTO_DISABLE_SHAPE_COUNT = 25_000
 
 export type {
   EditorDocumentState,
@@ -99,8 +107,10 @@ const useEditorRuntime = (options?: {
   const [draftPrimitive, setDraftPrimitive] = useState<DraftPrimitive | null>(null)
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   const [snappingEnabled, setSnappingEnabled] = useState(true)
+  const [isolationGroupId, setIsolationGroupId] = useState<string | null>(null)
   const contextRootRef = useRef<HTMLDivElement>(null)
   const worldPointRef = useRef<PointRef | null>(null)
+  const lastCanvasPointRef = useRef<{x: number; y: number} | null>(null)
   const editorRef = useRef<{ printOut?: (ctx: CanvasRenderingContext2D) => void } | null>(null)
   const transformManagerRef = useRef(createTransformSessionManager())
   const runtimeToolRegistryRef = useRef(createRuntimeToolRegistry())
@@ -132,9 +142,14 @@ const useEditorRuntime = (options?: {
     selectionState,
     overlayInstructions,
     previewInstructions,
+    overlayDiagnostics,
+    protectedNodeIds,
+    selectionChrome,
     OverlayRenderer,
   } = useEditorRuntimeDerivedState({
     document,
+    editingMode,
+    isolationGroupId,
     onContextMenu,
     hoveredShapeId,
     marquee,
@@ -160,14 +175,16 @@ const useEditorRuntime = (options?: {
       },
     })
 
-    runtimeToolRegistryRef.current.activate(currentTool, {
-      editingMode: runtimeEditingModeControllerRef.current.getCurrentMode(),
-    })
-
     return () => {
       dispose()
     }
   }, [])
+
+  useEffect(() => {
+    runtimeToolRegistryRef.current.activate(currentTool, {
+      editingMode: runtimeEditingModeControllerRef.current.getCurrentMode(),
+    })
+  }, [currentTool])
 
   const {add: notify} = useNotification()
   const add = useCallback((message: string, tone: 'info' | 'success' | 'warning' | 'error') => {
@@ -182,19 +199,120 @@ const useEditorRuntime = (options?: {
   }, [notify])
   const {t} = useTranslation()
 
-  const handleCommand = useCallback((command: import('@vector/runtime/worker').EditorRuntimeCommand) => {
-    if (command.type === 'snapping.pause') {
-      setSnappingEnabled(false)
+  const handleCommand = useCallback(function handleRuntimeCommand(
+    command: import('@vector/runtime/worker').EditorRuntimeCommand,
+  ) {
+    if (command.type === 'mask.create') {
+      const resolved = resolveAutoMaskAction({
+        canvasShapes: canvasRuntime.document.shapes,
+        selectedNode,
+      })
+      if (resolved.command) {
+        handleRuntimeCommand(resolved.command)
+      }
+      add(resolved.message, 'info')
+      return
+    }
+
+    if (command.type === 'mask.release') {
+      const resolved = resolveClearMaskAction(selectedNode)
+      if (resolved.command) {
+        handleRuntimeCommand(resolved.command)
+      }
+      add(resolved.message, 'info')
+      return
+    }
+
+    if (command.type === 'mask.select-host' || command.type === 'mask.select-source') {
+      const resolved = resolveMaskSelectionCommand({
+        selectedNode,
+        canvasShapes: canvasRuntime.document.shapes,
+        target: command.type === 'mask.select-host' ? 'host' : 'source',
+      })
+      if (resolved.command) {
+        handleRuntimeCommand(resolved.command)
+      }
+      add(resolved.message, 'info')
+      return
+    }
+
+    if (command.type === 'selection.cycle-hit-target') {
+      const pointer = lastCanvasPointRef.current
+      if (!pointer) {
+        add('Move the pointer over overlapping shapes to cycle selection.', 'info')
+        return
+      }
+
+      const hitShapeIds = resolveHitShapeIdsAtPoint(
+        interactionDocument,
+        previewShapes,
+        pointer,
+        {
+          ...resolveHoverHitTestOptions(),
+          maxExactCandidateCount: 12,
+          preferGroupSelection: currentTool === 'selector',
+        },
+      )
+
+      if (hitShapeIds.length === 0) {
+        add('No selectable shape found under the pointer.', 'info')
+        return
+      }
+
+      const currentIndex = hitShapeIds.findIndex((shapeId) => resolveMaskLinkedShapeIds(interactionDocument, shapeId).some((linkedShapeId) => selectedShapeIds.includes(linkedShapeId)))
+      const step = command.direction === 'backward' ? -1 : 1
+      const nextIndex = currentIndex >= 0
+        ? (currentIndex + step + hitShapeIds.length) % hitShapeIds.length
+        : (step > 0 ? 0 : hitShapeIds.length - 1)
+
+      handleRuntimeCommand({
+        type: 'selection.set',
+        shapeId: hitShapeIds[nextIndex],
+        mode: 'replace',
+      })
+      return
+    }
+
+    if (command.type === 'group.enter-isolation') {
+      const nextGroupId = resolveGroupIsolationTarget({
+        groupId: command.groupId,
+        selectedShapeIds,
+        shapes: canvasRuntime.document.shapes,
+      })
+      if (!nextGroupId) {
+        add('Select a group to enter isolation.', 'info')
+        return
+      }
+
+      setIsolationGroupId(nextGroupId)
+      runtimeEditingModeControllerRef.current?.transition({
+        to: 'isolatedGroupEditing',
+        reason: 'group-isolation:enter',
+        metadata: {groupId: nextGroupId},
+      })
+      return
+    }
+
+    if (command.type === 'group.exit-isolation') {
+      setIsolationGroupId(null)
+      runtimeEditingModeControllerRef.current?.transition({
+        to: currentTool === 'dselector' ? 'directSelecting' : 'selecting',
+        reason: 'group-isolation:exit',
+      })
+      return
+    }
+
+    const sideEffects = resolveRuntimeCommandSideEffects(command)
+
+    if (sideEffects.nextSnappingEnabled !== null) {
+      setSnappingEnabled(sideEffects.nextSnappingEnabled)
+    }
+
+    if (sideEffects.clearSnapGuides) {
       setSnapGuides([])
-      return
     }
 
-    if (command.type === 'snapping.resume') {
-      setSnappingEnabled(true)
-      return
-    }
-
-    if (command.type === 'history.undo' || command.type === 'history.redo') {
+    if (sideEffects.resetTransientInteractionState) {
       clearTransformPreview()
       transformManagerRef.current.cancel()
       selectionDragControllerRef.current.clear()
@@ -202,10 +320,23 @@ const useEditorRuntime = (options?: {
       setDraftPrimitive(null)
       setPathHandleDrag(null)
       setMarquee(null)
-      setSnapGuides([])
     }
+
+    if (!sideEffects.shouldDispatch) {
+      return
+    }
+
     canvasRuntime.dispatchCommand(command)
-  }, [canvasRuntime, clearTransformPreview])
+  }, [
+    add,
+    canvasRuntime,
+    clearTransformPreview,
+    currentTool,
+    interactionDocument,
+    previewShapes,
+    selectedNode,
+    selectedShapeIds,
+  ])
 
   const insertElement = useCallback((element: ElementProps) => {
     handleCommand({
@@ -258,18 +389,23 @@ const useEditorRuntime = (options?: {
     t,
   })
 
-  const applyAutoMask = useMemo(() => createAutoMaskHandler({
-    add,
-    canvasShapes: canvasRuntime.document.shapes,
-    handleCommand,
-    selectedNode,
-  }), [add, canvasRuntime.document.shapes, handleCommand, selectedNode])
+  const applyAutoMask = useCallback(() => {
+    handleCommand({type: 'mask.create'})
+  }, [handleCommand])
 
-  const clearMask = useMemo(() => createClearMaskHandler({
-    add,
-    handleCommand,
-    selectedNode,
-  }), [add, handleCommand, selectedNode])
+  const clearMask = useCallback(() => {
+    handleCommand({type: 'mask.release'})
+  }, [handleCommand])
+
+  const activeToolCursor = runtimeToolRegistryRef.current.get(currentTool)?.getCursor?.()
+  const activeRotation = selectedNode?.rotation ?? 0
+  const cursorState = useMemo(() => resolveRuntimeCursor({
+    toolCursor: activeToolCursor,
+    editingMode,
+    activeHandle: activeTransformHandle,
+    rotationDegrees: activeRotation,
+    pathHitType: (pathSubSelectionHover ?? pathSubSelection)?.hitType ?? null,
+  }), [activeRotation, activeToolCursor, activeTransformHandle, editingMode, pathSubSelection, pathSubSelectionHover])
 
   const executeAction = useEditorRuntimeExecuteAction({
     add,
@@ -288,13 +424,9 @@ const useEditorRuntime = (options?: {
     selectedNode,
     selectedShapeIds,
     setClipboard,
-    setCurrentToolState,
+    setCurrentTool,
     setPasteSerial,
-    setPathSubSelection,
-    setPathSubSelectionHover,
     setShowPrint,
-    runtimeToolRegistryRef,
-    runtimeEditingModeControllerRef,
   })
 
   useFocus(contextRootRef, focused, (nextFocused) => {
@@ -330,14 +462,24 @@ const useEditorRuntime = (options?: {
     })
   }, [selectedShapeIds.length, uiState.layerItems.length])
 
-  const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => resolveMarqueeSelection(
-    interactionDocument.shapes,
-    resolveMarqueeBounds(nextMarquee),
-    {
-      matchMode: 'contain',
-      excludeShape: (shape) => shape.type === 'frame',
-    },
-  ), [interactionDocument.shapes])
+  const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => expandMaskLinkedShapeIds(
+    interactionDocument,
+    resolveMarqueeSelection(
+      interactionDocument.shapes,
+      resolveMarqueeBounds(nextMarquee),
+      {
+        matchMode: 'contain',
+        // Keep marquee exclusion compatible with engine-level selectable shape
+        // contracts, which are narrower than full document node types.
+        excludeShape: (shape) => (
+          shape.type === 'frame' ||
+          (shape.type === 'image' && Boolean((shape as {clipPathId?: string}).clipPathId))
+        ),
+      },
+    ),
+  ), [interactionDocument])
+
+  const effectiveSnappingEnabled = snappingEnabled && interactionDocument.shapes.length < SNAP_AUTO_DISABLE_SHAPE_COUNT
 
   const applyMarqueeSelectionWhileMoving = useCallback((nextMarquee: MarqueeState) => {
     const selectedIds = resolveMarqueeSelectionIds(nextMarquee)
@@ -391,28 +533,56 @@ const useEditorRuntime = (options?: {
     setPenDraftPoints,
     setSnapGuides,
     setTransformPreview,
-    snappingEnabled,
+    snappingEnabled: effectiveSnappingEnabled,
     transformManagerRef,
     transformPreview,
   })
 
-  const runtimeInputBridge = useMemo(() => {
-    const router = createRuntimeInputRouter({
-      onInput: () => {
-        // Runtime input stream is currently used for event normalization.
-      },
-    })
+  const runtimeInputRouter = useMemo(() => createRuntimeInputRouter({
+    onInput: () => {
+      // Runtime input stream is currently used for event normalization.
+    },
+  }), [])
 
-    return createRuntimeCanvasInputBridge(router, {
-      onPointerMove: (point: {x: number; y: number}) => {
-        worldPointRef.current?.set(point)
-        canvasInteractions.onPointerMove(point)
-      },
-      onPointerDown: canvasInteractions.onPointerDown,
-      onPointerUp: canvasInteractions.onPointerUp,
-      onPointerLeave: canvasInteractions.onPointerLeave,
+  const onPointerMove = useCallback((point: {x: number; y: number}) => {
+    runtimeInputRouter.dispatch({
+      type: 'pointermove',
+      point,
     })
-  }, [canvasInteractions])
+    lastCanvasPointRef.current = point
+    worldPointRef.current?.set(point)
+    canvasInteractions.onPointerMove(point)
+  }, [canvasInteractions, runtimeInputRouter])
+
+  const onPointerDown = useCallback((
+    point: {x: number; y: number},
+    modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
+  ) => {
+    runtimeInputRouter.dispatch({
+      type: 'pointerdown',
+      point,
+      modifiers,
+    })
+    lastCanvasPointRef.current = point
+    worldPointRef.current?.set(point)
+    canvasInteractions.onPointerDown(point, modifiers)
+  }, [canvasInteractions, runtimeInputRouter])
+
+  const onPointerUp = useCallback(() => {
+    runtimeInputRouter.dispatch({
+      type: 'pointerup',
+      point: {x: 0, y: 0},
+    })
+    canvasInteractions.onPointerUp()
+  }, [canvasInteractions, runtimeInputRouter])
+
+  const onPointerLeave = useCallback(() => {
+    runtimeInputRouter.dispatch({
+      type: 'pointerleave',
+      point: {x: 0, y: 0},
+    })
+    canvasInteractions.onPointerLeave()
+  }, [canvasInteractions, runtimeInputRouter])
 
   const documentState: EditorDocumentState = {
     document: canvasRuntime.document,
@@ -428,13 +598,20 @@ const useEditorRuntime = (options?: {
       shapes: previewShapes,
       stats: canvasRuntime.stats,
       viewport: canvasRuntime.viewport,
+      editingMode,
+      cursor: cursorState.cursor,
+      cursorState,
+      selectionChrome,
+      isolationGroupId,
       ready: canvasRuntime.ready,
+      protectedNodeIds,
       overlayInstructions,
       previewInstructions,
-      onPointerMove: runtimeInputBridge.onPointerMove,
-      onPointerDown: runtimeInputBridge.onPointerDown,
-      onPointerUp: runtimeInputBridge.onPointerUp,
-      onPointerLeave: runtimeInputBridge.onPointerLeave,
+      overlayDiagnostics,
+      onPointerMove,
+      onPointerDown,
+      onPointerUp,
+      onPointerLeave,
       onViewportChange: canvasInteractions.onViewportChange,
       onViewportPan: canvasInteractions.onViewportPan,
       onViewportResize: canvasInteractions.onViewportResize,

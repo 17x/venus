@@ -17,6 +17,7 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - `../STATE.md`
 - `../04_DECISIONS.md`
 - `../05_CHANGELOG.md`
+- `../AI_CHANGELOG.md`
 - `../06_TODO.md`
 
 ## Product
@@ -25,11 +26,16 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[02_PRD]]
 - [[03_SCOPE]]
 - [[product/figma-mapping]]
-- [[product/vector/index]]
+- [../apps/vector-editor-web/docs/product/index.md](../apps/vector-editor-web/docs/product/index.md)
 
 ## Apps
 
-- [[apps-vector]]
+- [../apps/vector-editor-web/README.md](../apps/vector-editor-web/README.md)
+- [../apps/vector-editor-web/docs/architecture.md](../apps/vector-editor-web/docs/architecture.md)
+- [../apps/vector-editor-web/docs/runtime/runtime.md](../apps/vector-editor-web/docs/runtime/runtime.md)
+- [../apps/vector-editor-web/docs/runtime/runtime-interaction.md](../apps/vector-editor-web/docs/runtime/runtime-interaction.md)
+- [../apps/vector-editor-web/docs/runtime/runtime-presets.md](../apps/vector-editor-web/docs/runtime/runtime-presets.md)
+- [../apps/vector-editor-web/docs/runtime/runtime-react-legacy.md](../apps/vector-editor-web/docs/runtime/runtime-react-legacy.md)
 
 ## Architecture
 
@@ -37,7 +43,7 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[architecture/runtime]]
 - [[architecture/layering]]
 - [[architecture/data-flow]]
-- [[vector-editor-architecture]]
+- [[architecture/render-cache-layering]]
 
 ## Engineering
 
@@ -52,25 +58,24 @@ Canonical entrypoint for project docs and Obsidian navigation.
 - [[ai/prompts]]
 - [[ai/workflows]]
 - [[ai/doc-update-rules]]
+- [[ai/project-rules]]
 
 ## Decisions
 
 - [[decisions/ADR-001-runtime-layer-boundary]]
 - [[decisions/ADR-002-documentation-governance]]
+- [[decisions/ADR-003-module-boundary-and-quality-gates]]
 
 ## Task Plans
 
 - [[task/plan-1]]
 - [[task/plan-2]]
+- [[task/engine-integration-interaction-requirements]]
 
 ## Package Knowledge
 
 - [[packages/README]]
-- [[packages/document-core]]
-- [[packages/engine]]
-- [[packages/runtime]]
-- [[packages/runtime-interaction]]
-- [[packages/runtime-presets]]
+- [../packages/engine/README.md](../packages/engine/README.md)
 
 ## Legacy Core Notes
 
@@ -81,4 +86,5 @@ Legacy notes remain available during migration:
 - [[core/monorepo-knowledge-base]]
 - [[core/current-work]]
 - [[core/review-checklist]]
+- [[core/transform-hit-test-regression-checklist]]
 - [[core/important-context]]

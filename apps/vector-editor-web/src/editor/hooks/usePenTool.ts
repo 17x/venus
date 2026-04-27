@@ -1,6 +1,6 @@
 import {useCallback, useRef} from 'react'
 import type {ElementProps} from '@lite-u/editor/types'
-import type {ToolName} from '@venus/document-core'
+import type {ToolName} from '@vector/model'
 import {
   appendPenPoint,
   createPencilPathElement,

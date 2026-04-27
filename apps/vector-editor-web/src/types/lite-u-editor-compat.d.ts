@@ -108,6 +108,8 @@ declare module '@lite-u/editor/types' {
     assetUrl?: string
     clipPathId?: string
     clipRule?: 'nonzero' | 'evenodd' | string
+    maskGroupId?: string
+    maskRole?: 'host' | 'source' | string
 
     parentId?: string | null
     childIds?: string[]

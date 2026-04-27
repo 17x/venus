@@ -6,10 +6,17 @@ import type {
   EngineRenderableNode,
 } from '../scene/types.ts'
 import type { EngineSceneBufferLayout } from '../scene/buffer.ts'
+import {resolveLeafNodeWorldBounds, toWorldAxisAlignedBounds} from '../scene/worldBounds.ts'
 
 export type EngineWorldMatrix = readonly [number, number, number, number, number, number]
 
 const IDENTITY_MATRIX: EngineWorldMatrix = [1, 0, 0, 0, 1, 0]
+const TINY_OBJECT_MAX_SCREEN_EDGE_PX = 0.9
+const TINY_OBJECT_OVERVIEW_SCREEN_EDGE_PX = 2.4
+const TINY_OBJECT_OVERVIEW_MAX_SCALE = 0.05
+const TINY_OBJECT_LOW_SCALE_SCREEN_EDGE_PX = 1.4
+const TINY_OBJECT_LOW_SCALE_MAX_SCALE = 0.12
+const GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2 = 4096
 
 export interface EnginePreparedNode {
   node: EngineRenderableNode
@@ -33,6 +40,8 @@ export interface EngineRenderPlan {
   stats: {
     visibleCount: number
     culledCount: number
+    collapsedGroupCount: number
+    collapsedDescendantCulledCount: number
   }
 }
 
@@ -40,6 +49,7 @@ interface CachedRenderPlanEntry {
   scenePlanVersion: string | number
   nodesRef: readonly EngineRenderableNode[]
   viewportSignature: string
+  framePlanSignature: string
   plan: EngineRenderPlan
 }
 
@@ -49,12 +59,14 @@ export function prepareEngineRenderPlan(frame: EngineRenderFrame): EngineRenderP
   // Reuse plan when scene revision + node list + viewport are unchanged.
   // This avoids rebuilding traversal/culling/batch lists on duplicate frames.
   const viewportSignature = resolveViewportSignature(frame)
+  const framePlanSignature = resolveFramePlanSignature(frame)
   const cached = renderPlanCache.get(frame.scene)
   if (
     cached &&
     cached.scenePlanVersion === resolveScenePlanVersion(frame.scene) &&
     cached.nodesRef === frame.scene.nodes &&
-    cached.viewportSignature === viewportSignature
+    cached.viewportSignature === viewportSignature &&
+    cached.framePlanSignature === framePlanSignature
   ) {
     return cached.plan
   }
@@ -69,10 +81,16 @@ export function prepareEngineRenderPlan(frame: EngineRenderFrame): EngineRenderP
     scenePlanVersion: resolveScenePlanVersion(frame.scene),
     nodesRef: frame.scene.nodes,
     viewportSignature,
+    framePlanSignature,
     plan,
   })
 
   return plan
+}
+
+function resolveFramePlanSignature(frame: EngineRenderFrame) {
+  const candidateIds = frame.context.framePlanCandidateIds
+  return `${frame.context.framePlanVersion ?? 'none'}:${candidateIds?.length ?? 0}`
 }
 
 function resolveScenePlanVersion(scene: EngineRenderFrame['scene']) {
@@ -129,9 +147,7 @@ function prepareEngineRenderPlanFromBuffer(
   const drawList: number[] = []
   const batchMap = new Map<string, EngineRenderBatch>()
   const worldMatrices: EngineWorldMatrix[] = new Array(bufferLayout.count)
-
-  let visibleCount = 0
-  let culledCount = 0
+  const framePlanCandidateIdSet = resolveFramePlanCandidateIdSet(frame)
 
   for (let slot = 0; slot < bufferLayout.count; slot += 1) {
     const node = flattenedNodes[slot]
@@ -151,7 +167,15 @@ function prepareEngineRenderPlanFromBuffer(
       : toWorldAxisAlignedBounds(localBounds, worldMatrix)
     const culled = node.type === 'group'
       ? false
-      : isWorldBoundsCulled(worldBounds, viewportBounds)
+      : isPreparedNodeCulled(
+        node.id,
+        worldBounds,
+        viewportBounds,
+        framePlanCandidateIdSet,
+        frame.viewport.scale,
+        frame.context.quality,
+        frame.context.lodEnabled ?? true,
+      )
 
     preparedNodes[slot] = {
       node,
@@ -161,14 +185,32 @@ function prepareEngineRenderPlanFromBuffer(
       bucketKey: resolveBatchKey(node),
     }
 
-    if (node.type !== 'group') {
-      if (culled) {
-        culledCount += 1
-      } else {
-        visibleCount += 1
-      }
-    }
   }
+
+  const groupAggregateBounds = buildGroupAggregateWorldBounds(
+    preparedNodes,
+    bufferLayout.parentIndices,
+  )
+  const protectedCollapseGroupSlots = resolveProtectedCollapseGroupSlots(
+    preparedNodes,
+    bufferLayout.parentIndices,
+    frame.context.protectedNodeIds,
+  )
+  const collapsedGroupSlotSet = resolveCollapsedGroupSlots(
+    preparedNodes,
+    groupAggregateBounds,
+    protectedCollapseGroupSlots,
+    frame.viewport.scale,
+    frame.context.quality,
+    frame.context.lodEnabled ?? true,
+  )
+  // Attach aggregate bounds so collapsed groups can render as thumbnail placeholders.
+  attachGroupAggregateBounds(preparedNodes, groupAggregateBounds)
+  const collapsedGroupCount = collapsedGroupSlotSet.size
+
+  let visibleCount = 0
+  let culledCount = 0
+  let collapsedDescendantCulledCount = 0
 
   for (let order = 0; order < bufferLayout.count; order += 1) {
     const slot = bufferLayout.order[order]
@@ -177,10 +219,45 @@ function prepareEngineRenderPlanFromBuffer(
     }
 
     const prepared = preparedNodes[slot]
-    if (!prepared || prepared.node.type === 'group' || prepared.culled) {
+    if (!prepared) {
       continue
     }
 
+    if (prepared.node.type === 'group') {
+      if (!collapsedGroupSlotSet.has(slot) || !prepared.worldBounds) {
+        continue
+      }
+
+      // Submit collapsed groups as lightweight placeholder packets.
+      visibleCount += 1
+      drawList.push(slot)
+      const existing = batchMap.get(prepared.bucketKey)
+      if (existing) {
+        existing.indices.push(slot)
+        continue
+      }
+
+      batchMap.set(prepared.bucketKey, {
+        key: prepared.bucketKey,
+        nodeType: prepared.node.type,
+        assetId: undefined,
+        indices: [slot],
+      })
+      continue
+    }
+
+    if (
+      prepared.culled ||
+      hasCollapsedGroupAncestor(slot, bufferLayout.parentIndices, collapsedGroupSlotSet)
+    ) {
+      culledCount += 1
+      if (!prepared.culled) {
+        collapsedDescendantCulledCount += 1
+      }
+      continue
+    }
+
+    visibleCount += 1
     drawList.push(slot)
     const batchKey = prepared.bucketKey
     const existing = batchMap.get(batchKey)
@@ -204,6 +281,8 @@ function prepareEngineRenderPlanFromBuffer(
     stats: {
       visibleCount,
       culledCount,
+      collapsedGroupCount,
+      collapsedDescendantCulledCount,
     },
   }
 }
@@ -215,20 +294,32 @@ function prepareEngineRenderPlanFromNodes(
   const preparedNodes: EnginePreparedNode[] = []
   const drawList: number[] = []
   const batchMap = new Map<string, EngineRenderBatch>()
-
-  let visibleCount = 0
-  let culledCount = 0
+  const framePlanCandidateIdSet = resolveFramePlanCandidateIdSet(frame)
+  const parentIndices: number[] = []
 
   const visit = (
     nodes: readonly EngineRenderableNode[],
     parentWorldMatrix: EngineWorldMatrix,
+    parentPreparedIndex: number,
   ) => {
     for (const node of nodes) {
       const worldMatrix = multiplyMatrix(parentWorldMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
+      if (node.type === 'group' && framePlanCandidateIdSet && !framePlanCandidateIdSet.has(node.id)) {
+        continue
+      }
+
       const worldBounds = resolveNodeWorldBounds(node, worldMatrix)
       const culled = node.type === 'group'
         ? false
-        : isWorldBoundsCulled(worldBounds, viewportBounds)
+        : isPreparedNodeCulled(
+          node.id,
+          worldBounds,
+          viewportBounds,
+          framePlanCandidateIdSet,
+          frame.viewport.scale,
+          frame.context.quality,
+          frame.context.lodEnabled ?? true,
+        )
 
       const preparedIndex = preparedNodes.push({
         node,
@@ -237,36 +328,98 @@ function prepareEngineRenderPlanFromNodes(
         culled,
         bucketKey: resolveBatchKey(node),
       }) - 1
+      parentIndices[preparedIndex] = parentPreparedIndex
 
       if (node.type === 'group') {
-        visit(node.children, worldMatrix)
+        visit(node.children, worldMatrix, preparedIndex)
+        continue
+      }
+    }
+  }
+
+  visit(frame.scene.nodes, IDENTITY_MATRIX, -1)
+
+  const groupAggregateBounds = buildGroupAggregateWorldBounds(
+    preparedNodes,
+    parentIndices,
+  )
+  const protectedCollapseGroupSlots = resolveProtectedCollapseGroupSlots(
+    preparedNodes,
+    parentIndices,
+    frame.context.protectedNodeIds,
+  )
+  const collapsedGroupSlotSet = resolveCollapsedGroupSlots(
+    preparedNodes,
+    groupAggregateBounds,
+    protectedCollapseGroupSlots,
+    frame.viewport.scale,
+    frame.context.quality,
+    frame.context.lodEnabled ?? true,
+  )
+  // Attach aggregate bounds so collapsed groups can render as thumbnail placeholders.
+  attachGroupAggregateBounds(preparedNodes, groupAggregateBounds)
+  const collapsedGroupCount = collapsedGroupSlotSet.size
+
+  let visibleCount = 0
+  let culledCount = 0
+  let collapsedDescendantCulledCount = 0
+
+  for (let preparedIndex = 0; preparedIndex < preparedNodes.length; preparedIndex += 1) {
+    const prepared = preparedNodes[preparedIndex]
+    if (!prepared) {
+      continue
+    }
+
+    if (prepared.node.type === 'group') {
+      if (!collapsedGroupSlotSet.has(preparedIndex) || !prepared.worldBounds) {
         continue
       }
 
-      if (culled) {
-        culledCount += 1
-        continue
-      }
-
+      // Submit collapsed groups as lightweight placeholder packets.
       visibleCount += 1
       drawList.push(preparedIndex)
-      const batchKey = resolveBatchKey(node)
-      const existing = batchMap.get(batchKey)
+      const existing = batchMap.get(prepared.bucketKey)
       if (existing) {
         existing.indices.push(preparedIndex)
         continue
       }
 
-      batchMap.set(batchKey, {
-        key: batchKey,
-        nodeType: node.type,
-        assetId: node.type === 'image' ? node.assetId : undefined,
+      batchMap.set(prepared.bucketKey, {
+        key: prepared.bucketKey,
+        nodeType: prepared.node.type,
+        assetId: undefined,
         indices: [preparedIndex],
       })
+      continue
     }
-  }
 
-  visit(frame.scene.nodes, IDENTITY_MATRIX)
+    if (
+      prepared.culled ||
+      hasCollapsedGroupAncestor(preparedIndex, parentIndices, collapsedGroupSlotSet)
+    ) {
+      culledCount += 1
+      if (!prepared.culled) {
+        collapsedDescendantCulledCount += 1
+      }
+      continue
+    }
+
+    visibleCount += 1
+    drawList.push(preparedIndex)
+    const batchKey = prepared.bucketKey
+    const existing = batchMap.get(batchKey)
+    if (existing) {
+      existing.indices.push(preparedIndex)
+      continue
+    }
+
+    batchMap.set(batchKey, {
+      key: batchKey,
+      nodeType: prepared.node.type,
+      assetId: prepared.node.type === 'image' ? prepared.node.assetId : undefined,
+      indices: [preparedIndex],
+    })
+  }
 
   return {
     preparedNodes,
@@ -275,8 +428,265 @@ function prepareEngineRenderPlanFromNodes(
     stats: {
       visibleCount,
       culledCount,
+      collapsedGroupCount,
+      collapsedDescendantCulledCount,
     },
   }
+}
+
+function resolveFramePlanCandidateIdSet(frame: EngineRenderFrame) {
+  const candidateIds = frame.context.framePlanCandidateIds
+  if (!candidateIds || candidateIds.length === 0) {
+    return null
+  }
+
+  return new Set(candidateIds)
+}
+
+function buildGroupAggregateWorldBounds(
+  preparedNodes: readonly EnginePreparedNode[],
+  parentIndices: ArrayLike<number>,
+) {
+  const aggregateBounds: Array<EngineRect | null> = new Array(preparedNodes.length).fill(null)
+
+  for (let slot = preparedNodes.length - 1; slot >= 0; slot -= 1) {
+    const prepared = preparedNodes[slot]
+    if (!prepared) {
+      continue
+    }
+
+    const selfBounds = prepared.node.type === 'group'
+      ? aggregateBounds[slot]
+      : prepared.worldBounds
+    if (selfBounds) {
+      aggregateBounds[slot] = mergeBounds(aggregateBounds[slot], selfBounds)
+      const parentSlot = parentIndices[slot]
+      if (parentSlot >= 0) {
+        aggregateBounds[parentSlot] = mergeBounds(aggregateBounds[parentSlot], selfBounds)
+      }
+    }
+  }
+
+  return aggregateBounds
+}
+
+function attachGroupAggregateBounds(
+  preparedNodes: EnginePreparedNode[],
+  groupAggregateBounds: ReadonlyArray<EngineRect | null>,
+) {
+  for (let slot = 0; slot < preparedNodes.length; slot += 1) {
+    const prepared = preparedNodes[slot]
+    if (!prepared || prepared.node.type !== 'group') {
+      continue
+    }
+
+    // Group bounds are derived from descendants and used only for group LOD placeholders.
+    prepared.worldBounds = groupAggregateBounds[slot]
+  }
+}
+
+function resolveCollapsedGroupSlots(
+  preparedNodes: readonly EnginePreparedNode[],
+  groupAggregateBounds: ReadonlyArray<EngineRect | null>,
+  protectedGroupSlots: Set<number>,
+  viewportScale: number,
+  renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
+) {
+  const collapsedGroupSlots = new Set<number>()
+
+  for (let slot = 0; slot < preparedNodes.length; slot += 1) {
+    const prepared = preparedNodes[slot]
+    if (!prepared || prepared.node.type !== 'group') {
+      continue
+    }
+
+    if (protectedGroupSlots.has(slot)) {
+      continue
+    }
+
+    if (shouldCollapseGroupSubtree(groupAggregateBounds[slot], viewportScale, renderQuality, lodEnabled)) {
+      collapsedGroupSlots.add(slot)
+    }
+  }
+
+  return collapsedGroupSlots
+}
+
+function resolveProtectedCollapseGroupSlots(
+  preparedNodes: readonly EnginePreparedNode[],
+  parentIndices: ArrayLike<number>,
+  protectedNodeIds: readonly string[] | undefined,
+) {
+  const protectedGroupSlots = new Set<number>()
+  if (!protectedNodeIds || protectedNodeIds.length === 0) {
+    return protectedGroupSlots
+  }
+
+  const protectedNodeIdSet = new Set(protectedNodeIds)
+
+  for (let slot = 0; slot < preparedNodes.length; slot += 1) {
+    const prepared = preparedNodes[slot]
+    if (!prepared || !protectedNodeIdSet.has(prepared.node.id)) {
+      continue
+    }
+
+    if (prepared.node.type === 'group') {
+      protectedGroupSlots.add(slot)
+    }
+
+    let parentSlot = parentIndices[slot]
+    while (parentSlot >= 0) {
+      const parentPrepared = preparedNodes[parentSlot]
+      if (parentPrepared?.node.type === 'group') {
+        protectedGroupSlots.add(parentSlot)
+      }
+      parentSlot = parentIndices[parentSlot]
+    }
+  }
+
+  return protectedGroupSlots
+}
+
+function shouldCollapseGroupSubtree(
+  groupBounds: EngineRect | null,
+  viewportScale: number,
+  renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
+) {
+  if (!lodEnabled) {
+    return false
+  }
+
+  if (!groupBounds) {
+    return false
+  }
+
+  const absScale = Math.max(0, Math.abs(viewportScale))
+  const screenWidth = Math.abs(groupBounds.width) * absScale
+  const screenHeight = Math.abs(groupBounds.height) * absScale
+  const screenArea = screenWidth * screenHeight
+
+  if (renderQuality === 'interactive') {
+    // Keep interaction collapse aggressive to preserve panning/zooming frame budget.
+    return screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
+  }
+
+  // Settled frames still collapse low-screen-area groups into thumbnail mode.
+  return screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
+}
+
+function hasCollapsedGroupAncestor(
+  slot: number,
+  parentIndices: ArrayLike<number>,
+  collapsedGroupSlotSet: Set<number>,
+) {
+  let parentSlot = parentIndices[slot]
+  while (parentSlot >= 0) {
+    if (collapsedGroupSlotSet.has(parentSlot)) {
+      return true
+    }
+    parentSlot = parentIndices[parentSlot]
+  }
+  return false
+}
+
+function mergeBounds(current: EngineRect | null, next: EngineRect) {
+  if (!current) {
+    return {
+      x: next.x,
+      y: next.y,
+      width: next.width,
+      height: next.height,
+    }
+  }
+
+  const minX = Math.min(current.x, next.x)
+  const minY = Math.min(current.y, next.y)
+  const maxX = Math.max(current.x + current.width, next.x + next.width)
+  const maxY = Math.max(current.y + current.height, next.y + next.height)
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
+}
+
+// Combine viewport bounds culling with the coarse frame-plan shortlist so the
+// render path can skip obviously irrelevant nodes before batching work.
+function isPreparedNodeCulled(
+  nodeId: string,
+  worldBounds: EngineRect | null,
+  viewportBounds: {minX: number; minY: number; maxX: number; maxY: number},
+  framePlanCandidateIdSet: Set<string> | null,
+  viewportScale: number,
+  renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
+) {
+  if (framePlanCandidateIdSet && !framePlanCandidateIdSet.has(nodeId)) {
+    return true
+  }
+
+  if (isTinyRenderableBounds(worldBounds, viewportScale, renderQuality, lodEnabled)) {
+    return true
+  }
+
+  return isWorldBoundsCulled(worldBounds, viewportBounds)
+}
+
+// Skip extremely tiny objects when zoomed out or in interactive quality.
+// This keeps draw-list pressure bounded on dense scenes where sub-pixel nodes
+// are not perceptible to users.
+function isTinyRenderableBounds(
+  worldBounds: EngineRect | null,
+  viewportScale: number,
+  renderQuality: EngineRenderFrame['context']['quality'],
+  lodEnabled: boolean,
+) {
+  if (!lodEnabled) {
+    return false
+  }
+
+  if (!worldBounds) {
+    return false
+  }
+
+  if (renderQuality !== 'interactive' && viewportScale > 0.35) {
+    return false
+  }
+
+  const absScale = Math.max(0, Math.abs(viewportScale))
+  const screenWidth = Math.abs(worldBounds.width) * absScale
+  const screenHeight = Math.abs(worldBounds.height) * absScale
+  const tinyObjectThreshold = resolveTinyObjectScreenEdgeThreshold(
+    absScale,
+    renderQuality,
+  )
+  return (
+    screenWidth <= tinyObjectThreshold &&
+    screenHeight <= tinyObjectThreshold
+  )
+}
+
+function resolveTinyObjectScreenEdgeThreshold(
+  viewportScale: number,
+  renderQuality: EngineRenderFrame['context']['quality'],
+) {
+  if (renderQuality === 'interactive') {
+    // Extremely zoomed-out overview passes still push tens of thousands of
+    // sub-perceptual nodes through packet rendering unless we raise the tiny
+    // cutoff beyond the default sub-pixel threshold.
+    if (viewportScale <= TINY_OBJECT_OVERVIEW_MAX_SCALE) {
+      return TINY_OBJECT_OVERVIEW_SCREEN_EDGE_PX
+    }
+
+    if (viewportScale <= TINY_OBJECT_LOW_SCALE_MAX_SCALE) {
+      return TINY_OBJECT_LOW_SCALE_SCREEN_EDGE_PX
+    }
+  }
+
+  return TINY_OBJECT_MAX_SCREEN_EDGE_PX
 }
 
 function resolveViewportWorldBounds(frame: EngineRenderFrame) {
@@ -348,43 +758,15 @@ function resolveNodeWorldBounds(
   worldMatrix: EngineWorldMatrix,
 ): EngineRect | null {
   switch (node.type) {
-    case 'text': {
-      const estimatedWidth = node.width ?? estimateTextWidth(node)
-      const estimatedHeight = node.height ?? Math.max(node.style.fontSize, node.style.lineHeight ?? node.style.fontSize)
-      return toWorldAxisAlignedBounds({
-        x: node.x,
-        y: node.y,
-        width: estimatedWidth,
-        height: estimatedHeight,
-      }, worldMatrix)
-    }
+    case 'text':
     case 'image':
-      return toWorldAxisAlignedBounds({
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height,
-      }, worldMatrix)
     case 'shape':
-      return toWorldAxisAlignedBounds({
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height,
-      }, worldMatrix)
+      return resolveLeafNodeWorldBounds(node, worldMatrix)
     case 'group':
       return null
     default:
       return null
   }
-}
-
-function estimateTextWidth(node: Extract<EngineRenderableNode, {type: 'text'}>) {
-  if (node.runs && node.runs.length > 0) {
-    return node.runs.reduce((width, run) => width + run.text.length * (run.style?.fontSize ?? node.style.fontSize) * 0.6, 0)
-  }
-
-  return (node.text ?? '').length * node.style.fontSize * 0.6
 }
 
 export function multiplyMatrix(
@@ -401,34 +783,4 @@ export function multiplyMatrix(
   ]
 }
 
-function applyMatrixToPoint(
-  matrix: EngineWorldMatrix,
-  point: {x: number; y: number},
-) {
-  return {
-    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
-    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
-  }
-}
 
-function toWorldAxisAlignedBounds(
-  rect: EngineRect,
-  worldMatrix: EngineWorldMatrix,
-): EngineRect {
-  const p1 = applyMatrixToPoint(worldMatrix, {x: rect.x, y: rect.y})
-  const p2 = applyMatrixToPoint(worldMatrix, {x: rect.x + rect.width, y: rect.y})
-  const p3 = applyMatrixToPoint(worldMatrix, {x: rect.x, y: rect.y + rect.height})
-  const p4 = applyMatrixToPoint(worldMatrix, {x: rect.x + rect.width, y: rect.y + rect.height})
-
-  const minX = Math.min(p1.x, p2.x, p3.x, p4.x)
-  const maxX = Math.max(p1.x, p2.x, p3.x, p4.x)
-  const minY = Math.min(p1.y, p2.y, p3.y, p4.y)
-  const maxY = Math.max(p1.y, p2.y, p3.y, p4.y)
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
-}

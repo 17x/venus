@@ -5,7 +5,7 @@ import {
   type DocumentNode,
   type ToolId,
   type ToolName,
-} from '@venus/document-core'
+} from '@vector/model'
 import {getNormalizedBoundsFromBox} from '@vector/runtime/engine'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {HistorySummary} from '@vector/runtime/worker'
@@ -22,6 +22,7 @@ export function mapToolNameToToolId(toolName: ToolName): ToolId {
     case 'ellipse':
       return 'ellipse'
     case 'lineSegment':
+    case 'connector':
       return 'lineSegment'
     case 'polygon':
       return 'polygon'
@@ -42,49 +43,19 @@ export function createShapeElementFromTool(
   point: {x: number; y: number},
 ): ElementProps | null {
   if (toolName === 'rectangle') {
-    const width = 140
-    const height = 96
-    return {
-      id: nid(),
-      type: 'rectangle',
-      name: 'Rectangle',
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createCenteredBoxToolElement('rectangle', 'Rectangle', point, 140, 96)
   }
 
   if (toolName === 'ellipse') {
-    const width = 120
-    const height = 120
-    return {
-      id: nid(),
-      type: 'ellipse',
-      name: 'Ellipse',
-      x: point.x - width / 2,
-      y: point.y - height / 2,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createCenteredBoxToolElement('ellipse', 'Ellipse', point, 120, 120)
   }
 
   if (toolName === 'lineSegment') {
-    return {
-      id: nid(),
-      type: 'lineSegment',
-      name: 'Line',
-      x: point.x - 80,
-      y: point.y - 20,
-      width: 160,
-      height: 40,
-      fill: {enabled: false, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 2},
-    }
+    return createLineLikeToolElement('Line', point, 160, 40, '#111827')
+  }
+
+  if (toolName === 'connector') {
+    return createLineLikeToolElement('Connector', point, 192, 24, '#0f172a', 'triangle')
   }
 
   if (toolName === 'polygon') {
@@ -147,6 +118,7 @@ export function createShapeElementFromTool(
 export function isDragCreateTool(toolName: ToolName) {
   return toolName === 'rectangle' ||
     toolName === 'ellipse' ||
+    toolName === 'connector' ||
     toolName === 'lineSegment' ||
     toolName === 'polygon' ||
     toolName === 'star' ||
@@ -165,49 +137,19 @@ export function createShapeElementFromDrag(
   const y = bounds.minY
 
   if (toolName === 'rectangle') {
-    return {
-      id: nid(),
-      type: 'rectangle',
-      name: 'Rectangle',
-      x,
-      y,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createDragBoxShapeElement('rectangle', 'Rectangle', x, y, width, height)
   }
 
   if (toolName === 'ellipse') {
-    return {
-      id: nid(),
-      type: 'ellipse',
-      name: 'Ellipse',
-      x,
-      y,
-      width,
-      height,
-      fill: {enabled: true, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 1},
-    }
+    return createDragBoxShapeElement('ellipse', 'Ellipse', x, y, width, height)
   }
 
   if (toolName === 'lineSegment') {
-    return {
-      id: nid(),
-      type: 'lineSegment',
-      name: 'Line',
-      x: start.x,
-      y: start.y,
-      width: end.x - start.x,
-      height: end.y - start.y,
-      points: [
-        {x: start.x, y: start.y},
-        {x: end.x, y: end.y},
-      ],
-      fill: {enabled: false, color: '#ffffff'},
-      stroke: {enabled: true, color: '#111827', weight: 2},
-    }
+    return createDragLineLikeShapeElement('Line', start, end, '#111827')
+  }
+
+  if (toolName === 'connector') {
+    return createDragLineLikeShapeElement('Connector', start, end, '#0f172a', 'triangle')
   }
 
   if (toolName === 'polygon') {
@@ -270,13 +212,7 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
     assetUrl: shape.assetUrl,
     clipPathId: shape.clipPathId,
     clipRule: shape.clipRule,
-    schemaMeta: shape.schema
-      ? {
-          sourceNodeType: shape.schema.sourceNodeType,
-          sourceNodeKind: shape.schema.sourceNodeKind,
-          sourceFeatureKinds: shape.schema.sourceFeatureKinds?.slice(),
-        }
-      : undefined,
+    schemaMeta: resolveSelectedSchemaMeta(shape),
     x: shape.x,
     y: shape.y,
     width: shape.width,
@@ -293,19 +229,8 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
     flipX: shape.flipX ?? false,
     flipY: shape.flipY ?? false,
     opacity: 1,
-    fill: shape.fill
-      ? {...shape.fill}
-      : {
-          enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
-          color: '#ffffff',
-        },
-    stroke: shape.stroke
-      ? {...shape.stroke}
-      : {
-          enabled: true,
-          color: '#000000',
-          weight: 1,
-        },
+    fill: resolveSelectedFill(shape),
+    stroke: resolveSelectedStroke(shape),
     shadow: shape.shadow ? {...shape.shadow} : undefined,
     cornerRadius: shape.cornerRadius,
     cornerRadii: shape.cornerRadii ? {...shape.cornerRadii} : undefined,
@@ -314,27 +239,44 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
   }
 }
 
+function resolveSelectedSchemaMeta(shape: DocumentNode) {
+  return shape.schema
+    ? {
+        sourceNodeType: shape.schema.sourceNodeType,
+        sourceNodeKind: shape.schema.sourceNodeKind,
+        sourceFeatureKinds: shape.schema.sourceFeatureKinds?.slice(),
+      }
+    : undefined
+}
+
+function resolveSelectedFill(shape: DocumentNode) {
+  return shape.fill
+    ? {...shape.fill}
+    : {
+        enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
+        color: '#ffffff',
+      }
+}
+
+function resolveSelectedStroke(shape: DocumentNode) {
+  return shape.stroke
+    ? {...shape.stroke}
+    : {
+        enabled: true,
+        color: '#000000',
+        weight: 1,
+      }
+}
+
 export function cloneElementProps(element: ElementProps): ElementProps {
   return {
     ...element,
-    points: Array.isArray(element.points)
-      ? element.points.map((point) =>
-          point && typeof point === 'object'
-            ? ({...(point as Record<string, unknown>)})
-            : point,
-        )
-      : undefined,
-    bezierPoints: Array.isArray(element.bezierPoints)
-      ? element.bezierPoints.map((point) =>
-          point && typeof point === 'object'
-            ? ({...(point as Record<string, unknown>)})
-            : point,
-        )
-      : undefined,
-    fill: element.fill ? {...element.fill} : undefined,
-    stroke: element.stroke ? {...element.stroke} : undefined,
-    shadow: element.shadow ? {...element.shadow} : undefined,
-    cornerRadii: element.cornerRadii ? {...element.cornerRadii} : undefined,
+    points: cloneElementPoints(element.points),
+    bezierPoints: cloneElementBezierPoints(element.bezierPoints),
+    fill: cloneStyleLike(element.fill),
+    stroke: cloneStyleLike(element.stroke),
+    shadow: cloneStyleLike(element.shadow),
+    cornerRadii: cloneStyleLike(element.cornerRadii),
   }
 }
 
@@ -352,83 +294,105 @@ export function offsetElementPosition(
     ...cloneElementProps(element),
     x: nextX,
     y: nextY,
-    points: Array.isArray(element.points)
-      ? element.points.map((point) =>
-          point &&
-          typeof point === 'object' &&
-          typeof (point as {x?: unknown}).x === 'number' &&
-          typeof (point as {y?: unknown}).y === 'number'
-            ? {
-                x: Number((point as {x: number}).x) + deltaX,
-                y: Number((point as {y: number}).y) + deltaY,
-              }
-            : point,
-        )
-      : undefined,
-    bezierPoints: Array.isArray(element.bezierPoints)
-      ? element.bezierPoints.map((point) =>
-          point && typeof point === 'object'
-            ? (() => {
-                const candidate = point as {
-                  anchor?: unknown
-                  cp1?: unknown
-                  cp2?: unknown
-                }
-                if (!candidate.anchor || typeof candidate.anchor !== 'object') {
-                  return point
-                }
-
-                return {
-                  anchor: {
-                    x: Number((candidate.anchor as {x: number}).x) + deltaX,
-                    y: Number((candidate.anchor as {y: number}).y) + deltaY,
-                  },
-                  cp1:
-                    candidate.cp1 && typeof candidate.cp1 === 'object'
-                      ? {
-                          x: Number((candidate.cp1 as {x: number}).x) + deltaX,
-                          y: Number((candidate.cp1 as {y: number}).y) + deltaY,
-                        }
-                      : candidate.cp1,
-                  cp2:
-                    candidate.cp2 && typeof candidate.cp2 === 'object'
-                      ? {
-                          x: Number((candidate.cp2 as {x: number}).x) + deltaX,
-                          y: Number((candidate.cp2 as {y: number}).y) + deltaY,
-                        }
-                      : candidate.cp2,
-                }
-              })()
-            : point,
-        )
-      : undefined,
+    points: offsetElementPoints(element.points, deltaX, deltaY),
+    bezierPoints: offsetElementBezierPoints(element.bezierPoints, deltaX, deltaY),
   }
 }
 
 export function buildHistoryArray(history: HistorySummary): HistoryNodeLike[] {
-  return history.entries.map((entry, index, array) => ({
-    id: index,
-    prev: index > 0 ? {
-      id: index - 1,
-      prev: null,
-      next: null,
-      data: {type: array[index - 1].label},
-      label: array[index - 1].label,
-    } : null,
-    next: index < array.length - 1 ? {
-      id: index + 1,
-      prev: null,
-      next: null,
-      data: {type: array[index + 1].label},
-      label: array[index + 1].label,
-    } : null,
-    data: {type: entry.label},
-    label: entry.label,
-  }))
+  return history.entries.map((entry, index, array) => createHistoryNodeLikeEntry(entry.label, index, array))
 }
 
 export function isPenTool(toolName: ToolName) {
   return toolName === 'pencil' || toolName === 'path'
+}
+
+function createCenteredBoxToolElement(
+  type: 'rectangle' | 'ellipse',
+  name: string,
+  point: {x: number; y: number},
+  width: number,
+  height: number,
+): ElementProps {
+  return {
+    id: nid(),
+    type,
+    name,
+    x: point.x - width / 2,
+    y: point.y - height / 2,
+    width,
+    height,
+    fill: {enabled: true, color: '#ffffff'},
+    stroke: {enabled: true, color: '#111827', weight: 1},
+  }
+}
+
+function createLineLikeToolElement(
+  name: string,
+  point: {x: number; y: number},
+  width: number,
+  height: number,
+  strokeColor: string,
+  strokeEndArrowhead?: ElementProps['strokeEndArrowhead'],
+): ElementProps {
+  return {
+    id: nid(),
+    type: 'lineSegment',
+    name,
+    x: point.x - width / 2,
+    y: point.y - height / 2,
+    width,
+    height,
+    fill: {enabled: false, color: '#ffffff'},
+    stroke: {enabled: true, color: strokeColor, weight: 2},
+    strokeEndArrowhead,
+  }
+}
+
+function createDragBoxShapeElement(
+  type: 'rectangle' | 'ellipse',
+  name: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): ElementProps {
+  return {
+    id: nid(),
+    type,
+    name,
+    x,
+    y,
+    width,
+    height,
+    fill: {enabled: true, color: '#ffffff'},
+    stroke: {enabled: true, color: '#111827', weight: 1},
+  }
+}
+
+function createDragLineLikeShapeElement(
+  name: string,
+  start: {x: number; y: number},
+  end: {x: number; y: number},
+  strokeColor: string,
+  strokeEndArrowhead?: ElementProps['strokeEndArrowhead'],
+): ElementProps {
+  return {
+    id: nid(),
+    type: 'lineSegment',
+    name,
+    x: start.x,
+    y: start.y,
+    width: end.x - start.x,
+    height: end.y - start.y,
+    points: [
+      {x: start.x, y: start.y},
+      {x: end.x, y: end.y},
+    ],
+    fill: {enabled: false, color: '#ffffff'},
+    stroke: {enabled: true, color: strokeColor, weight: 2},
+    strokeEndArrowhead,
+  }
 }
 
 function createPolygonPoints(x: number, y: number, width: number, height: number) {
@@ -445,6 +409,121 @@ function createPolygonPoints(x: number, y: number, width: number, height: number
       y: centerY + Math.sin(angle) * radius,
     }
   })
+}
+
+function cloneElementPoints(points: ElementProps['points']) {
+  return Array.isArray(points)
+    ? points.map((point) =>
+        point && typeof point === 'object'
+          ? ({...(point as Record<string, unknown>)})
+          : point,
+      )
+    : undefined
+}
+
+function cloneElementBezierPoints(bezierPoints: ElementProps['bezierPoints']) {
+  return Array.isArray(bezierPoints)
+    ? bezierPoints.map((point) =>
+        point && typeof point === 'object'
+          ? ({...(point as Record<string, unknown>)})
+          : point,
+      )
+    : undefined
+}
+
+function cloneStyleLike<T extends object | undefined>(value: T): T {
+  return (value ? {...value} : undefined) as T
+}
+
+function offsetElementPoints(
+  points: ElementProps['points'],
+  deltaX: number,
+  deltaY: number,
+) {
+  return Array.isArray(points)
+    ? points.map((point) =>
+        point &&
+        typeof point === 'object' &&
+        typeof (point as {x?: unknown}).x === 'number' &&
+        typeof (point as {y?: unknown}).y === 'number'
+          ? {
+              x: Number((point as {x: number}).x) + deltaX,
+              y: Number((point as {y: number}).y) + deltaY,
+            }
+          : point,
+      )
+    : undefined
+}
+
+function offsetElementBezierPoints(
+  bezierPoints: ElementProps['bezierPoints'],
+  deltaX: number,
+  deltaY: number,
+) {
+  return Array.isArray(bezierPoints)
+    ? bezierPoints.map((point) => {
+        if (!point || typeof point !== 'object') {
+          return point
+        }
+
+        const candidate = point as {
+          anchor?: unknown
+          cp1?: unknown
+          cp2?: unknown
+        }
+        if (!candidate.anchor || typeof candidate.anchor !== 'object') {
+          return point
+        }
+
+        return {
+          anchor: {
+            x: Number((candidate.anchor as {x: number}).x) + deltaX,
+            y: Number((candidate.anchor as {y: number}).y) + deltaY,
+          },
+          cp1:
+            candidate.cp1 && typeof candidate.cp1 === 'object'
+              ? {
+                  x: Number((candidate.cp1 as {x: number}).x) + deltaX,
+                  y: Number((candidate.cp1 as {y: number}).y) + deltaY,
+                }
+              : candidate.cp1,
+          cp2:
+            candidate.cp2 && typeof candidate.cp2 === 'object'
+              ? {
+                  x: Number((candidate.cp2 as {x: number}).x) + deltaX,
+                  y: Number((candidate.cp2 as {y: number}).y) + deltaY,
+                }
+              : candidate.cp2,
+        }
+      })
+    : undefined
+}
+
+function createHistoryNeighborEntry(
+  label: string,
+  id: number,
+): HistoryNodeLike {
+  return {
+    id,
+    prev: null,
+    next: null,
+    data: {type: label},
+    label,
+  }
+}
+
+function createHistoryNodeLikeEntry(
+  label: string,
+  index: number,
+  entries: HistorySummary['entries'],
+): HistoryNodeLike {
+  return {
+    id: index,
+    prev: index > 0 ? createHistoryNeighborEntry(entries[index - 1].label, index - 1) : null,
+    next: index < entries.length - 1 ? createHistoryNeighborEntry(entries[index + 1].label, index + 1) : null,
+    data: {type: label},
+    label,
+  }
 }
 
 function createStarPoints(x: number, y: number, width: number, height: number) {

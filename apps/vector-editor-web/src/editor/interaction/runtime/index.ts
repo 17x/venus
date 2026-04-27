@@ -8,7 +8,11 @@ export {
 } from './zoomPresets.ts'
 
 export {
+  resolveLodProfile,
   resolveCanvasLodProfile,
+  type LodInteractionType,
+  type LodProfile,
+  type LodProfileInput,
   type CanvasLodProfile,
   type CanvasLodProfileInput,
 } from '@vector/runtime/interaction'

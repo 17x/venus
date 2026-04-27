@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {CanvasViewportState} from '../viewport/types.ts'
 
 type CanvasElementRenderLodLevel = 0 | 1 | 2 | 3

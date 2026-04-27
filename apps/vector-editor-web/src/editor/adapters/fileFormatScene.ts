@@ -1,7 +1,7 @@
-import type {RuntimeFeatureEntryV5, RuntimePathCommandV4, RuntimePathV4, RuntimeSceneLatest} from '@venus/document-core'
+import type {RuntimeFeatureEntryV5, RuntimePathCommandV4, RuntimePathV4, RuntimeSceneLatest} from '@vector/model'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {VisionFileType} from '../hooks/useEditorRuntime.ts'
-import {getBoundingRectFromBezierPoints} from '@venus/document-core'
+import {getBoundingRectFromBezierPoints} from '@vector/model'
 
 type ElementHierarchyMeta = {
   parentId?: string | null
@@ -243,6 +243,12 @@ function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest
   }
   if (typeof element.ellipseEndAngle === 'number') {
     metadataValues.ellipseEndAngle = element.ellipseEndAngle
+  }
+  if (typeof element.maskGroupId === 'string') {
+    metadataValues.maskGroupId = element.maskGroupId
+  }
+  if (element.maskRole === 'host' || element.maskRole === 'source') {
+    metadataValues.maskRole = element.maskRole
   }
   const featureEntries: RuntimeFeatureEntryV5[] = [
     createMetadataEntry(`${element.id}:metadata`, metadataValues, transformMetadataEntries),

@@ -9,6 +9,12 @@ export interface EngineViewportState {
     offsetY: number;
     matrix: readonly [number, number, number, number, number, number, number, number, number];
 }
+export interface EngineRenderSurfaceSize {
+    viewportWidth: number;
+    viewportHeight: number;
+    outputWidth: number;
+    outputHeight: number;
+}
 export interface EngineRenderStats {
     drawCount: number;
     visibleCount: number;
@@ -18,6 +24,12 @@ export interface EngineRenderStats {
     frameReuseHits: number;
     frameReuseMisses: number;
     frameMs: number;
+    webglRenderPath?: 'model-complete' | 'packet';
+    webglInteractiveTextFallbackCount?: number;
+    webglTextTextureUploadCount?: number;
+    webglTextTextureUploadBytes?: number;
+    webglTextCacheHitCount?: number;
+    webglCompositeUploadBytes?: number;
 }
 export interface EngineRendererCapabilities {
     backend: EngineBackend;
@@ -54,10 +66,22 @@ export interface EngineTextShaper {
     } | null;
 }
 export interface EngineRendererContext {
+    /** Render quality lane used for gesture responsiveness. */
     quality: EngineRenderQuality;
+    /** Explicit LOD gate for planner/renderer detail simplifications. */
+    lodEnabled?: boolean;
     pixelRatio?: number;
+    outputPixelRatio?: number;
     loader?: EngineResourceLoader;
     textShaper?: EngineTextShaper;
+    dirtyRegions?: Array<{
+        zoomLevel: number;
+        gridX: number;
+        gridY: number;
+    }>;
+    framePlanCandidateIds?: readonly string[];
+    framePlanVersion?: number;
+    protectedNodeIds?: readonly string[];
 }
 export interface EngineRenderFrame {
     scene: EngineSceneSnapshot;
@@ -68,7 +92,7 @@ export interface EngineRenderer {
     readonly id: string;
     readonly capabilities: EngineRendererCapabilities;
     init?(): void | Promise<void>;
-    resize?(width: number, height: number): void;
+    resize?(size: EngineRenderSurfaceSize): void;
     render(frame: EngineRenderFrame): EngineRenderStats | Promise<EngineRenderStats>;
     dispose?(): void;
 }

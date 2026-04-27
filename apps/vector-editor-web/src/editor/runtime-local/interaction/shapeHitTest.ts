@@ -1,8 +1,11 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 import {isPointInsideEngineClipShape, isPointInsideEngineShapeHitArea} from '@venus/engine'
+import {withResolvedPathHints} from '../../interaction/pathHitTestHints.ts'
 
 export interface ResolveTopHitShapeIdOptions {
+  hitMode?: 'exact' | 'bbox_then_exact' | 'bbox'
+  maxExactCandidateCount?: number
   allowFrameSelection?: boolean
   tolerance?: number
   strictStrokeHitTest?: boolean
@@ -11,18 +14,24 @@ export interface ResolveTopHitShapeIdOptions {
   preferGroupSelection?: boolean
 }
 
-export function resolveTopHitShapeId(
+export function resolveHitShapeIdsAtPoint(
   document: EditorDocument,
   snapshots: SceneShapeSnapshot[],
   pointer: {x: number; y: number},
   options?: ResolveTopHitShapeIdOptions,
 ) {
   const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  const hitMode = options?.hitMode ?? 'exact'
+  const maxExactCandidateCount = Math.max(1, options?.maxExactCandidateCount ?? 4)
   const allowFrameSelection = options?.allowFrameSelection ?? true
   const tolerance = options?.tolerance ?? 6
   const clipTolerance = options?.clipTolerance ?? 1.5
   const excludeClipBoundImage = options?.excludeClipBoundImage ?? true
   const preferGroupSelection = options?.preferGroupSelection ?? false
+  const hitShapeIds: string[] = []
+  const emittedShapeIds = new Set<string>()
+  let firstBoundsHitShapeId: string | null = null
+  let exactCandidateCount = 0
 
   for (let index = snapshots.length - 1; index >= 0; index -= 1) {
     const snapshot = snapshots[index]
@@ -35,9 +44,29 @@ export function resolveTopHitShapeId(
       continue
     }
 
+    if (!isPointInsideSourceBounds(pointer, source, tolerance)) {
+      continue
+    }
+
+    const resolvedHitShapeId = preferGroupSelection
+      ? resolveTopmostGroupAncestorId(source.id, shapeById)
+      : source.id
+    if (!firstBoundsHitShapeId) {
+      firstBoundsHitShapeId = resolvedHitShapeId
+    }
+
+    if (hitMode === 'bbox') {
+      appendHitShapeId(hitShapeIds, emittedShapeIds, resolvedHitShapeId)
+      continue
+    }
+
+    if (hitMode === 'bbox_then_exact' && exactCandidateCount >= maxExactCandidateCount) {
+      continue
+    }
+
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+      if (clipSource && !isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
         tolerance: clipTolerance,
         shapeById,
       })) {
@@ -45,19 +74,62 @@ export function resolveTopHitShapeId(
       }
     }
 
-    if (isPointInsideEngineShapeHitArea(pointer, source, {
+    exactCandidateCount += 1
+
+    if (isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(source), {
       allowFrameSelection,
       tolerance,
       strictStrokeHitTest: options?.strictStrokeHitTest,
       shapeById,
     })) {
-      return preferGroupSelection
-        ? resolveTopmostGroupAncestorId(source.id, shapeById)
-        : source.id
+      appendHitShapeId(hitShapeIds, emittedShapeIds, resolvedHitShapeId)
     }
   }
 
-  return null
+  if (hitShapeIds.length === 0 && hitMode === 'bbox_then_exact' && firstBoundsHitShapeId) {
+    hitShapeIds.push(firstBoundsHitShapeId)
+  }
+
+  return hitShapeIds
+}
+
+export function resolveTopHitShapeId(
+  document: EditorDocument,
+  snapshots: SceneShapeSnapshot[],
+  pointer: {x: number; y: number},
+  options?: ResolveTopHitShapeIdOptions,
+) {
+  return resolveHitShapeIdsAtPoint(document, snapshots, pointer, options)[0] ?? null
+}
+
+function appendHitShapeId(
+  hitShapeIds: string[],
+  emittedShapeIds: Set<string>,
+  shapeId: string,
+) {
+  if (emittedShapeIds.has(shapeId)) {
+    return
+  }
+
+  emittedShapeIds.add(shapeId)
+  hitShapeIds.push(shapeId)
+}
+
+function isPointInsideSourceBounds(
+  pointer: {x: number; y: number},
+  source: EditorDocument['shapes'][number],
+  tolerance: number,
+) {
+  const minX = Math.min(source.x, source.x + source.width) - tolerance
+  const maxX = Math.max(source.x, source.x + source.width) + tolerance
+  const minY = Math.min(source.y, source.y + source.height) - tolerance
+  const maxY = Math.max(source.y, source.y + source.height) + tolerance
+  return (
+    pointer.x >= minX &&
+    pointer.x <= maxX &&
+    pointer.y >= minY &&
+    pointer.y <= maxY
+  )
 }
 
 function resolveTopmostGroupAncestorId(

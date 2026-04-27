@@ -1,11 +1,14 @@
 import {createElement, useMemo, useRef} from 'react'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
+import type {RuntimeEditingMode} from '@vector/runtime'
 import {
   buildRuntimePathEditInstructions,
   buildRuntimeOverlayInstructions,
   buildRuntimePreviewInstructions,
+  createRuntimeSelectionChromeRegistry,
 } from '@vector/runtime'
-import {Canvas2DRenderer} from '../runtime/canvasAdapter.tsx'
+import {EngineRenderer} from '../runtime/engineAdapter.tsx'
+import type {OverlayDiagnostics} from '../runtime/engineAdapter.tsx'
 import {buildSelectionState, InteractionOverlay} from '../interaction/index.ts'
 import {resolveTransformPreviewRuntimeState, resolveMarqueeBounds, type MarqueeState, type SnapGuide} from '../../runtime/interaction/index.ts'
 import type {
@@ -16,7 +19,12 @@ import type {
 } from '../interaction/index.ts'
 import {useCanvasRuntimeBridge} from './useCanvasRuntimeBridge.ts'
 import {useTransformPreviewCommitBridge} from './useTransformPreviewCommitBridge.ts'
-import {resolvePathHandlePreviewDocument} from './useEditorRuntime.helpers.ts'
+import {
+  filterDocumentToShapeSet,
+  filterSnapshotsToShapeSet,
+  resolveIsolationShapeIdSet,
+  resolvePathHandlePreviewDocument,
+} from './useEditorRuntime.helpers.ts'
 
 const SCENE_CAPACITY = 8192
 const DEFAULT_SELECTION_CONFIG = {
@@ -47,6 +55,8 @@ const DEFAULT_PRESENTATION_CONFIG = {
 
 export function useEditorRuntimeDerivedState(options: {
   document: EditorDocument
+  editingMode: RuntimeEditingMode
+  isolationGroupId: string | null
   onContextMenu?: (position: {x: number; y: number}) => void
   hoveredShapeId: string | null
   marquee: MarqueeState | null
@@ -65,6 +75,8 @@ export function useEditorRuntimeDerivedState(options: {
 }) {
   const {
     document,
+    editingMode,
+    isolationGroupId,
     onContextMenu,
     hoveredShapeId,
     marquee,
@@ -95,23 +107,12 @@ export function useEditorRuntimeDerivedState(options: {
     presentation: runtimePresentation,
   } = useCanvasRuntimeBridge(runtimeBridgeOptions)
 
-  const preferredEngineBackend = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return 'webgl' as const
-    }
-
-    const requested = new URLSearchParams(window.location.search).get('engineBackend')
-    return requested === 'canvas2d' ? 'canvas2d' : 'webgl'
-  }, [])
-
   const RuntimeRenderer = useMemo(() => {
-    return function RuntimeCanvasRenderer(props: Parameters<typeof Canvas2DRenderer>[0]) {
-      return createElement(Canvas2DRenderer, {
-        ...props,
-        backend: preferredEngineBackend,
-      })
+    // Wrap runtime renderer so hook consumers stay decoupled from adapter internals.
+    return function RuntimeEngineRenderer(props: Parameters<typeof EngineRenderer>[0]) {
+      return createElement(EngineRenderer, props)
     }
-  }, [preferredEngineBackend])
+  }, [])
 
   const {
     preview: transformPreview,
@@ -152,8 +153,26 @@ export function useEditorRuntimeDerivedState(options: {
     transformPreview?.shapes ?? null,
     {includeClipBoundImagePreview: true},
   ), [canvasRuntime.document, canvasRuntime.shapes, transformPreview])
-  const previewDocument = previewState.previewDocument
-  const previewShapes = previewState.previewShapes
+  const isolationVisibleIds = useMemo(() => resolveIsolationShapeIdSet({
+    shapes: previewState.previewDocument.shapes,
+    groupId: isolationGroupId,
+  }), [isolationGroupId, previewState.previewDocument.shapes])
+  // Isolation is a runtime-only filter over the preview scene so engine and UI
+  // can reuse the same document model while narrowing interaction scope.
+  const previewDocument = useMemo(
+    () => filterDocumentToShapeSet(previewState.previewDocument, isolationVisibleIds),
+    [isolationVisibleIds, previewState.previewDocument],
+  )
+  const isolationBackdropShapes = useMemo(
+    () => isolationGroupId
+      ? previewState.previewDocument.shapes.filter((shape) => !(isolationVisibleIds?.has(shape.id) ?? false))
+      : [],
+    [isolationGroupId, isolationVisibleIds, previewState.previewDocument.shapes],
+  )
+  const previewShapes = useMemo(
+    () => filterSnapshotsToShapeSet(previewState.previewShapes, isolationVisibleIds),
+    [isolationVisibleIds, previewState.previewShapes],
+  )
   const interactionDocument = useMemo(() => resolvePathHandlePreviewDocument(
     previewDocument,
     pathHandleDrag,
@@ -168,6 +187,99 @@ export function useEditorRuntimeDerivedState(options: {
     () => buildSelectionState(interactionDocument, previewShapes),
     [interactionDocument, previewShapes],
   )
+  const hasPathEditActivity = Boolean(
+    pathSubSelection ||
+    pathSubSelectionHover ||
+    pathHandleDrag,
+  )
+  const overlayInteractionDegraded = useMemo(() => {
+    // Keep path-edit overlays available; degrade expensive hover/guide visuals during motion-heavy modes.
+    if (hasPathEditActivity) {
+      return false
+    }
+
+    return editingMode === 'dragging' ||
+      editingMode === 'resizing' ||
+      editingMode === 'rotating' ||
+      editingMode === 'drawingPath' ||
+      editingMode === 'drawingPencil' ||
+      editingMode === 'insertingShape'
+  }, [editingMode, hasPathEditActivity])
+  const effectiveHoveredShapeId = overlayInteractionDegraded
+    ? null
+    : hoveredShapeId
+  const effectiveSnapGuides = useMemo(() => {
+    if (!overlayInteractionDegraded) {
+      return snapGuides
+    }
+
+    const selectedBounds = selectionState.selectedBounds
+    if (!selectedBounds) {
+      // No active moving/selected bounds: keep one stable guide per axis.
+      const primaryGuideByAxis = new Map<SnapGuide['axis'], SnapGuide>()
+      for (const guide of snapGuides) {
+        if (!primaryGuideByAxis.has(guide.axis)) {
+          primaryGuideByAxis.set(guide.axis, guide)
+        }
+      }
+      return Array.from(primaryGuideByAxis.values())
+    }
+
+    const resolveAnchorValue = (guide: SnapGuide) => {
+      if (guide.axis === 'x') {
+        if (guide.kind === 'edge-min') {
+          return selectedBounds.minX
+        }
+        if (guide.kind === 'edge-max') {
+          return selectedBounds.maxX
+        }
+        return (selectedBounds.minX + selectedBounds.maxX) / 2
+      }
+
+      if (guide.kind === 'edge-min') {
+        return selectedBounds.minY
+      }
+      if (guide.kind === 'edge-max') {
+        return selectedBounds.maxY
+      }
+      return (selectedBounds.minY + selectedBounds.maxY) / 2
+    }
+
+    // Preserve coarse snapping readability under degraded overlays by keeping
+    // the most relevant guide per axis for the current moving selection.
+    const primaryGuideByAxis = new Map<SnapGuide['axis'], SnapGuide>()
+    for (const guide of snapGuides) {
+      const existing = primaryGuideByAxis.get(guide.axis)
+      if (!existing) {
+        primaryGuideByAxis.set(guide.axis, guide)
+        continue
+      }
+
+      const existingDistance = Math.abs(resolveAnchorValue(existing) - existing.value)
+      const nextDistance = Math.abs(resolveAnchorValue(guide) - guide.value)
+      if (nextDistance < existingDistance) {
+        primaryGuideByAxis.set(guide.axis, guide)
+      }
+    }
+    return Array.from(primaryGuideByAxis.values())
+  }, [overlayInteractionDegraded, selectionState.selectedBounds, snapGuides])
+  const overlayGuideSelectionStrategy = useMemo<OverlayDiagnostics['guideSelectionStrategy']>(() => {
+    if (!overlayInteractionDegraded) {
+      return 'full'
+    }
+
+    return selectionState.selectedBounds
+      ? 'axis-relevance'
+      : 'axis-first'
+  }, [overlayInteractionDegraded, selectionState.selectedBounds])
+  const overlayDiagnostics = useMemo<OverlayDiagnostics>(() => ({
+    degraded: overlayInteractionDegraded,
+    guideInputCount: snapGuides.length,
+    guideKeptCount: effectiveSnapGuides.length,
+    guideDroppedCount: Math.max(0, snapGuides.length - effectiveSnapGuides.length),
+    guideSelectionStrategy: overlayGuideSelectionStrategy,
+    pathEditWhitelistActive: hasPathEditActivity,
+  }), [effectiveSnapGuides.length, hasPathEditActivity, overlayGuideSelectionStrategy, overlayInteractionDegraded, snapGuides.length])
   const marqueeBounds = useMemo<InteractionBounds | null>(() => {
     if (!marquee) {
       return null
@@ -175,23 +287,14 @@ export function useEditorRuntimeDerivedState(options: {
     return resolveMarqueeBounds(marquee)
   }, [marquee])
 
-  const hoveredShapeBounds = useMemo(() => {
-    if (!hoveredShapeId) {
-      return null
-    }
-    const hoveredShape = previewShapeById.get(hoveredShapeId)
-    if (!hoveredShape) {
-      return null
-    }
-    return {
-      minX: Math.min(hoveredShape.x, hoveredShape.x + hoveredShape.width),
-      minY: Math.min(hoveredShape.y, hoveredShape.y + hoveredShape.height),
-      maxX: Math.max(hoveredShape.x, hoveredShape.x + hoveredShape.width),
-      maxY: Math.max(hoveredShape.y, hoveredShape.y + hoveredShape.height),
-    }
-  }, [hoveredShapeId, previewShapeById])
-
   const activePathSubSelection = pathSubSelectionHover ?? pathSubSelection
+  const selectionChromeRegistry = useMemo(() => createRuntimeSelectionChromeRegistry(), [])
+  const selectionChrome = useMemo(() => selectionChromeRegistry.resolve({
+    nodeType: selectedNode?.type ?? null,
+    editingMode,
+    isMaskedImageHost: selectedNode?.type === 'image' && Boolean(selectedNode.clipPathId),
+    isMaskSource: selectedNode?.schema?.maskRole === 'source',
+  }), [editingMode, selectedNode, selectionChromeRegistry])
   const activePathShape = useMemo(() => {
     if (!activePathSubSelection) {
       return null
@@ -265,11 +368,18 @@ export function useEditorRuntimeDerivedState(options: {
     return {from, to}
   }, [activePathAnchors, activePathSubSelection])
 
+  const shouldSuppressSelectionBoundsOverlay = (
+    Boolean(transformPreview?.shapes?.length) ||
+    editingMode === 'dragging' ||
+    editingMode === 'resizing' ||
+    editingMode === 'rotating'
+  )
+
   const baseOverlayInstructions = useMemo(() => buildRuntimeOverlayInstructions({
-    selectedBounds: selectionState.selectedBounds,
+    selectedBounds: shouldSuppressSelectionBoundsOverlay ? null : selectionState.selectedBounds,
     marqueeBounds,
-    hoveredShapeBounds,
-    snapGuides,
+    hoveredShapeBounds: null,
+    snapGuides: effectiveSnapGuides,
     canvasBounds: {
       minX: 0,
       minY: 0,
@@ -277,12 +387,12 @@ export function useEditorRuntimeDerivedState(options: {
       maxY: interactionDocument.height,
     },
   }), [
-    hoveredShapeBounds,
     interactionDocument.height,
     interactionDocument.width,
     marqueeBounds,
+    shouldSuppressSelectionBoundsOverlay,
     selectionState.selectedBounds,
-    snapGuides,
+    effectiveSnapGuides,
   ])
 
   const pathEditInstructions = useMemo(() => buildRuntimePathEditInstructions({
@@ -304,15 +414,55 @@ export function useEditorRuntimeDerivedState(options: {
     [baseOverlayInstructions, pathEditInstructions],
   )
 
-  const previewInstructions = useMemo(() => buildRuntimePreviewInstructions({
-    transformPreview,
-  }), [transformPreview])
+  const previewInstructions = useMemo(() => {
+    if (
+      editingMode === 'dragging' ||
+      editingMode === 'resizing' ||
+      editingMode === 'rotating'
+    ) {
+      return []
+    }
+
+    return buildRuntimePreviewInstructions({
+      transformPreview,
+    })
+  }, [editingMode, transformPreview])
+
+  const protectedNodeIds = useMemo(() => {
+    const ids = new Set<string>(selectedShapeIds)
+    for (const previewShape of transformPreview?.shapes ?? []) {
+      ids.add(previewShape.shapeId)
+    }
+    if (pathSubSelection?.shapeId) {
+      ids.add(pathSubSelection.shapeId)
+    }
+    if (pathSubSelectionHover?.shapeId) {
+      ids.add(pathSubSelectionHover.shapeId)
+    }
+    if (pathHandleDrag?.shapeId) {
+      ids.add(pathHandleDrag.shapeId)
+    }
+    return Array.from(ids)
+  }, [
+    pathHandleDrag?.shapeId,
+    pathSubSelection?.shapeId,
+    pathSubSelectionHover?.shapeId,
+    selectedShapeIds,
+    transformPreview?.shapes,
+  ])
 
   const OverlayRenderer = useMemo(() => {
     const overlayMarquee = marqueeBounds
-    const overlayHoveredShapeId = hoveredShapeId
-    const hideSelectionChrome = activeTransformHandle !== null
-    const overlaySnapGuides = snapGuides
+    const overlayHoveredShapeId = effectiveHoveredShapeId
+    const hidePreviewSelectionChrome = Boolean(transformPreview?.shapes?.length)
+    const hideTransformSelectionChrome = (
+      editingMode === 'dragging' ||
+      editingMode === 'resizing' ||
+      editingMode === 'rotating'
+    )
+    const hideSelectionBounds = hidePreviewSelectionChrome || hideTransformSelectionChrome || activeTransformHandle !== null || selectionChrome.hideBounds
+    const hideSelectionChrome = hidePreviewSelectionChrome || hideTransformSelectionChrome || activeTransformHandle !== null || selectionChrome.hideTransformHandles
+    const overlaySnapGuides = effectiveSnapGuides
     const overlayPathSubSelection = pathSubSelection
     const overlayPathSubSelectionHover = pathSubSelectionHover
     const overlayDraftPrimitive = draftPrimitive
@@ -324,6 +474,8 @@ export function useEditorRuntimeDerivedState(options: {
         ...props,
         hoveredShapeId: overlayHoveredShapeId,
         marqueeBounds: overlayMarquee,
+        isolationBackdropShapes,
+        hideSelectionBounds,
         hideSelectionChrome,
         snapGuides: overlaySnapGuides,
         pathSubSelection: overlayPathSubSelection,
@@ -338,7 +490,11 @@ export function useEditorRuntimeDerivedState(options: {
   }, [
     activeTransformHandle,
     draftPrimitive,
-    hoveredShapeId,
+    editingMode,
+    effectiveHoveredShapeId,
+    isolationBackdropShapes,
+    transformPreview,
+    selectionChrome.hideBounds,
     marqueeBounds,
     pathSubSelection,
     pathSubSelectionHover,
@@ -346,7 +502,7 @@ export function useEditorRuntimeDerivedState(options: {
     overlayInstructions,
     previewInstructions,
     runtimePresentation,
-    snapGuides,
+    effectiveSnapGuides,
   ])
 
   return {
@@ -368,9 +524,12 @@ export function useEditorRuntimeDerivedState(options: {
     interactionDocument,
     previewShapeById,
     selectionState,
+    selectionChrome,
     marqueeBounds,
     overlayInstructions,
     previewInstructions,
+    overlayDiagnostics,
+    protectedNodeIds,
     OverlayRenderer,
   }
 }

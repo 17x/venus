@@ -1,13 +1,15 @@
 import type {CollaborationOperation} from '../collaboration.ts'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import {readSceneStats, type SceneMemory} from '@vector/runtime/shared-memory'
 import type {HistoryPatch} from '../history.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from './model.ts'
 import {
   convertShapeToPathShape,
   createAlignMovePatches,
+  createBooleanReplacePatches,
   createDistributeMovePatches,
   type ShapeAlignMode,
+  type ShapeBooleanMode,
   type ShapeAlignReference,
 } from './shapeCommandHelpers.ts'
 import {
@@ -26,6 +28,12 @@ import {
   asTransformBatch,
   createTransformPatches,
 } from './transformSerde.ts'
+import {
+  createMaskLinkedReorderPatches,
+  expandMaskLinkedShapeIds,
+  includesMaskLinkedShapeIds,
+  resolveMaskSchemaPatches,
+} from './maskGroupSemantics.ts'
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -50,7 +58,14 @@ function asDistributeMode(value: unknown): 'hspace' | 'vspace' | null {
   return null
 }
 
-function getNodeBounds(nodes: import('@venus/document-core').DocumentNode[]) {
+function asBooleanMode(value: unknown): ShapeBooleanMode | null {
+  if (value === 'union' || value === 'subtract' || value === 'intersect') {
+    return value
+  }
+  return null
+}
+
+function getNodeBounds(nodes: import('@vector/model').DocumentNode[]) {
   const minX = Math.min(...nodes.map((node) => node.x))
   const minY = Math.min(...nodes.map((node) => node.y))
   const maxX = Math.max(...nodes.map((node) => node.x + node.width))
@@ -175,7 +190,15 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shapeId = asStringOrNull(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape) return []
-    return [{type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId: asOptionalStringOrUndef(operation.payload?.clipPathId), prevClipRule: shape.clipRule, nextClipRule: asClipRuleValue(operation.payload?.clipRule)}]
+    const nextClipPathId = asOptionalStringOrUndef(operation.payload?.clipPathId)
+    return [
+      {type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId, prevClipRule: shape.clipRule, nextClipRule: asClipRuleValue(operation.payload?.clipRule)},
+      ...resolveMaskSchemaPatches({
+        document,
+        hostShapeId: shape.id,
+        nextClipPathId,
+      }),
+    ]
   }
 
   if (operation.type === 'shape.insert') {
@@ -196,7 +219,12 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const shapeId = asStringOrNull(operation.payload?.shapeId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape) return []
-    return [{type: 'remove-shape', index: document.shapes.findIndex((item) => item.id === shape.id), shape}]
+    const expandedShapeIds = new Set(expandMaskLinkedShapeIds(document, [shape.id]))
+    return document.shapes
+      .map((candidate, index) => ({index, shape: candidate}))
+      .filter((item) => expandedShapeIds.has(item.shape.id))
+      .sort((left, right) => right.index - left.index)
+      .map(({index, shape}) => ({type: 'remove-shape' as const, index, shape}))
   }
 
   if (operation.type === 'shape.reorder') {
@@ -204,7 +232,11 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const toIndex = asNumberOrNull(operation.payload?.toIndex)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape || toIndex === null) return []
-    return [{type: 'reorder-shape', shapeId: shape.id, fromIndex: document.shapes.findIndex((item) => item.id === shape.id), toIndex}]
+    return createMaskLinkedReorderPatches({
+      document,
+      shapeId: shape.id,
+      toIndex,
+    })
   }
 
   if (operation.type === 'shape.group') {
@@ -213,9 +245,10 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const groupName = asStringOrNull(operation.payload?.name) ?? 'Group'
     if (selectedShapeIds.length < 2 || groupId === null) return []
 
-    const selectedShapes = selectedShapeIds
+    const expandedSelectedShapeIds = expandMaskLinkedShapeIds(document, selectedShapeIds)
+    const selectedShapes = expandedSelectedShapeIds
       .map((shapeId) => findShapeById(document, shapeId))
-      .filter((shape): shape is import('@venus/document-core').DocumentNode => shape !== null)
+      .filter((shape): shape is import('@vector/model').DocumentNode => shape !== null)
     if (selectedShapes.length < 2) return []
 
     const selectedIndices = selectedShapes
@@ -232,7 +265,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const parentPrevChildIds = parentGroup?.childIds?.slice()
     const selectedIdSet = new Set(selectedIndices.map((item) => item.shape.id))
     const affectedParentGroups = document.shapes
-      .filter((shape): shape is import('@venus/document-core').DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
+      .filter((shape): shape is import('@vector/model').DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
       .map((group) => ({
         groupId: group.id,
         prevChildIds: group.childIds?.slice() ?? [],
@@ -327,6 +360,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
   if (operation.type === 'shape.convert-to-path') {
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     if (shapeIds.length === 0) return []
+    if (includesMaskLinkedShapeIds(document, shapeIds)) return []
 
     const patches: HistoryPatch[] = []
     shapeIds.forEach((shapeId) => {
@@ -342,18 +376,32 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     return patches
   }
 
+  if (operation.type === 'shape.boolean') {
+    const shapeIds = asStringArray(operation.payload?.shapeIds)
+    const mode = asBooleanMode(operation.payload?.mode)
+    if (shapeIds.length < 2 || mode === null) return []
+    if (includesMaskLinkedShapeIds(document, shapeIds)) return []
+    const resolved = createBooleanReplacePatches(document, shapeIds, mode)
+    return resolved?.patches ?? []
+  }
+
   if (operation.type === 'shape.align') {
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     const mode = asAlignMode(operation.payload?.mode)
     if (shapeIds.length < 2 || mode === null) return []
-    return createAlignMovePatches(document, shapeIds, mode, asAlignReference(operation.payload?.reference))
+    return createAlignMovePatches(
+      document,
+      expandMaskLinkedShapeIds(document, shapeIds),
+      mode,
+      asAlignReference(operation.payload?.reference),
+    )
   }
 
   if (operation.type === 'shape.distribute') {
     const shapeIds = asStringArray(operation.payload?.shapeIds)
     const mode = asDistributeMode(operation.payload?.mode)
     if (shapeIds.length < 3 || mode === null) return []
-    return createDistributeMovePatches(document, shapeIds, mode)
+    return createDistributeMovePatches(document, expandMaskLinkedShapeIds(document, shapeIds), mode)
   }
 
   return []

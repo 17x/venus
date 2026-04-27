@@ -1,4 +1,4 @@
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
 import type {PathSubSelection, SegmentType} from '../../interaction/types.ts'
 
@@ -7,6 +7,10 @@ interface PathAnchorCandidate {
   y: number
   inHandle?: {x: number; y: number}
   outHandle?: {x: number; y: number}
+}
+
+interface IndexedPathAnchorCandidate extends PathAnchorCandidate {
+  sourceIndex: number
 }
 
 export function resolvePathSubSelectionAtPoint(
@@ -26,7 +30,8 @@ export function resolvePathSubSelectionAtPoint(
   )
 
   for (const pathShape of candidatePaths) {
-    const anchors = resolvePathAnchors(pathShape)
+    const contours = resolvePathAnchorContours(pathShape)
+    const anchors = contours.flatMap((contour) => contour)
     if (anchors.length < 2) {
       continue
     }
@@ -47,7 +52,7 @@ export function resolvePathSubSelectionAtPoint(
         const distance = distanceBetweenPoints(point, anchor.inHandle)
         if (distance <= tolerance && (!bestHandle || distance < bestHandle.distance)) {
           bestHandle = {
-            anchorIndex: index,
+            anchorIndex: anchor.sourceIndex,
             handleType: 'inHandle',
             x: anchor.inHandle.x,
             y: anchor.inHandle.y,
@@ -59,7 +64,7 @@ export function resolvePathSubSelectionAtPoint(
         const distance = distanceBetweenPoints(point, anchor.outHandle)
         if (distance <= tolerance && (!bestHandle || distance < bestHandle.distance)) {
           bestHandle = {
-            anchorIndex: index,
+            anchorIndex: anchor.sourceIndex,
             handleType: 'outHandle',
             x: anchor.outHandle.x,
             y: anchor.outHandle.y,
@@ -100,10 +105,10 @@ export function resolvePathSubSelectionAtPoint(
         shapeId: pathShape.id,
         hitType: 'anchorPoint',
         anchorPoint: {
-          index: bestAnchor.index,
+          index: anchorData.sourceIndex,
           x: anchorData.x,
           y: anchorData.y,
-          segmentType: resolveSegmentType(pathShape, bestAnchor.index),
+          segmentType: resolveSegmentType(pathShape, anchorData.sourceIndex),
           inHandle: anchorData.inHandle,
           outHandle: anchorData.outHandle,
         },
@@ -117,19 +122,21 @@ export function resolvePathSubSelectionAtPoint(
       segmentType: SegmentType
     } | null = null
 
-    for (let index = 0; index < anchors.length - 1; index += 1) {
-      const from = anchors[index]
-      const to = anchors[index + 1]
-      const nearest = nearestPointOnSegment(point, from, to)
-      if (nearest.distance > tolerance) {
-        continue
-      }
-      if (!bestSegment || nearest.distance < bestSegment.distance) {
-        bestSegment = {
-          index,
-          distance: nearest.distance,
-          point: nearest.point,
-          segmentType: from.outHandle || to.inHandle ? 'curve' : 'line',
+    for (const contour of contours) {
+      for (let index = 0; index < contour.length - 1; index += 1) {
+        const from = contour[index]
+        const to = contour[index + 1]
+        const nearest = nearestPointOnSegment(point, from, to)
+        if (nearest.distance > tolerance) {
+          continue
+        }
+        if (!bestSegment || nearest.distance < bestSegment.distance) {
+          bestSegment = {
+            index: from.sourceIndex,
+            distance: nearest.distance,
+            point: nearest.point,
+            segmentType: from.outHandle || to.inHandle ? 'curve' : 'line',
+          }
         }
       }
     }
@@ -151,20 +158,74 @@ export function resolvePathSubSelectionAtPoint(
   return null
 }
 
-function resolvePathAnchors(pathShape: EditorDocument['shapes'][number]) {
+function resolvePathAnchorContours(pathShape: EditorDocument['shapes'][number]) {
   if (Array.isArray(pathShape.bezierPoints) && pathShape.bezierPoints.length > 0) {
-    return pathShape.bezierPoints.map((point) => ({
+    return [pathShape.bezierPoints.map((point, index): IndexedPathAnchorCandidate => ({
+      sourceIndex: index,
       x: point.anchor.x,
       y: point.anchor.y,
       inHandle: point.cp1 ? {x: point.cp1.x, y: point.cp1.y} : undefined,
       outHandle: point.cp2 ? {x: point.cp2.x, y: point.cp2.y} : undefined,
-    }))
+    }))]
   }
 
-  return (pathShape.points ?? []).map((point): PathAnchorCandidate => ({
+  const points = pathShape.points ?? []
+  const contours = splitClosedPointContours(points)
+  if (contours.length > 1) {
+    return contours
+  }
+
+  return [points.map((point, index): IndexedPathAnchorCandidate => ({
+    sourceIndex: index,
     x: point.x,
     y: point.y,
-  }))
+  }))]
+}
+
+function splitClosedPointContours(points: Array<{x: number; y: number}>) {
+  const contours: IndexedPathAnchorCandidate[][] = []
+  let cursor = 0
+
+  while (cursor < points.length) {
+    const start = points[cursor]
+    if (!start) {
+      break
+    }
+
+    const contour: IndexedPathAnchorCandidate[] = [{
+      sourceIndex: cursor,
+      x: start.x,
+      y: start.y,
+    }]
+    let closedIndex = -1
+
+    for (let index = cursor + 1; index < points.length; index += 1) {
+      const point = points[index]
+      if (!point) {
+        continue
+      }
+
+      contour.push({
+        sourceIndex: index,
+        x: point.x,
+        y: point.y,
+      })
+
+      if (point.x === start.x && point.y === start.y && contour.length >= 4) {
+        closedIndex = index
+        break
+      }
+    }
+
+    if (closedIndex < 0) {
+      break
+    }
+
+    contours.push(contour)
+    cursor = closedIndex + 1
+  }
+
+  return contours
 }
 
 function resolveSegmentType(pathShape: EditorDocument['shapes'][number], anchorIndex: number): SegmentType {

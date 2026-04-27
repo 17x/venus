@@ -8,9 +8,15 @@ export {
   type RuntimeZoomPreset,
 } from './zoomPresets.ts'
 export {
+  // Re-export generic LOD names so planner-facing code can migrate away from
+  // canvas-specific terminology without changing package boundaries.
+  resolveEngineLodProfile as resolveLodProfile,
   resolveEngineCanvasLodProfile as resolveCanvasLodProfile,
 } from '@venus/engine'
 export type {
+  EngineLodInteractionType as LodInteractionType,
+  EngineLodProfile as LodProfile,
+  EngineLodProfileInput as LodProfileInput,
   EngineCanvasLodProfile as CanvasLodProfile,
   EngineCanvasLodProfileInput as CanvasLodProfileInput,
 } from '@venus/engine'
@@ -88,6 +94,7 @@ export {
 export { hasSelectedAncestorInDocument } from './selectionHierarchy.ts'
 // Hit test
 export {
+  resolveHitShapeIdsAtPoint,
   resolveTopHitShapeId,
   type ResolveTopHitShapeIdOptions,
 } from './shapeHitTest.ts'

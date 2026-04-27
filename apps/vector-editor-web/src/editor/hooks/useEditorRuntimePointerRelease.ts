@@ -4,6 +4,7 @@ import {
 } from '../../runtime/interaction/index.ts'
 import {createShapeElementFromDrag, createShapeElementFromTool} from './editorRuntimeHelpers.ts'
 import {formatSelectionNames} from './useEditorRuntime.helpers.ts'
+import {expandMaskLinkedShapeIds} from '../interaction/maskGroup.ts'
 
 export function handleCanvasPointerUp(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
@@ -15,7 +16,7 @@ export function handleCanvasPointerUp(options: {
     handleType: 'inHandle' | 'outHandle'
     point: {x: number; y: number}
   }) => void
-  currentTool: import('@venus/document-core').ToolName
+  currentTool: import('@vector/model').ToolName
   draftPrimitive: import('../interaction/index.ts').DraftPrimitive | null
   handleCommand: (command: import('@vector/runtime/worker').EditorRuntimeCommand) => void
   insertElement: (element: import('@lite-u/editor/types').ElementProps) => void
@@ -112,16 +113,23 @@ export function handleCanvasPointerUp(options: {
 
   const pointerUpMarquee = resolvePointerUpMarqueeSelection(options.marquee, options.interactionDocument.shapes, {
     matchMode: 'contain',
-    excludeShape: (shape) => shape.type === 'frame',
+    excludeShape: (shape) => (
+      shape.type === 'frame' ||
+      (shape.type === 'image' && Boolean((shape as {clipPathId?: string}).clipPathId))
+    ),
   })
   if (pointerUpMarquee) {
+    const expandedShapeIds = expandMaskLinkedShapeIds(
+      options.interactionDocument,
+      pointerUpMarquee.shapeIds,
+    )
     options.handleCommand({
       type: 'selection.set',
-      shapeIds: pointerUpMarquee.shapeIds,
+      shapeIds: expandedShapeIds,
       mode: pointerUpMarquee.mode,
     })
     options.marqueeApplyControllerRef.current?.reset()
-    options.add(`Selection: ${formatSelectionNames(options.interactionDocument, pointerUpMarquee.shapeIds)}`, 'info')
+    options.add(`Selection: ${formatSelectionNames(options.interactionDocument, expandedShapeIds)}`, 'info')
     options.setMarquee(null)
     return
   }

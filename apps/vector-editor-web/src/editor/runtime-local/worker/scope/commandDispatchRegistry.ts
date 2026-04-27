@@ -6,7 +6,7 @@ import type {EditorRuntimeCommand, SceneUpdateMessage} from '../protocol.ts'
 
 type WorkerLocalCommandHandlerContext = {
   scene: import('@vector/runtime/shared-memory').SceneMemory
-  document: import('@venus/document-core').EditorDocument
+  document: import('@vector/model').EditorDocument
   spatialIndex: import('./types.ts').WorkerSpatialIndex
   history: ReturnType<typeof import('../history.ts').createHistoryManager>
   collaboration: ReturnType<typeof import('../collaboration.ts').createCollaborationManager>

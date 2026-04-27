@@ -4,4 +4,4 @@ export type {
   ShapeFillStyle,
   ShapeShadowStyle,
   ShapeStrokeStyle,
-} from '@venus/document-core'
+} from '@vector/model'

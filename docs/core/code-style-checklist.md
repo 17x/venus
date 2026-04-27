@@ -36,6 +36,12 @@ Use this checklist for implementation, review, and pre-merge self-check.
 - Optimize for fast scanning: short functions, clear flow, low nesting.
 - Add concise comments only at non-obvious points:
   complex branch intent, state transitions, algorithmic transforms, compatibility edges.
+- Add a leading comment for every new or modified function.
+- Add internal comments inside functions whenever a branch, fallback, cache
+  transition, threshold, or compatibility edge would otherwise require the
+  reader to infer intent.
+- For new or modified `type`, `interface`, and object-shaped contracts,
+  comment the declaration and each changed field/signature line.
 - Prefer early return over nested condition pyramids.
 - Keep imports grouped and consistent with nearby file style.
 - Keep local style consistent with existing code, including extension-bearing local imports when present.
@@ -71,3 +77,7 @@ Use this checklist for implementation, review, and pre-merge self-check.
   update the nearest docs file under docs/packages when possible.
 - If no package-level note exists, add a concise factual note in docs/core/monorepo-knowledge-base.md.
 - Keep notes factual: what changed, where, and why.
+- Temporary changes must include an `AI-TEMP:` comment with reason, removal
+  condition, and task/doc reference.
+- File splits and extracted modules must be reviewed against the same comment
+  and type-documentation rules as direct in-place edits.

@@ -38,21 +38,23 @@ Knowledge` when they become long-term guidance.
 
 ### File And Model Truth
 
-- Treat `@venus/document-core` as the canonical persisted scene/document model.
-- Prefer the JSON runtime scene `node + feature` structure in
-  `@venus/document-core` when reasoning about geometry, text, image, and
-  serialization semantics.
-- Treat `@venus/document-core` `DocumentNode` as a flattened runtime adapter,
+- Treat persisted scene/document model truth as app-owned.
+- For vector work, use the app-local alias `@vector/model` as the active
+  model contract source.
+- Prefer the JSON runtime scene `node + feature` structure from the owning
+  app model module (vector: `@vector/model`) when reasoning about geometry,
+  text, image, and serialization semantics.
+- Treat vector `@vector/model` `DocumentNode` as a flattened runtime adapter,
   while runtime scene contracts remain the canonical persistence format.
 
 ### Current Renderer Direction
 
-- `Canvas2D` is the current default/stable development renderer for active app
-  work.
-- Runtime app surfaces consume Canvas2D via app-local runtime bridges over
-  `@venus/runtime` + `@venus/engine`.
-- `createEngine(...)` now defaults to `webgl`; use explicit
-  `backend: 'canvas2d'` when Canvas2D fallback behavior is required.
+- WebGL is the only primary engine backend for active renderer work.
+- Canvas2D remains in the stack as auxiliary/offscreen/composite support and
+  as legacy app/runtime diagnostics infrastructure.
+- `createEngine(...)` now defaults to `webgl`; any explicit `backend: 'canvas2d'`
+  usage should be treated as helper or migration behavior, not the target
+  renderer direction.
 
 ### Historical Notes
 
@@ -325,7 +327,7 @@ Knowledge` when they become long-term guidance.
   `packages/document-core/src/runtimeSceneTypes.ts` and
   `packages/document-core/src/parseRuntimeScene.ts`.
 - Active app adapters now import runtime scene parser/types from
-  `@venus/document-core`, and workspace alias/tsconfig/package references to
+  `@vector/model`, and workspace alias/tsconfig/package references to
   `@venus/file-format` were removed.
 
 - Added framework-agnostic runtime facade
@@ -405,7 +407,7 @@ Knowledge` when they become long-term guidance.
   repeated `renderFrame` submissions during heavy scenes.
 
 - Shape-transform interaction mechanisms previously exposed by
-  `@venus/document-core` were migrated to `@venus/engine` interaction APIs
+  `@vector/model` were migrated to `@venus/engine` interaction APIs
   (`resolveNodeTransform`, `createShapeTransformRecord`,
   `createMatrixFirstNodeTransform`, transform batch contracts, and legacy
   adapter helpers). `document-core` now keeps low-level geometry primitives and
@@ -675,7 +677,7 @@ Knowledge` when they become long-term guidance.
   `apps/vector-editor-web/src/interaction/overlay/InteractionOverlay.tsx`,
   aligning vector editor move snapping behavior with playground.
 
-- `@venus/document-core` bezier path bounds now solve cubic derivative extrema
+- `@vector/model` bezier path bounds now solve cubic derivative extrema
   in `packages/document-core/src/geometry.ts` instead of relying on fixed-step
   sampling. Path MBRs therefore include true between-sample peaks/valleys,
   which keeps worker hit bounds, runtime mock path sizing, and vector/file
@@ -1051,7 +1053,7 @@ Knowledge` when they become long-term guidance.
   `pointerdown -> pending -> thresholded move -> drag session -> commit` flow
   instead of maintaining duplicated app-local drag state machines.
 
-- Extracted clip-shape point-inclusion logic into `@venus/document-core`
+- Extracted clip-shape point-inclusion logic into `@vector/model`
   (`isPointInsideClipShape`) and switched both worker hit-test and
   runtime-interaction drag-start hit-test to use the same helper. This keeps clipped
   image interaction semantics aligned across selection, hover, and drag entry.
@@ -1341,7 +1343,7 @@ path.bezierPoints` from sampled anchors via
 - Editor/runtime hit-testing now routes through `@venus/engine` interaction
   helpers (`isPointInsideEngineShapeHitArea`,
   `isPointInsideEngineClipShape`) with optional shape-map context for
-  parent-transform-aware hit checks. `@venus/document-core` no longer exports
+  parent-transform-aware hit checks. `@vector/model` no longer exports
   the old hit-test helpers from its root index.
 
 - `@venus/runtime/presets` now supports modular policy imports beyond snapping

@@ -1,5 +1,6 @@
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import type {EditorRuntimeCommand} from '@vector/runtime/worker'
+import {resolveGroupableShapeIds, resolveSelectedGroups} from '../useEditorRuntime.helpers.ts'
 
 interface GroupActionContext {
   selectedShapeIds: string[]
@@ -9,22 +10,9 @@ interface GroupActionContext {
 }
 
 export function handleGroupNodesAction(context: GroupActionContext) {
-  const selectedShapeMap = new Map(context.shapes.map((shape) => [shape.id, shape]))
-  const groupableIds = context.selectedShapeIds.filter((shapeId) => {
-    const shape = context.shapes.find((item) => item.id === shapeId)
-    if (!shape || shape.type === 'frame') {
-      return false
-    }
-
-    let parentId = shape.parentId
-    while (parentId) {
-      if (context.selectedShapeIds.includes(parentId)) {
-        return false
-      }
-      parentId = selectedShapeMap.get(parentId)?.parentId ?? null
-    }
-
-    return true
+  const groupableIds = resolveGroupableShapeIds({
+    selectedShapeIds: context.selectedShapeIds,
+    shapes: context.shapes,
   })
 
   if (groupableIds.length < 2) {
@@ -40,9 +28,10 @@ export function handleGroupNodesAction(context: GroupActionContext) {
 }
 
 export function handleUngroupNodesAction(context: GroupActionContext) {
-  const selectedGroups = context.selectedShapeIds
-    .map((shapeId) => context.shapes.find((item) => item.id === shapeId))
-    .filter((shape): shape is DocumentNode => Boolean(shape && shape.type === 'group'))
+  const selectedGroups = resolveSelectedGroups({
+    selectedShapeIds: context.selectedShapeIds,
+    shapes: context.shapes,
+  })
 
   if (selectedGroups.length === 0) {
     context.notify('Select a group to ungroup.')

@@ -1,4 +1,4 @@
-import { type EditorDocument } from '@venus/document-core'
+import { type EditorDocument } from '@vector/model'
 import {
   isPointInsideEngineClipShape,
   isPointInsideEngineShapeHitArea,
@@ -30,6 +30,7 @@ import {
   zoomViewportState,
 } from '../viewport/controller.ts'
 import type {CanvasViewportState} from '../viewport/types.ts'
+import {withResolvedPathHints} from '../../interaction/pathHitTestHints.ts'
 
 /**
  * Snapshot shape consumed by app shells.
@@ -156,10 +157,19 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     },
     viewport: DEFAULT_VIEWPORT,
   }
+  let shouldAutoFitOnFirstResize = true
 
   const notify = () => {
     listeners.forEach((listener) => listener())
   }
+
+  // Keep first-resize auto-fit enabled until runtime has a measured viewport.
+  // Cold-start zoom/pan can otherwise disable auto-fit before dimensions are
+  // known, leaving the scene outside the initial visible bounds.
+  const hasMeasuredViewport = () => (
+    snapshot.viewport.viewportWidth > 0 &&
+    snapshot.viewport.viewportHeight > 0
+  )
 
   // Viewport updates stay local to runtime and do not round-trip through
   // the worker because they only affect presentation, not document truth.
@@ -169,10 +179,17 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const fitViewport = () => {
+    shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => fitViewportToDocument(snapshot.document, viewport))
   }
 
   const panViewport = (deltaX: number, deltaY: number) => {
+    // Ignore early pan gestures until viewport dimensions are measured.
+    // Applying deltas against a 0x0 viewport can push first-fit framing off.
+    if (!hasMeasuredViewport()) {
+      return
+    }
+    shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => panViewportState(viewport, deltaX, deltaY))
   }
 
@@ -187,16 +204,22 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     const hadViewport = snapshot.viewport.viewportWidth > 0 && snapshot.viewport.viewportHeight > 0
 
     if (!hadViewport) {
-      // First measured viewport previously triggered two notifications:
-      // 1) resize viewport
-      // 2) fit viewport
-      // Collapse both into one state transition to avoid an extra full redraw.
-      updateViewport((viewport) =>
-        fitViewportToDocument(
-          snapshot.document,
-          resizeViewportState(viewport, width, height),
-        ),
-      )
+      if (shouldAutoFitOnFirstResize) {
+        // First measured viewport previously triggered two notifications:
+        // 1) resize viewport
+        // 2) fit viewport
+        // Collapse both into one state transition to avoid an extra full redraw.
+        updateViewport((viewport) =>
+          fitViewportToDocument(
+            snapshot.document,
+            resizeViewportState(viewport, width, height),
+          ),
+        )
+      } else {
+        updateViewport((viewport) => resizeViewportState(viewport, width, height))
+      }
+
+      shouldAutoFitOnFirstResize = false
       return
     }
 
@@ -204,10 +227,28 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
+    // Ignore cold-start zoom before first measured viewport. Zooming a
+    // zero-sized viewport can freeze an invalid transform baseline.
+    if (!hasMeasuredViewport()) {
+      return
+    }
+    shouldAutoFitOnFirstResize = false
     updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor))
   }
 
   const setViewport = (viewport: CanvasViewportState) => {
+    // Ignore pre-measure viewport writes when both current and incoming
+    // dimensions are unresolved. Let first resize+fit establish baseline.
+    if (
+      !hasMeasuredViewport() &&
+      (viewport.viewportWidth <= 0 || viewport.viewportHeight <= 0)
+    ) {
+      return
+    }
+
+    if (viewport.viewportWidth > 0 && viewport.viewportHeight > 0) {
+      shouldAutoFitOnFirstResize = false
+    }
     snapshot.viewport = viewport
     notify()
   }
@@ -401,14 +442,14 @@ function hitTestSnapshot(
     }
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, clipSource, {
+      if (clipSource && !isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
         tolerance: 1.5,
         shapeById,
       })) {
         continue
       }
     }
-    if (isPointInsideEngineShapeHitArea(pointer, source, {
+    if (isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(source), {
       allowFrameSelection,
       tolerance: HIT_TEST_TOLERANCE,
       strictStrokeHitTest,
@@ -420,3 +461,4 @@ function hitTestSnapshot(
 
   return -1
 }
+

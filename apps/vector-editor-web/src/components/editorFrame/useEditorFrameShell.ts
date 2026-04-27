@@ -26,7 +26,7 @@ interface UseEditorFrameShellOptions {
   executeAction: (type: string, data?: unknown) => void
   pickHistory: (historyNode: {id: number}) => void
   setSnappingEnabled: (enabled: boolean) => void
-  setCurrentTool: (tool: import('@venus/document-core').ToolName) => void
+  setCurrentTool: (tool: import('@vector/model').ToolName) => void
   setToolbeltMode: (mode: ToolbeltMode) => void
   setInspectorContext: (context: InspectorContext) => void
   setMinimizedInspectorPanels: React.Dispatch<React.SetStateAction<Set<InspectorPanelId>>>
@@ -230,7 +230,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
     options.selectedProps,
   ])
 
-  const onSelectTool = useCallback((tool: import('@venus/document-core').ToolName, meta: import('../../editor/shell/commands/shellCommandRegistry.ts').ShellCommandMeta) => {
+  const onSelectTool = useCallback((tool: import('@vector/model').ToolName, meta: import('../../editor/shell/commands/shellCommandRegistry.ts').ShellCommandMeta) => {
     dispatchShellCommand('tool.select', {tool}, meta)
   }, [dispatchShellCommand])
 

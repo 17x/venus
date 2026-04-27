@@ -13,7 +13,7 @@ runtime storage is still decomposed.
   - `@venus/runtime/interaction`
   - app-local runtime bridge
   - `@venus/runtime/worker`
-  - `@venus/document-core`
+  - vector app model alias: `@vector/model`
 
 ## Scenario Set
 

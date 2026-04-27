@@ -87,6 +87,20 @@ export {
   type RuntimeToolStatusHint,
 } from './tools/index.ts'
 export {
+  resolveRuntimeCursor,
+  type ResolveRuntimeCursorOptions,
+  type RuntimeCursorHandleKind,
+  type RuntimeCursorIntent,
+  type RuntimeCursorState,
+} from './cursor/index.ts'
+export {
+  createRuntimeSelectionChromeRegistry,
+  type RuntimeSelectionChromeInput,
+  type RuntimeSelectionChromeKind,
+  type RuntimeSelectionChromeResolver,
+  type RuntimeSelectionChromeState,
+} from './chrome/index.ts'
+export {
   createRuntimeEditingModeController,
   type RuntimeEditingMode,
   type RuntimeEditingModeController,

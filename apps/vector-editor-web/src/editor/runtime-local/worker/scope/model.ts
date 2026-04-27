@@ -1,4 +1,4 @@
-import {getBoundingRectFromBezierPoints, type BezierPoint, type DocumentNode, type EditorDocument} from '@venus/document-core'
+import {getBoundingRectFromBezierPoints, type BezierPoint, type DocumentNode, type EditorDocument} from '@vector/model'
 
 export function clonePoints(points?: Array<{x: number; y: number}>) {
   return points?.map((point) => ({...point}))

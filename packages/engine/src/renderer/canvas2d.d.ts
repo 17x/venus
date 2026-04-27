@@ -2,6 +2,7 @@ import type { EngineRenderer } from './types.ts';
 interface Canvas2DEngineRendererOptions {
     id?: string;
     canvas: HTMLCanvasElement | OffscreenCanvas;
+    manageCanvasSize?: boolean;
     enableCulling?: boolean;
     clearColor?: string;
     imageSmoothing?: boolean;

@@ -1,6 +1,7 @@
 import {getNormalizedBoundsFromBox} from '@vector/runtime/engine'
-import type {EditorDocument} from '@venus/document-core'
+import type {EditorDocument} from '@vector/model'
 import type {SceneShapeSnapshot} from '@vector/runtime/shared-memory'
+import {resolveMaskSourceNode} from '../maskGroup.ts'
 import type {InteractionBounds, SelectionState} from '../types.ts'
 
 export function buildSelectionState(
@@ -45,14 +46,25 @@ function resolveShapeBounds(
 ): InteractionBounds | null {
   const node = document.shapes.find((shape) => shape.id === id)
   if (node) {
-    if (node.type === 'image' && node.clipPathId) {
-      const clipNode = document.shapes.find((shape) => shape.id === node.clipPathId)
-      if (clipNode) {
-        if ((clipNode.type === 'polygon' || clipNode.type === 'star' || clipNode.type === 'lineSegment' || clipNode.type === 'path') && clipNode.points && clipNode.points.length > 0) {
-          return boundsFromPoints(clipNode.points)
-        }
-        return getNormalizedBoundsFromBox(clipNode.x, clipNode.y, clipNode.width, clipNode.height)
+    const clipNode = resolveMaskSourceNode(document, node)
+    if (clipNode && (node.type === 'image' || node.schema?.maskRole === 'host')) {
+      if ((clipNode.type === 'polygon' || clipNode.type === 'star' || clipNode.type === 'lineSegment' || clipNode.type === 'path') && clipNode.points && clipNode.points.length > 0) {
+        return boundsFromPoints(clipNode.points)
       }
+
+      if (clipNode.type === 'path' && clipNode.bezierPoints && clipNode.bezierPoints.length > 0) {
+        const bezierPoints = clipNode.bezierPoints.flatMap((point) => [
+          point.anchor,
+          point.cp1,
+          point.cp2,
+        ]).filter((point): point is {x: number; y: number} => Boolean(point))
+
+        if (bezierPoints.length > 0) {
+          return boundsFromPoints(bezierPoints)
+        }
+      }
+
+      return getNormalizedBoundsFromBox(clipNode.x, clipNode.y, clipNode.width, clipNode.height)
     }
 
     if ((node.type === 'polygon' || node.type === 'star' || node.type === 'lineSegment' || node.type === 'path') && node.points && node.points.length > 0) {

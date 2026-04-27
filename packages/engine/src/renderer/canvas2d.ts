@@ -1,4 +1,6 @@
 import type {
+  EngineCanvasSurfaceFactory,
+  EngineInteractionPreviewConfig,
   EngineRenderFrame,
   EngineRenderer,
 } from './types.ts'
@@ -12,18 +14,38 @@ import type {
   EngineRect,
   EngineRenderableNode,
   EngineShapeNode,
-  EngineTextNode,
-  EngineTextStyle,
 } from '../scene/types.ts'
 import type { EngineSceneBufferLayout } from '../scene/buffer.ts'
+import { resolveEngineVisibilityProfile } from '../interaction/visibilityLod.ts'
+import {
+  copyCanvasIntoSurface,
+  ensureReuseSurface,
+  shouldAdvanceInteractionPreviewSnapshot,
+  tryReuseInteractiveFrame,
+  type FrameReuseSnapshot,
+  type ReuseCacheSurface,
+} from './canvas2d/interactionPreview.ts'
+import {
+  appendRoundedRectPath,
+  appendShapePath,
+  drawShapeArrowheads,
+  hasEllipseArc,
+  normalizeArcRange,
+  resolvePathSimplificationBucket,
+  toRadians,
+} from './canvas2d/shapes.ts'
+import { drawTextNode } from './canvas2d/text.ts'
 
 interface Canvas2DEngineRendererOptions {
   id?: string
   canvas: HTMLCanvasElement | OffscreenCanvas
+  createCanvasSurface?: EngineCanvasSurfaceFactory['createSurface']
+  manageCanvasSize?: boolean
   enableCulling?: boolean
   clearColor?: string
   imageSmoothing?: boolean
   imageSmoothingQuality?: ImageSmoothingQuality
+  interactionPreview?: EngineInteractionPreviewConfig
 }
 
 interface RenderCounters {
@@ -34,6 +56,10 @@ interface RenderCounters {
   cacheMisses: number
   frameReuseHits: number
   frameReuseMisses: number
+  trivialPathFastPathCount: number
+  contourParseCount: number
+  singleLineTextFastPathCount: number
+  precomputedTextLineHeightCount: number
 }
 
 interface PreparedNodeEntry {
@@ -42,26 +68,33 @@ interface PreparedNodeEntry {
   worldMatrix: EngineWorldMatrix
 }
 
-const MAX_FRAME_REUSE_SHIFT_PX = 220
-const MAX_FRAME_REUSE_SCALE_STEP = 1.2
-
-interface FrameReuseSnapshot {
-  revision: string | number
-  scale: number
-  offsetX: number
-  offsetY: number
-  viewportWidth: number
-  viewportHeight: number
-  pixelRatio: number
-  canvasWidth: number
-  canvasHeight: number
-  visibleCount: number
-  culledCount: number
+const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
+  enabled: true,
+  mode: 'interaction',
+  // Keep reuse enabled on Canvas2D; WebGL controls temporary drift guard separately.
+  disableReuse: false,
+  // Keep Canvas2D preview behavior aligned with WebGL default unless overridden.
+  cacheOnly: false,
+  maxScaleStep: 1.2,
+  maxTranslatePx: 220,
 }
 
-interface ReuseCacheSurface {
-  canvas: HTMLCanvasElement | OffscreenCanvas
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+const CANVAS2D_VISIBILITY_CULL_MAX_SCALE = 0.16
+const CANVAS2D_VISIBILITY_CULL_MAX_EDGE_PX = 2.4
+const CANVAS2D_VISIBILITY_CULL_MAX_AREA_PX2 = 8
+
+const NULL_RENDER_COUNTERS: RenderCounters = {
+  drawCount: 0,
+  visibleCount: 0,
+  culledCount: 0,
+  cacheHits: 0,
+  cacheMisses: 0,
+  frameReuseHits: 0,
+  frameReuseMisses: 0,
+  trivialPathFastPathCount: 0,
+  contourParseCount: 0,
+  singleLineTextFastPathCount: 0,
+  precomputedTextLineHeightCount: 0,
 }
 
 /**
@@ -81,9 +114,14 @@ export function createCanvas2DEngineRenderer(
   }
 
   const enableCulling = options.enableCulling ?? true
+  const manageCanvasSize = options.manageCanvasSize ?? true
   const clearColor = options.clearColor ?? 'transparent'
   const imageSmoothing = options.imageSmoothing ?? true
   const imageSmoothingQuality = options.imageSmoothingQuality ?? 'high'
+  const interactionPreview = {
+    ...DEFAULT_INTERACTION_PREVIEW,
+    ...options.interactionPreview,
+  }
   let cachedWorldBounds: {
     preparedNodesRef: PreparedNodeEntry[]
     map: Map<string, EngineRect>
@@ -115,12 +153,19 @@ export function createCanvas2DEngineRenderer(
       culling: enableCulling,
       lod: false,
     },
-    resize: (width, height) => {
+    resize: (size) => {
+      if (!manageCanvasSize) {
+        // Host-owned canvases keep sizing authority outside the renderer.
+        return
+      }
+
+      // Internal/offscreen surfaces still need renderer-managed buffer size so
+      // model-complete and preview lanes render at the requested resolution.
       if ('width' in options.canvas) {
-        options.canvas.width = width
+        options.canvas.width = size.outputWidth
       }
       if ('height' in options.canvas) {
-        options.canvas.height = height
+        options.canvas.height = size.outputHeight
       }
     },
     render: (frame) => {
@@ -133,9 +178,13 @@ export function createCanvas2DEngineRenderer(
         cacheMisses: 0,
         frameReuseHits: 0,
         frameReuseMisses: 0,
+        trivialPathFastPathCount: 0,
+        contourParseCount: 0,
+        singleLineTextFastPathCount: 0,
+        precomputedTextLineHeightCount: 0,
       }
 
-      const pixelRatio = frame.context.pixelRatio ?? 1
+      const pixelRatio = frame.context.outputPixelRatio ?? frame.context.pixelRatio ?? 1
       const reused = tryReuseInteractiveFrame(
         context,
         options.canvas,
@@ -143,6 +192,7 @@ export function createCanvas2DEngineRenderer(
         pixelRatio,
         frameReuseSurface,
         frameReuseSnapshot,
+        interactionPreview,
       )
 
       if (reused.reused) {
@@ -150,9 +200,31 @@ export function createCanvas2DEngineRenderer(
         counters.frameReuseHits += 1
         counters.visibleCount = reused.visibleCount
         counters.culledCount = reused.culledCount
-        // Keep reuse cache anchored to the last true redraw frame. Re-caching a
-        // transformed intermediate frame compounds interpolation/rounding errors
-        // and can drift slightly against the eventual full redraw result.
+
+        if (shouldAdvanceInteractionPreviewSnapshot(frame.viewport.scale)) {
+          frameReuseSurface = ensureReuseSurface(
+            frameReuseSurface,
+            options.canvas.width,
+            options.canvas.height,
+            options.createCanvasSurface,
+          )
+          if (frameReuseSurface) {
+            copyCanvasIntoSurface(options.canvas, frameReuseSurface)
+            frameReuseSnapshot = {
+              revision: frame.scene.revision,
+              scale: frame.viewport.scale,
+              offsetX: frame.viewport.offsetX,
+              offsetY: frame.viewport.offsetY,
+              viewportWidth: frame.viewport.viewportWidth,
+              viewportHeight: frame.viewport.viewportHeight,
+              pixelRatio,
+              canvasWidth: options.canvas.width,
+              canvasHeight: options.canvas.height,
+              visibleCount: counters.visibleCount,
+              culledCount: counters.culledCount,
+            }
+          }
+        }
 
         return {
           drawCount: counters.drawCount,
@@ -162,6 +234,10 @@ export function createCanvas2DEngineRenderer(
           cacheMisses: counters.cacheMisses,
           frameReuseHits: counters.frameReuseHits,
           frameReuseMisses: counters.frameReuseMisses,
+          canvas2dTrivialPathFastPathCount: counters.trivialPathFastPathCount,
+          canvas2dContourParseCount: counters.contourParseCount,
+          canvas2dSingleLineTextFastPathCount: counters.singleLineTextFastPathCount,
+          canvas2dPrecomputedTextLineHeightCount: counters.precomputedTextLineHeightCount,
           frameMs: performance.now() - startAt,
         }
       }
@@ -200,7 +276,12 @@ export function createCanvas2DEngineRenderer(
       counters.visibleCount = plan.stats.visibleCount
       counters.culledCount = plan.stats.culledCount
 
-      frameReuseSurface = ensureReuseSurface(frameReuseSurface, options.canvas.width, options.canvas.height)
+      frameReuseSurface = ensureReuseSurface(
+        frameReuseSurface,
+        options.canvas.width,
+        options.canvas.height,
+        options.createCanvasSurface,
+      )
       if (frameReuseSurface) {
         copyCanvasIntoSurface(options.canvas, frameReuseSurface)
       }
@@ -222,121 +303,20 @@ export function createCanvas2DEngineRenderer(
         drawCount: counters.drawCount,
         visibleCount: counters.visibleCount,
         culledCount: counters.culledCount,
+        groupCollapseCount: plan.stats.collapsedGroupCount,
+        groupCollapseCulledCount: plan.stats.collapsedDescendantCulledCount,
         cacheHits: counters.cacheHits,
         cacheMisses: counters.cacheMisses,
         frameReuseHits: counters.frameReuseHits,
         frameReuseMisses: counters.frameReuseMisses,
+        canvas2dTrivialPathFastPathCount: counters.trivialPathFastPathCount,
+        canvas2dContourParseCount: counters.contourParseCount,
+        canvas2dSingleLineTextFastPathCount: counters.singleLineTextFastPathCount,
+        canvas2dPrecomputedTextLineHeightCount: counters.precomputedTextLineHeightCount,
         frameMs: performance.now() - startAt,
       }
     },
   }
-}
-
-function tryReuseInteractiveFrame(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  canvas: HTMLCanvasElement | OffscreenCanvas,
-  frame: EngineRenderFrame,
-  pixelRatio: number,
-  surface: ReuseCacheSurface | null,
-  snapshot: FrameReuseSnapshot | null,
-): {reused: boolean; visibleCount: number; culledCount: number} {
-  if (!surface || !snapshot || frame.context.quality !== 'interactive') {
-    return {reused: false, visibleCount: 0, culledCount: 0}
-  }
-
-  if (
-    snapshot.revision !== frame.scene.revision ||
-    snapshot.viewportWidth !== frame.viewport.viewportWidth ||
-    snapshot.viewportHeight !== frame.viewport.viewportHeight ||
-    snapshot.pixelRatio !== pixelRatio ||
-    snapshot.canvasWidth !== canvas.width ||
-    snapshot.canvasHeight !== canvas.height
-  ) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
-  }
-
-  const scaleRatio = frame.viewport.scale / snapshot.scale
-  if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
-  }
-
-  if (scaleRatio > MAX_FRAME_REUSE_SCALE_STEP || scaleRatio < 1 / MAX_FRAME_REUSE_SCALE_STEP) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
-  }
-
-  const nextOffsetXPx = frame.viewport.offsetX * pixelRatio
-  const nextOffsetYPx = frame.viewport.offsetY * pixelRatio
-  const previousOffsetXPx = snapshot.offsetX * pixelRatio
-  const previousOffsetYPx = snapshot.offsetY * pixelRatio
-  const deltaX = nextOffsetXPx - scaleRatio * previousOffsetXPx
-  const deltaY = nextOffsetYPx - scaleRatio * previousOffsetYPx
-  if (Math.abs(deltaX) > MAX_FRAME_REUSE_SHIFT_PX || Math.abs(deltaY) > MAX_FRAME_REUSE_SHIFT_PX) {
-    return {reused: false, visibleCount: 0, culledCount: 0}
-  }
-
-  context.setTransform(1, 0, 0, 1, 0, 0)
-  context.clearRect(0, 0, canvas.width, canvas.height)
-  context.setTransform(scaleRatio, 0, 0, scaleRatio, deltaX, deltaY)
-  context.drawImage(surface.canvas as CanvasImageSource, 0, 0)
-
-  return {
-    reused: true,
-    visibleCount: snapshot.visibleCount,
-    culledCount: snapshot.culledCount,
-  }
-}
-
-function ensureReuseSurface(
-  surface: ReuseCacheSurface | null,
-  width: number,
-  height: number,
-): ReuseCacheSurface | null {
-  if (width <= 0 || height <= 0) {
-    return null
-  }
-
-  if (surface && surface.canvas.width === width && surface.canvas.height === height) {
-    return surface
-  }
-
-  const nextCanvas = createReuseCanvas(width, height)
-  if (!nextCanvas) {
-    return null
-  }
-
-  const nextContext = nextCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
-  if (!nextContext) {
-    return null
-  }
-
-  return {
-    canvas: nextCanvas,
-    context: nextContext,
-  }
-}
-
-function createReuseCanvas(width: number, height: number) {
-  if (typeof OffscreenCanvas !== 'undefined') {
-    return new OffscreenCanvas(width, height)
-  }
-
-  if (typeof document !== 'undefined') {
-    const element = document.createElement('canvas')
-    element.width = width
-    element.height = height
-    return element
-  }
-
-  return null
-}
-
-function copyCanvasIntoSurface(
-  source: HTMLCanvasElement | OffscreenCanvas,
-  surface: ReuseCacheSurface,
-) {
-  surface.context.setTransform(1, 0, 0, 1, 0, 0)
-  surface.context.clearRect(0, 0, surface.canvas.width, surface.canvas.height)
-  surface.context.drawImage(source as CanvasImageSource, 0, 0)
 }
 
 function clearCanvas(
@@ -410,6 +390,13 @@ function drawPreparedNode(
   counters: RenderCounters,
   localRect: {x: number; y: number; width: number; height: number} | null,
 ) {
+  // Settled low-zoom frames still go through the auxiliary Canvas2D renderer
+  // for model-complete and tile-source generation, so apply the same
+  // visibility-driven degradation here instead of relying on DPR alone.
+  if (shouldCullCanvas2DNodeByVisibility(frame, node, worldBoundsById)) {
+    return
+  }
+
   context.save()
 
   applyNodeOpacity(context, node)
@@ -420,14 +407,21 @@ function drawPreparedNode(
 
   switch (node.type) {
     case 'text':
-      drawTextNode(context, node, localRect)
+      drawTextNode(context, node, localRect, counters)
       counters.drawCount += 1
       break
     case 'image':
       drawImageNode(context, node, frame, counters, localRect)
       break
     case 'shape':
-      drawShapeNode(context, node, localRect)
+      drawShapeNode(
+        context,
+        node,
+        localRect,
+        resolvePathSimplificationBucket(frame),
+        frame.viewport.scale,
+        counters,
+      )
       counters.drawCount += 1
       break
     default:
@@ -437,139 +431,47 @@ function drawPreparedNode(
   context.restore()
 }
 
-function drawTextNode(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  node: EngineTextNode,
-  localRect: {x: number; y: number; width: number; height: number} | null,
+function shouldCullCanvas2DNodeByVisibility(
+  frame: EngineRenderFrame,
+  node: EngineRenderableNode,
+  worldBoundsById: Map<string, EngineRect>,
 ) {
-  context.textBaseline = 'top'
-  const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
-  const originX = resolveTextAnchorX(node, localRect)
-  const lineLayouts = resolveTextLineLayouts(node)
-  const totalHeight = lineLayouts.reduce((sum, line) => sum + line.lineHeight, 0)
-  const originY = resolveTextAnchorY(node, localRect, totalHeight)
-
-  let cursorY = originY
-  for (const line of lineLayouts) {
-    let cursorX = originX
-    const baselineY = cursorY
-    for (const segment of line.segments) {
-      const segmentStyle: EngineTextStyle = {
-        ...node.style,
-        ...segment.style,
-      }
-
-      applyTextStyle(context, segmentStyle)
-      const segmentShadow = segment.style?.shadow
-      if (segmentShadow) {
-        applyTextShadow(context, segmentShadow)
-      }
-
-      cursorX = drawTextSpan(context, segment.text, cursorX, baselineY, {
-        fill: segment.style?.fill ?? node.style.fill,
-        stroke: segment.style?.stroke ?? node.style.stroke,
-        strokeWidth: segment.style?.strokeWidth ?? node.style.strokeWidth,
-        letterSpacing: segment.style?.letterSpacing ?? node.style.letterSpacing,
-      })
-
-      if (segmentShadow) {
-        resetTextShadow(context)
-      }
-    }
-
-    cursorY += line.lineHeight || defaultLineHeight
-  }
-}
-
-function resolveTextLineLayouts(node: EngineTextNode) {
-  if (node.runs && node.runs.length > 0) {
-    return splitRunLines(node)
+  if (!frame.context.lodEnabled || frame.context.quality !== 'full') {
+    return false
   }
 
-  const lineHeight = node.style.lineHeight ?? node.style.fontSize
-  const content = node.text ?? ''
-  const lines = content.split('\n')
-  if (lines.length === 0) {
-    return [{lineHeight, segments: [{text: '', style: undefined}]}]
+  const scale = Math.max(0, Math.abs(frame.viewport.scale))
+  if (scale > CANVAS2D_VISIBILITY_CULL_MAX_SCALE) {
+    return false
   }
 
-  return lines.map((line) => ({
-    lineHeight,
-    segments: [{text: line, style: undefined}],
-  }))
-}
-
-function splitRunLines(node: EngineTextNode) {
-  const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
-  const lines: Array<{lineHeight: number; segments: Array<{text: string; style?: Partial<EngineTextStyle>}>}> = [
-    {
-      lineHeight: defaultLineHeight,
-      segments: [],
-    },
-  ]
-
-  for (const run of node.runs ?? []) {
-    const parts = run.text.split('\n')
-    const runLineHeight = run.style?.lineHeight ?? defaultLineHeight
-
-    parts.forEach((part, index) => {
-      const currentLine = lines[lines.length - 1]
-      if (part.length > 0 || currentLine.segments.length === 0) {
-        currentLine.segments.push({
-          text: part,
-          style: run.style,
-        })
-      }
-      currentLine.lineHeight = Math.max(currentLine.lineHeight, runLineHeight)
-
-      if (index < parts.length - 1) {
-        lines.push({
-          lineHeight: defaultLineHeight,
-          segments: [],
-        })
-      }
-    })
+  if (frame.context.protectedNodeIds?.includes(node.id)) {
+    return false
   }
 
-  return lines
-}
-
-function resolveTextAnchorX(
-  node: EngineTextNode,
-  localRect: {x: number; y: number; width: number; height: number} | null,
-) {
-  const x = localRect?.x ?? node.x
-  const width = localRect?.width ?? node.width
-  if (!width) {
-    return x
-  }
-  if (node.style.align === 'center') {
-    return x + width / 2
-  }
-  if (node.style.align === 'end') {
-    return x + width
-  }
-  return x
-}
-
-function resolveTextAnchorY(
-  node: EngineTextNode,
-  localRect: {x: number; y: number; width: number; height: number} | null,
-  lineHeight: number,
-) {
-  const y = localRect?.y ?? node.y
-  const height = localRect?.height ?? node.height
-  if (!height) {
-    return y
+  const worldBounds = worldBoundsById.get(node.id)
+  if (!worldBounds) {
+    return false
   }
 
-  if (node.style.verticalAlign === 'middle') {
-    return y + (height - lineHeight) / 2
+  const screenWidth = Math.abs(worldBounds.width) * scale
+  const screenHeight = Math.abs(worldBounds.height) * scale
+  const minEdge = Math.min(screenWidth, screenHeight)
+  const screenArea = screenWidth * screenHeight
+  if (minEdge > CANVAS2D_VISIBILITY_CULL_MAX_EDGE_PX || screenArea > CANVAS2D_VISIBILITY_CULL_MAX_AREA_PX2) {
+    return false
   }
-  if (node.style.verticalAlign === 'bottom') {
-    return y + height - lineHeight
-  }
-  return y
+
+  // Keep the visibility score aligned with the WebGL interaction path so low-
+  // zoom settled frames drop only nodes with negligible screen contribution.
+  const visibility = resolveEngineVisibilityProfile({
+    screenAreaPx2: screenArea,
+    screenMinEdgePx: minEdge,
+    viewportAreaPx2: Math.max(1, frame.viewport.viewportWidth * frame.viewport.viewportHeight),
+    semanticBoost: node.type === 'text' ? 0.08 : node.type === 'image' ? 0.04 : 0,
+  })
+
+  return visibility.tier === 'tier-d'
 }
 
 function drawImageNode(
@@ -616,6 +518,9 @@ function drawShapeNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineShapeNode,
   localRect: {x: number; y: number; width: number; height: number} | null,
+  pathSimplificationBucket: 0 | 1 | 2,
+  viewportScale: number,
+  counters: RenderCounters,
 ) {
   const drawX = localRect?.x ?? node.x
   const drawY = localRect?.y ?? node.y
@@ -648,7 +553,7 @@ function drawShapeNode(
     y: drawY,
     width: drawWidth,
     height: drawHeight,
-  })
+  }, pathSimplificationBucket, viewportScale, counters)
   if (!appended) {
     return
   }
@@ -698,310 +603,6 @@ function drawEllipseArcNode(
   context.strokeStyle = stroke
   context.lineWidth = strokeWidth
   context.stroke()
-}
-
-function appendShapePath(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  node: EngineShapeNode,
-  rect: {x: number; y: number; width: number; height: number},
-) {
-  if (node.shape === 'ellipse') {
-    const cx = rect.x + rect.width / 2
-    const cy = rect.y + rect.height / 2
-    const rx = Math.abs(rect.width) / 2
-    const ry = Math.abs(rect.height) / 2
-    const start = toRadians(node.ellipseStartAngle ?? 0)
-    const end = toRadians(node.ellipseEndAngle ?? 360)
-    const arc = normalizeArcRange(start, end)
-    const fullCircle = !hasEllipseArc(node)
-
-    if (fullCircle) {
-      context.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
-      return true
-    }
-
-    context.moveTo(cx, cy)
-    context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
-    context.closePath()
-    return true
-  }
-
-  if (node.shape === 'line') {
-    if (Array.isArray(node.points) && node.points.length >= 2) {
-      // Line nodes keep absolute anchors; using rect diagonal can flip direction and shift the rendered segment.
-      const start = node.points[0]
-      const end = node.points[node.points.length - 1]
-      context.moveTo(start.x, start.y)
-      context.lineTo(end.x, end.y)
-      return true
-    }
-
-    context.moveTo(rect.x, rect.y)
-    context.lineTo(rect.x + rect.width, rect.y + rect.height)
-    return true
-  }
-
-  if (node.shape === 'polygon') {
-    const points = node.points ?? []
-    const [head, ...rest] = points
-    if (!head) {
-      return false
-    }
-    context.moveTo(head.x, head.y)
-    rest.forEach((point) => context.lineTo(point.x, point.y))
-    context.closePath()
-    return true
-  }
-
-  if (node.shape === 'path') {
-    return appendPathGeometry(context, node)
-  }
-
-  const hasCornerRadii = Boolean(
-    node.cornerRadii ||
-    (typeof node.cornerRadius === 'number' && node.cornerRadius > 0),
-  )
-  if (hasCornerRadii) {
-    appendRectPathWithCornerRadii(
-      context,
-      rect,
-      node.cornerRadii,
-      node.cornerRadius,
-    )
-  } else {
-    context.rect(rect.x, rect.y, rect.width, rect.height)
-  }
-  return true
-}
-
-function appendPathGeometry(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  node: EngineShapeNode,
-) {
-  const bezierPoints = node.bezierPoints ?? []
-  const points = node.points ?? []
-
-  if (bezierPoints.length > 0) {
-    const [head, ...rest] = bezierPoints
-    context.moveTo(head.anchor.x, head.anchor.y)
-    let previous = head
-    rest.forEach((current) => {
-      context.bezierCurveTo(
-        previous.cp2?.x ?? previous.anchor.x,
-        previous.cp2?.y ?? previous.anchor.y,
-        current.cp1?.x ?? current.anchor.x,
-        current.cp1?.y ?? current.anchor.y,
-        current.anchor.x,
-        current.anchor.y,
-      )
-      previous = current
-    })
-    if (node.closed) {
-      context.closePath()
-    }
-    return true
-  }
-
-  const [head, ...rest] = points
-  if (!head) {
-    return false
-  }
-
-  context.moveTo(head.x, head.y)
-  rest.forEach((point) => context.lineTo(point.x, point.y))
-  if (node.closed) {
-    context.closePath()
-  }
-  return true
-}
-
-function drawShapeArrowheads(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  node: EngineShapeNode,
-  strokeColor: string,
-  strokeWidth: number,
-  rect: {x: number; y: number; width: number; height: number},
-) {
-  if (node.shape !== 'line' && node.shape !== 'path') {
-    return
-  }
-  if (node.closed) {
-    return
-  }
-
-  const segment = resolveShapeEndpointSegment(node, rect)
-  if (!segment) {
-    return
-  }
-
-  const size = Math.max(6, strokeWidth * 4)
-  if (node.strokeStartArrowhead && node.strokeStartArrowhead !== 'none') {
-    drawArrowhead(context, node.strokeStartArrowhead, {
-      x: segment.start.x,
-      y: segment.start.y,
-      dx: segment.start.x - segment.next.x,
-      dy: segment.start.y - segment.next.y,
-      size,
-      color: strokeColor,
-      strokeWidth,
-    })
-  }
-  if (node.strokeEndArrowhead && node.strokeEndArrowhead !== 'none') {
-    drawArrowhead(context, node.strokeEndArrowhead, {
-      x: segment.end.x,
-      y: segment.end.y,
-      dx: segment.end.x - segment.previous.x,
-      dy: segment.end.y - segment.previous.y,
-      size,
-      color: strokeColor,
-      strokeWidth,
-    })
-  }
-}
-
-function resolveShapeEndpointSegment(
-  node: EngineShapeNode,
-  rect: {x: number; y: number; width: number; height: number},
-) {
-  if (node.shape === 'line') {
-    if (Array.isArray(node.points) && node.points.length >= 2) {
-      const start = node.points[0]
-      const end = node.points[node.points.length - 1]
-      return {
-        start,
-        next: end,
-        previous: start,
-        end,
-      }
-    }
-
-    const start = {x: rect.x, y: rect.y}
-    const end = {x: rect.x + rect.width, y: rect.y + rect.height}
-    return {
-      start,
-      next: end,
-      previous: start,
-      end,
-    }
-  }
-
-  const anchors = node.bezierPoints?.map((point) => point.anchor) ?? node.points ?? []
-  if (anchors.length < 2) {
-    return null
-  }
-
-  return {
-    start: anchors[0],
-    next: anchors[1],
-    previous: anchors[anchors.length - 2],
-    end: anchors[anchors.length - 1],
-  }
-}
-
-function drawArrowhead(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  kind: NonNullable<EngineShapeNode['strokeStartArrowhead']>,
-  options: {
-    x: number
-    y: number
-    dx: number
-    dy: number
-    size: number
-    color: string
-    strokeWidth: number
-  },
-) {
-  const length = Math.hypot(options.dx, options.dy)
-  if (length <= 1e-6) {
-    return
-  }
-  const ux = options.dx / length
-  const uy = options.dy / length
-  const nx = -uy
-  const ny = ux
-  const size = options.size
-  const half = size * 0.5
-  const backX = options.x + ux * size
-  const backY = options.y + uy * size
-  const leftX = backX + nx * half
-  const leftY = backY + ny * half
-  const rightX = backX - nx * half
-  const rightY = backY - ny * half
-
-  context.save()
-  context.fillStyle = options.color
-  context.strokeStyle = options.color
-  context.lineWidth = Math.max(1, options.strokeWidth)
-  context.beginPath()
-
-  if (kind === 'triangle') {
-    context.moveTo(options.x, options.y)
-    context.lineTo(leftX, leftY)
-    context.lineTo(rightX, rightY)
-    context.closePath()
-    context.fill()
-    context.restore()
-    return
-  }
-
-  if (kind === 'diamond') {
-    const tipBackX = options.x + ux * size * 1.8
-    const tipBackY = options.y + uy * size * 1.8
-    context.moveTo(options.x, options.y)
-    context.lineTo(leftX, leftY)
-    context.lineTo(tipBackX, tipBackY)
-    context.lineTo(rightX, rightY)
-    context.closePath()
-    context.fill()
-    context.restore()
-    return
-  }
-
-  if (kind === 'circle') {
-    context.arc(options.x + ux * size * 0.75, options.y + uy * size * 0.75, half * 0.75, 0, Math.PI * 2)
-    context.fill()
-    context.restore()
-    return
-  }
-
-  // `bar` fallback: draw a perpendicular cap line.
-  context.moveTo(leftX, leftY)
-  context.lineTo(rightX, rightY)
-  context.stroke()
-  context.restore()
-}
-
-function hasEllipseArc(node: EngineShapeNode) {
-  if (node.shape !== 'ellipse') {
-    return false
-  }
-  const start = node.ellipseStartAngle
-  const end = node.ellipseEndAngle
-  if (typeof start !== 'number' || typeof end !== 'number') {
-    return false
-  }
-  const sweep = Math.abs(end - start) % 360
-  return sweep > 1e-3 && sweep < 360 - 1e-3
-}
-
-function normalizeArcRange(start: number, end: number) {
-  const tau = Math.PI * 2
-  let delta = end - start
-  while (delta <= -tau) {
-    delta += tau
-  }
-  while (delta > tau) {
-    delta -= tau
-  }
-  return {
-    start,
-    end: start + delta,
-    anticlockwise: delta < 0,
-  }
-}
-
-function toRadians(deg: number) {
-  return (deg * Math.PI) / 180
 }
 
 function applyNodeOpacity(
@@ -1058,7 +659,7 @@ function applyClipByNodeReference(
       y: clipNode.node.y,
       width: clipNode.node.width,
       height: clipNode.node.height,
-    })
+    }, 0, 1, NULL_RENDER_COUNTERS)
     context.restore()
     if (appended) {
       context.clip(rule)
@@ -1108,176 +709,6 @@ function applyInlineClipShape(
   }
 
   context.clip(node.clip?.rule ?? 'nonzero')
-}
-
-function appendRoundedRectPath(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  rect: EngineRect,
-  radius: number,
-) {
-  appendRectPathWithCornerRadii(context, rect, undefined, radius)
-}
-
-function appendRectPathWithCornerRadii(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  rect: EngineRect,
-  cornerRadii?: {
-    topLeft?: number
-    topRight?: number
-    bottomRight?: number
-    bottomLeft?: number
-  },
-  uniformRadius?: number,
-) {
-  const width = Math.abs(rect.width)
-  const height = Math.abs(rect.height)
-  const left = Math.min(rect.x, rect.x + rect.width)
-  const top = Math.min(rect.y, rect.y + rect.height)
-  const right = left + width
-  const bottom = top + height
-  const resolved = normalizeCornerRadii({
-    topLeft: cornerRadii?.topLeft ?? uniformRadius ?? 0,
-    topRight: cornerRadii?.topRight ?? uniformRadius ?? 0,
-    bottomRight: cornerRadii?.bottomRight ?? uniformRadius ?? 0,
-    bottomLeft: cornerRadii?.bottomLeft ?? uniformRadius ?? 0,
-  }, width, height)
-
-  context.moveTo(left + resolved.topLeft, top)
-  context.lineTo(right - resolved.topRight, top)
-  context.quadraticCurveTo(right, top, right, top + resolved.topRight)
-  context.lineTo(right, bottom - resolved.bottomRight)
-  context.quadraticCurveTo(right, bottom, right - resolved.bottomRight, bottom)
-  context.lineTo(left + resolved.bottomLeft, bottom)
-  context.quadraticCurveTo(left, bottom, left, bottom - resolved.bottomLeft)
-  context.lineTo(left, top + resolved.topLeft)
-  context.quadraticCurveTo(left, top, left + resolved.topLeft, top)
-  context.closePath()
-}
-
-function normalizeCornerRadii(
-  radii: {
-    topLeft: number
-    topRight: number
-    bottomRight: number
-    bottomLeft: number
-  },
-  width: number,
-  height: number,
-) {
-  const maxRadius = Math.min(width, height) / 2
-  let topLeft = clampRadius(radii.topLeft, maxRadius)
-  let topRight = clampRadius(radii.topRight, maxRadius)
-  let bottomRight = clampRadius(radii.bottomRight, maxRadius)
-  let bottomLeft = clampRadius(radii.bottomLeft, maxRadius)
-
-  // Keep radii pairs inside their edge lengths.
-  const topScale = topLeft + topRight > width ? width / (topLeft + topRight) : 1
-  const bottomScale = bottomLeft + bottomRight > width ? width / (bottomLeft + bottomRight) : 1
-  const leftScale = topLeft + bottomLeft > height ? height / (topLeft + bottomLeft) : 1
-  const rightScale = topRight + bottomRight > height ? height / (topRight + bottomRight) : 1
-  const scale = Math.min(topScale, bottomScale, leftScale, rightScale)
-
-  if (scale < 1) {
-    topLeft *= scale
-    topRight *= scale
-    bottomRight *= scale
-    bottomLeft *= scale
-  }
-
-  return {
-    topLeft,
-    topRight,
-    bottomRight,
-    bottomLeft,
-  }
-}
-
-function clampRadius(value: number, maxRadius: number) {
-  return Math.max(0, Math.min(Number.isFinite(value) ? value : 0, maxRadius))
-}
-
-function drawTextSpan(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  options: {
-    fill?: string
-    stroke?: string
-    strokeWidth?: number
-    letterSpacing?: number
-  },
-) {
-  const letterSpacing = options.letterSpacing ?? 0
-  if (letterSpacing === 0) {
-    if (options.fill && options.fill !== 'transparent') {
-      context.fillText(text, x, y)
-    }
-    if (options.stroke && options.strokeWidth && options.strokeWidth > 0) {
-      context.strokeStyle = options.stroke
-      context.lineWidth = options.strokeWidth
-      context.strokeText(text, x, y)
-    }
-    return x + context.measureText(text).width
-  }
-
-  let cursorX = x
-  for (const char of text) {
-    if (options.fill && options.fill !== 'transparent') {
-      context.fillText(char, cursorX, y)
-    }
-    if (options.stroke && options.strokeWidth && options.strokeWidth > 0) {
-      context.strokeStyle = options.stroke
-      context.lineWidth = options.strokeWidth
-      context.strokeText(char, cursorX, y)
-    }
-    cursorX += context.measureText(char).width + letterSpacing
-  }
-  return cursorX
-}
-
-function applyTextStyle(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  style: EngineTextStyle,
-) {
-  const fontWeight = style.fontWeight ?? 400
-  const fontStyle = style.fontStyle ?? 'normal'
-  context.font = `${fontStyle} ${fontWeight} ${style.fontSize}px ${style.fontFamily}`
-  context.fillStyle = style.fill ?? '#111111'
-  context.textAlign = resolveCanvasTextAlign(style.align)
-}
-
-function applyTextShadow(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  shadow: NonNullable<EngineTextStyle['shadow']>,
-) {
-  context.shadowColor = shadow.color ?? 'rgba(0,0,0,0)'
-  context.shadowBlur = shadow.blur ?? 0
-  context.shadowOffsetX = shadow.offsetX ?? 0
-  context.shadowOffsetY = shadow.offsetY ?? 0
-}
-
-function resetTextShadow(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-) {
-  context.shadowColor = 'rgba(0,0,0,0)'
-  context.shadowBlur = 0
-  context.shadowOffsetX = 0
-  context.shadowOffsetY = 0
-}
-
-function resolveCanvasTextAlign(
-  align: EngineTextStyle['align'],
-): CanvasTextAlign {
-  switch (align) {
-    case 'center':
-      return 'center'
-    case 'end':
-      return 'right'
-    case 'start':
-    default:
-      return 'left'
-  }
 }
 
 function buildWorldBoundsMap(

@@ -1,0 +1,349 @@
+{
+  "generatedAt": "2026-04-26T06:58:05.281Z",
+  "reportPath": "/Users/yahone/projects/venus/apps/vector-editor-web/scripts/perf-gate.report.template.json",
+  "previousReportPath": "/Users/yahone/projects/venus/apps/vector-editor-web/scripts/perf-gate.report.template.json",
+  "configPath": "/Users/yahone/projects/venus/apps/vector-editor-web/scripts/perf-gate.config.json",
+  "checks": [
+    {
+      "sceneName": "10k",
+      "metricName": "frameTimeMsP95",
+      "value": 11.2,
+      "rule": {
+        "operator": "<=",
+        "threshold": 16
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "10k",
+      "metricName": "hitTestMsP95",
+      "value": 1.6,
+      "rule": {
+        "operator": "<=",
+        "threshold": 4
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "10k",
+      "metricName": "cacheHitRate",
+      "value": 0.84,
+      "rule": {
+        "operator": ">=",
+        "threshold": 0.7
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "10k",
+      "metricName": "visibleCandidateCount",
+      "value": 9100,
+      "rule": {
+        "operator": "<=",
+        "threshold": 25000
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "frameTimeMsP95",
+      "value": 14.8,
+      "rule": {
+        "operator": "<=",
+        "threshold": 16
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "hitTestMsP95",
+      "value": 2.9,
+      "rule": {
+        "operator": "<=",
+        "threshold": 4
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "cacheHitRate",
+      "value": 0.79,
+      "rule": {
+        "operator": ">=",
+        "threshold": 0.7
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "visibleCandidateCount",
+      "value": 17900,
+      "rule": {
+        "operator": "<=",
+        "threshold": 25000
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "frameTimeMsP95",
+      "value": 19.6,
+      "rule": {
+        "operator": "<=",
+        "threshold": 20
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "hitTestMsP95",
+      "value": 3.7,
+      "rule": {
+        "operator": "<=",
+        "threshold": 4
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "cacheHitRate",
+      "value": 0.73,
+      "rule": {
+        "operator": ">=",
+        "threshold": 0.7
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "visibleCandidateCount",
+      "value": 30100,
+      "rule": {
+        "operator": "<=",
+        "threshold": 32000
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "frameTimeMsP95",
+      "value": 15.1,
+      "rule": {
+        "operator": "<=",
+        "threshold": 16
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "hitTestMsP95",
+      "value": 3.1,
+      "rule": {
+        "operator": "<=",
+        "threshold": 4
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "cacheHitRate",
+      "value": 0.76,
+      "rule": {
+        "operator": ">=",
+        "threshold": 0.7
+      },
+      "passed": true
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "visibleCandidateCount",
+      "value": 21300,
+      "rule": {
+        "operator": "<=",
+        "threshold": 25000
+      },
+      "passed": true
+    }
+  ],
+  "trendChecks": [
+    {
+      "sceneName": "10k",
+      "metricName": "frameTimeMsP95",
+      "previousValue": 11.2,
+      "currentValue": 11.2,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 11.76,
+      "relation": "<="
+    },
+    {
+      "sceneName": "10k",
+      "metricName": "hitTestMsP95",
+      "previousValue": 1.6,
+      "currentValue": 1.6,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 1.6800000000000002,
+      "relation": "<="
+    },
+    {
+      "sceneName": "10k",
+      "metricName": "cacheHitRate",
+      "previousValue": 0.84,
+      "currentValue": 0.84,
+      "direction": "higher-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 0.7979999999999999,
+      "relation": ">="
+    },
+    {
+      "sceneName": "10k",
+      "metricName": "visibleCandidateCount",
+      "previousValue": 9100,
+      "currentValue": 9100,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 9555,
+      "relation": "<="
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "frameTimeMsP95",
+      "previousValue": 14.8,
+      "currentValue": 14.8,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 15.540000000000001,
+      "relation": "<="
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "hitTestMsP95",
+      "previousValue": 2.9,
+      "currentValue": 2.9,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 3.045,
+      "relation": "<="
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "cacheHitRate",
+      "previousValue": 0.79,
+      "currentValue": 0.79,
+      "direction": "higher-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 0.7505,
+      "relation": ">="
+    },
+    {
+      "sceneName": "50k",
+      "metricName": "visibleCandidateCount",
+      "previousValue": 17900,
+      "currentValue": 17900,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 18795,
+      "relation": "<="
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "frameTimeMsP95",
+      "previousValue": 19.6,
+      "currentValue": 19.6,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 20.580000000000002,
+      "relation": "<="
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "hitTestMsP95",
+      "previousValue": 3.7,
+      "currentValue": 3.7,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 3.8850000000000002,
+      "relation": "<="
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "cacheHitRate",
+      "previousValue": 0.73,
+      "currentValue": 0.73,
+      "direction": "higher-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 0.6935,
+      "relation": ">="
+    },
+    {
+      "sceneName": "100k",
+      "metricName": "visibleCandidateCount",
+      "previousValue": 30100,
+      "currentValue": 30100,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 31605,
+      "relation": "<="
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "frameTimeMsP95",
+      "previousValue": 15.1,
+      "currentValue": 15.1,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 15.855,
+      "relation": "<="
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "hitTestMsP95",
+      "previousValue": 3.1,
+      "currentValue": 3.1,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 3.2550000000000003,
+      "relation": "<="
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "cacheHitRate",
+      "previousValue": 0.76,
+      "currentValue": 0.76,
+      "direction": "higher-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 0.722,
+      "relation": ">="
+    },
+    {
+      "sceneName": "mixed(text/image/path)",
+      "metricName": "visibleCandidateCount",
+      "previousValue": 21300,
+      "currentValue": 21300,
+      "direction": "lower-better",
+      "maxRegressionPercent": 5,
+      "passed": true,
+      "thresholdValue": 22365,
+      "relation": "<="
+    }
+  ],
+  "failures": [],
+  "trendFailures": [],
+  "passed": true
+}

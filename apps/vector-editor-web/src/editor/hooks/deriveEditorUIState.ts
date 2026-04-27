@@ -1,6 +1,6 @@
 import {buildHistoryArray, buildSelectedProps} from './editorRuntimeHelpers.ts'
 import type {EditorUIState} from './useEditorRuntime.types.ts'
-import type {DocumentNode} from '@venus/document-core'
+import type {DocumentNode} from '@vector/model'
 import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps} from '@lite-u/editor/types'
 import type {LayerItem} from './useEditorRuntime.types.ts'
@@ -12,7 +12,7 @@ const layerItemsCache = new WeakMap<DocumentNode[], LayerItem[]>()
  * their own projection of runtime state.
  */
 export function deriveEditorUIState(options: {
-  canvasRuntime: CanvasRuntimeBridgeState<import('@venus/document-core').EditorDocument>
+  canvasRuntime: CanvasRuntimeBridgeState<import('@vector/model').EditorDocument>
   clipboard: ElementProps[]
   selectedNode: DocumentNode | null
   selectedIds: string[]
@@ -46,6 +46,35 @@ export function deriveEditorUIState(options: {
 }
 
 function buildLayerItems(nodes: DocumentNode[]): LayerItem[] {
+  const {nodeById, childIdsByParent, roots} = buildLayerHierarchyIndex(nodes)
+  const flattened: LayerItem[] = []
+  const visited = new Set<string>()
+
+  const visit = (node: DocumentNode, depth: number) => {
+    if (visited.has(node.id)) {
+      return
+    }
+
+    visited.add(node.id)
+    flattened.push(createLayerItem(node, depth))
+
+    const nextChildIds = resolveLayerChildIds(node, nodeById, childIdsByParent)
+
+    nextChildIds.forEach((childId) => {
+      const child = nodeById.get(childId)
+      if (child) {
+        visit(child, depth + 1)
+      }
+    })
+  }
+
+  roots.forEach((node) => visit(node, 0))
+  nodes.forEach((node) => visit(node, 0))
+
+  return flattened
+}
+
+function buildLayerHierarchyIndex(nodes: DocumentNode[]) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
   const childIdsByParent = new Map<string, string[]>()
 
@@ -60,47 +89,40 @@ function buildLayerItems(nodes: DocumentNode[]): LayerItem[] {
   })
 
   const roots = nodes.filter((node) => !node.parentId || !nodeById.has(node.parentId))
-  const flattened: LayerItem[] = []
-  const visited = new Set<string>()
 
-  const visit = (node: DocumentNode, depth: number) => {
-    if (visited.has(node.id)) {
-      return
-    }
+  return {
+    nodeById,
+    childIdsByParent,
+    roots,
+  }
+}
 
-    visited.add(node.id)
-    const layerFlags = node as DocumentNode & {
-      isVisible?: boolean
-      isLocked?: boolean
-    }
-
-    flattened.push({
-      id: node.id,
-      name: node.text ?? node.name ?? node.id,
-      show: true,
-      isVisible: layerFlags.isVisible !== false,
-      isLocked: layerFlags.isLocked === true,
-      type: node.type,
-      depth,
-      isGroup: node.type === 'group',
-    })
-
-    const explicitChildIds = node.childIds?.filter((childId) => nodeById.has(childId)) ?? []
-    const inferredChildIds = childIdsByParent.get(node.id) ?? []
-    const nextChildIds = explicitChildIds.length > 0 ? explicitChildIds : inferredChildIds
-
-    nextChildIds.forEach((childId) => {
-      const child = nodeById.get(childId)
-      if (child) {
-        visit(child, depth + 1)
-      }
-    })
+function createLayerItem(node: DocumentNode, depth: number): LayerItem {
+  const layerFlags = node as DocumentNode & {
+    isVisible?: boolean
+    isLocked?: boolean
   }
 
-  roots.forEach((node) => visit(node, 0))
-  nodes.forEach((node) => visit(node, 0))
+  return {
+    id: node.id,
+    name: node.text ?? node.name ?? node.id,
+    show: true,
+    isVisible: layerFlags.isVisible !== false,
+    isLocked: layerFlags.isLocked === true,
+    type: node.type,
+    depth,
+    isGroup: node.type === 'group',
+  }
+}
 
-  return flattened
+function resolveLayerChildIds(
+  node: DocumentNode,
+  nodeById: Map<string, DocumentNode>,
+  childIdsByParent: Map<string, string[]>,
+) {
+  const explicitChildIds = node.childIds?.filter((childId) => nodeById.has(childId)) ?? []
+  const inferredChildIds = childIdsByParent.get(node.id) ?? []
+  return explicitChildIds.length > 0 ? explicitChildIds : inferredChildIds
 }
 
 function buildLayerItemsCached(nodes: DocumentNode[]): LayerItem[] {

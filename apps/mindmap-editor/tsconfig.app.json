@@ -6,9 +6,6 @@
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
-  "references": [
-    { "path": "../../packages/document-core/tsconfig.json" }
-  ],
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",

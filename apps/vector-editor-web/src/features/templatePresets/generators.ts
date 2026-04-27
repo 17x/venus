@@ -1,4 +1,4 @@
-import {Unit} from '@venus/document-core'
+import {Unit} from '@vector/model'
 import type {ElementProps, TextRun} from '@lite-u/editor/types'
 import {VISION_VERSION} from '../../shared/constants/version.ts'
 import type {VisionFileAsset, VisionFileType} from '../../editor/hooks/useEditorRuntime.types.ts'
@@ -597,6 +597,8 @@ function buildVisionFile(options: {
   assets?: VisionFileAsset[]
 }): VisionFileType {
   const now = Date.now()
+  const elements = enrichElementsForDocumentModel(options.elements)
+
   return {
     id: options.id,
     name: options.name,
@@ -610,9 +612,144 @@ function buildVisionFile(options: {
         height: options.height,
       },
     },
-    elements: options.elements,
+    elements,
     assets: options.assets ?? [],
   }
+}
+
+function enrichElementsForDocumentModel(elements: ElementProps[]): ElementProps[] {
+  return elements.map((element, index) => {
+    const next = {
+      ...element,
+      parentId: element.parentId ?? null,
+      childIds:
+        element.type === 'group'
+          ? (element.childIds ?? [])
+          : element.childIds,
+      rotation: element.rotation ?? 0,
+      flipX: element.flipX ?? false,
+      flipY: element.flipY ?? false,
+      opacity: element.opacity ?? 1,
+      fill: element.fill ?? {
+        enabled: element.type !== 'image' && element.type !== 'group',
+        color: element.type === 'text' ? '#111827' : '#e2e8f0',
+      },
+      stroke: element.stroke ?? {
+        enabled: element.type !== 'group',
+        color: '#334155',
+        weight: 1,
+      },
+      shadow: element.shadow ?? {
+        enabled: false,
+        color: 'rgba(15,23,42,0.24)',
+        offsetX: 0,
+        offsetY: 0,
+        blur: 0,
+      },
+      cornerRadius:
+        element.type === 'rectangle'
+          ? (element.cornerRadius ?? 0)
+          : element.cornerRadius,
+      cornerRadii:
+        element.type === 'rectangle'
+          ? (element.cornerRadii ?? {
+              topLeft: 0,
+              topRight: 0,
+              bottomRight: 0,
+              bottomLeft: 0,
+            })
+          : element.cornerRadii,
+      ellipseStartAngle:
+        element.type === 'ellipse'
+          ? (element.ellipseStartAngle ?? 0)
+          : element.ellipseStartAngle,
+      ellipseEndAngle:
+        element.type === 'ellipse'
+          ? (element.ellipseEndAngle ?? 360)
+          : element.ellipseEndAngle,
+      strokeStartArrowhead:
+        (element.type === 'path' || element.type === 'lineSegment')
+          ? (element.strokeStartArrowhead ?? 'none')
+          : element.strokeStartArrowhead,
+      strokeEndArrowhead:
+        (element.type === 'path' || element.type === 'lineSegment')
+          ? (element.strokeEndArrowhead ?? 'none')
+          : element.strokeEndArrowhead,
+      clipRule:
+        element.clipPathId
+          ? (element.clipRule ?? 'nonzero')
+          : element.clipRule,
+    } as ElementProps
+
+    if (next.type === 'text') {
+      const content = typeof next.text === 'string' ? next.text : next.name ?? ''
+      next.text = content
+      if (!next.textRuns || next.textRuns.length === 0) {
+        next.textRuns = [{
+          start: 0,
+          end: content.length,
+          style: {
+            color: next.fill?.color ?? '#111827',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 16,
+            fontWeight: 500,
+            lineHeight: 22,
+            letterSpacing: 0,
+          },
+        }]
+      }
+    }
+
+    if ((next.type === 'path' || next.type === 'lineSegment') && next.points && next.points.length >= 2 && !next.bezierPoints) {
+      next.bezierPoints = next.points.map((point) => {
+        const resolvedPoint = point as {x: number; y: number}
+        return {
+          anchor: {x: resolvedPoint.x, y: resolvedPoint.y},
+        }
+      })
+    }
+
+    // Sprinkle gradients/shadows deterministically so template data covers
+    // document-model style branches without changing template semantics.
+    if (next.type === 'rectangle' && next.fill?.enabled !== false && index % 17 === 0) {
+      next.fill = {
+        ...next.fill,
+        gradient: {
+          type: 'linear',
+          angle: 135,
+          stops: [
+            {offset: 0, color: next.fill?.color ?? '#dbeafe'},
+            {offset: 1, color: '#eff6ff'},
+          ],
+        },
+      }
+      next.shadow = {
+        enabled: true,
+        color: 'rgba(30,41,59,0.22)',
+        offsetX: 0,
+        offsetY: 5,
+        blur: 10,
+      }
+    }
+
+    if (next.type === 'ellipse' && next.fill?.enabled !== false && index % 23 === 0) {
+      next.fill = {
+        ...next.fill,
+        gradient: {
+          type: 'radial',
+          centerX: 0.45,
+          centerY: 0.45,
+          radius: 0.8,
+          stops: [
+            {offset: 0, color: next.fill?.color ?? '#ede9fe'},
+            {offset: 1, color: '#ddd6fe'},
+          ],
+        },
+      }
+    }
+
+    return next
+  })
 }
 
 function nextElementId(state: GenerationState, prefix: string) {

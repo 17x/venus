@@ -1,12 +1,14 @@
 import type * as React from 'react'
-import type {ToolName} from '@venus/document-core'
+import type {ToolName} from '@vector/model'
 import type {CanvasViewportState} from '@vector/runtime'
 import type {RuntimeEditingMode} from '@vector/runtime'
 import type {RuntimeOverlayInstruction, RuntimePreviewInstruction} from '@vector/runtime'
+import type {RuntimeCursorState, RuntimeSelectionChromeState} from '@vector/runtime'
 import type {
-  CanvasOverlayRenderer as CanvasOverlayRendererCompat,
-  CanvasRenderer as CanvasRendererCompat,
-} from '../runtime/canvasAdapter.tsx'
+  OverlayDiagnostics,
+  EngineOverlayRenderer as EngineOverlayRendererCompat,
+  EngineRendererComponent as EngineRendererComponentCompat,
+} from '../runtime/engineAdapter.tsx'
 import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
 import type {ElementProps, VisionEventData, VisionEventType} from '@lite-u/editor/types'
 import type {PointRef} from '../../components/statusBar/StatusBar.tsx'
@@ -65,15 +67,23 @@ export interface EditorDocumentState {
 
 export interface EditorRuntimeState {
   canvas: {
-    Renderer: CanvasRendererCompat
-    OverlayRenderer?: CanvasOverlayRendererCompat
+    // Keep compat aliases local to hook state to avoid leaking adapter implementation names.
+    Renderer: EngineRendererComponentCompat
+    OverlayRenderer?: EngineOverlayRendererCompat
     document: ReturnType<typeof createEditorDocumentFromFile>
     shapes: SceneShapeSnapshot[]
     stats: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['stats']
     viewport: CanvasRuntimeBridgeState<ReturnType<typeof createEditorDocumentFromFile>>['viewport']
+    editingMode: RuntimeEditingMode
+    cursor?: string
+    cursorState?: RuntimeCursorState
+    selectionChrome?: RuntimeSelectionChromeState
+    isolationGroupId?: string | null
     ready: boolean
+    protectedNodeIds?: readonly string[]
     overlayInstructions?: RuntimeOverlayInstruction[]
     previewInstructions?: RuntimePreviewInstruction[]
+    overlayDiagnostics?: OverlayDiagnostics
     onPointerMove: (point: {x: number; y: number}) => void
     onPointerDown: (
       point: {x: number; y: number},

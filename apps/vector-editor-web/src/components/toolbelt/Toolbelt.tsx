@@ -1,4 +1,4 @@
-import {type ToolName} from '@venus/document-core'
+import {type ToolName} from '@vector/model'
 import {
   Button,
   cn,
@@ -155,9 +155,9 @@ export default function Toolbelt(props: ToolbeltProps) {
       icon: <LuBetweenHorizontalStart size={16}/>,
     },
     {
-      id: 'arrow',
-      tool: 'lineSegment',
-      label: t('toolbar.arrow', {defaultValue: 'Arrow'}),
+      id: 'connector',
+      tool: 'connector',
+      label: t('ui.toolbar.connector', {defaultValue: 'Connector'}),
       icon: <LuMoveUpRight size={16}/>,
     },
     {
@@ -254,7 +254,7 @@ export default function Toolbelt(props: ToolbeltProps) {
             onSelectTool={selectToolByGroup}
           />
 
-          <Tooltip placement={'t'} title={textTool.label}>
+          <Tooltip placement={'t'} title={textTool.label} asChild>
             <Button
               type={'button'}
               noTooltip

@@ -1,17 +1,442 @@
 # TODO
 
+## Execution Protocol (AI-led)
+
+- Execution order: Phase 1 -> Phase 2 -> Phase 3
+- Status flow: planned -> in-progress -> verified -> done
+- Done minimum: code landed + docs synced + validation command results recorded
+- Validation baseline: `pnpm typecheck`, `pnpm lint`, `pnpm build`
+- Reporting format per task: change summary, risk/regression notes, next task handoff
+
+## Engine Task Ledger (Single Source)
+
+- Active engine task ledger: [docs/task/engine/execution-backlog.md](docs/task/engine/execution-backlog.md)
+- Design source for this ledger: [docs/task/engine/draft-01.md](docs/task/engine/draft-01.md)
+- AI update rule:
+  - Before engine coding: read ledger first, then read draft-01
+  - After each implementation slice: update task status + touched files + validation evidence
+  - Keep this file as global index, keep detailed execution only in the engine ledger
+
+## Task ID Convention
+
+- Format: `VT-YYYYMMDD-XX` (example: `VT-20260424-01`)
+- Rule: every active execution item must have one ID; progress updates and validation evidence must reference that ID
+- Rule: when an item is completed, keep the same ID in Done/Verified records for traceability
+
 ## In Progress
 
 - Vector capability completion: `connector` then `boolean`
+  - Progress 2026-04-24:
+    - Implemented: added product-level `connector` tool entry (shortcut `C`) mapped to existing `lineSegment` runtime command path
+    - Implemented: connector insertion defaults now create arrow-ended line segments (`strokeEndArrowhead: triangle`) for click and drag creation
+    - Implemented: added `shape.boolean` command surface (`union`/`subtract`/`intersect`) and wired placeholder dispatch through runtime action -> worker command path
+    - Implemented: added boolean action entrypoints in header/context shape menus with i18n labels (`en`/`cn`/`jp`)
+    - Implemented: landed undoable `shape.boolean` execution baseline in worker history/patch pipeline (selected shapes replaced with one path result)
+    - Implemented: wired collaboration remote patch replay for `shape.boolean` so union/subtract/intersect commands stay protocol-complete
+    - Implemented: upgraded boolean geometry from bounds approximation to polygon clipping execution (`polygon-clipping`) for union/subtract/intersect path composition
+    - Implemented: unified multi-hit candidate interpretation baseline by de-duplicating resolved hit targets in worker candidate generation and runtime hit adapter
+    - Implemented: boolean result representation now preserves multi-contour geometry (disconnected polygons + interior rings) by emitting multi-shape inserts and contour-encoded path rings, with engine render/hit-test contour interpretation support
+    - Implemented: contour-encoded path hardening for editability parity (path sub-selection now evaluates segments within contour boundaries only, and overlay path stroke generation avoids cross-contour seam bridging)
+    - Implemented: added targeted contour regression checklist (`docs/core/boolean-contour-regression-checklist.md`) and linked testing entrypoint in `docs/engineering/testing.md`
+    - Implemented: added executable contour regression harness (`apps/vector-editor-web/scripts/boolean-contour-regression.ts`) and package command (`pnpm --filter @venus/vector-editor-web regression:boolean-contour`)
+    - Implemented: VT-20260424-01 extended harness coverage for chained boolean sequence stability and contour-anchor subselection edge cases
+    - Verified 2026-04-24: VT-20260424-01 passed via regression report (`boolean-chained-union-subtract-contour`, `contour-anchor-subselection-edge-cases`) in `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
+    - Verified 2026-04-24: VT-20260424-02 completed checklist promotion with scenario-by-scenario evidence mapping in `docs/core/boolean-contour-regression-checklist.md`
+    - Verified 2026-04-24: contour regression harness passed (undo/backward patch parity, remote replay patch parity, contour round-trip) with report `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
+    - Verified 2026-04-24: `VT-20260424-04` runtime/engine boundary audit found no layer violations across boolean command composition, contour editability, engine hit-test, and engine render ownership; remaining regression focus stays on behavioral parity rather than architecture drift
+    - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
 - Runtime/engine boundary checks on new feature diffs
 - Runtime monolith decomposition follow-up (`useEditorRuntime` adjacent paths)
+  - Progress 2026-04-24:
+    - Implemented: `VT-20260424-15` extracted hover-hit budget and path-subselection equality helpers from `useEditorRuntimeCanvasInteractions.ts` into `useEditorRuntime.helpers.ts`, reducing hook-local decision surface without changing pointer state-machine ownership
+    - Implemented: `VT-20260424-15` extracted pointer-down path-subselection interpretation and marquee-mode resolution from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, shrinking selector/direct-selector branch-local policy code without changing transform or selection state-machine flow
+    - Implemented: `VT-20260424-15` extracted selector pointer-down hit-option resolution and removed an unnecessary hovered-shape map lookup, further narrowing `useEditorRuntimeCanvasInteractions.ts` to transition/dispatch behavior
+    - Implemented: `VT-20260424-15` extracted selector pointer-down clear-selection and group-drag-preservation decisions into shared helpers, leaving the hook with less embedded selection policy logic
+    - Implemented: `VT-20260424-15` extracted transform-handle start payload assembly for resize/rotate pointer-down into shared helpers, reducing inline transform session wiring inside `useEditorRuntimeCanvasInteractions.ts`
+    - Implemented: `VT-20260424-15` extracted marquee-start pointer-down state assembly into shared helpers, reducing inline marquee setup inside `useEditorRuntimeCanvasInteractions.ts`
+    - Implemented: `VT-20260424-15` extracted draft-shape and insert-shape pointer-down state assembly into shared helpers, shrinking non-selector pointer-down setup in `useEditorRuntimeCanvasInteractions.ts`
+    - Implemented: `VT-20260424-15` extracted pen pointer-down transition metadata into shared helpers, further reducing inline branch setup in `useEditorRuntimeCanvasInteractions.ts`
+    - Verified 2026-04-24: `VT-20260424-15` decomposition pass leaves only pointer/down fallback orchestration local in `useEditorRuntimeCanvasInteractions.ts`; branch-local policy/setup now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-16` extracted direct-select hover state resolution and shared hover hit-test options from `useEditorRuntimeCanvasInteractions.ts` into `useEditorRuntime.helpers.ts`, starting the adjacent `onPointerMove` decomposition pass
+    - Implemented: `VT-20260424-16` extracted selection drag-start payload assembly and hover-gating decisions from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, reducing inline `onPointerMove` branch policy around selection drag + hover suppression
+    - Implemented: `VT-20260424-16` extracted selection drag preview/snapping resolution from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, further narrowing the remaining `onPointerMove` selection-drag branch to transform-manager orchestration
+    - Implemented: `VT-20260424-16` extracted path-handle hover state construction and draft-primitive move updates from `useEditorRuntimeCanvasInteractions.ts` into shared helpers, shrinking remaining inline `onPointerMove` setup outside drag-controller orchestration
+    - Verified 2026-04-24: `VT-20260424-16` decomposition pass leaves `onPointerMove` with local transform/drag/pen orchestration only; hover/path-hover branch-local policy now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-17` extracted path-handle commit bezier-point resolution from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, starting the next adjacent runtime-structure slice beyond `useEditorRuntimeCanvasInteractions`
+    - Implemented: `VT-20260424-17` extracted reorder-target index resolution from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, leaving the callback closer to command dispatch and selected-shape lookup only
+    - Verified 2026-04-24: `VT-20260424-17` decomposition pass leaves `useEditorRuntimeCoreCallbacks.ts` with command dispatch and runtime lookup orchestration only for path-handle commit and reorder flows; shared helpers now own the adjacent data-shaping logic and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-18` extracted runtime command side-effect classification from `useEditorRuntime.ts` into shared helpers, reducing inline snapping/history branching inside the app-level command dispatcher
+    - Implemented: `VT-20260424-18` extracted history undo/redo command-sequence planning from `useEditorRuntimeCoreCallbacks.ts` into shared helpers, leaving the callback closer to history target selection and dispatch only
+    - Verified 2026-04-24: `VT-20260424-18` decomposition pass leaves `useEditorRuntime.ts` and `useEditorRuntimeCoreCallbacks.ts` with local runtime state reset/dispatch orchestration only; snapping/history command classification and history navigation planning now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-19` extracted selected non-frame element snapshot resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing repeated copy/cut/duplicate selection shaping
+    - Implemented: `VT-20260424-19` removed duplicated `switch-tool` lifecycle wiring from `useEditorRuntimeExecuteAction.ts` by reusing the shared `setCurrentTool` callback from `useEditorRuntimeCoreCallbacks.ts`
+    - Verified 2026-04-24: `VT-20260424-19` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action branching only; selected-element snapshot shaping and switch-tool lifecycle ownership now live behind shared helpers/core callbacks and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-20` extracted direct-command action alias resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, removing inline history/delete/select-all command mapping from the executor hook
+    - Implemented: `VT-20260424-20` extracted layer reorder action alias resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing repeated bring/send/layer direction branching
+    - Verified 2026-04-24: `VT-20260424-20` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action-specific orchestration only; direct command and reorder alias mapping now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-21` extracted element nudge delta resolution and selection-move transform batch planning from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline move-action payload shaping
+    - Implemented: `VT-20260424-21` extracted pasted-element payload planning and unique inserted-shape id allocation from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline insert payload construction for paste/drop-image flows
+    - Verified 2026-04-24: `VT-20260424-21` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action branching and dispatch only for nudge/paste flows; move/paste payload planning and unique id allocation now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-22` extracted duplicate-element payload planning from `useEditorRuntimeExecuteAction.ts` into shared helpers, further reducing inline repeated insert-shape object construction
+    - Implemented: `VT-20260424-22` extracted `selection-modify` command resolution from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline selection-set command shaping in the executor hook
+    - Verified 2026-04-24: `VT-20260424-22` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` closer to action branching and dispatch only for duplicate/selection-modify flows; duplicate payload planning and selection command resolution now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-23` extracted dropped-image sizing and inserted image element payload planning from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline viewport-relative image insert construction
+    - Verified 2026-04-24: `VT-20260424-23` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` with local asset registration and insert dispatch only for drop-image flows; image sizing and insert payload planning now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-24` extracted viewport pan/zoom action parsing from `useEditorRuntimeExecuteAction.ts` into shared helpers, reducing inline `world-shift` / `world-zoom` branching in the executor hook
+    - Verified 2026-04-24: `VT-20260424-24` decomposition pass leaves `useEditorRuntimeExecuteAction.ts` with local viewport dispatch only for world navigation flows; pan/zoom action parsing now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-25` extracted auto-mask and clear-mask command/message resolution from `useEditorRuntimeMaskActions.ts` into shared helpers, reducing inline mask candidate selection and validation branching in the handler module
+    - Verified 2026-04-24: `VT-20260424-25` decomposition pass leaves `useEditorRuntimeMaskActions.ts` with local notification and dispatch only; auto-mask and clear-mask resolution now live in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-26` extracted element-modify command planning from `useEditorRuntimeElementModify.ts` into shared helpers, reducing inline property resolution and style patch construction in the handler module
+    - Verified 2026-04-24: `VT-20260424-26` decomposition pass leaves `useEditorRuntimeElementModify.ts` with local command dispatch only; element-modify command planning now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-27` extracted groupable-shape id resolution from `runtime/groupActions.ts` into shared helpers, reducing inline ancestor-filtering logic in group action handling
+    - Verified 2026-04-24: `VT-20260424-27` decomposition pass leaves `runtime/groupActions.ts` with local group command dispatch only for grouping flows; groupable id resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-28` extracted selected-group resolution from `runtime/groupActions.ts` into shared helpers, reducing inline selected-group lookup in ungroup action handling
+    - Verified 2026-04-24: `VT-20260424-28` decomposition pass leaves `runtime/groupActions.ts` with local ungroup dispatch only for ungroup flows; selected-group resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-29` extracted convert-to-path and align command resolution from `runtime/shapeActions.ts` into shared helpers, reducing inline action-mode branching in shape action handling
+    - Verified 2026-04-24: `VT-20260424-29` decomposition pass leaves `runtime/shapeActions.ts` with local dispatch only for convert/align flows; command resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-30` extracted distribute and boolean command resolution from `runtime/shapeActions.ts` into shared helpers, reducing inline mode mapping and boolean-notify branching in shape action handling
+    - Verified 2026-04-24: `VT-20260424-30` decomposition pass leaves `runtime/shapeActions.ts` with local dispatch/notify only for distribute/boolean flows; command resolution now lives in shared helpers and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-31` extracted layer hierarchy index construction from `deriveEditorUIState.ts`, reducing inline node/parent indexing work inside layer item derivation
+    - Verified 2026-04-24: `VT-20260424-31` decomposition pass leaves `deriveEditorUIState.ts` with helper-owned layer hierarchy indexing and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-32` extracted layer child-id resolution from `deriveEditorUIState.ts`, reducing inline explicit-vs-inferred child selection logic inside layer traversal
+    - Verified 2026-04-24: `VT-20260424-32` decomposition pass leaves `deriveEditorUIState.ts` with helper-owned child-id resolution and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-33` extracted layer item projection from `deriveEditorUIState.ts`, reducing inline layer flag/name/depth mapping inside traversal
+    - Verified 2026-04-24: `VT-20260424-33` decomposition pass leaves `deriveEditorUIState.ts` with helper-owned layer item projection and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-34` extracted centered rectangle/ellipse tool element construction from `editorRuntimeHelpers.ts`, reducing inline centered box object construction in `createShapeElementFromTool`
+    - Verified 2026-04-24: `VT-20260424-34` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned centered box tool construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-35` extracted line-like tool element construction from `editorRuntimeHelpers.ts`, reducing inline line/connector object construction in `createShapeElementFromTool`
+    - Verified 2026-04-24: `VT-20260424-35` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned line-like tool construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-36` extracted drag box and drag line-like shape construction from `editorRuntimeHelpers.ts`, reducing inline rectangle/ellipse/line/connector object construction in `createShapeElementFromDrag`
+    - Verified 2026-04-24: `VT-20260424-36` decomposition pass leaves `editorRuntimeHelpers.ts` with helper-owned drag shape construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-37` extracted selected schema-meta projection from `buildSelectedProps` in `editorRuntimeHelpers.ts`, reducing inline schema snapshot branching in selected-element prop derivation
+    - Verified 2026-04-24: `VT-20260424-37` decomposition pass leaves `buildSelectedProps` with helper-owned schema-meta projection and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-38` extracted default fill resolution from `buildSelectedProps` in `editorRuntimeHelpers.ts`, reducing inline shape-type fill fallback branching in selected-element prop derivation
+    - Verified 2026-04-24: `VT-20260424-38` decomposition pass leaves `buildSelectedProps` with helper-owned fill fallback resolution and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-39` extracted default stroke resolution from `buildSelectedProps` in `editorRuntimeHelpers.ts`, reducing inline stroke fallback construction in selected-element prop derivation
+    - Verified 2026-04-24: `VT-20260424-39` decomposition pass leaves `buildSelectedProps` with helper-owned stroke fallback resolution and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-40` extracted point-array cloning from `cloneElementProps` in `editorRuntimeHelpers.ts`, reducing inline shallow-copy mapping for point collections
+    - Verified 2026-04-24: `VT-20260424-40` decomposition pass leaves `cloneElementProps` with helper-owned point-array cloning and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-41` extracted bezier-point cloning from `cloneElementProps` in `editorRuntimeHelpers.ts`, reducing inline shallow-copy mapping for bezier collections
+    - Verified 2026-04-24: `VT-20260424-41` decomposition pass leaves `cloneElementProps` with helper-owned bezier cloning and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-42` extracted style-like shallow cloning from `cloneElementProps` in `editorRuntimeHelpers.ts`, reducing repeated inline object spread handling for fill/stroke/shadow/corner radii
+    - Verified 2026-04-24: `VT-20260424-42` decomposition pass leaves `cloneElementProps` with helper-owned style-like cloning and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-43` extracted point-array offsetting from `offsetElementPosition` in `editorRuntimeHelpers.ts`, reducing inline coordinate translation mapping for moved shapes
+    - Verified 2026-04-24: `VT-20260424-43` decomposition pass leaves `offsetElementPosition` with helper-owned point offsetting and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-44` extracted bezier-point offsetting from `offsetElementPosition` in `editorRuntimeHelpers.ts`, reducing inline anchor/control-point translation logic for moved path shapes
+    - Verified 2026-04-24: `VT-20260424-44` decomposition pass leaves `offsetElementPosition` with helper-owned bezier offsetting and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-45` extracted history neighbor preview construction from `buildHistoryArray` in `editorRuntimeHelpers.ts`, reducing repeated inline prev/next snapshot shaping
+    - Verified 2026-04-24: `VT-20260424-45` decomposition pass leaves `buildHistoryArray` with helper-owned neighbor preview construction and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Implemented: `VT-20260424-46` extracted history entry projection from `buildHistoryArray` in `editorRuntimeHelpers.ts`, reducing inline history-node mapping details in runtime history projection
+    - Verified 2026-04-24: `VT-20260424-46` decomposition pass leaves `buildHistoryArray` with helper-owned entry projection and validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+- Figma coverage mapping for vector editor pages (prompt-to-code surface alignment)
+  - Progress 2026-04-24:
+    - Implemented: mapped non-TBD coverage table entries in `docs/product/figma-mapping.md`
+    - Implemented: added dedicated transform workflow prompt (`docs/product/figma-prompts/selection-transform-workflows.md`)
+    - Implemented: added context menu and shortcuts matrix prompt (`docs/product/figma-prompts/context-shortcuts-matrix.md`)
+    - Implemented: drafted acceptance parity baseline tables from runtime code anchors in both dedicated prompt docs
+    - Implemented: added manual acceptance runbook (`docs/product/figma-prompts/acceptance-session-checklist.md`) with row-level status rubric and evidence fields
+    - Next: execute checklist against active Figma file and promote rows to `verified`/`done` with frame evidence
+- 100K performance optimization Phase 1 (stop worst spikes, AI execution queue):
+  - Progress 2026-04-23:
+    - Implemented: diagnostics publishing baseline in canvas adapter
+    - Implemented: pointermove hover-hit throttle (time + distance budget)
+    - Implemented: hover gating for `dragging/resizing/rotating/panning/zooming/marqueeSelecting`
+    - Implemented: zoom-time quality freeze via LOD (`zoom -> interactive` + lower DPR)
+    - Implemented: tiny-object render skip in engine render plan (screen-space threshold)
+    - Implemented: low-zoom text placeholder LOD in WebGL packet path
+    - Implemented: interactive image upload freeze (defer texture uploads until settled)
+    - Implemented: non-precision hover hit path defaults to `bbox_then_exact` with capped exact refinement budget
+    - Implemented: tile cache zoom-bucket hysteresis wiring (reuse previous bucket near threshold)
+    - Implemented: worker selection hit path defaults to `bbox_then_exact` for selector, preserving `exact` for direct selection
+    - Implemented: hit-plan exact-check diagnostics surfaced to runtime debug panel (`Hit Exact Checks`)
+    - Implemented: minimal tiny-group collapse policy in engine render planning (buffer-path subtree pruning under low zoom/interactive quality)
+    - Implemented: hit exact/candidate ratio visualization in runtime debug panel (`Hit Exact Ratio`)
+    - Implemented: tiny-group collapse policy extended to non-buffer render-plan path for traversal consistency
+    - Implemented: group-collapse diagnostics surfaced (`Collapsed Groups`, `Collapse-Culled Nodes`)
+    - Implemented: collapse protection hints for selected nodes/groups via engine `protectedNodeIds`, preventing selected/ancestor groups from low-zoom collapse
+    - Implemented: Canvas2D path-simplification bucket entry (low-zoom/interactive path fallback to simplified anchor polyline)
+    - Implemented: collapse protection coverage expanded from selection-only to active editing signals (`pathSubSelection` / `pathSubSelectionHover` / handle-drag shape / transform-preview shape ids)
+    - Implemented: Canvas2D path simplification upgraded to adaptive projected-density sampling (screen-space step + projected-length cap), replacing fixed-stride fallback
+    - Implemented: frame-plan shortlist pruning is now enabled in engine runtime for large scenes (scene-size threshold + ratio gate)
+    - Implemented: runtime shortlist candidate ids now merge `protectedNodeIds`, preventing active/editing nodes from being accidentally pruned by coarse viewport shortlist
+    - Implemented: frame-plan shortlist activation now uses hysteresis (enter/leave ratio window) to reduce threshold-edge toggling and planner churn during subtle viewport motion
+    - Implemented: engine render options now expose shortlist tuning knobs (`enabled`, `minSceneNodes`, `ratioThreshold`, `hysteresisRatio`)
+    - Implemented: shortlist diagnostics (`shortlistActive`, `shortlistCandidateRatio`) now flow from engine runtime diagnostics into vector runtime debug panel
+    - Implemented: shortlist state switching now uses consecutive-frame debounce (`stableFrameCount`) on top of hysteresis, reducing single-frame boundary noise toggles
+    - Implemented: shortlist diagnostics expanded with pending/apply internals (`appliedCandidateCount`, `pendingState`, `pendingFrameCount`) plus enter/leave threshold visibility
+    - Implemented: expanded shortlist diagnostics now flow through runtime events and are surfaced in Runtime Debug Panel for real-time toggle-cause inspection
+    - Implemented: shortlist diagnostics now track transition stability counters (`toggleCount`, `debounceBlockedToggleCount`) to quantify confirmed flips vs debounce-cancelled flips
+    - Implemented: Runtime Debug Panel now shows shortlist effectiveness indicators (`Shortlist Coverage`, `Shortlist Gap`, `Shortlist Threshold Zone`) to correlate shortlist pruning with frame-plan candidate volume
+    - Implemented: Runtime Debug Panel now adds derived shortlist stability metrics (`Shortlist Toggle / Min`, `Shortlist Debounce Blocked Rate`) for quick boundary-oscillation diagnosis without extending engine protocol
+    - Implemented: shortlist threshold zone is now color-coded in Runtime Debug Panel (`enter`/`hysteresis`/`leave`) for faster scan during stress sessions
+    - Implemented: Runtime Debug Panel now adds threshold-distance diagnostics (`Shortlist Distance To Enter`, `Shortlist Distance To Leave`) plus stability status (`stable`/`watch`/`unstable`)
+    - Implemented: Runtime Debug Panel now includes a compact `Shortlist Summary` row to reduce scan time during long-running perf verification
+    - Implemented: phase-based render policy baseline extracted into runtime service (`resolveRuntimeRenderPolicy`), centralizing interactive/settled DPR+quality decisions for canvas adapter
+    - Implemented: phase-based render policy expanded to explicit phases (`pan`/`zoom`/`drag`/`static`/`settled`) and wired from viewport interaction classification into canvas renderer
+    - Implemented: runtime diagnostics now publish current `renderPhase`, and Runtime Debug Panel now shows phase state to correlate interaction policy with frame behavior
+    - Implemented: `renderPhase` now prefers real runtime editing-mode signals (`dragging`/`resizing`/`rotating`/`panning`/`zooming`) before velocity fallback, reducing false `drag` classification in camera interactions
+    - Implemented: runtime diagnostics now publish `overlayMode` (`full`/`degraded`) from phase policy output, with Runtime Debug Panel visibility for overlay degradation tracking
+    - Implemented: overlay degradation now has effect at app layer: `useEditorRuntimeDerivedState` gates hover highlight and snap-guide overlay instructions during motion-heavy editing modes (`panning`/`zooming`/`dragging`/`resizing`/`rotating`/`drawing*`)
+    - Implemented: overlay guide degradation now keeps coarse guidance instead of full suppression (max one snap guide per axis in degraded mode), reducing visual churn while preserving alignment affordance
+    - Implemented: path-edit activity (`pathSubSelection` / hover / handle-drag) now whitelists overlay chrome to remain full-fidelity even when global overlay degradation would otherwise apply
+    - Implemented: degraded-mode snap guide selection is now relevance-prioritized per axis using current selected/moving bounds anchor distance (edge/center aware), replacing first-seen guide fallback
+    - Implemented: overlay degradation telemetry now flows end-to-end (`overlayDegraded`, guide input/kept counts, path-edit whitelist flag) from derived-state into runtime render diagnostics
+    - Implemented: Runtime Debug Panel now surfaces overlay degradation observability (`Overlay Degraded`, guide input/kept counts, retention %, path-edit whitelist active)
+    - Implemented: overlay telemetry now includes degraded-guide selection strategy (`full`/`axis-first`/`axis-relevance`) and guide dropped count/rate to explain why guides are reduced in degraded mode
+    - Implemented: phase policy now includes a precision-edit phase (`precision`) so `pathEditing` / `textEditing` avoid interaction degradation and keep full-fidelity overlay/render posture
+    - Implemented: runtime diagnostics now include policy output telemetry (`renderPolicyQuality`, `renderPolicyDpr`) plus viewport motion classification (`viewportInteractionType`)
+    - Implemented: Runtime Debug Panel now exposes render policy telemetry and per-reason render-request rates (scene-dirty/deferred-image/idle-redraw/interactive)
+    - Implemented: active transform preview (`dragging`/`resizing`/`rotating`) now defers to overlay preview instructions instead of mutating runtime preview scene shapes every frame, reducing transform-time scene-dirty churn
+    - Implemented: scene-dirty redraw now short-circuits for offscreen-only dirty updates (`dirtyCandidateCount === 0` with prior candidate set), while still applying scene patch state
+    - Implemented: dirty-region invalidation now always uses merged updated-node bounds for a single `markDirtyBounds(...)` call, improving local tile invalidation consistency
+    - Implemented: offscreen-only scene-dirty short-circuit now has starvation guard (`SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES`) to force periodic redraw after consecutive skips
+    - Implemented: runtime diagnostics now expose offscreen-skip scheduling counters (`offscreenSceneDirtySkipConsecutiveCount`, skip/forced request counts) for redraw-policy tuning
+    - Implemented: runtime diagnostics now expose dirty-mark metrics (`dirtyBoundsMarkCount`, `dirtyBoundsMarkArea`) to validate local invalidation behavior
+    - Implemented: Runtime Debug Panel now surfaces offscreen skip/force rates and dirty-mark metrics for dirty-region redraw inspection
+    - Implemented: runtime diagnostics now publish offscreen forced-render threshold (`offscreenSceneDirtyForceRenderFrameThreshold`) so configured starvation guard is visible in panel telemetry
+    - Implemented: dirty-mark telemetry now includes cumulative area-bucket counters (small/medium/large) to classify invalidation footprint distribution
+    - Implemented: Runtime Debug Panel now derives recent-window per-second trends (skip/forced/dirty-mark over last 90 frames) for short-horizon policy tuning
+    - Implemented: dirty-region diagnostics thresholds are now centralized in runtime render policy (`DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY`) so starvation/bucket tuning no longer requires touching adapter-local literals
+    - Implemented: runtime diagnostics now publish active dirty area thresholds (`dirtyBoundsSmallAreaThreshold`, `dirtyBoundsMediumAreaThreshold`) for panel-side parameter verification
+    - Implemented: Runtime Debug Panel now adds trend direction rows (`up/down/flat`) for offscreen skip, forced scene-dirty, and dirty-mark rates
+    - Implemented: Runtime Debug Panel now surfaces `Scene Dirty Risk Status` (`stable/watch/high/forcing`) based on skip ratio, forced rate, and consecutive-skip pressure
+    - Implemented: centralized dirty-region risk policy defaults (`DEFAULT_RUNTIME_DIRTY_REGION_RISK_POLICY`) now define watch/high skip thresholds and high-risk forced-rate threshold in runtime policy module
+    - Implemented: runtime diagnostics now publish risk-policy thresholds and max consecutive offscreen-skip streak (`offscreenSceneDirtySkipConsecutiveMaxCount`) for long-horizon starvation analysis
+    - Implemented: Runtime Debug Panel now surfaces force-window remaining frames to quickly show distance-to-forced-redraw during skip streaks
+    - Implemented: Runtime Debug Panel now derives `Scene Dirty Trend Pressure` (`rising`/`mixed`/`easing`) from skip/forced direction signals
+    - Implemented: Runtime Debug Panel now publishes a bounded `Scene Dirty Risk Score` (0-100) combining skip ratio, forced-rate pressure, and streak pressure
+    - Implemented: Runtime Debug Panel now color-codes `Scene Dirty Risk Status` row (`stable/watch/high/forcing`) for faster live triage
+    - Implemented: runtime diagnostics now publish trend/spike/risk-score policy snapshots (`sceneDirtyTrendWindowFrames`, spike thresholds, risk-score high threshold) so panel logic can be policy-driven
+    - Implemented: Runtime Debug Panel trend-window calculation now uses diagnostics-provided frame window instead of a hardcoded local constant
+    - Implemented: runtime adapter now tracks and publishes max consecutive offscreen-skip streak (`offscreenSceneDirtySkipConsecutiveMaxCount`) for long-session starvation pressure visibility
+    - Implemented: Runtime Debug Panel now derives `Scene Dirty Spike Signal` (`none`/`skip`/`forced`/`forced+skip`) from recent per-second skip/forced rates
+    - Implemented: Runtime Debug Panel now derives `Scene Dirty Risk Score Band` (`low`/`medium`/`high`) and risk-status transition telemetry (transition count + seconds in current state)
+    - Implemented: Runtime Debug Panel now uses safe fallback thresholds when diagnostics snapshot values are zero and scales trend-history buffer with the active trend-window size
+    - Implemented: runtime render policy now defines risk-score composition defaults (`DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY`) so scoring math is centralized and tunable
+    - Implemented: runtime diagnostics now publish risk-score composition parameters (skip/forced/streak weights + forced-rate scale) to keep panel scoring aligned with runtime policy
+    - Implemented: Runtime Debug Panel now decomposes risk score into visible contribution rows (skip/forced/streak) for explainable tuning
+    - Implemented: Runtime Debug Panel now tracks and surfaces risk-status transition reason labels (`streak-force-threshold`, `skip-and-forced-threshold`, `skip-watch-threshold`, `cooling`, `recovered`)
+    - Implemented: Runtime Debug Panel now surfaces risk-status transition frequency (`Scene Dirty Risk Transitions / Min`) in addition to cumulative count
+    - Implemented: Runtime Debug Panel now provides one-click diagnostics snapshot export (`Copy JSON`) via clipboard for quick perf triage sharing
+    - Implemented: diagnostics export feedback state now auto-resets to idle after a short timeout to avoid stale copied/failed indicators
+    - Implemented: runtime render policy now defines risk-score composition parameters (`skipWeight`, `forcedWeight`, `streakWeight`, `forcedRateScale`) in `DEFAULT_RUNTIME_DIRTY_REGION_RISK_SCORE_POLICY`
+    - Implemented: runtime diagnostics now publish risk-score composition policy parameters so panel score calculation stays policy-aligned
+    - Implemented: Runtime Debug Panel now surfaces risk-score contribution percentages for skip/forced/streak components in addition to absolute contribution values
+    - Implemented: Runtime Debug Panel now classifies transition-rate status (`stable`/`watch`/`churning`) from transitions/min against policy threshold
+    - Implemented: Runtime Debug Panel now surfaces a prolonged high-risk signal (`Scene Dirty High Risk Sustained`) based on risk status and in-state duration threshold
+    - Implemented: diagnostics snapshot export now includes a derived-metrics section (risk status/score/trend/transition/contributions) with timestamp for richer triage sharing
+    - Implemented: panel-side threshold handling now includes safe fallbacks for prolonged-high-risk and transition-rate thresholds to avoid startup zero-threshold artifacts
+    - Implemented: mixed-scene perf gate now supports previous-report regression checks (`--previous-report`) with metric direction policy (`lower-better` / `higher-better`)
+    - Implemented: mixed-scene perf gate config now includes trend-regression defaults (`defaultMaxRegressionPercent`, `metricDirections`) to enforce CI-friendly drift bounds
+    - Implemented: mixed-scene perf gate now supports machine-readable output (`--output`) containing checks/trendChecks/failures for CI/report ingestion
+    - Implemented: vector app scripts now include `perf:gate:template` for quick baseline smoke execution
+    - Implemented: root workspace scripts now expose `perf:gate` to run gate from monorepo root without manual filter typing
+    - Implemented: added executable mixed-scene regression gate script (`apps/vector-editor-web/scripts/perf-gate.mjs`) with baseline config and report template
+    - Implemented: mixed-scene gate now enforces scene coverage (`10k`, `50k`, `100k`, `mixed(text/image/path)`) plus metric thresholds (frame p95, hit-test p95, cache hit-rate, visible candidates)
+    - Implemented: vector app package scripts now expose `perf:gate` command for direct perf gate execution
+    - Implemented: added targeted transform/hit-test overlap regression checklist (`docs/core/transform-hit-test-regression-checklist.md`) with required scenarios, expected outcomes, and diagnostics capture points
+    - Implemented: engineering testing docs now include mixed-scene gate usage and checklist entrypoints for repeatable validation
+    - Verified 2026-04-24: validation baseline passed (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+  - Progress 2026-04-24 (`VT-20260424-49` / `VT-20260424-50`):
+    - Implemented: packet-primary WebGL frames now capture a reusable composite snapshot so later interactive preview frames can reuse a settled packet render instead of requiring model-complete composite mode
+    - Implemented: pan-phase render policy now forces interactive engine quality, the vector-editor runtime now enables `interactionPreview` in `interaction` mode, and runtime diagnostics now expose actual engine frame quality to distinguish requested policy from renderer-applied quality
+    - Implemented: pan-phase render policy now keeps DPR at `auto` so entering hand-pan mode does not invalidate the latest preview snapshot via a `pixelRatio` mismatch before any viewport movement occurs
+    - Implemented: WebGL interaction preview reuse now flips framebuffer-captured preview textures on the Y axis during reuse sampling only, fixing the vertical mirroring that appeared during pan/zoom preview while leaving normal packet textures unchanged
+    - Implemented: zoom-phase render policy now also keeps DPR at `auto`, and low-scale interaction preview reuse now widens translate/scale-step tolerance only for overview-scale frames, with viewport-size-aware translate windows mirrored across WebGL and Canvas2D reuse paths
+    - Verified 2026-04-24: live `Stress Mixed 100K` browser validation at `2%` now shows `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, `Cache Hit Rate = 100%`, and pan preview frames dropping to `0.06 ms` on reuse-hit wheel-pan frames plus `0.12 ms` on hand-tool pan-entry frames
+    - Verified 2026-04-24: after the preview-texture Y-flip fix, both hand-pan and zoom-triggered interactive preview frames continue to report `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, `Cache Fallback Reason = none`, and sub-millisecond draw cost (`0.09 ms` hand-pan, `0.14 ms` zoom-triggered preview)
+    - Verified 2026-04-24: after zoom DPR continuity plus low-scale preview-window tuning, focused `Stress Mixed 100K` browser sampling at `2%` reached `reuseFrameCount = 10/11`, `maxFpsInstant = 78.1`, `maxFpsSmooth = 32.8`, and `minDrawMs = 0.11`; the only residual miss in that sample was a single initial `l0-scale-step-exceeded`
+    - Implemented: overview-scale interaction preview reuse now raises only the overview `maxScaleStep` ceiling again (`1.75`) in both WebGL and Canvas2D so the very first `2%` zoom-entry frame can still reuse the most recent settled snapshot
+    - Verified 2026-04-24: three repeated cold-start `Stress Mixed 100K` zoom-entry probes at `2%` all now report `Cache Fallback Reason = none`, `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, and `L0 Preview Misses = 0`, closing the first-zoom-entry follow-up slice for `VT-20260424-49`
+    - Implemented: low-scale interaction preview reuse now advances the cached snapshot after reuse-hit frames in both WebGL and Canvas2D, so repeated overview pans compare against the latest reused frame instead of accumulating translate deltas against an older settled snapshot
+    - Verified 2026-04-24: repeated long-sequence `Stress Mixed 100K` sampling at `2%` no longer reports `l0-translate-exceeded`; fallback sets now collapse to `none` plus an initial `l0-scale-step-exceeded` during template-apply initialization sampling, with reuse counts reaching `10/11` and `9/11` across two follow-up runs
+    - Verified 2026-04-24: when the same long-sequence sampling starts after the template-apply initialization zoom has already settled, `Stress Mixed 100K` at `2%` reaches `11/11` reuse-hit samples with `Cache Fallback Reason = none` throughout, closing the interactive acceptance slice for `VT-20260424-49`
+  - Progress 2026-04-24 (Phase 2 kickoff):
+    - Verified 2026-04-24: mixed-scene perf gate executed with trend check output (`16 checks`, `16 trend checks`, `PASS`) via `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`
+    - Implemented: `VT-20260424-05` precision-edit routing fix so `pathEditing` / `textEditing` now resolve to `precision` phase instead of falling through `drag` degradation in `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`
+    - Implemented: `VT-20260424-05` transition diagnostics evidence now records phase/policy switch counts plus latest transition summaries and surfaces them in Runtime Debug Panel
+    - Verified 2026-04-24: `VT-20260424-05` phase-based render policy service now owns explicit `static` / `pan` / `zoom` / `drag` / `precision` / `settled` routing, publishes policy transition telemetry, and passed validation baseline (`pnpm typecheck`, `pnpm lint`, `pnpm build`)
+    - Verified 2026-04-24: `VT-20260424-06` drag preview layer is runtime-owned and rendered through preview instructions instead of per-frame preview-scene mutation (`src/runtime/preview/index.ts`, `src/editor/runtime-local/interaction/transformSessionManager.ts`)
+    - Verified 2026-04-24: `VT-20260424-07` dirty-region redraw pipeline uses merged dirty bounds, offscreen skip guards, and diagnostics rows for local redraw evidence (`src/editor/runtime/canvasAdapter.tsx`, `src/components/shell/RuntimeDebugPanel.tsx`)
+    - Verified 2026-04-24: `VT-20260424-08` group collapse policy ships with protected-node guarantees plus debug counters for regression checks (`packages/engine/src/runtime/createEngine.ts`, `src/components/shell/RuntimeDebugPanel.tsx`)
+    - Verified 2026-04-24: `VT-20260424-09` path simplification buckets are active with adaptive projected-density sampling for low-zoom path cost reduction (`packages/engine/src/renderer/canvas2d.ts`)
+    - Verified 2026-04-24: `VT-20260424-10` cache zoom bucket hysteresis is implemented in engine tile zoom selection and shortlist tuning (`packages/engine/src/renderer/tileManager.ts`, `packages/engine/src/runtime/createEngine.ts`)
+    - Verified 2026-04-24: `VT-20260424-11` tiled bitmap cache prototype ships with tile cache size caps, dirty-tile tracking, texture-byte accounting, and WebGL resource budget guardrails (`packages/engine/src/renderer/tileManager.ts`, `packages/engine/src/renderer/webglResources.ts`, `packages/engine/src/renderer/webgl.ts`)
+    - Verified 2026-04-24: `VT-20260424-12` multi-resolution image baseline now downscales uploads to zoom-appropriate raster size, re-uploads higher fidelity on demand, and surfaces saved-byte diagnostics in Runtime Debug Panel (`packages/engine/src/renderer/webgl.ts`, `src/components/shell/RuntimeDebugPanel.tsx`)
+    - Verified 2026-04-24: `VT-20260424-13` incremental spatial-index update path is active in scene patch apply flow via subtree upsert/remove helpers instead of full rebuilds (`packages/engine/src/scene/patch.ts`, `packages/engine/src/scene/indexing.ts`, `packages/engine/src/spatial/index.ts`)
+    - Verified 2026-04-24: `VT-20260424-14` mixed-scene perf gate CI/report integration supports `--previous-report`, machine-readable `--output`, and trend regression enforcement (`apps/vector-editor-web/scripts/perf-gate.mjs`)
+    - In progress 2026-04-24: `VT-20260424-47` started worker-side render hint precompute by extending shared scene memory with stable text render hashes and path geometry counts, wiring the first text cache-key consumer through runtime scene adaptation and engine packet compilation
+    - Implemented: `VT-20260424-47` added diagnostics for worker-precomputed text cache-key usage vs packet-time fallback, surfacing the counts through engine render stats, runtime diagnostics, and Runtime Debug Panel for live validation of the new precompute path
+    - Implemented: `VT-20260424-47` now consumes worker-precomputed path point/bezier counts in Canvas2D path rendering to bypass simplification for trivial paths and avoid extra bezier-anchor array allocation during arrow endpoint resolution
+    - Implemented: `VT-20260424-47` added `Canvas2D Trivial Path Fast Path` diagnostics, wiring fast-path hit counts from engine Canvas2D render stats through runtime diagnostics into Runtime Debug Panel so low-complexity path bypasses can be observed live
+    - Implemented: `VT-20260424-47` pruned unnecessary contour parsing for open point-only paths in both Canvas2D rendering and engine hit-test flows, keeping multi-contour resolution gated to closed-path candidates only
+    - Implemented: `VT-20260424-47` added `Canvas2D Contour Parses` diagnostics and surfaced the counter through engine render stats, runtime diagnostics, and Runtime Debug Panel for live contour-path visibility
+    - Implemented: `VT-20260424-47` cached closed-path resolution once per path hit-test branch and threaded the result through fill/stroke helper checks, removing repeated closed-shape recomputation in engine hit testing
+    - Implemented: `VT-20260424-47` added `hasMultiContourPointPathCandidate(...)` gating in engine hit testing so contour parsing only runs for closed, point-only path candidates with enough points to possibly encode multiple contours
+    - Implemented: `VT-20260424-47` extended engine hit-test node shape with optional `closed` hint support so future callers can bypass endpoint-based closed-shape recomputation entirely
+    - Verified 2026-04-24: `VT-20260424-47` latest local optimization slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` extended shared scene-memory render hints with precomputed text line counts, exposing `textLineCount` in runtime snapshots for text-layout fast-path decisions
+    - Implemented: `VT-20260424-47` forwarded precomputed text line counts into engine text nodes and added `Canvas2D Single-Line Text Fast Path` stats so single-line text can bypass general newline splitting work
+    - Implemented: `VT-20260424-47` wired path `closed` hints from vector-editor app hit-test call sites into engine shape/clip hit testing across runtime-local controller, runtime-local interaction, worker hit-test scope, and mirrored runtime interaction helpers
+    - Implemented: `VT-20260424-47` kept mirrored runtime-local and interaction/runtime path-hit helpers in sync so product/runtime duplicate surfaces preserve the same path hint behavior
+    - Verified 2026-04-24: `VT-20260424-47` text line-count + closed-hint propagation slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` extracted shared `pathHitTestHints` helper in the vector-editor app so closed-path normalization now lives in one module instead of being duplicated across runtime-local and mirrored interaction surfaces
+    - Implemented: `VT-20260424-47` replaced duplicated per-file `withResolvedPathHints` helpers in runtime-local shape hit, runtime-local controller hit, runtime-local worker hit-test scope, runtime-local selection policy, mirrored runtime shape hit, and mirrored runtime selection policy with the shared helper
+    - Verified 2026-04-24: `VT-20260424-47` shared path-hit hint helper refactor passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` added worker-side precomputed `textMaxLineHeight` shared-memory hint for text nodes, quantized into render hints so single-line rich-text rendering can reuse worker-prepared line-height data
+    - Implemented: `VT-20260424-47` threaded precomputed text max line-height through runtime snapshot -> engine text node -> Canvas2D single-line text fast path, removing per-frame rich-text line-height reduction when the hint is present
+    - Implemented: `VT-20260424-47` surfaced `Canvas2D Precomputed Text Line Height` diagnostics through engine stats, runtime diagnostics, and RuntimeDebugPanel for live verification of worker text-precompute usage
+    - Verified 2026-04-24: `VT-20260424-47` text max line-height precompute slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` consolidated worker text render-hint prep into a single `resolveTextRenderMeta(...)` pass so text hash, line count, and max line height are derived from one text traversal instead of three separate scans
+    - Verified 2026-04-24: `VT-20260424-47` shared-memory text render-meta consolidation passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` replaced `Canvas2D` multiline rich-text `run.text.split('\n')` layout work with a shared manual line scanner so rich-text line layout no longer allocates a temporary parts array per run
+    - Implemented: `VT-20260424-47` reused the same manual line scanner for plain multiline `Canvas2D` text layout, removing `content.split('\n')` temporary line arrays from the non-rich-text path as well
+    - Verified 2026-04-24: `VT-20260424-47` Canvas2D multiline text line-scanner slice passed validation (`pnpm typecheck`)
+    - Implemented: `VT-20260424-47` updated the `Canvas2D` single-line rich-text fast path to reuse `EngineTextRun[]` directly instead of mapping runs into a redundant segment-copy array each frame
+    - Verified 2026-04-24: `VT-20260424-47` Canvas2D single-line rich-text segment reuse slice passed validation (`pnpm typecheck`)
+    - Verified 2026-04-24: `VT-20260424-47` worker-side render-hint precompute track is now complete for text/path-heavy prep (shared-memory text hash/line-count/max-line-height + path geometry hints through engine fast paths) and passed validation baseline plus mixed-scene perf gate (`pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`)
+    - Implemented: `VT-20260424-48` WebGL interactive pan preview now reuses the previous composite frame and scissor-redraws newly exposed edge regions through packet replay instead of leaving pan-time edge gaps to the next full redraw in `packages/engine/src/renderer/webgl.ts`
+    - Implemented: `VT-20260424-48` surfaced `WebGL Frame Reuse Edge Redraws` diagnostics from engine render stats through runtime diagnostics into Runtime Debug Panel for live verification of framebuffer-shift edge redraw behavior
+    - Verified 2026-04-24: `VT-20260424-48` pan frame reuse path now ships with framebuffer shift + edge redraw and passed validation baseline plus mixed-scene perf gate (`pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`)
+  - `VT-20260423-P1-01` [verified]: Runtime diagnostics baseline (owner: engine + app)
+    - Deliverable: frame/hit/cache counters wired from engine stats to debug panel
+    - Acceptance: panel shows `totalMs`, `hitTestMs`, `cacheHit/Miss`, `rendered/skipped`
+  - `VT-20260423-P1-02` [verified]: Pointer-move hit-test throttle (owner: runtime)
+    - Deliverable: pointermove hit dispatch with frame-budget or interval throttling
+    - Acceptance: hover movement no longer triggers exact hit on every raw event
+  - `VT-20260423-P1-03` [verified]: Hover gating during pan/drag (owner: runtime + app)
+    - Deliverable: interaction-phase switch disables normal hover path during pan/drag
+    - Acceptance: pan/drag stage has no continuous hover recompute
+  - `VT-20260423-P1-04` [verified]: Zoom-time rebuild freeze (owner: engine)
+    - Deliverable: text/path/cache heavy rebuild deferred during zoom interaction
+    - Acceptance: continuous zoom avoids repeated rebuild spikes; settle phase restores quality
+  - `VT-20260423-P1-05` [verified]: Tiny-object degradation (owner: engine)
+    - Deliverable: low screen-space nodes rendered as dot/bbox/skip
+    - Acceptance: low zoom rendered node count drops with no major interaction regression
+  - `VT-20260423-P1-06` [verified]: Text placeholder LOD (owner: engine)
+    - Deliverable: low zoom text uses placeholder block instead of full shaping
+    - Acceptance: text-heavy scene pan/zoom frame jitter reduced
+  - `VT-20260423-P1-07` [verified]: Bbox-first hit policy (owner: engine + runtime)
+    - Deliverable: `bbox_then_exact` default for non-precision interactions
+    - Acceptance: exact-hit count decreases while top-hit correctness stays stable
 
 ## Next
 
-- Add Figma coverage mapping for vector editor pages
-- Add targeted regression checklist for transform and hit-test overlap cases
-- Continue multi-hit candidate interpretation consistency across worker/runtime/product
-- Normalize package-level README responsibilities (`apps/*`, `packages/*`)
+- `VT-20260424-01` [verified]: extend boolean contour regression harness to chained boolean sequences and contour-anchor edit edge cases
+- `VT-20260424-02` [verified]: execute contour checklist scenarios and promote rows from planned to verified with command/report evidence
+- `VT-20260424-03` [verified]: normalize package-level README responsibilities (`apps/*`, `packages/*`)
+- `VT-20260424-04` [verified]: runtime/engine boundary checks on recent boolean and contour-related diffs
+- `VT-20260424-05` [verified]: phase-based render policy service hardening for `static/pan/zoom/drag/precision/settled` with policy-switch diagnostics evidence
+- `VT-20260424-06` [verified]: drag preview layer rollout so active drag avoids per-frame full-scene invalidation
+- `VT-20260424-07` [verified]: dirty-region redraw pipeline implementation using merged old/new/overlay bounds
+- `VT-20260424-08` [verified]: group collapse policy stabilization with protected-node guarantees and regression checks
+- `VT-20260424-09` [verified]: path simplification bucket tuning for low-zoom cost reduction without edit hit drift
+- `VT-20260424-10` [verified]: cache zoom buckets + hysteresis calibration to reduce threshold-edge cache thrash
+- `VT-20260424-11` [verified]: tiled bitmap cache prototype for large static regions with memory budget guardrails
+- `VT-20260424-12` [verified]: multi-resolution image path baseline for zoom-dependent image decode/upload cost control
+- `VT-20260424-37` [verified]: extract selected schema-meta projection from `buildSelectedProps`
+- `VT-20260424-38` [verified]: extract default fill resolution from `buildSelectedProps`
+- `VT-20260424-39` [verified]: extract default stroke resolution from `buildSelectedProps`
+- `VT-20260424-40` [verified]: extract point-array cloning from `cloneElementProps`
+- `VT-20260424-41` [verified]: extract bezier-point cloning from `cloneElementProps`
+- `VT-20260424-42` [verified]: extract style-like shallow cloning from `cloneElementProps`
+- `VT-20260424-43` [verified]: extract point-array offsetting from `offsetElementPosition`
+- `VT-20260424-44` [verified]: extract bezier-point offsetting from `offsetElementPosition`
+- `VT-20260424-45` [verified]: extract history neighbor preview construction from `buildHistoryArray`
+- `VT-20260424-46` [verified]: extract history entry projection from `buildHistoryArray`
+- `VT-20260424-13` [verified]: incremental spatial-index update path for drag/move to avoid full index rebuild pressure
+- `VT-20260424-14` [verified]: mixed-scene perf gate CI/report integration with previous-report trend regression enforcement
+- `VT-20260424-15` [verified]: decompose `useEditorRuntime` adjacent hover/path-subselection helper logic out of `useEditorRuntimeCanvasInteractions`
+- `VT-20260424-16` [verified]: decompose `useEditorRuntime` adjacent `onPointerMove` hover/path-hover helper logic out of `useEditorRuntimeCanvasInteractions`
+- `VT-20260424-17` [verified]: decompose `useEditorRuntimeCoreCallbacks` path-handle commit and reorder index data shaping out of inline callback logic
+- `VT-20260424-18` [verified]: decompose runtime command side-effect classification and history navigation planning out of `useEditorRuntime` adjacent callbacks
+- `VT-20260424-19` [verified]: decompose execute-action selection snapshot shaping and switch-tool lifecycle duplication out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-20` [verified]: decompose execute-action direct command and reorder alias mapping out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-21` [verified]: decompose execute-action nudge/paste payload planning and unique id allocation out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-22` [verified]: decompose execute-action duplicate payload planning and selection-modify command resolution out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-23` [verified]: decompose execute-action dropped-image sizing and insert payload planning out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-24` [verified]: decompose execute-action viewport pan/zoom action parsing out of `useEditorRuntimeExecuteAction`
+- `VT-20260424-25` [verified]: decompose mask-action command and message resolution out of `useEditorRuntimeMaskActions`
+- `VT-20260424-26` [verified]: decompose element-modify command planning out of `useEditorRuntimeElementModify`
+- `VT-20260424-27` [verified]: decompose grouping target resolution out of `runtime/groupActions`
+- `VT-20260424-28` [verified]: decompose ungroup selected-group resolution out of `runtime/groupActions`
+- `VT-20260424-29` [verified]: decompose convert/align shape action command resolution out of `runtime/shapeActions`
+- `VT-20260424-30` [verified]: decompose distribute/boolean shape action command resolution out of `runtime/shapeActions`
+- `VT-20260424-31` [verified]: decompose layer hierarchy index construction out of `deriveEditorUIState`
+- `VT-20260424-32` [verified]: decompose layer child-id resolution out of `deriveEditorUIState`
+- `VT-20260424-33` [verified]: decompose layer item projection out of `deriveEditorUIState`
+- `VT-20260424-34` [verified]: decompose centered box tool element construction out of `editorRuntimeHelpers`
+- `VT-20260424-35` [verified]: decompose line-like tool element construction out of `editorRuntimeHelpers`
+- `VT-20260424-36` [verified]: decompose drag box and line-like shape construction out of `editorRuntimeHelpers`
+- `VT-20260424-31` [verified]: decompose layer hierarchy index construction out of `deriveEditorUIState`
+- `VT-20260424-32` [verified]: decompose layer child-id resolution out of `deriveEditorUIState`
+- `VT-20260424-33` [verified]: decompose layer item projection out of `deriveEditorUIState`
+
+# break line
+
+- 100K performance optimization Phase 2 (runtime structure, next execution queue):
+  1. Phase-based render policy service (owner: runtime)
+  - Deliverable: explicit policy for `static/pan/zoom/drag/settled`
+  - Acceptance: render/hit/cache/overlay mode can switch by phase
+  2. Drag preview layer (owner: engine + runtime)
+  - Deliverable: selection drag rendered from interaction preview layer
+  - Acceptance: drag does not force full-scene invalidation each frame
+  3. Dirty-region redraw pipeline (owner: engine)
+  - Deliverable: redraw limited to union of old/new/overlay bounds
+  - Acceptance: local transforms no longer trigger full canvas redraw path
+  4. Group collapse policy (owner: engine)
+  - Deliverable: low zoom group/frame internals can collapse to proxy representation
+  - Acceptance: traversal node count decreases on deep hierarchy scenes
+  5. Path simplification buckets (owner: engine)
+  - Deliverable: per-zoom simplified path representations
+  - Acceptance: path build cost scales down when zoomed out
+  6. Cache zoom buckets + hysteresis (owner: engine)
+  - Deliverable: discrete bucketed cache selection with threshold hysteresis
+  - Acceptance: zoom oscillation no longer causes cache thrash
+- 100K performance optimization Phase 3 (scale hardening, verified):
+  1. Tiled bitmap cache for large static regions (owner: engine) [`VT-20260424-11` verified]
+  2. Multi-resolution image path (owner: engine) [`VT-20260424-12` verified]
+  3. Incremental spatial-index update for drag/move (owner: engine) [`VT-20260424-13` verified]
+  4. Worker precompute for path/text heavy prep (owner: engine + runtime) [`VT-20260424-47` verified]
+  5. Pan frame reuse path (framebuffer shift + edge redraw) (owner: engine) [`VT-20260424-48` verified]
+- Add 100K mixed-scene regression gate (owner: app + runtime, verified):
+  1. Baseline scenes: `10k`, `50k`, `100k`, `mixed(text/image/path)` [`VT-20260424-14` verified]
+  2. Metrics gate: frame time, hit-test time, cache hit-rate, visible candidate count [`VT-20260424-14` verified]
+  3. CI/report rule: record trend and flag regression above agreed threshold [`VT-20260424-14` verified]
+
+- New task queue: 100K render correctness + frame-rate recovery (planned)
+  - Progress 2026-04-24:
+    - Implemented: `VT-20260424-49` first-pass overview-scale render-plan tuning now raises interactive tiny-object culling thresholds at very low zoom (`<= 5%` and `<= 12%`) in `packages/engine/src/renderer/plan.ts` to reduce pathological draw-list pressure during `2%` pan/zoom stress
+    - Implemented: `VT-20260424-49` WebGL packet path now skips imperceptibly small low-scale text placeholders plus tiny overview image packets in both the main packet loop and interactive edge-redraw path, reducing 100K overview packet load without changing higher-zoom fidelity paths
+    - Measured: `Mixed 100K` at `2%` overview now reports `Engine Draw Calls 19031` (down from `22006` after the prior pass), `Visible Shapes 15528`, `WebGL Text Fallback 6263`, and `WebGL Deferred Image Uploads 3916` in the runtime debug panel during initial stress load
+    - Implemented: `VT-20260424-50` runtime diagnostics now track instantaneous/smoothed FPS peaks plus `60 FPS+` / `120 FPS+` session-hit flags in `apps/vector-editor-web/src/runtime/events/index.ts`, and `RuntimeDebugPanel` now surfaces those peak/threshold rows for live validation
+  - `VT-20260424-49` [done]: diagnose and recover 100K overview (`2%` scale) `panning` / `zooming` frame rate from `0.3 FPS`
+    - Deliverable: identify the dominant render-path bottleneck at overview scale and land the narrowest engine/runtime fix that removes the pathological slowdown
+    - Acceptance: 100K overview stress pass no longer collapses to sub-1 FPS during pan/zoom, with before/after diagnostics evidence recorded
+  - `VT-20260424-50` [planned]: add peak-frame-rate diagnostics and define `60 FPS+ / 120 FPS+` scene targets for engine validation
+    - Deliverable: runtime diagnostics and debug surface expose current FPS plus peak/ceiling detection for active sessions
+    - Acceptance: diagnostics can distinguish whether a scenario sustains `60 FPS+` and whether it ever reaches `120 FPS+`
+  - `VT-20260424-51` [planned]: fix initial-render corruption at `96%` scale where large portions of the scene fall back to placeholder color blocks
+    - Deliverable: correct first-frame / near-fit render path so normal scene content resolves instead of widespread fallback quads
+    - Acceptance: initial load around `96%` scale renders expected scene geometry/text/images without large fallback-color coverage
+  - `VT-20260424-52` [planned]: restore clip correctness for masked images
+    - Deliverable: masked image render path respects clip source / mask shape in the active engine backend
+    - Acceptance: masked images are clipped identically in normal render, interaction preview, and cache-reuse paths
+  - `VT-20260424-53` [planned]: fix tile-cache corruption after moving elements causing ghosting / stale trails
+    - Deliverable: tile invalidation and redraw correctly clear or rebuild moved-element regions without stale retained pixels
+    - Acceptance: moving shapes/images/text does not leave persistent ghost trails or stale tile remnants in cached regions
+  - `VT-20260424-54` [planned]: correct path bounding-box precision errors
+    - Deliverable: path bounds computation uses geometry-accurate bounds for points / bezier control points / transformed path cases
+    - Acceptance: selection, culling, dirty-region invalidation, and hit preparation all use stable, correct path bounds in regression scenarios
+  - `VT-20260424-55` [planned]: restore missing path stroke rendering
+    - Deliverable: path stroke draw path is visible again in the active engine backend and consistent with fill / hit geometry
+    - Acceptance: open and closed paths with stroke render correctly across normal view, low-scale view, and interaction preview
+  - `VT-20260424-56` [planned]: fix text drag ghosting and screen-LOD fallback sampling drift
+    - Deliverable: text movement invalidation and LOD fallback sampling align to the correct screen position during and after drag
+    - Acceptance: dragged text leaves no residue, and fallback text/placeholder sampling stays visually aligned with final settled render
+  - `VT-20260424-57` [planned]: restore missing star-shape stroke rendering
+    - Deliverable: star geometry stroke path is emitted correctly in the active engine backend
+    - Acceptance: star shapes show stroke consistently in full render, degraded/LOD render, and interaction preview
 
 ## Blocked
 

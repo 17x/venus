@@ -106,6 +106,12 @@ export function panEngineViewportState(
   deltaX: number,
   deltaY: number,
 ): EngineCanvasViewportState {
+  // Ignore pan updates before viewport dimensions are measured. Applying
+  // deltas on a 0x0 viewport can shift the first measured candidate window.
+  if (viewport.viewportWidth <= 1 || viewport.viewportHeight <= 1) {
+    return viewport
+  }
+
   return resolveEngineViewportState({
     offsetX: viewport.offsetX + deltaX,
     offsetY: viewport.offsetY + deltaY,
@@ -142,6 +148,12 @@ export function zoomEngineViewportState(
   nextScale: number,
   anchor?: Point2D,
 ): EngineCanvasViewportState {
+  // Ignore zoom updates before viewport dimensions are measured. Applying
+  // anchored zoom on a 0x0 viewport can lock in a bad offset baseline.
+  if (viewport.viewportWidth <= 1 || viewport.viewportHeight <= 1) {
+    return viewport
+  }
+
   const scale = clampEngineViewportScale(nextScale)
 
   if (!anchor || viewport.scale === scale) {

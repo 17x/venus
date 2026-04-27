@@ -31,4 +31,3 @@ This app owns its UI stack under `src/ui`.
 - `src/ui/kit/components/ui/*` is the compatibility/export layer for `@vector/ui` and should wrap `src/ui/primitives/*` instead of re-implementing them.
 - When introducing or updating primitives, run shadcn CLI first, then apply minimal compatibility patches.
 - Semantic surfaces such as menu/context-menu/tabs/input-group must use the generated shadcn primitives (`dropdown-menu`, `context-menu`, `tabs`, `input-group`) via `@vector/ui` exports.
-- Cross-reference settings in `docs/apps-vector.md`.

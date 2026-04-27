@@ -4,7 +4,7 @@ import {I18nHistoryDataItem} from '../../i18n/type'
 import {MenuItemType} from '../header/menu/type'
 import {EditorExecutor} from '../../editor/hooks/useEditorRuntime.ts'
 import {ElementProps} from '@lite-u/editor/types'
-import {Point} from '@venus/document-core'
+import {Point} from '@vector/model'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
 import {
   DropdownMenu,
@@ -49,6 +49,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
     const canGroup = selectedIds.length >= 2
     const canUngroup = selectedIds.length >= 1
     const canAlign = selectedIds.length >= 2
+    const canBoolean = selectedIds.length >= 2
     const ITEMS: MenuItemType[] = [
       {id: 'copy', editorActionCode: 'element-copy', disabled: noSelectedElement},
       {id: 'paste', editorActionCode: 'element-paste', disabled: copiedItems.length === 0},
@@ -56,6 +57,15 @@ export const ContextMenu: FC<ContextMenuProps> = ({
       {id: 'groupNodes', editorActionCode: 'group-nodes', disabled: !canGroup},
       {id: 'ungroupNodes', editorActionCode: 'ungroup-nodes', disabled: !canUngroup},
       {id: 'convertToPath', editorActionCode: 'convert-to-path', disabled: noSelectedElement},
+      {
+        id: 'boolean',
+        disabled: !canBoolean,
+        children: [
+          {id: 'booleanUnion', editorActionCode: 'boolean-union', disabled: !canBoolean},
+          {id: 'booleanSubtract', editorActionCode: 'boolean-subtract', disabled: !canBoolean},
+          {id: 'booleanIntersect', editorActionCode: 'boolean-intersect', disabled: !canBoolean},
+        ],
+      },
       {
         id: 'align',
         disabled: !canAlign,
