@@ -1,5 +1,5 @@
 import { type EngineCanvasViewportState } from '../interaction/viewport.ts';
-import type { EngineRenderQuality, EngineRenderStats, EngineResourceLoader, EngineTextShaper } from '../renderer/types.ts';
+import type { EngineRenderQuality, EngineRenderStats, EngineRenderSurfaceSize, EngineResourceLoader, EngineTextShaper } from '../renderer/types.ts';
 import { type EngineSceneStoreDiagnostics, type EngineSceneStoreTransaction } from '../scene/store.ts';
 import { type EngineFramePlan } from '../scene/framePlan.ts';
 import { type EngineHitPlan } from '../scene/hitPlan.ts';
@@ -64,10 +64,13 @@ export interface CreateEngineOptions {
     debug?: EngineDebugOptions;
     clock?: EngineClock;
 }
+export interface EngineResizeOptions extends EngineRenderSurfaceSize {
+}
 export interface EngineRuntimeDiagnostics {
     backend: 'webgl';
     renderStats: EngineRenderStats | null;
     pixelRatio: number;
+    outputPixelRatio: number;
     scene: EngineSceneStoreDiagnostics;
     framePlan: EngineFramePlan | null;
     hitPlan: EngineHitPlan | null;
@@ -117,7 +120,7 @@ export interface Engine {
         x: number;
         y: number;
     }): EngineCanvasViewportState;
-    resize(width: number, height: number): EngineCanvasViewportState;
+    resize(size: EngineResizeOptions): EngineCanvasViewportState;
     setDpr(dpr: number | 'auto', options?: {
         maxDpr?: number;
     }): number;

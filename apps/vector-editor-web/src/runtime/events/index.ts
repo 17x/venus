@@ -51,6 +51,8 @@ export interface RuntimeRenderDiagnosticsStats {
       engineFrameQuality: 'full' | 'interactive'
       renderPolicyQuality: 'full' | 'interactive'
       renderPolicyDpr: number | 'auto'
+      sideTargetDpr: number
+      outputDpr: number
       renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
       viewportInteractionType: 'pan' | 'zoom' | 'other'
       overlayMode: 'full' | 'degraded'
@@ -285,6 +287,8 @@ export interface RuntimeRenderDiagnostics {
   lastRenderPhaseTransition: string
   renderPolicyQuality: 'full' | 'interactive'
   renderPolicyDpr: number | 'auto'
+  sideTargetDpr: number
+  outputDpr: number
   viewportInteractionType: 'pan' | 'zoom' | 'other'
   overlayMode: 'full' | 'degraded'
   renderPolicyTransitionCount: number
@@ -454,6 +458,8 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   lastRenderPhaseTransition: 'none',
   renderPolicyQuality: 'full',
   renderPolicyDpr: 'auto',
+  sideTargetDpr: 1,
+  outputDpr: 1,
   viewportInteractionType: 'other',
   overlayMode: 'full',
   renderPolicyTransitionCount: 0,
@@ -526,6 +532,8 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
         engineFrameQuality: 'full',
         renderPolicyQuality: 'full',
         renderPolicyDpr: 'auto',
+        sideTargetDpr: 1,
+        outputDpr: 1,
         renderPhase: 'settled',
         viewportInteractionType: 'other',
         overlayMode: 'full',
@@ -756,6 +764,8 @@ function resolveRuntimeRenderDiagnosticsStats(
         engineFrameQuality: diagnostics.engineFrameQuality,
         renderPolicyQuality: diagnostics.renderPolicyQuality,
         renderPolicyDpr: diagnostics.renderPolicyDpr,
+        sideTargetDpr: diagnostics.sideTargetDpr,
+        outputDpr: diagnostics.outputDpr,
         renderPhase: diagnostics.renderPhase,
         viewportInteractionType: diagnostics.viewportInteractionType,
         overlayMode: diagnostics.overlayMode,
@@ -809,6 +819,7 @@ function resolveRuntimeRenderDiagnosticsStats(
         dirtyRegionCount: diagnostics.dirtyRegionCount,
         dirtyTileCount: diagnostics.dirtyTileCount,
         incrementalUpdateCount: diagnostics.incrementalUpdateCount,
+        // Mirror flat LOD counters into sectioned stats for debug panel parity.
         hiddenCount: diagnostics.hiddenCount,
         pointCount: diagnostics.pointCount,
         blockCount: diagnostics.blockCount,

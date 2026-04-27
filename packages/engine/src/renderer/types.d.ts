@@ -9,6 +9,12 @@ export interface EngineViewportState {
     offsetY: number;
     matrix: readonly [number, number, number, number, number, number, number, number, number];
 }
+export interface EngineRenderSurfaceSize {
+    viewportWidth: number;
+    viewportHeight: number;
+    outputWidth: number;
+    outputHeight: number;
+}
 export interface EngineRenderStats {
     drawCount: number;
     visibleCount: number;
@@ -65,6 +71,7 @@ export interface EngineRendererContext {
     /** Explicit LOD gate for planner/renderer detail simplifications. */
     lodEnabled?: boolean;
     pixelRatio?: number;
+    outputPixelRatio?: number;
     loader?: EngineResourceLoader;
     textShaper?: EngineTextShaper;
     dirtyRegions?: Array<{
@@ -85,7 +92,7 @@ export interface EngineRenderer {
     readonly id: string;
     readonly capabilities: EngineRendererCapabilities;
     init?(): void | Promise<void>;
-    resize?(width: number, height: number): void;
+    resize?(size: EngineRenderSurfaceSize): void;
     render(frame: EngineRenderFrame): EngineRenderStats | Promise<EngineRenderStats>;
     dispose?(): void;
 }

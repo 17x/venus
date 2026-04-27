@@ -39,15 +39,20 @@ export interface EngineInitialRenderConfig {
 
 /**
  * Render initialization state machine.
+ * Keep this as a const object instead of a TS enum so the package test runner
+ * can execute it directly under Node's strip-types mode.
  */
-export enum InitialRenderPhase {
-  Idle = 'idle',                    // Not rendering
-  PreviewQueued = 'preview-queued', // Preview scheduled
-  PreviewActive = 'preview-active', // Showing low-DPR
-  DetailQueued = 'detail-queued',   // Detail pass scheduled
-  DetailActive = 'detail-active',   // Rendering full detail
-  Complete = 'complete',            // All tiles rendered
-}
+export const InitialRenderPhase = {
+  Idle: 'idle',
+  PreviewQueued: 'preview-queued',
+  PreviewActive: 'preview-active',
+  DetailQueued: 'detail-queued',
+  DetailActive: 'detail-active',
+  Complete: 'complete',
+} as const
+
+export type InitialRenderPhase =
+  typeof InitialRenderPhase[keyof typeof InitialRenderPhase]
 
 /**
  * Controller for progressive initialization rendering.
@@ -80,12 +85,13 @@ export class EngineInitialRenderController {
     this.phase = InitialRenderPhase.PreviewQueued
 
     // Schedule preview render
-    this.previewHandle = window.setTimeout(() => {
+    // Use the standard timer global so engine stays detached from browser-only `window`.
+    this.previewHandle = globalThis.setTimeout(() => {
       this.phase = InitialRenderPhase.PreviewActive
       onPreviewReady?.()
 
       // Schedule detail pass start
-      this.detailHandle = window.setTimeout(() => {
+      this.detailHandle = globalThis.setTimeout(() => {
         this.phase = InitialRenderPhase.DetailActive
         onDetailReady?.()
       }, this.config.detailPassDelayMs - this.config.previewDelayMs)
@@ -141,11 +147,11 @@ export class EngineInitialRenderController {
 
   private cleanup(): void {
     if (this.previewHandle !== null) {
-      window.clearTimeout(this.previewHandle)
+      globalThis.clearTimeout(this.previewHandle)
       this.previewHandle = null
     }
     if (this.detailHandle !== null) {
-      window.clearTimeout(this.detailHandle)
+      globalThis.clearTimeout(this.detailHandle)
       this.detailHandle = null
     }
   }

@@ -198,9 +198,7 @@ export function useEditorRuntimeDerivedState(options: {
       return false
     }
 
-    return editingMode === 'panning' ||
-      editingMode === 'zooming' ||
-      editingMode === 'dragging' ||
+    return editingMode === 'dragging' ||
       editingMode === 'resizing' ||
       editingMode === 'rotating' ||
       editingMode === 'drawingPath' ||

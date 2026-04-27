@@ -15,6 +15,8 @@ export interface EngineInteractionPreviewConfig {
   enabled?: boolean
   // `interaction`: allow pan/zoom preview; `zoom-only`: only scale gestures.
   mode?: 'interaction' | 'zoom-only'
+  // Temporarily disables affine snapshot reuse while debugging transform drift.
+  disableReuse?: boolean
   // When enabled, interactive frames prefer cache preview only and avoid
   // packet/model fallback rendering while snapshot reuse is possible.
   cacheOnly?: boolean
@@ -31,6 +33,13 @@ export interface EngineViewportState {
   offsetX: number
   offsetY: number
   matrix: readonly [number, number, number, number, number, number, number, number, number]
+}
+
+export interface EngineRenderSurfaceSize {
+  viewportWidth: number
+  viewportHeight: number
+  outputWidth: number
+  outputHeight: number
 }
 
 export interface EngineRenderStats {
@@ -101,20 +110,6 @@ export interface EngineRenderStats {
   canvas2dContourParseCount?: number
   canvas2dSingleLineTextFastPathCount?: number
   canvas2dPrecomputedTextLineHeightCount?: number
-  // LOD debug counters expose visibility degradation buckets for runtime diagnostics.
-  hiddenCount?: number
-  pointCount?: number
-  blockCount?: number
-  bboxCount?: number
-  simplifiedCount?: number
-  normalCount?: number
-  fullCount?: number
-  shadowSkippedCount?: number
-  filterSkippedCount?: number
-  thumbnailImageCount?: number
-  fullImageCount?: number
-  groupThumbnailCount?: number
-  lodDecisionTimeMs?: number
 }
 
 export interface EngineRendererCapabilities {
@@ -129,6 +124,10 @@ export interface EngineRendererCapabilities {
 
 export interface EngineResourceLoader {
   resolveImage(assetId: string): CanvasImageSource | null
+}
+
+export interface EngineCanvasSurfaceFactory {
+  createSurface(width: number, height: number): HTMLCanvasElement | OffscreenCanvas | null
 }
 
 export interface EngineTextLayout {
@@ -159,8 +158,11 @@ export interface EngineRendererContext {
   // When false, LOD-specific simplifications should be bypassed.
   lodEnabled?: boolean
   // Pixel ratio used by renderers to map CSS-space viewport math to backing
-  // store resolution on high-DPI displays.
+  // store resolution for side render targets on high-DPI displays.
   pixelRatio?: number
+  // Main-canvas output pixel ratio stays app-owned and stable across
+  // interaction phases so renderers can decouple final output from side LOD.
+  outputPixelRatio?: number
   loader?: EngineResourceLoader
   textShaper?: EngineTextShaper
   // Optional: dirty regions for incremental tile updates.
@@ -190,7 +192,7 @@ export interface EngineRenderer {
   readonly id: string
   readonly capabilities: EngineRendererCapabilities
   init?(): void | Promise<void>
-  resize?(width: number, height: number): void
+  resize?(size: EngineRenderSurfaceSize): void
   setInteractionPreview?(config?: EngineInteractionPreviewConfig): void
   render(frame: EngineRenderFrame): EngineRenderStats | Promise<EngineRenderStats>
   dispose?(): void

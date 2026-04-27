@@ -13,9 +13,15 @@ export interface EngineWebGLRenderPacket {
   color: readonly [number, number, number, number]
   assetId?: string
   textCacheKey?: string
-  shapeHasFill?: boolean
+  // Packet-level style hints let the render loop apply LOD without re-reading scene nodes.
+  hasShadow?: boolean
+  hasExpensiveEffect?: boolean
   shapeHasStroke?: boolean
+  shapeHasFill?: boolean
   shapeStrokeWidth?: number
+  shapeKind?: Extract<EngineRenderableNode, { type: 'shape' }>['shape']
+  shapePointCount?: number
+  shapeBezierPointCount?: number
 }
 
 export interface EngineWebGLPacketPlan {
@@ -61,7 +67,7 @@ export function compileEngineWebGLPacketPlan(
 
   for (const preparedIndex of plan.drawList) {
     const prepared = plan.preparedNodes[preparedIndex]
-    if (!prepared || prepared.node.type === 'group' || !prepared.worldBounds) {
+    if (!prepared || !prepared.worldBounds) {
       continue
     }
 
@@ -95,16 +101,15 @@ export function compileEngineWebGLPacketPlan(
       color: resolveNodeColor(prepared.node),
       assetId: prepared.node.type === 'image' ? prepared.node.assetId : undefined,
       textCacheKey,
-      // Shape paint metadata is carried in packets so commit-time LOD can
-      // apply stroke-specific degradation without re-reading scene nodes.
-      shapeHasFill: prepared.node.type === 'shape'
-        ? Boolean(prepared.node.fill && prepared.node.fill.trim().length > 0)
-        : undefined,
-      shapeHasStroke: prepared.node.type === 'shape'
-        ? Boolean(prepared.node.stroke && prepared.node.stroke.trim().length > 0)
-        : undefined,
-      shapeStrokeWidth: prepared.node.type === 'shape'
-        ? prepared.node.strokeWidth
+      hasShadow: resolveNodeHasShadow(prepared.node),
+      hasExpensiveEffect: resolveNodeHasExpensiveEffect(prepared.node),
+      shapeHasStroke: prepared.node.type === 'shape' && Boolean(prepared.node.stroke),
+      shapeHasFill: prepared.node.type === 'shape' && Boolean(prepared.node.fill),
+      shapeStrokeWidth: prepared.node.type === 'shape' ? prepared.node.strokeWidth : undefined,
+      shapeKind: prepared.node.type === 'shape' ? prepared.node.shape : undefined,
+      shapePointCount: prepared.node.type === 'shape' ? (prepared.node.pointCount ?? prepared.node.points?.length ?? 0) : undefined,
+      shapeBezierPointCount: prepared.node.type === 'shape'
+        ? (prepared.node.bezierPointCount ?? prepared.node.bezierPoints?.length ?? 0)
         : undefined,
     })
 
@@ -154,9 +159,25 @@ function resolvePacketKind(node: EngineRenderableNode): EngineWebGLPacketKind {
       return 'text'
     case 'image':
       return 'image'
+    case 'group':
+      // Group thumbnails are submitted as simple shape packets.
+      return 'shape'
     default:
       return 'shape'
   }
+}
+
+function resolveNodeHasShadow(node: EngineRenderableNode) {
+  if (node.type === 'text') {
+    return Boolean(node.shadow || node.style.shadow)
+  }
+
+  return Boolean(node.shadow)
+}
+
+function resolveNodeHasExpensiveEffect(node: EngineRenderableNode) {
+  // Treat non-default blend/clip usage as expensive so effect LOD can skip them.
+  return Boolean((node.blendMode && node.blendMode !== 'normal') || node.clip)
 }
 
 function resolveNodeOpacity(node: EngineRenderableNode) {
@@ -185,7 +206,28 @@ function resolveNodeColor(node: EngineRenderableNode): readonly [number, number,
     return parseEngineColor(node.style.fill ?? '#111827')
   }
 
+  if (node.type === 'group') {
+    return resolveGroupPlaceholderColor(node.children)
+  }
+
   return [1, 1, 1, 1]
+}
+
+function resolveGroupPlaceholderColor(children: readonly EngineRenderableNode[]): readonly [number, number, number, number] {
+  // Use the first concrete descendant color as a cheap dominant-color approximation.
+  for (const child of children) {
+    if (child.type === 'group') {
+      const nested = resolveGroupPlaceholderColor(child.children)
+      if (nested[3] > 0) {
+        return nested
+      }
+      continue
+    }
+
+    return resolveNodeColor(child)
+  }
+
+  return [0.5, 0.5, 0.5, 1]
 }
 
 function resolveTextPacketCacheKey(

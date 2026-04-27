@@ -12,6 +12,22 @@ for auditability and future agent handoff.
 
 ## 2026-04-25
 
+- Scope: stricter AI documentation and comment-governance enforcement
+- Why: expanded repository standards so AI edits now require function comments,
+  line-level type-contract comments, explicit `AI-TEMP:` tags for temporary
+  changes, and workspace-level instructions plus hook enforcement that apply
+  during both direct file edits and file splits
+- Key files:
+  - `docs/engineering/coding-standards.md`
+  - `docs/ai/project-rules.md`
+  - `docs/core/code-style-checklist.md`
+  - `docs/ai/handoff.md`
+  - `.github/copilot-instructions.md`
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `.agents/skills/venus-standards-enforcer/SKILL.md`
+  - `.agents/skills/venus-standards-enforcer/scripts/posttooluse-enforce.sh`
+
 - Scope: vector product docs moved to app-local docs
 - Why: keeps product-only vector documentation close to vector app code and
   reduces global docs clutter

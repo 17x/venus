@@ -186,6 +186,7 @@ export type {
   EngineRenderScheduler,
 } from './runtime/renderScheduler.ts'
 export type {
+  EngineHostEnvironment,
   CreateEngineOptions,
   Engine,
   EngineRuntimeDiagnostics,

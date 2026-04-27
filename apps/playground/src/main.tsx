@@ -168,12 +168,20 @@ const mountPlayground = () => {
 		const frameRect = canvas.getBoundingClientRect()
 		const viewportWidth = Math.max(1, Math.floor(frameRect.width))
 		const viewportHeight = Math.max(1, Math.floor(frameRect.height))
+		const outputDpr = Math.min(window.devicePixelRatio || 1, 2)
+		canvas.width = Math.max(1, Math.round(viewportWidth * outputDpr))
+		canvas.height = Math.max(1, Math.round(viewportHeight * outputDpr))
 		const nextScale = Math.min(
 			(viewportWidth * 0.84) / TEST_SCENE_WIDTH,
 			(viewportHeight * 0.84) / TEST_SCENE_HEIGHT,
 		)
 
-		engine.resize(viewportWidth, viewportHeight)
+		engine.resize({
+			viewportWidth,
+			viewportHeight,
+			outputWidth: canvas.width,
+			outputHeight: canvas.height,
+		})
 		engine.setViewport({
 			viewportWidth,
 			viewportHeight,

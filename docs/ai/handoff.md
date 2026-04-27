@@ -14,6 +14,7 @@
 10. `./doc-update-rules.md`
 11. `./project-rules.md`
 12. `../../AI_CHANGELOG.md`
+13. `../../.github/copilot-instructions.md`
 
 ## Required Output For Handoff Summary
 

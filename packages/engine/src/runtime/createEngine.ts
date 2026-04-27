@@ -1,5 +1,4 @@
 import {
-  DEFAULT_ENGINE_VIEWPORT,
   panEngineViewportState,
   resolveEngineViewportState,
   zoomEngineViewportState,
@@ -7,8 +6,10 @@ import {
 } from '../interaction/viewport.ts'
 import { createWebGLEngineRenderer } from '../renderer/webgl.ts'
 import type {
+  EngineCanvasSurfaceFactory,
   EngineInteractionPreviewConfig,
   EngineRenderQuality,
+  EngineRenderSurfaceSize,
   EngineRenderStats,
   EngineResourceLoader,
   EngineTextShaper,
@@ -19,7 +20,6 @@ import {
   type EngineSceneStoreTransaction,
 } from '../scene/store.ts'
 import {
-  prepareEngineFramePlan,
   type EngineFramePlan,
 } from '../scene/framePlan.ts'
 import {
@@ -39,6 +39,18 @@ import type {
 } from '../scene/patch.ts'
 import { createSystemEngineClock, type EngineClock } from '../time/index.ts'
 import { createEngineLoop, type EngineLoopController } from './createEngineLoop.ts'
+import {
+  resolveEnginePerformanceOptions,
+  resolveEnginePixelRatio,
+  resolveInitialViewport,
+} from './createEngine/config.ts'
+import {
+  buildEngineFramePlan,
+  buildEngineHitPlan,
+  resolveEngineFramePlanSignature,
+  resolveViewportAnimationTarget,
+} from './createEngine/planning.ts'
+import { resolveShortlistCandidateNodeIds } from './createEngine/shortlist.ts'
 import type {
   EngineLodConfig,
   EngineTileConfig,
@@ -69,7 +81,7 @@ export interface EnginePerformanceOptionsObject {
 
 export type EnginePerformanceOptions = boolean | EnginePerformanceOptionsObject
 
-interface ResolvedEnginePerformanceOptions {
+export interface ResolvedEnginePerformanceOptions {
   culling: boolean
   lodConfig: EngineLodConfig | undefined
   tileConfig: EngineTileConfig | undefined
@@ -80,7 +92,7 @@ interface EngineRenderOptions {
   webglClearColor?: readonly [number, number, number, number]
   // Short alias for pixel ratio config.
   dpr?: number | 'auto'
-  // `auto` resolves from `window.devicePixelRatio` when available.
+  // `auto` resolves through the host-provided DPR callback when available.
   pixelRatio?: number | 'auto'
   maxPixelRatio?: number
   webglAntialias?: boolean
@@ -115,7 +127,7 @@ interface EngineDebugOptions {
   onStats?: (stats: EngineRenderStats) => void
 }
 
-interface EngineViewportOptions {
+export interface EngineViewportOptions {
   viewportWidth?: number
   viewportHeight?: number
   offsetX?: number
@@ -127,6 +139,13 @@ export interface EngineCameraAnimationOptions {
   durationMs?: number
   easing?: EngineEasingDefinition
   cachePreviewOnly?: boolean
+}
+
+export interface EngineResizeOptions extends EngineRenderSurfaceSize {}
+
+export interface EngineHostEnvironment {
+  resolvePixelRatio?: () => number
+  createCanvasSurface?: EngineCanvasSurfaceFactory['createSurface']
 }
 
 interface EngineCameraAnimationState {
@@ -152,12 +171,14 @@ export interface CreateEngineOptions {
   resource?: EngineResourceOptions
   debug?: EngineDebugOptions
   clock?: EngineClock
+  host?: EngineHostEnvironment
 }
 
 export interface EngineRuntimeDiagnostics {
   backend: 'webgl'
   renderStats: EngineRenderStats | null
   pixelRatio: number
+  outputPixelRatio: number
   scene: EngineSceneStoreDiagnostics
   framePlan: EngineFramePlan | null
   hitPlan: EngineHitPlan | null
@@ -201,7 +222,7 @@ export interface Engine {
   startCameraAnimation(target: EngineViewportOptions, options?: EngineCameraAnimationOptions): void
   updateCameraAnimation(target: EngineViewportOptions, options?: EngineCameraAnimationOptions): void
   stopCameraAnimation(options?: {commitTarget?: boolean}): void
-  resize(width: number, height: number): EngineCanvasViewportState
+  resize(size: EngineResizeOptions): EngineCanvasViewportState
   setDpr(dpr: number | 'auto', options?: {maxDpr?: number}): number
   setQuality(quality: EngineRenderQuality): void
   setInteractionPreview(config?: EngineInteractionPreviewConfig): void
@@ -251,12 +272,15 @@ export function createEngine(options: CreateEngineOptions): Engine {
   let pixelRatio = resolveEnginePixelRatio(
     options.render?.dpr ?? options.render?.pixelRatio,
     maxPixelRatio,
+    options.host?.resolvePixelRatio,
   )
+  let outputPixelRatio = 1
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
   })
   const renderer = createWebGLEngineRenderer({
     canvas: options.canvas,
+    createCanvasSurface: options.host?.createCanvasSurface,
     enableCulling: resolvedPerformance.culling,
     clearColor: options.render?.webglClearColor,
     antialias: options.render?.webglAntialias ?? true,
@@ -270,6 +294,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
     quality: EngineRenderQuality
     lodEnabled: boolean
     pixelRatio: number
+    outputPixelRatio: number
     loader?: EngineResourceLoader
     textShaper?: EngineTextShaper
     dirtyRegions?: Array<{zoomLevel?: number; bounds: EngineRect}>
@@ -284,11 +309,83 @@ export function createEngine(options: CreateEngineOptions): Engine {
       : 'full',
     lodEnabled: resolvedLodEnabled,
     pixelRatio,
+    outputPixelRatio,
     loader: options.resource?.loader,
     textShaper: options.resource?.textShaper,
   }
   const clock = options.clock ?? createSystemEngineClock()
   let viewport = resolveInitialViewport(options.canvas, options.viewport)
+  const resolveResizeSurface = (size: EngineResizeOptions) => {
+    const viewportWidth = Math.max(1, Math.round(size.viewportWidth))
+    const viewportHeight = Math.max(1, Math.round(size.viewportHeight))
+    const outputWidth = Math.max(1, Math.round(size.outputWidth))
+    const outputHeight = Math.max(1, Math.round(size.outputHeight))
+
+    // Keep app-provided output sizing authoritative so engine never repairs
+    // canvas dimensions behind the host's back.
+    return {
+      viewportWidth,
+      viewportHeight,
+      outputWidth,
+      outputHeight,
+      outputPixelRatio: Math.max(
+        1,
+        Math.min(outputWidth / viewportWidth, outputHeight / viewportHeight),
+      ),
+    }
+  }
+
+  const shouldValidateCanvasOutputSize = () => {
+    const runtimeProcess = (globalThis as Record<string, unknown>)['process'] as
+      | {env?: {NODE_ENV?: string}}
+      | undefined
+    if (runtimeProcess?.env?.NODE_ENV) {
+      return runtimeProcess.env.NODE_ENV !== 'production'
+    }
+
+    if (typeof location !== 'undefined') {
+      return location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    }
+
+    return false
+  }
+
+  const validateCanvasOutputSize = (size: EngineResizeOptions) => {
+    const hostCanvas = options.canvas as {width?: number; height?: number}
+    if (typeof console === 'undefined' || !shouldValidateCanvasOutputSize()) {
+      return
+    }
+
+    if (hostCanvas.width !== size.outputWidth || hostCanvas.height !== size.outputHeight) {
+      // Dev-only style warning: surface ownership stays with the app even when
+      // the host forgets to keep the drawing buffer aligned with resize input.
+      console.warn(
+        '[venus/engine] resize() expected app-owned canvas buffer size',
+        {
+          expectedWidth: size.outputWidth,
+          expectedHeight: size.outputHeight,
+          actualWidth: hostCanvas.width,
+          actualHeight: hostCanvas.height,
+        },
+      )
+    }
+  }
+
+  const applyResizeSurface = (size: EngineResizeOptions) => {
+    const resolvedSize = resolveResizeSurface(size)
+    outputPixelRatio = resolvedSize.outputPixelRatio
+    renderContext.outputPixelRatio = outputPixelRatio
+    validateCanvasOutputSize(resolvedSize)
+    renderer.resize?.(resolvedSize)
+    viewport = resolveEngineViewportState({
+      viewportWidth: resolvedSize.viewportWidth,
+      viewportHeight: resolvedSize.viewportHeight,
+      offsetX: viewport.offsetX,
+      offsetY: viewport.offsetY,
+      scale: viewport.scale,
+    })
+    return viewport
+  }
   let latestRenderStats: EngineRenderStats | null = null
   let latestFramePlan: EngineFramePlan | null = null
   let latestFramePlanSignature = ''
@@ -341,138 +438,6 @@ export function createEngine(options: CreateEngineOptions): Engine {
     renderer.setInteractionPreview?.(hostInteractionPreviewConfig)
   }
 
-  // Keep frame-plan construction centralized so diagnostics and future
-  // planner-facing APIs use the same viewport candidate query contract.
-  const buildFramePlan = (scene: ReturnType<typeof store.getSnapshot>, padding = 0) => prepareEngineFramePlan({
-    scene,
-    viewport,
-    padding,
-    queryCandidates: (bounds) => store.queryCandidates(bounds),
-  })
-  const resolveFramePlanSignature = (
-    scene: ReturnType<typeof store.getSnapshot>,
-    padding = 0,
-  ) => {
-    return [
-      scene.revision,
-      scene.metadata?.planVersion ?? 0,
-      padding,
-      viewport.viewportWidth,
-      viewport.viewportHeight,
-      viewport.offsetX,
-      viewport.offsetY,
-      viewport.scale,
-    ].join(':')
-  }
-  // Build point shortlist diagnostics from the same coarse query surface the
-  // future hit planner will reuse.
-  const buildHitPlan = (point: {x: number; y: number}, tolerance = 0) => prepareEngineHitPlan({
-    scene: store.getSnapshot(),
-    point,
-    tolerance,
-    queryPointCandidates: (queryPoint, queryTolerance) => store.queryPointCandidates(queryPoint, queryTolerance),
-    hitTestAll: (queryPoint, queryTolerance) => store.hitTestAll(queryPoint, queryTolerance),
-  })
-  const resolveShortlistCandidateNodeIds = (
-    scene: EngineSceneSnapshot,
-    framePlan: EngineFramePlan,
-    protectedNodeIds: readonly EngineNodeId[] | undefined,
-  ) => {
-    // Build a candidate set that includes ancestor groups so planner-side
-    // group pruning can stay enabled without hiding leaf nodes on zoom.
-    const mergedCandidateIdSet = new Set(framePlan.candidateNodeIds)
-    if (protectedNodeIds && protectedNodeIds.length > 0) {
-      // Keep currently active nodes in render planning even when coarse
-      // viewport candidates are narrow.
-      for (const nodeId of protectedNodeIds) {
-        mergedCandidateIdSet.add(nodeId)
-      }
-    }
-
-    const parentIdByNodeId = new Map<EngineNodeId, EngineNodeId>()
-    const childIdsByGroupId = new Map<EngineNodeId, EngineNodeId[]>()
-    const groupIdSet = new Set<EngineNodeId>()
-    const collectParents = (
-      nodes: readonly EngineRenderableNode[],
-      parentId: EngineNodeId | null,
-    ) => {
-      for (const node of nodes) {
-        if (parentId) {
-          parentIdByNodeId.set(node.id, parentId)
-        }
-
-        if (node.type === 'group') {
-          groupIdSet.add(node.id)
-          // Track direct children so candidate groups can expand to descendant
-          // leaves and avoid false negatives from coarse spatial shortlist ids.
-          childIdsByGroupId.set(
-            node.id,
-            node.children.map((child) => child.id),
-          )
-          collectParents(node.children, node.id)
-        }
-      }
-    }
-    collectParents(scene.nodes, null)
-
-    const seedIds = Array.from(mergedCandidateIdSet)
-    for (const nodeId of seedIds) {
-      let parentId = parentIdByNodeId.get(nodeId)
-      while (parentId) {
-        if (mergedCandidateIdSet.has(parentId)) {
-          break
-        }
-
-        mergedCandidateIdSet.add(parentId)
-        parentId = parentIdByNodeId.get(parentId)
-      }
-    }
-
-    // Also expand from candidate groups downward because some spatial-index
-    // frames can return container/group ids without all overlapping leaves.
-    const groupQueue: EngineNodeId[] = []
-    for (const nodeId of Array.from(mergedCandidateIdSet)) {
-      if (groupIdSet.has(nodeId)) {
-        groupQueue.push(nodeId)
-      }
-    }
-
-    while (groupQueue.length > 0) {
-      const groupId = groupQueue.pop()
-      if (!groupId) {
-        continue
-      }
-
-      const childIds = childIdsByGroupId.get(groupId)
-      if (!childIds || childIds.length === 0) {
-        continue
-      }
-
-      for (const childId of childIds) {
-        if (mergedCandidateIdSet.has(childId)) {
-          continue
-        }
-
-        mergedCandidateIdSet.add(childId)
-        if (groupIdSet.has(childId)) {
-          groupQueue.push(childId)
-        }
-      }
-    }
-
-    return Array.from(mergedCandidateIdSet)
-  }
-
-  const resolveViewportAnimationTarget = (target: EngineViewportOptions) => {
-    return resolveEngineViewportState({
-      viewportWidth: target.viewportWidth ?? viewport.viewportWidth,
-      viewportHeight: target.viewportHeight ?? viewport.viewportHeight,
-      offsetX: target.offsetX ?? viewport.offsetX,
-      offsetY: target.offsetY ?? viewport.offsetY,
-      scale: target.scale ?? viewport.scale,
-    })
-  }
-
   const stopCameraAnimationInternal = (commitTarget = true) => {
     cameraAnimationController.stop(CAMERA_ANIMATION_ID)
     if (commitTarget && cameraAnimationTarget) {
@@ -489,7 +454,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
     target: EngineViewportOptions,
     animationOptions?: EngineCameraAnimationOptions,
   ) => {
-    const resolvedTarget = resolveViewportAnimationTarget(target)
+    const resolvedTarget = resolveViewportAnimationTarget(viewport, target)
     cameraAnimationTarget = resolvedTarget
     cameraAnimationState.active = true
     cameraAnimationState.cachePreviewOnly = Boolean(animationOptions?.cachePreviewOnly)
@@ -548,9 +513,9 @@ export function createEngine(options: CreateEngineOptions): Engine {
     resolveFrame: () => {
       const scene = store.getSnapshot()
       if (ENABLE_FRAME_PLAN_SHORTLIST) {
-        const framePlanSignature = resolveFramePlanSignature(scene)
+          const framePlanSignature = resolveEngineFramePlanSignature(scene, viewport)
         if (!latestFramePlan || latestFramePlanSignature !== framePlanSignature) {
-          latestFramePlan = buildFramePlan(scene)
+          latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds))
           latestFramePlanSignature = framePlanSignature
         }
         const candidateRatio = latestFramePlan.sceneNodeCount > 0
@@ -638,12 +603,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
 
   // Keep renderer and viewport dimensions in sync so callers can just pass the
   // engine canvas once and then rely on `resize(...)`.
-  if (renderer.resize) {
-    renderer.resize(
-      Math.max(1, Math.round(viewport.viewportWidth * pixelRatio)),
-      Math.max(1, Math.round(viewport.viewportHeight * pixelRatio)),
-    )
-  }
+  applyResizeSurface({
+    viewportWidth: viewport.viewportWidth,
+    viewportHeight: viewport.viewportHeight,
+    outputWidth: Math.max(1, options.canvas.width ?? Math.round(viewport.viewportWidth * outputPixelRatio)),
+    outputHeight: Math.max(1, options.canvas.height ?? Math.round(viewport.viewportHeight * outputPixelRatio)),
+  })
 
   return {
     loadScene(scene) {
@@ -670,12 +635,18 @@ export function createEngine(options: CreateEngineOptions): Engine {
     },
     prepareFramePlan(padding = 0) {
       const scene = store.getSnapshot()
-      latestFramePlan = buildFramePlan(scene, padding)
-      latestFramePlanSignature = resolveFramePlanSignature(scene, padding)
+      latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds), padding)
+      latestFramePlanSignature = resolveEngineFramePlanSignature(scene, viewport, padding)
       return latestFramePlan
     },
     prepareHitPlan(point, tolerance = 0) {
-      latestHitPlan = buildHitPlan(point, tolerance)
+      latestHitPlan = buildEngineHitPlan(
+        store.getSnapshot(),
+        point,
+        tolerance,
+        (queryPoint, queryTolerance) => store.queryPointCandidates(queryPoint, queryTolerance),
+        (queryPoint, queryTolerance) => store.hitTestAll(queryPoint, queryTolerance),
+      )
       return latestHitPlan
     },
     query(bounds) {
@@ -693,7 +664,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
         tolerance: resolvedTolerance,
         hits,
         exactCheckCount: hitSummary.exactCheckCount,
-        queryPointCandidates: (queryPoint, queryTolerance) => store.queryPointCandidates(queryPoint, queryTolerance),
+        queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => store.queryPointCandidates(queryPoint, queryTolerance),
       })
       return hits[0] ?? null
     },
@@ -735,35 +706,17 @@ export function createEngine(options: CreateEngineOptions): Engine {
     stopCameraAnimation(stopOptions) {
       stopCameraAnimationInternal(stopOptions?.commitTarget ?? true)
     },
-    resize(width, height) {
-      if (renderer.resize) {
-        renderer.resize(
-          Math.max(1, Math.round(width * pixelRatio)),
-          Math.max(1, Math.round(height * pixelRatio)),
-        )
-      }
-      viewport = resolveEngineViewportState({
-        viewportWidth: width,
-        viewportHeight: height,
-        offsetX: viewport.offsetX,
-        offsetY: viewport.offsetY,
-        scale: viewport.scale,
-      })
-      return viewport
+    resize(size) {
+      return applyResizeSurface(size)
     },
     setDpr(nextDpr, dprOptions) {
       if (typeof dprOptions?.maxDpr === 'number' && Number.isFinite(dprOptions.maxDpr) && dprOptions.maxDpr > 0) {
         maxPixelRatio = dprOptions.maxDpr
       }
 
-      pixelRatio = resolveEnginePixelRatio(nextDpr, maxPixelRatio)
+      // Resolve auto-DPR through host injection so engine never reaches into window.
+      pixelRatio = resolveEnginePixelRatio(nextDpr, maxPixelRatio, options.host?.resolvePixelRatio)
       renderContext.pixelRatio = pixelRatio
-      if (renderer.resize) {
-        renderer.resize(
-          Math.max(1, Math.round(viewport.viewportWidth * pixelRatio)),
-          Math.max(1, Math.round(viewport.viewportHeight * pixelRatio)),
-        )
-      }
       return pixelRatio
     },
     setQuality(quality) {
@@ -825,6 +778,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
         backend: 'webgl',
         renderStats: latestRenderStats,
         pixelRatio,
+        outputPixelRatio,
         scene: store.getDiagnostics(),
         framePlan: latestFramePlan,
         hitPlan: latestHitPlan,
@@ -866,179 +820,3 @@ export function createEngine(options: CreateEngineOptions): Engine {
   }
 }
 
-function resolveEngineTileConfig(
-  tileConfig: EngineTileConfig | undefined,
-  overscan: EngineOverscanOptions | undefined,
-) {
-  if (!tileConfig || !overscan) {
-    return tileConfig
-  }
-
-  // Merge top-level overscan knobs into tile config without changing any
-  // unrelated tile-cache feature flags.
-  return {
-    ...tileConfig,
-    overscanEnabled: overscan.enabled ?? tileConfig.overscanEnabled,
-    overscanBorderPx: overscan.borderPx ?? tileConfig.overscanBorderPx,
-  }
-}
-
-function resolveEnginePerformanceOptions(
-  options: CreateEngineOptions,
-): ResolvedEnginePerformanceOptions {
-  const legacyCulling = options.culling
-  const legacyLodConfig = options.lod ?? options.render?.lod
-  const legacyTileConfig = options.render?.tileConfig
-  const legacyOverscan = options.overscan
-  const performance = options.performance
-
-  // Default to all performance features enabled unless callers opt out.
-  if (performance === undefined || performance === true) {
-    return {
-      culling: legacyCulling ?? true,
-      lodConfig: legacyLodConfig ?? {enabled: true},
-      tileConfig: resolveEngineTileConfig(
-        legacyTileConfig ?? {enabled: true},
-        legacyOverscan ?? {enabled: true},
-      ),
-    }
-  }
-
-  if (performance === false) {
-    return {
-      culling: false,
-      lodConfig: {enabled: false},
-      tileConfig: resolveEngineTileConfig(
-        {enabled: false},
-        {enabled: false},
-      ),
-    }
-  }
-
-  const culling = resolveEngineCullingEnabled(
-    performance.culling,
-    legacyCulling,
-  )
-  const lodConfig = resolveEngineLodConfig(
-    performance.lod,
-    legacyLodConfig,
-  )
-  const tileConfig = resolveEngineTileConfig(
-    resolveEngineTileFeatureConfig(performance.tiles, legacyTileConfig),
-    resolveEngineOverscanFeatureConfig(performance.overscan, legacyOverscan),
-  )
-
-  return {
-    culling,
-    lodConfig,
-    tileConfig,
-  }
-}
-
-function resolveEngineCullingEnabled(
-  culling: EnginePerformanceOptionsObject['culling'],
-  legacyCulling: boolean | undefined,
-) {
-  if (culling === undefined) {
-    return legacyCulling ?? true
-  }
-
-  if (typeof culling === 'boolean') {
-    return culling
-  }
-
-  return culling.enabled ?? legacyCulling ?? true
-}
-
-function resolveEngineLodConfig(
-  lod: EnginePerformanceOptionsObject['lod'],
-  legacyLodConfig: EngineLodConfig | undefined,
-) {
-  if (lod === undefined) {
-    return legacyLodConfig ?? {enabled: true}
-  }
-
-  if (typeof lod === 'boolean') {
-    return lod
-      ? (legacyLodConfig ?? {enabled: true})
-      : {enabled: false}
-  }
-
-  return {
-    ...lod,
-    enabled: lod.enabled ?? true,
-  }
-}
-
-function resolveEngineTileFeatureConfig(
-  tiles: EnginePerformanceOptionsObject['tiles'],
-  legacyTileConfig: EngineTileConfig | undefined,
-) {
-  if (tiles === undefined) {
-    return legacyTileConfig ?? {enabled: true}
-  }
-
-  if (typeof tiles === 'boolean') {
-    return tiles
-      ? (legacyTileConfig ?? {enabled: true})
-      : {enabled: false}
-  }
-
-  return {
-    ...tiles,
-    enabled: tiles.enabled ?? true,
-  }
-}
-
-function resolveEngineOverscanFeatureConfig(
-  overscan: EnginePerformanceOptionsObject['overscan'],
-  legacyOverscan: EngineOverscanOptions | undefined,
-) {
-  if (overscan === undefined) {
-    return legacyOverscan ?? {enabled: true}
-  }
-
-  if (typeof overscan === 'boolean') {
-    return overscan
-      ? (legacyOverscan ?? {enabled: true})
-      : {enabled: false}
-  }
-
-  return {
-    ...overscan,
-    enabled: overscan.enabled ?? true,
-  }
-}
-
-function resolveEnginePixelRatio(
-  configured: number | 'auto' | undefined,
-  maxPixelRatio: number,
-) {
-  if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
-    return Math.min(configured, maxPixelRatio)
-  }
-
-  const auto = resolveSystemPixelRatio()
-  return Math.min(auto, maxPixelRatio)
-}
-
-function resolveSystemPixelRatio() {
-  if (typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0) {
-    return window.devicePixelRatio
-  }
-
-  return 1
-}
-
-function resolveInitialViewport(
-  canvas: HTMLCanvasElement | OffscreenCanvas,
-  next?: EngineViewportOptions,
-): EngineCanvasViewportState {
-  return resolveEngineViewportState({
-    viewportWidth: next?.viewportWidth ?? canvas.width ?? 0,
-    viewportHeight: next?.viewportHeight ?? canvas.height ?? 0,
-    offsetX: next?.offsetX ?? DEFAULT_ENGINE_VIEWPORT.offsetX,
-    offsetY: next?.offsetY ?? DEFAULT_ENGINE_VIEWPORT.offsetY,
-    scale: next?.scale ?? DEFAULT_ENGINE_VIEWPORT.scale,
-  })
-}

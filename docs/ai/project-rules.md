@@ -50,6 +50,23 @@ Required for all newly written or modified code.
   mandatory.
 - When touching an existing block, bring its comment coverage up to the same
   standard as part of the change.
+- Every new or changed function requires a leading comment.
+- Add internal comments for non-obvious branches, fallbacks, cache/state
+  transitions, threshold choices, and compatibility paths.
+- Every new or changed `type`, `interface`, or object-shaped contract must
+  document the declaration and each changed field/signature line.
+- File splits are not exempt: extracted files must satisfy the same comment
+  coverage requirements in the same change.
+
+### Temporary AI Tags
+
+Required for all temporary AI-authored changes.
+
+- Every temporary workaround, compatibility shim, guard, fallback, migration
+  bridge, or diagnostic-only patch must carry an `AI-TEMP:` comment.
+- Use the stable format: `AI-TEMP: <why>; remove when <condition>; ref <task/doc>`.
+- Do not introduce plain `TODO`, `FIXME`, `HACK`, or `temporary` markers in
+  changed code without the `AI-TEMP:` tag.
 
 ### Package Boundary And Public API
 

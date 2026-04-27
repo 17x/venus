@@ -678,6 +678,14 @@ export function RuntimeDebugPanel() {
         value={String(performanceLodStats?.renderPolicyDpr ?? diagnostics.renderPolicyDpr)}
       />
       <DebugRow
+        label={t('shell.variantB.debug.sideTargetDpr', 'Side Target DPR')}
+        value={String(performanceLodStats?.sideTargetDpr ?? diagnostics.sideTargetDpr)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.outputDpr', 'Main Output DPR')}
+        value={String(performanceLodStats?.outputDpr ?? diagnostics.outputDpr)}
+      />
+      <DebugRow
         label={t('shell.variantB.debug.overlayMode', 'Overlay Mode')}
         value={performanceLodStats?.overlayMode ?? diagnostics.overlayMode}
       />

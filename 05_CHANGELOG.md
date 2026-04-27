@@ -2,6 +2,147 @@
 
 ## 2026-04-26
 
+- Started engine cleanup from vector-reachable usage scan:
+  - consolidated internal worker protocol/shared-hit-test/bind scope logic into
+    `packages/engine/src/worker/runtime.ts` and removed the older fragmented
+    worker helper files
+  - refactored `packages/engine/src/renderer/canvas2d.ts` into folderized
+    submodules, extracting interaction-preview reuse logic to
+    `packages/engine/src/renderer/canvas2d/interactionPreview.ts` and text
+    layout/render helpers to `packages/engine/src/renderer/canvas2d/text.ts`,
+    then moved shape/path geometry helpers into
+    `packages/engine/src/renderer/canvas2d/shapes.ts`
+  - started folderizing `packages/engine/src/runtime/createEngine.ts` by
+    extracting planning helpers to
+    `packages/engine/src/runtime/createEngine/planning.ts` and shortlist
+    expansion logic to `packages/engine/src/runtime/createEngine/shortlist.ts`,
+    then moving performance/pixel-ratio/initial-viewport resolvers into
+    `packages/engine/src/runtime/createEngine/config.ts`
+  - started folderizing `packages/engine/src/interaction/hitTest.ts` by
+    extracting matrix projection helpers to
+    `packages/engine/src/interaction/hitTest/matrix.ts` and shared geometry
+    predicates to `packages/engine/src/interaction/hitTest/geometry.ts`, then
+    moving path/multi-contour/bezier helpers into
+    `packages/engine/src/interaction/hitTest/path.ts`
+  - continued renderer cleanup by fixing 2D context narrowing in
+    `packages/engine/src/renderer/webgl.ts` so the current split modules remain
+    type-safe under the repo build, and extracted WebGL surface/snapshot/text
+    fallback helpers into `packages/engine/src/renderer/webglSurfaceHelpers.ts`
+  - completed the next WebGL cleanup slice by extracting tile compositor and
+    tile upload/preload helpers into
+    `packages/engine/src/renderer/webglTiles.ts`, then repaired the temporary
+    integration corruption in `webgl.ts` without changing the ownership rule
+    that WebGL remains the primary backend and Canvas2D stays auxiliary-only
+  - fixed the visible-edge tile fallback trap in
+    `packages/engine/src/renderer/webglTiles.ts` so ordinary settled views can
+    populate and reuse tile cache entries instead of aborting the entire tile
+    pass whenever viewport-edge tiles are only partially visible
+  - added a conservative settled low-zoom visibility gate in
+    `packages/engine/src/renderer/canvas2d.ts` so model-complete and tile
+    source generation now do more than DPR-only degradation when screen
+    contribution is negligible
+  - fixed runtime render scheduling in
+    `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`
+    so pan/zoom policy interval changes no longer recreate the engine and wipe
+    preview snapshot/tile residency state
+  - fixed cache-only interaction preview reuse in
+    `packages/engine/src/renderer/webgl.ts` and
+    `packages/engine/src/renderer/webglInteractionPreview.ts` so settled tile
+    composition now captures a reusable composite snapshot and zoom-time
+    preview can reuse higher-DPR settled frames when interaction temporarily
+    lowers DPR
+  - updated `packages/engine/src/runtime/renderScheduler.ts` so queued
+    interactive renders now stay ahead of deferred normal renders, aligning the
+    scheduler with the input-first/cache-first interaction policy
+  - removed the duplicated scheduler lifecycle effect in
+    `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`
+    so pan/zoom interval changes no longer dispose the active scheduler twice
+    and silently drop queued renders
+  - moved main canvas size ownership to the application by changing
+    `engine.resize()` to consume app-provided viewport/output sizes, keeping
+    engine renderers from mutating `canvas.width`/`canvas.height` and splitting
+    stable main-canvas `outputDpr` from side-target DPR degradation
+  - restored renderer visibility after the canvas ownership refactor by
+    letting internal/offscreen Canvas2D surfaces keep renderer-managed buffer
+    sizing while replay/host canvases remain app-owned
+  - added runtime debug diagnostics for `Main Output DPR` and
+    `Side Target DPR` so zoom/pan verification can confirm the two lanes stay
+    decoupled
+  - completed the next resize/DPR cleanup slice by switching direct packet
+    texture math in `packages/engine/src/renderer/webglTextures.ts` to the
+    stable main-canvas `outputPixelRatio`, while leaving tile/offscreen paths
+    on side-target DPR and gating canvas buffer mismatch warnings in
+    `packages/engine/src/runtime/createEngine.ts` to dev-like environments
+  - fixed three additional render-chain regressions by blocking pre-layout
+    scheduler renders in
+    `apps/vector-editor-web/src/editor/runtime/engineAdapter/engineRenderer.tsx`,
+    standardizing WebGL composite-texture presentation flip in
+    `packages/engine/src/renderer/webgl.ts`, and bypassing the tile compositor
+    when low-zoom views exceed cache-stable visible-tile pressure so overview
+    zoom no longer allocates pathological tile sets
+  - extracted shared composite texture semantics into
+    `packages/engine/src/renderer/webglComposite.ts` so snapshot DPR,
+    framebuffer-capture metadata, and composite-texture Y-flip policy now
+    flow through one helper module instead of being re-declared across
+    settled composite, cache-hold, and interaction-preview paths
+  - expanded `@venus/engine` node:test coverage with new suites for
+    `renderer/initialRender`, `renderer/tileManager`,
+    `renderer/dirtyRegionTracker`, `renderer/webglComposite`,
+    `runtime/renderScheduler`, and `scene/worldBounds`, and changed
+    `renderer/initialRender.ts` from a TS enum export to a strip-types-safe
+    const object so package tests run directly under Node
+  - added `runtime/createEngine.integration.test.ts` to cover one full engine
+    path from `createEngine()` through `resize()`, scene load, `renderFrame()`,
+    `hitTest()`, viewport candidate query, and submitted render position using
+    a fake OffscreenCanvas/WebGL harness that runs inside the existing Node
+    test runner
+  - enforced the engine host boundary by moving browser-specific DPR lookup and
+    scratch-canvas allocation out of `@venus/engine` and into app-provided
+    host services; engine now consumes injected pixel-ratio and surface
+    factories instead of reaching into `window` or `document`
+  - fixed the vector sidebar tab rail to avoid rendering nested button
+    elements inside `TabsTrigger`, which removes the sidebar button nesting
+    warning while keeping the tab trigger semantics intact
+  - fixed settled startup fidelity for high-pressure vector scenes by keeping
+    LOD levels 2/3 on full-quality output outside explicit pan/zoom/drag
+    phases, so initialization no longer collapses readable content into
+    interaction placeholder blocks
+  - fixed the WebGL tile compositor to pick cache zoom levels from the actual
+    viewport scale with hysteresis instead of pinning all invalidation and
+    reuse to the 100% cache layer, so overview (~2%) and deep zoom (~3200%)
+    stop reusing the wrong tile bucket
+  - reduced app-side interaction degradation pressure by keeping `drag` on
+    full-quality output with interactive scheduling, allowing zoom preview
+    fallback when cache reuse misses, and replaying image-load wakeups after
+    gestures settle so init-time image completion no longer gets dropped
+  - unified app-side deferred visual recovery so interactive image-upload
+    deferrals and text fallbacks queue one settled redraw through the same
+    recovery path instead of relying on unrelated viewport or browser wakeups
+  - extracted engine-renderer recovery helpers with focused regression tests,
+    and automatically drop `cacheOnly` preview mode while visual recovery is
+    pending so pan/zoom preview misses can fall back to packet rendering
+  - validated with `pnpm typecheck` and `pnpm lint`
+
+- Added in-repo AI standards enforcement skill and hard hook gate:
+  - introduced `.agents/skills/venus-standards-enforcer/SKILL.md` to codify
+    automatic standards compliance workflow for AI edits
+  - added `.agents/skills/venus-standards-enforcer/scripts/posttooluse-enforce.sh`
+    to enforce intent-comment coverage and changed-file ESLint checks
+  - registered `.github/hooks/ai-standards-enforcer.json` so PostToolUse now
+    blocks continuation on standards violations
+
+- Closed remaining LOD contract gaps between runtime policy and diagnostics:
+  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts` now accepts
+    `viewportScale/deviceDpr` and resolves DPR via the Section-4 ladder from
+    `docs/task/engine/LOD.md`, including interaction-time cap (`DPR <= 1`)
+    for `pan/zoom/drag`
+  - `apps/vector-editor-web/src/runtime/events/index.ts` now includes and
+    section-maps required LOD counters
+    (`hidden/point/block/bbox/simplified/normal/full`,
+    `shadow/filter skipped`, image/group thumbnail counts, decision time)
+  - validated with `pnpm typecheck`, `pnpm lint`, and
+    `pnpm --filter @venus/vector-editor-web build`
+
 - Stabilized tile composition path and simplified diagnostics surface:
   - `packages/engine/src/renderer/webgl.ts` now keeps visible tile uploads on
     synchronous in-frame path and limits scheduler work to nearby preload,

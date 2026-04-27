@@ -247,9 +247,17 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
                         
                       }}
                   >
-                    <Button variant={active?'outline':"ghost"} size={'sm'} className={'h-[32px]'} noTooltip>
-                    {tabItem.icon}
-                    </Button>
+                    {/* Keep the trigger itself as the only button so the tab rail does not render nested button elements. */}
+                    <span
+                      className={cn(
+                        'inline-flex h-[32px] items-center justify-center rounded-[var(--vector-ui-radius-md)] px-[var(--vector-ui-space-2)]',
+                        active
+                          ? 'bg-[var(--vector-ui-color-tertiary)] text-[var(--vector-ui-color-tertiary-foreground)] hover:bg-[var(--vector-ui-color-tertiary-hover)] dark:bg-[var(--vector-ui-color-tertiary)] dark:text-[var(--vector-ui-color-tertiary-foreground)]'
+                          : 'bg-transparent text-slate-700 hover:bg-[var(--vector-ui-hover-bg)] hover:text-slate-900 active:text-[var(--vector-shell-active-text)] dark:text-slate-200 dark:hover:bg-[var(--vector-ui-hover-bg)] dark:hover:text-slate-50',
+                      )}
+                    >
+                      {tabItem.icon}
+                    </span>
                   </TabsTrigger>
                 </Tooltip>
               })}

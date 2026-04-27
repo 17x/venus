@@ -207,8 +207,19 @@ Comment rule:
 - Every newly written or modified code block must include a comment.
 - Prefer concise but clear intent comments, and keep comment coverage mandatory
   for fresh code.
+- Every newly written or modified function must include a leading comment.
+- Inside functions, add comments at non-obvious branches, fallbacks,
+  cache/state transitions, threshold choices, and compatibility edges.
+- For new or modified `type`, `interface`, and object-shaped contract
+  definitions, comment the declaration and each changed field/signature line.
 - Keep source files under 500 lines where practical; split oversized files by
   responsibility.
+- File splits and extracted modules are not exempt from these comment rules.
+- Every temporary workaround, compatibility branch, guard, fallback, or
+  diagnostic-only patch must include an `AI-TEMP:` comment using the format:
+  `AI-TEMP: <why>; remove when <condition>; ref <task/doc>`.
+- AI task execution must follow `.github/copilot-instructions.md` and the
+  repository PostToolUse standards hook on every file edit and file split.
 
 Validation commands (repository standard):
 

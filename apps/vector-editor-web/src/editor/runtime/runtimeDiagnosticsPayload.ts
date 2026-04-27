@@ -26,19 +26,6 @@ interface RenderStatsSnapshot {
   dirtyRegionCount?: number
   dirtyTileCount?: number
   incrementalUpdateCount?: number
-  hiddenCount?: number
-  pointCount?: number
-  blockCount?: number
-  bboxCount?: number
-  simplifiedCount?: number
-  normalCount?: number
-  fullCount?: number
-  shadowSkippedCount?: number
-  filterSkippedCount?: number
-  thumbnailImageCount?: number
-  fullImageCount?: number
-  groupThumbnailCount?: number
-  lodDecisionTimeMs?: number
 }
 
 interface RuntimeStageTimingSnapshot {
@@ -87,6 +74,19 @@ interface WebglStatsSnapshot {
   webglDrawSubmitMs?: number
   webglSnapshotCaptureMs?: number
   webglModelRenderMs?: number
+  hiddenCount?: number
+  pointCount?: number
+  blockCount?: number
+  bboxCount?: number
+  simplifiedCount?: number
+  normalCount?: number
+  fullCount?: number
+  shadowSkippedCount?: number
+  filterSkippedCount?: number
+  thumbnailImageCount?: number
+  fullImageCount?: number
+  groupThumbnailCount?: number
+  lodDecisionTimeMs?: number
 }
 
 interface GroupCollapseStatsSnapshot {
@@ -130,6 +130,8 @@ interface RenderRequestStatsSnapshot {
   lastRenderPhaseTransition: string
   renderPolicyQuality: 'full' | 'interactive'
   renderPolicyDpr: number | 'auto'
+  sideTargetDpr: number
+  outputDpr: number
   viewportInteractionType: 'pan' | 'zoom' | 'other'
   overlayMode: 'full' | 'degraded'
   renderPolicyTransitionCount: number
@@ -346,6 +348,8 @@ export function buildRuntimeDiagnosticsPayload(
       input.renderRequestStats.lastRenderPhaseTransition,
     renderPolicyQuality: input.renderRequestStats.renderPolicyQuality,
     renderPolicyDpr: input.renderRequestStats.renderPolicyDpr,
+    sideTargetDpr: input.renderRequestStats.sideTargetDpr,
+    outputDpr: input.renderRequestStats.outputDpr,
     viewportInteractionType: input.renderRequestStats.viewportInteractionType,
     overlayMode: input.renderRequestStats.overlayMode,
     renderPolicyTransitionCount:
@@ -386,19 +390,19 @@ export function buildRuntimeDiagnosticsPayload(
     dirtyRegionCount: input.renderStats.dirtyRegionCount ?? 0,
     dirtyTileCount: input.renderStats.dirtyTileCount ?? 0,
     incrementalUpdateCount: input.renderStats.incrementalUpdateCount ?? 0,
-    // Expose packet-level LOD counters so debug surfaces can validate degradation policy hits.
-    hiddenCount: input.renderStats.hiddenCount ?? 0,
-    pointCount: input.renderStats.pointCount ?? 0,
-    blockCount: input.renderStats.blockCount ?? 0,
-    bboxCount: input.renderStats.bboxCount ?? 0,
-    simplifiedCount: input.renderStats.simplifiedCount ?? 0,
-    normalCount: input.renderStats.normalCount ?? 0,
-    fullCount: input.renderStats.fullCount ?? 0,
-    shadowSkippedCount: input.renderStats.shadowSkippedCount ?? 0,
-    filterSkippedCount: input.renderStats.filterSkippedCount ?? 0,
-    thumbnailImageCount: input.renderStats.thumbnailImageCount ?? 0,
-    fullImageCount: input.renderStats.fullImageCount ?? 0,
-    groupThumbnailCount: input.renderStats.groupThumbnailCount ?? 0,
-    lodDecisionTimeMs: input.renderStats.lodDecisionTimeMs ?? 0,
+    // Mirror renderer LOD counters so runtime diagnostics panels can verify policy behavior.
+    hiddenCount: input.webglStats.hiddenCount ?? 0,
+    pointCount: input.webglStats.pointCount ?? 0,
+    blockCount: input.webglStats.blockCount ?? 0,
+    bboxCount: input.webglStats.bboxCount ?? 0,
+    simplifiedCount: input.webglStats.simplifiedCount ?? 0,
+    normalCount: input.webglStats.normalCount ?? 0,
+    fullCount: input.webglStats.fullCount ?? 0,
+    shadowSkippedCount: input.webglStats.shadowSkippedCount ?? 0,
+    filterSkippedCount: input.webglStats.filterSkippedCount ?? 0,
+    thumbnailImageCount: input.webglStats.thumbnailImageCount ?? 0,
+    fullImageCount: input.webglStats.fullImageCount ?? 0,
+    groupThumbnailCount: input.webglStats.groupThumbnailCount ?? 0,
+    lodDecisionTimeMs: input.webglStats.lodDecisionTimeMs ?? 0,
   }
 }

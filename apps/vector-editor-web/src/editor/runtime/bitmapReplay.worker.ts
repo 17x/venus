@@ -19,7 +19,7 @@ type ReplayScenePayload = CreateEngineSceneFromRuntimeSnapshotOptions
 interface ReplayCanvasEngine {
   loadScene: (scene: ReturnType<typeof createEngineSceneFromRuntimeSnapshot>) => void
   setViewport: (viewport: EngineReplayRenderRequest['viewport']) => void
-  resize: (width: number, height: number) => void
+  resize: (size: {viewportWidth: number; viewportHeight: number; outputWidth: number; outputHeight: number}) => void
   setQuality: (quality: EngineRenderQuality) => void
   renderFrame: () => Promise<void>
 }
@@ -50,7 +50,14 @@ async function renderReplayFrameBitmap(request: EngineReplayRenderRequest<Replay
   }
 
   engine.setQuality('full')
-  engine.resize(request.width, request.height)
+  replayCanvas.width = Math.max(1, request.width)
+  replayCanvas.height = Math.max(1, request.height)
+  engine.resize({
+    viewportWidth: request.width,
+    viewportHeight: request.height,
+    outputWidth: replayCanvas.width,
+    outputHeight: replayCanvas.height,
+  })
   engine.loadScene(createEngineSceneFromRuntimeSnapshot(request.scene))
   engine.setViewport(request.viewport)
   await engine.renderFrame()
@@ -78,6 +85,7 @@ function createReplayCanvasEngine(canvas: OffscreenCanvas): ReplayCanvasEngine {
   const renderer = createCanvas2DEngineRenderer({
     id: 'engine.replay.canvas2d',
     canvas,
+    manageCanvasSize: false,
     enableCulling: true,
     clearColor: '#f3f4f6',
   })
@@ -115,11 +123,11 @@ function createReplayCanvasEngine(canvas: OffscreenCanvas): ReplayCanvasEngine {
     setViewport(nextViewport) {
       viewport = resolveEngineViewportState(nextViewport)
     },
-    resize(width, height) {
-      renderer.resize?.(width, height)
+    resize(size) {
+      renderer.resize?.(size)
       viewport = resolveEngineViewportState({
-        viewportWidth: width,
-        viewportHeight: height,
+        viewportWidth: size.viewportWidth,
+        viewportHeight: size.viewportHeight,
         offsetX: viewport.offsetX,
         offsetY: viewport.offsetY,
         scale: viewport.scale,

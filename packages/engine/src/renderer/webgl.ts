@@ -1,5 +1,5 @@
 import type {
-  BaseSceneRenderMode,
+  EngineCanvasSurfaceFactory,
   EngineInteractionPreviewConfig,
   EngineRenderFrame,
   EngineRenderer,
@@ -12,16 +12,59 @@ import { createEngineWebGLResourceBudgetTracker } from './webglResources.ts'
 import type { EngineTileConfig, EngineLodConfig, EngineInitialRenderConfig } from '../index.ts'
 import {
   EngineTileCache,
-  createTileKey,
+  getZoomLevelForScale,
   type TileZoomLevel,
 } from './tileManager.ts'
 import { EngineInitialRenderController } from './initialRender.ts'
 import { TileScheduler } from './tileScheduler.ts'
 import { resolveEngineVisibilityProfile } from '../interaction/visibilityLod.ts'
+import {
+  createViewportMatrixForRender,
+  createWebGLQuadPipeline,
+  disposeWebGLQuadPipeline,
+  drawWebGLPacket,
+  resolveWebGLContext,
+  type WebGLQuadPipeline,
+} from './webglPipeline.ts'
+import {
+  shouldAdvanceInteractionPreviewSnapshot,
+  tryReuseInteractiveCompositeFrame,
+  type ScreenRectPx,
+} from './webglInteractionPreview.ts'
+import {
+  MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
+  MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
+  canReuseInteractiveTextTexture,
+  canReuseTextTexture,
+  countPendingImageTextureEstimate,
+  resolveImageTexture,
+  resolvePacketTextureSourceRect,
+  resolveTextCacheKey,
+  resolveTextRasterScale,
+  type CachedTextureEntry,
+  type ImageUploadBudgetState,
+} from './webglTextures.ts'
+import {
+  copyCanvasRegion,
+  createModelSurface,
+  drawInteractiveTextFallback,
+  resolveBaseSceneRenderMode,
+  resolveCachedTextureBytes,
+  TEXT_PLACEHOLDER_MAX_SCALE,
+  shouldSkipTextPlaceholderPacket,
+} from './webglSurfaceHelpers.ts'
+import {
+  captureCompositeSnapshotFromCurrentFramebuffer,
+  drawCompositeTextureFrame,
+  resolveCompositeSnapshotPixelRatio,
+  type InteractionCompositeSnapshot,
+} from './webglComposite.ts'
+import { drawModelSurfaceAsTiles } from './webglTiles.ts'
 
 interface WebGLEngineRendererOptions {
   id?: string
   canvas: HTMLCanvasElement | OffscreenCanvas
+  createCanvasSurface?: EngineCanvasSurfaceFactory['createSurface']
   enableCulling?: boolean
   clearColor?: readonly [number, number, number, number]
   antialias?: boolean
@@ -36,45 +79,17 @@ interface WebGLEngineRendererOptions {
   interactionPreview?: EngineInteractionPreviewConfig
 }
 
-interface ScreenRectPx {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-type PacketCommonLodLevel = 'hidden' | 'point' | 'block' | 'bbox' | 'simplified' | 'normal'
-
-interface PacketCommonLodCounters {
-  hiddenCount: number
-  pointCount: number
-  blockCount: number
-  bboxCount: number
-  simplifiedCount: number
-  normalCount: number
-}
-
 const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   enabled: true,
   mode: 'interaction',
+  // TODO(engine-zoom): set this default back to false after transform-drift
+  // regression checklist is green for tile compositor + interaction preview.
+  disableReuse: false,
   cacheOnly: false,
   maxScaleStep: 1.2,
   maxTranslatePx: 220,
 }
 
-const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE = 0.12
-const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP = 1.3
-const INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX = 320
-const INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO = 0.24
-const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE = 0.05
-const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.75
-const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
-const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
-
-const MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME = 2
-const MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME = 16 * 1024 * 1024
-const TEXT_PLACEHOLDER_MAX_SCALE = 0.16
-const TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX = 2.2
 const OVERVIEW_IMAGE_SKIP_MAX_SCALE = 0.02
 const OVERVIEW_IMAGE_SKIP_MAX_SCREEN_EDGE_PX = 2.8
 // Visibility-tier thresholds replace scale-bucket packet skipping for interaction frames.
@@ -82,27 +97,6 @@ const INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX = 3.2
 const INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX = 2.2
 const INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX = 1.2
 const INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 = 6
-const COMMON_PACKET_LOD_HIDE_MAX_AREA_PX2 = 0.25
-const COMMON_PACKET_LOD_POINT_MAX_AREA_PX2 = 1
-const COMMON_PACKET_LOD_BLOCK_MAX_AREA_PX2 = 9
-const COMMON_PACKET_LOD_BBOX_MAX_AREA_PX2 = 64
-const COMMON_PACKET_LOD_SIMPLIFIED_MAX_AREA_PX2 = 4096
-const TEXT_LOD_HIDE_FONT_PX = 3
-const TEXT_LOD_BLOCK_FONT_PX = 6
-const TEXT_LOD_SIMPLIFIED_FONT_PX = 10
-const TEXT_LOD_INTERACTION_READABLE_MIN_FONT_PX = 12
-const STROKE_LOD_SKIP_AREA_MAX_PX2 = 9
-const STROKE_LOD_SKIP_PROJECTED_WIDTH_PX = 0.5
-const IMAGE_LOD_THUMBNAIL_BUCKETS_PX = [64, 128, 256, 512, 1024] as const
-// Keep tile cache on one persistent zoom domain to reduce multi-layer drift complexity.
-const TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL: TileZoomLevel = 5
-// Correctness-first guard: bypass tile compositor when investigating global
-// transform drift so settled frames use direct model-complete composite.
-const DISABLE_TILE_COMPOSITOR = true
-// Correctness-first guard: temporarily bypass affine preview reuse to prevent
-// interaction-time scale/offset drift while renderer coordinates are stabilized.
-const DISABLE_INTERACTION_PREVIEW_REUSE = true
-
 /**
  * Built-in WebGL renderer entry for engine standalone/runtime integrations.
  *
@@ -137,18 +131,8 @@ export function createWebGLEngineRenderer(
     ...DEFAULT_INTERACTION_PREVIEW,
     ...options.interactionPreview,
   }
-  let compositeSnapshot: {
-    revision: string | number
-    scale: number
-    offsetX: number
-    offsetY: number
-    viewportWidth: number
-    viewportHeight: number
-    pixelRatio: number
-    visibleCount: number
-    culledCount: number
-  } | null = null
-  
+  let compositeSnapshot: InteractionCompositeSnapshot | null = null
+
   // Only create the tile cache when the feature is explicitly enabled.
   const tileCache = options.tileConfig?.enabled ? new EngineTileCache(options.tileConfig) : null
   // Tile scheduler keeps preload requests bounded and deduplicated across frames.
@@ -156,25 +140,26 @@ export function createWebGLEngineRenderer(
   const tileTextures = new Map<number, WebGLTexture>()
   let nextTileTextureId = 1
   let previousTileZoomLevel: TileZoomLevel | null = null
-  
+
   // Initialize initial render controller (optional)
   const initialRenderController = options.initialRender
     ? new EngineInitialRenderController(options.initialRender)
     : null
   // Track whether the initial render sequence has been kicked off
   let initialRenderStarted = false
-  
-  const modelSurface = createModelSurface(1, 1)
+
+  const modelSurface = createModelSurface(1, 1, options.createCanvasSurface)
   if (!modelSurface) {
     throw new Error('webgl model-complete surface allocation failed')
   }
-  const textCropSurface = createModelSurface(1, 1)
+  const textCropSurface = createModelSurface(1, 1, options.createCanvasSurface)
   if (!textCropSurface) {
     throw new Error('webgl text crop surface allocation failed')
   }
   const modelRenderer = createCanvas2DEngineRenderer({
     id: `${options.id ?? 'engine.renderer.webgl'}.model-canvas2d`,
     canvas: modelSurface.canvas,
+    createCanvasSurface: options.createCanvasSurface,
     enableCulling,
     clearColor: 'transparent',
     imageSmoothing: true,
@@ -199,15 +184,11 @@ export function createWebGLEngineRenderer(
       culling: enableCulling,
       lod: lodEnabled,
     },
-    resize: (width, height) => {
-      if ('width' in options.canvas) {
-        options.canvas.width = width
-      }
-      if ('height' in options.canvas) {
-        options.canvas.height = height
-      }
-      modelRenderer.resize?.(width, height)
-      context.viewport(0, 0, width, height)
+    resize: (size) => {
+      // Keep main canvas ownership in the app; renderer only consumes the
+      // provided output size and updates GPU state from that contract.
+      modelRenderer.resize?.(size)
+      context.viewport(0, 0, size.outputWidth, size.outputHeight)
     },
     setInteractionPreview: (config) => {
       interactionPreview = {
@@ -265,18 +246,23 @@ export function createWebGLEngineRenderer(
       const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
       let dirtyTileCount = 0
       if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
+        // Invalidate tiles on the active zoom bucket so overview and deep-zoom
+        // frames stop aliasing everything onto the 100% cache layer.
+        const dirtyZoomLevel = getZoomLevelForScale(
+          effectiveFrame.viewport.scale,
+          previousTileZoomLevel,
+        )
         for (const dirtyRegion of effectiveFrame.context.dirtyRegions) {
-          const zoomLevel = TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL
           const dirtyTilesBefore = tileCache.getDirtyTiles().length
-          // Single-layer invalidation keeps dirty propagation deterministic during interaction.
+          // Keep invalidation aligned with the bucket that this frame will render.
           if (dirtyRegion.previousBounds) {
             tileCache.invalidateTilesForBoundsDelta(
               dirtyRegion.previousBounds,
               dirtyRegion.bounds,
-              zoomLevel,
+              dirtyZoomLevel,
             )
           } else {
-            tileCache.invalidateTilesInBounds(dirtyRegion.bounds, zoomLevel)
+            tileCache.invalidateTilesInBounds(dirtyRegion.bounds, dirtyZoomLevel)
           }
           dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
         }
@@ -286,8 +272,24 @@ export function createWebGLEngineRenderer(
       // packet pipeline during interaction so pan/zoom can keep frame pace.
       if (modelCompleteComposite && !interactiveQuality) {
         l1CompositeHitCount += 1
+        const modelSurfacePixelRatio = effectiveFrame.context.pixelRatio ?? effectiveFrame.context.outputPixelRatio ?? 1
+        // Size the model-complete offscreen surface from its own DPR lane so
+        // side-target degradation never rewrites the app-owned main canvas.
+        modelRenderer.resize?.({
+          viewportWidth: effectiveFrame.viewport.viewportWidth,
+          viewportHeight: effectiveFrame.viewport.viewportHeight,
+          outputWidth: Math.max(1, Math.round(effectiveFrame.viewport.viewportWidth * modelSurfacePixelRatio)),
+          outputHeight: Math.max(1, Math.round(effectiveFrame.viewport.viewportHeight * modelSurfacePixelRatio)),
+        })
+        const modelFrame: EngineRenderFrame = {
+          ...effectiveFrame,
+          context: {
+            ...effectiveFrame.context,
+            outputPixelRatio: modelSurfacePixelRatio,
+          },
+        }
         const modelRenderStart = performance.now()
-        const modelStats = await modelRenderer.render(effectiveFrame)
+        const modelStats = await modelRenderer.render(modelFrame)
         webglModelRenderMs += performance.now() - modelRenderStart
         context.viewport(
           0,
@@ -301,7 +303,25 @@ export function createWebGLEngineRenderer(
         context.clear(context.COLOR_BUFFER_BIT)
 
         const tileDrawStart = performance.now()
-        const tileDrawResult = tileCache && !DISABLE_TILE_COMPOSITOR
+        // Resolve the active tile bucket from viewport scale so overview and
+        // deep-zoom frames use their own cache layer instead of the 100% layer.
+        const currentTileZoomLevel = getZoomLevelForScale(
+          effectiveFrame.viewport.scale,
+          previousTileZoomLevel,
+        )
+        const shouldBypassTileCompositor = tileCache
+          ? shouldBypassTileCompositorForFrame(
+            effectiveFrame,
+            tileCache,
+            Math.max(
+              64,
+              options.tileConfig?.maxCacheSize ?? 64,
+            ),
+            currentTileZoomLevel,
+          )
+          : false
+        // Keep tile compositor availability driven by runtime tile config only.
+        const tileDrawResult = tileCache && !shouldBypassTileCompositor
           ? drawModelSurfaceAsTiles({
             context,
             frame: effectiveFrame,
@@ -327,16 +347,17 @@ export function createWebGLEngineRenderer(
             cacheFallbackReason = tileDrawResult.fallbackReason
           }
 
-          compositeSnapshot = {
-            revision: effectiveFrame.scene.revision,
-            scale: effectiveFrame.viewport.scale,
-            offsetX: effectiveFrame.viewport.offsetX,
-            offsetY: effectiveFrame.viewport.offsetY,
-            viewportWidth: effectiveFrame.viewport.viewportWidth,
-            viewportHeight: effectiveFrame.viewport.viewportHeight,
-            pixelRatio: effectiveFrame.context.pixelRatio ?? 1,
+          const tileSnapshotCaptureStart = performance.now()
+          const tileSnapshot = captureCompositeSnapshotFromCurrentFramebuffer({
+            context,
+            texture: compositeTexture,
+            frame: effectiveFrame,
             visibleCount: modelStats.visibleCount,
             culledCount: modelStats.culledCount,
+          })
+          webglSnapshotCaptureMs += performance.now() - tileSnapshotCaptureStart
+          if (tileSnapshot) {
+            compositeSnapshot = tileSnapshot
           }
 
           const tileStats = tileCache?.getStats()
@@ -391,7 +412,11 @@ export function createWebGLEngineRenderer(
           }
         }
 
-        cacheFallbackReason = tileCache ? 'l2-tile-fallback-to-composite' : cacheFallbackReason
+        cacheFallbackReason = tileCache
+          ? (shouldBypassTileCompositor
+            ? 'l2-bypass-visible-tile-pressure'
+            : 'l2-tile-fallback-to-composite')
+          : cacheFallbackReason
 
         const compositeFrame: EngineRenderFrame = {
           ...effectiveFrame,
@@ -426,20 +451,15 @@ export function createWebGLEngineRenderer(
         }
 
         const compositeDrawStart = performance.now()
-        drawWebGLPacket(
+        drawCompositeTextureFrame({
           context,
           pipeline,
-          compositeFrame,
-          {
-            x: 0,
-            y: 0,
-            width: frame.viewport.viewportWidth,
-            height: frame.viewport.viewportHeight,
-          },
-          [1, 1, 1, 1],
-          1,
-          compositeTexture,
-        )
+          frame: compositeFrame,
+          texture: compositeTexture,
+          viewportWidth: frame.viewport.viewportWidth,
+          viewportHeight: frame.viewport.viewportHeight,
+          textureSource: 'canvas-upload',
+        })
         webglDrawSubmitMs += performance.now() - compositeDrawStart
 
         compositeSnapshot = {
@@ -449,9 +469,10 @@ export function createWebGLEngineRenderer(
           offsetY: effectiveFrame.viewport.offsetY,
           viewportWidth: effectiveFrame.viewport.viewportWidth,
           viewportHeight: effectiveFrame.viewport.viewportHeight,
-          pixelRatio: effectiveFrame.context.pixelRatio ?? 1,
+          pixelRatio: resolveCompositeSnapshotPixelRatio(effectiveFrame),
           visibleCount: modelStats.visibleCount,
           culledCount: modelStats.culledCount,
+          textureSource: 'canvas-upload',
         }
 
         return {
@@ -465,8 +486,8 @@ export function createWebGLEngineRenderer(
           webglCompositeUploadBytes:
             Math.max(1, effectiveFrame.viewport.viewportWidth) *
             Math.max(1, effectiveFrame.viewport.viewportHeight) *
-            Math.max(1, effectiveFrame.context.pixelRatio ?? 1) *
-            Math.max(1, effectiveFrame.context.pixelRatio ?? 1) *
+            Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
+            Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
             4,
           webglInteractiveTextFallbackCount: 0,
           webglTextTextureUploadCount: 0,
@@ -493,7 +514,7 @@ export function createWebGLEngineRenderer(
       }
 
       const previewReuseStart = performance.now()
-      const previewReuse = DISABLE_INTERACTION_PREVIEW_REUSE
+      const previewReuse = interactionPreview.disableReuse
         ? {
           reused: false,
           // Use no-snapshot miss reason so cache-only hold path is also bypassed.
@@ -627,20 +648,15 @@ export function createWebGLEngineRenderer(
         }
 
         const cacheHoldDrawStart = performance.now()
-        drawWebGLPacket(
+        drawCompositeTextureFrame({
           context,
           pipeline,
-          cachedHoldFrame,
-          {
-            x: 0,
-            y: 0,
-            width: compositeSnapshot.viewportWidth,
-            height: compositeSnapshot.viewportHeight,
-          },
-          [1, 1, 1, 1],
-          1,
-          compositeTexture,
-        )
+          frame: cachedHoldFrame,
+          texture: compositeTexture,
+          viewportWidth: compositeSnapshot.viewportWidth,
+          viewportHeight: compositeSnapshot.viewportHeight,
+          textureSource: compositeSnapshot.textureSource,
+        })
         webglDrawSubmitMs += performance.now() - cacheHoldDrawStart
 
         return {
@@ -758,18 +774,6 @@ export function createWebGLEngineRenderer(
       let imageDownsampledUploadCount = 0
       let imageDownsampledUploadBytesSaved = 0
       let deferredImageTextureCount = 0
-      // Track common LOD buckets so runtime diagnostics can verify degradation behavior.
-      const commonLodCounters: PacketCommonLodCounters = {
-        hiddenCount: 0,
-        pointCount: 0,
-        blockCount: 0,
-        bboxCount: 0,
-        simplifiedCount: 0,
-        normalCount: 0,
-      }
-      let thumbnailImageCount = 0
-      let fullImageCount = 0
-      let lodDecisionTimeMs = 0
       const imageUploadBudget: ImageUploadBudgetState = {
         remainingUploads: MAX_IMAGE_TEXTURE_UPLOADS_PER_FRAME,
         remainingBytes: MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME,
@@ -782,38 +786,6 @@ export function createWebGLEngineRenderer(
       const textureUploadBeforeLoop = webglTextureUploadMs
       const packetLoopStart = performance.now()
       for (const packet of packetPlan.packets) {
-        const commonLodDecisionStart = performance.now()
-        const commonLodLevel = resolveCommonPacketLodLevel({
-          frame: effectiveFrame,
-          worldBounds: packet.worldBounds,
-          lodEnabled: frameLodEnabled,
-        })
-        lodDecisionTimeMs += performance.now() - commonLodDecisionStart
-        recordCommonPacketLodCount(commonLodCounters, commonLodLevel)
-        if (commonLodLevel === 'hidden') {
-          continue
-        }
-
-        if (packet.kind === 'shape' && packet.shapeHasStroke && !packet.shapeHasFill) {
-          const scale = Math.max(0, Math.abs(effectiveFrame.viewport.scale))
-          const screenAreaPx2 =
-            Math.abs(packet.worldBounds.width) * scale *
-            Math.abs(packet.worldBounds.height) * scale
-          const projectedStrokeWidthPx = resolveProjectedStrokeWidthPx({
-            strokeWidth: packet.shapeStrokeWidth,
-            frame: effectiveFrame,
-          })
-
-          // Stroke-only tiny packets are not visually meaningful below these
-          // thresholds, so skip them to save fragment work during dense scenes.
-          if (
-            screenAreaPx2 < STROKE_LOD_SKIP_AREA_MAX_PX2 ||
-            projectedStrokeWidthPx < STROKE_LOD_SKIP_PROJECTED_WIDTH_PX
-          ) {
-            continue
-          }
-        }
-
         if (
           interactiveQuality &&
           shouldSkipInteractiveTinyPacket(effectiveFrame, packet.kind, packet.worldBounds)
@@ -823,25 +795,6 @@ export function createWebGLEngineRenderer(
         }
 
         if (packet.kind === 'image' && packet.assetId) {
-          if (
-            commonLodLevel === 'point' ||
-            commonLodLevel === 'block' ||
-            commonLodLevel === 'bbox'
-          ) {
-            // Low-area image packets use a color fallback to avoid expensive texture uploads.
-            thumbnailImageCount += 1
-            drawCount += drawWebGLPacket(
-              context,
-              pipeline,
-              effectiveFrame,
-              packet.worldBounds,
-              packet.color,
-              packet.opacity,
-              null,
-            )
-            continue
-          }
-
           if (shouldSkipOverviewImagePacket(effectiveFrame, packet.worldBounds, frameLodEnabled)) {
             continue
           }
@@ -863,11 +816,6 @@ export function createWebGLEngineRenderer(
           imageTextureUploadBytes += imageTexture.uploadBytes
           imageDownsampledUploadCount += imageTexture.downsampledUploadCount
           imageDownsampledUploadBytesSaved += imageTexture.downsampledBytesSaved
-          if (imageTexture.usesThumbnail) {
-            thumbnailImageCount += 1
-          } else {
-            fullImageCount += 1
-          }
           drawCount += drawWebGLPacket(
             context,
             pipeline,
@@ -884,20 +832,6 @@ export function createWebGLEngineRenderer(
           const cached = textCache.get(packet.nodeId)
           const textCacheKey = resolveTextCacheKey(packet)
           const textRasterScale = resolveTextRasterScale(effectiveFrame)
-          const projectedTextSizePx = resolveProjectedTextSizePx(packet.worldBounds, effectiveFrame)
-
-          if (projectedTextSizePx < TEXT_LOD_HIDE_FONT_PX) {
-            continue
-          }
-
-          const shouldUseTextBlockFallback =
-            projectedTextSizePx < TEXT_LOD_BLOCK_FONT_PX ||
-            (
-              interactiveQuality &&
-              projectedTextSizePx < TEXT_LOD_INTERACTION_READABLE_MIN_FONT_PX
-            )
-          const shouldUseTextSimplifiedFallback =
-            projectedTextSizePx < TEXT_LOD_SIMPLIFIED_FONT_PX
 
           if (useTextPlaceholderMode) {
             // Low-zoom text is not legible at glyph fidelity. Render an
@@ -906,26 +840,6 @@ export function createWebGLEngineRenderer(
               continue
             }
 
-            interactiveTextFallbackCount += 1
-            drawCount += drawInteractiveTextFallback(
-              context,
-              pipeline,
-              effectiveFrame,
-              packet.worldBounds,
-              packet.color,
-              packet.opacity,
-            )
-            continue
-          }
-
-          if (
-            commonLodLevel === 'point' ||
-            commonLodLevel === 'block' ||
-            commonLodLevel === 'bbox' ||
-            shouldUseTextBlockFallback ||
-            shouldUseTextSimplifiedFallback
-          ) {
-            // Small text packets stay in lightweight fallback mode outside rich-text uploads.
             interactiveTextFallbackCount += 1
             drawCount += drawInteractiveTextFallback(
               context,
@@ -1135,19 +1049,6 @@ export function createWebGLEngineRenderer(
         imageTextureBytes: resolveCachedTextureBytes(imageCache),
         initialRenderPhase: initialRenderPhase?.toString(),
         initialRenderProgress: initialRenderProgress,
-        hiddenCount: commonLodCounters.hiddenCount,
-        pointCount: commonLodCounters.pointCount,
-        blockCount: commonLodCounters.blockCount,
-        bboxCount: commonLodCounters.bboxCount,
-        simplifiedCount: commonLodCounters.simplifiedCount,
-        normalCount: commonLodCounters.normalCount,
-        fullCount: commonLodCounters.normalCount,
-        shadowSkippedCount: 0,
-        filterSkippedCount: 0,
-        thumbnailImageCount,
-        fullImageCount,
-        groupThumbnailCount: 0,
-        lodDecisionTimeMs,
         dirtyRegionCount: dirtyRegionCount,
         dirtyTileCount: dirtyTileCount,
         incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
@@ -1175,199 +1076,23 @@ export function createWebGLEngineRenderer(
   }
 }
 
-function createModelSurface(width: number, height: number) {
-  if (typeof OffscreenCanvas !== 'undefined') {
-    return {
-      canvas: new OffscreenCanvas(width, height),
-    }
-  }
-
-  if (typeof document !== 'undefined') {
-    const element = document.createElement('canvas')
-    element.width = width
-    element.height = height
-    return {
-      canvas: element,
-    }
-  }
-
-  return null
-}
-
-function copyCanvasRegion(
-  source: HTMLCanvasElement | OffscreenCanvas,
-  target: HTMLCanvasElement | OffscreenCanvas,
-  sx: number,
-  sy: number,
-  sw: number,
-  sh: number,
-) {
-  // Reuse one scratch surface so uncached text packets do not allocate a new
-  // temporary canvas on every crop/upload pass.
-  target.width = sw
-  target.height = sh
-  const context = target.getContext('2d')
-  if (context) {
-    context.clearRect(0, 0, sw, sh)
-    context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh)
-  }
-
-  return target
-}
-
-function clampTileZoomLevel(value: number): TileZoomLevel {
-  const rounded = Math.round(value)
-  if (rounded <= 0) return 0
-  if (rounded >= 5) return 5
-  return rounded as TileZoomLevel
-}
-
-function resolveBaseSceneRenderMode(options: {
-  interactiveQuality: boolean
-  tileCacheEnabled: boolean
-}): BaseSceneRenderMode {
-  // During interaction we prefer cached tile composition; settled frames refresh progressively.
-  if (options.tileCacheEnabled) {
-    return options.interactiveQuality ? 'tile-cache' : 'progressive-refresh'
-  }
-
-  // Without tile cache, base scene stays on direct vector/live rendering.
-  return 'vector-live'
-}
-
-function resolveViewportWorldBounds(frame: EngineRenderFrame) {
-  return {
-    x: -frame.viewport.offsetX / frame.viewport.scale,
-    y: -frame.viewport.offsetY / frame.viewport.scale,
-    width: frame.viewport.viewportWidth / frame.viewport.scale,
-    height: frame.viewport.viewportHeight / frame.viewport.scale,
-  }
-}
-
-function captureCompositeSnapshotFromCurrentFramebuffer(options: {
-  context: WebGLRenderingContext | WebGL2RenderingContext
-  texture: WebGLTexture
-  frame: EngineRenderFrame
-  visibleCount: number
-  culledCount: number
-}) {
-  const pixelRatio = options.frame.context.pixelRatio ?? 1
-  const width = Math.max(1, Math.round(options.frame.viewport.viewportWidth * pixelRatio))
-  const height = Math.max(1, Math.round(options.frame.viewport.viewportHeight * pixelRatio))
-
-  options.context.bindTexture(options.context.TEXTURE_2D, options.texture)
-  try {
-    options.context.copyTexImage2D(
-      options.context.TEXTURE_2D,
-      0,
-      options.context.RGBA,
-      0,
-      0,
-      width,
-      height,
-      0,
-    )
-  } catch {
-    return null
-  }
-
-  return {
-    revision: options.frame.scene.revision,
-    scale: options.frame.viewport.scale,
-    offsetX: options.frame.viewport.offsetX,
-    offsetY: options.frame.viewport.offsetY,
-    viewportWidth: options.frame.viewport.viewportWidth,
-    viewportHeight: options.frame.viewport.viewportHeight,
-    pixelRatio,
-    visibleCount: options.visibleCount,
-    culledCount: options.culledCount,
-  }
-}
-
-function shouldSkipTextPlaceholderPacket(
+function shouldBypassTileCompositorForFrame(
   frame: EngineRenderFrame,
-  worldBounds: { width: number; height: number },
-  lodEnabled: boolean,
+  tileCache: EngineTileCache,
+  visibleTileLimit: number,
+  zoomLevel: TileZoomLevel,
 ) {
-  if (!lodEnabled) {
-    return false
-  }
+  // Skip tile composition when the current zoom level would require more
+  // visible tiles than the cache can hold with any stability.
+  const safeScale = Math.max(Number.EPSILON, Math.abs(frame.viewport.scale))
+  const visibleTiles = tileCache.getVisibleTiles({
+    x: -frame.viewport.offsetX / safeScale,
+    y: -frame.viewport.offsetY / safeScale,
+    width: frame.viewport.viewportWidth / safeScale,
+    height: frame.viewport.viewportHeight / safeScale,
+  }, zoomLevel)
 
-  const scale = Math.max(0, Math.abs(frame.viewport.scale))
-  const screenWidth = Math.abs(worldBounds.width) * scale
-  const screenHeight = Math.abs(worldBounds.height) * scale
-  return (
-    screenWidth <= TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX &&
-    screenHeight <= TEXT_PLACEHOLDER_SKIP_MAX_SCREEN_EDGE_PX
-  )
-}
-
-function resolveCommonPacketLodLevel(input: {
-  frame: EngineRenderFrame
-  worldBounds: { width: number; height: number }
-  lodEnabled: boolean
-}): PacketCommonLodLevel {
-  if (!input.lodEnabled) {
-    return 'normal'
-  }
-
-  // Keep common LOD gates area-driven so zoomed-out scenes can drop cost early.
-  const scale = Math.max(0, Math.abs(input.frame.viewport.scale))
-  const screenWidth = Math.abs(input.worldBounds.width) * scale
-  const screenHeight = Math.abs(input.worldBounds.height) * scale
-  const screenArea = screenWidth * screenHeight
-
-  if (screenArea < COMMON_PACKET_LOD_HIDE_MAX_AREA_PX2) {
-    return 'hidden'
-  }
-
-  if (screenArea < COMMON_PACKET_LOD_POINT_MAX_AREA_PX2) {
-    return 'point'
-  }
-
-  if (screenArea < COMMON_PACKET_LOD_BLOCK_MAX_AREA_PX2) {
-    return 'block'
-  }
-
-  if (screenArea < COMMON_PACKET_LOD_BBOX_MAX_AREA_PX2) {
-    return 'bbox'
-  }
-
-  if (screenArea < COMMON_PACKET_LOD_SIMPLIFIED_MAX_AREA_PX2) {
-    return 'simplified'
-  }
-
-  return 'normal'
-}
-
-function recordCommonPacketLodCount(counters: PacketCommonLodCounters, level: PacketCommonLodLevel) {
-  // Keep counters explicit for debug overlays and regression tracking.
-  if (level === 'hidden') {
-    counters.hiddenCount += 1
-    return
-  }
-
-  if (level === 'point') {
-    counters.pointCount += 1
-    return
-  }
-
-  if (level === 'block') {
-    counters.blockCount += 1
-    return
-  }
-
-  if (level === 'bbox') {
-    counters.bboxCount += 1
-    return
-  }
-
-  if (level === 'simplified') {
-    counters.simplifiedCount += 1
-    return
-  }
-
-  counters.normalCount += 1
+  return visibleTiles.length > visibleTileLimit
 }
 
 function shouldSkipOverviewImagePacket(
@@ -1435,863 +1160,6 @@ function shouldSkipInteractiveTinyPacket(
   return false
 }
 
-// Compositor entries carry only geometry bounds plus texture payload.
-interface TileCompositorDrawEntry {
-  bounds: {x: number; y: number; width: number; height: number}
-  texture: WebGLTexture
-}
-
-// Tile compositor pass keeps tile composition isolated from cache/update concerns.
-function drawTileCompositorPass(options: {
-  context: WebGLRenderingContext | WebGL2RenderingContext
-  pipeline: WebGLQuadPipeline
-  frame: EngineRenderFrame
-  entries: readonly TileCompositorDrawEntry[]
-}) {
-  // Keep compositor pass intentionally simple: one textured quad per tile.
-  let drawCount = 0
-  for (const entry of options.entries) {
-    drawCount += drawWebGLPacket(
-      options.context,
-      options.pipeline,
-      options.frame,
-      entry.bounds,
-      [1, 1, 1, 1],
-      1,
-      entry.texture,
-    )
-  }
-
-  return drawCount
-}
-
-function drawModelSurfaceAsTiles(options: {
-  context: WebGLRenderingContext | WebGL2RenderingContext
-  frame: EngineRenderFrame
-  tileCache: EngineTileCache
-  tileTextures: Map<number, WebGLTexture>
-  nextTileTextureId: () => number
-  modelSurface: HTMLCanvasElement | OffscreenCanvas
-  pipeline: WebGLQuadPipeline
-  tileScheduler?: TileScheduler | null
-  previousZoomLevel?: TileZoomLevel | null
-  preloadRing?: number
-  preloadBudgetMs?: number
-  maxPreloadUploads?: number
-}) {
-  // Keep one cache zoom domain to avoid multi-level residency and positional drift.
-  const zoomLevel = resolveTileCacheZoomLevel(options.previousZoomLevel)
-  const viewportBounds = resolveViewportWorldBounds(options.frame)
-  const visibleTiles = options.tileCache.getVisibleTiles(viewportBounds, zoomLevel)
-  const preloadTiles = resolveNearbyPreloadTiles(
-    visibleTiles,
-    zoomLevel,
-    Math.max(0, options.preloadRing ?? 0),
-  )
-  const pixelRatio = options.frame.context.pixelRatio ?? 1
-  const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * pixelRatio))
-  const viewportHeightPx = Math.max(1, Math.round(options.frame.viewport.viewportHeight * pixelRatio))
-
-  // Build one transient source texture so exact tiles can be copied from framebuffer.
-  let seededFramebufferForTiles = false
-  let sourceTexture: WebGLTexture | null = null
-  const drawEntries: TileCompositorDrawEntry[] = []
-  let drawCount = 0
-  let tileHitCount = 0
-  let tileMissCount = 0
-  let tileUploadCount = 0
-  let preloadedTileCount = 0
-  let fallbackReason = 'none'
-  const preloadStartAt = performance.now()
-  const maxPreloadUploads = Math.max(0, options.maxPreloadUploads ?? Number.POSITIVE_INFINITY)
-  const preloadBudgetMs = Math.max(0, options.preloadBudgetMs ?? 0)
-
-  const upsertTileTexture = (tile: { zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} }) => {
-    const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
-    const cachedTexture = cachedEntry ? options.tileTextures.get(cachedEntry.textureId) : null
-    const existingTexture = cachedTexture ?? null
-
-    // Seed default framebuffer once from modelSurface so missing tiles can use GPU copy path.
-    if (!seededFramebufferForTiles) {
-      sourceTexture = uploadSurfaceTexture(options.context, options.modelSurface)
-      if (!sourceTexture) {
-        fallbackReason = 'l2-tile-seed-upload-failed'
-      } else {
-        const compositeFrame: EngineRenderFrame = {
-          ...options.frame,
-          viewport: {
-            ...options.frame.viewport,
-            // Tile seed draw is identity in screen space, so matrix must be identity as well.
-            matrix: createViewportMatrixForRender(1, 0, 0),
-            scale: 1,
-            offsetX: 0,
-            offsetY: 0,
-          },
-        }
-        drawWebGLPacket(
-          options.context,
-          options.pipeline,
-          compositeFrame,
-          {
-            x: 0,
-            y: 0,
-            width: options.frame.viewport.viewportWidth,
-            height: options.frame.viewport.viewportHeight,
-          },
-          [1, 1, 1, 1],
-          1,
-          sourceTexture,
-        )
-        seededFramebufferForTiles = true
-      }
-    }
-
-    const tileRegion = resolveTileFramebufferRegion({
-      frame: options.frame,
-      tileBounds: tile.bounds,
-      viewportWidthPx,
-      viewportHeightPx,
-    })
-
-    // Partial edge captures cannot represent full tile world-bounds and will drift when reused.
-    if (tileRegion.isClipped) {
-      fallbackReason = 'l2-tile-partial-region-fallback-composite'
-      return {
-        texture: null,
-      }
-    }
-
-    // Keep tile uploads on canvas-crop path for correctness: framebuffer-copy
-    // extraction can introduce stable-position drift under viewport transforms.
-    const uploaded = { texture: null, textureBytes: 0 }
-
-    // Keep old canvas-crop path as fallback for unsupported/failed framebuffer copy.
-    const uploadedWithFallback = uploaded.texture
-      ? uploaded
-      : (() => {
-        const tileTextureSource = buildTileTextureSourceFromModelSurface({
-          modelSurface: options.modelSurface,
-          frame: options.frame,
-          tileBounds: tile.bounds,
-          viewportWidthPx,
-          viewportHeightPx,
-        })
-        if (!tileTextureSource) {
-          return {
-            texture: null,
-            textureBytes: 0,
-          }
-        }
-        return uploadTileTexture(
-          options.context,
-          existingTexture,
-          tileTextureSource,
-        )
-      })()
-
-    if (!uploadedWithFallback.texture) {
-      return {
-        texture: null,
-      }
-    }
-
-    if (!uploaded.texture) {
-      fallbackReason = seededFramebufferForTiles
-        ? 'l2-tile-framebuffer-copy-fallback-canvas'
-        : fallbackReason
-    }
-
-    const textureId = cachedEntry?.textureId ?? options.nextTileTextureId()
-    options.tileTextures.set(textureId, uploadedWithFallback.texture)
-    options.tileCache.upsertEntry({
-      zoomLevel: tile.zoomLevel,
-      gridX: tile.gridX,
-      gridY: tile.gridY,
-      textureId,
-      textureBytes: uploadedWithFallback.textureBytes,
-    })
-
-    return {
-      texture: uploadedWithFallback.texture,
-    }
-  }
-
-  for (const tile of visibleTiles) {
-    const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
-    const cachedTexture = cachedEntry ? options.tileTextures.get(cachedEntry.textureId) : null
-    if (cachedEntry && !cachedEntry.isDirty && cachedTexture) {
-      tileHitCount += 1
-      drawEntries.push({
-        bounds: cachedEntry.bounds,
-        texture: cachedTexture,
-      })
-      continue
-    }
-
-    tileMissCount += 1
-    // Keep visible tile upload synchronous so this frame's tile positions stay deterministic.
-    const uploadedEntry = upsertTileTexture(tile)
-    if (!uploadedEntry.texture) {
-      fallbackReason = seededFramebufferForTiles
-        ? 'l2-tile-framebuffer-copy-failed'
-        : 'l2-tile-source-build-failed'
-      if (sourceTexture) {
-        options.context.deleteTexture(sourceTexture)
-      }
-      return null
-    }
-    tileUploadCount += 1
-    drawEntries.push({
-      bounds: tile.bounds,
-      texture: uploadedEntry.texture,
-    })
-  }
-
-  // In progressive-refresh mode, queue nearby preload work through scheduler.
-  if (options.tileScheduler && preloadTiles.length > 0) {
-    const dpr = options.frame.context.pixelRatio ?? 1
-    const renderVersion = typeof options.frame.scene.revision === 'number'
-      ? options.frame.scene.revision
-      : 0
-    options.tileScheduler.requestMany(
-      preloadTiles.map((tile) => ({
-        key: createTileKey({
-          tileX: tile.gridX,
-          tileY: tile.gridY,
-          zoomBucket: tile.zoomLevel,
-          dpr,
-          themeVersion: 0,
-          renderVersion,
-        }),
-        coord: {
-          x: tile.gridX,
-          y: tile.gridY,
-          zoomBucket: tile.zoomLevel,
-        },
-        worldBounds: tile.bounds,
-        priority: 'nearby',
-        reason: 'preload',
-      })),
-    )
-
-    options.tileScheduler.cancelOutdatedRequests({
-      camera: {
-        viewportWidth: options.frame.viewport.viewportWidth,
-        viewportHeight: options.frame.viewport.viewportHeight,
-        offsetX: options.frame.viewport.offsetX,
-        offsetY: options.frame.viewport.offsetY,
-        scale: options.frame.viewport.scale,
-      },
-      tileSizeCssPx: options.tileCache.getTileSizePx(zoomLevel),
-      nearbyRing: Math.max(0, options.preloadRing ?? 0),
-    })
-
-    // Process only a bounded preload slice each frame to avoid input starvation.
-    options.tileScheduler.tick({
-      frameBudgetMs: preloadBudgetMs,
-      maxRequests: maxPreloadUploads,
-      process: (request) => {
-        const tile = {
-          zoomLevel: clampTileZoomLevel(request.coord.zoomBucket),
-          gridX: request.coord.x,
-          gridY: request.coord.y,
-          bounds: request.worldBounds,
-        }
-        const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
-        const cachedTexture = cachedEntry ? options.tileTextures.get(cachedEntry.textureId) : null
-        if (cachedEntry && !cachedEntry.isDirty && cachedTexture) {
-          return
-        }
-
-        const uploadedEntry = upsertTileTexture(tile)
-        if (uploadedEntry.texture) {
-          tileUploadCount += 1
-          preloadedTileCount += 1
-        }
-      },
-      nowMs: () => {
-        const elapsed = performance.now() - preloadStartAt
-        return preloadStartAt + elapsed
-      },
-    })
-  }
-
-  if (sourceTexture) {
-    options.context.deleteTexture(sourceTexture)
-  }
-
-  // After seeding/copying we clear once and composite tiles as the final base-scene output.
-  if (seededFramebufferForTiles) {
-    options.context.clear(options.context.COLOR_BUFFER_BIT)
-  }
-
-  drawCount += drawTileCompositorPass({
-    context: options.context,
-    pipeline: options.pipeline,
-    frame: options.frame,
-    entries: drawEntries,
-  })
-
-  return {
-    zoomLevel,
-    drawCount,
-    tileHitCount,
-    tileMissCount,
-    tileUploadCount,
-    visibleTileCount: visibleTiles.length,
-    tileRenderCount: visibleTiles.length + preloadedTileCount,
-    preloadedTileCount,
-    fallbackReason,
-  }
-}
-
-function resolveTileCacheZoomLevel(previousZoomLevel?: TileZoomLevel | null): TileZoomLevel {
-  // Preserve single-layer policy explicitly so future tuning has one entrypoint.
-  if (typeof previousZoomLevel === 'number' && previousZoomLevel === TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL) {
-    return previousZoomLevel
-  }
-  return TILE_CACHE_SINGLE_LAYER_ZOOM_LEVEL
-}
-
-function createViewportMatrixForRender(
-  scale: number,
-  offsetX: number,
-  offsetY: number,
-) {
-  // WebGL packet path expects viewport.matrix to match scale/offset overrides.
-  return [
-    scale, 0, offsetX,
-    0, scale, offsetY,
-    0, 0, 1,
-  ] as const
-}
-
-function resolveNearbyPreloadTiles(
-  visibleTiles: Array<{ zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} }>,
-  zoomLevel: TileZoomLevel,
-  ring: number,
-) {
-  if (ring <= 0 || visibleTiles.length === 0) {
-    return []
-  }
-
-  let minX = Number.POSITIVE_INFINITY
-  let minY = Number.POSITIVE_INFINITY
-  let maxX = Number.NEGATIVE_INFINITY
-  let maxY = Number.NEGATIVE_INFINITY
-  const visibleKeys = new Set<string>()
-  const tileWidth = visibleTiles[0].bounds.width
-  const tileHeight = visibleTiles[0].bounds.height
-  for (const tile of visibleTiles) {
-    minX = Math.min(minX, tile.gridX)
-    minY = Math.min(minY, tile.gridY)
-    maxX = Math.max(maxX, tile.gridX)
-    maxY = Math.max(maxY, tile.gridY)
-    visibleKeys.add(`${tile.gridX}:${tile.gridY}`)
-  }
-
-  const preloadTiles: Array<{ zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} }> = []
-  for (let gridX = minX - ring; gridX <= maxX + ring; gridX++) {
-    for (let gridY = minY - ring; gridY <= maxY + ring; gridY++) {
-      const key = `${gridX}:${gridY}`
-      if (visibleKeys.has(key)) {
-        continue
-      }
-      preloadTiles.push({
-        zoomLevel,
-        gridX,
-        gridY,
-        bounds: {
-          x: gridX * tileWidth,
-          y: gridY * tileHeight,
-          width: tileWidth,
-          height: tileHeight,
-        },
-      })
-    }
-  }
-
-  return preloadTiles
-}
-
-function resolveCachedTextureBytes(cache: Map<string, CachedTextureEntry>) {
-  let total = 0
-  for (const entry of cache.values()) {
-    total += Math.max(1, entry.width * entry.height * 4)
-  }
-  return total
-}
-
-function resolveTileFramebufferRegion(options: {
-  frame: EngineRenderFrame
-  tileBounds: {x: number; y: number; width: number; height: number}
-  viewportWidthPx: number
-  viewportHeightPx: number
-}) {
-  const pixelRatio = options.frame.context.pixelRatio ?? 1
-  const scale = options.frame.viewport.scale
-  const offsetX = options.frame.viewport.offsetX
-  const offsetY = options.frame.viewport.offsetY
-  // Keep tile capture math consistent with drawWebGLPacket world->screen transform.
-  const tileScreenX = options.tileBounds.x * scale + offsetX
-  const tileScreenY = options.tileBounds.y * scale + offsetY
-  const tileScreenWidth = options.tileBounds.width * scale
-  const tileScreenHeight = options.tileBounds.height * scale
-  const tilePixelX = tileScreenX * pixelRatio
-  const tilePixelY = tileScreenY * pixelRatio
-  const tilePixelWidth = Math.max(1, Math.ceil(tileScreenWidth * pixelRatio))
-  const tilePixelHeight = Math.max(1, Math.ceil(tileScreenHeight * pixelRatio))
-  const sourceMinX = Math.max(0, Math.floor(tilePixelX))
-  const sourceMinY = Math.max(0, Math.floor(tilePixelY))
-  const sourceMaxX = Math.min(options.viewportWidthPx, Math.ceil(tilePixelX + tilePixelWidth))
-  const sourceMaxY = Math.min(options.viewportHeightPx, Math.ceil(tilePixelY + tilePixelHeight))
-  // If capture bounds are clamped by viewport edges, the extracted texture is only partial.
-  const isClipped =
-    sourceMinX > Math.floor(tilePixelX) ||
-    sourceMinY > Math.floor(tilePixelY) ||
-    sourceMaxX < Math.ceil(tilePixelX + tilePixelWidth) ||
-    sourceMaxY < Math.ceil(tilePixelY + tilePixelHeight)
-
-  return {
-    sourceX: sourceMinX,
-    sourceY: sourceMinY,
-    sourceWidth: Math.max(1, sourceMaxX - sourceMinX),
-    sourceHeight: Math.max(1, sourceMaxY - sourceMinY),
-    framebufferHeight: options.viewportHeightPx,
-    isClipped,
-  }
-}
-
-function uploadSurfaceTexture(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  source: HTMLCanvasElement | OffscreenCanvas,
-) {
-  const texture = context.createTexture()
-  if (!texture) {
-    return null
-  }
-
-  context.bindTexture(context.TEXTURE_2D, texture)
-  context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
-
-  try {
-    context.texImage2D(
-      context.TEXTURE_2D,
-      0,
-      context.RGBA,
-      context.RGBA,
-      context.UNSIGNED_BYTE,
-      source as unknown as TexImageSource,
-    )
-  } catch {
-    context.deleteTexture(texture)
-    return null
-  }
-
-  return texture
-}
-
-function uploadTileTexture(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  existingTexture: WebGLTexture | null,
-  tileSurface: HTMLCanvasElement | OffscreenCanvas,
-) {
-  const texture = existingTexture ?? context.createTexture()
-  if (!texture) {
-    return {
-      texture: null,
-      textureBytes: 0,
-    }
-  }
-
-  context.bindTexture(context.TEXTURE_2D, texture)
-  context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
-
-  try {
-    context.texImage2D(
-      context.TEXTURE_2D,
-      0,
-      context.RGBA,
-      context.RGBA,
-      context.UNSIGNED_BYTE,
-      tileSurface as unknown as TexImageSource,
-    )
-  } catch {
-    if (!existingTexture) {
-      context.deleteTexture(texture)
-    }
-    return {
-      texture: null,
-      textureBytes: 0,
-    }
-  }
-
-  const width = tileSurface.width
-  const height = tileSurface.height
-  return {
-    texture,
-    textureBytes: Math.max(1, width * height * 4),
-  }
-}
-
-function buildTileTextureSourceFromModelSurface(options: {
-  modelSurface: HTMLCanvasElement | OffscreenCanvas
-  frame: EngineRenderFrame
-  tileBounds: {x: number; y: number; width: number; height: number}
-  viewportWidthPx: number
-  viewportHeightPx: number
-}) {
-  const pixelRatio = options.frame.context.pixelRatio ?? 1
-  const scale = options.frame.viewport.scale
-  const offsetX = options.frame.viewport.offsetX
-  const offsetY = options.frame.viewport.offsetY
-  // Use the same transform basis as runtime draw submission to avoid tile/overlay drift.
-  const tileScreenX = options.tileBounds.x * scale + offsetX
-  const tileScreenY = options.tileBounds.y * scale + offsetY
-  const tileScreenWidth = options.tileBounds.width * scale
-  const tileScreenHeight = options.tileBounds.height * scale
-
-  const tilePixelX = tileScreenX * pixelRatio
-  const tilePixelY = tileScreenY * pixelRatio
-  const tilePixelWidth = Math.max(1, Math.ceil(tileScreenWidth * pixelRatio))
-  const tilePixelHeight = Math.max(1, Math.ceil(tileScreenHeight * pixelRatio))
-
-  const sourceMinX = Math.max(0, Math.floor(tilePixelX))
-  const sourceMinY = Math.max(0, Math.floor(tilePixelY))
-  const sourceMaxX = Math.min(options.viewportWidthPx, Math.ceil(tilePixelX + tilePixelWidth))
-  const sourceMaxY = Math.min(options.viewportHeightPx, Math.ceil(tilePixelY + tilePixelHeight))
-  const sourceWidth = sourceMaxX - sourceMinX
-  const sourceHeight = sourceMaxY - sourceMinY
-
-  const tileSurface = createModelSurface(tilePixelWidth, tilePixelHeight)
-  if (!tileSurface) {
-    return null
-  }
-
-  const tileContext = tileSurface.canvas.getContext('2d')
-  if (!tileContext) {
-    return null
-  }
-
-  tileContext.clearRect(0, 0, tilePixelWidth, tilePixelHeight)
-
-  if (sourceWidth <= 0 || sourceHeight <= 0) {
-    return tileSurface.canvas
-  }
-
-  const destinationX = sourceMinX - tilePixelX
-  const destinationY = sourceMinY - tilePixelY
-  tileContext.drawImage(
-    options.modelSurface,
-    sourceMinX,
-    sourceMinY,
-    sourceWidth,
-    sourceHeight,
-    destinationX,
-    destinationY,
-    sourceWidth,
-    sourceHeight,
-  )
-
-  return tileSurface.canvas
-}
-
-function resolveTextCacheKey(packet: { textCacheKey?: string }) {
-  // Keep cache reuse local to each text packet so unrelated scene revisions do
-  // not invalidate every text texture at once.
-  return packet.textCacheKey ?? 'text'
-}
-
-function resolveTextRasterScale(frame: EngineRenderFrame) {
-  // Track the effective text raster scale so we can reuse equal-or-higher
-  // fidelity textures across zoom-outs without forcing a new upload.
-  return (frame.context.pixelRatio ?? 1) * frame.viewport.scale
-}
-
-function countPendingImageTextureEstimate(
-  packets: ReadonlyArray<{ kind: string; assetId?: string }>,
-  imageCache: Map<string, CachedTextureEntry>,
-) {
-  let estimatedBytes = 0
-
-  for (const packet of packets) {
-    if (packet.kind !== 'image' || !packet.assetId || imageCache.has(packet.assetId)) {
-      continue
-    }
-
-    // Keep a coarse placeholder estimate for not-yet-uploaded images without
-    // recharging textures that are already resident in the cache.
-    estimatedBytes += 4 * 1024 * 1024
-  }
-
-  return estimatedBytes
-}
-
-function canReuseTextTexture(
-  cached: CachedTextureEntry | undefined,
-  textCacheKey: string,
-  textRasterScale: number,
-) {
-  if (!cached || cached.cacheKey !== textCacheKey) {
-    return false
-  }
-
-  const cachedRasterScale = cached.rasterScale ?? 0
-  return cachedRasterScale >= textRasterScale
-}
-
-function canReuseInteractiveTextTexture(
-  cached: CachedTextureEntry | undefined,
-  textCacheKey: string,
-) {
-  // Allow interactive previews to reuse any matching cached text texture so
-  // motion stays legible even when the cached raster is lower-resolution.
-  return Boolean(cached && cached.cacheKey === textCacheKey)
-}
-
-function resolveImageCacheKey(assetId: string) {
-  return `image:${assetId}`
-}
-
-function resolveImageRasterScale(
-  size: {width: number; height: number},
-  worldBounds: {width: number; height: number},
-  frame: EngineRenderFrame,
-) {
-  const pixelRatio = frame.context.pixelRatio ?? 1
-  const displayWidth = Math.max(1, Math.abs(worldBounds.width) * frame.viewport.scale * pixelRatio)
-  const displayHeight = Math.max(1, Math.abs(worldBounds.height) * frame.viewport.scale * pixelRatio)
-  const widthRatio = displayWidth / Math.max(1, size.width)
-  const heightRatio = displayHeight / Math.max(1, size.height)
-
-  // Bias slightly above the current display size so small zoom-ins can reuse
-  // the uploaded texture before a higher-resolution upload is needed.
-  const baseRasterScale = Math.min(1, Math.max(widthRatio, heightRatio) * 1.25)
-  const maxUploadSide = resolveImageThumbnailMaxUploadSidePx(worldBounds, frame)
-  const sourceMaxSide = Math.max(1, size.width, size.height)
-
-  if (!Number.isFinite(maxUploadSide)) {
-    return baseRasterScale
-  }
-
-  // Clamp image raster scale to thumbnail buckets so small on-screen images
-  // do not upload unnecessary high-resolution textures.
-  const thumbnailRasterScale = Math.min(1, Math.max(1, maxUploadSide) / sourceMaxSide)
-  return Math.min(baseRasterScale, thumbnailRasterScale)
-}
-
-function resolveImageThumbnailMaxUploadSidePx(
-  worldBounds: {width: number; height: number},
-  frame: EngineRenderFrame,
-) {
-  const scale = Math.max(0, Math.abs(frame.viewport.scale))
-  const screenMaxSideCss = Math.max(
-    Math.abs(worldBounds.width) * scale,
-    Math.abs(worldBounds.height) * scale,
-  )
-
-  for (const bucket of IMAGE_LOD_THUMBNAIL_BUCKETS_PX) {
-    if (screenMaxSideCss <= bucket) {
-      return bucket * Math.max(1, frame.context.pixelRatio ?? 1)
-    }
-  }
-
-  // Large on-screen images can use original resolution in settled frames.
-  return Number.POSITIVE_INFINITY
-}
-
-function resolveProjectedTextSizePx(
-  worldBounds: {width: number; height: number},
-  frame: EngineRenderFrame,
-) {
-  // Approximate projected font size from text world height to keep packet-time
-  // text LOD cheap without requiring full text layout introspection.
-  return Math.max(0, Math.abs(worldBounds.height) * Math.max(0, Math.abs(frame.viewport.scale)))
-}
-
-function resolveProjectedStrokeWidthPx(input: {
-  strokeWidth?: number
-  frame: EngineRenderFrame
-}) {
-  // Project stroke width with viewport scale so stroke-only nodes can be
-  // skipped when their stroke is below a perceptible screen-space threshold.
-  const strokeWidth = Math.max(0, input.strokeWidth ?? 0)
-  return strokeWidth * Math.max(0, Math.abs(input.frame.viewport.scale))
-}
-
-function canReuseImageTexture(
-  cached: CachedTextureEntry | undefined,
-  imageCacheKey: string,
-  imageRasterScale: number,
-) {
-  if (!cached || cached.cacheKey !== imageCacheKey) {
-    return false
-  }
-
-  const cachedRasterScale = cached.rasterScale ?? 0
-  return cachedRasterScale >= imageRasterScale
-}
-
-function createImageUploadSource(
-  source: CanvasImageSource,
-  size: {width: number; height: number},
-  rasterScale: number,
-) {
-  const targetWidth = Math.max(1, Math.min(size.width, Math.ceil(size.width * rasterScale)))
-  const targetHeight = Math.max(1, Math.min(size.height, Math.ceil(size.height * rasterScale)))
-  const shouldDownsample =
-    rasterScale < 0.99 &&
-    (targetWidth <= size.width * 0.85 || targetHeight <= size.height * 0.85)
-
-  if (!shouldDownsample) {
-    return {
-      source,
-      width: size.width,
-      height: size.height,
-      downsampled: false,
-    }
-  }
-
-  const rasterSurface = createImageUploadSurface(targetWidth, targetHeight)
-  if (!rasterSurface) {
-    return {
-      source,
-      width: size.width,
-      height: size.height,
-      downsampled: false,
-    }
-  }
-
-  const rasterContext = rasterSurface.getContext('2d')
-  if (!rasterContext) {
-    return {
-      source,
-      width: size.width,
-      height: size.height,
-      downsampled: false,
-    }
-  }
-
-  rasterContext.clearRect(0, 0, targetWidth, targetHeight)
-  rasterContext.drawImage(source, 0, 0, targetWidth, targetHeight)
-
-  return {
-    source: rasterSurface,
-    width: targetWidth,
-    height: targetHeight,
-    downsampled: true,
-  }
-}
-
-function createImageUploadSurface(width: number, height: number) {
-  if (typeof OffscreenCanvas !== 'undefined') {
-    return new OffscreenCanvas(width, height)
-  }
-
-  if (typeof document !== 'undefined') {
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    return canvas
-  }
-
-  return null
-}
-
-function resolvePacketTextureSourceRect(
-  worldBounds: {x: number; y: number; width: number; height: number},
-  frame: EngineRenderFrame,
-) {
-  const pixelRatio = frame.context.pixelRatio ?? 1
-  const scale = frame.viewport.scale
-  const offsetX = frame.viewport.offsetX
-  const offsetY = frame.viewport.offsetY
-  // Convert world-space bounds into the same device-pixel crop rect used by
-  // the Canvas2D model surface so texture uploads sample the correct pixels.
-  const minX = Math.floor((worldBounds.x * scale + offsetX) * pixelRatio)
-  const minY = Math.floor((worldBounds.y * scale + offsetY) * pixelRatio)
-  const maxX = Math.ceil((
-    (worldBounds.x + worldBounds.width) * scale + offsetX
-  ) * pixelRatio)
-  const maxY = Math.ceil((
-    (worldBounds.y + worldBounds.height) * scale + offsetY
-  ) * pixelRatio)
-
-  return {
-    x: minX,
-    y: minY,
-    width: Math.max(1, maxX - minX),
-    height: Math.max(1, maxY - minY),
-  }
-}
-
-function drawInteractiveTextFallback(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  pipeline: WebGLQuadPipeline,
-  frame: EngineRenderFrame,
-  worldBounds: {x: number; y: number; width: number; height: number},
-  color: readonly [number, number, number, number],
-  opacity: number,
-) {
-  const stripeCount = resolveInteractiveTextStripeCount(worldBounds.height)
-  const insetX = Math.min(worldBounds.width * 0.08, worldBounds.width * 0.32)
-  const insetY = Math.min(worldBounds.height * 0.14, worldBounds.height * 0.28)
-  const availableHeight = Math.max(1, worldBounds.height - insetY * 2)
-  const stripeGap = Math.max(availableHeight * 0.12, worldBounds.height * 0.04)
-  const stripeHeight = Math.max(
-    1,
-    (availableHeight - stripeGap * Math.max(0, stripeCount - 1)) / Math.max(1, stripeCount),
-  )
-  const widthFactors = [0.92, 0.78, 0.58]
-
-  let drawCount = 0
-  for (let index = 0; index < stripeCount; index += 1) {
-    // Draw a few ragged text-line bars so interaction previews stay legible
-    // without paying the upload cost of a fresh text texture mid-gesture.
-    const stripeWidth = Math.max(
-      1,
-      (worldBounds.width - insetX * 2) * (widthFactors[index] ?? widthFactors[widthFactors.length - 1]),
-    )
-    const stripeY = worldBounds.y + insetY + index * (stripeHeight + stripeGap)
-    drawCount += drawWebGLPacket(
-      context,
-      pipeline,
-      frame,
-      {
-        x: worldBounds.x + insetX,
-        y: stripeY,
-        width: stripeWidth,
-        height: stripeHeight,
-      },
-      [color[0], color[1], color[2], color[3] * 0.88],
-      opacity,
-      null,
-    )
-  }
-
-  return drawCount
-}
-
-function resolveInteractiveTextStripeCount(worldHeight: number) {
-  if (worldHeight >= 56) {
-    return 3
-  }
-
-  if (worldHeight >= 24) {
-    return 2
-  }
-
-  return 1
-}
-
 function disposeCachedTextures(
   context: WebGLRenderingContext | WebGL2RenderingContext,
   cache: Map<string, CachedTextureEntry>,
@@ -2356,342 +1224,6 @@ function pruneTextCache(
   }
 }
 
-interface WebGLQuadPipeline {
-  program: WebGLProgram
-  positionBuffer: WebGLBuffer
-  attributePosition: number
-  uniformRect: WebGLUniformLocation
-  uniformScale: WebGLUniformLocation
-  uniformOffset: WebGLUniformLocation
-  uniformViewport: WebGLUniformLocation
-  uniformColor: WebGLUniformLocation
-  uniformUseTexture: WebGLUniformLocation
-  uniformFlipTextureY: WebGLUniformLocation
-  uniformSampler: WebGLUniformLocation
-}
-
-interface CachedTextureEntry {
-  texture: WebGLTexture
-  width: number
-  height: number
-  cacheKey?: string
-  rasterScale?: number
-}
-
-interface ImageUploadBudgetState {
-  remainingUploads: number
-  remainingBytes: number
-}
-
-interface ResolvedImageTextureResult {
-  texture: WebGLTexture | null
-  uploadCount: number
-  uploadBytes: number
-  uploadMs: number
-  downsampledUploadCount: number
-  downsampledBytesSaved: number
-  usesThumbnail: boolean
-  deferred: boolean
-}
-
-function tryReuseInteractiveCompositeFrame(options: {
-  context: WebGLRenderingContext | WebGL2RenderingContext
-  pipeline: WebGLQuadPipeline
-  frame: EngineRenderFrame
-  texture: WebGLTexture
-  snapshot: {
-    revision: string | number
-    scale: number
-    offsetX: number
-    offsetY: number
-    viewportWidth: number
-    viewportHeight: number
-    pixelRatio: number
-    visibleCount: number
-    culledCount: number
-  } | null
-  interactionPreview: Required<EngineInteractionPreviewConfig>
-}) {
-  if (!options.interactionPreview.enabled || options.frame.context.quality !== 'interactive' || !options.snapshot) {
-    return {
-      reused: false,
-      missReason: options.snapshot ? 'l0-non-interactive' : 'l0-no-snapshot',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  const snapshot = options.snapshot
-  const frame = options.frame
-  const currentPixelRatio = frame.context.pixelRatio ?? 1
-  if (snapshot.revision !== frame.scene.revision) {
-    return {
-      reused: false,
-      missReason: 'l0-revision-mismatch',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  if (snapshot.viewportWidth !== frame.viewport.viewportWidth) {
-    return {
-      reused: false,
-      missReason: 'l0-viewport-width-mismatch',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  if (snapshot.viewportHeight !== frame.viewport.viewportHeight) {
-    return {
-      reused: false,
-      missReason: 'l0-viewport-height-mismatch',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  if (snapshot.pixelRatio !== currentPixelRatio) {
-    return {
-      reused: false,
-      missReason: 'l0-pixel-ratio-mismatch',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  const scaleRatio = frame.viewport.scale / snapshot.scale
-  if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) {
-    return {
-      reused: false,
-      missReason: 'l0-invalid-scale-ratio',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  if (options.interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < 1e-3) {
-    return {
-      reused: false,
-      missReason: 'l0-zoom-only-pan-blocked',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  const maxScaleStep = resolveInteractionPreviewMaxScaleStep(
-    options.interactionPreview.maxScaleStep,
-    Math.min(snapshot.scale, frame.viewport.scale),
-  )
-
-  if (
-    scaleRatio > maxScaleStep ||
-    scaleRatio < 1 / maxScaleStep
-  ) {
-    return {
-      reused: false,
-      missReason: 'l0-scale-step-exceeded',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  const maxTranslatePx = resolveInteractionPreviewMaxTranslatePx(
-    options.interactionPreview.maxTranslatePx,
-    Math.min(snapshot.scale, frame.viewport.scale),
-    snapshot.viewportWidth * currentPixelRatio,
-    snapshot.viewportHeight * currentPixelRatio,
-  )
-
-  const deltaX = frame.viewport.offsetX - scaleRatio * snapshot.offsetX
-  const deltaY = frame.viewport.offsetY - scaleRatio * snapshot.offsetY
-  if (
-    Math.abs(deltaX * currentPixelRatio) > maxTranslatePx.x ||
-    Math.abs(deltaY * currentPixelRatio) > maxTranslatePx.y
-  ) {
-    return {
-      reused: false,
-      missReason: 'l0-translate-exceeded',
-      visibleCount: 0,
-      culledCount: 0,
-      edgeRedrawRegions: [] as ScreenRectPx[],
-    }
-  }
-
-  options.context.viewport(
-    0,
-    0,
-    frame.viewport.viewportWidth * currentPixelRatio,
-    frame.viewport.viewportHeight * currentPixelRatio,
-  )
-  options.context.enable(options.context.BLEND)
-  options.context.blendFunc(options.context.ONE, options.context.ONE_MINUS_SRC_ALPHA)
-  options.context.clearColor(0, 0, 0, 0)
-  options.context.clear(options.context.COLOR_BUFFER_BIT)
-
-  const previewFrame: EngineRenderFrame = {
-    ...frame,
-    viewport: {
-      ...frame.viewport,
-      scale: scaleRatio,
-      offsetX: deltaX,
-      offsetY: deltaY,
-      // Preview transform reprojects cached frame; matrix must track the derived transform.
-      matrix: createViewportMatrixForRender(scaleRatio, deltaX, deltaY),
-    },
-  }
-
-  drawWebGLPacket(
-    options.context,
-    options.pipeline,
-    previewFrame,
-    {
-      x: 0,
-      y: 0,
-      width: snapshot.viewportWidth,
-      height: snapshot.viewportHeight,
-    },
-    [1, 1, 1, 1],
-    1,
-    options.texture,
-    true,
-  )
-
-  const edgeRedrawRegions = resolveInteractivePreviewEdgeRedrawRegions(
-    frame.viewport.viewportWidth * currentPixelRatio,
-    frame.viewport.viewportHeight * currentPixelRatio,
-    scaleRatio,
-    deltaX * currentPixelRatio,
-    deltaY * currentPixelRatio,
-  )
-
-  return {
-    reused: true,
-    missReason: null,
-    visibleCount: snapshot.visibleCount,
-    culledCount: snapshot.culledCount,
-    edgeRedrawRegions,
-  }
-}
-
-function resolveInteractionPreviewMaxTranslatePx(
-  baseTranslatePx: number,
-  scale: number,
-  viewportWidthPx: number,
-  viewportHeightPx: number,
-) {
-  if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
-    return {
-      x: Math.max(
-        baseTranslatePx,
-        INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
-        Math.round(viewportWidthPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
-      ),
-      y: Math.max(
-        baseTranslatePx,
-        INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX,
-        Math.round(viewportHeightPx * INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO),
-      ),
-    }
-  }
-
-  if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
-    return {
-      x: Math.max(
-        baseTranslatePx,
-        INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
-        Math.round(viewportWidthPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
-      ),
-      y: Math.max(
-        baseTranslatePx,
-        INTERACTION_PREVIEW_LOW_SCALE_MAX_TRANSLATE_PX,
-        Math.round(viewportHeightPx * INTERACTION_PREVIEW_LOW_SCALE_VIEWPORT_TRANSLATE_RATIO),
-      ),
-    }
-  }
-
-  return {x: baseTranslatePx, y: baseTranslatePx}
-}
-
-function resolveInteractionPreviewMaxScaleStep(
-  baseScaleStep: number,
-  scale: number,
-) {
-  if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
-    return Math.max(baseScaleStep, INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP)
-  }
-
-  if (scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE) {
-    return Math.max(baseScaleStep, INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP)
-  }
-
-  return baseScaleStep
-}
-
-function shouldAdvanceInteractionPreviewSnapshot(scale: number) {
-  return scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE
-}
-
-function resolveInteractivePreviewEdgeRedrawRegions(
-  viewportWidthPx: number,
-  viewportHeightPx: number,
-  scaleRatio: number,
-  deltaXPx: number,
-  deltaYPx: number,
-): ScreenRectPx[] {
-  if (Math.abs(scaleRatio - 1) > 1e-3) {
-    return []
-  }
-
-  const regions: ScreenRectPx[] = []
-  const horizontalShiftPx = Math.trunc(deltaXPx)
-  const verticalShiftPx = Math.trunc(deltaYPx)
-
-  if (horizontalShiftPx > 0) {
-    regions.push({
-      x: 0,
-      y: 0,
-      width: Math.min(viewportWidthPx, horizontalShiftPx),
-      height: viewportHeightPx,
-    })
-  } else if (horizontalShiftPx < 0) {
-    const width = Math.min(viewportWidthPx, Math.abs(horizontalShiftPx))
-    regions.push({
-      x: Math.max(0, viewportWidthPx - width),
-      y: 0,
-      width,
-      height: viewportHeightPx,
-    })
-  }
-
-  if (verticalShiftPx > 0) {
-    regions.push({
-      x: 0,
-      y: 0,
-      width: viewportWidthPx,
-      height: Math.min(viewportHeightPx, verticalShiftPx),
-    })
-  } else if (verticalShiftPx < 0) {
-    const height = Math.min(viewportHeightPx, Math.abs(verticalShiftPx))
-    regions.push({
-      x: 0,
-      y: Math.max(0, viewportHeightPx - height),
-      width: viewportWidthPx,
-      height,
-    })
-  }
-
-  return regions.filter((region) => region.width > 0 && region.height > 0)
-}
-
 function drawInteractivePreviewEdgeRegions(options: {
   context: WebGLRenderingContext | WebGL2RenderingContext
   pipeline: WebGLQuadPipeline
@@ -2702,8 +1234,9 @@ function drawInteractivePreviewEdgeRegions(options: {
   textCache: Map<string, CachedTextureEntry>
   resourceBudget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>
 }) {
-  const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * (options.frame.context.pixelRatio ?? 1)))
-  const viewportHeightPx = Math.max(1, Math.round(options.frame.viewport.viewportHeight * (options.frame.context.pixelRatio ?? 1)))
+  const outputPixelRatio = options.frame.context.outputPixelRatio ?? options.frame.context.pixelRatio ?? 1
+  const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * outputPixelRatio))
+  const viewportHeightPx = Math.max(1, Math.round(options.frame.viewport.viewportHeight * outputPixelRatio))
   const imageUploadBudget: ImageUploadBudgetState = {
     remainingUploads: 0,
     remainingBytes: 0,
@@ -2728,26 +1261,6 @@ function drawInteractivePreviewEdgeRegions(options: {
     for (const packet of options.packetPlan.packets) {
       if (!packetIntersectsScreenRegion(packet.worldBounds, options.frame, region)) {
         continue
-      }
-
-      if (packet.kind === 'shape' && packet.shapeHasStroke && !packet.shapeHasFill) {
-        const scale = Math.max(0, Math.abs(options.frame.viewport.scale))
-        const screenAreaPx2 =
-          Math.abs(packet.worldBounds.width) * scale *
-          Math.abs(packet.worldBounds.height) * scale
-        const projectedStrokeWidthPx = resolveProjectedStrokeWidthPx({
-          strokeWidth: packet.shapeStrokeWidth,
-          frame: options.frame,
-        })
-
-        // Edge redraw applies the same stroke-only skip thresholds so reused
-        // interaction frames stay visually consistent with full packet draws.
-        if (
-          screenAreaPx2 < STROKE_LOD_SKIP_AREA_MAX_PX2 ||
-          projectedStrokeWidthPx < STROKE_LOD_SKIP_PROJECTED_WIDTH_PX
-        ) {
-          continue
-        }
       }
 
       if (packet.kind === 'image' && packet.assetId) {
@@ -2865,428 +1378,4 @@ function packetIntersectsScreenRegion(
     screenRect.y + screenRect.height <= region.y ||
     region.y + region.height <= screenRect.y
   )
-}
-
-function createWebGLQuadPipeline(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-): WebGLQuadPipeline {
-  const vertexShader = createShader(context, context.VERTEX_SHADER, `
-attribute vec2 aPosition;
-uniform vec4 uRect;
-uniform vec2 uScale;
-uniform vec2 uOffset;
-uniform vec2 uViewport;
-uniform float uFlipTextureY;
-varying vec2 vUv;
-
-void main() {
-  vec2 world = uRect.xy + aPosition * uRect.zw;
-  vec2 screen = vec2(world.x * uScale.x + uOffset.x, world.y * uScale.y + uOffset.y);
-  vec2 clip = vec2(
-    (screen.x / uViewport.x) * 2.0 - 1.0,
-    1.0 - (screen.y / uViewport.y) * 2.0
-  );
-  gl_Position = vec4(clip, 0.0, 1.0);
-  vUv = vec2(aPosition.x, mix(aPosition.y, 1.0 - aPosition.y, uFlipTextureY));
-}
-`)
-  const fragmentShader = createShader(context, context.FRAGMENT_SHADER, `
-precision mediump float;
-uniform vec4 uColor;
-uniform float uUseTexture;
-uniform sampler2D uSampler;
-varying vec2 vUv;
-
-void main() {
-  vec4 color = uColor;
-  if (uUseTexture > 0.5) {
-    color = texture2D(uSampler, vUv);
-  }
-  gl_FragColor = color;
-}
-`)
-
-  const program = createProgram(context, vertexShader, fragmentShader)
-  const positionBuffer = context.createBuffer()
-  if (!positionBuffer) {
-    throw new Error('webgl position buffer allocation failed')
-  }
-
-  context.bindBuffer(context.ARRAY_BUFFER, positionBuffer)
-  context.bufferData(
-    context.ARRAY_BUFFER,
-    new Float32Array([
-      0, 0,
-      1, 0,
-      0, 1,
-      1, 1,
-    ]),
-    context.STATIC_DRAW,
-  )
-
-  const attributePosition = context.getAttribLocation(program, 'aPosition')
-  const uniformRect = context.getUniformLocation(program, 'uRect')
-  const uniformScale = context.getUniformLocation(program, 'uScale')
-  const uniformOffset = context.getUniformLocation(program, 'uOffset')
-  const uniformViewport = context.getUniformLocation(program, 'uViewport')
-  const uniformColor = context.getUniformLocation(program, 'uColor')
-  const uniformUseTexture = context.getUniformLocation(program, 'uUseTexture')
-  const uniformFlipTextureY = context.getUniformLocation(program, 'uFlipTextureY')
-  const uniformSampler = context.getUniformLocation(program, 'uSampler')
-
-  if (
-    attributePosition < 0 ||
-    !uniformRect ||
-    !uniformScale ||
-    !uniformOffset ||
-    !uniformViewport ||
-    !uniformColor ||
-    !uniformUseTexture ||
-    !uniformFlipTextureY ||
-    !uniformSampler
-  ) {
-    context.deleteBuffer(positionBuffer)
-    context.deleteProgram(program)
-    throw new Error('webgl quad pipeline uniforms/attributes are incomplete')
-  }
-
-  return {
-    program,
-    positionBuffer,
-    attributePosition,
-    uniformRect,
-    uniformScale,
-    uniformOffset,
-    uniformViewport,
-    uniformColor,
-    uniformUseTexture,
-    uniformFlipTextureY,
-    uniformSampler,
-  }
-}
-
-function drawWebGLPacket(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  pipeline: WebGLQuadPipeline,
-  frame: EngineRenderFrame,
-  worldBounds: {x: number; y: number; width: number; height: number},
-  color: readonly [number, number, number, number],
-  opacity: number,
-  texture: WebGLTexture | null,
-  flipTextureY = false,
-) {
-  const pixelRatio = frame.context.pixelRatio ?? 1
-
-  context.useProgram(pipeline.program)
-  context.bindBuffer(context.ARRAY_BUFFER, pipeline.positionBuffer)
-  context.enableVertexAttribArray(pipeline.attributePosition)
-  context.vertexAttribPointer(pipeline.attributePosition, 2, context.FLOAT, false, 0, 0)
-
-  context.uniform4f(
-    pipeline.uniformRect,
-    worldBounds.x,
-    worldBounds.y,
-    Math.max(0, worldBounds.width),
-    Math.max(0, worldBounds.height),
-  )
-  // Keep world->screen math in device-pixel space, matching Canvas2D path.
-  context.uniform2f(
-    pipeline.uniformScale,
-    frame.viewport.scale * pixelRatio,
-    frame.viewport.scale * pixelRatio,
-  )
-  context.uniform2f(
-    pipeline.uniformOffset,
-    frame.viewport.offsetX * pixelRatio,
-    frame.viewport.offsetY * pixelRatio,
-  )
-
-  const viewportWidth = Math.max(1, frame.viewport.viewportWidth * pixelRatio)
-  const viewportHeight = Math.max(1, frame.viewport.viewportHeight * pixelRatio)
-  context.uniform2f(pipeline.uniformViewport, viewportWidth, viewportHeight)
-
-  context.uniform4f(
-    pipeline.uniformColor,
-    color[0],
-    color[1],
-    color[2],
-    color[3] * opacity,
-  )
-  context.uniform1f(pipeline.uniformFlipTextureY, flipTextureY ? 1 : 0)
-
-  if (texture) {
-    context.activeTexture(context.TEXTURE0)
-    context.bindTexture(context.TEXTURE_2D, texture)
-    context.uniform1i(pipeline.uniformSampler, 0)
-    context.uniform1f(pipeline.uniformUseTexture, 1)
-  } else {
-    context.uniform1f(pipeline.uniformUseTexture, 0)
-  }
-
-  context.drawArrays(context.TRIANGLE_STRIP, 0, 4)
-  return 1
-}
-
-function resolveImageTexture(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  frame: EngineRenderFrame,
-  worldBounds: {x: number; y: number; width: number; height: number},
-  assetId: string,
-  imageCache: Map<string, CachedTextureEntry>,
-  budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
-  uploadBudget: ImageUploadBudgetState,
-): ResolvedImageTextureResult {
-  const imageCacheKey = resolveImageCacheKey(assetId)
-  const existing = imageCache.get(assetId)
-  if (frame.context.quality === 'interactive' && existing?.cacheKey === imageCacheKey) {
-    budget.markTextureUsed(assetId)
-    return {
-      texture: existing.texture,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: (existing.rasterScale ?? 1) < 0.99,
-      deferred: false,
-    }
-  }
-
-  if (frame.context.quality === 'interactive') {
-    // Freeze expensive texture uploads during active interaction and rely on
-    // settled frames to populate missing image textures.
-    return {
-      texture: null,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: false,
-      deferred: true,
-    }
-  }
-
-  const source = frame.context.loader?.resolveImage(assetId)
-  if (!source) {
-    return {
-      texture: null,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: false,
-      deferred: false,
-    }
-  }
-
-  const size = resolveCanvasImageSourceSize(source)
-  const width = Math.max(1, size.width)
-  const height = Math.max(1, size.height)
-  const imageRasterScale = resolveImageRasterScale(size, worldBounds, frame)
-  if (canReuseImageTexture(existing, imageCacheKey, imageRasterScale)) {
-    budget.markTextureUsed(assetId)
-    return {
-      texture: existing?.texture ?? null,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: imageRasterScale < 0.99,
-      deferred: false,
-    }
-  }
-
-  const uploadSource = createImageUploadSource(source, size, imageRasterScale)
-  const uploadWidth = Math.max(1, uploadSource.width)
-  const uploadHeight = Math.max(1, uploadSource.height)
-  const uploadBytes = uploadWidth * uploadHeight * 4
-  const downsampledBytesSaved = Math.max(0, width * height * 4 - uploadBytes)
-  const canSpendOversizedSingleUpload =
-    uploadBudget.remainingUploads > 0 &&
-    uploadBudget.remainingBytes === MAX_IMAGE_TEXTURE_UPLOAD_BYTES_PER_FRAME
-  if (
-    uploadBudget.remainingUploads <= 0 ||
-    (uploadBudget.remainingBytes < uploadBytes && !canSpendOversizedSingleUpload)
-  ) {
-    return {
-      texture: null,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: false,
-      deferred: true,
-    }
-  }
-
-  const texture = existing?.texture ?? context.createTexture()
-  if (!texture) {
-    return {
-      texture: null,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: false,
-      deferred: false,
-    }
-  }
-
-  context.bindTexture(context.TEXTURE_2D, texture)
-  context.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE)
-  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE)
-
-  const imageUploadStart = performance.now()
-  try {
-    const textureSource = uploadSource.source as unknown as TexImageSource
-    context.texImage2D(
-      context.TEXTURE_2D,
-      0,
-      context.RGBA,
-      context.RGBA,
-      context.UNSIGNED_BYTE,
-      textureSource,
-    )
-  } catch {
-    context.deleteTexture(texture)
-    return {
-      texture: null,
-      uploadCount: 0,
-      uploadBytes: 0,
-      uploadMs: 0,
-      downsampledUploadCount: 0,
-      downsampledBytesSaved: 0,
-      usesThumbnail: false,
-      deferred: false,
-    }
-  }
-  const imageUploadMs = performance.now() - imageUploadStart
-
-  uploadBudget.remainingUploads -= 1
-  // Clamp to zero so one oversized upload can consume the whole frame budget
-  // without causing negative accounting or an infinite deferred loop.
-  uploadBudget.remainingBytes = Math.max(0, uploadBudget.remainingBytes - uploadBytes)
-  imageCache.set(assetId, {
-    texture,
-    width: uploadWidth,
-    height: uploadHeight,
-    cacheKey: imageCacheKey,
-    rasterScale: imageRasterScale,
-  })
-  budget.markTextureResident(assetId, uploadBytes)
-  budget.markTextureUsed(assetId)
-
-  return {
-    texture,
-    uploadCount: 1,
-    uploadBytes,
-    uploadMs: imageUploadMs,
-    downsampledUploadCount: uploadSource.downsampled ? 1 : 0,
-    downsampledBytesSaved,
-    usesThumbnail: imageRasterScale < 0.99,
-    deferred: false,
-  }
-}
-
-function resolveCanvasImageSourceSize(source: CanvasImageSource) {
-  const candidate = source as {
-    width?: number
-    height?: number
-    naturalWidth?: number
-    naturalHeight?: number
-    videoWidth?: number
-    videoHeight?: number
-  }
-
-  const width =
-    candidate.naturalWidth ??
-    candidate.videoWidth ??
-    candidate.width ??
-    1
-  const height =
-    candidate.naturalHeight ??
-    candidate.videoHeight ??
-    candidate.height ??
-    1
-
-  return {
-    width,
-    height,
-  }
-}
-
-function createShader(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  type: number,
-  source: string,
-) {
-  const shader = context.createShader(type)
-  if (!shader) {
-    throw new Error('webgl shader allocation failed')
-  }
-
-  context.shaderSource(shader, source)
-  context.compileShader(shader)
-  if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
-    const log = context.getShaderInfoLog(shader) ?? 'unknown error'
-    context.deleteShader(shader)
-    throw new Error(`webgl shader compile failed: ${log}`)
-  }
-
-  return shader
-}
-
-function createProgram(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  vertexShader: WebGLShader,
-  fragmentShader: WebGLShader,
-) {
-  const program = context.createProgram()
-  if (!program) {
-    context.deleteShader(vertexShader)
-    context.deleteShader(fragmentShader)
-    throw new Error('webgl program allocation failed')
-  }
-
-  context.attachShader(program, vertexShader)
-  context.attachShader(program, fragmentShader)
-  context.linkProgram(program)
-  context.deleteShader(vertexShader)
-  context.deleteShader(fragmentShader)
-
-  if (!context.getProgramParameter(program, context.LINK_STATUS)) {
-    const log = context.getProgramInfoLog(program) ?? 'unknown error'
-    context.deleteProgram(program)
-    throw new Error(`webgl program link failed: ${log}`)
-  }
-
-  return program
-}
-
-function disposeWebGLQuadPipeline(
-  context: WebGLRenderingContext | WebGL2RenderingContext,
-  pipeline: WebGLQuadPipeline,
-) {
-  context.deleteBuffer(pipeline.positionBuffer)
-  context.deleteProgram(pipeline.program)
-}
-
-function resolveWebGLContext(
-  canvas: HTMLCanvasElement | OffscreenCanvas,
-  attributes: WebGLContextAttributes,
-) {
-  const webgl2 = canvas.getContext('webgl2', attributes) as WebGLRenderingContext | WebGL2RenderingContext | null
-  if (webgl2) {
-    return webgl2
-  }
-
-  return canvas.getContext('webgl', attributes) as WebGLRenderingContext | null
 }

@@ -16,8 +16,7 @@ const TINY_OBJECT_OVERVIEW_SCREEN_EDGE_PX = 2.4
 const TINY_OBJECT_OVERVIEW_MAX_SCALE = 0.05
 const TINY_OBJECT_LOW_SCALE_SCREEN_EDGE_PX = 1.4
 const TINY_OBJECT_LOW_SCALE_MAX_SCALE = 0.12
-const TINY_GROUP_COLLAPSE_MAX_SCREEN_EDGE_PX = 14
-const TINY_GROUP_COLLAPSE_MAX_SCALE = 0.3
+const GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2 = 4096
 
 export interface EnginePreparedNode {
   node: EngineRenderableNode
@@ -205,6 +204,8 @@ function prepareEngineRenderPlanFromBuffer(
     frame.context.quality,
     frame.context.lodEnabled ?? true,
   )
+  // Attach aggregate bounds so collapsed groups can render as thumbnail placeholders.
+  attachGroupAggregateBounds(preparedNodes, groupAggregateBounds)
   const collapsedGroupCount = collapsedGroupSlotSet.size
 
   let visibleCount = 0
@@ -218,7 +219,30 @@ function prepareEngineRenderPlanFromBuffer(
     }
 
     const prepared = preparedNodes[slot]
-    if (!prepared || prepared.node.type === 'group') {
+    if (!prepared) {
+      continue
+    }
+
+    if (prepared.node.type === 'group') {
+      if (!collapsedGroupSlotSet.has(slot) || !prepared.worldBounds) {
+        continue
+      }
+
+      // Submit collapsed groups as lightweight placeholder packets.
+      visibleCount += 1
+      drawList.push(slot)
+      const existing = batchMap.get(prepared.bucketKey)
+      if (existing) {
+        existing.indices.push(slot)
+        continue
+      }
+
+      batchMap.set(prepared.bucketKey, {
+        key: prepared.bucketKey,
+        nodeType: prepared.node.type,
+        assetId: undefined,
+        indices: [slot],
+      })
       continue
     }
 
@@ -280,8 +304,6 @@ function prepareEngineRenderPlanFromNodes(
   ) => {
     for (const node of nodes) {
       const worldMatrix = multiplyMatrix(parentWorldMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
-      // Shortlist candidate ids are ancestor-aware, so skipping unmatched
-      // groups here safely prunes entire offscreen subtrees.
       if (node.type === 'group' && framePlanCandidateIdSet && !framePlanCandidateIdSet.has(node.id)) {
         continue
       }
@@ -334,6 +356,8 @@ function prepareEngineRenderPlanFromNodes(
     frame.context.quality,
     frame.context.lodEnabled ?? true,
   )
+  // Attach aggregate bounds so collapsed groups can render as thumbnail placeholders.
+  attachGroupAggregateBounds(preparedNodes, groupAggregateBounds)
   const collapsedGroupCount = collapsedGroupSlotSet.size
 
   let visibleCount = 0
@@ -342,7 +366,30 @@ function prepareEngineRenderPlanFromNodes(
 
   for (let preparedIndex = 0; preparedIndex < preparedNodes.length; preparedIndex += 1) {
     const prepared = preparedNodes[preparedIndex]
-    if (!prepared || prepared.node.type === 'group') {
+    if (!prepared) {
+      continue
+    }
+
+    if (prepared.node.type === 'group') {
+      if (!collapsedGroupSlotSet.has(preparedIndex) || !prepared.worldBounds) {
+        continue
+      }
+
+      // Submit collapsed groups as lightweight placeholder packets.
+      visibleCount += 1
+      drawList.push(preparedIndex)
+      const existing = batchMap.get(prepared.bucketKey)
+      if (existing) {
+        existing.indices.push(preparedIndex)
+        continue
+      }
+
+      batchMap.set(prepared.bucketKey, {
+        key: prepared.bucketKey,
+        nodeType: prepared.node.type,
+        assetId: undefined,
+        indices: [preparedIndex],
+      })
       continue
     }
 
@@ -423,6 +470,21 @@ function buildGroupAggregateWorldBounds(
   return aggregateBounds
 }
 
+function attachGroupAggregateBounds(
+  preparedNodes: EnginePreparedNode[],
+  groupAggregateBounds: ReadonlyArray<EngineRect | null>,
+) {
+  for (let slot = 0; slot < preparedNodes.length; slot += 1) {
+    const prepared = preparedNodes[slot]
+    if (!prepared || prepared.node.type !== 'group') {
+      continue
+    }
+
+    // Group bounds are derived from descendants and used only for group LOD placeholders.
+    prepared.worldBounds = groupAggregateBounds[slot]
+  }
+}
+
 function resolveCollapsedGroupSlots(
   preparedNodes: readonly EnginePreparedNode[],
   groupAggregateBounds: ReadonlyArray<EngineRect | null>,
@@ -500,17 +562,18 @@ function shouldCollapseGroupSubtree(
     return false
   }
 
-  if (renderQuality !== 'interactive' && viewportScale > TINY_GROUP_COLLAPSE_MAX_SCALE) {
-    return false
-  }
-
   const absScale = Math.max(0, Math.abs(viewportScale))
   const screenWidth = Math.abs(groupBounds.width) * absScale
   const screenHeight = Math.abs(groupBounds.height) * absScale
-  return (
-    screenWidth <= TINY_GROUP_COLLAPSE_MAX_SCREEN_EDGE_PX &&
-    screenHeight <= TINY_GROUP_COLLAPSE_MAX_SCREEN_EDGE_PX
-  )
+  const screenArea = screenWidth * screenHeight
+
+  if (renderQuality === 'interactive') {
+    // Keep interaction collapse aggressive to preserve panning/zooming frame budget.
+    return screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
+  }
+
+  // Settled frames still collapse low-screen-area groups into thumbnail mode.
+  return screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
 }
 
 function hasCollapsedGroupAncestor(

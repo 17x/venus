@@ -65,38 +65,40 @@ export const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
     mode: 'conservative'
   }
 } = {
-  enabled: false,
+  // Enable engine-side LOD so runtime policy and renderer degradations are active.
+  enabled: true,
   options: {
     mode: 'conservative',
   },
   lodLevelCapabilities: {
     0: {
       quality: 'full',
-      // Let runtime policy derive DPR from viewport scale and interaction phase.
       dpr: 'auto',
       interactiveIntervalMs: 8,
     },
     1: {
       quality: 'full',
-      // Let runtime policy derive DPR from viewport scale and interaction phase.
       dpr: 'auto',
       interactiveIntervalMs: 10,
     },
     2: {
-      quality: 'interactive',
-      // Let runtime policy derive DPR from viewport scale and interaction phase.
-      dpr: 'auto',
+      // Keep settled large-scene frames on full-quality output so startup does
+      // not collapse text and images into interaction placeholders.
+      quality: 'full',
+      dpr: 1.25,
       interactiveIntervalMs: 12,
     },
     3: {
-      quality: 'interactive',
-      // Let runtime policy derive DPR from viewport scale and interaction phase.
-      dpr: 'auto',
+      // Keep settled extreme-pressure frames readable; pan/zoom still opt into
+      // interactive quality through the explicit interaction capabilities below.
+      quality: 'full',
+      dpr: 1,
       interactiveIntervalMs: 16,
     },
   },
   interactionCapabilities: {
     pan: {
+      // Prioritize responsiveness during pan by using interaction-quality base scene.
       quality: 'interactive',
       dpr: 'auto',
       interactionActive: true,
@@ -105,16 +107,16 @@ export const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
       interactionPreview: {
         enabled: true,
         mode: 'interaction',
-        // Favor stable cached affine preview during pan to keep motion smooth.
+        // Always prefer existing cache first so pan never blocks on heavy packet work.
         cacheOnly: true,
-        // Widen tolerance so interaction stays in cache-preview path longer.
+        // Keep cache preview tolerance wide so fast pan stays on cheap path.
         maxScaleStep: 8,
         maxTranslatePx: 100_000,
       },
     },
     zoom: {
+      // Prioritize responsiveness during zoom by using interaction-quality base scene.
       quality: 'interactive',
-      // Keep zoom DPR policy centralized in runtime render policy.
       dpr: 'auto',
       interactionActive: true,
       // Keep zoom cadence responsive; wider intervals reduced measured interaction FPS.
@@ -122,15 +124,18 @@ export const ENGINE_RENDER_LOD_CONFIG: RuntimeLodConfig & {
       interactionPreview: {
         enabled: true,
         mode: 'interaction',
-        // Favor stable cached affine preview during zoom to avoid packet thrash.
-        cacheOnly: true,
-        // Widen tolerance so interaction stays in cache-preview path longer.
+        // Allow packet fallback when snapshot reuse misses so fast trackpad
+        // zoom does not collapse into an empty/blank cache-only frame.
+        cacheOnly: false,
+        // Keep cache preview tolerance wide so fast zoom stays on cheap path.
         maxScaleStep: 8,
         maxTranslatePx: 100_000,
       },
     },
     drag: {
-      quality: 'interactive',
+      // Keep drag fidelity aligned with direct-manipulation expectations;
+      // scheduling still stays interactive through the phase flag.
+      quality: 'full',
       interactionActive: true,
       interactionPreview: false,
     },

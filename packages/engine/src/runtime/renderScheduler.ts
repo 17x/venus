@@ -31,6 +31,7 @@ export function createEngineRenderScheduler(
   let interactiveTimerHandle: number | null = null
   let inFlight = false
   let queued = false
+  let queuedMode: 'interactive' | 'normal' = 'normal'
   let lastRenderStartAt = 0
   let rafScheduledAt = 0
   const diagnostics: EngineRenderSchedulerDiagnostics = {
@@ -49,6 +50,17 @@ export function createEngineRenderScheduler(
     interactiveTimerHandle = null
   }
 
+  const resolveHigherPriorityMode = (
+    previous: 'interactive' | 'normal',
+    next: 'interactive' | 'normal',
+  ) => {
+    // Keep interaction renders ahead of clarity-restoration renders so input
+    // never waits behind queued normal work.
+    return previous === 'interactive' || next === 'interactive'
+      ? 'interactive'
+      : 'normal'
+  }
+
   const flush = () => {
     rafHandle = null
     diagnostics.pendingRaf = false
@@ -61,6 +73,7 @@ export function createEngineRenderScheduler(
 
     if (inFlight) {
       queued = true
+      queuedMode = resolveHigherPriorityMode(queuedMode, 'normal')
       return
     }
 
@@ -75,8 +88,10 @@ export function createEngineRenderScheduler(
         inFlight = false
         diagnostics.inFlight = false
         if (queued) {
+          const nextQueuedMode = queuedMode
           queued = false
-          request('normal')
+          queuedMode = 'normal'
+          request(nextQueuedMode)
         }
       })
   }
@@ -97,11 +112,19 @@ export function createEngineRenderScheduler(
       }
     }
 
+    if (inFlight) {
+      queued = true
+      queuedMode = resolveHigherPriorityMode(queuedMode, mode)
+      return
+    }
+
     if (rafHandle !== null) {
+      queuedMode = resolveHigherPriorityMode(queuedMode, mode)
       diagnostics.coalescedRequestCount += 1
       return
     }
 
+    queuedMode = mode
     rafScheduledAt = performance.now()
     diagnostics.pendingRaf = true
     rafHandle = requestAnimationFrame(flush)
@@ -116,6 +139,7 @@ export function createEngineRenderScheduler(
     diagnostics.pendingRaf = false
     clearInteractiveTimer()
     queued = false
+    queuedMode = 'normal'
   }
 
   const dispose = () => {

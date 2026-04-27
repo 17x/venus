@@ -77,9 +77,20 @@ directly depend on engine internals.
 - No semicolons, no `@ts-ignore`
 - Every newly written or modified code block must include a comment.
 - Prefer concise but clear intent comments, but do not leave fresh code uncommented.
+- Every newly written or modified function must include a leading comment.
+- Inside functions, add comments at non-obvious branches, fallbacks,
+  cache/state transitions, threshold choices, and compatibility edges.
+- For new or modified `type`, `interface`, and object-shaped contract
+  definitions, comment the declaration and each newly changed field/signature line.
 - Keep source files under 500 lines where practical; split oversized files by
   ownership/responsibility boundaries.
+- File splits and extracted modules are not exempt from the comment rules.
 - When changing public interfaces, update inline/API comments with parameter semantics
+- Every temporary workaround, compatibility branch, guard, fallback, or
+  diagnostic-only patch must include an `AI-TEMP:` comment in the format:
+  `AI-TEMP: <why>; remove when <condition>; ref <task/doc>`.
+- AI agents must follow `.github/copilot-instructions.md` and treat the
+  PostToolUse standards hook as a hard gate for all file edits and file splits.
 
 ## Documentation
 
