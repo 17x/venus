@@ -18,6 +18,14 @@ test('clampViewportScale clamps to shared min and max bounds', () => {
   assert.equal(clampViewportScale(1.5), 1.5)
 })
 
+test('clampViewportScale respects custom zoom bounds', () => {
+  const customRange = {min: 0.01, max: 640}
+
+  assert.equal(clampViewportScale(0.001, customRange), 0.01)
+  assert.equal(clampViewportScale(1200, customRange), 640)
+  assert.equal(clampViewportScale(12.5, customRange), 12.5)
+})
+
 test('panViewportState keeps scale and applies screen-space offsets', () => {
   const viewport = resolveViewportState({
     viewportWidth: 800,
@@ -50,6 +58,20 @@ test('zoomViewportState preserves anchor world point on screen', () => {
 
   assert.deepEqual(worldPointAfter, worldPointBefore)
   assert.equal(next.scale, 4)
+})
+
+test('zoomViewportState respects custom zoom bounds', () => {
+  const viewport = resolveViewportState({
+    viewportWidth: 1000,
+    viewportHeight: 700,
+    offsetX: 100,
+    offsetY: 50,
+    scale: 2,
+  })
+
+  const next = zoomViewportState(viewport, 1000, undefined, {min: 0.01, max: 640})
+
+  assert.equal(next.scale, 640)
 })
 
 test('fitViewportToDocument centers document inside padded viewport space', () => {

@@ -4,8 +4,8 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/ui/primitives/tooltip'
-import {cn} from '../../lib/utils.ts'
+} from '../../../primitives/tooltip.tsx'
+import {cn} from '../../../lib/cn.ts'
 
 export type TooltipPlacement = 't' | 'r' | 'b' | 'l' | 'tl' | 'tr' | 'bl' | 'br'
 

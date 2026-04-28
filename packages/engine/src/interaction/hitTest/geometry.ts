@@ -17,8 +17,18 @@ export interface RoundedRectCornerRadii {
   bottomLeft: number
 }
 
+const RAYCAST_DIVISION_EPSILON = 1e-9
+const HALF_DIVISOR = 2
+const ELLIPSE_INNER_RADIUS_EPSILON = 1e-6
+const LINE_SEGMENT_LENGTH_EPSILON = 1e-9
+
 // Keep low-level geometry predicates shared so hitTest.ts can stay centered on
 // shape-type dispatch rather than point-in-shape math details.
+/**
+ * Handles isPointInsideBounds.
+ * @param pointer Pointer position.
+ * @param bounds Bounds data.
+ */
 export function isPointInsideBounds(
   pointer: PointLike,
   bounds: BoundsLike,
@@ -31,6 +41,11 @@ export function isPointInsideBounds(
   )
 }
 
+/**
+ * Handles isPointInsidePolygon.
+ * @param pointer Pointer position.
+ * @param points points parameter.
+ */
 export function isPointInsidePolygon(
   pointer: PointLike,
   points: PointLike[],
@@ -42,7 +57,7 @@ export function isPointInsidePolygon(
     const last = points[previous]
     const intersects =
       ((current.y > pointer.y) !== (last.y > pointer.y)) &&
-      pointer.x < ((last.x - current.x) * (pointer.y - current.y)) / ((last.y - current.y) || 1e-9) + current.x
+      pointer.x < ((last.x - current.x) * (pointer.y - current.y)) / ((last.y - current.y) || RAYCAST_DIVISION_EPSILON) + current.x
 
     if (intersects) {
       inside = !inside
@@ -52,6 +67,12 @@ export function isPointInsidePolygon(
   return inside
 }
 
+/**
+ * Handles isPointNearPolygonEdge.
+ * @param pointer Pointer position.
+ * @param points points parameter.
+ * @param tolerance tolerance parameter.
+ */
 export function isPointNearPolygonEdge(
   pointer: PointLike,
   points: PointLike[],
@@ -68,12 +89,17 @@ export function isPointNearPolygonEdge(
   return false
 }
 
+/**
+ * Handles isPointInsideEllipse.
+ * @param pointer Pointer position.
+ * @param bounds Bounds data.
+ */
 export function isPointInsideEllipse(
   pointer: PointLike,
   bounds: BoundsLike,
 ) {
-  const radiusX = (bounds.maxX - bounds.minX) / 2
-  const radiusY = (bounds.maxY - bounds.minY) / 2
+  const radiusX = (bounds.maxX - bounds.minX) / HALF_DIVISOR
+  const radiusY = (bounds.maxY - bounds.minY) / HALF_DIVISOR
   if (radiusX <= 0 || radiusY <= 0) {
     return false
   }
@@ -87,13 +113,19 @@ export function isPointInsideEllipse(
   return normalized <= 1
 }
 
+/**
+ * Handles isPointNearEllipseEdge.
+ * @param pointer Pointer position.
+ * @param bounds Bounds data.
+ * @param tolerance tolerance parameter.
+ */
 export function isPointNearEllipseEdge(
   pointer: PointLike,
   bounds: BoundsLike,
   tolerance: number,
 ) {
-  const radiusX = (bounds.maxX - bounds.minX) / 2
-  const radiusY = (bounds.maxY - bounds.minY) / 2
+  const radiusX = (bounds.maxX - bounds.minX) / HALF_DIVISOR
+  const radiusY = (bounds.maxY - bounds.minY) / HALF_DIVISOR
   if (radiusX <= 0 || radiusY <= 0) {
     return false
   }
@@ -107,8 +139,8 @@ export function isPointNearEllipseEdge(
     (deltaX * deltaX) / ((radiusX + tolerance) * (radiusX + tolerance)) +
     (deltaY * deltaY) / ((radiusY + tolerance) * (radiusY + tolerance))
   const inner = Math.max(0, tolerance)
-  const innerRadiusX = Math.max(1e-6, radiusX - inner)
-  const innerRadiusY = Math.max(1e-6, radiusY - inner)
+  const innerRadiusX = Math.max(ELLIPSE_INNER_RADIUS_EPSILON, radiusX - inner)
+  const innerRadiusY = Math.max(ELLIPSE_INNER_RADIUS_EPSILON, radiusY - inner)
   const normalizedInner =
     (deltaX * deltaX) / (innerRadiusX * innerRadiusX) +
     (deltaY * deltaY) / (innerRadiusY * innerRadiusY)
@@ -116,6 +148,12 @@ export function isPointNearEllipseEdge(
   return normalized <= 1 && normalizedInner >= 1
 }
 
+/**
+ * Handles isPointNearRectEdge.
+ * @param pointer Pointer position.
+ * @param bounds Bounds data.
+ * @param tolerance tolerance parameter.
+ */
 export function isPointNearRectEdge(
   pointer: PointLike,
   bounds: BoundsLike,
@@ -145,6 +183,12 @@ export function isPointNearRectEdge(
   return !isPointInsideBounds(pointer, inner)
 }
 
+// Normalize per-corner radii and clamp them to fit within current rectangle bounds.
+/**
+ * Handles resolveRoundedRectCornerRadii.
+ * @param shape shape parameter.
+ * @param bounds Bounds data.
+ */
 export function resolveRoundedRectCornerRadii(
   shape: Pick<{
     cornerRadius?: number
@@ -196,6 +240,13 @@ export function resolveRoundedRectCornerRadii(
   }
 }
 
+// Resolve rounded-rectangle containment by combining box checks with corner-arc checks.
+/**
+ * Handles isPointInsideRoundedRect.
+ * @param pointer Pointer position.
+ * @param bounds Bounds data.
+ * @param radii radii parameter.
+ */
 export function isPointInsideRoundedRect(
   pointer: PointLike,
   bounds: BoundsLike,
@@ -240,6 +291,13 @@ export function isPointInsideRoundedRect(
   return true
 }
 
+/**
+ * Handles isPointNearRoundedRectEdge.
+ * @param pointer Pointer position.
+ * @param bounds Bounds data.
+ * @param radii radii parameter.
+ * @param tolerance tolerance parameter.
+ */
 export function isPointNearRoundedRectEdge(
   pointer: PointLike,
   bounds: BoundsLike,
@@ -286,6 +344,12 @@ export function isPointNearRoundedRectEdge(
   return !isPointInsideRoundedRect(pointer, innerBounds, innerRadii)
 }
 
+/**
+ * Handles isPointNearLineSegment.
+ * @param pointer Pointer position.
+ * @param segment segment parameter.
+ * @param tolerance tolerance parameter.
+ */
 export function isPointNearLineSegment(
   pointer: PointLike,
   segment: {x1: number; y1: number; x2: number; y2: number},
@@ -294,7 +358,7 @@ export function isPointNearLineSegment(
   const dx = segment.x2 - segment.x1
   const dy = segment.y2 - segment.y1
   const lengthSq = dx * dx + dy * dy
-  if (lengthSq <= 1e-9) {
+  if (lengthSq <= LINE_SEGMENT_LENGTH_EPSILON) {
     return Math.hypot(pointer.x - segment.x1, pointer.y - segment.y1) <= tolerance
   }
 

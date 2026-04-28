@@ -42,6 +42,8 @@ Current runtime chain:
 - App entry: `src/App.tsx`
 - Editor frame and shell composition: `src/components/*`
 - Runtime bridge and editor orchestration: `src/editor/*`
+- Public runtime-facing bridge aliases: `src/runtime/*` (facade layer)
+- Runtime-local implementation ownership: `src/editor/runtime-local/*` (mechanism/policy modules)
 - App-local UI kit and compatibility layer: `src/ui/*`
 - Product feature modules: `src/features/*`
 

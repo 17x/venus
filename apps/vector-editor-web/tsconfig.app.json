@@ -6,21 +6,10 @@
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "paths": {
-      "@/*": ["apps/vector-editor-web/src/*"],
-      "@venus/document-core": ["apps/vector-editor-web/src/model/index.ts"],
       "@venus/lib": ["packages/lib/src/index.ts"],
       "@venus/editor-primitive": ["packages/editor-primitive/src/index.ts"],
       "@venus/editor-primitive/*": ["packages/editor-primitive/src/*/index.ts"],
-      "@venus/engine": ["packages/engine/src/index.ts"],
-      "@vector/model": ["apps/vector-editor-web/src/model/index.ts"],
-      "@vector/ui": ["apps/vector-editor-web/src/ui/index.ts"],
-      "@vector/runtime": ["apps/vector-editor-web/src/runtime/index.ts"],
-      "@vector/runtime/engine": ["apps/vector-editor-web/src/editor/runtime-local/engine.ts"],
-      "@vector/runtime/interaction": ["apps/vector-editor-web/src/runtime/interaction/index.ts"],
-      "@vector/runtime/worker": ["apps/vector-editor-web/src/editor/runtime-local/worker/index.ts"],
-      "@vector/runtime/shared-memory": ["apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts"],
-      "@vector/runtime/presets": ["apps/vector-editor-web/src/editor/runtime-local/presets/index.ts"],
-      "@vector/runtime/presets/*": ["apps/vector-editor-web/src/editor/runtime-local/presets/*.ts"]
+      "@venus/engine": ["packages/engine/src/index.ts"]
     }
   },
   "references": [

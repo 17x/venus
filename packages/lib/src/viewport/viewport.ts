@@ -5,6 +5,24 @@ const MIN_VIEWPORT_SCALE = 0.02
 const MAX_VIEWPORT_SCALE = 32
 
 /**
+ * Configures min/max clamp values used by viewport zoom helpers.
+ */
+export interface ViewportScaleRange {
+  /** Stores the smallest allowed viewport scale. */
+  min: number
+  /** Stores the largest allowed viewport scale. */
+  max: number
+}
+
+/**
+ * Shared viewport clamp defaults used when callers do not provide custom bounds.
+ */
+export const DEFAULT_VIEWPORT_SCALE_RANGE: ViewportScaleRange = {
+  min: MIN_VIEWPORT_SCALE,
+  max: MAX_VIEWPORT_SCALE,
+}
+
+/**
  * Fully resolved viewport state used by runtime, interaction, and renderer.
  *
  * `matrix` maps world -> screen, while `inverseMatrix` maps screen -> world.
@@ -60,8 +78,13 @@ export const DEFAULT_VIEWPORT: CanvasViewportState = {
 /**
  * Clamps viewport zoom to a shared safe interaction envelope.
  */
-export function clampViewportScale(scale: number): number {
-  return Math.min(MAX_VIEWPORT_SCALE, Math.max(MIN_VIEWPORT_SCALE, scale))
+export function clampViewportScale(
+  scale: number,
+  scaleRange?: ViewportScaleRange,
+): number {
+  const resolvedScaleRange = resolveViewportScaleRange(scaleRange)
+
+  return Math.min(resolvedScaleRange.max, Math.max(resolvedScaleRange.min, scale))
 }
 
 /**
@@ -85,6 +108,7 @@ export function resolveViewportState(
 export function fitViewportToDocument(
   document: ViewportFitDocumentLike,
   viewport: CanvasViewportState,
+  scaleRange?: ViewportScaleRange,
 ): CanvasViewportState {
   const {viewportWidth, viewportHeight} = viewport
 
@@ -99,6 +123,7 @@ export function fitViewportToDocument(
   const availableHeight = Math.max(1, viewportHeight - verticalPadding * 2)
   const scale = clampViewportScale(
     Math.min(availableWidth / document.width, availableHeight / document.height),
+    scaleRange,
   )
 
   return resolveViewportState({
@@ -156,13 +181,14 @@ export function zoomViewportState(
   viewport: CanvasViewportState,
   nextScale: number,
   anchor?: Point2D,
+  scaleRange?: ViewportScaleRange,
 ): CanvasViewportState {
   // Ignore zoom updates before viewport dimensions are measured.
   if (viewport.viewportWidth <= 1 || viewport.viewportHeight <= 1) {
     return viewport
   }
 
-  const scale = clampViewportScale(nextScale)
+  const scale = clampViewportScale(nextScale, scaleRange)
 
   if (!anchor || viewport.scale === scale) {
     return resolveViewportState({
@@ -229,5 +255,29 @@ function invertViewportMatrix(matrix: Mat3): Mat3 {
     nextB, nextD, nextTy,
     0, 0, 1,
   ]
+}
+
+/**
+ * Resolves caller-provided zoom bounds and falls back to shared defaults when invalid.
+ */
+function resolveViewportScaleRange(
+  input?: ViewportScaleRange,
+): ViewportScaleRange {
+  const min = input?.min
+  const max = input?.max
+
+  // Invalid custom bounds fall back to stable shared defaults.
+  if (
+    !(Number.isFinite(min) && Number.isFinite(max))
+    || (min as number) <= 0
+    || (max as number) <= (min as number)
+  ) {
+    return DEFAULT_VIEWPORT_SCALE_RANGE
+  }
+
+  return {
+    min: min as number,
+    max: max as number,
+  }
 }
 

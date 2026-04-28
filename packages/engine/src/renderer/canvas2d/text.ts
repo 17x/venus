@@ -2,18 +2,29 @@ import type {
   EngineTextNode,
   EngineTextRun,
   EngineTextStyle,
-} from '../../scene/types.ts'
+} from '../../scene/types/types.ts'
 
 interface TextLineLayout {
   lineHeight: number
   segments: readonly EngineTextRun[]
 }
 
+const LINE_BREAK_CHAR_CODE = 10
+const TEXT_ALIGN_CENTER_DIVISOR = 2
+const DEFAULT_FONT_WEIGHT = 400
+
 export interface Canvas2DTextCounters {
   singleLineTextFastPathCount: number
   precomputedTextLineHeightCount: number
 }
 
+/**
+ * Handles drawTextNode.
+ * @param context Rendering context.
+ * @param node Target node.
+ * @param localRect localRect parameter.
+ * @param counters counters parameter.
+ */
 export function drawTextNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineTextNode,
@@ -59,8 +70,16 @@ export function drawTextNode(
   }
 }
 
+/**
+ * Handles resolveTextLineLayouts.
+ * @param node Target node.
+ * @param counters counters parameter.
+ */
 function resolveTextLineLayouts(node: EngineTextNode, counters: Canvas2DTextCounters) {
-  if (node.lineCount === 1) {
+  const hasExplicitLineBreak = hasNodeExplicitLineBreak(node)
+
+  // Trust single-line fast path only when content really has no line breaks.
+  if (node.lineCount === 1 && !hasExplicitLineBreak) {
     counters.singleLineTextFastPathCount += 1
     if (node.runs && node.runs.length > 0) {
       const lineHeight = node.maxLineHeight ?? resolveMaxRunLineHeight(node)
@@ -96,6 +115,22 @@ function resolveTextLineLayouts(node: EngineTextNode, counters: Canvas2DTextCoun
   return lines
 }
 
+/**
+ * Handles hasNodeExplicitLineBreak.
+ * @param node Target node.
+ */
+function hasNodeExplicitLineBreak(node: EngineTextNode) {
+  if ((node.text ?? '').includes('\n')) {
+    return true
+  }
+
+  return (node.runs ?? []).some((run) => run.text.includes('\n'))
+}
+
+/**
+ * Handles resolveMaxRunLineHeight.
+ * @param node Target node.
+ */
 function resolveMaxRunLineHeight(node: EngineTextNode) {
   const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
   return (node.runs ?? []).reduce((maxLineHeight, run) => {
@@ -103,6 +138,10 @@ function resolveMaxRunLineHeight(node: EngineTextNode) {
   }, defaultLineHeight)
 }
 
+/**
+ * Handles splitRunLines.
+ * @param node Target node.
+ */
 function splitRunLines(node: EngineTextNode) {
   const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
   const lines: Array<{lineHeight: number; segments: EngineTextRun[]}> = [
@@ -137,6 +176,11 @@ function splitRunLines(node: EngineTextNode) {
   return lines
 }
 
+/**
+ * Handles scanTextLines.
+ * @param text Text content.
+ * @param visit visit parameter.
+ */
 function scanTextLines(
   text: string,
   visit: (part: string, isLineBreak: boolean) => void,
@@ -144,7 +188,7 @@ function scanTextLines(
   let start = 0
 
   for (let index = 0; index < text.length; index += 1) {
-    if (text.charCodeAt(index) !== 10) {
+    if (text.charCodeAt(index) !== LINE_BREAK_CHAR_CODE) {
       continue
     }
 
@@ -155,6 +199,11 @@ function scanTextLines(
   visit(text.slice(start), false)
 }
 
+/**
+ * Handles resolveTextAnchorX.
+ * @param node Target node.
+ * @param localRect localRect parameter.
+ */
 function resolveTextAnchorX(
   node: EngineTextNode,
   localRect: {x: number; y: number; width: number; height: number} | null,
@@ -165,7 +214,7 @@ function resolveTextAnchorX(
     return x
   }
   if (node.style.align === 'center') {
-    return x + width / 2
+    return x + width / TEXT_ALIGN_CENTER_DIVISOR
   }
   if (node.style.align === 'end') {
     return x + width
@@ -173,6 +222,12 @@ function resolveTextAnchorX(
   return x
 }
 
+/**
+ * Handles resolveTextAnchorY.
+ * @param node Target node.
+ * @param localRect localRect parameter.
+ * @param lineHeight lineHeight parameter.
+ */
 function resolveTextAnchorY(
   node: EngineTextNode,
   localRect: {x: number; y: number; width: number; height: number} | null,
@@ -185,7 +240,7 @@ function resolveTextAnchorY(
   }
 
   if (node.style.verticalAlign === 'middle') {
-    return y + (height - lineHeight) / 2
+    return y + (height - lineHeight) / TEXT_ALIGN_CENTER_DIVISOR
   }
   if (node.style.verticalAlign === 'bottom') {
     return y + height - lineHeight
@@ -193,6 +248,14 @@ function resolveTextAnchorY(
   return y
 }
 
+/**
+ * Handles drawTextSpan.
+ * @param context Rendering context.
+ * @param text Text content.
+ * @param x x parameter.
+ * @param y y parameter.
+ * @param options Options object for this operation.
+ */
 function drawTextSpan(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
@@ -233,17 +296,27 @@ function drawTextSpan(
   return cursorX
 }
 
+/**
+ * Handles applyTextStyle.
+ * @param context Rendering context.
+ * @param style Style configuration.
+ */
 function applyTextStyle(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   style: EngineTextStyle,
 ) {
-  const fontWeight = style.fontWeight ?? 400
+  const fontWeight = style.fontWeight ?? DEFAULT_FONT_WEIGHT
   const fontStyle = style.fontStyle ?? 'normal'
   context.font = `${fontStyle} ${fontWeight} ${style.fontSize}px ${style.fontFamily}`
   context.fillStyle = style.fill ?? '#111111'
   context.textAlign = resolveCanvasTextAlign(style.align)
 }
 
+/**
+ * Handles applyTextShadow.
+ * @param context Rendering context.
+ * @param shadow shadow parameter.
+ */
 function applyTextShadow(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   shadow: NonNullable<EngineTextStyle['shadow']>,
@@ -254,6 +327,10 @@ function applyTextShadow(
   context.shadowOffsetY = shadow.offsetY ?? 0
 }
 
+/**
+ * Handles resetTextShadow.
+ * @param context Rendering context.
+ */
 function resetTextShadow(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
 ) {
@@ -264,6 +341,10 @@ function resetTextShadow(
   context.shadowOffsetY = 0
 }
 
+/**
+ * Handles resolveCanvasTextAlign.
+ * @param align align parameter.
+ */
 function resolveCanvasTextAlign(
   align: EngineTextStyle['align'],
 ): CanvasTextAlign {

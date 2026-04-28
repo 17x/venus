@@ -1,5 +1,17 @@
 export type RuntimeListener<TState> = (state: TState) => void
 
+export {
+  createRuntimeReactiveBridge,
+  type RuntimeReactiveBridge,
+  type RuntimeReactiveEqualityFn,
+  type RuntimeReactiveEventEnvelope,
+  type RuntimeReactiveEventListener,
+  type RuntimeReactiveListener,
+  type RuntimeReactiveSelector,
+  type RuntimeReactiveSliceListener,
+  type RuntimeReactiveUpdater,
+} from './reactiveBridge.ts'
+
 export interface RuntimeSubscriptionStore<TState> {
   getSnapshot(): TState
   setSnapshot(next: TState): void
@@ -7,7 +19,7 @@ export interface RuntimeSubscriptionStore<TState> {
 }
 
 /**
- * Small runtime-local subscription primitive for non-React state consumers.
+ * Small runtime subscription primitive for non-React state consumers.
  */
 export function createRuntimeSubscriptionStore<TState>(initialState: TState): RuntimeSubscriptionStore<TState> {
   let snapshot = initialState

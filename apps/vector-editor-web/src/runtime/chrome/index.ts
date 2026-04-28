@@ -4,4 +4,4 @@ export {
   type RuntimeSelectionChromeKind,
   type RuntimeSelectionChromeResolver,
   type RuntimeSelectionChromeState,
-} from '../../editor/runtime-local/chrome/index.ts'
+} from './registry.ts'

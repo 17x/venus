@@ -1,9 +1,11 @@
 export type {
   CanvasViewportState,
+  ViewportScaleRange,
   ViewportFitDocumentLike,
 } from './viewport.ts'
 export {
   DEFAULT_VIEWPORT,
+  DEFAULT_VIEWPORT_SCALE_RANGE,
   clampViewportScale,
   fitViewportToDocument,
   panViewportState,

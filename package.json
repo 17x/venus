@@ -9,7 +9,9 @@
     "build": "pnpm --filter @venus/vector-editor-web build",
     "dev vector": "pnpm --filter @venus/vector-editor-web dev",
     "dev playground": "pnpm --filter @venus/playground dev",
-    "lint": "eslint .",
+    "lint": "eslint . && node ./scripts/module-governance-check.mjs",
+    "governance:check": "node ./scripts/module-governance-check.mjs",
+    "governance:test": "node --test ./scripts/module-governance-check.test.mjs",
     "typecheck": "tsc -b tsconfig.json",
     "perf:gate": "pnpm --filter @venus/vector-editor-web perf:gate",
     "test": "pnpm -r --if-present test",
@@ -30,5 +32,9 @@
       "@rolldown/pluginutils": "1.0.0-rc.11"
     }
   },
-  "packageManager": "pnpm@8.7.4"
+  "packageManager": "pnpm@8.7.4",
+  "devDependencies": {
+    "eslint-plugin-jsdoc": "^62.9.0",
+    "typescript": "~5.9.3"
+  }
 }

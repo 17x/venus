@@ -1,7 +1,62 @@
+export type {AffineMatrix, BezierPoint, BoundingRect, NormalizedBounds, Point, Rect} from './geometry/geometry.ts'
+export {
+  applyAffineMatrixToPoint,
+  createAffineMatrixAroundPoint,
+  createIdentityAffineMatrix,
+  createRotationAffineMatrix,
+  createScaleAffineMatrix,
+  createTranslationAffineMatrix,
+  cubicBezier,
+  flipPointAroundPoint,
+  generateBoundingRectFromRect,
+  generateBoundingRectFromRotatedRect,
+  generateBoundingRectFromTwoPoints,
+  getBoundingRectFromBezierPoints,
+  getNormalizedBoundsFromBox,
+  invertAffineMatrix,
+  multiplyAffineMatrices,
+  convertDrawPointsToBezierPoints,
+  isInsideRotatedRect,
+  isPointNear,
+  nearestPointOnCurve,
+  rectsOverlap,
+  rotatePointAroundPoint,
+  transformPoints,
+} from './geometry/geometry.ts'
+export {nid} from './nid.ts'
+export {parseRuntimeSceneToEditorDocument} from './parseRuntimeScene/parseRuntimeScene.ts'
+export type {
+  RuntimeFeatureKindV4,
+  RuntimeFeatureKindV5,
+  RuntimeFeatureEntryV5,
+  RuntimeEditorProductV5,
+  RuntimeNodeFeature,
+  RuntimeNodeFeatureV4,
+  RuntimeNodeFeatureV5,
+  RuntimeNodeType,
+  RuntimeNodeTypeV4,
+  RuntimeNodeTypeV5,
+  RuntimePathCommandV4,
+  RuntimePathV4,
+  RuntimeSceneAny,
+  RuntimeSceneLatest,
+  RuntimeSceneV5,
+} from './runtimeSceneTypes.ts'
+export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
+export {Unit, type UnitType} from './unit.ts'
 export type {
   DocumentNode,
+  DocumentSchemaMeta,
   EditorDocument,
+  RectangleCornerRadii,
   ShapeFillStyle,
+  ShapeGradientStop,
+  ShapeGradientStyle,
+  ShapeGradientType,
   ShapeShadowStyle,
   ShapeStrokeStyle,
-} from '@vector/model'
+  ShapeType,
+  StrokeArrowhead,
+  TextRun,
+  TextStyle,
+} from './documentModel.ts'

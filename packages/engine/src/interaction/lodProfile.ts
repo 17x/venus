@@ -13,10 +13,31 @@ export type {
   EngineLodProfileInput,
 } from './lodTypes.ts'
 
+const PAN_INTERACTIVE_INTERVAL_MS = 8
+const ZOOM_INTERACTIVE_INTERVAL_MS = 8
+const ZOOM_INTERACTIVE_TARGET_DPR = 1.5
+const SHAPE_COUNT_HEAVY_THRESHOLD = 80_000
+const IMAGE_COUNT_HEAVY_THRESHOLD = 2_000
+const SHAPE_COUNT_MEDIUM_THRESHOLD = 20_000
+const IMAGE_COUNT_MEDIUM_THRESHOLD = 500
+const LOW_SCALE_PROMOTION_THRESHOLD = 0.12
+const LOD_MAX_LEVEL = 3
+const VELOCITY_PROMOTION_L1 = 4_200
+const VELOCITY_PROMOTION_L2 = 7_200
+const LOD_LEVEL_ONE = 1
+const LOD_LEVEL_TWO = 2
+const LOD_ONE_INTERVAL_MS = 10
+const LOD_TWO_INTERVAL_MS = 12
+const LOD_THREE_INTERVAL_MS = 16
+const LOD_TWO_TARGET_DPR = 1.25
+const LOD_THREE_TARGET_DPR = 1
+type EngineLodLevel = EngineLodProfile['lodLevel']
+
 /**
  * Resolve a coarse LOD profile from scene pressure, zoom scale, and
  * interaction velocity.
- */
+  * @param options Options object for this operation.
+*/
 export function resolveEngineCanvasLodProfile(
   options: EngineCanvasLodProfileInput,
 ): EngineCanvasLodProfile {
@@ -30,7 +51,7 @@ export function resolveEngineCanvasLodProfile(
       renderQuality: 'interactive',
       targetDpr: 'auto',
       imageSmoothingQuality: 'high',
-      interactiveIntervalMs: 8,
+      interactiveIntervalMs: PAN_INTERACTIVE_INTERVAL_MS,
     }
   }
 
@@ -41,48 +62,48 @@ export function resolveEngineCanvasLodProfile(
     return {
       lodLevel: 1,
       renderQuality: 'interactive',
-      targetDpr: 1.5,
+      targetDpr: ZOOM_INTERACTIVE_TARGET_DPR,
       imageSmoothingQuality: 'medium',
-      interactiveIntervalMs: 8,
+      interactiveIntervalMs: ZOOM_INTERACTIVE_INTERVAL_MS,
     }
   }
 
   const interactionVelocity = Math.max(0, options.interactionVelocity ?? 0)
   const isInteracting = options.isInteracting ?? interactionVelocity > 0
 
-  let lodLevel: 0 | 1 | 2 | 3 =
-    options.shapeCount >= 80_000 || options.imageCount >= 2_000
-      ? 2
-      : options.shapeCount >= 20_000 || options.imageCount >= 500
-        ? 1
+  let lodLevel: EngineLodLevel =
+    options.shapeCount >= SHAPE_COUNT_HEAVY_THRESHOLD || options.imageCount >= IMAGE_COUNT_HEAVY_THRESHOLD
+      ? LOD_LEVEL_TWO
+      : options.shapeCount >= SHAPE_COUNT_MEDIUM_THRESHOLD || options.imageCount >= IMAGE_COUNT_MEDIUM_THRESHOLD
+        ? LOD_LEVEL_ONE
         : 0
 
   if (
-    options.scale < 0.12 &&
-    lodLevel < 3 &&
-    (options.shapeCount >= 20_000 || options.imageCount >= 500)
+    options.scale < LOW_SCALE_PROMOTION_THRESHOLD &&
+    lodLevel < LOD_MAX_LEVEL &&
+    (options.shapeCount >= SHAPE_COUNT_MEDIUM_THRESHOLD || options.imageCount >= IMAGE_COUNT_MEDIUM_THRESHOLD)
   ) {
-    lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
+    lodLevel = (lodLevel + LOD_LEVEL_ONE) as EngineLodLevel
   }
 
-  if (interactionVelocity >= 4_200 && lodLevel < 3) {
-    lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
+  if (interactionVelocity >= VELOCITY_PROMOTION_L1 && lodLevel < LOD_MAX_LEVEL) {
+    lodLevel = (lodLevel + LOD_LEVEL_ONE) as EngineLodLevel
   }
 
-  if (interactionVelocity >= 7_200 && lodLevel < 3) {
-    lodLevel = (lodLevel + 1) as 0 | 1 | 2 | 3
+  if (interactionVelocity >= VELOCITY_PROMOTION_L2 && lodLevel < LOD_MAX_LEVEL) {
+    lodLevel = (lodLevel + LOD_LEVEL_ONE) as EngineLodLevel
   }
 
   // Apply one-step cooldown hysteresis so LOD does not oscillate rapidly
   // around threshold boundaries during settle frames.
   if (
     typeof options.previousLodLevel === 'number' &&
-    options.previousLodLevel - lodLevel > 1
+    options.previousLodLevel - lodLevel > LOD_LEVEL_ONE
   ) {
-    lodLevel = (options.previousLodLevel - 1) as 0 | 1 | 2 | 3
+    lodLevel = (options.previousLodLevel - LOD_LEVEL_ONE) as EngineLodLevel
   }
 
-  const renderQuality = lodLevel >= 2 || isInteracting ? 'interactive' : 'full'
+  const renderQuality = lodLevel >= LOD_LEVEL_TWO || isInteracting ? 'interactive' : 'full'
 
   if (lodLevel <= 0) {
     return {
@@ -90,36 +111,36 @@ export function resolveEngineCanvasLodProfile(
       renderQuality,
       targetDpr: 'auto',
       imageSmoothingQuality: 'high',
-      interactiveIntervalMs: 8,
+      interactiveIntervalMs: PAN_INTERACTIVE_INTERVAL_MS,
     }
   }
 
-  if (lodLevel === 1) {
+  if (lodLevel === LOD_LEVEL_ONE) {
     return {
       lodLevel,
       renderQuality,
-      targetDpr: isInteracting ? 1.5 : 'auto',
+      targetDpr: isInteracting ? ZOOM_INTERACTIVE_TARGET_DPR : 'auto',
       imageSmoothingQuality: 'medium',
-      interactiveIntervalMs: 10,
+      interactiveIntervalMs: LOD_ONE_INTERVAL_MS,
     }
   }
 
-  if (lodLevel === 2) {
+  if (lodLevel === LOD_LEVEL_TWO) {
     return {
       lodLevel,
       renderQuality,
-      targetDpr: 1.25,
+      targetDpr: LOD_TWO_TARGET_DPR,
       imageSmoothingQuality: 'low',
-      interactiveIntervalMs: 12,
+      interactiveIntervalMs: LOD_TWO_INTERVAL_MS,
     }
   }
 
   return {
     lodLevel,
     renderQuality,
-    targetDpr: 1,
+    targetDpr: LOD_THREE_TARGET_DPR,
     imageSmoothingQuality: 'low',
-    interactiveIntervalMs: 16,
+    interactiveIntervalMs: LOD_THREE_INTERVAL_MS,
   }
 }
 

@@ -7,3 +7,5 @@ export {
   intersectNormalizedBounds,
 } from './bounds.ts'
 export {isPointInsideRotatedBounds} from './rotatedBounds.ts'
+export type {BezierPathPoint} from './bezierPath.ts'
+export {sampleBezierPathPolygon} from './bezierPath.ts'

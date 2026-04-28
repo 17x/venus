@@ -5,8 +5,8 @@ import {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
-} from '@/ui/primitives/dialog'
-import {cn} from '../../lib/utils.ts'
+} from '../../../primitives/dialog.tsx'
+import {cn} from '../../../lib/cn.ts'
 import {Button} from './button.tsx'
 
 export interface ModalProps extends HTMLProps<HTMLDivElement> {

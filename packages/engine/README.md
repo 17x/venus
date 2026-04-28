@@ -32,6 +32,23 @@ Venus 的机制层引擎。它提供纯粹的渲染与几何能力，包括 scen
 
 ## Engine 的能力地图
 
+## Benchmark 场景（F-03）
+
+Engine 提供一个可重复执行的基准场景脚本，用于回归跟踪高压渲染路径：
+
+- 场景：大图 + 大文本 + 高缩放 + 快速平移
+- 入口：`src/bench/runBenchmark.ts`
+- 命令：`pnpm --filter @venus/engine bench:scenario`
+
+脚本输出 JSON 摘要，包含：
+
+- `avgFrameMs` / `p50FrameMs` / `p95FrameMs`
+- `avgDrawCount` / `avgVisibleCount`
+- `totalPredictivePreloadEnqueue/Processed/Pruned`
+- `totalHighZoomTextSlaViolation`
+
+该脚本用于机制层性能趋势观察，不作为产品 KPI 判定的唯一来源。
+
 ### 1. Scene 能力
 
 Engine 有自己的 render-facing scene contract，而不是直接使用产品文档模型。
@@ -99,6 +116,43 @@ Engine 自带 render-facing store：
 - tile cache
 - initial render progressive path
 - 图片纹理延迟上传与按需降采样
+
+### Zoom/Tile 关键模块定位（可直接改）
+
+以下是当前缩放、tile、snapshot、LOD 的核心代码入口，便于按症状快速定位：
+
+- 策略阈值与动态 bucket 生成：
+  - `packages/engine/src/renderer/zoomPerformance.ts`
+  - 默认配置：`DEFAULT_ENGINE_ZOOM_PERFORMANCE_CONFIG`
+  - 策略函数：`getZoomRenderStrategy(...)`
+- tile key / bucket / active bucket / cache 管理：
+  - `packages/engine/src/renderer/tileManager.ts`
+  - 重点：`getZoomBucket(...)`、`getActiveZoomBuckets(...)`、`EngineTileCache`
+- tile 请求调度与取消（视口/邻近 bucket）：
+  - `packages/engine/src/renderer/tileScheduler.ts`
+  - 重点：`cancelOutdatedRequests(...)`
+- WebGL 主渲染链路（base scene mode / packet / fallback）：
+  - `packages/engine/src/renderer/webgl.ts`
+  - 重点：`resolveBaseSceneRenderMode(...)` 的调用与 zero-draw fallback
+- tile 合成与预加载：
+  - `packages/engine/src/renderer/webglTiles.ts`
+  - 重点：`drawModelSurfaceAsTiles(...)`、`resolveViewportWorldBounds(...)`
+- WebGL surface 策略辅助（placeholder 阈值、base scene mode 映射）：
+  - `packages/engine/src/renderer/webglSurfaceHelpers.ts`
+- 交互预览 snapshot 复用：
+  - `packages/engine/src/renderer/webglInteractionPreview.ts`
+
+### 症状 -> 模块排查建议
+
+- 低缩放（例如 10%）过糊：
+  - 先看 `zoomPerformance.ts` 的 `simplifiedTileMaxZoom`
+  - 再看 `webglSurfaceHelpers.ts` 的 `TEXT_PLACEHOLDER_MAX_SCALE`
+- 高缩放（例如 3200%）黑屏：
+  - 先看 `webgl.ts` 中 packet path 的 zero-draw fallback 是否触发
+  - 再看 `webglTiles.ts` 的 tile 合成返回是否 `null`（会走 composite fallback）
+- 缩放/平移停止后 viewport 缺块：
+  - 看 `webglTiles.ts` 的 `resolveViewportWorldBounds(...)` 与空 drawEntries 处理
+  - 看 `tileScheduler.ts` 的 `cancelOutdatedRequests(...)` 是否过度清理
 
 ### 4. Query 与 Hit-Test 能力
 

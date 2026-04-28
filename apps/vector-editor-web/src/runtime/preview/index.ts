@@ -49,6 +49,7 @@ export function buildRuntimePreviewInstructions(input: RuntimePreviewBuildInput)
       id: `transform-preview-${shape.shapeId}-${index}`,
       layerId: 'preview.transform',
       primitive: 'polyline',
+      coordinate: 'world',
       points: [
         {x: minX, y: minY},
         {x: maxX, y: minY},
@@ -59,7 +60,8 @@ export function buildRuntimePreviewInstructions(input: RuntimePreviewBuildInput)
       style: {
         strokeColor: 'rgba(37, 99, 235, 0.95)',
         strokeWidth: 1,
-        strokeDash: [6, 4],
+        // Keep transform preview stroke solid so it cannot be mistaken for
+        // marquee-selection dashed chrome during transient preview races.
         nonScalingStroke: true,
       },
       previewKind: 'transform',
@@ -79,6 +81,7 @@ export function buildRuntimePreviewInstructions(input: RuntimePreviewBuildInput)
         id: `transform-preview-handle-${shape.shapeId}-${index}-${handleIndex}`,
         layerId: 'preview.transform',
         primitive: 'handle',
+        coordinate: 'world',
         points: [handle],
         style: {
           strokeColor: '#2563eb',

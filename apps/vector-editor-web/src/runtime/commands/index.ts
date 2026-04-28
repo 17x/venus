@@ -6,4 +6,4 @@ export {
   type CommandHandler,
   type CommandMutator,
   type CommandRegistry,
-} from '../../editor/runtime-local/commands/index.ts'
+} from './registry.ts'

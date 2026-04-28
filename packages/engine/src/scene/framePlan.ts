@@ -1,7 +1,7 @@
-import type { EngineCanvasViewportState } from '../interaction/viewport.ts'
-import type { EngineNodeId, EngineRect, EngineSceneSnapshot } from './types.ts'
+import type { EngineNodeId, EngineRect, EngineSceneSnapshot } from './types/types.ts'
 
 const sceneNodeCountCache = new WeakMap<EngineSceneSnapshot, number>()
+const VIEWPORT_PADDING_DOUBLE = 2
 
 export interface EngineFramePlan {
   revision: string | number
@@ -15,14 +15,34 @@ export interface EngineFramePlan {
 
 export interface PrepareEngineFramePlanOptions {
   scene: EngineSceneSnapshot
-  viewport: Pick<EngineCanvasViewportState, 'viewportWidth' | 'viewportHeight' | 'offsetX' | 'offsetY' | 'scale'>
+  viewport: EngineFramePlanViewport
   queryCandidates: (bounds: EngineRect) => EngineNodeId[]
   padding?: number
+}
+
+/**
+ * Minimal viewport payload required by frame-plan query math.
+ */
+interface EngineFramePlanViewport {
+  /** Viewport width in CSS pixels. */
+  viewportWidth: number
+  /** Viewport height in CSS pixels. */
+  viewportHeight: number
+  /** Camera X translation in screen-space pixels. */
+  offsetX: number
+  /** Camera Y translation in screen-space pixels. */
+  offsetY: number
+  /** Camera zoom scale factor. */
+  scale: number
 }
 
 // Build a planner-facing frame summary from the coarse spatial query surface
 // without changing renderer execution. This gives diagnostics and future
 // planners a stable place to start.
+/**
+ * Handles prepareEngineFramePlan.
+ * @param options Options object for this operation.
+ */
 export function prepareEngineFramePlan(
   options: PrepareEngineFramePlanOptions,
 ): EngineFramePlan {
@@ -41,6 +61,10 @@ export function prepareEngineFramePlan(
   }
 }
 
+/**
+ * Handles resolveSceneNodeCount.
+ * @param scene Scene snapshot.
+ */
 function resolveSceneNodeCount(scene: EngineSceneSnapshot) {
   const cached = sceneNodeCountCache.get(scene)
   if (typeof cached === 'number') {
@@ -54,20 +78,29 @@ function resolveSceneNodeCount(scene: EngineSceneSnapshot) {
 
 // Keep the current frame plan intentionally coarse so future render and
 // hit-test planners can share the same viewport query contract.
+/**
+ * Handles resolveViewportWorldBounds.
+ * @param viewport Viewport state.
+ * @param padding padding parameter.
+ */
 function resolveViewportWorldBounds(
-  viewport: Pick<EngineCanvasViewportState, 'viewportWidth' | 'viewportHeight' | 'offsetX' | 'offsetY' | 'scale'>,
+  viewport: EngineFramePlanViewport,
   padding: number,
 ): EngineRect {
   return {
     x: -viewport.offsetX / viewport.scale - padding,
     y: -viewport.offsetY / viewport.scale - padding,
-    width: viewport.viewportWidth / viewport.scale + padding * 2,
-    height: viewport.viewportHeight / viewport.scale + padding * 2,
+    width: viewport.viewportWidth / viewport.scale + padding * VIEWPORT_PADDING_DOUBLE,
+    height: viewport.viewportHeight / viewport.scale + padding * VIEWPORT_PADDING_DOUBLE,
   }
 }
 
 // Count flattened scene nodes so diagnostics can compare candidate pressure
 // against total scene complexity without depending on store internals.
+/**
+ * Handles countSceneNodes.
+ * @param nodes nodes parameter.
+ */
 function countSceneNodes(nodes: readonly EngineSceneSnapshot['nodes'][number][]): number {
   let count = 0
 
