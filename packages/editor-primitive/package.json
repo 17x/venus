@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "typecheck": "tsc -b ./tsconfig.json",
+    "build": "tsc -b ./tsconfig.json",
+    "lint": "eslint src",
     "test": "node --experimental-strip-types --test src/**/*.test.ts",
     "typecheck:test": "tsc -p ./tsconfig.test.json --noEmit"
   },

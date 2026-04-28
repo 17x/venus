@@ -21,10 +21,64 @@
 - `capture`: pointer capture ownership runtime contract.
 - `runtime`: top-level interaction runtime composition contracts.
 
+## API Usage
+
+### Pointer
+
+```ts
+import {createPointerRuntime, applyPointerDown, applyPointerMove, applyPointerUp} from '@venus/editor-primitive'
+
+const pointer = createPointerRuntime(4)
+const afterDown = applyPointerDown(pointer, event)
+const afterMove = applyPointerMove(afterDown, event)
+const afterUp = applyPointerUp(afterMove, event)
+```
+
+### Keyboard
+
+```ts
+import {createKeyboardRuntime, applyKeyboardKeyDown, applyKeyboardKeyUp} from '@venus/editor-primitive'
+
+const keyboard = createKeyboardRuntime()
+const withSpace = applyKeyboardKeyDown(keyboard, {key: ' '})
+const withoutSpace = applyKeyboardKeyUp(withSpace, {key: ' '})
+```
+
+### Tool + Operation
+
+```ts
+import {resolveEffectiveTool, createOperationLifecycleManager} from '@venus/editor-primitive'
+
+const tool = resolveEffectiveTool({selectedTool: 'select', temporaryTool: 'pan'})
+const lifecycle = createOperationLifecycleManager('idle')
+```
+
+### Cursor + Viewport
+
+```ts
+import {resizeDirectionToCssCursor, RUNTIME_ZOOM_PRESETS, resolveRuntimeZoomPresetScale} from '@venus/editor-primitive'
+
+const cursor = resizeDirectionToCssCursor('ne', 30)
+const nextScale = resolveRuntimeZoomPresetScale(1, 'in')
+```
+
+### Overlay + Hover + Capture
+
+```ts
+import {sortOverlayNodesByZIndex, resolveHoverRuntime, createCaptureRuntime} from '@venus/editor-primitive'
+
+const ordered = sortOverlayNodesByZIndex(nodes)
+const hover = resolveHoverRuntime(previousHover, {overlayHit, sceneHit})
+const capture = createCaptureRuntime()
+```
+
 ## Tests
 
 - Package tests run with `node:test` under `src/**/*.test.ts`.
-- Run `pnpm --filter @venus/editor-primitive test`.
+- Run package checks with:
+  - `pnpm --filter @venus/editor-primitive typecheck`
+  - `pnpm --filter @venus/editor-primitive lint`
+  - `pnpm --filter @venus/editor-primitive test`
 
 ## Boundary
 

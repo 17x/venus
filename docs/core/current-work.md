@@ -8,6 +8,10 @@
 - Added `node:test` coverage under `packages/editor-primitive/src/**` for each module.
 - Extracted shared zoom preset policy into `@venus/editor-primitive/viewport` and switched vector local interaction bridge to consume the package export.
 - Switched vector runtime-local cursor resize rotation mapping to reuse `@venus/editor-primitive/cursor` helper.
+- Updated `@vector/runtime/interaction` bridge to re-export `@venus/editor-primitive` first, then vector-local adapters from `editor/runtime-local/interaction`.
+- Removed duplicated zoom exports from vector-local interaction barrel to keep one package-owned zoom contract.
+- Added explicit vector app workspace dependency on `@venus/editor-primitive`.
+- Added `@venus/editor-primitive` package scripts for `typecheck`, `lint`, and `build`, then expanded package README API examples.
 
 ## 2026-04-27
 
@@ -34,9 +38,17 @@
 ## Notes
 
 - Verification currently passes for:
+ - `pnpm --filter @venus/editor-primitive typecheck`
+ - `pnpm --filter @venus/editor-primitive lint`
+ - `pnpm --filter @venus/editor-primitive test`
+ - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+ - `pnpm typecheck`
+ - `pnpm lint`
+ - `pnpm build`
+ - `pnpm test`
   - `pnpm --filter @venus/lib typecheck:test`
   - `pnpm --filter @venus/lib test`
   - `pnpm --filter @venus/engine test`
-  - `pnpm typecheck`
-  - `pnpm lint`
-  - `pnpm build`
+
+- Additional note:
+  - `pnpm --filter @venus/vector-editor-web lint` still fails in pre-existing `ui-style-guard` checks unrelated to this migration slice.

@@ -17,7 +17,7 @@ Packages under `packages/*` are reusable implementation layers shared by apps.
 ## `@venus/lib` Module Coverage
 
 - `math`, `geometry`, `ids`, `events`, `lifecycle`, `scheduler`
-- `patch`, `collections`, `logger`, `worker`, `serialization`, `assert`
+- `patch`, `collections`, `logger`, `worker`, `serialization`, `assert`, `viewport`
 
 Each module is implemented under `packages/lib/src/<module>` and includes
 `node:test` coverage in the same folder.
@@ -34,5 +34,6 @@ includes `node:test` coverage in the same folder.
 
 - Apps compose package capabilities; packages do not import app modules.
 - `@venus/editor-primitive` may depend on `@venus/lib` only.
+- `@vector/runtime/interaction` should re-export package-owned primitives from `@venus/editor-primitive` before app-local compatibility adapters.
 - `@venus/engine` must not depend on app-level product semantics.
 - Public package APIs should evolve with backward-compatible intent whenever practical.

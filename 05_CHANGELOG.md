@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-04-28
+
+- Finalized vector interaction bridge ownership by exporting shared primitives
+  from `@venus/editor-primitive` at
+  `apps/vector-editor-web/src/runtime/interaction/index.ts` and keeping only
+  vector-specific adapters in
+  `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts`.
+- Added explicit `@venus/editor-primitive` dependency to
+  `apps/vector-editor-web/package.json` so app-level package usage is declared.
+- Expanded `@venus/editor-primitive` package scripts with `typecheck`, `lint`,
+  and `build`, and extended package docs with module-level API usage examples.
+- Updated package/workstream documentation for the new bridge boundary:
+  `packages/README.md`, `packages/editor-primitive/README.md`, and
+  `docs/core/current-work.md`.
+- Verification run:
+  - `pnpm --filter @venus/editor-primitive typecheck`
+  - `pnpm --filter @venus/editor-primitive lint`
+  - `pnpm --filter @venus/editor-primitive test`
+  - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm build`
+  - `pnpm test`
+- Known follow-up:
+  - `pnpm --filter @venus/vector-editor-web lint` currently fails existing
+    `ui-style-guard` checks in untouched files.
+
 ## 2026-04-27
 
 - Added `@venus/lib` module coverage for `math`, `geometry`, `ids`, `events`,

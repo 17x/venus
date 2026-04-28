@@ -31,6 +31,17 @@ for auditability and future agent handoff.
   - `apps/vector-editor-web/src/runtime/interaction/index.ts`
   - `apps/vector-editor-web/docs/runtime/runtime-interaction.md`
 
+- Scope: finalize vector interaction bridge and package validation surface
+- Why: makes `@vector/runtime/interaction` explicitly expose package-owned primitives from `@venus/editor-primitive`, removes duplicate local exports, and adds package scripts/docs so checks and ownership remain stable
+- Key files:
+  - `apps/vector-editor-web/src/runtime/interaction/index.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts`
+  - `apps/vector-editor-web/package.json`
+  - `packages/editor-primitive/package.json`
+  - `packages/editor-primitive/README.md`
+  - `packages/README.md`
+  - `docs/core/current-work.md`
+
 ## 2026-04-27
 
 - Scope: bootstrap reusable `@venus/lib` and `@venus/editor-primitive` packages
