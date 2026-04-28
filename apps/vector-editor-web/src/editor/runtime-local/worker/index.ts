@@ -18,6 +18,7 @@ export type {
 export type {
   EditorRuntimeCommand,
   EditorWorkerMessage,
+  RuntimeV2DiagnosticsMessage,
   SceneUpdateMessage,
   WorkerCommandMessage,
   WorkerInitMessage,

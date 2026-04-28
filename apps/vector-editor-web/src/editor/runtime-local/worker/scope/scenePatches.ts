@@ -31,7 +31,16 @@ import {
   writeRuntimeShapeToScene,
 } from './sceneSpatial.ts'
 import {syncDerivedGroupBounds} from './sceneGroupBounds.ts'
+import {
+  applyNormalizedGroupChildrenChange,
+  applyNormalizedInsertShape,
+  applyNormalizedRemoveShape,
+  applyNormalizedShapeParentChange,
+} from '../../document-runtime/index.ts'
 
+/**
+ * Applies worker history patches to document/scene state and keeps runtime buffers synchronized.
+ */
 export function applyPatches(
   scene: SceneMemory,
   document: EditorDocument,
@@ -245,7 +254,13 @@ export function applyPatches(
         return
       }
 
-      shape.parentId = patch.nextParentId
+      // Apply structural parent update through normalized runtime so parent child-lists stay coherent.
+      applyNormalizedShapeParentChange({
+        document,
+        shapeId: patch.shapeId,
+        nextParentId: patch.nextParentId,
+      })
+
       const index = document.shapes.findIndex((item) => item.id === shape.id)
       writeRuntimeShapeToScene(scene, document, index, shape)
       incrementSceneVersion(scene)
@@ -260,7 +275,13 @@ export function applyPatches(
         return
       }
 
-      group.childIds = patch.nextChildIds?.slice()
+      // Apply child-order update through normalized runtime so parent pointers and sibling order stay aligned.
+      applyNormalizedGroupChildrenChange({
+        document,
+        groupId: patch.groupId,
+        nextChildIds: patch.nextChildIds,
+      })
+
       const index = document.shapes.findIndex((item) => item.id === group.id)
       writeRuntimeShapeToScene(scene, document, index, group)
       incrementSceneVersion(scene)
@@ -270,7 +291,7 @@ export function applyPatches(
     }
 
     if (patch.type === 'insert-shape') {
-      document.shapes.splice(patch.index, 0, {
+      const insertedShape = {
         ...patch.shape,
         type: patch.shape.type as import('@vector/model').DocumentNode['type'],
         parentId: patch.shape.parentId,
@@ -292,11 +313,18 @@ export function applyPatches(
         ellipseEndAngle: patch.shape.ellipseEndAngle,
         points: clonePoints(patch.shape.points),
         bezierPoints: cloneBezierPoints(patch.shape.bezierPoints),
+      }
+
+      // Apply insertion through normalized runtime helper so structural ownership stays canonical.
+      const insertedIndex = applyNormalizedInsertShape({
+        document,
+        index: patch.index,
+        shape: insertedShape,
       })
-      insertShapeIntoScene(scene, patch.index, document.shapes[patch.index])
-      writeRuntimeShapeToScene(scene, document, patch.index, document.shapes[patch.index])
-      syncSpatialRange(spatialIndex, document, patch.index)
-      changedShapeIds.add(document.shapes[patch.index].id)
+      insertShapeIntoScene(scene, insertedIndex, document.shapes[insertedIndex])
+      writeRuntimeShapeToScene(scene, document, insertedIndex, document.shapes[insertedIndex])
+      syncSpatialRange(spatialIndex, document, insertedIndex)
+      changedShapeIds.add(document.shapes[insertedIndex].id)
       needsGroupBoundsSync = true
       return
     }
@@ -323,11 +351,20 @@ export function applyPatches(
     }
 
     if (patch.type === 'remove-shape') {
-      changedShapeIds.add(patch.shape.id)
-      spatialIndex.remove(patch.shape.id)
-      document.shapes.splice(patch.index, 1)
-      removeShapeFromScene(scene, patch.index)
-      syncSpatialRange(spatialIndex, document, patch.index)
+      // Apply removal through normalized runtime helper so parent/children links remain consistent.
+      const removed = applyNormalizedRemoveShape({
+        document,
+        index: patch.index,
+        shapeId: patch.shape.id,
+      })
+      if (!removed) {
+        return
+      }
+
+      changedShapeIds.add(removed.removedShape.id)
+      spatialIndex.remove(removed.removedShape.id)
+      removeShapeFromScene(scene, removed.removedIndex)
+      syncSpatialRange(spatialIndex, document, removed.removedIndex)
       needsGroupBoundsSync = true
     }
   })

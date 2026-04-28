@@ -56,7 +56,11 @@ import {
 } from './useEditorRuntimeExecuteAction.ts'
 import {useEditorRuntimeCoreCallbacks} from './useEditorRuntimeCoreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './useEditorRuntimeCanvasInteractions.ts'
-import {publishRuntimeShellSnapshot, resetRuntimeEventSnapshots} from '../../runtime/events/index.ts'
+import {
+  publishRuntimeMigrationSnapshot,
+  publishRuntimeShellSnapshot,
+  resetRuntimeEventSnapshots,
+} from '../../runtime/events/index.ts'
 
 const SNAP_AUTO_DISABLE_SHAPE_COUNT = 25_000
 
@@ -461,6 +465,25 @@ const useEditorRuntime = (options?: {
       layerCount: uiState.layerItems.length,
     })
   }, [selectedShapeIds.length, uiState.layerItems.length])
+
+  useEffect(() => {
+    // Surface worker runtime-v2 diagnostics through shared runtime events for debug subscribers.
+    publishRuntimeMigrationSnapshot({
+      runtimeV2: {
+        checks: canvasRuntime.runtimeV2.checks,
+        mismatches: canvasRuntime.runtimeV2.mismatches,
+        lastCommandType: canvasRuntime.runtimeV2.lastCommandType,
+        lastIssues: canvasRuntime.runtimeV2.lastIssues,
+        strictModeEnabled: canvasRuntime.runtimeV2.strictModeEnabled,
+      },
+    })
+  }, [
+    canvasRuntime.runtimeV2.checks,
+    canvasRuntime.runtimeV2.mismatches,
+    canvasRuntime.runtimeV2.lastCommandType,
+    canvasRuntime.runtimeV2.lastIssues,
+    canvasRuntime.runtimeV2.strictModeEnabled,
+  ])
 
   const resolveMarqueeSelectionIds = useCallback((nextMarquee: MarqueeState) => expandMaskLinkedShapeIds(
     interactionDocument,

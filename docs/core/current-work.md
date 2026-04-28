@@ -31,11 +31,47 @@
 - Fixed engine cross-environment frame/timer handle typing so workspace typecheck passes with Node timer types enabled:
   - updated `packages/engine/src/renderer/initialRender.ts` timer handle fields to use runtime `setTimeout` return-handle typing
   - updated `packages/engine/src/time/index.ts` `EngineFrameHandle` to support timeout handles and guarded `cancelAnimationFrame` with numeric-handle narrowing
-- Verification for this expansion slice:
-  - `pnpm --filter @venus/editor-primitive typecheck`
-  - `pnpm --filter @venus/editor-primitive lint`
-  - `pnpm --filter @venus/editor-primitive test`
+- Started vector normalized document migration with a new pure TS runtime projection while keeping UI protocol unchanged:
+  - added `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - switched group bounds derivation to normalized parent/children traversal in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/sceneGroupBounds.ts`
+  - added migration tests in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.test.ts`
+  - added UI feature alignment and phased migration tracker `apps/vector-editor-web/docs/runtime/runtime-v2-migration.md`
+- Completed the next vector runtime-v2 migration trio (`1/2/3`) with UI unchanged:
+  - moved `shape.group` and `shape.ungroup` patch planning to normalized runtime helpers in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.ts`
+  - wired local and remote command paths to consume normalized planners in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/localHistoryEntry.ts` and `apps/vector-editor-web/src/editor/runtime-local/worker/scope/remotePatches.ts`
+  - upgraded `shape.reorder` to emit canonical sibling-order patches (`set-group-children`) while preserving legacy reorder compatibility patches
+  - added dual-write consistency validation diagnostics for `shape.group` / `shape.ungroup` / `shape.reorder` in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - added deterministic tests in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts`
+- Continued vector runtime-v2 hardening after `1/2/3` completion:
+  - added normalized structural apply helpers (`applyNormalizedShapeParentChange`, `applyNormalizedGroupChildrenChange`) in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - switched `apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.ts` structural apply path to use normalized helpers
+  - added local-vs-remote patch parity tests in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - expanded dual-write diagnostics with counters and strict-mode gate (`VENUS_RUNTIME_V2_DUAL_WRITE_STRICT=1`) in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+- Continued runtime-v2 apply-path migration for shape insertion/removal ownership consistency:
+  - added `applyNormalizedInsertShape` + `applyNormalizedRemoveShape` helpers in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - switched `insert-shape` / `remove-shape` handling in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.ts` to normalized helpers
+  - added apply-path regression tests `apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.normalizedApply.test.ts`
+  - added diagnostics behavior tests `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts`
+- Completed runtime-v2 diagnostics surfacing from worker protocol through runtime snapshots/events:
+  - threaded `runtimeV2` payload through `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`, `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`, `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`, `apps/vector-editor-web/src/runtime/events/index.ts`, and `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
+  - added focused diagnostics threading tests in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts` and `apps/vector-editor-web/src/runtime/events/index.test.ts`
+- Verification for diagnostics-threading completion:
+  - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/runtime/events/index.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.normalizedApply.test.ts`
   - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm build`
+- Continued collaboration-side runtime-v2 migration by making remote reorder patches canonical-first:
+  - updated `apps/vector-editor-web/src/editor/runtime-local/worker/scope/remotePatches.ts` so `shape.reorder` emits `set-group-children` before compatibility reorder patches
+  - added focused ordering regression test `apps/vector-editor-web/src/editor/runtime-local/worker/scope/remotePatches.normalizedOrder.test.ts`
+- Completed the requested runtime-v2 follow-up trio for collaboration + observability:
+  - added normalized remote structural storage reconciliation after collaboration apply in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` and `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - expanded dual-write diagnostics scope to include `shape.insert`, `shape.insert.batch`, and `shape.remove` across local/remote paths in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - surfaced runtime-v2 migration counters in the default debug panel view via `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+- Added focused regression tests for the new migration slice:
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts`
 
 ## 2026-04-27
 
@@ -76,4 +112,3 @@
 
 - Additional note:
   - `pnpm --filter @venus/vector-editor-web lint` still fails in pre-existing `ui-style-guard` checks unrelated to this migration slice.
-

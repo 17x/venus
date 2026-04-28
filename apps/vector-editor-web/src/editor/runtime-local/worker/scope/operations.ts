@@ -13,6 +13,31 @@ import {createLocalHistoryEntry} from './localHistoryEntry.ts'
 import {expandMaskLinkedShapeIds} from './maskGroupSemantics.ts'
 import {createRemotePatches} from './remotePatches.ts'
 import {createWorkerLocalCommandDispatcher} from './commandDispatchRegistry.ts'
+import {
+  reconcileNormalizedStructuralStorage,
+  validateNormalizedDualWriteConsistency,
+} from '../../document-runtime/index.ts'
+
+/**
+ * Tracks runtime-v2 dual-write diagnostics for migration-sensitive command handling.
+ */
+export interface RuntimeV2DualWriteDiagnostics {
+  /** Stores total number of consistency checks executed. */
+  checks: number
+  /** Stores total number of mismatch events observed. */
+  mismatches: number
+  /** Stores latest mismatch command type when one exists. */
+  lastCommandType: string | null
+  /** Stores latest mismatch issue list for debugging. */
+  lastIssues: string[]
+}
+
+const runtimeV2DualWriteDiagnostics: RuntimeV2DualWriteDiagnostics = {
+  checks: 0,
+  mismatches: 0,
+  lastCommandType: null,
+  lastIssues: [],
+}
 
 type LocalCommandDispatchContext = {
   scene: SceneMemory
@@ -104,6 +129,9 @@ localCommandHandlers.forEach((entry) => {
   })
 })
 
+/**
+ * Handles one local runtime command and applies resulting patches to scene/document state.
+ */
 export function handleLocalCommand(
   command: EditorRuntimeCommand,
   scene: SceneMemory,
@@ -128,9 +156,13 @@ export function handleLocalCommand(
   const updateKind = applyPatchBatch(entry.forward, (patches) => applyPatches(scene, document, spatialIndex, patches))
   const operation = createLocalOperation(command, collaboration.getState().actorId)
   collaboration.recordLocalOperation(operation)
+  reportNormalizedDualWriteIssues(command.type, document)
   return updateKind ?? 'flags'
 }
 
+/**
+ * Handles one remote collaboration operation and applies generated patches locally.
+ */
 export function handleRemoteOperation(
   operation: CollaborationOperation,
   scene: SceneMemory,
@@ -142,6 +174,107 @@ export function handleRemoteOperation(
   collaboration.receiveRemoteOperation(operation)
   const patches = createRemotePatches(operation, scene, document)
   const updateKind = applyPatchBatch(patches, (nextPatches) => applyPatches(scene, document, spatialIndex, nextPatches))
+
+  if (isRuntimeV2StructuralCommandType(operation.type)) {
+    // Reconcile legacy storage after remote structural apply so normalized ownership stays canonical.
+    reconcileNormalizedStructuralStorage({document})
+  }
+
   history.pushRemoteEntry({id: operation.id, label: `Remote ${operation.type}`, forward: patches, backward: []})
+  reportNormalizedDualWriteIssues(operation.type, document)
   return updateKind ?? 'flags'
+}
+
+/**
+ * Returns a snapshot of current runtime-v2 dual-write diagnostics counters.
+ */
+export function getRuntimeV2DualWriteDiagnostics(): RuntimeV2DualWriteDiagnostics {
+  return {
+    checks: runtimeV2DualWriteDiagnostics.checks,
+    mismatches: runtimeV2DualWriteDiagnostics.mismatches,
+    lastCommandType: runtimeV2DualWriteDiagnostics.lastCommandType,
+    lastIssues: runtimeV2DualWriteDiagnostics.lastIssues.slice(),
+  }
+}
+
+/**
+ * Resets runtime-v2 dual-write diagnostics counters and latest mismatch snapshot.
+ */
+export function resetRuntimeV2DualWriteDiagnostics() {
+  runtimeV2DualWriteDiagnostics.checks = 0
+  runtimeV2DualWriteDiagnostics.mismatches = 0
+  runtimeV2DualWriteDiagnostics.lastCommandType = null
+  runtimeV2DualWriteDiagnostics.lastIssues = []
+}
+
+/**
+ * Executes one runtime-v2 dual-write consistency check for a command type and returns diagnostics snapshot.
+ */
+export function runRuntimeV2DualWriteCheck(
+  commandType: EditorRuntimeCommand['type'] | CollaborationOperation['type'],
+  document: EditorDocument,
+): RuntimeV2DualWriteDiagnostics {
+  reportNormalizedDualWriteIssues(commandType, document)
+  return getRuntimeV2DualWriteDiagnostics()
+}
+
+/**
+ * Returns whether one command type should trigger structural dual-write diagnostics.
+ */
+function isRuntimeV2StructuralCommandType(
+  commandType: EditorRuntimeCommand['type'] | CollaborationOperation['type'],
+): boolean {
+  return commandType === 'shape.group'
+    || commandType === 'shape.ungroup'
+    || commandType === 'shape.reorder'
+    || commandType === 'shape.insert'
+    || commandType === 'shape.insert.batch'
+    || commandType === 'shape.remove'
+}
+
+/**
+ * Reports normalized dual-write consistency issues for migration-sensitive commands.
+ */
+function reportNormalizedDualWriteIssues(
+  commandType: EditorRuntimeCommand['type'] | CollaborationOperation['type'],
+  document: EditorDocument,
+) {
+  if (!isRuntimeV2StructuralCommandType(commandType)) {
+    return
+  }
+
+  runtimeV2DualWriteDiagnostics.checks += 1
+  const validation = validateNormalizedDualWriteConsistency(document)
+  if (validation.valid) {
+    return
+  }
+
+  runtimeV2DualWriteDiagnostics.mismatches += 1
+  runtimeV2DualWriteDiagnostics.lastCommandType = commandType
+  runtimeV2DualWriteDiagnostics.lastIssues = validation.issues.slice()
+
+  if (isRuntimeV2DualWriteStrictModeEnabled()) {
+    throw new Error(`runtime-v2 dual-write mismatch on ${commandType}: ${validation.issues.join('; ')}`)
+  }
+
+  // AI-TEMP: keep migration diagnostics non-blocking while runtime-v2 adoption is incremental; remove when normalized model becomes the single source of truth; ref apps/vector-editor-web/docs/runtime/runtime-v2-migration.md
+  console.warn('[runtime-v2 dual-write mismatch]', {
+    commandType,
+    issues: validation.issues,
+  })
+}
+
+/**
+ * Returns whether runtime-v2 dual-write mismatch checks run in strict fail-fast mode.
+ */
+export function getRuntimeV2DualWriteStrictModeEnabled(): boolean {
+  const strictFlag = typeof process !== 'undefined' ? process.env?.VENUS_RUNTIME_V2_DUAL_WRITE_STRICT : undefined
+  return strictFlag === '1'
+}
+
+/**
+ * Returns whether runtime-v2 dual-write diagnostics should throw on mismatch.
+ */
+function isRuntimeV2DualWriteStrictModeEnabled(): boolean {
+  return getRuntimeV2DualWriteStrictModeEnabled()
 }

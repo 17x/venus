@@ -20,7 +20,12 @@ import {resolvePointerSelectionMode} from './pointerSelection.ts'
 import {hitTestDocumentCandidates} from './hitTest.ts'
 import {cloneDocument} from './model.ts'
 import {rebuildSpatialIndex, syncClippedImageRuntimeGeometry} from './scenePatches.ts'
-import {handleLocalCommand, handleRemoteOperation} from './operations.ts'
+import {
+  getRuntimeV2DualWriteDiagnostics,
+  getRuntimeV2DualWriteStrictModeEnabled,
+  handleLocalCommand,
+  handleRemoteOperation,
+} from './operations.ts'
 
 function debugWorker(message: string, details?: unknown) {
   console.debug('EDITOR-WORKER', message, details)
@@ -172,5 +177,9 @@ function postScene(
     stats: readSceneStats(scene),
     history: history.getSummary(),
     collaboration: collaboration.getState(),
+    runtimeV2: {
+      ...getRuntimeV2DualWriteDiagnostics(),
+      strictModeEnabled: getRuntimeV2DualWriteStrictModeEnabled(),
+    },
   } satisfies SceneUpdateMessage)
 }

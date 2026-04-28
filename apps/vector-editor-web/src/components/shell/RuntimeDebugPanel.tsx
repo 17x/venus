@@ -1,8 +1,11 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {useTranslation} from 'react-i18next'
 import {
+  EMPTY_RUNTIME_MIGRATION_SNAPSHOT,
   EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
+  getRuntimeMigrationSnapshot,
   getRuntimeRenderDiagnosticsSnapshot,
+  subscribeRuntimeMigrationSnapshot,
   subscribeRuntimeRenderDiagnostics,
 } from '../../runtime/events/index.ts'
 
@@ -92,6 +95,15 @@ export function RuntimeDebugPanel() {
     getRuntimeRenderDiagnosticsSnapshot,
     () => EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
   )
+  const runtimeMigrationSnapshot = useSyncExternalStore(
+    subscribeRuntimeMigrationSnapshot,
+    getRuntimeMigrationSnapshot,
+    () => EMPTY_RUNTIME_MIGRATION_SNAPSHOT,
+  )
+  // Keep mismatch rate explicit so migration risk can be tracked at a glance.
+  const runtimeV2MismatchRatePercent = runtimeMigrationSnapshot.runtimeV2.checks > 0
+    ? (runtimeMigrationSnapshot.runtimeV2.mismatches / runtimeMigrationSnapshot.runtimeV2.checks) * 100
+    : 0
   // Prefer sectioned diagnostics for UI grouping while keeping flat fallback.
   const stats = diagnostics.stats ?? EMPTY_RUNTIME_RENDER_DIAGNOSTICS.stats
   const performanceTimingStats = stats?.performance.timing
@@ -592,6 +604,14 @@ export function RuntimeDebugPanel() {
           <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnostics.imageTextureBytes)}/>
           <DebugRow label={t('shell.variantB.debug.cacheFallbackReason', 'Cache Fallback Reason')} value={diagnostics.cacheFallbackReason}/>
         </DebugSection>
+
+        <DebugSection title={t('shell.variantB.debug.sectionRuntimeV2', 'Runtime V2 Migration')}>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2Checks', 'Dual-Write Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.checks)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2Mismatches', 'Dual-Write Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.mismatches)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2MismatchRate', 'Dual-Write Mismatch Rate')} value={`${runtimeV2MismatchRatePercent.toFixed(1)}%`}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2LastCommand', 'Last Mismatch Command')} value={runtimeMigrationSnapshot.runtimeV2.lastCommandType ?? 'none'}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2StrictMode', 'Strict Mode Enabled')} value={runtimeMigrationSnapshot.runtimeV2.strictModeEnabled ? 'yes' : 'no'}/>
+        </DebugSection>
       </section>
     )
   }
@@ -803,6 +823,14 @@ export function RuntimeDebugPanel() {
         <span className={`font-mono ${sceneDirtyRiskStatusClassName}`}>{sceneDirtyRiskStatus}</span>
       </div>
       </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionRuntimeV2', 'Runtime V2 Migration')}>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2Checks', 'Dual-Write Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.checks)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2Mismatches', 'Dual-Write Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.mismatches)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2MismatchRate', 'Dual-Write Mismatch Rate')} value={`${runtimeV2MismatchRatePercent.toFixed(1)}%`}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2LastCommand', 'Last Mismatch Command')} value={runtimeMigrationSnapshot.runtimeV2.lastCommandType ?? 'none'}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2StrictMode', 'Strict Mode Enabled')} value={runtimeMigrationSnapshot.runtimeV2.strictModeEnabled ? 'yes' : 'no'}/>
+        </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
       <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
