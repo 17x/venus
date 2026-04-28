@@ -349,6 +349,27 @@ export interface RuntimeShellSnapshot {
   layerCount: number
 }
 
+export interface RuntimeMigrationSnapshot {
+  runtimeV2: {
+    // Stores cumulative worker dual-write consistency check count.
+    checks: number
+    // Stores cumulative worker dual-write mismatch count.
+    mismatches: number
+    // Stores latest command type associated with mismatch diagnostics.
+    lastCommandType: string | null
+    // Stores latest mismatch issue set for quick debug visibility.
+    lastIssues: string[]
+    // Stores cumulative shape-tree invariant checks executed at worker frame boundaries.
+    frameBoundaryChecks: number
+    // Stores cumulative shape-tree invariant mismatches detected at worker frame boundaries.
+    frameBoundaryMismatches: number
+    // Stores latest frame-boundary invariant issue set for quick debug visibility.
+    lastFrameBoundaryIssues: string[]
+    // Indicates whether worker strict mismatch mode is currently enabled.
+    strictModeEnabled: boolean
+  }
+}
+
 export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   frameCount: 0,
   drawCount: 0,
@@ -677,11 +698,29 @@ export const EMPTY_RUNTIME_SHELL_SNAPSHOT: RuntimeShellSnapshot = {
   layerCount: 0,
 }
 
+export const EMPTY_RUNTIME_MIGRATION_SNAPSHOT: RuntimeMigrationSnapshot = {
+  runtimeV2: {
+    checks: 0,
+    mismatches: 0,
+    lastCommandType: null,
+    lastIssues: [],
+    frameBoundaryChecks: 0,
+    frameBoundaryMismatches: 0,
+    lastFrameBoundaryIssues: [],
+    strictModeEnabled: false,
+  },
+}
+
 const viewportSnapshotListeners = new Set<VoidFunction>()
 let currentViewportSnapshot = EMPTY_RUNTIME_VIEWPORT_SNAPSHOT
 const shellSnapshotListeners = new Set<VoidFunction>()
 let currentShellSnapshot = EMPTY_RUNTIME_SHELL_SNAPSHOT
+const migrationSnapshotListeners = new Set<VoidFunction>()
+let currentRuntimeMigrationSnapshot = EMPTY_RUNTIME_MIGRATION_SNAPSHOT
 
+/**
+ * Resets all shared runtime event snapshots to their empty defaults.
+ */
 export function resetRuntimeEventSnapshots() {
   currentRenderDiagnostics = EMPTY_RUNTIME_RENDER_DIAGNOSTICS
   previousFrameCount = 0
@@ -691,11 +730,16 @@ export function resetRuntimeEventSnapshots() {
   peakSmoothedFpsEstimate = 0
   currentViewportSnapshot = EMPTY_RUNTIME_VIEWPORT_SNAPSHOT
   currentShellSnapshot = EMPTY_RUNTIME_SHELL_SNAPSHOT
+  currentRuntimeMigrationSnapshot = EMPTY_RUNTIME_MIGRATION_SNAPSHOT
   renderDiagnosticsListeners.forEach((listener) => listener())
   viewportSnapshotListeners.forEach((listener) => listener())
   shellSnapshotListeners.forEach((listener) => listener())
+  migrationSnapshotListeners.forEach((listener) => listener())
 }
 
+/**
+ * Publishes runtime render diagnostics for subscribers that track performance and state.
+ */
 export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) {
   const now = globalThis.performance?.now?.() ?? Date.now()
   const frameDelta = next.frameCount - previousFrameCount
@@ -893,10 +937,16 @@ function resolveRuntimeRenderDiagnosticsStats(
   }
 }
 
+/**
+ * Returns the current runtime render diagnostics snapshot.
+ */
 export function getRuntimeRenderDiagnosticsSnapshot() {
   return currentRenderDiagnostics
 }
 
+/**
+ * Subscribes to runtime render diagnostics updates.
+ */
 export function subscribeRuntimeRenderDiagnostics(listener: VoidFunction) {
   renderDiagnosticsListeners.add(listener)
   return () => {
@@ -904,15 +954,24 @@ export function subscribeRuntimeRenderDiagnostics(listener: VoidFunction) {
   }
 }
 
+/**
+ * Publishes viewport snapshot updates for viewport-only subscribers.
+ */
 export function publishRuntimeViewportSnapshot(next: RuntimeViewportSnapshot) {
   currentViewportSnapshot = next
   viewportSnapshotListeners.forEach((listener) => listener())
 }
 
+/**
+ * Returns the current runtime viewport snapshot.
+ */
 export function getRuntimeViewportSnapshot() {
   return currentViewportSnapshot
 }
 
+/**
+ * Subscribes to runtime viewport snapshot updates.
+ */
 export function subscribeRuntimeViewportSnapshot(listener: VoidFunction) {
   viewportSnapshotListeners.add(listener)
   return () => {
@@ -920,19 +979,53 @@ export function subscribeRuntimeViewportSnapshot(listener: VoidFunction) {
   }
 }
 
+/**
+ * Publishes shell snapshot updates for lightweight editor chrome subscribers.
+ */
 export function publishRuntimeShellSnapshot(next: RuntimeShellSnapshot) {
   currentShellSnapshot = next
   shellSnapshotListeners.forEach((listener) => listener())
 }
 
+/**
+ * Returns the current runtime shell snapshot.
+ */
 export function getRuntimeShellSnapshot() {
   return currentShellSnapshot
 }
 
+/**
+ * Subscribes to runtime shell snapshot updates.
+ */
 export function subscribeRuntimeShellSnapshot(listener: VoidFunction) {
   shellSnapshotListeners.add(listener)
   return () => {
     shellSnapshotListeners.delete(listener)
+  }
+}
+
+/**
+ * Publishes runtime migration diagnostics for subscribers that track runtime-v2 rollout health.
+ */
+export function publishRuntimeMigrationSnapshot(next: RuntimeMigrationSnapshot) {
+  currentRuntimeMigrationSnapshot = next
+  migrationSnapshotListeners.forEach((listener) => listener())
+}
+
+/**
+ * Returns the most recently published runtime migration diagnostics snapshot.
+ */
+export function getRuntimeMigrationSnapshot() {
+  return currentRuntimeMigrationSnapshot
+}
+
+/**
+ * Subscribes to runtime migration diagnostics snapshot updates.
+ */
+export function subscribeRuntimeMigrationSnapshot(listener: VoidFunction) {
+  migrationSnapshotListeners.add(listener)
+  return () => {
+    migrationSnapshotListeners.delete(listener)
   }
 }
 

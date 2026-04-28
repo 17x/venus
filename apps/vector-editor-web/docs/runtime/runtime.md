@@ -4,6 +4,11 @@ Vector app local runtime integration note. This file captures how
 `apps/vector-editor-web` consumes runtime capabilities and what boundaries must
 stay stable.
 
+## Migration Tracking
+
+- Normalized document runtime migration plan and UI feature alignment:
+  `./runtime-v2-migration.md`
+
 ## Stable Runtime Boundary
 
 - Runtime owns worker bridge, runtime lifecycle, viewport orchestration, and

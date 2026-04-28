@@ -18,25 +18,19 @@ import {
   createDistributeMovePatches,
 } from './shapeCommandHelpers.ts'
 import {createTransformPatches, resolveTransformBatchItemToLegacy} from './transformSerde.ts'
+import {
+  createNormalizedGroupPatchPlan,
+  createNormalizedSiblingReorderPlan,
+  createNormalizedUngroupPatchPlan,
+} from '../../document-runtime/index.ts'
 
 function createLogOnlyEntry(id: string, label: string): Omit<HistoryEntry, 'source'> {
   return {id, label, forward: [], backward: []}
 }
 
-function getNodeBounds(nodes: DocumentNode[]) {
-  const minX = Math.min(...nodes.map((node) => node.x))
-  const minY = Math.min(...nodes.map((node) => node.y))
-  const maxX = Math.max(...nodes.map((node) => node.x + node.width))
-  const maxY = Math.max(...nodes.map((node) => node.y + node.height))
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
-}
-
+/**
+ * Creates one reversible local history entry from a runtime command and current document snapshot.
+ */
 export function createLocalHistoryEntry(
   command: EditorRuntimeCommand,
   scene: SceneMemory,
@@ -199,12 +193,32 @@ export function createLocalHistoryEntry(
       shapeId: shape.id,
       toIndex: command.toIndex,
     })
+    const siblingReorderPlan = createNormalizedSiblingReorderPlan({
+      document,
+      shapeId: shape.id,
+      toIndex: command.toIndex,
+    })
+    if (siblingReorderPlan) {
+      // Keep canonical sibling order in parent groups while preserving flat-array reorder compatibility.
+      forward.push(siblingReorderPlan.siblingPatch)
+    }
     if (forward.length === 0) return createLogOnlyEntry(command.type, 'Reorder Shape')
+
+    const backwardSiblingPatch = siblingReorderPlan
+      ? {
+          type: 'set-group-children' as const,
+          groupId: siblingReorderPlan.siblingPatch.groupId,
+          prevChildIds: siblingReorderPlan.siblingPatch.nextChildIds,
+          nextChildIds: siblingReorderPlan.siblingPatch.prevChildIds,
+        }
+      : null
+
     return {
       id: `shape.reorder.${shape.id}`,
       label: forward.length > 1 ? `Reorder ${forward.length} Shapes` : `Reorder ${shape.name}`,
       forward,
-      backward: forward
+      backward: [
+        ...forward
         .filter((patch): patch is Extract<HistoryPatch, {type: 'reorder-shape'}> => patch.type === 'reorder-shape')
         .slice()
         .reverse()
@@ -213,6 +227,8 @@ export function createLocalHistoryEntry(
         fromIndex: patch.toIndex,
         toIndex: patch.fromIndex,
       })),
+        ...(backwardSiblingPatch ? [backwardSiblingPatch] : []),
+      ],
     }
   }
 
@@ -279,86 +295,25 @@ export function createLocalHistoryEntry(
       .sort((left: {shape: DocumentNode; index: number}, right: {shape: DocumentNode; index: number}) => left.index - right.index)
     if (selectedIndices.length < 2) return createLogOnlyEntry(command.type, 'Group Noop')
 
-    const firstParentId = selectedIndices[0].shape.parentId ?? null
-    const commonParentId = selectedIndices.every((item: {shape: DocumentNode; index: number}) => (item.shape.parentId ?? null) === firstParentId)
-      ? firstParentId
-      : null
-    const parentGroup = commonParentId ? findShapeById(document, commonParentId) : null
-    const parentPrevChildIds = parentGroup?.childIds?.slice()
-    const selectedIdSet = new Set(selectedIndices.map((item: {shape: DocumentNode; index: number}) => item.shape.id))
-    const affectedParentGroups = document.shapes
-      .filter((shape): shape is DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
-      .map((group) => ({
-        groupId: group.id,
-        prevChildIds: group.childIds?.slice() ?? [],
-        nextChildIds: (group.childIds ?? []).filter((childId) => !selectedIdSet.has(childId)),
-      }))
     const groupId = command.groupId ?? `group-${nid()}`
-    const groupedShapeIds = selectedIndices.map((item: {shape: DocumentNode; index: number}) => item.shape.id)
-    const bounds = getNodeBounds(selectedIndices.map((item: {shape: DocumentNode; index: number}) => item.shape))
-    const insertIndex = selectedIndices[selectedIndices.length - 1].index + 1
+    const normalizedGroupPlan = createNormalizedGroupPatchPlan({
+      document,
+      selectedShapeIds: selectedIndices.map((item) => item.shape.id),
+      groupId,
+      groupName: command.name ?? 'Group',
+    })
+    if (!normalizedGroupPlan) return createLogOnlyEntry(command.type, 'Group Noop')
+
     const previousSelectedIndex = readSceneStats(scene).selectedIndex
 
-    const groupShape: DocumentNode = {
-      id: groupId,
-      type: 'group',
-      name: command.name ?? 'Group',
-      parentId: commonParentId,
-      childIds: groupedShapeIds,
-      ...bounds,
-    }
+    const forward: HistoryPatch[] = [...normalizedGroupPlan.patches]
+    const backward: HistoryPatch[] = invertHistoryPatches(forward)
 
-    const forward: HistoryPatch[] = [
-      {type: 'insert-shape', index: insertIndex, shape: groupShape},
-      {type: 'set-group-children', groupId, prevChildIds: undefined, nextChildIds: groupedShapeIds.slice()},
-    ]
-    const backward: HistoryPatch[] = [
-      {type: 'set-group-children', groupId, prevChildIds: groupedShapeIds.slice(), nextChildIds: undefined},
-      {type: 'remove-shape', index: insertIndex, shape: groupShape},
-    ]
-
-    affectedParentGroups.forEach((groupPatch) => {
-      forward.push({
-        type: 'set-group-children',
-        groupId: groupPatch.groupId,
-        prevChildIds: groupPatch.prevChildIds,
-        nextChildIds: groupPatch.nextChildIds,
-      })
-      backward.unshift({
-        type: 'set-group-children',
-        groupId: groupPatch.groupId,
-        prevChildIds: groupPatch.nextChildIds,
-        nextChildIds: groupPatch.prevChildIds,
-      })
-    })
-
-    if (parentGroup && Array.isArray(parentPrevChildIds)) {
-      const nextParentChildIds = parentPrevChildIds.filter((id) => !groupedShapeIds.includes(id))
-      nextParentChildIds.push(groupId)
-      forward.push({
-        type: 'set-group-children',
-        groupId: parentGroup.id,
-        prevChildIds: parentPrevChildIds,
-        nextChildIds: nextParentChildIds,
-      })
-      backward.unshift({
-        type: 'set-group-children',
-        groupId: parentGroup.id,
-        prevChildIds: nextParentChildIds,
-        nextChildIds: parentPrevChildIds,
-      })
-    }
-
-    selectedIndices.forEach(({shape}: {shape: DocumentNode; index: number}) => {
-      forward.push({type: 'set-shape-parent', shapeId: shape.id, prevParentId: shape.parentId, nextParentId: groupId})
-      backward.unshift({type: 'set-shape-parent', shapeId: shape.id, prevParentId: groupId, nextParentId: shape.parentId})
-    })
-
-    forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: insertIndex})
-    backward.unshift({type: 'set-selected-index', prev: insertIndex, next: previousSelectedIndex})
+    forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: normalizedGroupPlan.insertIndex})
+    backward.unshift({type: 'set-selected-index', prev: normalizedGroupPlan.insertIndex, next: previousSelectedIndex})
 
     return {
-      id: `shape.group.${groupId}`,
+      id: `shape.group.${normalizedGroupPlan.groupId}`,
       label: `Group ${selectedIndices.length} Shapes`,
       forward,
       backward,
@@ -372,57 +327,21 @@ export function createLocalHistoryEntry(
     const groupShape = targetGroupId ? findShapeById(document, targetGroupId) : null
     if (!groupShape || groupShape.type !== 'group') return createLogOnlyEntry(command.type, 'Ungroup Missing Group')
 
-    const groupIndex = document.shapes.findIndex((item) => item.id === groupShape.id)
-    if (groupIndex < 0) return createLogOnlyEntry(command.type, 'Ungroup Missing Group')
-
-    const childIds = (groupShape.childIds ?? []).filter((childId) => findShapeById(document, childId) !== null)
-    if (childIds.length === 0) return createLogOnlyEntry(command.type, 'Ungroup Empty Group')
-
-    const parentGroup = groupShape.parentId ? findShapeById(document, groupShape.parentId) : null
-    const parentPrevChildIds = parentGroup?.childIds?.slice()
-    const previousSelectedIndex = readSceneStats(scene).selectedIndex
-    const forward: HistoryPatch[] = []
-    const backward: HistoryPatch[] = []
-
-    if (parentGroup && Array.isArray(parentPrevChildIds)) {
-      const nextParentChildIds: string[] = []
-      parentPrevChildIds.forEach((id) => {
-        if (id === groupShape.id) {
-          nextParentChildIds.push(...childIds)
-        } else {
-          nextParentChildIds.push(id)
-        }
-      })
-
-      forward.push({
-        type: 'set-group-children',
-        groupId: parentGroup.id,
-        prevChildIds: parentPrevChildIds,
-        nextChildIds: nextParentChildIds,
-      })
-      backward.unshift({
-        type: 'set-group-children',
-        groupId: parentGroup.id,
-        prevChildIds: nextParentChildIds,
-        nextChildIds: parentPrevChildIds,
-      })
-    }
-
-    childIds.forEach((childId) => {
-      forward.push({type: 'set-shape-parent', shapeId: childId, prevParentId: groupShape.id, nextParentId: groupShape.parentId})
-      backward.unshift({type: 'set-shape-parent', shapeId: childId, prevParentId: groupShape.parentId, nextParentId: groupShape.id})
+    const normalizedUngroupPlan = createNormalizedUngroupPatchPlan({
+      document,
+      groupId: groupShape.id,
     })
+    if (!normalizedUngroupPlan) return createLogOnlyEntry(command.type, 'Ungroup Empty Group')
 
-    forward.push({type: 'set-group-children', groupId: groupShape.id, prevChildIds: groupShape.childIds?.slice(), nextChildIds: []})
-    forward.push({type: 'remove-shape', index: groupIndex, shape: groupShape})
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+
+    const forward: HistoryPatch[] = [...normalizedUngroupPlan.patches]
+    const backward: HistoryPatch[] = invertHistoryPatches(forward)
     forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: -1})
-
     backward.unshift({type: 'set-selected-index', prev: -1, next: previousSelectedIndex})
-    backward.unshift({type: 'insert-shape', index: groupIndex, shape: groupShape})
-    backward.unshift({type: 'set-group-children', groupId: groupShape.id, prevChildIds: [], nextChildIds: groupShape.childIds?.slice()})
 
     return {
-      id: `shape.ungroup.${groupShape.id}`,
+      id: `shape.ungroup.${normalizedUngroupPlan.groupId}`,
       label: `Ungroup ${groupShape.name}`,
       forward,
       backward,
@@ -581,4 +500,62 @@ export function createLocalHistoryEntry(
   if (command.type === 'selection.set') return createLogOnlyEntry('selection.set', 'Set Selection')
 
   return createLogOnlyEntry(command.type, command.type)
+}
+
+/**
+ * Inverts one forward patch list into backward order for local undo generation.
+ */
+function invertHistoryPatches(forward: HistoryPatch[]): HistoryPatch[] {
+  const backward: HistoryPatch[] = []
+
+  forward.slice().reverse().forEach((patch) => {
+    if (patch.type === 'set-group-children') {
+      backward.push({
+        type: 'set-group-children',
+        groupId: patch.groupId,
+        prevChildIds: patch.nextChildIds,
+        nextChildIds: patch.prevChildIds,
+      })
+      return
+    }
+
+    if (patch.type === 'set-shape-parent') {
+      backward.push({
+        type: 'set-shape-parent',
+        shapeId: patch.shapeId,
+        prevParentId: patch.nextParentId,
+        nextParentId: patch.prevParentId,
+      })
+      return
+    }
+
+    if (patch.type === 'insert-shape') {
+      backward.push({
+        type: 'remove-shape',
+        index: patch.index,
+        shape: patch.shape,
+      })
+      return
+    }
+
+    if (patch.type === 'remove-shape') {
+      backward.push({
+        type: 'insert-shape',
+        index: patch.index,
+        shape: patch.shape,
+      })
+      return
+    }
+
+    if (patch.type === 'reorder-shape') {
+      backward.push({
+        type: 'reorder-shape',
+        shapeId: patch.shapeId,
+        fromIndex: patch.toIndex,
+        toIndex: patch.fromIndex,
+      })
+    }
+  })
+
+  return backward
 }

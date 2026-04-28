@@ -133,6 +133,28 @@ export type EditorRuntimeCommand =
       mode: 'hspace' | 'vspace'
     }
 
+/**
+ * Carries runtime-v2 migration diagnostics emitted by worker structural apply/check paths.
+ */
+export interface RuntimeV2DiagnosticsMessage {
+  /** Stores total dual-write checks performed in this worker lifecycle. */
+  checks: number
+  /** Stores total dual-write mismatch count detected so far. */
+  mismatches: number
+  /** Stores last command type that produced mismatch diagnostics. */
+  lastCommandType: string | null
+  /** Stores latest mismatch issue strings for debugging. */
+  lastIssues: string[]
+  /** Stores total shape-tree invariant checks executed at worker frame boundaries. */
+  frameBoundaryChecks: number
+  /** Stores total shape-tree invariant mismatch count detected at worker frame boundaries. */
+  frameBoundaryMismatches: number
+  /** Stores latest frame-boundary invariant issue strings for debugging. */
+  lastFrameBoundaryIssues: string[]
+  /** Indicates whether strict mismatch gate is enabled in current worker process. */
+  strictModeEnabled: boolean
+}
+
 export interface SceneUpdateMessage {
   type: 'scene-ready' | 'scene-update'
   updateKind: 'full' | 'flags'
@@ -145,4 +167,5 @@ export interface SceneUpdateMessage {
   }
   history: HistorySummary
   collaboration: CollaborationState
+  runtimeV2?: RuntimeV2DiagnosticsMessage
 }

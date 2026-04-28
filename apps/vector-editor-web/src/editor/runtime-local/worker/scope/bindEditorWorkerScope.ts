@@ -20,7 +20,13 @@ import {resolvePointerSelectionMode} from './pointerSelection.ts'
 import {hitTestDocumentCandidates} from './hitTest.ts'
 import {cloneDocument} from './model.ts'
 import {rebuildSpatialIndex, syncClippedImageRuntimeGeometry} from './scenePatches.ts'
-import {handleLocalCommand, handleRemoteOperation} from './operations.ts'
+import {
+  getRuntimeV2DualWriteDiagnostics,
+  getRuntimeV2DualWriteStrictModeEnabled,
+  handleLocalCommand,
+  handleRemoteOperation,
+  runRuntimeV2FrameBoundaryInvariantCheck,
+} from './operations.ts'
 
 function debugWorker(message: string, details?: unknown) {
   console.debug('EDITOR-WORKER', message, details)
@@ -165,6 +171,9 @@ function postScene(
   history: ReturnType<typeof createHistoryManager>,
   collaboration: ReturnType<typeof createCollaborationManager>,
 ) {
+  // Run one invariant guard at each worker frame boundary so migration drift is observable beyond command-triggered checks.
+  runRuntimeV2FrameBoundaryInvariantCheck(document)
+
   scope.postMessage({
     type,
     updateKind,
@@ -172,5 +181,9 @@ function postScene(
     stats: readSceneStats(scene),
     history: history.getSummary(),
     collaboration: collaboration.getState(),
+    runtimeV2: {
+      ...getRuntimeV2DualWriteDiagnostics(),
+      strictModeEnabled: getRuntimeV2DualWriteStrictModeEnabled(),
+    },
   } satisfies SceneUpdateMessage)
 }

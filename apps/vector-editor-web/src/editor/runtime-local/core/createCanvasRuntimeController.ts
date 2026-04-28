@@ -9,6 +9,7 @@ import type {
   CollaborationState,
   EditorRuntimeCommand,
   HistorySummary,
+  RuntimeV2DiagnosticsMessage,
   SceneUpdateMessage,
 } from '../worker/index.ts'
 import {
@@ -44,6 +45,8 @@ export interface CanvasRuntimeSnapshot<TDocument extends EditorDocument> {
   collaboration: CollaborationState
   document: TDocument
   history: HistorySummary
+  // Stores worker-reported runtime-v2 migration diagnostics for debug/event consumers.
+  runtimeV2: RuntimeV2DiagnosticsMessage
   ready: boolean
   sabSupported: boolean
   shapes: SceneShapeSnapshot[]
@@ -107,6 +110,17 @@ const DEFAULT_HISTORY_STATE: HistorySummary = {
   canRedo: false,
 }
 
+const DEFAULT_RUNTIME_V2_DIAGNOSTICS: RuntimeV2DiagnosticsMessage = {
+  checks: 0,
+  mismatches: 0,
+  lastCommandType: null,
+  lastIssues: [],
+  frameBoundaryChecks: 0,
+  frameBoundaryMismatches: 0,
+  lastFrameBoundaryIssues: [],
+  strictModeEnabled: false,
+}
+
 const SLOW_MESSAGE_HANDLER_MS = 16
 const HIT_TEST_TOLERANCE = 6
 
@@ -142,6 +156,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     collaboration: DEFAULT_COLLABORATION_STATE,
     document,
     history: DEFAULT_HISTORY_STATE,
+    runtimeV2: DEFAULT_RUNTIME_V2_DIAGNOSTICS,
     ready: false,
     sabSupported,
     shapes: document.shapes.map((shape) => ({
@@ -291,6 +306,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     const nextStats = readSceneStats(scene)
     snapshot.history = event.data.history
     snapshot.collaboration = event.data.collaboration
+    snapshot.runtimeV2 = event.data.runtimeV2 ?? DEFAULT_RUNTIME_V2_DIAGNOSTICS
 
     if (event.data.updateKind === 'full' && event.data.document) {
       snapshot.document = event.data.document as TDocument

@@ -2,6 +2,81 @@
 
 ## 2026-04-28
 
+- Completed runtime-v2 remaining migration slice and vector interaction cleanup in one pass:
+  - added nested cross-parent regroup/ungroup planner coverage in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts` and `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - folded runtime-v2 counters into sample-gated migration alert thresholds (`stable/watch/high`) in `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - switched `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` interaction imports to `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts` and removed unused `apps/vector-editor-web/src/editor/interaction/runtime/*` mirror files
+  - switched `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` to use `@venus/lib/geometry` for `getNormalizedBoundsFromBox`
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts apps/vector-editor-web/src/runtime/events/index.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
+
+- Completed runtime-v2 worker frame-boundary invariant metrics threading:
+  - added frame-boundary shape-tree invariant counters/issues in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - ran frame-boundary checks at scene post boundaries in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`
+  - threaded new diagnostics fields through `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`, `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`, `apps/vector-editor-web/src/runtime/events/index.ts`, and `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
+  - surfaced frame-boundary metrics in `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts apps/vector-editor-web/src/runtime/events/index.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
+- Continued runtime-v2 migration with nested and malformed ownership edge hardening:
+  - expanded local-vs-remote nested reorder parity coverage in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - added malformed multi-parent remote reconciliation regression coverage in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+  - updated `reconcileNormalizedStructuralStorage(...)` in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` to canonicalize single-owner group child membership
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
+- Completed runtime-v2 diagnostics threading through worker -> runtime event snapshots:
+  - included `runtimeV2` payload in `SceneUpdateMessage` flow across `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`, `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`, `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`, `apps/vector-editor-web/src/runtime/events/index.ts`, and `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
+  - added focused tests for diagnostics publication and snapshot reset behavior:
+    - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts`
+    - `apps/vector-editor-web/src/runtime/events/index.test.ts`
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/runtime/events/index.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.normalizedApply.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
+
+- Continued collaboration-side runtime-v2 patch planning with canonical-first remote reorder sequencing:
+  - updated `apps/vector-editor-web/src/editor/runtime-local/worker/scope/remotePatches.ts` so `shape.reorder` emits `set-group-children` before compatibility `reorder-shape` patches
+  - added focused ordering regression test `apps/vector-editor-web/src/editor/runtime-local/worker/scope/remotePatches.normalizedOrder.test.ts`
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/worker/scope/remotePatches.normalizedOrder.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
+
+- Extended vector runtime-v2 normalized apply migration to insert/remove ownership updates:
+  - added `applyNormalizedInsertShape` and `applyNormalizedRemoveShape` in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - switched `insert-shape` / `remove-shape` branches in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.ts` to normalized ownership helpers
+  - added worker apply-path tests in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.normalizedApply.test.ts`
+- Added dual-write diagnostics behavior tests in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts` for counters and strict-mode gate.
+
+- Continued vector runtime-v2 hardening after migration steps `1/2/3`:
+  - added normalized structural apply helpers in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - routed `set-shape-parent` / `set-group-children` apply flow in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/scenePatches.ts` through normalized runtime helpers
+  - added local-vs-remote patch parity tests for `shape.group` / `shape.ungroup` / `shape.reorder` in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - upgraded dual-write diagnostics in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts` with mismatch counters and strict gate support via `VENUS_RUNTIME_V2_DUAL_WRITE_STRICT=1`
+
+- Completed vector runtime-v2 migration steps `1/2/3` while keeping UI protocol unchanged:
+  - moved local/remote `shape.group` + `shape.ungroup` patch planning to normalized runtime helpers in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.ts`
+  - upgraded `shape.reorder` to emit canonical sibling-order patches (`set-group-children`) and kept legacy `reorder-shape` compatibility patches for flat runtime buffers
+  - added dual-write consistency diagnostics in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts` for `shape.group` / `shape.ungroup` / `shape.reorder`
+  - added normalized patch-planner tests in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts`
+
+- Started vector normalized document-model migration with a new pure TS runtime projection while keeping UI protocol surfaces unchanged:
+  - added `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - added tests `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.test.ts`
+  - switched `apps/vector-editor-web/src/editor/runtime-local/worker/scope/sceneGroupBounds.ts` to derive group bounds from normalized parent/children traversal
+  - added migration and UI feature alignment tracker `apps/vector-editor-web/docs/runtime/runtime-v2-migration.md`
+
 - Fixed cross-environment timer/frame handle typing in `@venus/engine` so workspace typecheck remains stable under Node timer types:
   - `packages/engine/src/renderer/initialRender.ts` now stores timer handles as runtime `setTimeout` return types
   - `packages/engine/src/time/index.ts` now defines `EngineFrameHandle` as a browser/node-compatible union and narrows numeric handles before `cancelAnimationFrame`
@@ -436,7 +511,7 @@
   - `apps/vector-editor-web/src/editor/runtime-local/interaction/shapeHitTest.ts`
     now exposes ordered hit candidates so `selection.cycle-hit-target` can
     rotate through overlapping selectable shapes under the current pointer
-  - `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` and
+  - `apps/vector-editor-web/src/editor/canvasAdapter.tsx` and
     `apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx` now
     apply resolved runtime cursor output to the actual viewport host
   - `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx`
@@ -534,173 +609,6 @@
     the text-tool tooltip trigger with `asChild`, avoiding a nested
     `TooltipTrigger <button>` wrapping the existing `Button` element during
     hydration
-- Started the next 100K frame-rate recovery queue:
-  - `packages/engine/src/renderer/plan.ts` now raises the interactive
-    tiny-object culling threshold at very low overview scales so 100K `2%`
-    pan/zoom passes can reject more sub-perceptual nodes before they enter the
-    packet draw list (`VT-20260424-49` first pass)
-  - `packages/engine/src/renderer/webgl.ts` now skips imperceptibly small
-    low-scale text placeholders and tiny overview image packets in both the
-    main packet loop and interactive edge-redraw path; live `Stress Mixed
-100K` validation dropped initial `2%` overview packet load to `19031`
-    draw calls with `6263` text fallbacks and `3916` deferred images
-  - `apps/vector-editor-web/src/runtime/events/index.ts` now tracks peak
-    instantaneous and smoothed FPS plus `60 FPS+` / `120 FPS+` hit flags, and
-    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
-    surfaces those rows for live engine validation (`VT-20260424-50` first
-    pass)
-  - `packages/engine/src/renderer/webgl.ts` now captures reusable composite
-    snapshots after packet renders, and now exposes explicit preview miss
-    reasons plus actual engine frame quality in render stats so overview
-    preview-reuse failures can be diagnosed without conflating policy and
-    renderer state
-  - `packages/engine/src/interaction/lodProfile.ts`,
-    `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts`, and
-    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` now keep
-    `pan` on interactive preview posture and enable runtime `interactionPreview`
-    in `interaction` mode, allowing 100K overview pan frames to reuse the
-    cached framebuffer instead of replaying the full packet path
-  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts` now keeps
-    pan-phase DPR at `auto`, preventing hand-tool pan entry from invalidating
-    the current preview snapshot with a `pixelRatio` mismatch before viewport
-    movement begins
-  - `apps/vector-editor-web/src/editor/runtime/renderPolicy.ts` now keeps
-    zoom-phase DPR at `auto`, removing the zoom-entry `pixelRatio` mismatch
-    that previously blocked low-scale preview reuse before any threshold-based
-    reuse checks could pass
-  - `packages/engine/src/renderer/webgl.ts` now flips framebuffer-captured
-    preview textures vertically only for interaction-preview reuse sampling,
-    fixing the pan/zoom-time vertical mirror artifact without changing normal
-    packet/image/text texture orientation
-  - `packages/engine/src/renderer/webgl.ts` and
-    `packages/engine/src/renderer/canvas2d.ts` now widen low-scale interaction
-    preview translate/scale-step tolerance only for overview frames, including
-    viewport-size-aware translate windows so large-screen `2%` navigation no
-    longer falls out of preview reuse on modest pan deltas
-  - `packages/engine/src/renderer/webgl.ts` and
-    `packages/engine/src/renderer/canvas2d.ts` now raise the overview-only
-    interaction preview `maxScaleStep` ceiling to `1.75`, and repeated
-    cold-start `2%` zoom-entry probes now hit preview reuse with
-    `Cache Fallback Reason = none` instead of `l0-scale-step-exceeded`
-  - `packages/engine/src/renderer/webgl.ts` and
-    `packages/engine/src/renderer/canvas2d.ts` now advance low-scale preview
-    snapshots after reuse-hit frames so repeated overview pans do not keep
-    measuring translate distance against an older settled snapshot; follow-up
-    `2%` long-sequence validation no longer reports `l0-translate-exceeded`
-  - follow-up validation also showed the last sampled
-    `l0-scale-step-exceeded` was coming from template-apply initialization
-    zoom being sampled before it fully settled; when the same `2%`
-    long-sequence probe starts after that initialization completes, it now
-    runs at `11/11` reuse-hit samples with `Cache Fallback Reason = none`
-  - `apps/vector-editor-web/src/runtime/events/index.ts` and
-    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
-    surface `Engine Frame Quality`, and live `Stress Mixed 100K` validation at
-    `2%` now records `Frame Reuse Hit = 1`, `L0 Preview Hits = 1`, wheel-pan
-    reuse-hit frames as low as `0.06 ms`, and hand-pan entry reuse-hit frames
-    around `0.12 ms`; after the preview-texture flip fix, hand-pan and zoom
-    preview frames still hit reuse with `Cache Fallback Reason = none` and
-    sub-millisecond draw time; after the low-scale overview threshold tuning,
-    focused `2%` browser sampling reached `10/11` reuse-hit samples,
-    `78.1` instant FPS peak, and `0.11 ms` minimum draw time while reducing
-    the sampled residual fallback set to a single initial
-    `l0-scale-step-exceeded` (`VT-20260424-49` follow-up)
-- Completed mixed-scene regression gate closeout for the 100K performance
-  track:
-  - `apps/vector-editor-web/scripts/perf-gate.mjs` is now treated as the
-    verified app/runtime regression gate for `10k`, `50k`, `100k`, and
-    `mixed(text/image/path)` scene coverage
-  - root and vector package scripts plus testing docs now provide the baseline,
-    trend-regression, and machine-readable output flow used for performance
-    signoff (`VT-20260424-14`)
-- Completed Phase 3 closeout for the 100K scene-readiness track:
-  - `packages/engine/src/renderer/webgl.ts` now extends interactive composite
-    preview reuse with pan-time edge redraw, replaying packet draws only into
-    newly exposed scissored edge regions after framebuffer shift instead of
-    waiting for the next full redraw
-  - `packages/engine/src/renderer/types.ts`,
-    `apps/vector-editor-web/src/runtime/events/index.ts`,
-    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`, and
-    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
-    expose `WebGL Frame Reuse Edge Redraws` so the new pan edge-redraw path can
-    be verified live in runtime diagnostics
-  - `VT-20260424-47` worker-side render precompute work is now considered
-    complete after full baseline validation and mixed-scene perf gate coverage
-- Started `VT-20260424-47` worker-side render-precompute wiring for
-  text/path-heavy scenes:
-  - `apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts`
-    now stores stable text render hashes plus path/bezier point counts in
-    shared scene memory so worker writes can precompute render hints once per
-    shape update instead of leaving all hint derivation to frame-time readers
-  - `apps/vector-editor-web/src/editor/runtime-local/presets/engineSceneAdapter.ts`
-    now forwards the worker text hash as an engine text `cacheKey` and exposes
-    path geometry count hints on shape nodes for follow-up path-prep work
-  - `packages/engine/src/renderer/webglPackets.ts` now prefers the precomputed
-    engine text `cacheKey` before falling back to packet-time cache-key
-    synthesis
-  - `packages/engine/src/renderer/webglPackets.ts`,
-    `packages/engine/src/renderer/webgl.ts`,
-    `apps/vector-editor-web/src/runtime/events/index.ts`, and
-    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
-    expose precomputed-text-key vs fallback-text-key counters so the new
-    worker-side path can be verified live in the debug surface
-  - `packages/engine/src/renderer/canvas2d.ts` now consumes worker-provided
-    path point/bezier counts to skip simplification on trivial paths and avoid
-    allocating temporary bezier-anchor arrays when resolving line/path
-    arrowhead endpoint segments
-  - `packages/engine/src/renderer/canvas2d.ts`,
-    `apps/vector-editor-web/src/runtime/events/index.ts`,
-    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`, and
-    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
-    surface a `Canvas2D Trivial Path Fast Path` counter for live verification
-    of low-complexity path bypass hits
-  - `packages/engine/src/renderer/canvas2d.ts` and
-    `packages/engine/src/interaction/hitTest.ts` now skip multi-contour point
-    parsing for open point-only paths, leaving contour resolution to closed-path
-    candidates where it can actually affect render or hit behavior
-  - `packages/engine/src/renderer/canvas2d.ts`,
-    `apps/vector-editor-web/src/runtime/events/index.ts`,
-    `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`, and
-    `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx` now
-    surface a `Canvas2D Contour Parses` counter for live visibility into
-    remaining closed-path contour work
-  - `packages/engine/src/interaction/hitTest.ts` now resolves closed-path state
-    once per path hit-test branch, reuses it across fill/stroke checks, gates
-    contour parsing behind a dedicated multi-contour candidate helper, and
-    accepts an optional `closed` hint on hit-test nodes for future callers
-  - `apps/vector-editor-web/src/editor/runtime-local/shared-memory/index.ts`,
-    `apps/vector-editor-web/src/editor/runtime-local/presets/engineSceneAdapter.ts`,
-    `packages/engine/src/scene/types.ts`, and
-    `packages/engine/src/renderer/canvas2d.ts` now precompute and consume text
-    line counts so single-line text can bypass generic newline-splitting work,
-    with a `Canvas2D Single-Line Text Fast Path` counter exposed in runtime
-    diagnostics
-  - vector-editor path hit-test callers now forward precomputed `closed` hints
-    into engine shape/clip hit testing across runtime-local controller,
-    runtime-local worker hit-test scope, runtime-local interaction helpers, and
-    mirrored `editor/interaction/runtime/*` modules so the engine can reuse the
-    new closed-path fast path at product call sites
-  - `apps/vector-editor-web/src/editor/interaction/pathHitTestHints.ts` now
-    centralizes closed-path normalization for vector-editor hit-test call sites,
-    replacing duplicated helper implementations across runtime-local and
-    mirrored interaction modules
-  - shared scene-memory render hints now precompute single-line rich-text max
-    line height and thread it through engine text nodes into Canvas2D so the
-    single-line text fast path can skip per-frame rich-text line-height scans;
-    runtime diagnostics now expose `Canvas2D Precomputed Text Line Height`
-  - worker-side text render hint preparation in shared scene memory now uses a
-    single text metadata pass to derive hash, line count, and max line height,
-    reducing duplicate text traversal during precompute
-  - Canvas2D multiline text layout now uses a shared manual newline scanner for
-    both rich-text runs and plain text, removing `split('\n')` temporary array
-    allocation from hot multiline text render paths
-  - Canvas2D single-line rich-text layout now reuses `EngineTextRun[]`
-    directly instead of cloning runs into a duplicate segment array on each
-    frame of the fast path
-- Verification:
-  - `pnpm typecheck`
-  - `pnpm lint`
-  - `pnpm build`
-  - `pnpm --filter @venus/vector-editor-web perf:gate --report ./scripts/perf-gate.report.template.json --previous-report ./scripts/perf-gate.report.template.json --output ./scripts/perf-gate.result.json`
 
 ## 2026-04-23
 
@@ -1041,5 +949,3 @@
   - moved runtime-facing modules to `apps/vector-editor-web/src/editor/*`
   - moved shared constants/types/utilities to
     `apps/vector-editor-web/src/shared/*`
-- Updated vector app build configuration (`tsconfig.app.json`, `vite.config.ts`,
-  and `package.json`) to use local UI aliasing and local UI dependencies

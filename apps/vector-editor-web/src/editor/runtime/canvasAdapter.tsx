@@ -15,7 +15,7 @@ import {
   bindViewportGestures,
   resolveCanvasLodProfile,
   type ViewportGestureBindingOptions,
-} from '../interaction/runtime/index.ts'
+} from '../runtime-local/interaction/index.ts'
 import {
   buildDocumentImageAssetUrlMap,
   createEngineSceneFromRuntimeSnapshot,

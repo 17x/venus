@@ -34,6 +34,11 @@ import {
   includesMaskLinkedShapeIds,
   resolveMaskSchemaPatches,
 } from './maskGroupSemantics.ts'
+import {
+  createNormalizedGroupPatchPlan,
+  createNormalizedSiblingReorderPlan,
+  createNormalizedUngroupPatchPlan,
+} from '../../document-runtime/index.ts'
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -65,20 +70,9 @@ function asBooleanMode(value: unknown): ShapeBooleanMode | null {
   return null
 }
 
-function getNodeBounds(nodes: import('@vector/model').DocumentNode[]) {
-  const minX = Math.min(...nodes.map((node) => node.x))
-  const minY = Math.min(...nodes.map((node) => node.y))
-  const maxX = Math.max(...nodes.map((node) => node.x + node.width))
-  const maxY = Math.max(...nodes.map((node) => node.y + node.height))
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
-}
-
+/**
+ * Converts one collaboration operation into concrete reversible worker patches.
+ */
 export function createRemotePatches(operation: CollaborationOperation, scene: SceneMemory, document: EditorDocument): HistoryPatch[] {
   if (operation.type === 'selection.delete') {
     return [{type: 'set-selected-index', prev: readSceneStats(scene).selectedIndex, next: -1}]
@@ -232,11 +226,22 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const toIndex = asNumberOrNull(operation.payload?.toIndex)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape || toIndex === null) return []
-    return createMaskLinkedReorderPatches({
+    const siblingReorderPlan = createNormalizedSiblingReorderPlan({
       document,
       shapeId: shape.id,
       toIndex,
     })
+    const patches = createMaskLinkedReorderPatches({
+      document,
+      shapeId: shape.id,
+      toIndex,
+    })
+    if (!siblingReorderPlan) {
+      return patches
+    }
+
+    // Emit canonical parent-child ordering first so normalized storage remains primary for collaboration apply.
+    return [siblingReorderPlan.siblingPatch, ...patches]
   }
 
   if (operation.type === 'shape.group') {
@@ -246,115 +251,24 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     if (selectedShapeIds.length < 2 || groupId === null) return []
 
     const expandedSelectedShapeIds = expandMaskLinkedShapeIds(document, selectedShapeIds)
-    const selectedShapes = expandedSelectedShapeIds
-      .map((shapeId) => findShapeById(document, shapeId))
-      .filter((shape): shape is import('@vector/model').DocumentNode => shape !== null)
-    if (selectedShapes.length < 2) return []
-
-    const selectedIndices = selectedShapes
-      .map((shape) => ({shape, index: document.shapes.findIndex((item) => item.id === shape.id)}))
-      .filter((item) => item.index >= 0)
-      .sort((left, right) => left.index - right.index)
-    if (selectedIndices.length < 2) return []
-
-    const firstParentId = selectedIndices[0].shape.parentId ?? null
-    const commonParentId = selectedIndices.every((item) => (item.shape.parentId ?? null) === firstParentId)
-      ? firstParentId
-      : null
-    const parentGroup = commonParentId ? findShapeById(document, commonParentId) : null
-    const parentPrevChildIds = parentGroup?.childIds?.slice()
-    const selectedIdSet = new Set(selectedIndices.map((item) => item.shape.id))
-    const affectedParentGroups = document.shapes
-      .filter((shape): shape is import('@vector/model').DocumentNode => shape.type === 'group' && shape.id !== commonParentId && Array.isArray(shape.childIds) && shape.childIds.some((childId) => selectedIdSet.has(childId)))
-      .map((group) => ({
-        groupId: group.id,
-        prevChildIds: group.childIds?.slice() ?? [],
-        nextChildIds: (group.childIds ?? []).filter((childId) => !selectedIdSet.has(childId)),
-      }))
-    const groupedShapeIds = selectedIndices.map((item) => item.shape.id)
-    const bounds = getNodeBounds(selectedIndices.map((item) => item.shape))
-    const insertIndex = selectedIndices[selectedIndices.length - 1].index + 1
-
-    const patches: HistoryPatch[] = [
-      {
-        type: 'insert-shape',
-        index: insertIndex,
-        shape: {
-          id: groupId,
-          type: 'group',
-          name: groupName,
-          parentId: commonParentId,
-          childIds: groupedShapeIds,
-          ...bounds,
-        },
-      },
-      {type: 'set-group-children', groupId, prevChildIds: undefined, nextChildIds: groupedShapeIds.slice()},
-    ]
-
-    affectedParentGroups.forEach((groupPatch) => {
-      patches.push({
-        type: 'set-group-children',
-        groupId: groupPatch.groupId,
-        prevChildIds: groupPatch.prevChildIds,
-        nextChildIds: groupPatch.nextChildIds,
-      })
+    const normalizedGroupPlan = createNormalizedGroupPatchPlan({
+      document,
+      selectedShapeIds: expandedSelectedShapeIds,
+      groupId,
+      groupName,
     })
-
-    if (parentGroup && Array.isArray(parentPrevChildIds)) {
-      const nextParentChildIds = parentPrevChildIds.filter((id) => !groupedShapeIds.includes(id))
-      nextParentChildIds.push(groupId)
-      patches.push({
-        type: 'set-group-children',
-        groupId: parentGroup.id,
-        prevChildIds: parentPrevChildIds,
-        nextChildIds: nextParentChildIds,
-      })
-    }
-
-    selectedIndices.forEach(({shape}) => {
-      patches.push({type: 'set-shape-parent', shapeId: shape.id, prevParentId: shape.parentId, nextParentId: groupId})
-    })
-    return patches
+    return normalizedGroupPlan?.patches ?? []
   }
 
   if (operation.type === 'shape.ungroup') {
     const groupId = asStringOrNull(operation.payload?.groupId)
     if (groupId === null) return []
 
-    const groupShape = findShapeById(document, groupId)
-    if (!groupShape || groupShape.type !== 'group') return []
-    const groupIndex = document.shapes.findIndex((item) => item.id === groupShape.id)
-    if (groupIndex < 0) return []
-
-    const childIds = (groupShape.childIds ?? []).filter((childId) => findShapeById(document, childId) !== null)
-    const patches: HistoryPatch[] = []
-    const parentGroup = groupShape.parentId ? findShapeById(document, groupShape.parentId) : null
-    const parentPrevChildIds = parentGroup?.childIds?.slice()
-
-    if (parentGroup && Array.isArray(parentPrevChildIds)) {
-      const nextParentChildIds: string[] = []
-      parentPrevChildIds.forEach((id) => {
-        if (id === groupShape.id) {
-          nextParentChildIds.push(...childIds)
-        } else {
-          nextParentChildIds.push(id)
-        }
-      })
-      patches.push({
-        type: 'set-group-children',
-        groupId: parentGroup.id,
-        prevChildIds: parentPrevChildIds,
-        nextChildIds: nextParentChildIds,
-      })
-    }
-
-    childIds.forEach((childId) => {
-      patches.push({type: 'set-shape-parent', shapeId: childId, prevParentId: groupShape.id, nextParentId: groupShape.parentId})
+    const normalizedUngroupPlan = createNormalizedUngroupPatchPlan({
+      document,
+      groupId,
     })
-
-    patches.push({type: 'set-group-children', groupId: groupShape.id, prevChildIds: groupShape.childIds?.slice(), nextChildIds: []})
-    patches.push({type: 'remove-shape', index: groupIndex, shape: groupShape})
-    return patches
+    return normalizedUngroupPlan?.patches ?? []
   }
 
   if (operation.type === 'shape.convert-to-path') {
