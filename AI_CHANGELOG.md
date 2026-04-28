@@ -12,6 +12,39 @@ for auditability and future agent handoff.
 
 ## 2026-04-28
 
+- Scope: complete remaining runtime-v2 migration slice and remove legacy vector interaction duplicate surface
+- Why: closes cross-parent regroup/ungroup test gap, adds sample-gated migration alert levels to debug counters, and removes an unused interaction mirror while reusing shared `@venus/lib` geometry utility
+- Key files:
+  - `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`
+  - `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - `apps/vector-editor-web/docs/runtime/runtime-v2-migration.md`
+
+- Scope: complete runtime-v2 worker frame-boundary invariant metrics threading
+- Why: adds migration guard visibility at scene post boundaries so shape-tree drift is observable even outside command-triggered dual-write checks
+- Key files:
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`
+  - `apps/vector-editor-web/src/runtime/events/index.ts`
+  - `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
+  - `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts`
+  - `apps/vector-editor-web/src/runtime/events/index.test.ts`
+  - `apps/vector-editor-web/docs/runtime/runtime-v2-migration.md`
+
+- Scope: continue runtime-v2 structural migration hardening with nested parity and malformed multi-parent reconciliation coverage
+- Why: closes part of the remaining migration test gap by validating nested reorder parity and enforcing canonical single-owner group membership under remote structural apply reconciliation
+- Key files:
+  - `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+  - `apps/vector-editor-web/docs/runtime/runtime-v2-migration.md`
+
 - Scope: complete runtime-v2 follow-up trio for collaboration structural normalization and observability
 - Why: keeps collaboration insert/remove storage canonical under normalized ownership, broadens dual-write drift detection coverage, and makes runtime-v2 counters visible in default debug tooling
 - Key files:

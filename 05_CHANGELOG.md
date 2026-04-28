@@ -2,6 +2,35 @@
 
 ## 2026-04-28
 
+- Completed runtime-v2 remaining migration slice and vector interaction cleanup in one pass:
+  - added nested cross-parent regroup/ungroup planner coverage in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts` and `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - folded runtime-v2 counters into sample-gated migration alert thresholds (`stable/watch/high`) in `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - switched `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` interaction imports to `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts` and removed unused `apps/vector-editor-web/src/editor/interaction/runtime/*` mirror files
+  - switched `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` to use `@venus/lib/geometry` for `getNormalizedBoundsFromBox`
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts apps/vector-editor-web/src/runtime/events/index.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
+
+- Completed runtime-v2 worker frame-boundary invariant metrics threading:
+  - added frame-boundary shape-tree invariant counters/issues in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - ran frame-boundary checks at scene post boundaries in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`
+  - threaded new diagnostics fields through `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`, `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`, `apps/vector-editor-web/src/runtime/events/index.ts`, and `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
+  - surfaced frame-boundary metrics in `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts apps/vector-editor-web/src/runtime/events/index.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
+- Continued runtime-v2 migration with nested and malformed ownership edge hardening:
+  - expanded local-vs-remote nested reorder parity coverage in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - added malformed multi-parent remote reconciliation regression coverage in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+  - updated `reconcileNormalizedStructuralStorage(...)` in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` to canonicalize single-owner group child membership
+  - verification:
+    - `pnpm dlx tsx --tsconfig apps/vector-editor-web/tsconfig.app.json --test apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
 - Completed runtime-v2 diagnostics threading through worker -> runtime event snapshots:
   - included `runtimeV2` payload in `SceneUpdateMessage` flow across `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`, `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`, `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`, `apps/vector-editor-web/src/runtime/events/index.ts`, and `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
   - added focused tests for diagnostics publication and snapshot reset behavior:

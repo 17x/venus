@@ -474,6 +474,9 @@ const useEditorRuntime = (options?: {
         mismatches: canvasRuntime.runtimeV2.mismatches,
         lastCommandType: canvasRuntime.runtimeV2.lastCommandType,
         lastIssues: canvasRuntime.runtimeV2.lastIssues,
+        frameBoundaryChecks: canvasRuntime.runtimeV2.frameBoundaryChecks,
+        frameBoundaryMismatches: canvasRuntime.runtimeV2.frameBoundaryMismatches,
+        lastFrameBoundaryIssues: canvasRuntime.runtimeV2.lastFrameBoundaryIssues,
         strictModeEnabled: canvasRuntime.runtimeV2.strictModeEnabled,
       },
     })
@@ -482,6 +485,9 @@ const useEditorRuntime = (options?: {
     canvasRuntime.runtimeV2.mismatches,
     canvasRuntime.runtimeV2.lastCommandType,
     canvasRuntime.runtimeV2.lastIssues,
+    canvasRuntime.runtimeV2.frameBoundaryChecks,
+    canvasRuntime.runtimeV2.frameBoundaryMismatches,
+    canvasRuntime.runtimeV2.lastFrameBoundaryIssues,
     canvasRuntime.runtimeV2.strictModeEnabled,
   ])
 

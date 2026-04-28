@@ -5,6 +5,7 @@ import type {EditorDocument} from '@vector/model'
 import {
   getRuntimeV2DualWriteDiagnostics,
   resetRuntimeV2DualWriteDiagnostics,
+  runRuntimeV2FrameBoundaryInvariantCheck,
   runRuntimeV2DualWriteCheck,
 } from './operations.ts'
 
@@ -87,6 +88,8 @@ test('runRuntimeV2DualWriteCheck increments checks for migration-sensitive comma
 
   assert.equal(diagnostics.checks, 1)
   assert.equal(diagnostics.mismatches, 0)
+  assert.equal(diagnostics.frameBoundaryChecks, 0)
+  assert.equal(diagnostics.frameBoundaryMismatches, 0)
 })
 
 test('runRuntimeV2DualWriteCheck records mismatch metadata for inconsistent documents', () => {
@@ -99,6 +102,8 @@ test('runRuntimeV2DualWriteCheck records mismatch metadata for inconsistent docu
   assert.equal(diagnostics.mismatches, 1)
   assert.equal(diagnostics.lastCommandType, 'shape.reorder')
   assert.equal(diagnostics.lastIssues.length > 0, true)
+  assert.equal(diagnostics.frameBoundaryChecks, 0)
+  assert.equal(diagnostics.frameBoundaryMismatches, 0)
 })
 
 test('runRuntimeV2DualWriteCheck throws in strict mode when mismatch is detected', () => {
@@ -124,6 +129,8 @@ test('runRuntimeV2DualWriteCheck throws in strict mode when mismatch is detected
   const diagnostics = getRuntimeV2DualWriteDiagnostics()
   assert.equal(diagnostics.checks, 1)
   assert.equal(diagnostics.mismatches, 1)
+  assert.equal(diagnostics.frameBoundaryChecks, 0)
+  assert.equal(diagnostics.frameBoundaryMismatches, 0)
 })
 
 test('runRuntimeV2DualWriteCheck tracks insert/remove structural commands for migration diagnostics', () => {
@@ -136,4 +143,21 @@ test('runRuntimeV2DualWriteCheck tracks insert/remove structural commands for mi
   const diagnostics = getRuntimeV2DualWriteDiagnostics()
   assert.equal(diagnostics.checks, 2)
   assert.equal(diagnostics.mismatches, 0)
+  assert.equal(diagnostics.frameBoundaryChecks, 0)
+  assert.equal(diagnostics.frameBoundaryMismatches, 0)
+})
+
+test('runRuntimeV2FrameBoundaryInvariantCheck tracks shape-tree invariant checks and mismatches', () => {
+  resetRuntimeV2DualWriteDiagnostics()
+
+  // Frame-boundary checks should accumulate independently from command-triggered dual-write checks.
+  runRuntimeV2FrameBoundaryInvariantCheck(createConsistentDocument())
+  runRuntimeV2FrameBoundaryInvariantCheck(createInconsistentDocument())
+
+  const diagnostics = getRuntimeV2DualWriteDiagnostics()
+  assert.equal(diagnostics.checks, 0)
+  assert.equal(diagnostics.mismatches, 0)
+  assert.equal(diagnostics.frameBoundaryChecks, 2)
+  assert.equal(diagnostics.frameBoundaryMismatches, 1)
+  assert.equal(diagnostics.lastFrameBoundaryIssues.length > 0, true)
 })

@@ -115,6 +115,9 @@ const DEFAULT_RUNTIME_V2_DIAGNOSTICS: RuntimeV2DiagnosticsMessage = {
   mismatches: 0,
   lastCommandType: null,
   lastIssues: [],
+  frameBoundaryChecks: 0,
+  frameBoundaryMismatches: 0,
+  lastFrameBoundaryIssues: [],
   strictModeEnabled: false,
 }
 

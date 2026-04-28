@@ -35,6 +35,9 @@ test('runtime migration snapshot publish notifies listeners and updates snapshot
       mismatches: 1,
       lastCommandType: 'shape.group',
       lastIssues: ['parent mismatch'],
+      frameBoundaryChecks: 10,
+      frameBoundaryMismatches: 2,
+      lastFrameBoundaryIssues: ['group:root references missing child:ghost'],
       strictModeEnabled: true,
     },
   }
@@ -60,6 +63,9 @@ test('runtime migration snapshot reset restores defaults and emits one listener 
       mismatches: 2,
       lastCommandType: 'shape.reorder',
       lastIssues: ['child order mismatch'],
+      frameBoundaryChecks: 20,
+      frameBoundaryMismatches: 1,
+      lastFrameBoundaryIssues: ['node:rect-1 missing from parent:group-1 children list'],
       strictModeEnabled: false,
     },
   })

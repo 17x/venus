@@ -145,6 +145,12 @@ export interface RuntimeV2DiagnosticsMessage {
   lastCommandType: string | null
   /** Stores latest mismatch issue strings for debugging. */
   lastIssues: string[]
+  /** Stores total shape-tree invariant checks executed at worker frame boundaries. */
+  frameBoundaryChecks: number
+  /** Stores total shape-tree invariant mismatch count detected at worker frame boundaries. */
+  frameBoundaryMismatches: number
+  /** Stores latest frame-boundary invariant issue strings for debugging. */
+  lastFrameBoundaryIssues: string[]
   /** Indicates whether strict mismatch gate is enabled in current worker process. */
   strictModeEnabled: boolean
 }

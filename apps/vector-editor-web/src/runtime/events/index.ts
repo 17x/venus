@@ -359,6 +359,12 @@ export interface RuntimeMigrationSnapshot {
     lastCommandType: string | null
     // Stores latest mismatch issue set for quick debug visibility.
     lastIssues: string[]
+    // Stores cumulative shape-tree invariant checks executed at worker frame boundaries.
+    frameBoundaryChecks: number
+    // Stores cumulative shape-tree invariant mismatches detected at worker frame boundaries.
+    frameBoundaryMismatches: number
+    // Stores latest frame-boundary invariant issue set for quick debug visibility.
+    lastFrameBoundaryIssues: string[]
     // Indicates whether worker strict mismatch mode is currently enabled.
     strictModeEnabled: boolean
   }
@@ -698,6 +704,9 @@ export const EMPTY_RUNTIME_MIGRATION_SNAPSHOT: RuntimeMigrationSnapshot = {
     mismatches: 0,
     lastCommandType: null,
     lastIssues: [],
+    frameBoundaryChecks: 0,
+    frameBoundaryMismatches: 0,
+    lastFrameBoundaryIssues: [],
     strictModeEnabled: false,
   },
 }

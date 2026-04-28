@@ -109,6 +109,9 @@ test('bindEditorWorkerScope posts runtimeV2 diagnostics on scene-ready after ini
     mismatches: 0,
     lastCommandType: null,
     lastIssues: [],
+    frameBoundaryChecks: 1,
+    frameBoundaryMismatches: 0,
+    lastFrameBoundaryIssues: [],
     strictModeEnabled: false,
   })
 })
@@ -147,6 +150,8 @@ test('bindEditorWorkerScope posts runtimeV2 diagnostics on scene-update after st
   // Group command is migration-sensitive, so diagnostics checks should be incremented.
   assert.equal((sceneUpdateMessage?.runtimeV2?.checks ?? 0) >= 1, true)
   assert.equal(sceneUpdateMessage?.runtimeV2?.mismatches, 0)
+  // Frame-boundary invariant checks run for every scene post, including command updates.
+  assert.equal((sceneUpdateMessage?.runtimeV2?.frameBoundaryChecks ?? 0) >= 2, true)
   assert.equal(sceneUpdateMessage?.runtimeV2?.strictModeEnabled, false)
 })
 
@@ -185,4 +190,6 @@ test('bindEditorWorkerScope posts runtimeV2 diagnostics on scene-update after co
   assert.equal(sceneUpdateMessage?.type, 'scene-update')
   // Remote remove is now tracked as migration-sensitive structural ownership change.
   assert.equal((sceneUpdateMessage?.runtimeV2?.checks ?? 0) >= 1, true)
+  // Frame-boundary invariant checks run for both init scene-ready and collaboration scene-update posts.
+  assert.equal((sceneUpdateMessage?.runtimeV2?.frameBoundaryChecks ?? 0) >= 2, true)
 })

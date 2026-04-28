@@ -72,6 +72,23 @@
   - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
   - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts`
   - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts`
+- Continued runtime-v2 structural hardening for nested/multi-parent ownership drift:
+  - expanded nested reorder parity coverage in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - added malformed multi-parent reconciliation coverage in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+  - updated `reconcileNormalizedStructuralStorage(...)` in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` to collapse duplicate child ownership to one canonical group
+- Completed runtime-v2 Next Slice for frame-boundary invariants:
+  - added worker frame-boundary shape-tree invariant diagnostics in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.ts`
+  - wired frame-boundary metrics publish flow through `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`, `apps/vector-editor-web/src/editor/runtime-local/worker/protocol.ts`, `apps/vector-editor-web/src/editor/runtime-local/core/createCanvasRuntimeController.ts`, `apps/vector-editor-web/src/runtime/events/index.ts`, and `apps/vector-editor-web/src/editor/hooks/useEditorRuntime.ts`
+  - surfaced frame-boundary checks/mismatches in `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+  - added/updated focused tests in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts`, `apps/vector-editor-web/src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts`, and `apps/vector-editor-web/src/runtime/events/index.test.ts`
+- Completed runtime-v2 nested cross-parent regroup/ungroup edge-case coverage and alert-level surfacing:
+  - added cross-parent regroup/ungroup planner tests in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts`
+  - added local-vs-remote parity tests for cross-parent group + nested ungroup in `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - folded runtime-v2 mismatch counters into sample-gated `stable/watch/high` alert levels in `apps/vector-editor-web/src/components/shell/RuntimeDebugPanel.tsx`
+- Cleaned vector interaction duplicate surface and one geometry utility reuse path:
+  - switched `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` to import interaction bindings from `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts`
+  - removed unused legacy mirror `apps/vector-editor-web/src/editor/interaction/runtime/*`
+  - switched `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts` to import `getNormalizedBoundsFromBox` from `@venus/lib/geometry`
 
 ## 2026-04-27
 

@@ -75,12 +75,30 @@ The following UI-facing features must remain behavior-compatible during migratio
   - `src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
 - Added runtime-v2 counters in default runtime debug panel surface via runtime migration event snapshots:
   - `src/components/shell/RuntimeDebugPanel.tsx`
+- Extended normalized structural regression coverage for nested and malformed multi-parent ownership edges:
+  - `src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+  - `src/editor/runtime-local/worker/scope/operations.remoteNormalizedApply.test.ts`
+  - `src/editor/runtime-local/document-runtime/normalizedDocumentRuntime.ts`
+- Added worker frame-boundary shape-tree invariant metrics and threaded them through runtime snapshots/debug surface:
+  - `src/editor/runtime-local/worker/scope/operations.ts`
+  - `src/editor/runtime-local/worker/scope/bindEditorWorkerScope.ts`
+  - `src/editor/runtime-local/worker/protocol.ts`
+  - `src/editor/runtime-local/core/createCanvasRuntimeController.ts`
+  - `src/runtime/events/index.ts`
+  - `src/editor/hooks/useEditorRuntime.ts`
+  - `src/components/shell/RuntimeDebugPanel.tsx`
+  - `src/editor/runtime-local/worker/scope/operations.dualWriteDiagnostics.test.ts`
+  - `src/editor/runtime-local/worker/scope/bindEditorWorkerScope.test.ts`
+  - `src/runtime/events/index.test.ts`
+- Extended normalized structural regression coverage to nested cross-parent regroup/ungroup planner paths:
+  - `src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts`
+  - `src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`
+- Folded runtime-v2 counters into debug-panel migration alert thresholds (sample-gated stable/watch/high):
+  - `src/components/shell/RuntimeDebugPanel.tsx`
 
 ## Next Slices
 
-1. Extend normalized structural tests to nested multi-parent move/reorder edge cases.
-2. Add migration guard metrics for shape tree invariants at worker frame boundaries.
-3. Fold runtime-v2 debug counters into alert thresholds once strict mode rollout policy is finalized.
+1. Evaluate strict-mode rollout policy using new migration alert levels and frame-boundary metrics.
 
 ## Completed In This Session
 

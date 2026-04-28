@@ -54,6 +54,12 @@ const DEFAULT_TRANSITION_RATE_WATCH_THRESHOLD = 5
 const TREND_HISTORY_LIMIT = 240
 // Keep diagnostics readable in day-to-day debugging by hiding non-essential rows.
 const SHOW_VERBOSE_DEBUG = false
+// Require a minimum sample size so early-session noise does not trigger runtime-v2 migration alerts.
+const RUNTIME_V2_ALERT_MIN_SAMPLE = 20
+// Treat >=1% mismatch rate as watch-level migration risk once sample size is meaningful.
+const RUNTIME_V2_ALERT_WATCH_MISMATCH_RATE_PERCENT = 1
+// Treat >=3% mismatch rate as high migration risk once sample size is meaningful.
+const RUNTIME_V2_ALERT_HIGH_MISMATCH_RATE_PERCENT = 3
 
 type SceneDirtyTrendSample = {
   frameCount: number
@@ -64,6 +70,7 @@ type SceneDirtyTrendSample = {
 
 type TrendDirection = 'up' | 'down' | 'flat'
 type SceneDirtyRiskStatus = 'stable' | 'watch' | 'high' | 'forcing'
+type RuntimeV2AlertLevel = 'stable' | 'watch' | 'high'
 type SceneDirtyTransitionReason =
   | 'init'
   | 'streak-force-threshold'
@@ -104,6 +111,36 @@ export function RuntimeDebugPanel() {
   const runtimeV2MismatchRatePercent = runtimeMigrationSnapshot.runtimeV2.checks > 0
     ? (runtimeMigrationSnapshot.runtimeV2.mismatches / runtimeMigrationSnapshot.runtimeV2.checks) * 100
     : 0
+  // Keep frame-boundary mismatch rate separate so command checks and frame checks are distinguishable in rollout triage.
+  const runtimeV2FrameBoundaryMismatchRatePercent = runtimeMigrationSnapshot.runtimeV2.frameBoundaryChecks > 0
+    ? (runtimeMigrationSnapshot.runtimeV2.frameBoundaryMismatches / runtimeMigrationSnapshot.runtimeV2.frameBoundaryChecks) * 100
+    : 0
+  // Resolve migration alert level from the worst command/frame mismatch rate once enough samples exist.
+  const runtimeV2AlertLevel: RuntimeV2AlertLevel = (() => {
+    const commandSampleReady = runtimeMigrationSnapshot.runtimeV2.checks >= RUNTIME_V2_ALERT_MIN_SAMPLE
+    const frameSampleReady = runtimeMigrationSnapshot.runtimeV2.frameBoundaryChecks >= RUNTIME_V2_ALERT_MIN_SAMPLE
+    if (!commandSampleReady && !frameSampleReady) {
+      return 'stable'
+    }
+
+    const worstMismatchRatePercent = Math.max(
+      commandSampleReady ? runtimeV2MismatchRatePercent : 0,
+      frameSampleReady ? runtimeV2FrameBoundaryMismatchRatePercent : 0,
+    )
+    if (worstMismatchRatePercent >= RUNTIME_V2_ALERT_HIGH_MISMATCH_RATE_PERCENT) {
+      return 'high'
+    }
+    if (worstMismatchRatePercent >= RUNTIME_V2_ALERT_WATCH_MISMATCH_RATE_PERCENT) {
+      return 'watch'
+    }
+    return 'stable'
+  })()
+  // Keep alert style explicit so migration risk stands out in both compact and verbose panels.
+  const runtimeV2AlertClassName = runtimeV2AlertLevel === 'high'
+    ? 'text-rose-600 dark:text-rose-400'
+    : runtimeV2AlertLevel === 'watch'
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-emerald-600 dark:text-emerald-400'
   // Prefer sectioned diagnostics for UI grouping while keeping flat fallback.
   const stats = diagnostics.stats ?? EMPTY_RUNTIME_RENDER_DIAGNOSTICS.stats
   const performanceTimingStats = stats?.performance.timing
@@ -609,6 +646,13 @@ export function RuntimeDebugPanel() {
           <DebugRow label={t('shell.variantB.debug.runtimeV2Checks', 'Dual-Write Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.checks)}/>
           <DebugRow label={t('shell.variantB.debug.runtimeV2Mismatches', 'Dual-Write Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.mismatches)}/>
           <DebugRow label={t('shell.variantB.debug.runtimeV2MismatchRate', 'Dual-Write Mismatch Rate')} value={`${runtimeV2MismatchRatePercent.toFixed(1)}%`}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryChecks', 'Frame-Boundary Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.frameBoundaryChecks)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryMismatches', 'Frame-Boundary Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.frameBoundaryMismatches)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryMismatchRate', 'Frame-Boundary Mismatch Rate')} value={`${runtimeV2FrameBoundaryMismatchRatePercent.toFixed(1)}%`}/>
+          <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
+            <span className={'text-slate-500 dark:text-slate-400'}>{t('shell.variantB.debug.runtimeV2AlertLevel', 'Migration Alert Level')}</span>
+            <span className={`font-mono ${runtimeV2AlertClassName}`}>{runtimeV2AlertLevel}</span>
+          </div>
           <DebugRow label={t('shell.variantB.debug.runtimeV2LastCommand', 'Last Mismatch Command')} value={runtimeMigrationSnapshot.runtimeV2.lastCommandType ?? 'none'}/>
           <DebugRow label={t('shell.variantB.debug.runtimeV2StrictMode', 'Strict Mode Enabled')} value={runtimeMigrationSnapshot.runtimeV2.strictModeEnabled ? 'yes' : 'no'}/>
         </DebugSection>
@@ -828,6 +872,13 @@ export function RuntimeDebugPanel() {
           <DebugRow label={t('shell.variantB.debug.runtimeV2Checks', 'Dual-Write Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.checks)}/>
           <DebugRow label={t('shell.variantB.debug.runtimeV2Mismatches', 'Dual-Write Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.mismatches)}/>
           <DebugRow label={t('shell.variantB.debug.runtimeV2MismatchRate', 'Dual-Write Mismatch Rate')} value={`${runtimeV2MismatchRatePercent.toFixed(1)}%`}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryChecks', 'Frame-Boundary Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.frameBoundaryChecks)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryMismatches', 'Frame-Boundary Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.frameBoundaryMismatches)}/>
+          <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryMismatchRate', 'Frame-Boundary Mismatch Rate')} value={`${runtimeV2FrameBoundaryMismatchRatePercent.toFixed(1)}%`}/>
+          <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
+            <span className={'text-slate-500 dark:text-slate-400'}>{t('shell.variantB.debug.runtimeV2AlertLevel', 'Migration Alert Level')}</span>
+            <span className={`font-mono ${runtimeV2AlertClassName}`}>{runtimeV2AlertLevel}</span>
+          </div>
           <DebugRow label={t('shell.variantB.debug.runtimeV2LastCommand', 'Last Mismatch Command')} value={runtimeMigrationSnapshot.runtimeV2.lastCommandType ?? 'none'}/>
           <DebugRow label={t('shell.variantB.debug.runtimeV2StrictMode', 'Strict Mode Enabled')} value={runtimeMigrationSnapshot.runtimeV2.strictModeEnabled ? 'yes' : 'no'}/>
         </DebugSection>

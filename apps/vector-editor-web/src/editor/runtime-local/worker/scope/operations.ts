@@ -30,6 +30,12 @@ export interface RuntimeV2DualWriteDiagnostics {
   lastCommandType: string | null
   /** Stores latest mismatch issue list for debugging. */
   lastIssues: string[]
+  /** Stores total shape-tree invariant checks executed at worker frame boundaries. */
+  frameBoundaryChecks: number
+  /** Stores total shape-tree invariant mismatches observed at worker frame boundaries. */
+  frameBoundaryMismatches: number
+  /** Stores latest shape-tree invariant issues captured at worker frame boundaries. */
+  lastFrameBoundaryIssues: string[]
 }
 
 const runtimeV2DualWriteDiagnostics: RuntimeV2DualWriteDiagnostics = {
@@ -37,6 +43,9 @@ const runtimeV2DualWriteDiagnostics: RuntimeV2DualWriteDiagnostics = {
   mismatches: 0,
   lastCommandType: null,
   lastIssues: [],
+  frameBoundaryChecks: 0,
+  frameBoundaryMismatches: 0,
+  lastFrameBoundaryIssues: [],
 }
 
 type LocalCommandDispatchContext = {
@@ -194,6 +203,9 @@ export function getRuntimeV2DualWriteDiagnostics(): RuntimeV2DualWriteDiagnostic
     mismatches: runtimeV2DualWriteDiagnostics.mismatches,
     lastCommandType: runtimeV2DualWriteDiagnostics.lastCommandType,
     lastIssues: runtimeV2DualWriteDiagnostics.lastIssues.slice(),
+    frameBoundaryChecks: runtimeV2DualWriteDiagnostics.frameBoundaryChecks,
+    frameBoundaryMismatches: runtimeV2DualWriteDiagnostics.frameBoundaryMismatches,
+    lastFrameBoundaryIssues: runtimeV2DualWriteDiagnostics.lastFrameBoundaryIssues.slice(),
   }
 }
 
@@ -205,6 +217,34 @@ export function resetRuntimeV2DualWriteDiagnostics() {
   runtimeV2DualWriteDiagnostics.mismatches = 0
   runtimeV2DualWriteDiagnostics.lastCommandType = null
   runtimeV2DualWriteDiagnostics.lastIssues = []
+  runtimeV2DualWriteDiagnostics.frameBoundaryChecks = 0
+  runtimeV2DualWriteDiagnostics.frameBoundaryMismatches = 0
+  runtimeV2DualWriteDiagnostics.lastFrameBoundaryIssues = []
+}
+
+/**
+ * Executes one frame-boundary shape-tree invariant check and updates migration diagnostics counters.
+ */
+export function runRuntimeV2FrameBoundaryInvariantCheck(document: EditorDocument): RuntimeV2DualWriteDiagnostics {
+  runtimeV2DualWriteDiagnostics.frameBoundaryChecks += 1
+  const validation = validateNormalizedDualWriteConsistency(document)
+  if (validation.valid) {
+    runtimeV2DualWriteDiagnostics.lastFrameBoundaryIssues = []
+    return getRuntimeV2DualWriteDiagnostics()
+  }
+
+  runtimeV2DualWriteDiagnostics.frameBoundaryMismatches += 1
+  runtimeV2DualWriteDiagnostics.lastFrameBoundaryIssues = validation.issues.slice()
+
+  if (isRuntimeV2DualWriteStrictModeEnabled()) {
+    throw new Error(`runtime-v2 frame-boundary invariant mismatch: ${validation.issues.join('; ')}`)
+  }
+
+  // AI-TEMP: keep frame-boundary invariant diagnostics non-blocking while runtime-v2 adoption is incremental; remove when normalized model becomes the single source of truth; ref apps/vector-editor-web/docs/runtime/runtime-v2-migration.md
+  console.warn('[runtime-v2 frame-boundary invariant mismatch]', {
+    issues: validation.issues,
+  })
+  return getRuntimeV2DualWriteDiagnostics()
 }
 
 /**

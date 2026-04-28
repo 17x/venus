@@ -145,6 +145,204 @@ function createGroupedFixture(): EditorDocument {
 }
 
 /**
+ * Creates one nested-parent fixture for reorder parity checks inside grouped subtrees.
+ */
+function createNestedReorderFixture(): EditorDocument {
+  return {
+    id: 'doc-3',
+    name: 'nested reorder',
+    width: 1000,
+    height: 1000,
+    shapes: [
+      {
+        id: 'group-root',
+        type: 'group',
+        name: 'Root',
+        parentId: null,
+        childIds: ['group-a', 'group-b'],
+        x: 0,
+        y: 0,
+        width: 500,
+        height: 300,
+      },
+      {
+        id: 'group-a',
+        type: 'group',
+        name: 'Group A',
+        parentId: 'group-root',
+        childIds: ['rect-a', 'rect-b', 'rect-c'],
+        x: 0,
+        y: 0,
+        width: 260,
+        height: 120,
+      },
+      {
+        id: 'rect-a',
+        type: 'rectangle',
+        name: 'A',
+        parentId: 'group-a',
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 40,
+      },
+      {
+        id: 'rect-b',
+        type: 'rectangle',
+        name: 'B',
+        parentId: 'group-a',
+        x: 80,
+        y: 0,
+        width: 40,
+        height: 40,
+      },
+      {
+        id: 'rect-c',
+        type: 'rectangle',
+        name: 'C',
+        parentId: 'group-a',
+        x: 160,
+        y: 0,
+        width: 40,
+        height: 40,
+      },
+      {
+        id: 'group-b',
+        type: 'group',
+        name: 'Group B',
+        parentId: 'group-root',
+        childIds: ['rect-d'],
+        x: 300,
+        y: 0,
+        width: 120,
+        height: 120,
+      },
+      {
+        id: 'rect-d',
+        type: 'rectangle',
+        name: 'D',
+        parentId: 'group-b',
+        x: 320,
+        y: 20,
+        width: 40,
+        height: 40,
+      },
+    ],
+  }
+}
+
+/**
+ * Creates one cross-parent fixture used to validate regroup parity across different source groups.
+ */
+function createCrossParentFixture(): EditorDocument {
+  return {
+    id: 'doc-4',
+    name: 'cross parent',
+    width: 1200,
+    height: 800,
+    shapes: [
+      {
+        id: 'group-root',
+        type: 'group',
+        name: 'Root',
+        parentId: null,
+        childIds: ['group-left', 'group-right'],
+        x: 0,
+        y: 0,
+        width: 600,
+        height: 240,
+      },
+      {
+        id: 'group-left',
+        type: 'group',
+        name: 'Left',
+        parentId: 'group-root',
+        childIds: ['rect-a', 'rect-b'],
+        x: 0,
+        y: 0,
+        width: 220,
+        height: 120,
+      },
+      {
+        id: 'group-right',
+        type: 'group',
+        name: 'Right',
+        parentId: 'group-root',
+        childIds: ['rect-c', 'rect-d'],
+        x: 260,
+        y: 0,
+        width: 220,
+        height: 120,
+      },
+      {
+        id: 'rect-a',
+        type: 'rectangle',
+        name: 'A',
+        parentId: 'group-left',
+        x: 10,
+        y: 10,
+        width: 40,
+        height: 40,
+      },
+      {
+        id: 'rect-b',
+        type: 'rectangle',
+        name: 'B',
+        parentId: 'group-left',
+        x: 90,
+        y: 10,
+        width: 40,
+        height: 40,
+      },
+      {
+        id: 'rect-c',
+        type: 'rectangle',
+        name: 'C',
+        parentId: 'group-right',
+        x: 280,
+        y: 10,
+        width: 40,
+        height: 40,
+      },
+      {
+        id: 'rect-d',
+        type: 'rectangle',
+        name: 'D',
+        parentId: 'group-right',
+        x: 360,
+        y: 10,
+        width: 40,
+        height: 40,
+      },
+    ],
+  }
+}
+
+/**
+ * Creates one nested temporary-group fixture for ungroup parity checks.
+ */
+function createNestedUngroupFixture(): EditorDocument {
+  const document = createCrossParentFixture()
+  document.shapes.push({
+    id: 'group-temp',
+    type: 'group',
+    name: 'Temp',
+    parentId: 'group-root',
+    childIds: ['rect-a', 'rect-c'],
+    x: 0,
+    y: 0,
+    width: 400,
+    height: 80,
+  })
+  document.shapes.find((shape) => shape.id === 'rect-a')!.parentId = 'group-temp'
+  document.shapes.find((shape) => shape.id === 'rect-c')!.parentId = 'group-temp'
+  document.shapes.find((shape) => shape.id === 'group-left')!.childIds = ['rect-b']
+  document.shapes.find((shape) => shape.id === 'group-right')!.childIds = ['rect-d']
+  document.shapes.find((shape) => shape.id === 'group-root')!.childIds = ['group-left', 'group-temp', 'group-right']
+  return document
+}
+
+/**
  * Canonicalizes patches for stable local-vs-remote parity assertions.
  */
 function canonicalizePatches(input: Array<Record<string, unknown>>) {
@@ -233,6 +431,72 @@ test('reorder command local and remote patch planners emit equivalent reorder an
 
   assert.deepEqual(
     canonicalizePatches(localForward as Array<Record<string, unknown>>),
+    canonicalizePatches(remotePatches as Array<Record<string, unknown>>),
+  )
+})
+
+/**
+ * Verifies nested-group reorder planning stays equivalent between local and remote normalized planners.
+ */
+test('nested reorder command local and remote patch planners stay structurally equivalent', () => {
+  const document = createNestedReorderFixture()
+  const scene = createSceneFixture(document)
+  const command = {
+    type: 'shape.reorder' as const,
+    shapeId: 'rect-c',
+    toIndex: 0,
+  }
+
+  const localForward = createLocalHistoryEntry(command, scene, cloneDocument(document)).forward
+  const remoteOperation = createLocalOperation(command, 'actor-1')
+  const remotePatches = createRemotePatches(remoteOperation, scene, cloneDocument(document))
+
+  assert.deepEqual(
+    canonicalizePatches(localForward as Array<Record<string, unknown>>),
+    canonicalizePatches(remotePatches as Array<Record<string, unknown>>),
+  )
+})
+
+/**
+ * Verifies regroup across different parent groups stays equivalent between local and remote planners.
+ */
+test('cross-parent group command local and remote patch planners stay structurally equivalent', () => {
+  const document = createCrossParentFixture()
+  const scene = createSceneFixture(document)
+  const command = {
+    type: 'shape.group' as const,
+    shapeIds: ['rect-a', 'rect-c'],
+    groupId: 'group-merge',
+    name: 'Group Merge',
+  }
+
+  const localForward = createLocalHistoryEntry(command, scene, cloneDocument(document)).forward
+  const remoteOperation = createLocalOperation(command, 'actor-1')
+  const remotePatches = createRemotePatches(remoteOperation, scene, cloneDocument(document))
+
+  assert.deepEqual(
+    canonicalizePatches(withoutSelectionPatches(localForward) as Array<Record<string, unknown>>),
+    canonicalizePatches(remotePatches as Array<Record<string, unknown>>),
+  )
+})
+
+/**
+ * Verifies nested ungroup planning stays equivalent between local and remote planners.
+ */
+test('nested ungroup command local and remote patch planners stay structurally equivalent', () => {
+  const document = createNestedUngroupFixture()
+  const scene = createSceneFixture(document)
+  const command = {
+    type: 'shape.ungroup' as const,
+    groupId: 'group-temp',
+  }
+
+  const localForward = createLocalHistoryEntry(command, scene, cloneDocument(document)).forward
+  const remoteOperation = createLocalOperation(command, 'actor-1')
+  const remotePatches = createRemotePatches(remoteOperation, scene, cloneDocument(document))
+
+  assert.deepEqual(
+    canonicalizePatches(withoutSelectionPatches(localForward) as Array<Record<string, unknown>>),
     canonicalizePatches(remotePatches as Array<Record<string, unknown>>),
   )
 })

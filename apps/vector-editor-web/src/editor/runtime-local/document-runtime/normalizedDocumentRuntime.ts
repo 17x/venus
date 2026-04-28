@@ -1,5 +1,5 @@
 import type {DocumentNode, EditorDocument} from '@vector/model'
-import {getNormalizedBoundsFromBox} from '@venus/engine'
+import {getNormalizedBoundsFromBox} from '@venus/lib/geometry'
 
 /**
  * Defines one normalized runtime node projection used by the pure TS document runtime.
@@ -473,7 +473,8 @@ export function reconcileNormalizedStructuralStorage(input: {
     }
 
     const previousChildIds = node.shape.childIds ?? []
-    const nextChildIds = node.children.slice()
+    // Enforce one canonical group owner per child id so malformed multi-parent links are collapsed deterministically.
+    const nextChildIds = resolveCanonicalGroupChildIds(node.children, node.id, canonicalParentByChildId)
     if (!areStringArraysEqual(previousChildIds, nextChildIds)) {
       node.shape.childIds = nextChildIds
       changed = true
@@ -482,3 +483,27 @@ export function reconcileNormalizedStructuralStorage(input: {
 
   return {changed}
 }
+
+/**
+ * Resolves one group child-id list to unique entries that are canonically owned by the current group.
+ */
+function resolveCanonicalGroupChildIds(
+  childIds: string[],
+  groupId: string,
+  canonicalParentByChildId: Map<string, string>,
+): string[] {
+  const seenChildIds = new Set<string>()
+  const nextChildIds: string[] = []
+
+  childIds.forEach((childId) => {
+    if (canonicalParentByChildId.get(childId) !== groupId || seenChildIds.has(childId)) {
+      return
+    }
+
+    seenChildIds.add(childId)
+    nextChildIds.push(childId)
+  })
+
+  return nextChildIds
+}
+

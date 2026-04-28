@@ -25,6 +25,7 @@ import {
   getRuntimeV2DualWriteStrictModeEnabled,
   handleLocalCommand,
   handleRemoteOperation,
+  runRuntimeV2FrameBoundaryInvariantCheck,
 } from './operations.ts'
 
 function debugWorker(message: string, details?: unknown) {
@@ -170,6 +171,9 @@ function postScene(
   history: ReturnType<typeof createHistoryManager>,
   collaboration: ReturnType<typeof createCollaborationManager>,
 ) {
+  // Run one invariant guard at each worker frame boundary so migration drift is observable beyond command-triggered checks.
+  runRuntimeV2FrameBoundaryInvariantCheck(document)
+
   scope.postMessage({
     type,
     updateKind,
