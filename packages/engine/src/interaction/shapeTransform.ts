@@ -1,3 +1,20 @@
+import {
+  applyAffineMatrixToPoint as applyAffineMatrixToPointFromLib,
+  createAffineMatrixAroundPoint as createAffineMatrixAroundPointFromLib,
+  createIdentityAffineMatrix as createIdentityAffineMatrixFromLib,
+  createRotationAffineMatrix as createRotationAffineMatrixFromLib,
+  createScaleAffineMatrix as createScaleAffineMatrixFromLib,
+  createTranslationAffineMatrix as createTranslationAffineMatrixFromLib,
+  invertAffineMatrix as invertAffineMatrixFromLib,
+  multiplyAffineMatrices as multiplyAffineMatricesFromLib,
+} from '@venus/lib/math'
+import {
+  doNormalizedBoundsOverlap as doNormalizedBoundsOverlapFromLib,
+  getNormalizedBoundsFromBox as getNormalizedBoundsFromBoxFromLib,
+  intersectNormalizedBounds as intersectNormalizedBoundsFromLib,
+  isPointInsideRotatedBounds as isPointInsideRotatedBoundsFromLib,
+} from '@venus/lib/geometry'
+
 export interface Point {
   x: number
   y: number
@@ -87,71 +104,58 @@ export interface ResolvedShapeTransformRecord extends ShapeTransformRecord {
   inverseMatrix: AffineMatrix
 }
 
+/**
+ * Returns the identity affine matrix for compatibility with legacy engine callers.
+ */
 export function createIdentityAffineMatrix(): AffineMatrix {
-  return [1, 0, 0, 1, 0, 0]
+  return createIdentityAffineMatrixFromLib()
 }
 
+/**
+ * Returns a translation affine matrix for compatibility with legacy engine callers.
+ */
 export function createTranslationAffineMatrix(tx: number, ty: number): AffineMatrix {
-  return [1, 0, 0, 1, tx, ty]
+  return createTranslationAffineMatrixFromLib(tx, ty)
 }
 
+/**
+ * Returns a scale affine matrix for compatibility with legacy engine callers.
+ */
 export function createScaleAffineMatrix(scaleX: number, scaleY: number): AffineMatrix {
-  return [scaleX, 0, 0, scaleY, 0, 0]
+  return createScaleAffineMatrixFromLib(scaleX, scaleY)
 }
 
+/**
+ * Returns a rotation affine matrix for compatibility with legacy engine callers.
+ */
 export function createRotationAffineMatrix(rotationDegrees: number): AffineMatrix {
-  const angle = rotationDegrees * (Math.PI / 180)
-  const cos = Math.cos(angle)
-  const sin = Math.sin(angle)
-
-  return [cos, sin, -sin, cos, 0, 0]
+  return createRotationAffineMatrixFromLib(rotationDegrees)
 }
 
+/**
+ * Multiplies affine matrices while preserving existing engine call signatures.
+ */
 export function multiplyAffineMatrices(left: AffineMatrix, right: AffineMatrix): AffineMatrix {
-  const [la, lb, lc, ld, le, lf] = left
-  const [ra, rb, rc, rd, re, rf] = right
-
-  return [
-    la * ra + lc * rb,
-    lb * ra + ld * rb,
-    la * rc + lc * rd,
-    lb * rc + ld * rd,
-    la * re + lc * rf + le,
-    lb * re + ld * rf + lf,
-  ]
+  return multiplyAffineMatricesFromLib(left, right)
 }
 
+/**
+ * Inverts an affine matrix while preserving existing engine fallback behavior.
+ */
 export function invertAffineMatrix(matrix: AffineMatrix): AffineMatrix {
-  const [a, b, c, d, e, f] = matrix
-  const determinant = a * d - b * c
-
-  if (Math.abs(determinant) <= 1e-9) {
-    return createIdentityAffineMatrix()
-  }
-
-  const inverseDeterminant = 1 / determinant
-  const nextA = d * inverseDeterminant
-  const nextB = -b * inverseDeterminant
-  const nextC = -c * inverseDeterminant
-  const nextD = a * inverseDeterminant
-
-  return [
-    nextA,
-    nextB,
-    nextC,
-    nextD,
-    -(nextA * e + nextC * f),
-    -(nextB * e + nextD * f),
-  ]
+  return invertAffineMatrixFromLib(matrix)
 }
 
+/**
+ * Applies an affine matrix to a point while preserving existing engine call signatures.
+ */
 export function applyAffineMatrixToPoint(matrix: AffineMatrix, point: Point): Point {
-  return {
-    x: matrix[0] * point.x + matrix[2] * point.y + matrix[4],
-    y: matrix[1] * point.x + matrix[3] * point.y + matrix[5],
-  }
+  return applyAffineMatrixToPointFromLib(matrix, point)
 }
 
+/**
+ * Composes a matrix around a center point while preserving existing engine call signatures.
+ */
 export function createAffineMatrixAroundPoint(
   center: Point,
   options?: {
@@ -160,88 +164,60 @@ export function createAffineMatrixAroundPoint(
     scaleY?: number
   },
 ): AffineMatrix {
-  const rotationDegrees = options?.rotationDegrees ?? 0
-  const scaleX = options?.scaleX ?? 1
-  const scaleY = options?.scaleY ?? 1
-
-  return multiplyAffineMatrices(
-    multiplyAffineMatrices(
-      createTranslationAffineMatrix(center.x, center.y),
-      multiplyAffineMatrices(
-        createRotationAffineMatrix(rotationDegrees),
-        createScaleAffineMatrix(scaleX, scaleY),
-      ),
-    ),
-    createTranslationAffineMatrix(-center.x, -center.y),
-  )
+  return createAffineMatrixAroundPointFromLib(center, options)
 }
 
+/**
+ * Normalizes possibly negative-size boxes while preserving existing engine call signatures.
+ */
 export function getNormalizedBoundsFromBox(
   x: number,
   y: number,
   width: number,
   height: number,
 ): NormalizedBounds {
-  const minX = Math.min(x, x + width)
-  const maxX = Math.max(x, x + width)
-  const minY = Math.min(y, y + height)
-  const maxY = Math.max(y, y + height)
-
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
+  return getNormalizedBoundsFromBoxFromLib(x, y, width, height)
 }
 
+/**
+ * Checks overlap of normalized bounds while preserving existing engine call signatures.
+ */
 export function doNormalizedBoundsOverlap(
   left: NormalizedBoundsLike,
   right: NormalizedBoundsLike,
 ): boolean {
-  return !(
-    left.maxX <= right.minX ||
-    right.maxX <= left.minX ||
-    left.maxY <= right.minY ||
-    right.maxY <= left.minY
-  )
+  return doNormalizedBoundsOverlapFromLib(left, right)
 }
 
+/**
+ * Intersects normalized bounds while preserving existing engine call signatures.
+ */
 export function intersectNormalizedBounds(
   left: NormalizedBoundsLike,
   right: NormalizedBoundsLike,
 ): NormalizedBoundsLike | null {
-  const minX = Math.max(left.minX, right.minX)
-  const minY = Math.max(left.minY, right.minY)
-  const maxX = Math.min(left.maxX, right.maxX)
-  const maxY = Math.min(left.maxY, right.maxY)
-
-  if (maxX <= minX || maxY <= minY) {
-    return null
-  }
-
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-  }
+  return intersectNormalizedBoundsFromLib(left, right)
 }
 
+/**
+ * Normalizes raw box transform input into a fully-populated record.
+ */
 export function createShapeTransformRecord(source: BoxTransformSource): ShapeTransformRecord {
   return {
     x: source.x,
     y: source.y,
     width: source.width,
     height: source.height,
+    // Default optional flags to stable values to keep downstream math deterministic.
     rotation: source.rotation ?? 0,
     flipX: source.flipX ?? false,
     flipY: source.flipY ?? false,
   }
 }
 
+/**
+ * Resolves runtime transform data including matrix and inverse matrix.
+ */
 export function resolveNodeTransform(source: BoxTransformSource): ResolvedNodeTransform {
   const transform = createShapeTransformRecord(source)
   const bounds = getNormalizedBoundsFromBox(transform.x, transform.y, transform.width, transform.height)
@@ -252,6 +228,7 @@ export function resolveNodeTransform(source: BoxTransformSource): ResolvedNodeTr
   const rotation = transform.rotation
   const flipX = transform.flipX ?? false
   const flipY = transform.flipY ?? false
+  // Compose rotation and mirror around bounds center so local geometry origin stays unchanged.
   const matrix = createAffineMatrixAroundPoint(center, {
     rotationDegrees: rotation,
     scaleX: flipX ? -1 : 1,
@@ -269,6 +246,9 @@ export function resolveNodeTransform(source: BoxTransformSource): ResolvedNodeTr
   }
 }
 
+/**
+ * Resolves legacy record fields together with computed matrix metadata.
+ */
 export function resolveShapeTransformRecord(source: BoxTransformSource): ResolvedShapeTransformRecord {
   const transform = createShapeTransformRecord(source)
   const resolved = resolveNodeTransform(transform)
@@ -282,6 +262,9 @@ export function resolveShapeTransformRecord(source: BoxTransformSource): Resolve
   }
 }
 
+/**
+ * Converts source transform into matrix-first structure expected by batch commands.
+ */
 export function createMatrixFirstNodeTransform(source: BoxTransformSource): MatrixFirstNodeTransform {
   const resolved = resolveNodeTransform(source)
 
@@ -297,15 +280,20 @@ export function createMatrixFirstNodeTransform(source: BoxTransformSource): Matr
   }
 }
 
+/**
+ * Converts matrix-first transform snapshots back into legacy shape transform records.
+ */
 export function toLegacyShapeTransformRecord(
   transform: Pick<MatrixFirstNodeTransform, 'bounds' | 'rotation' | 'flipX' | 'flipY' | 'width' | 'height'>,
 ): ShapeTransformRecord {
+  // Fallback to bounds extents for compatibility with older callsites that omit width/height.
   const width = typeof transform.width === 'number'
     ? transform.width
     : (transform.bounds.maxX - transform.bounds.minX)
   const height = typeof transform.height === 'number'
     ? transform.height
     : (transform.bounds.maxY - transform.bounds.minY)
+  // Preserve negative-size anchor semantics used by resize workflows.
   const x = width >= 0 ? transform.bounds.minX : transform.bounds.maxX
   const y = height >= 0 ? transform.bounds.minY : transform.bounds.maxY
 
@@ -320,32 +308,22 @@ export function toLegacyShapeTransformRecord(
   }
 }
 
+/**
+ * Performs rotated bounds hit testing while preserving existing engine call signatures.
+ */
 export function isPointInsideRotatedBounds(
   point: Point,
   bounds: Pick<NormalizedBounds, 'minX' | 'minY' | 'maxX' | 'maxY'>,
   rotationDegrees: number,
 ): boolean {
-  const centerX = (bounds.minX + bounds.maxX) / 2
-  const centerY = (bounds.minY + bounds.maxY) / 2
-  const localPoint = Math.abs(rotationDegrees) > 0.0001
-    ? applyAffineMatrixToPoint(
-        invertAffineMatrix(createAffineMatrixAroundPoint(
-          {x: centerX, y: centerY},
-          {rotationDegrees},
-        )),
-        point,
-      )
-    : point
-
-  return (
-    localPoint.x >= bounds.minX &&
-    localPoint.x <= bounds.maxX &&
-    localPoint.y >= bounds.minY &&
-    localPoint.y <= bounds.maxY
-  )
+  return isPointInsideRotatedBoundsFromLib(point, bounds, rotationDegrees)
 }
 
+/**
+ * Returns whether a resolved node transform has any visual effect.
+ */
 export function hasResolvedNodeTransformEffect(transform: ResolvedNodeTransform): boolean {
+  // Apply a small epsilon to avoid insignificant float drift toggling transform strings.
   return (
     Math.abs(transform.rotation) > 0.0001 ||
     transform.flipX ||
@@ -353,7 +331,11 @@ export function hasResolvedNodeTransformEffect(transform: ResolvedNodeTransform)
   )
 }
 
+/**
+ * Serializes resolved transform state into SVG transform attribute syntax.
+ */
 export function toResolvedNodeSvgTransform(transform: ResolvedNodeTransform): string | undefined {
+  // Skip transform serialization when matrix effect is effectively identity.
   if (!hasResolvedNodeTransformEffect(transform)) {
     return undefined
   }
@@ -361,7 +343,11 @@ export function toResolvedNodeSvgTransform(transform: ResolvedNodeTransform): st
   return `translate(${transform.center.x} ${transform.center.y}) rotate(${transform.rotation}) scale(${transform.flipX ? -1 : 1} ${transform.flipY ? -1 : 1}) translate(${-transform.center.x} ${-transform.center.y})`
 }
 
+/**
+ * Serializes resolved transform state into CSS transform syntax.
+ */
 export function toResolvedNodeCssTransform(transform: ResolvedNodeTransform): string | undefined {
+  // Skip transform serialization when matrix effect is effectively identity.
   if (!hasResolvedNodeTransformEffect(transform)) {
     return undefined
   }

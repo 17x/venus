@@ -1,9 +1,9 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/engine/tsconfig.json" },
-    { "path": "./apps/mindmap-editor/tsconfig.app.json" },
-    { "path": "./apps/mindmap-editor/tsconfig.node.json" },
+    { "path": "./packages/lib" },
+    { "path": "./packages/engine" },
+    { "path": "./packages/editor-primitive" },
     { "path": "./apps/vector-editor-web/tsconfig.app.json" },
     { "path": "./apps/vector-editor-web/tsconfig.node.json" }
   ]

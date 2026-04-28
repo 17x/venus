@@ -4,17 +4,27 @@ Packages under `packages/*` are reusable implementation layers shared by apps.
 
 ## Responsibility Boundary
 
-- Own stable runtime, worker bridge, renderer, geometry, and document semantics.
-- Own reusable interaction algorithms and app-agnostic protocol contracts.
-- Avoid product-specific UI policy and route-level orchestration.
+- Own reusable low-level libraries and package-level implementation surfaces.
+- Keep product-specific UI policy and route-level orchestration in app layers.
+- Keep cross-package APIs explicit at package roots.
 
 ## Current Packages
 
-- `document-core`: persisted document model and schema-level semantics.
-- `engine`: render, hit-test, geometry, and spatial mechanics.
+- `@venus/lib`: shared low-level primitives and common utility contracts.
+- `@venus/editor-primitive`: package-agnostic interaction runtime primitives.
+- `@venus/engine`: render, hit-test, geometry, and spatial mechanics.
+
+## `@venus/lib` Module Coverage
+
+- `math`, `geometry`, `ids`, `events`, `lifecycle`, `scheduler`
+- `patch`, `collections`, `logger`, `worker`, `serialization`, `assert`
+
+Each module is implemented under `packages/lib/src/<module>` and includes
+`node:test` coverage in the same folder.
 
 ## Usage Rules
 
 - Apps compose package capabilities; packages do not import app modules.
-- Cross-layer changes should preserve: app -> runtime -> worker/shared-memory -> engine.
+- `@venus/editor-primitive` may depend on `@venus/lib` only.
+- `@venus/engine` must not depend on app-level product semantics.
 - Public package APIs should evolve with backward-compatible intent whenever practical.

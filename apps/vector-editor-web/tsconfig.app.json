@@ -7,6 +7,10 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "paths": {
       "@/*": ["apps/vector-editor-web/src/*"],
+      "@venus/document-core": ["apps/vector-editor-web/src/model/index.ts"],
+      "@venus/lib": ["packages/lib/src/index.ts"],
+      "@venus/editor-primitive": ["packages/editor-primitive/src/index.ts"],
+      "@venus/engine": ["packages/engine/src/index.ts"],
       "@vector/model": ["apps/vector-editor-web/src/model/index.ts"],
       "@vector/ui": ["apps/vector-editor-web/src/ui/index.ts"],
       "@vector/runtime": ["apps/vector-editor-web/src/runtime/index.ts"],
@@ -19,6 +23,7 @@
     }
   },
   "references": [
+    { "path": "../../packages/lib/tsconfig.json" },
     { "path": "../../packages/engine/tsconfig.json" }
   ],
   "include": [

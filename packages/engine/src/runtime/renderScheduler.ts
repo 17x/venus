@@ -1,158 +1,77 @@
+import {createSingleFlightScheduler, type SchedulerMode} from '@venus/lib/scheduler'
+
+/**
+ * Defines input options used by the engine render scheduler facade.
+ */
 export interface CreateEngineRenderSchedulerOptions {
+  /** Stores the render callback executed by each scheduled frame. */
   render: () => Promise<unknown>
+  /** Stores interactive throttle interval in milliseconds. */
   interactiveIntervalMs?: number
+  /** Stores asynchronous error callback from the render task. */
   onError?: (error: unknown) => void
 }
 
+/**
+ * Defines diagnostics emitted by the engine scheduler surface.
+ */
 export interface EngineRenderSchedulerDiagnostics {
+  /** Stores request-to-flush wait time in milliseconds. */
   lastQueueWaitMs: number
+  /** Stores current interactive throttle delay in milliseconds. */
   lastInteractiveThrottleDelayMs: number
+  /** Stores count of coalesced requests while one frame is pending. */
   coalescedRequestCount: number
+  /** Stores whether render execution is currently in flight. */
   inFlight: boolean
+  /** Stores whether a requestAnimationFrame callback is pending. */
   pendingRaf: boolean
 }
 
+/**
+ * Defines scheduler lifecycle operations exposed to the engine runtime.
+ */
 export interface EngineRenderScheduler {
-  request(mode?: 'interactive' | 'normal'): void
+  /** Requests one scheduled render in interactive or normal mode. */
+  request(mode?: SchedulerMode): void
+  /** Returns the latest diagnostics snapshot. */
   getDiagnostics(): EngineRenderSchedulerDiagnostics
+  /** Cancels queued work. */
   cancel(): void
+  /** Cancels queued work and disposes scheduler state. */
   dispose(): void
 }
 
 /**
- * Engine-owned render scheduler that keeps render submission single-flight,
- * coalesces burst requests, and optionally rate-limits interactive mode.
+ * Creates an engine scheduler facade backed by the shared lib single-flight scheduler.
  */
 export function createEngineRenderScheduler(
   options: CreateEngineRenderSchedulerOptions,
 ): EngineRenderScheduler {
-  const interactiveIntervalMs = Math.max(0, options.interactiveIntervalMs ?? 0)
-  let rafHandle: number | null = null
-  let interactiveTimerHandle: number | null = null
-  let inFlight = false
-  let queued = false
-  let queuedMode: 'interactive' | 'normal' = 'normal'
-  let lastRenderStartAt = 0
-  let rafScheduledAt = 0
-  const diagnostics: EngineRenderSchedulerDiagnostics = {
-    lastQueueWaitMs: 0,
-    lastInteractiveThrottleDelayMs: 0,
-    coalescedRequestCount: 0,
-    inFlight: false,
-    pendingRaf: false,
-  }
+  const scheduler = createSingleFlightScheduler({
+    run: options.render,
+    interactiveIntervalMs: options.interactiveIntervalMs,
+    onError: options.onError,
+  })
 
-  const clearInteractiveTimer = () => {
-    if (interactiveTimerHandle === null) {
-      return
+  /**
+   * Maps shared diagnostics to the engine field names for backward compatibility.
+   */
+  const getDiagnostics = (): EngineRenderSchedulerDiagnostics => {
+    const diagnostics = scheduler.getDiagnostics()
+    return {
+      lastQueueWaitMs: diagnostics.lastQueueWaitMs,
+      lastInteractiveThrottleDelayMs: diagnostics.lastInteractiveThrottleDelayMs,
+      coalescedRequestCount: diagnostics.coalescedRequestCount,
+      inFlight: diagnostics.inFlight,
+      pendingRaf: diagnostics.pendingFrame,
     }
-    clearTimeout(interactiveTimerHandle)
-    interactiveTimerHandle = null
-  }
-
-  const resolveHigherPriorityMode = (
-    previous: 'interactive' | 'normal',
-    next: 'interactive' | 'normal',
-  ) => {
-    // Keep interaction renders ahead of clarity-restoration renders so input
-    // never waits behind queued normal work.
-    return previous === 'interactive' || next === 'interactive'
-      ? 'interactive'
-      : 'normal'
-  }
-
-  const flush = () => {
-    rafHandle = null
-    diagnostics.pendingRaf = false
-
-    // Track scheduler queue wait to surface request->flush delay in diagnostics.
-    diagnostics.lastQueueWaitMs = rafScheduledAt > 0
-      ? Math.max(0, performance.now() - rafScheduledAt)
-      : 0
-    rafScheduledAt = 0
-
-    if (inFlight) {
-      queued = true
-      queuedMode = resolveHigherPriorityMode(queuedMode, 'normal')
-      return
-    }
-
-    inFlight = true
-    diagnostics.inFlight = true
-    lastRenderStartAt = performance.now()
-    void options.render()
-      .catch((error) => {
-        options.onError?.(error)
-      })
-      .finally(() => {
-        inFlight = false
-        diagnostics.inFlight = false
-        if (queued) {
-          const nextQueuedMode = queuedMode
-          queued = false
-          queuedMode = 'normal'
-          request(nextQueuedMode)
-        }
-      })
-  }
-
-  const request = (mode: 'interactive' | 'normal' = 'normal') => {
-    if (mode === 'interactive' && interactiveIntervalMs > 0) {
-      const elapsed = performance.now() - lastRenderStartAt
-      if (elapsed < interactiveIntervalMs) {
-        const throttleDelayMs = Math.max(0, interactiveIntervalMs - elapsed)
-        diagnostics.lastInteractiveThrottleDelayMs = throttleDelayMs
-        if (interactiveTimerHandle === null) {
-          interactiveTimerHandle = setTimeout(() => {
-            interactiveTimerHandle = null
-            request('interactive')
-          }, throttleDelayMs) as unknown as number
-        }
-        return
-      }
-    }
-
-    if (inFlight) {
-      queued = true
-      queuedMode = resolveHigherPriorityMode(queuedMode, mode)
-      return
-    }
-
-    if (rafHandle !== null) {
-      queuedMode = resolveHigherPriorityMode(queuedMode, mode)
-      diagnostics.coalescedRequestCount += 1
-      return
-    }
-
-    queuedMode = mode
-    rafScheduledAt = performance.now()
-    diagnostics.pendingRaf = true
-    rafHandle = requestAnimationFrame(flush)
-  }
-
-  const cancel = () => {
-    if (rafHandle !== null) {
-      cancelAnimationFrame(rafHandle)
-      rafHandle = null
-    }
-    rafScheduledAt = 0
-    diagnostics.pendingRaf = false
-    clearInteractiveTimer()
-    queued = false
-    queuedMode = 'normal'
-  }
-
-  const dispose = () => {
-    cancel()
-    inFlight = false
-    diagnostics.inFlight = false
-    lastRenderStartAt = 0
   }
 
   return {
-    request,
-    getDiagnostics: () => ({...diagnostics}),
-    cancel,
-    dispose,
+    request: scheduler.request,
+    getDiagnostics,
+    cancel: scheduler.cancel,
+    dispose: scheduler.dispose,
   }
 }

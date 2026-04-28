@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-04-27
+
+- Added `@venus/lib` module coverage for `math`, `geometry`, `ids`, `events`,
+  `lifecycle`, `scheduler`, `patch`, `collections`, `logger`, `worker`,
+  `serialization`, and `assert` under `packages/lib/src` with package-level
+  `node:test` suites for each module.
+- Extracted shared matrix, worker capability, scheduler, id generation, and
+  patch-batch primitives from engine/vector-local locations into `@venus/lib`,
+  then rewired original callsites to import through lib package boundaries.
+- Completed second extraction batch by moving viewport, pan, and zoom
+  interaction primitives into `@venus/lib/viewport` and preserving engine
+  compatibility through re-export adapters.
+- Completed third extraction batch by moving affine matrix primitives and
+  rotated bounds hit-testing into `@venus/lib` (`math/affineMatrix`,
+  `geometry/rotatedBounds`), then delegating engine shape-transform
+  compatibility exports to lib-owned implementations.
+- Cleared workspace validation errors introduced by new vector app files,
+  including `@venus/document-core` alias compatibility, fill/stroke gradient
+  contract typing, and updated engine option signatures in canvas runtime glue.
+- Updated package docs and current-work tracking to reflect the lib ownership
+  boundary and extraction status.
+
 ## 2026-04-26
 
 - Started engine cleanup from vector-reachable usage scan:

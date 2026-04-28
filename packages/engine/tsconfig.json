@@ -3,12 +3,14 @@
   "compilerOptions": {
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
+    "disableSourceOfProjectReferenceRedirect": true,
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
     "rootDir": "./src",
     "outDir": "./dist/types"
   },
+  "references": [{ "path": "../lib/tsconfig.json" }],
   "include": ["src"],
   "exclude": ["src/**/*.test.ts"]
 }
