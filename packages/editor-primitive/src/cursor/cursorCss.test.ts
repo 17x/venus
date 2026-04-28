@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {cursorIntentToCss} from './cursorCss.ts'
-import {resolveCursorRuntime} from './CursorManager.ts'
+import {resolveCursorIntent, resolveCursorRuntime} from './CursorManager.ts'
 
 test('cursor helpers resolve resize and priority intent', () => {
   assert.equal(
@@ -16,4 +16,9 @@ test('cursor helpers resolve resize and priority intent', () => {
   })
   assert.equal(runtime.source, 'overlay')
   assert.equal(runtime.css, 'pointer')
+
+  const intent = resolveCursorIntent({
+    scene: {type: 'crosshair'},
+  })
+  assert.equal(intent.type, 'crosshair')
 })

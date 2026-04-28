@@ -1,4 +1,7 @@
-export type EngineFrameHandle = number
+/**
+ * Defines frame handle union for environments where setTimeout does not return a number.
+ */
+export type EngineFrameHandle = number | ReturnType<typeof setTimeout>
 
 export interface EngineFrameInfo {
   now: number
@@ -62,8 +65,12 @@ function requestSystemFrame(cb: (timestamp: number) => void): EngineFrameHandle 
   return setTimeout(() => cb(defaultNow()), 16)
 }
 
+/**
+ * Cancels either rAF or timeout handles while respecting mixed runtime handle types.
+ */
 function cancelSystemFrame(handle: EngineFrameHandle) {
-  if (typeof cancelAnimationFrame === 'function') {
+  // Only numeric handles are valid for rAF cancellation in mixed Node/browser typing contexts.
+  if (typeof cancelAnimationFrame === 'function' && typeof handle === 'number') {
     cancelAnimationFrame(handle)
     return
   }

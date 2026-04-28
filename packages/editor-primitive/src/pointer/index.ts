@@ -8,5 +8,8 @@ export {
   DEFAULT_DRAG_THRESHOLD_PX,
   hasPassedDragThreshold,
   resolveDragDistance,
+  shouldStartDrag,
 } from './dragThreshold.ts'
 
+export type {NormalizedPointerEvent, NormalizedPointerType} from './NormalizedPointerEvent.ts'
+export {createNormalizedPointerEvent} from './NormalizedPointerEvent.ts'
