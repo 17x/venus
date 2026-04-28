@@ -1,5 +1,14 @@
 # Current Work
 
+## 2026-04-28
+
+- Expanded `@venus/editor-primitive` into full module layout:
+  - `pointer`, `keyboard`, `tool`, `operation`, `hover`
+  - `overlay`, `cursor`, `viewport`, `capture`, `runtime`
+- Added `node:test` coverage under `packages/editor-primitive/src/**` for each module.
+- Extracted shared zoom preset policy into `@venus/editor-primitive/viewport` and switched vector local interaction bridge to consume the package export.
+- Switched vector runtime-local cursor resize rotation mapping to reuse `@venus/editor-primitive/cursor` helper.
+
 ## 2026-04-27
 
 - Bootstrapped `@venus/lib` as the shared low-level package and implemented module slices for:

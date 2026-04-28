@@ -10,6 +10,27 @@ for auditability and future agent handoff.
 - Why the change matters
 - Key files
 
+## 2026-04-28
+
+- Scope: complete `@venus/editor-primitive` module surface and test baseline
+- Why: moves editor interaction runtime abstractions from bootstrap stubs to documented reusable contracts so vector and future apps can depend on stable shared primitives
+- Key files:
+  - `packages/editor-primitive/src/*`
+  - `packages/editor-primitive/package.json`
+  - `packages/editor-primitive/tsconfig.json`
+  - `packages/editor-primitive/tsconfig.test.json`
+  - `packages/editor-primitive/README.md`
+  - `packages/README.md`
+
+- Scope: vector bridge migration to consume shared primitive zoom/cursor helpers
+- Why: starts incremental extraction flow by replacing vector-local duplicate logic with `@venus/editor-primitive` exports while preserving UI behavior
+- Key files:
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/zoomPresets.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/viewportGestures.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/cursor/index.ts`
+  - `apps/vector-editor-web/src/runtime/interaction/index.ts`
+  - `apps/vector-editor-web/docs/runtime/runtime-interaction.md`
+
 ## 2026-04-27
 
 - Scope: bootstrap reusable `@venus/lib` and `@venus/editor-primitive` packages

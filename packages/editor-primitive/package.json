@@ -3,11 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
+    "typecheck:test": "tsc -p ./tsconfig.test.json --noEmit"
+  },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pointer": "./src/pointer/index.ts",
+    "./keyboard": "./src/keyboard/index.ts",
+    "./tool": "./src/tool/index.ts",
+    "./operation": "./src/operation/index.ts",
+    "./hover": "./src/hover/index.ts",
+    "./overlay": "./src/overlay/index.ts",
+    "./cursor": "./src/cursor/index.ts",
+    "./viewport": "./src/viewport/index.ts",
+    "./capture": "./src/capture/index.ts",
+    "./runtime": "./src/runtime/index.ts"
   },
   "dependencies": {
     "@venus/lib": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2"
   }
 }
 

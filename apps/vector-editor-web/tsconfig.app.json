@@ -10,6 +10,7 @@
       "@venus/document-core": ["apps/vector-editor-web/src/model/index.ts"],
       "@venus/lib": ["packages/lib/src/index.ts"],
       "@venus/editor-primitive": ["packages/editor-primitive/src/index.ts"],
+      "@venus/editor-primitive/*": ["packages/editor-primitive/src/*/index.ts"],
       "@venus/engine": ["packages/engine/src/index.ts"],
       "@vector/model": ["apps/vector-editor-web/src/model/index.ts"],
       "@vector/ui": ["apps/vector-editor-web/src/ui/index.ts"],
@@ -24,6 +25,7 @@
   },
   "references": [
     { "path": "../../packages/lib/tsconfig.json" },
+    { "path": "../../packages/editor-primitive/tsconfig.json" },
     { "path": "../../packages/engine/tsconfig.json" }
   ],
   "include": [

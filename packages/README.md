@@ -22,6 +22,14 @@ Packages under `packages/*` are reusable implementation layers shared by apps.
 Each module is implemented under `packages/lib/src/<module>` and includes
 `node:test` coverage in the same folder.
 
+## `@venus/editor-primitive` Module Coverage
+
+- `pointer`, `keyboard`, `tool`, `operation`, `hover`
+- `overlay`, `cursor`, `viewport`, `capture`, `runtime`
+
+Each module is implemented under `packages/editor-primitive/src/<module>` and
+includes `node:test` coverage in the same folder.
+
 ## Usage Rules
 
 - Apps compose package capabilities; packages do not import app modules.
