@@ -14,14 +14,21 @@
     ".": "./src/index.ts",
     "./pointer": "./src/pointer/index.ts",
     "./keyboard": "./src/keyboard/index.ts",
+    "./shortcut": "./src/shortcut/index.ts",
+    "./gesture": "./src/gesture/index.ts",
     "./tool": "./src/tool/index.ts",
     "./operation": "./src/operation/index.ts",
+    "./target": "./src/target/index.ts",
+    "./command": "./src/command/index.ts",
+    "./selection": "./src/selection/index.ts",
+    "./policy": "./src/policy/index.ts",
     "./hover": "./src/hover/index.ts",
     "./overlay": "./src/overlay/index.ts",
     "./cursor": "./src/cursor/index.ts",
     "./viewport": "./src/viewport/index.ts",
     "./capture": "./src/capture/index.ts",
-    "./runtime": "./src/runtime/index.ts"
+    "./runtime": "./src/runtime/index.ts",
+    "./input": "./src/input/index.ts"
   },
   "dependencies": {
     "@venus/lib": "workspace:*"
@@ -30,4 +37,3 @@
     "@types/node": "^24.12.2"
   }
 }
-

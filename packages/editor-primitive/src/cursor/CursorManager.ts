@@ -81,3 +81,9 @@ export function resolveCursorRuntime(
   }
 }
 
+/**
+ * Resolves cursor intent only, without creating cursor runtime metadata.
+ */
+export function resolveCursorIntent(input: CursorResolveInput): CursorIntent {
+  return resolveCursorRuntime(input).intent
+}

@@ -60,8 +60,10 @@ export type InitialRenderPhase =
 export class EngineInitialRenderController {
   private config: Required<EngineInitialRenderConfig>
   private phase: InitialRenderPhase = InitialRenderPhase.Idle
-  private previewHandle: number | null = null
-  private detailHandle: number | null = null
+  // Use runtime timer handle type so Node test and browser build share one safe declaration.
+  private previewHandle: ReturnType<typeof globalThis.setTimeout> | null = null
+  // Use runtime timer handle type so nested detail scheduling stays cross-environment safe.
+  private detailHandle: ReturnType<typeof globalThis.setTimeout> | null = null
   private startAt: number = 0
 
   constructor(config: EngineInitialRenderConfig) {

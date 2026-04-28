@@ -24,8 +24,9 @@ Each module is implemented under `packages/lib/src/<module>` and includes
 
 ## `@venus/editor-primitive` Module Coverage
 
-- `pointer`, `keyboard`, `tool`, `operation`, `hover`
-- `overlay`, `cursor`, `viewport`, `capture`, `runtime`
+- `pointer`, `keyboard`, `shortcut`, `gesture`, `tool`, `operation`
+- `target`, `command`, `selection`, `policy`, `hover`, `overlay`
+- `cursor`, `viewport`, `capture`, `runtime`
 
 Each module is implemented under `packages/editor-primitive/src/<module>` and
 includes `node:test` coverage in the same folder.

@@ -12,6 +12,57 @@ for auditability and future agent handoff.
 
 ## 2026-04-28
 
+- Scope: repair engine timer/frame handle typing for mixed Node/browser toolchains
+- Why: workspace typecheck surfaced `Timeout` vs `number` mismatches after Node timer types were active, so the engine frame APIs were normalized to accept both handle forms without changing runtime behavior
+- Key files:
+  - `packages/engine/src/renderer/initialRender.ts`
+  - `packages/engine/src/time/index.ts`
+
+- Scope: harden `@venus/editor-primitive` normalized runtime contracts and warning-path coverage
+- Why: closes M2-M3 contract test gaps by validating modifier/keyboard/wheel/viewport normalized inputs and lifecycle warning branches while keeping dispatch output side-effect-free
+- Key files:
+  - `packages/editor-primitive/src/input/ModifierState.test.ts`
+  - `packages/editor-primitive/src/keyboard/NormalizedKeyboardEvent.test.ts`
+  - `packages/editor-primitive/src/viewport/NormalizedWheelEvent.test.ts`
+  - `packages/editor-primitive/src/viewport/ViewportIntent.test.ts`
+  - `packages/editor-primitive/src/runtime/dispatchInteractionEvent.test.ts`
+  - `packages/editor-primitive/src/runtime/index.ts`
+  - `packages/editor-primitive/README.md`
+  - `docs/core/current-work.md`
+
+- Scope: strengthen `@venus/editor-primitive` from helper collection to explicit interaction-layer contracts
+- Why: aligns package shape with `docs/task/repo-abstract/repo-abstract-02.md` by adding missing reusable primitives (gesture/shortcut/target/policy/selection/command), explicit tool-handler lifecycle, operation phases, and runtime pipeline contract without binding to app/engine internals
+- Key files:
+  - `packages/editor-primitive/src/index.ts`
+  - `packages/editor-primitive/src/tool/ToolHandler.ts`
+  - `packages/editor-primitive/src/operation/OperationPhase.ts`
+  - `packages/editor-primitive/src/operation/OperationLifecycle.ts`
+  - `packages/editor-primitive/src/gesture/*`
+  - `packages/editor-primitive/src/shortcut/*`
+  - `packages/editor-primitive/src/target/*`
+  - `packages/editor-primitive/src/command/*`
+  - `packages/editor-primitive/src/selection/*`
+  - `packages/editor-primitive/src/policy/*`
+  - `packages/editor-primitive/src/runtime/InteractionPipeline.ts`
+  - `packages/editor-primitive/README.md`
+  - `packages/README.md`
+  - `docs/core/current-work.md`
+
+- Scope: continue `@venus/editor-primitive` with runtime state/result contracts and pure dispatch runner (M1-M3)
+- Why: aligns primitive layer with `docs/task/repo-abstract/repo-abstract-03.md` by standardizing interaction state, interaction result intents, target-stack cycling, IME shortcut guards, and normalized pointer input contracts without introducing app/engine coupling
+- Key files:
+  - `packages/editor-primitive/src/runtime/InteractionRuntimeState.ts`
+  - `packages/editor-primitive/src/runtime/InteractionResult.ts`
+  - `packages/editor-primitive/src/runtime/dispatchInteractionEvent.ts`
+  - `packages/editor-primitive/src/target/TargetStack.ts`
+  - `packages/editor-primitive/src/shortcut/shortcutGuard.ts`
+  - `packages/editor-primitive/src/pointer/NormalizedPointerEvent.ts`
+  - `packages/editor-primitive/src/runtime/index.ts`
+  - `packages/editor-primitive/src/target/index.ts`
+  - `packages/editor-primitive/src/shortcut/index.ts`
+  - `packages/editor-primitive/src/pointer/index.ts`
+  - `packages/editor-primitive/README.md`
+
 - Scope: complete `@venus/editor-primitive` module surface and test baseline
 - Why: moves editor interaction runtime abstractions from bootstrap stubs to documented reusable contracts so vector and future apps can depend on stable shared primitives
 - Key files:
@@ -191,3 +242,4 @@ for auditability and future agent handoff.
   - `packages/engine/src/interaction/viewport.test.ts`
   - `packages/engine/src/interaction/hitTest.test.ts`
   - `docs/engineering/testing.md`
+

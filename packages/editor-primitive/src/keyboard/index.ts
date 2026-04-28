@@ -12,3 +12,4 @@ export {
   resolveModifierKeysFromEvent,
 } from './keyUtils.ts'
 
+export type {NormalizedKeyboardEvent} from './NormalizedKeyboardEvent.ts'

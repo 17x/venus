@@ -5,6 +5,7 @@ import type {KeyboardRuntime} from '../keyboard/KeyboardRuntime.ts'
 import type {ActiveOperation} from '../operation/ActiveOperation.ts'
 import type {OverlayRuntime} from '../overlay/OverlayLayer.ts'
 import type {PointerRuntime} from '../pointer/PointerRuntime.ts'
+import type {SelectionState} from '../selection/SelectionState.ts'
 import type {ToolRuntime} from '../tool/ToolRuntime.ts'
 import type {ViewportInteractionRuntime} from '../viewport/ViewportInteractionRuntime.ts'
 
@@ -43,6 +44,11 @@ export interface SelectionRuntime<TId extends string = string> {
 }
 
 /**
+ * Maps legacy SelectionRuntime name to the new selection primitive contract.
+ */
+export type SelectionRuntimeState<TId extends string = string> = SelectionState<TId>
+
+/**
  * Defines combined interaction runtime contract shared by editor products.
  */
 export interface InteractionRuntime<
@@ -61,6 +67,8 @@ export interface InteractionRuntime<
   keyboard: KeyboardRuntime
   /** Stores tool state. */
   tool: ToolRuntime<TTool>
+  /** Stores optional selection state when editor product opts into the primitive. */
+  selection?: SelectionState
   /** Stores viewport interaction state. */
   viewport: ViewportInteractionRuntime
   /** Stores hover state across overlay and scene channels. */

@@ -12,6 +12,30 @@
 - Removed duplicated zoom exports from vector-local interaction barrel to keep one package-owned zoom contract.
 - Added explicit vector app workspace dependency on `@venus/editor-primitive`.
 - Added `@venus/editor-primitive` package scripts for `typecheck`, `lint`, and `build`, then expanded package README API examples.
+- Expanded `@venus/editor-primitive` contract coverage from module helpers to an explicit interaction pipeline skeleton:
+  - added new modules `shortcut`, `gesture`, `target`, `command`, `selection`, and `policy`
+  - added `tool`-level `ToolHandler` contract + dispatch helper
+  - added explicit `OperationPhase` lifecycle contract (`idle/pending/active/committing/cancelled/completed`)
+  - added runtime-level `runInteractionPipeline(...)` orchestration contract
+- Continued `@venus/editor-primitive` M1-M3 alignment with `docs/task/repo-abstract/repo-abstract-03.md`:
+  - added `runtime` contracts: `InteractionRuntimeState`, `InteractionResult`, `InteractionTrace`, and `dispatchInteractionEvent(...)`
+  - added `pointer` contract: `NormalizedPointerEvent`
+  - added `target` multi-hit stack primitives: `TargetStack`, `pickPrimaryTarget`, `pickNextTarget`
+  - added `shortcut` IME/text-edit guard: `shouldHandleEditorShortcut(...)`
+- Added deterministic `node:test` coverage for the new runtime/target/pointer/shortcut contracts.
+- Continued `@venus/editor-primitive` M2-M3 contract hardening for normalized runtime events:
+  - added `input/ModifierState` test coverage and keyboard/wheel normalized contract tests
+  - added `viewport/ViewportIntent` contract tests for pan/zoom/fit/none branches
+  - expanded `runtime/dispatchInteractionEvent` tests for warning paths (`ignored-non-primary-pointer`) and lifecycle interrupt cancel routing (`blur`)
+  - exported `ViewportIntent` from `runtime/index.ts` for one-surface runtime contract imports
+- Fixed engine cross-environment frame/timer handle typing so workspace typecheck passes with Node timer types enabled:
+  - updated `packages/engine/src/renderer/initialRender.ts` timer handle fields to use runtime `setTimeout` return-handle typing
+  - updated `packages/engine/src/time/index.ts` `EngineFrameHandle` to support timeout handles and guarded `cancelAnimationFrame` with numeric-handle narrowing
+- Verification for this expansion slice:
+  - `pnpm --filter @venus/editor-primitive typecheck`
+  - `pnpm --filter @venus/editor-primitive lint`
+  - `pnpm --filter @venus/editor-primitive test`
+  - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
 
 ## 2026-04-27
 
@@ -52,3 +76,4 @@
 
 - Additional note:
   - `pnpm --filter @venus/vector-editor-web lint` still fails in pre-existing `ui-style-guard` checks unrelated to this migration slice.
+

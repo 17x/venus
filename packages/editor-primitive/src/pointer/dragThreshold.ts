@@ -26,3 +26,14 @@ export function hasPassedDragThreshold(
   return dragDistancePx >= thresholdPx
 }
 
+/**
+ * Returns whether drag should start for one start/current point pair.
+ */
+export function shouldStartDrag(
+  start: Point2D,
+  current: Point2D,
+  thresholdPx: number = DEFAULT_DRAG_THRESHOLD_PX,
+): boolean {
+  const dragDistancePx = resolveDragDistance(start, current)
+  return hasPassedDragThreshold(dragDistancePx, thresholdPx)
+}

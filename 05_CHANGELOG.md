@@ -2,6 +2,40 @@
 
 ## 2026-04-28
 
+- Fixed cross-environment timer/frame handle typing in `@venus/engine` so workspace typecheck remains stable under Node timer types:
+  - `packages/engine/src/renderer/initialRender.ts` now stores timer handles as runtime `setTimeout` return types
+  - `packages/engine/src/time/index.ts` now defines `EngineFrameHandle` as a browser/node-compatible union and narrows numeric handles before `cancelAnimationFrame`
+
+- Hardened `@venus/editor-primitive` runtime normalized-contract slice:
+  - added contract tests for `ModifierState`, `NormalizedKeyboardEvent`, `NormalizedWheelEvent`, and `ViewportIntent`
+  - expanded `dispatchInteractionEvent` tests for warning and lifecycle interrupt paths (`ignored-non-primary-pointer`, `blur` cancel)
+  - re-exported `ViewportIntent` from `packages/editor-primitive/src/runtime/index.ts` for one-surface runtime contract imports
+- Verification run for this hardening slice:
+  - `pnpm --filter @venus/editor-primitive typecheck`
+  - `pnpm --filter @venus/editor-primitive lint`
+  - `pnpm --filter @venus/editor-primitive test`
+  - `pnpm --filter @venus/engine test`
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm build`
+
+- Expanded `@venus/editor-primitive` with missing reusable interaction-layer contracts from architecture review:
+  - new modules: `shortcut`, `gesture`, `target`, `command`, `selection`, `policy`
+  - new `tool` contract: `ToolHandler` + dispatch helper
+  - new operation lifecycle contract: `OperationPhase` with explicit phase transitions
+  - new runtime orchestration contract: `runInteractionPipeline(...)`
+- Updated package exports and docs for the expanded primitive surface:
+  - `packages/editor-primitive/src/index.ts`
+  - `packages/editor-primitive/package.json`
+  - `packages/editor-primitive/README.md`
+  - `packages/README.md`
+- Added `node:test` coverage for all newly introduced modules and contracts under `packages/editor-primitive/src/**`.
+- Verification run for this slice:
+  - `pnpm --filter @venus/editor-primitive typecheck`
+  - `pnpm --filter @venus/editor-primitive lint`
+  - `pnpm --filter @venus/editor-primitive test`
+  - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
 - Finalized vector interaction bridge ownership by exporting shared primitives
   from `@venus/editor-primitive` at
   `apps/vector-editor-web/src/runtime/interaction/index.ts` and keeping only
@@ -303,7 +337,7 @@
 - Consolidated runtime and product-adoption docs into vector app docs:
   - moved `docs/packages/runtime.md`,
     `docs/packages/runtime-interaction.md`,
-    `docs/packages/runtime-presets.md`, and `docs/packages/runtime-react.md`
+    `docs/packages/runtime-presets.md` and `docs/packages/runtime-react.md`
     into `apps/vector-editor-web/docs/runtime/*`
   - updated `docs/index.md` and `docs/packages/README.md` so global docs no
     longer carry those runtime package notes
@@ -1008,4 +1042,4 @@
   - moved shared constants/types/utilities to
     `apps/vector-editor-web/src/shared/*`
 - Updated vector app build configuration (`tsconfig.app.json`, `vite.config.ts`,
-  and `package.json`) to use local UI aliasing and local UI dependencies.
+  and `package.json`) to use local UI aliasing and local UI dependencies
