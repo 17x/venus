@@ -1,4 +1,4 @@
-import { getNormalizedBoundsFromBox } from './shapeTransform.ts'
+import { getNormalizedBoundsFromBox } from '@venus/lib/geometry'
 import {
   isPointInsideBounds,
   isPointInsideEllipse,
@@ -271,4 +271,3 @@ function hasShapeStrokeHitArea(shape: EngineEditorHitTestNode) {
     shape.type === 'path'
   )
 }
-

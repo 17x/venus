@@ -1,0 +1,30 @@
+{
+  "name": "@venus/lib",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
+    "typecheck:test": "tsc -p ./tsconfig.test.json --noEmit"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./math": "./src/math/index.ts",
+    "./geometry": "./src/geometry/index.ts",
+    "./ids": "./src/ids/index.ts",
+    "./events": "./src/events/index.ts",
+    "./lifecycle": "./src/lifecycle/index.ts",
+    "./scheduler": "./src/scheduler/index.ts",
+    "./patch": "./src/patch/index.ts",
+    "./collections": "./src/collections/index.ts",
+    "./logger": "./src/logger/index.ts",
+    "./worker": "./src/worker/index.ts",
+    "./serialization": "./src/serialization/index.ts",
+    "./assert": "./src/assert/index.ts",
+    "./viewport": "./src/viewport/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "tsx": "^4.21.0"
+  }
+}

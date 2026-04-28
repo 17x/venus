@@ -14,19 +14,19 @@
 From repo root:
 
 ```sh
-pnpm --dir apps/vector-editor-web dev
+pnpm --filter @venus/vector-editor-web dev
 ```
 
 Build:
 
 ```sh
-pnpm --dir apps/vector-editor-web build
+pnpm --filter @venus/vector-editor-web build
 ```
 
 Type-check:
 
 ```sh
-pnpm --dir apps/vector-editor-web exec tsc --noEmit
+pnpm --filter @venus/vector-editor-web exec tsc --noEmit -p tsconfig.app.json
 ```
 
 ## Architecture in This App
@@ -34,28 +34,49 @@ pnpm --dir apps/vector-editor-web exec tsc --noEmit
 Current runtime path:
 
 `useEditorRuntime`
--> `runtime` + `runtime-interaction` + `runtime-react`
--> `runtime/worker` + `shared-memory`
--> `engine` (Canvas2D via `runtime-react` renderer)
+-> app-local runtime bridge (`@vector/runtime*` aliases)
+-> `@venus/editor-primitive` interaction primitives
+-> `@venus/engine`
 
 Key points:
 
 - The app is a UI shell (toolbar, header, panels, menu).
-- High-frequency scene mutation runs in worker.
-- Scene hot data lives in SAB and is read by renderer/runtime.
-- `CanvasViewport` is a React adapter; gesture and zoom logic are extracted into shared modules.
+- Product-specific semantics stay in app-local `src/editor/**`.
+- Shared interaction contracts are consumed through `src/runtime/interaction/index.ts`.
+- `CanvasViewport` is a React adapter; gesture/zoom policy can be shared through `@venus/editor-primitive`.
 - Product-specific documentation and adoption notes live with this app.
 
 ## Important Files
 
 - App entry:
-  - [src/App.tsx](./apps/vector-editor-web/src/App.tsx)
+  - [src/App.tsx](./src/App.tsx)
 - Runtime orchestration:
-  - [src/hooks/useEditorRuntime.ts](./apps/vector-editor-web/src/hooks/useEditorRuntime.ts)
+  - [src/editor/hooks/useEditorRuntime.ts](./src/editor/hooks/useEditorRuntime.ts)
+  - [src/editor/hooks/useCanvasRuntimeBridge.ts](./src/editor/hooks/useCanvasRuntimeBridge.ts)
 - Main frame:
-  - [src/components/editorFrame/EditorFrame.tsx](./apps/vector-editor-web/src/components/editorFrame/EditorFrame.tsx)
+  - [src/components/editorFrame/EditorFrame.tsx](./src/components/editorFrame/EditorFrame.tsx)
 - File/document adapter:
-  - [src/adapters/fileDocument.ts](./apps/vector-editor-web/src/adapters/fileDocument.ts)
+  - [src/editor/adapters/fileDocument.ts](./src/editor/adapters/fileDocument.ts)
+
+## Startup Troubleshooting
+
+If the app does not start, run this sequence from repo root:
+
+```sh
+pnpm install
+pnpm --filter @venus/vector-editor-web exec tsc --noEmit -p tsconfig.app.json
+pnpm --filter @venus/vector-editor-web dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Quick checks:
+
+- Verify Node and pnpm versions (`node -v`, `pnpm -v`).
+- Verify package links (`pnpm --filter @venus/vector-editor-web list @venus/lib @venus/editor-primitive @venus/engine`).
+- If port 5173 is occupied, pass another port via `-- --port <port> --strictPort`.
+
+Known note:
+
+- `pnpm --filter @venus/vector-editor-web lint` may fail `ui-style-guard` on existing style-boundary issues, but this does not block `dev` startup.
 
 ## Performance Debugging
 

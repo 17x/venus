@@ -18,6 +18,13 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
+      "@venus/document-core": ["apps/vector-editor-web/src/model/index.ts"],
+      "@venus/lib": ["packages/lib/src/index.ts"],
+      "@venus/lib/*": ["packages/lib/src/*"],
+
+      "@venus/editor-primitive": ["packages/editor-primitive/src/index.ts"],
+      "@venus/editor-primitive/*": ["packages/editor-primitive/src/*"],
+
       "@venus/engine": ["packages/engine/src/index.ts"],
       "react": ["apps/vector-editor-web/node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["apps/vector-editor-web/node_modules/@types/react/jsx-runtime.d.ts"]

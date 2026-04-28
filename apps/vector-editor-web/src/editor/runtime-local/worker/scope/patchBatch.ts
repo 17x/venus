@@ -1,15 +1,20 @@
 import type {HistoryPatch} from '../history.ts'
 import type {SceneUpdateMessage} from '../protocol.ts'
+import {
+  applyPatchBatch as applyGenericPatchBatch,
+  resolvePatchBatchUpdateKind as resolveGenericPatchBatchUpdateKind,
+} from '@venus/lib/patch'
 
+/**
+ * Resolves vector update kind by classifying set-selected-index as flags-only.
+ */
 export function resolvePatchBatchUpdateKind(
   patches: HistoryPatch[],
 ): SceneUpdateMessage['updateKind'] | null {
-  if (patches.length === 0) {
-    return null
-  }
-
-  const selectionOnly = patches.every((patch) => patch.type === 'set-selected-index')
-  return selectionOnly ? 'flags' : 'full'
+  return resolveGenericPatchBatchUpdateKind(
+    patches,
+    (patch) => patch.type === 'set-selected-index',
+  )
 }
 
 /**
@@ -19,11 +24,10 @@ export function applyPatchBatch(
   patches: HistoryPatch[],
   apply: (patches: HistoryPatch[]) => void,
 ): SceneUpdateMessage['updateKind'] | null {
-  const updateKind = resolvePatchBatchUpdateKind(patches)
-  if (!updateKind) {
-    return null
-  }
-
-  apply(patches)
-  return updateKind
+  // Reuse shared patch orchestration while preserving local apply callback type.
+  return applyGenericPatchBatch(
+    patches,
+    (patch) => patch.type === 'set-selected-index',
+    (batch) => apply(batch as HistoryPatch[]),
+  )
 }

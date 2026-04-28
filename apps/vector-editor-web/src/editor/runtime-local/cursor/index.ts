@@ -1,4 +1,5 @@
 import type {RuntimeEditingMode} from '../editing-modes/index.ts'
+import {resizeDirectionToCssCursor} from '@venus/editor-primitive'
 
 export type RuntimeCursorHandleKind =
   | 'move'
@@ -33,19 +34,11 @@ export interface ResolveRuntimeCursorOptions {
   pathHitType?: 'anchorPoint' | 'segment' | 'inHandle' | 'outHandle' | null
 }
 
-const HANDLE_CURSOR_ORDER = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const
-const HANDLE_CURSOR_BY_KIND: Record<(typeof HANDLE_CURSOR_ORDER)[number], string> = {
-  n: 'ns-resize',
-  ne: 'nesw-resize',
-  e: 'ew-resize',
-  se: 'nwse-resize',
-  s: 'ns-resize',
-  sw: 'nesw-resize',
-  w: 'ew-resize',
-  nw: 'nwse-resize',
-}
-
+/**
+ * Resolves the effective runtime cursor for vector editor pointer interactions.
+ */
 export function resolveRuntimeCursor(options: ResolveRuntimeCursorOptions): RuntimeCursorState {
+  // Panning mode always wins so drag affordance stays explicit.
   if (options.editingMode === 'panning') {
     return {cursor: 'grabbing', intent: 'mode'}
   }
@@ -83,17 +76,13 @@ export function resolveRuntimeCursor(options: ResolveRuntimeCursorOptions): Runt
   }
 }
 
+/**
+ * Resolves rotated resize-handle cursor token through shared primitive mapping.
+ */
 function resolveRotatedHandleCursor(
   handle: Exclude<RuntimeCursorHandleKind, 'move' | 'rotate'>,
   rotationDegrees: number,
 ) {
-  const baseIndex = HANDLE_CURSOR_ORDER.indexOf(handle)
-  const rotationSteps = Math.round(normalizeDegrees(rotationDegrees) / 45) % HANDLE_CURSOR_ORDER.length
-  const rotatedHandle = HANDLE_CURSOR_ORDER[(baseIndex + rotationSteps) % HANDLE_CURSOR_ORDER.length]
-  return HANDLE_CURSOR_BY_KIND[rotatedHandle]
-}
-
-function normalizeDegrees(degrees: number) {
-  const normalized = degrees % 360
-  return normalized < 0 ? normalized + 360 : normalized
+  // Delegate resize cursor rotation mapping to the shared primitive helper.
+  return resizeDirectionToCssCursor(handle, rotationDegrees)
 }

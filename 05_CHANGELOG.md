@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026-04-28
+
+- Finalized vector interaction bridge ownership by exporting shared primitives
+  from `@venus/editor-primitive` at
+  `apps/vector-editor-web/src/runtime/interaction/index.ts` and keeping only
+  vector-specific adapters in
+  `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts`.
+- Added explicit `@venus/editor-primitive` dependency to
+  `apps/vector-editor-web/package.json` so app-level package usage is declared.
+- Expanded `@venus/editor-primitive` package scripts with `typecheck`, `lint`,
+  and `build`, and extended package docs with module-level API usage examples.
+- Updated package/workstream documentation for the new bridge boundary:
+  `packages/README.md`, `packages/editor-primitive/README.md`, and
+  `docs/core/current-work.md`.
+- Verification run:
+  - `pnpm --filter @venus/editor-primitive typecheck`
+  - `pnpm --filter @venus/editor-primitive lint`
+  - `pnpm --filter @venus/editor-primitive test`
+  - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm build`
+  - `pnpm test`
+- Known follow-up:
+  - `pnpm --filter @venus/vector-editor-web lint` currently fails existing
+    `ui-style-guard` checks in untouched files.
+
+## 2026-04-27
+
+- Added `@venus/lib` module coverage for `math`, `geometry`, `ids`, `events`,
+  `lifecycle`, `scheduler`, `patch`, `collections`, `logger`, `worker`,
+  `serialization`, and `assert` under `packages/lib/src` with package-level
+  `node:test` suites for each module.
+- Extracted shared matrix, worker capability, scheduler, id generation, and
+  patch-batch primitives from engine/vector-local locations into `@venus/lib`,
+  then rewired original callsites to import through lib package boundaries.
+- Completed second extraction batch by moving viewport, pan, and zoom
+  interaction primitives into `@venus/lib/viewport` and preserving engine
+  compatibility through re-export adapters.
+- Completed third extraction batch by moving affine matrix primitives and
+  rotated bounds hit-testing into `@venus/lib` (`math/affineMatrix`,
+  `geometry/rotatedBounds`), then delegating engine shape-transform
+  compatibility exports to lib-owned implementations.
+- Cleared workspace validation errors introduced by new vector app files,
+  including `@venus/document-core` alias compatibility, fill/stroke gradient
+  contract typing, and updated engine option signatures in canvas runtime glue.
+- Updated package docs and current-work tracking to reflect the lib ownership
+  boundary and extraction status.
+
 ## 2026-04-26
 
 - Started engine cleanup from vector-reachable usage scan:

@@ -10,6 +10,93 @@ for auditability and future agent handoff.
 - Why the change matters
 - Key files
 
+## 2026-04-28
+
+- Scope: complete `@venus/editor-primitive` module surface and test baseline
+- Why: moves editor interaction runtime abstractions from bootstrap stubs to documented reusable contracts so vector and future apps can depend on stable shared primitives
+- Key files:
+  - `packages/editor-primitive/src/*`
+  - `packages/editor-primitive/package.json`
+  - `packages/editor-primitive/tsconfig.json`
+  - `packages/editor-primitive/tsconfig.test.json`
+  - `packages/editor-primitive/README.md`
+  - `packages/README.md`
+
+- Scope: vector bridge migration to consume shared primitive zoom/cursor helpers
+- Why: starts incremental extraction flow by replacing vector-local duplicate logic with `@venus/editor-primitive` exports while preserving UI behavior
+- Key files:
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/zoomPresets.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/viewportGestures.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/cursor/index.ts`
+  - `apps/vector-editor-web/src/runtime/interaction/index.ts`
+  - `apps/vector-editor-web/docs/runtime/runtime-interaction.md`
+
+- Scope: finalize vector interaction bridge and package validation surface
+- Why: makes `@vector/runtime/interaction` explicitly expose package-owned primitives from `@venus/editor-primitive`, removes duplicate local exports, and adds package scripts/docs so checks and ownership remain stable
+- Key files:
+  - `apps/vector-editor-web/src/runtime/interaction/index.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/interaction/index.ts`
+  - `apps/vector-editor-web/package.json`
+  - `packages/editor-primitive/package.json`
+  - `packages/editor-primitive/README.md`
+  - `packages/README.md`
+  - `docs/core/current-work.md`
+
+## 2026-04-27
+
+- Scope: bootstrap reusable `@venus/lib` and `@venus/editor-primitive` packages
+- Why: establishes the new shared low-level and editor-interaction package surfaces so future package and app work can depend on explicit stable roots
+- Key files:
+  - `packages/lib/package.json`
+  - `packages/lib/tsconfig.json`
+  - `packages/lib/src/index.ts`
+  - `packages/editor-primitive/package.json`
+  - `packages/editor-primitive/tsconfig.json`
+  - `packages/editor-primitive/src/index.ts`
+  - `packages/README.md`
+  - `tsconfig.base.json`
+  - `tsconfig.json`
+
+- Scope: expand `@venus/lib` into documented module layout and extract shared utilities
+- Why: aligns implementation with repository package architecture so math/worker/scheduler/id/patch primitives are owned by `@venus/lib` and reused by engine/vector surfaces through package boundaries
+- Key files:
+  - `packages/lib/src/*`
+  - `packages/lib/README.md`
+  - `packages/engine/src/math/matrix.ts`
+  - `packages/engine/src/worker/capabilities.ts`
+  - `packages/engine/src/runtime/renderScheduler.ts`
+  - `apps/vector-editor-web/src/model/nid.ts`
+  - `apps/vector-editor-web/src/editor/runtime-local/worker/scope/patchBatch.ts`
+  - `packages/engine/package.json`
+  - `apps/vector-editor-web/package.json`
+
+- Scope: second-batch extraction to `@venus/lib/viewport` plus repo validation cleanup
+- Why: centralizes viewport/pan/zoom primitives in `@venus/lib`, preserves engine compatibility via re-export adapters, and restores green workspace validation after compatibility/type contract drift
+- Key files:
+  - `packages/lib/src/viewport/*`
+  - `packages/engine/src/interaction/viewport.ts`
+  - `packages/engine/src/interaction/viewportPan.ts`
+  - `packages/engine/src/interaction/zoom.ts`
+  - `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx`
+  - `apps/vector-editor-web/src/shared/types/lite-u-editor.d.ts`
+  - `apps/vector-editor-web/tsconfig.app.json`
+  - `apps/vector-editor-web/vite.config.ts`
+  - `tsconfig.base.json`
+
+- Scope: third-batch extraction of shape-transform base primitives into `@venus/lib`
+- Why: centralizes affine matrix math and rotated-bounds hit testing in lib while keeping engine semantic contracts stable through compatibility wrappers
+- Key files:
+  - `packages/lib/src/math/affineMatrix.ts`
+  - `packages/lib/src/math/affineMatrix.test.ts`
+  - `packages/lib/src/geometry/rotatedBounds.ts`
+  - `packages/lib/src/geometry/rotatedBounds.test.ts`
+  - `packages/lib/src/math/index.ts`
+  - `packages/lib/src/geometry/index.ts`
+  - `packages/engine/src/interaction/shapeTransform.ts`
+  - `packages/engine/src/interaction/shapeTransform.test.ts`
+  - `packages/engine/src/interaction/hitTest.ts`
+  - `packages/lib/README.md`
+
 ## 2026-04-25
 
 - Scope: stricter AI documentation and comment-governance enforcement

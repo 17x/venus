@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url))},
+      {find: '@venus/document-core', replacement: fileURLToPath(new URL('./src/model/index.ts', import.meta.url))},
       {find: 'i18next', replacement: fileURLToPath(new URL('./src/shims/i18next.js', import.meta.url))},
       {find: '@vector/model', replacement: fileURLToPath(new URL('./src/model/index.ts', import.meta.url))},
       {find: '@vector/ui', replacement: fileURLToPath(new URL('./src/ui/index.ts', import.meta.url))},

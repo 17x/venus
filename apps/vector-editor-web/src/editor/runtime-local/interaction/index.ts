@@ -1,12 +1,4 @@
-// Zoom policy
-export {
-  RUNTIME_ZOOM_PRESETS,
-  resolveRuntimeZoomGestureScale,
-  resolveRuntimeZoomPresetScale,
-  type RuntimeZoomDirection,
-  type RuntimeZoomInputSource,
-  type RuntimeZoomPreset,
-} from './zoomPresets.ts'
+// Runtime bridge now exports shared zoom policy from @venus/editor-primitive.
 export {
   // Re-export generic LOD names so planner-facing code can migrate away from
   // canvas-specific terminology without changing package boundaries.

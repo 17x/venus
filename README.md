@@ -1,7 +1,9 @@
 # Venus
 
-Venus is a monorepo for a composable canvas runtime used to build multi-editor products such as vector editors, flowchart tools, mind maps, and whiteboards.
-The current active apps are `vector-editor-web` and `playground`.
+Venus is a monorepo for a composable canvas editor runtime.
+
+Current focus is `apps/vector-editor-web` as the product app. `apps/playground`
+is kept as a diagnostics surface.
 
 ## Live demos
 
@@ -15,15 +17,9 @@ The current active apps are `vector-editor-web` and `playground`.
     - app-local model alias: `@vector/model` -> `apps/vector-editor-web/src/model/index.ts`
   - `apps/playground`: runtime playground and rendering stress test app
 - `packages/*`: shared editor infrastructure
-  - `@venus/engine`: renderer contracts, scene render node model, frame clock, and animation primitives
-  - `@venus/runtime`: consolidated runtime package
-    - `@venus/runtime`: core runtime and controller
-    - `@venus/runtime/interaction`: interaction layer
-    - `@venus/runtime/engine`: engine bridge
-    - `@venus/runtime/presets`: reusable presets
-  - `@venus/runtime/worker`: command execution and scene mutation in a worker
-  - `@venus/runtime/shared-memory`: SharedArrayBuffer layout and scene snapshot helpers
-  - `@venus/file-format`: schema and runtime format adapters
+  - `@venus/lib`: low-level shared primitives (`math`, `geometry`, `events`, `ids`, `patch`, ...)
+  - `@venus/editor-primitive`: editor interaction primitives (`pointer`, `keyboard`, `overlay`, `cursor`, ...)
+  - `@venus/engine`: renderer, hit-test, spatial/index, cache/scheduler mechanisms
 - `docs/*`: architecture and design documentation
 
 ## Documentation and team skills
@@ -86,11 +82,27 @@ pnpm --dir apps/vector-editor-web dev
 
 ## Runtime data flow
 
-`vector-editor-web` / `playground` -> `@venus/runtime` + `@venus/runtime/interaction` -> `@venus/runtime/worker` + `@venus/runtime/shared-memory` -> `@venus/engine`
+`apps/*` -> app-local runtime bridge (`@vector/runtime*` aliases) + `@venus/editor-primitive` -> `@venus/engine`
 
 - UI and product actions stay in the app layer.
-- The worker owns scene mutation and command execution.
-- The renderer consumes snapshots and viewport state, and currently renders with Canvas 2D on the active surfaces.
+- Shared interaction contracts and reducers stay in `@venus/editor-primitive`.
+- The engine consumes render-ready snapshots/viewport state and owns render/hit-test mechanism.
+
+## Vector Startup Troubleshooting
+
+If vector "does not run", use this minimal sequence from repo root:
+
+```sh
+pnpm install
+pnpm --filter @venus/vector-editor-web exec tsc --noEmit -p tsconfig.app.json
+pnpm --filter @venus/vector-editor-web dev
+```
+
+If startup still fails:
+
+- verify Node and pnpm: `node -v` and `pnpm -v`
+- verify default port is free (`5173`) or pass `-- --port <port> --strictPort`
+- verify workspace links: `pnpm --filter @venus/vector-editor-web list @venus/lib @venus/editor-primitive @venus/engine`
 
 ## Notes
 
