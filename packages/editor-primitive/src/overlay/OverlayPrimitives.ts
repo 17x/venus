@@ -8,6 +8,7 @@ export type OverlayPrimitiveType =
   | 'polygon'
   | 'polyline'
   | 'line'
+  | 'arc'
   | 'circle'
   | 'handle'
   | 'caret'

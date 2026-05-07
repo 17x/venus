@@ -1,0 +1,49 @@
+import {Con, Drop, useNotification} from '../ui/index.ts'
+import readImageHelper from '../runtime/readImage.ts'
+import {FC, ReactNode, useState} from 'react'
+import {useTranslation} from 'react-i18next'
+// Keep FileReceiver decoupled from hook runtime code by importing the action contract type only.
+import type {EditorExecutor} from '../product/useEditorRuntime/types.ts'
+
+const FileReceiver: FC<{
+  children: ReactNode
+  executeAction: EditorExecutor
+  resolveDropPosition?: (clientX: number, clientY: number) => {x: number; y: number}
+}> = ({children, executeAction, resolveDropPosition}) => {
+  const [showDropNotice, setShowDropNotice] = useState(false)
+  const [dropNoticeColor, setDropNoticeColor] = useState('green')
+  const {add} = useNotification()
+  const {t} = useTranslation()
+
+  return <Drop accepts={['image/*']}
+               style={{position: 'relative'}}
+               onDragIsOver={(v) => {
+                 setDropNoticeColor(v ? 'green' : 'red')
+                 setShowDropNotice(true)
+               }}
+               onDragIsLeave={() => {
+                 setShowDropNotice(false)
+               }}
+               onDrop={(e) => {
+                 setShowDropNotice(false)
+
+                 readImageHelper(e.dataTransfer.files[0]).then(newAsset => {
+                   // Resolve drop coordinates against the canvas host so image insertion lands at the visible pointer position.
+                   const position = resolveDropPosition
+                     ? resolveDropPosition(e.clientX, e.clientY)
+                     : {x: e.clientX, y: e.clientY}
+                   executeAction('drop-image', {position, assets: [newAsset]})
+                 }).catch(() => {
+                   add(t('misc.imageResolveFailed'), 'info')
+                 })
+               }}>
+    {children}
+    {
+      showDropNotice && <Con fw fh abs t={0} l={0} borderColor={dropNoticeColor} style={{
+        backgroundColor: dropNoticeColor === 'green' ? 'rgba(34, 197, 94, 0.14)' : 'rgba(239, 68, 68, 0.14)',
+        pointerEvents: 'none',
+      }}></Con>
+    }
+  </Drop>
+}
+export default FileReceiver

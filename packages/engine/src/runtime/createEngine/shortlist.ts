@@ -1,8 +1,14 @@
 import type { EngineFramePlan } from '../../scene/framePlan.ts'
-import type { EngineNodeId, EngineRenderableNode, EngineSceneSnapshot } from '../../scene/types.ts'
+import type { EngineNodeId, EngineRenderableNode, EngineSceneSnapshot } from '../../scene/types/types.ts'
 
 // Expand shortlist candidates through ancestors and descendants so renderer
 // planning can prune safely without hiding leaf nodes behind coarse group ids.
+/**
+ * Handles resolveShortlistCandidateNodeIds.
+ * @param scene Scene snapshot.
+ * @param framePlan framePlan parameter.
+ * @param protectedNodeIds protectedNodeIds parameter.
+ */
 export function resolveShortlistCandidateNodeIds(
   scene: EngineSceneSnapshot,
   framePlan: EngineFramePlan,

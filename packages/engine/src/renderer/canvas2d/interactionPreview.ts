@@ -2,7 +2,7 @@ import type {
   EngineCanvasSurfaceFactory,
   EngineInteractionPreviewConfig,
   EngineRenderFrame,
-} from '../types.ts'
+} from '../types/index.ts'
 
 const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE = 0.12
 const INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE_STEP = 1.3
@@ -12,6 +12,7 @@ const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE = 0.05
 const INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP = 1.75
 const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
 const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
+const SCALE_RATIO_IDENTITY_EPSILON = 1e-3
 
 export interface FrameReuseSnapshot {
   revision: string | number
@@ -32,6 +33,16 @@ export interface ReuseCacheSurface {
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 }
 
+/**
+ * Handles tryReuseInteractiveFrame.
+ * @param context Rendering context.
+ * @param canvas canvas parameter.
+ * @param frame Current render frame.
+ * @param pixelRatio pixelRatio parameter.
+ * @param surface surface parameter.
+ * @param snapshot Snapshot payload.
+ * @param interactionPreview interactionPreview parameter.
+ */
 export function tryReuseInteractiveFrame(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   canvas: HTMLCanvasElement | OffscreenCanvas,
@@ -61,7 +72,7 @@ export function tryReuseInteractiveFrame(
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
-  if (interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < 1e-3) {
+  if (interactionPreview.mode === 'zoom-only' && Math.abs(scaleRatio - 1) < SCALE_RATIO_IDENTITY_EPSILON) {
     return {reused: false, visibleCount: 0, culledCount: 0}
   }
 
@@ -101,10 +112,21 @@ export function tryReuseInteractiveFrame(
   }
 }
 
+/**
+ * Handles shouldAdvanceInteractionPreviewSnapshot.
+ * @param scale Scale value.
+ */
 export function shouldAdvanceInteractionPreviewSnapshot(scale: number) {
   return scale <= INTERACTION_PREVIEW_LOW_SCALE_MAX_SCALE
 }
 
+/**
+ * Handles ensureReuseSurface.
+ * @param surface surface parameter.
+ * @param width Width value.
+ * @param height Height value.
+ * @param createCanvasSurface createCanvasSurface parameter.
+ */
 export function ensureReuseSurface(
   surface: ReuseCacheSurface | null,
   width: number,
@@ -135,6 +157,11 @@ export function ensureReuseSurface(
   }
 }
 
+/**
+ * Handles copyCanvasIntoSurface.
+ * @param source source parameter.
+ * @param surface surface parameter.
+ */
 export function copyCanvasIntoSurface(
   source: HTMLCanvasElement | OffscreenCanvas,
   surface: ReuseCacheSurface,
@@ -145,6 +172,13 @@ export function copyCanvasIntoSurface(
   surface.context.drawImage(source as CanvasImageSource, 0, 0)
 }
 
+/**
+ * Handles resolveInteractionPreviewMaxTranslatePx.
+ * @param baseTranslatePx baseTranslatePx parameter.
+ * @param scale Scale value.
+ * @param viewportWidthPx viewportWidthPx parameter.
+ * @param viewportHeightPx viewportHeightPx parameter.
+ */
 function resolveInteractionPreviewMaxTranslatePx(
   baseTranslatePx: number,
   scale: number,
@@ -184,6 +218,11 @@ function resolveInteractionPreviewMaxTranslatePx(
   return {x: baseTranslatePx, y: baseTranslatePx}
 }
 
+/**
+ * Handles resolveInteractionPreviewMaxScaleStep.
+ * @param baseScaleStep baseScaleStep parameter.
+ * @param scale Scale value.
+ */
 function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: number) {
   if (scale <= INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE) {
     return Math.max(baseScaleStep, INTERACTION_PREVIEW_OVERVIEW_MAX_SCALE_STEP)
@@ -196,6 +235,12 @@ function resolveInteractionPreviewMaxScaleStep(baseScaleStep: number, scale: num
   return baseScaleStep
 }
 
+/**
+ * Handles createReuseCanvas.
+ * @param width Width value.
+ * @param height Height value.
+ * @param createCanvasSurface createCanvasSurface parameter.
+ */
 function createReuseCanvas(
   width: number,
   height: number,

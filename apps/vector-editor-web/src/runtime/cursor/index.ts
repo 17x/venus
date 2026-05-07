@@ -4,4 +4,4 @@ export {
   type RuntimeCursorHandleKind,
   type RuntimeCursorIntent,
   type RuntimeCursorState,
-} from '../../editor/runtime-local/cursor/index.ts'
+} from './resolveRuntimeCursor.ts'

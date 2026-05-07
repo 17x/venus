@@ -7,4 +7,4 @@ export {
   type RuntimeToolPointerEvent,
   type RuntimeToolRegistry,
   type RuntimeToolStatusHint,
-} from '../../editor/runtime-local/tools/index.ts'
+} from './registry.ts'

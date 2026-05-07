@@ -1,15 +1,21 @@
-import { DEFAULT_ENGINE_VIEWPORT, resolveEngineViewportState, type EngineCanvasViewportState } from '../../interaction/viewport.ts'
-import type { EngineLodConfig, EngineTileConfig } from '../../index.ts'
+import { DEFAULT_ENGINE_VIEWPORT, resolveEngineViewportState, type EngineCanvasViewportState } from '../../interaction/viewport/viewport.ts'
+import type { EngineLodConfig } from '../../interaction/lodConfig.ts'
+import type { EngineTileConfig } from '../../renderer/tileManager/index.ts'
 import type {
   CreateEngineOptions,
   EngineOverscanOptions,
   EnginePerformanceOptionsObject,
   EngineViewportOptions,
   ResolvedEnginePerformanceOptions,
-} from '../createEngine.ts'
+} from './createEngine.ts'
 
 // Keep createEngine option resolution in a dedicated module so the main
 // runtime facade stays centered on orchestration instead of config plumbing.
+/**
+ * Handles resolveEngineTileConfig.
+ * @param tileConfig tileConfig parameter.
+ * @param overscan overscan parameter.
+ */
 export function resolveEngineTileConfig(
   tileConfig: EngineTileConfig | undefined,
   overscan: EngineOverscanOptions | undefined,
@@ -27,6 +33,10 @@ export function resolveEngineTileConfig(
   }
 }
 
+/**
+ * Handles resolveEnginePerformanceOptions.
+ * @param options Options object for this operation.
+ */
 export function resolveEnginePerformanceOptions(
   options: CreateEngineOptions,
 ): ResolvedEnginePerformanceOptions {
@@ -79,6 +89,12 @@ export function resolveEnginePerformanceOptions(
   }
 }
 
+/**
+ * Handles resolveEnginePixelRatio.
+ * @param configured configured parameter.
+ * @param maxPixelRatio maxPixelRatio parameter.
+ * @param resolveHostPixelRatio resolveHostPixelRatio parameter.
+ */
 export function resolveEnginePixelRatio(
   configured: number | 'auto' | undefined,
   maxPixelRatio: number,
@@ -92,6 +108,11 @@ export function resolveEnginePixelRatio(
   return Math.min(auto, maxPixelRatio)
 }
 
+/**
+ * Handles resolveInitialViewport.
+ * @param canvas canvas parameter.
+ * @param next next parameter.
+ */
 export function resolveInitialViewport(
   canvas: HTMLCanvasElement | OffscreenCanvas,
   next?: EngineViewportOptions,
@@ -105,6 +126,11 @@ export function resolveInitialViewport(
   })
 }
 
+/**
+ * Handles resolveEngineCullingEnabled.
+ * @param culling culling parameter.
+ * @param legacyCulling legacyCulling parameter.
+ */
 function resolveEngineCullingEnabled(
   culling: EnginePerformanceOptionsObject['culling'],
   legacyCulling: boolean | undefined,
@@ -120,6 +146,11 @@ function resolveEngineCullingEnabled(
   return culling.enabled ?? legacyCulling ?? true
 }
 
+/**
+ * Handles resolveEngineLodConfig.
+ * @param lod lod parameter.
+ * @param legacyLodConfig legacyLodConfig parameter.
+ */
 function resolveEngineLodConfig(
   lod: EnginePerformanceOptionsObject['lod'],
   legacyLodConfig: EngineLodConfig | undefined,
@@ -140,6 +171,11 @@ function resolveEngineLodConfig(
   }
 }
 
+/**
+ * Handles resolveEngineTileFeatureConfig.
+ * @param tiles tiles parameter.
+ * @param legacyTileConfig legacyTileConfig parameter.
+ */
 function resolveEngineTileFeatureConfig(
   tiles: EnginePerformanceOptionsObject['tiles'],
   legacyTileConfig: EngineTileConfig | undefined,
@@ -160,6 +196,11 @@ function resolveEngineTileFeatureConfig(
   }
 }
 
+/**
+ * Handles resolveEngineOverscanFeatureConfig.
+ * @param overscan overscan parameter.
+ * @param legacyOverscan legacyOverscan parameter.
+ */
 function resolveEngineOverscanFeatureConfig(
   overscan: EnginePerformanceOptionsObject['overscan'],
   legacyOverscan: EngineOverscanOptions | undefined,
@@ -180,6 +221,10 @@ function resolveEngineOverscanFeatureConfig(
   }
 }
 
+/**
+ * Handles resolveSystemPixelRatio.
+ * @param resolveHostPixelRatio resolveHostPixelRatio parameter.
+ */
 function resolveSystemPixelRatio(resolveHostPixelRatio?: () => number) {
   // Host-provided DPR keeps engine detached from browser globals while preserving `auto`.
   const nextPixelRatio = resolveHostPixelRatio?.()

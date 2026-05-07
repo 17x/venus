@@ -1,5 +1,5 @@
-import type { EngineHitTestResult } from './hitTest.ts'
-import type { EnginePoint, EngineSceneSnapshot } from './types.ts'
+import type { EngineHitTestResult } from './hitTest/hitTest.ts'
+import type { EnginePoint, EngineSceneSnapshot } from './types/types.ts'
 
 export interface EngineHitPlan {
   revision: string | number
@@ -10,6 +10,10 @@ export interface EngineHitPlan {
   candidateCount: number
   hitCount: number
   exactCheckCount: number
+  // Maximum exact checks allowed for this hit execution.
+  exactCheckBudget: number
+  // Whether exact-hit traversal stopped due to budget exhaustion.
+  exactBudgetExceeded: boolean
   primaryHitNodeId: string | null
 }
 
@@ -21,10 +25,18 @@ export interface PrepareEngineHitPlanOptions {
   hitTestAll?: (point: EnginePoint, tolerance?: number) => EngineHitTestResult[]
   hits?: readonly EngineHitTestResult[]
   exactCheckCount?: number
+  // Optional exact-check cap used by the originating hit execution.
+  exactCheckBudget?: number
+  // Optional marker emitted when exact-check cap was reached.
+  exactBudgetExceeded?: boolean
 }
 
 // Keep hit-plan construction read-only so shortlist diagnostics can evolve
 // before the actual hit-test pipeline is refactored to consume the same plan.
+/**
+ * Handles prepareEngineHitPlan.
+ * @param options Options object for this operation.
+ */
 export function prepareEngineHitPlan(
   options: PrepareEngineHitPlanOptions,
 ): EngineHitPlan {
@@ -45,6 +57,8 @@ export function prepareEngineHitPlan(
     candidateCount: candidateNodeIds.length,
     hitCount: hits.length,
     exactCheckCount: Math.max(0, options.exactCheckCount ?? 0),
+    exactCheckBudget: Math.max(0, options.exactCheckBudget ?? Number.POSITIVE_INFINITY),
+    exactBudgetExceeded: options.exactBudgetExceeded ?? false,
     primaryHitNodeId: hits[0]?.nodeId ?? null,
   }
 }

@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import type {EditorDocument, DocumentNode, Point} from '@vector/model'
-import {createSceneMemory, attachSceneMemory, writeDocumentToScene} from '../src/editor/runtime-local/shared-memory/index.ts'
-import {createBooleanReplacePatches} from '../src/editor/runtime-local/worker/scope/shapeCommandHelpers.ts'
-import {createLocalHistoryEntry} from '../src/editor/runtime-local/worker/scope/localHistoryEntry.ts'
-import {createRemotePatches} from '../src/editor/runtime-local/worker/scope/remotePatches.ts'
-import {createFileElementsFromDocument, createDocumentNodeFromElement} from '../src/editor/adapters/fileDocument.ts'
-import {resolvePathSubSelectionAtPoint} from '../src/editor/hooks/runtime/pathSubSelection.ts'
-import type {HistoryPatch} from '../src/editor/runtime-local/worker/history.ts'
+import type {EditorDocument, DocumentNode, Point} from '../src/runtime/model/index.ts'
+import {createSceneMemory, attachSceneMemory, writeDocumentToScene} from '../src/runtime/shared-memory/index.ts'
+import {createBooleanReplacePatches} from '../src/runtime/worker/scope/shapeCommandHelpers.ts'
+import {createLocalHistoryEntry} from '../src/runtime/worker/scope/localHistoryEntry.ts'
+import {createRemotePatches} from '../src/runtime/worker/scope/remotePatches.ts'
+import {createFileElementsFromDocument, createDocumentNodeFromElement} from '../src/runtime/adapters/fileDocument.ts'
+import {resolvePathSubSelectionAtPoint} from '../src/product/runtime/pathSubSelection.ts'
+import type {HistoryPatch} from '../src/runtime/worker/history.ts'
 
 interface CheckResult {
   name: string

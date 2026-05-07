@@ -1,3 +1,8 @@
+import type {
+  CursorIntent,
+  OverlayCoordinateSpace,
+  OverlayPrimitiveType,
+} from '@venus/editor-primitive'
 import type { RuntimePoint } from '../types/index.ts'
 
 export type RuntimeOverlayLayerId =
@@ -10,22 +15,12 @@ export type RuntimeOverlayLayerId =
   | 'debug.hittest'
   | 'debug.spatial'
 
-export type RuntimeOverlayPrimitiveKind =
-  | 'line'
-  | 'polyline'
-  | 'polygon'
-  | 'rect'
-  | 'roundedRect'
-  | 'circle'
-  | 'ellipse'
-  | 'arc'
-  | 'bezier'
-  | 'path'
-  | 'handle'
-  | 'text'
-  | 'marker'
-  | 'boundsBox'
+// Reuse primitive overlay geometry taxonomy from editor-primitive contracts.
+export type RuntimeOverlayPrimitiveKind = OverlayPrimitiveType
 
+/**
+ * Defines runtime overlay styling forwarded to engine canvas drawing.
+ */
 export interface RuntimeOverlayStyle {
   strokeColor?: string
   strokeWidth?: number
@@ -35,15 +30,37 @@ export interface RuntimeOverlayStyle {
   blendMode?: string
   zIndex?: number
   nonScalingStroke?: boolean
+  pointRadius?: number
+  // Arc/sector start angle in degrees.
+  startAngleDegrees?: number
+  // Arc/sector end angle in degrees.
+  endAngleDegrees?: number
+  // Arc/sector inner radius in the current coordinate space.
+  innerRadius?: number
+  // Arc/sector outer radius in the current coordinate space.
+  outerRadius?: number
 }
 
+/**
+ * Defines one runtime overlay instruction bridging primitive and engine overlays.
+ */
 export interface RuntimeOverlayInstruction {
+  /** Stores stable instruction id. */
   readonly id: string
+  /** Stores logical overlay layer id for diagnostics/sorting. */
   readonly layerId: RuntimeOverlayLayerId
+  /** Stores primitive renderer dispatch type. */
   readonly primitive: RuntimeOverlayPrimitiveKind
+  /** Stores source coordinate space for geometry points. */
+  readonly coordinate: OverlayCoordinateSpace
+  /** Stores optional point geometry payload. */
   readonly points?: RuntimePoint[]
+  /** Stores optional drawing style payload. */
   readonly style?: RuntimeOverlayStyle
+  /** Stores optional hit-region semantic tag. */
   readonly hitRegion?: RuntimeOverlayHitRegion
+  /** Stores optional cursor hint used by cursor resolver fallback paths. */
+  readonly cursor?: CursorIntent
 }
 
 export const RUNTIME_OVERLAY_HIT_REGION = {
@@ -84,6 +101,7 @@ export interface RuntimeOverlayBuildInput {
     maxX: number
     maxY: number
   } | null
+  readonly hoveredShapePolygon?: RuntimePoint[] | null
   readonly snapGuides?: Array<{
     axis: 'x' | 'y'
     value: number
@@ -107,6 +125,7 @@ export interface RuntimePathEditBuildInput {
     anchorIndex: number
   }>
   readonly highlightedSegment: {from: {x: number; y: number}; to: {x: number; y: number}} | null
+  readonly highlightedCurvePoints?: Array<{x: number; y: number}> | null
   readonly activePathSubSelection: {
     hitType: 'anchorPoint' | 'segment' | 'inHandle' | 'outHandle'
     anchorPoint?: {index: number}
@@ -142,6 +161,7 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
       id: 'selection-bounds',
       layerId: 'overlay.selection',
       primitive: 'polyline',
+      coordinate: 'world',
       points: toRectPolyline(input.selectedBounds),
       style: {
         strokeColor: '#2563eb',
@@ -156,26 +176,47 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
       id: 'marquee-bounds',
       layerId: 'overlay.marquee',
       primitive: 'polyline',
+      coordinate: 'world',
       points: toRectPolyline(input.marqueeBounds),
       style: {
         strokeColor: 'rgba(37, 99, 235, 0.95)',
         strokeWidth: 1,
         fillColor: 'rgba(37, 99, 235, 0.12)',
       },
+      cursor: {type: 'crosshair'},
+      hitRegion: RUNTIME_OVERLAY_HIT_REGION.marqueeBounds,
     })
   }
 
-  if (input.hoveredShapeBounds) {
+  if (input.hoveredShapePolygon && input.hoveredShapePolygon.length >= 4) {
     instructions.push({
       id: 'hover-bounds',
       layerId: 'overlay.hover',
       primitive: 'polyline',
+      coordinate: 'world',
+      points: [...input.hoveredShapePolygon, input.hoveredShapePolygon[0]],
+      style: {
+        strokeColor: 'rgba(14, 165, 233, 0.9)',
+        strokeWidth: 1,
+        nonScalingStroke: true,
+      },
+      hitRegion: RUNTIME_OVERLAY_HIT_REGION.hoverBounds,
+      cursor: {type: 'move'},
+    })
+  } else if (input.hoveredShapeBounds) {
+    instructions.push({
+      id: 'hover-bounds',
+      layerId: 'overlay.hover',
+      primitive: 'polyline',
+      coordinate: 'world',
       points: toRectPolyline(input.hoveredShapeBounds),
       style: {
         strokeColor: 'rgba(14, 165, 233, 0.9)',
         strokeWidth: 1,
         nonScalingStroke: true,
       },
+      hitRegion: RUNTIME_OVERLAY_HIT_REGION.hoverBounds,
+      cursor: {type: 'move'},
     })
   }
 
@@ -192,6 +233,7 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
         id: `snap-guide-x-${index}`,
         layerId: 'overlay.guides',
         primitive: 'line',
+        coordinate: 'world',
         points: [
           {x: guide.value, y: canvasBounds.minY},
           {x: guide.value, y: canvasBounds.maxY},
@@ -211,6 +253,7 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
       id: `snap-guide-y-${index}`,
       layerId: 'overlay.guides',
       primitive: 'line',
+      coordinate: 'world',
       points: [
         {x: canvasBounds.minX, y: guide.value},
         {x: canvasBounds.maxX, y: guide.value},
@@ -234,11 +277,29 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
 export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInput): RuntimeOverlayInstruction[] {
   const instructions: RuntimeOverlayInstruction[] = []
 
+  if (input.highlightedCurvePoints && input.highlightedCurvePoints.length >= 2) {
+    instructions.push({
+      id: `path-segment:${input.activePathShapeId ?? 'unknown'}`,
+      layerId: 'overlay.handles',
+      primitive: 'polyline',
+      coordinate: 'world',
+      points: input.highlightedCurvePoints,
+      style: {
+        strokeColor: 'rgba(14, 165, 233, 0.9)',
+        strokeWidth: 1.5,
+        nonScalingStroke: true,
+      },
+      hitRegion: RUNTIME_OVERLAY_HIT_REGION.pathSegment,
+      cursor: {type: 'crosshair'},
+    })
+  }
+
   if (input.highlightedSegment) {
     instructions.push({
       id: `path-segment:${input.activePathShapeId ?? 'unknown'}`,
       layerId: 'overlay.handles',
       primitive: 'line',
+      coordinate: 'world',
       points: [input.highlightedSegment.from, input.highlightedSegment.to],
       style: {
         strokeColor: 'rgba(14, 165, 233, 0.9)',
@@ -246,6 +307,7 @@ export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInpu
         nonScalingStroke: true,
       },
       hitRegion: RUNTIME_OVERLAY_HIT_REGION.pathSegment,
+      cursor: {type: 'crosshair'},
     })
   }
 
@@ -257,6 +319,7 @@ export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInpu
       id: `path-anchor:${input.activePathShapeId ?? 'unknown'}:${index}`,
       layerId: 'overlay.handles',
       primitive: 'handle',
+      coordinate: 'world',
       points: [anchor],
       style: {
         strokeColor: selected ? '#ffffff' : 'rgba(14, 165, 233, 0.9)',
@@ -265,6 +328,7 @@ export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInpu
         nonScalingStroke: true,
       },
       hitRegion: RUNTIME_OVERLAY_HIT_REGION.pathAnchor,
+      cursor: {type: 'crosshair'},
     })
   })
 
@@ -277,6 +341,7 @@ export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInpu
       id: `path-handle-link:${input.activePathShapeId ?? 'unknown'}:${link.anchorIndex}:${link.handleType}`,
       layerId: 'overlay.handles',
       primitive: 'line',
+      coordinate: 'world',
       points: [link.anchor, link.handle],
       style: {
         strokeColor: 'rgba(14, 165, 233, 0.9)',
@@ -285,12 +350,14 @@ export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInpu
         nonScalingStroke: true,
       },
       hitRegion: RUNTIME_OVERLAY_HIT_REGION.pathHandleLink,
+      cursor: {type: 'crosshair'},
     })
 
     instructions.push({
       id: `path-handle:${input.activePathShapeId ?? 'unknown'}:${link.anchorIndex}:${link.handleType}`,
       layerId: 'overlay.handles',
       primitive: 'handle',
+      coordinate: 'world',
       points: [link.handle],
       style: {
         strokeColor: 'rgba(14, 165, 233, 0.9)',
@@ -299,6 +366,7 @@ export function buildRuntimePathEditInstructions(input: RuntimePathEditBuildInpu
         nonScalingStroke: true,
       },
       hitRegion: RUNTIME_OVERLAY_HIT_REGION.pathHandle,
+      cursor: {type: 'crosshair'},
     })
   })
 

@@ -1,4 +1,3 @@
-import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import react, {reactCompilerPreset} from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
@@ -7,21 +6,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   base: './',
-  resolve: {
-    alias: [
-      {find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url))},
-      {find: '@venus/document-core', replacement: fileURLToPath(new URL('./src/model/index.ts', import.meta.url))},
-      {find: 'i18next', replacement: fileURLToPath(new URL('./src/shims/i18next.js', import.meta.url))},
-      {find: '@vector/model', replacement: fileURLToPath(new URL('./src/model/index.ts', import.meta.url))},
-      {find: '@vector/ui', replacement: fileURLToPath(new URL('./src/ui/index.ts', import.meta.url))},
-      {find: '@vector/runtime/worker', replacement: fileURLToPath(new URL('./src/editor/runtime-local/worker/index.ts', import.meta.url))},
-      {find: '@vector/runtime/interaction', replacement: fileURLToPath(new URL('./src/runtime/interaction/index.ts', import.meta.url))},
-      {find: '@vector/runtime/presets', replacement: fileURLToPath(new URL('./src/editor/runtime-local/presets/index.ts', import.meta.url))},
-      {find: '@vector/runtime/engine', replacement: fileURLToPath(new URL('./src/editor/runtime-local/engine.ts', import.meta.url))},
-      {find: '@vector/runtime/shared-memory', replacement: fileURLToPath(new URL('./src/editor/runtime-local/shared-memory/index.ts', import.meta.url))},
-      {find: '@vector/runtime', replacement: fileURLToPath(new URL('./src/runtime/index.ts', import.meta.url))},
-    ],
-  },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

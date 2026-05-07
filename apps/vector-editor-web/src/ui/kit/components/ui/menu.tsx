@@ -1,6 +1,6 @@
 import {forwardRef, type CSSProperties} from 'react'
 import {Button, type ButtonProps} from './button.tsx'
-import {cn} from '../../lib/utils.ts'
+import {cn} from '../../../lib/cn.ts'
 
 export interface MenuItemProps extends ButtonProps {
   xs?: boolean

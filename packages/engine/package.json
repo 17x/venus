@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test src/**/*.test.ts"
+    "test": "node --experimental-strip-types --test src/**/*.test.ts __tests__/**/*.test.ts",
+    "bench:scenario": "tsx src/bench/runBenchmark.ts"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./compat": "./src/compat.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@venus/lib": "workspace:*",

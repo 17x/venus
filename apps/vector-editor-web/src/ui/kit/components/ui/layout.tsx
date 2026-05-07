@@ -3,7 +3,7 @@ import {
   type CSSProperties,
   type HTMLAttributes,
 } from 'react'
-import {cn} from '../../lib/utils.ts'
+import {cn} from '../../../lib/cn.ts'
 
 export interface ContainerProps extends HTMLAttributes<HTMLDivElement> {
   box?: boolean

@@ -7,4 +7,4 @@ export type {
   WorkerPointerLeaveMessage,
   WorkerPointerMessage,
   WorkerRemoteOperationMessage,
-} from '../../editor/runtime-local/worker/index.ts'
+} from '../worker/index.ts'

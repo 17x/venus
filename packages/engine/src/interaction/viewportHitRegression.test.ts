@@ -1,16 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { applyMatrixToPoint } from '../math/matrix.ts'
+import { applyMatrixToPoint } from '../math/matrix/matrix.ts'
 import {
   DEFAULT_ENGINE_VIEWPORT,
   panEngineViewportState,
   resolveEngineViewportState,
   zoomEngineViewportState,
-} from './viewport.ts'
+} from './viewport/viewport.ts'
 import { prepareEngineFramePlan } from '../scene/framePlan.ts'
-import { createEngineSceneStore } from '../scene/store.ts'
-import type { EngineSceneSnapshot } from '../scene/types.ts'
+import { createEngineSceneStore } from '../scene/store/store.ts'
+import type { EngineSceneSnapshot } from '../scene/types/types.ts'
 
 // Build a deterministic scene with a single rectangular shape as the hit target.
 const createRegressionScene = (): EngineSceneSnapshot => ({

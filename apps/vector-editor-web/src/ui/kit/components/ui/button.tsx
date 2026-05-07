@@ -1,6 +1,6 @@
 import {forwardRef, type ComponentPropsWithoutRef} from 'react'
-import {Button as ShadcnButton} from '@/ui/primitives/button'
-import {cn} from '../../lib/utils.ts'
+import {Button as ShadcnButton} from '../../../primitives/button.tsx'
+import {cn} from '../../../lib/cn.ts'
 import {Tooltip} from './tooltip.tsx'
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'outline'

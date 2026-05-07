@@ -1,0 +1,231 @@
+import {useCallback} from 'react'
+import {type ToolName} from '../../runtime/model/index.ts'
+import {resolveRuntimeZoomPresetScale} from '../../runtime/interaction/index.ts'
+import readFileHelper from '../../runtime/adapters/readFileHelper.ts'
+import {isDragCreateTool, mapToolNameToToolId} from '../editorRuntimeHelpers/editorRuntimeHelpers.ts'
+import {
+  resolveCommittedPathBezierPoints,
+  resolveHistoryNavigationCommands,
+  resolveReorderedShapeIndex,
+} from './helpers.ts'
+import {resolveEditingModeForTool} from '../runtime/tooling.ts'
+import {
+  resolveEllipseArcAngleFromPoint,
+  resolveRectCornerRadiusFromPoint,
+  type ShapeStyleHandleDrag,
+} from '../runtime/shapeStyleHandles.ts'
+
+export function useEditorRuntimeCoreCallbacks(options: {
+  add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
+  canvasRuntime: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']
+  handleCommand: (command: import('../../runtime/worker/index.ts').EditorRuntimeCommand) => void
+  openFile: (file: import('../../runtime/types/index.ts').EditorFileDocument) => void
+  previewDocument: import('../../runtime/model/index.ts').EditorDocument
+  runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/index.ts').createRuntimeEditingModeController>>
+  runtimeToolRegistryRef: React.RefObject<ReturnType<typeof import('../../runtime/index.ts').createRuntimeToolRegistry>>
+  selectedShapeId: string | null
+  setCurrentToolState: React.Dispatch<React.SetStateAction<ToolName>>
+  setDraftPrimitive: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').DraftPrimitive | null>>
+  setPathHandleDrag: React.Dispatch<React.SetStateAction<{
+    shapeId: string
+    anchorIndex: number
+    handleType: 'inHandle' | 'outHandle'
+  } | null>>
+  setShapeStyleHandleDrag: React.Dispatch<React.SetStateAction<ShapeStyleHandleDrag | null>>
+  setPathSubSelection: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').PathSubSelection | null>>
+  setPathSubSelectionHover: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').PathSubSelection | null>>
+  setPenDraftPoints: React.Dispatch<React.SetStateAction<Array<{x: number; y: number}> | null>>
+  t: (key: string) => string
+}) {
+  const reorderSelectedShape = useCallback((direction: 'up' | 'down' | 'top' | 'bottom') => {
+    if (!options.selectedShapeId) {
+      return
+    }
+
+    const index = options.canvasRuntime.document.shapes.findIndex((shape) => shape.id === options.selectedShapeId)
+    const nextIndex = resolveReorderedShapeIndex({
+      direction,
+      index,
+      shapeCount: options.canvasRuntime.document.shapes.length,
+    })
+    if (nextIndex === null) {
+      return
+    }
+
+    options.handleCommand({
+      type: 'shape.reorder',
+      shapeId: options.selectedShapeId,
+      toIndex: nextIndex,
+    })
+  }, [options])
+
+  const handleZoom = useCallback((zoomIn: boolean, point?: {x: number; y: number}) => {
+    const currentScale = options.canvasRuntime.viewport.scale
+    const nextScaleValue = resolveRuntimeZoomPresetScale(currentScale, zoomIn ? 'in' : 'out')
+
+    if (nextScaleValue === null) {
+      return
+    }
+
+    options.canvasRuntime.zoomViewport(nextScaleValue, point)
+  }, [options])
+
+  const resolveDraftPrimitiveType = useCallback((toolName: ToolName) => {
+    if (!isDragCreateTool(toolName)) {
+      return null
+    }
+    if (toolName === 'connector') {
+      return 'lineSegment'
+    }
+    return toolName
+  }, [])
+
+  const commitPathHandleUpdate = useCallback((params: {
+    shapeId: string
+    anchorIndex: number
+    handleType: 'inHandle' | 'outHandle'
+    point: {x: number; y: number}
+  }) => {
+    const shape = options.previewDocument.shapes.find((item) => item.id === params.shapeId)
+    if (!shape) {
+      return
+    }
+    const shapeIndex = options.previewDocument.shapes.findIndex((item) => item.id === shape.id)
+    if (shapeIndex < 0) {
+      return
+    }
+
+    const nextBezierPoints = resolveCommittedPathBezierPoints({
+      shape,
+      anchorIndex: params.anchorIndex,
+      handleType: params.handleType,
+      point: params.point,
+    })
+    if (!nextBezierPoints) {
+      return
+    }
+
+    options.handleCommand({type: 'shape.remove', shapeId: shape.id})
+    options.handleCommand({
+      type: 'shape.insert',
+      index: shapeIndex,
+      shape: {
+        ...shape,
+        bezierPoints: nextBezierPoints,
+      },
+    })
+    options.handleCommand({
+      type: 'selection.set',
+      shapeIds: [shape.id],
+      mode: 'replace',
+    })
+  }, [options])
+
+  // Commits rect-corner radius and ellipse arc-angle edits from style-handle drags.
+  const commitShapeStyleHandleUpdate = useCallback((params: ShapeStyleHandleDrag) => {
+    const shape = options.previewDocument.shapes.find((item) => item.id === params.payload.shapeId)
+    if (!shape) {
+      return
+    }
+
+    if (params.kind === 'rect-radius') {
+      const nextRadius = resolveRectCornerRadiusFromPoint({
+        shape,
+        corner: params.payload.corner,
+        point: params.payload.point,
+      })
+      if (nextRadius === null) {
+        return
+      }
+
+      const nextCornerRadii = {
+        topLeft: shape.cornerRadii?.topLeft ?? shape.cornerRadius ?? 0,
+        topRight: shape.cornerRadii?.topRight ?? shape.cornerRadius ?? 0,
+        bottomRight: shape.cornerRadii?.bottomRight ?? shape.cornerRadius ?? 0,
+        bottomLeft: shape.cornerRadii?.bottomLeft ?? shape.cornerRadius ?? 0,
+        [params.payload.corner]: nextRadius,
+      }
+
+      options.handleCommand({
+        type: 'shape.patch',
+        shapeId: shape.id,
+        patch: {
+          // Promote per-corner values as source-of-truth after direct-corner editing.
+          cornerRadius: undefined,
+          cornerRadii: nextCornerRadii,
+        },
+      })
+      return
+    }
+
+    const nextAngle = resolveEllipseArcAngleFromPoint({
+      shape,
+      point: params.payload.point,
+    })
+    if (nextAngle === null) {
+      return
+    }
+
+    options.handleCommand({
+      type: 'shape.patch',
+      shapeId: shape.id,
+      patch: params.payload.boundary === 'start'
+        ? {ellipseStartAngle: nextAngle}
+        : {ellipseEndAngle: nextAngle},
+    })
+  }, [options])
+
+  const setCurrentTool = useCallback((toolName: ToolName) => {
+    options.runtimeToolRegistryRef.current?.activate(toolName, {
+      editingMode: options.runtimeEditingModeControllerRef.current?.getCurrentMode() ?? 'idle',
+    })
+    options.runtimeEditingModeControllerRef.current?.transition({
+      to: resolveEditingModeForTool(toolName),
+      reason: `set-current-tool:${toolName}`,
+    })
+    options.setDraftPrimitive(null)
+    options.setPathHandleDrag(null)
+    options.setShapeStyleHandleDrag(null)
+    options.setPenDraftPoints(null)
+    if (toolName !== 'dselector') {
+      options.setPathSubSelection(null)
+      options.setPathSubSelectionHover(null)
+    }
+    options.setCurrentToolState(toolName)
+    options.handleCommand({
+      type: 'tool.select',
+      tool: mapToolNameToToolId(toolName),
+      toolName,
+    })
+  }, [options])
+
+  const pickHistory = useCallback((historyNode: {id: number}) => {
+    const commands = resolveHistoryNavigationCommands({
+      targetHistoryId: historyNode.id,
+      currentCursor: options.canvasRuntime.history.cursor,
+    })
+
+    commands.forEach((command) => {
+      options.handleCommand(command)
+    })
+  }, [options])
+
+  const openDroppedFile = useCallback(async (droppedFile: File) => {
+    try {
+      options.openFile(await readFileHelper(droppedFile))
+    } catch {
+      options.add(options.t('misc.fileResolveFailed'), 'info')
+    }
+  }, [options])
+
+  return {
+    reorderSelectedShape,
+    handleZoom,
+    resolveDraftPrimitiveType,
+    commitPathHandleUpdate,
+    commitShapeStyleHandleUpdate,
+    setCurrentTool,
+    pickHistory,
+    openDroppedFile,
+  }
+}

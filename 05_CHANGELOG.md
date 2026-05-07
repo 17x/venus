@@ -1,6 +1,138 @@
 # Changelog
 
+## 2026-05-01
+
+- Improved engine zoom/tile policy integration and rendering fallback correctness:
+  - added dynamic zoom strategy module at `packages/engine/src/renderer/zoomPerformance.ts`
+  - integrated dynamic bucket + active-bucket retention into tile cache/scheduler paths
+  - wired base-scene mode selection to zoom strategy thresholds in WebGL renderer
+  - reduced low-zoom (10%) over-aggressive blur by tightening simplified/placeholder thresholds
+  - added packet zero-draw fallback to model-complete composite to prevent high-zoom black frames
+  - added tile compositor guards for invalid scale and empty tile draw-entry frames
+- Updated tests and diagnostics-facing behavior for tile bucket and scheduler logic.
+
 ## 2026-04-28
+
+- Continued runtime module fusion by moving viewport/zoom ownership into `src/runtime`:
+  - added `apps/vector-editor-web/src/runtime/viewport/{index,controller,matrix,types}.ts` and `apps/vector-editor-web/src/runtime/zoom/index.ts`
+  - updated `apps/vector-editor-web/src/runtime/index.ts` to export viewport/zoom from runtime-owned modules
+  - converted `apps/vector-editor-web/src/editor/runtime-local/viewport/{controller,matrix,types}.ts` and `apps/vector-editor-web/src/editor/runtime-local/zoom/index.ts` into `AI-TEMP` compatibility bridges
+  - rewired `apps/vector-editor-web/src/editor/runtime-local/index.ts` viewport/zoom exports to `@vector/runtime/viewport` and `@vector/runtime/zoom`
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm build` (under `apps/vector-editor-web`)
+
+- Moved more runtime-local ownership into `src/runtime`:
+  - moved engine facade source-of-truth to `apps/vector-editor-web/src/runtime/engine.ts` and converted `apps/vector-editor-web/src/editor/runtime-local/engine.ts` to a temporary compatibility bridge
+  - moved hit-test adapter to `apps/vector-editor-web/src/runtime/hittest/hitTestAdapter.ts`, updated `apps/vector-editor-web/src/runtime/hittest/index.ts`, and removed `apps/vector-editor-web/src/editor/runtime-local/interaction/hitTestAdapter.ts`
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm build` (under `apps/vector-editor-web`)
+
+- Replaced remaining runtime-local root relative runtime imports with aliases:
+  - switched `apps/vector-editor-web/src/editor/runtime-local/index.ts` exports for `tools`, `cursor`, `chrome`, and `editing-modes` to use `@vector/runtime/*` imports
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+
+- Cleaned worker runtime command import path after alias governance:
+  - switched `apps/vector-editor-web/src/editor/runtime-local/worker/scope/commandDispatchRegistry.ts` to import `createCommandRegistry` from `@vector/runtime/commands`
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm build` (under `apps/vector-editor-web`)
+
+- Continued runtime fusion by deleting temporary runtime-local bridges for migrated modules:
+  - removed `apps/vector-editor-web/src/editor/runtime-local/{chrome,cursor,editing-modes,commands,tools}/*` files after direct runtime rewiring
+  - updated `apps/vector-editor-web/src/editor/runtime-local/index.ts` to export chrome/cursor/editing-modes/tools directly from `apps/vector-editor-web/src/runtime/*`
+  - updated `apps/vector-editor-web/src/editor/runtime-local/worker/scope/commandDispatchRegistry.ts` to import command registry from `apps/vector-editor-web/src/runtime/commands/index.ts`
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm build` (under `apps/vector-editor-web`)
+
+- Began runtime folder fusion to reduce overlapping `editor/runtime-local` and `runtime` ownership:
+  - added runtime-owned implementations: `apps/vector-editor-web/src/runtime/chrome/registry.ts`, `apps/vector-editor-web/src/runtime/cursor/resolveRuntimeCursor.ts`, `apps/vector-editor-web/src/runtime/editing-modes/controller.ts`, `apps/vector-editor-web/src/runtime/commands/registry.ts`, and `apps/vector-editor-web/src/runtime/tools/registry.ts`
+  - repointed runtime facade barrels in `apps/vector-editor-web/src/runtime/{chrome,cursor,editing-modes,commands,tools}/index.ts` to local runtime modules
+  - converted legacy `apps/vector-editor-web/src/editor/runtime-local/{chrome,cursor,editing-modes,commands,tools}/index.ts` to temporary compatibility bridges
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm build` (under `apps/vector-editor-web`)
+
+- Completed runtime facade/alias governance cleanup in vector app:
+  - simplified `@vector/runtime/*` alias mapping in `apps/vector-editor-web/tsconfig.app.json` to one wildcard path and mirrored it in `apps/vector-editor-web/vite.config.ts`
+  - tightened `apps/vector-editor-web/src/runtime/index.ts` and `apps/vector-editor-web/src/runtime/interaction/index.ts` by replacing wildcard passthrough exports with explicit facade exports
+  - added bridge modules `apps/vector-editor-web/src/runtime/engine.ts`, `apps/vector-editor-web/src/runtime/worker.ts`, `apps/vector-editor-web/src/runtime/shared-memory.ts`, and `apps/vector-editor-web/src/runtime/presets.ts`
+  - kept `apps/vector-editor-web/src/app/product.ts` deletion by explicit user confirmation, and aligned `apps/vector-editor-web/src/README.md` folder notes with current layout
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm build` (under `apps/vector-editor-web`)
+
+- Removed legacy interaction runtime bridge residue and rewired call sites:
+  - updated `apps/vector-editor-web/src/editor/interaction/selection/handleManager.ts`, `apps/vector-editor-web/src/editor/interaction/transform/transformSessionManager.ts`, and `apps/vector-editor-web/src/editor/interaction/overlay/InteractionOverlay.tsx` to consume runtime-local interaction exports directly
+  - deleted `apps/vector-editor-web/src/editor/interaction/runtime/index.ts`
+  - verification:
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
+- Continued vector src simplification with UI-to-runtime contract decoupling:
+  - switched `EditorExecutor` component imports from `useEditorRuntime.ts` to `useEditorRuntime.types.ts` in header/menu/shortcut/layer/context/status/fileReceiver surfaces
+  - normalized menu contract dependencies to type-only imports in `apps/vector-editor-web/src/components/header/menu/menuData.ts` and `apps/vector-editor-web/src/components/contextMenu/ContextMenu.tsx`
+  - verification:
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
+- Tightened vector runtime ownership boundaries and cleared remaining lint-gate violations:
+  - added ESLint boundary rule so `apps/vector-editor-web/src/editor/runtime-local/*` cannot back-import `@vector/runtime` or `@vector/runtime/interaction`
+  - switched `apps/vector-editor-web/src/editor/runtime-local/interaction/snapping.ts` to local matrix helpers (`../viewport/matrix.ts`) instead of facade imports
+  - removed unused duplicate `apps/vector-editor-web/src/components/ui/button.tsx`
+  - replaced forbidden `var(...)`/semantic token classes in `apps/vector-editor-web/src/components/shell/LeftSidebar.tsx` with local Tailwind styling
+  - verification:
+    - `pnpm lint` (under `apps/vector-editor-web`)
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+
+- Simplified vector source/runtime ownership and removed legacy residue:
+  - removed unreferenced runtime legacy files `apps/vector-editor-web/src/editor/runtime/canvasAdapter.tsx` and `apps/vector-editor-web/src/editor/runtime/bitmapReplay.worker.ts`
+  - deduplicated className utility ownership by making `apps/vector-editor-web/src/ui/kit/lib/utils.ts` re-export canonical `apps/vector-editor-web/src/lib/utils.ts`
+  - added `apps/vector-editor-web/eslint.config.js` runtime guard to prevent `src/runtime/*` imports from React/contexts/hooks paths
+  - added runtime ownership documentation in `apps/vector-editor-web/src/runtime/README.md` and expanded `apps/vector-editor-web/src/README.md`
+  - removed regenerated artifact `apps/vector-editor-web/scripts/boolean-contour-regression.result.json`
+
+- Added vector ownership/readme hygiene docs and finalized one warning cleanup:
+  - added `apps/vector-editor-web/src/README.md` with `src/*` ownership map and runtime facade vs runtime-local implementation boundary
+  - added `apps/vector-editor-web/scripts/README.md` with script necessity policy and generated artifact guidance
+  - removed unused zoom type alias/import and normalized width utility class in `apps/vector-editor-web/src/components/statusBar/ZoomSelect.tsx`
+  - verification:
+    - `pnpm exec eslint apps/vector-editor-web/src/components/statusBar/ZoomSelect.tsx`
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
+
+- Continued vector runtime bridge cleanup with ownership-safe import tightening:
+  - switched `apps/vector-editor-web/src/editor/runtime-local/presets/{selection,snapping,history,protocol,defaultEditorModules}.ts` to import `CanvasRuntimeModule` from `apps/vector-editor-web/src/editor/runtime-local/core/modules.ts`
+  - switched `apps/vector-editor-web/src/components/statusBar/ZoomSelect.tsx` zoom preset imports from `@vector/runtime/interaction` to `@vector/runtime`
+  - updated ownership notes in `apps/vector-editor-web/docs/architecture.md` and `apps/vector-editor-web/docs/runtime/runtime-interaction.md`
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
+
+- Deep-cleaned vector `src` bridge residue and zero-reference artifacts:
+  - narrowed `apps/vector-editor-web/src/runtime/interaction/index.ts` to explicit zoom exports and app-local interaction re-exports, removing wildcard `export * from '@venus/editor-primitive'`
+  - removed unused files: `apps/vector-editor-web/src/editor/hooks/useGesture.tsx`, `apps/vector-editor-web/src/lib/zoom/zoom.ts`, `apps/vector-editor-web/src/shared/utilities/eventBinding.ts`, `apps/vector-editor-web/src/shared/utilities/throttle.ts`, `apps/vector-editor-web/src/shared/utilities/Uid.ts`, `apps/vector-editor-web/src/shared/utilities/units.ts`
+  - consolidated lite-u compatibility declarations by removing `apps/vector-editor-web/src/types/lite-u-editor-compat.d.ts` and expanding `apps/vector-editor-web/src/shared/types/lite-u-editor.d.ts`
+  - removed generated script artifacts `apps/vector-editor-web/scripts/boolean-contour-regression.result.json` and `apps/vector-editor-web/scripts/perf-gate.result.json`
+  - verification:
+    - `pnpm exec tsc -p apps/vector-editor-web/tsconfig.app.json --noEmit`
+    - `pnpm typecheck`
+    - `pnpm lint`
+    - `pnpm build`
 
 - Completed runtime-v2 remaining migration slice and vector interaction cleanup in one pass:
   - added nested cross-parent regroup/ungroup planner coverage in `apps/vector-editor-web/src/editor/runtime-local/document-runtime/normalizedHistoryPatches.test.ts` and `apps/vector-editor-web/src/editor/runtime-local/worker/scope/normalizedPatchParity.test.ts`

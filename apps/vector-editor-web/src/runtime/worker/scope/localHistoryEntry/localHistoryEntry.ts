@@ -1,0 +1,499 @@
+import {nid, type DocumentNode, type EditorDocument} from '../../../model/index.ts'
+import type {MatrixFirstNodeTransform} from '@venus/engine'
+import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '../../../shared-memory/index.ts'
+import type {HistoryEntry, HistoryPatch} from '../../history.ts'
+import type {EditorRuntimeCommand} from '../../protocol.ts'
+import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from '../model.ts'
+import {createLogOnlyEntry, invertHistoryPatches} from './localHistoryEntry.helpers.ts'
+import {
+  createMaskLinkedReorderPatches,
+  expandMaskLinkedShapeIds,
+  includesMaskLinkedShapeIds,
+  invertMaskSchemaPatches,
+  resolveMaskSchemaPatches,
+} from '../maskGroupSemantics.ts'
+import {
+  convertShapeToPathShape,
+  createAlignMovePatches,
+  createBooleanReplacePatches,
+  createDistributeMovePatches,
+} from '../shapeCommandHelpers/shapeCommandHelpers.ts'
+import {createTransformPatches, resolveTransformBatchItemToLegacy} from '../transformSerde.ts'
+import {
+  createNormalizedGroupPatchPlan,
+  createNormalizedSiblingReorderPlan,
+  createNormalizedUngroupPatchPlan,
+} from '../../../model/document-runtime/index.ts'
+/**
+ * Creates one reversible local history entry from a runtime command and current document snapshot.
+ */
+export function createLocalHistoryEntry(
+  command: EditorRuntimeCommand,
+  scene: SceneMemory,
+  document: EditorDocument,
+): Omit<HistoryEntry, 'source'> {
+  if (command.type === 'selection.delete') {
+    const selectedIndices = getSelectedShapeIndices(scene).sort((left, right) => left - right)
+    const selectedShapeIds = selectedIndices
+      .map((index) => document.shapes[index]?.id)
+      .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    // Expand through mask-group membership so delete keeps host/source pairs consistent.
+    const expandedSelectedShapeIds = new Set(expandMaskLinkedShapeIds(document, selectedShapeIds))
+    const selectedShapes = document.shapes
+      .map((shape, index) => ({index, shape}))
+      .filter((item): item is {index: number; shape: DocumentNode} => expandedSelectedShapeIds.has(item.shape.id))
+
+    if (selectedShapes.length === 0) {
+      return {
+        id: 'selection.delete',
+        label: 'Clear Selection',
+        forward: [{type: 'set-selected-index', prev: readSceneStats(scene).selectedIndex, next: -1}],
+        backward: [{type: 'set-selected-index', prev: -1, next: readSceneStats(scene).selectedIndex}],
+      }
+    }
+
+    return {
+      id: 'selection.delete',
+      label: 'Delete Selection',
+      forward: [
+        ...selectedShapes.slice().sort((left, right) => right.index - left.index).map(({index, shape}) => ({type: 'remove-shape' as const, index, shape})),
+        {type: 'set-selected-index', prev: readSceneStats(scene).selectedIndex, next: -1},
+      ],
+      backward: [
+        ...selectedShapes.map(({index, shape}) => ({type: 'insert-shape' as const, index, shape})),
+        {type: 'set-selected-index', prev: -1, next: readSceneStats(scene).selectedIndex},
+      ],
+    }
+  }
+
+  if (command.type === 'shape.move') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Move Missing Shape')
+    return {
+      id: `shape.move.${shape.id}`,
+      label: `Move ${shape.name}`,
+      forward: [{type: 'move-shape', shapeId: shape.id, prevX: shape.x, prevY: shape.y, nextX: command.x, nextY: command.y}],
+      backward: [{type: 'move-shape', shapeId: shape.id, prevX: command.x, prevY: command.y, nextX: shape.x, nextY: shape.y}],
+    }
+  }
+
+  if (command.type === 'shape.rename') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Rename Missing Shape')
+    const nextText = command.text ?? (shape.type === 'text' ? command.name : shape.text)
+    return {
+      id: `shape.rename.${shape.id}`,
+      label: `Rename ${shape.name}`,
+      forward: [{type: 'rename-shape', shapeId: shape.id, prevName: shape.name, nextName: command.name, prevText: shape.text, nextText}],
+      backward: [{type: 'rename-shape', shapeId: shape.id, prevName: command.name, nextName: shape.name, prevText: nextText, nextText: shape.text}],
+    }
+  }
+
+  if (command.type === 'shape.resize') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Resize Missing Shape')
+    return {
+      id: `shape.resize.${shape.id}`,
+      label: `Resize ${shape.name}`,
+      forward: [{type: 'resize-shape', shapeId: shape.id, prevWidth: shape.width, prevHeight: shape.height, nextWidth: command.width, nextHeight: command.height}],
+      backward: [{type: 'resize-shape', shapeId: shape.id, prevWidth: command.width, prevHeight: command.height, nextWidth: shape.width, nextHeight: shape.height}],
+    }
+  }
+
+  if (command.type === 'shape.rotate') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Rotate Missing Shape')
+    const previousRotation = shape.rotation ?? 0
+    return {
+      id: `shape.rotate.${shape.id}`,
+      label: `Rotate ${shape.name}`,
+      forward: [{type: 'rotate-shape', shapeId: shape.id, prevRotation: previousRotation, nextRotation: command.rotation}],
+      backward: [{type: 'rotate-shape', shapeId: shape.id, prevRotation: command.rotation, nextRotation: previousRotation}],
+    }
+  }
+
+  if (command.type === 'shape.rotate.batch') {
+    const candidates = command.rotations.map((item: {shapeId: string; rotation: number}) => ({shape: findShapeById(document, item.shapeId), nextRotation: item.rotation})).filter((item: {shape: DocumentNode | null; nextRotation: number}): item is {shape: DocumentNode; nextRotation: number} => !!item.shape)
+    if (candidates.length === 0) return createLogOnlyEntry(command.type, 'Rotate Missing Shape')
+    const forward = candidates.map(({shape, nextRotation}: {shape: DocumentNode; nextRotation: number}) => ({type: 'rotate-shape' as const, shapeId: shape.id, prevRotation: shape.rotation ?? 0, nextRotation}))
+    const backward = candidates.map(({shape, nextRotation}: {shape: DocumentNode; nextRotation: number}) => ({type: 'rotate-shape' as const, shapeId: shape.id, prevRotation: nextRotation, nextRotation: shape.rotation ?? 0}))
+    return {id: `shape.rotate.batch.${Date.now()}`, label: `Rotate ${candidates.length} Shapes`, forward, backward}
+  }
+
+  if (command.type === 'shape.transform.batch') {
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+    let touchedShapes = 0
+    command.transforms.forEach((item: {id: string; fromMatrix: MatrixFirstNodeTransform; toMatrix: MatrixFirstNodeTransform}) => {
+      const shape = findShapeById(document, item.id)
+      if (!shape) return
+      const resolved = resolveTransformBatchItemToLegacy(item)
+      if (!resolved) return
+      touchedShapes += 1
+      const forwardPatches = createTransformPatches(shape, resolved.from, resolved.to)
+      const backwardPatches = createTransformPatches(shape, resolved.to, resolved.from)
+      forward.push(...forwardPatches)
+      backwardPatches.forEach((patch) => backward.unshift(patch))
+    })
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Transform Noop')
+    return {id: `shape.transform.batch.${Date.now()}`, label: `Transform ${touchedShapes} Shapes`, forward, backward}
+  }
+
+  if (command.type === 'shape.patch') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Patch Missing Shape')
+    const nextFill = command.patch.fill === undefined ? cloneFill(shape.fill) : cloneFill(command.patch.fill)
+    const nextStroke = command.patch.stroke === undefined ? cloneStroke(shape.stroke) : cloneStroke(command.patch.stroke)
+    const nextShadow = command.patch.shadow === undefined ? cloneShadow(shape.shadow) : cloneShadow(command.patch.shadow)
+    const nextCornerRadius = command.patch.cornerRadius === undefined ? shape.cornerRadius : command.patch.cornerRadius
+    const nextCornerRadii = command.patch.cornerRadii === undefined ? cloneCornerRadii(shape.cornerRadii) : cloneCornerRadii(command.patch.cornerRadii)
+    const nextEllipseStartAngle = command.patch.ellipseStartAngle === undefined ? shape.ellipseStartAngle : command.patch.ellipseStartAngle
+    const nextEllipseEndAngle = command.patch.ellipseEndAngle === undefined ? shape.ellipseEndAngle : command.patch.ellipseEndAngle
+    const nextFlipX = command.patch.flipX === undefined ? !!shape.flipX : command.patch.flipX
+    const nextFlipY = command.patch.flipY === undefined ? !!shape.flipY : command.patch.flipY
+    return {
+      id: `shape.patch.${shape.id}`,
+      label: `Patch ${shape.name}`,
+      forward: [{type: 'patch-shape', shapeId: shape.id, prevFill: cloneFill(shape.fill), nextFill, prevStroke: cloneStroke(shape.stroke), nextStroke, prevShadow: cloneShadow(shape.shadow), nextShadow, prevCornerRadius: shape.cornerRadius, nextCornerRadius, prevCornerRadii: cloneCornerRadii(shape.cornerRadii), nextCornerRadii, prevEllipseStartAngle: shape.ellipseStartAngle, nextEllipseStartAngle, prevEllipseEndAngle: shape.ellipseEndAngle, nextEllipseEndAngle, prevFlipX: !!shape.flipX, nextFlipX, prevFlipY: !!shape.flipY, nextFlipY}],
+      backward: [{type: 'patch-shape', shapeId: shape.id, prevFill: nextFill, nextFill: cloneFill(shape.fill), prevStroke: nextStroke, nextStroke: cloneStroke(shape.stroke), prevShadow: nextShadow, nextShadow: cloneShadow(shape.shadow), prevCornerRadius: nextCornerRadius, nextCornerRadius: shape.cornerRadius, prevCornerRadii: nextCornerRadii, nextCornerRadii: cloneCornerRadii(shape.cornerRadii), prevEllipseStartAngle: nextEllipseStartAngle, nextEllipseStartAngle: shape.ellipseStartAngle, prevEllipseEndAngle: nextEllipseEndAngle, nextEllipseEndAngle: shape.ellipseEndAngle, prevFlipX: nextFlipX, nextFlipX: !!shape.flipX, prevFlipY: nextFlipY, nextFlipY: !!shape.flipY}],
+    }
+  }
+
+  if (command.type === 'shape.set-clip') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Clip Missing Shape')
+    const schemaPatches = resolveMaskSchemaPatches({
+      document,
+      hostShapeId: shape.id,
+      nextClipPathId: command.clipPathId,
+    })
+    return {
+      id: `shape.set-clip.${shape.id}`,
+      label: `Mask ${shape.name}`,
+      forward: [
+        {type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: shape.clipPathId, nextClipPathId: command.clipPathId, prevClipRule: shape.clipRule, nextClipRule: command.clipRule},
+        ...schemaPatches,
+      ],
+      backward: [
+        {type: 'set-shape-clip', shapeId: shape.id, prevClipPathId: command.clipPathId, nextClipPathId: shape.clipPathId, prevClipRule: command.clipRule, nextClipRule: shape.clipRule},
+        ...invertMaskSchemaPatches(schemaPatches),
+      ],
+    }
+  }
+
+  if (command.type === 'shape.reorder') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Reorder Missing Shape')
+    const forward = createMaskLinkedReorderPatches({
+      document,
+      shapeId: shape.id,
+      toIndex: command.toIndex,
+    })
+    const siblingReorderPlan = createNormalizedSiblingReorderPlan({
+      document,
+      shapeId: shape.id,
+      toIndex: command.toIndex,
+    })
+    if (siblingReorderPlan) {
+      // Keep canonical sibling order in parent groups while preserving flat-array reorder compatibility.
+      forward.push(siblingReorderPlan.siblingPatch)
+    }
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Reorder Shape')
+
+    const backwardSiblingPatch = siblingReorderPlan
+      ? {
+          type: 'set-group-children' as const,
+          groupId: siblingReorderPlan.siblingPatch.groupId,
+          prevChildIds: siblingReorderPlan.siblingPatch.nextChildIds,
+          nextChildIds: siblingReorderPlan.siblingPatch.prevChildIds,
+        }
+      : null
+
+    return {
+      id: `shape.reorder.${shape.id}`,
+      label: forward.length > 1 ? `Reorder ${forward.length} Shapes` : `Reorder ${shape.name}`,
+      forward,
+      backward: [
+        ...forward
+        .filter((patch): patch is Extract<HistoryPatch, {type: 'reorder-shape'}> => patch.type === 'reorder-shape')
+        .slice()
+        .reverse()
+        .map((patch) => ({
+        ...patch,
+        fromIndex: patch.toIndex,
+        toIndex: patch.fromIndex,
+      })),
+        ...(backwardSiblingPatch ? [backwardSiblingPatch] : []),
+      ],
+    }
+  }
+
+  if (command.type === 'shape.insert') {
+    const index = command.index ?? document.shapes.length
+    return {
+      id: `shape.insert.${command.shape.id}`,
+      label: `Insert ${command.shape.name}`,
+      forward: [{type: 'insert-shape', index, shape: command.shape}],
+      backward: [{type: 'remove-shape', index, shape: command.shape}],
+    }
+  }
+
+  if (command.type === 'shape.insert.batch') {
+    if (command.shapes.length === 0) return createLogOnlyEntry(command.type, 'Insert Noop')
+    const baseIndex = command.index ?? document.shapes.length
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+    command.shapes.forEach((shape: DocumentNode, index: number) => {
+      const targetIndex = baseIndex + index
+      forward.push({type: 'insert-shape', index: targetIndex, shape})
+      backward.unshift({type: 'remove-shape', index: targetIndex, shape})
+    })
+    return {id: `shape.insert.batch.${Date.now()}`, label: `Insert ${command.shapes.length} Shapes`, forward, backward}
+  }
+
+  if (command.type === 'shape.remove') {
+    const shape = findShapeById(document, command.shapeId)
+    if (!shape) return createLogOnlyEntry(command.type, 'Remove Missing Shape')
+    // Removing one mask member removes the whole linked pair to avoid orphaned hosts/sources.
+    const expandedShapeIds = new Set(expandMaskLinkedShapeIds(document, [shape.id]))
+    const removedShapes = document.shapes
+      .map((candidate, index) => ({index, shape: candidate}))
+      .filter((item): item is {index: number; shape: DocumentNode} => expandedShapeIds.has(item.shape.id))
+    if (removedShapes.length === 0) return createLogOnlyEntry(command.type, 'Remove Missing Shape')
+    return {
+      id: `shape.remove.${shape.id}`,
+      label: removedShapes.length > 1 ? `Remove ${removedShapes.length} Shapes` : `Remove ${shape.name}`,
+      forward: removedShapes
+        .slice()
+        .sort((left, right) => right.index - left.index)
+        .map(({index, shape}) => ({type: 'remove-shape' as const, index, shape})),
+      backward: removedShapes
+        .map(({index, shape}) => ({type: 'insert-shape' as const, index, shape})),
+    }
+  }
+
+  if (command.type === 'shape.group') {
+    const selectedShapeIds = command.shapeIds && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    // Expand explicit picks so a mask host/source pair cannot be grouped into different parents.
+    const expandedSelectedShapeIds = expandMaskLinkedShapeIds(document, selectedShapeIds)
+    const selectedShapes = expandedSelectedShapeIds
+      .map((shapeId: string) => findShapeById(document, shapeId))
+      .filter((shape: DocumentNode | null): shape is DocumentNode => shape !== null)
+    if (selectedShapes.length < 2) return createLogOnlyEntry(command.type, 'Group Noop')
+
+    const selectedIndices = selectedShapes
+      .map((shape: DocumentNode) => ({shape, index: document.shapes.findIndex((item) => item.id === shape.id)}))
+      .filter((item: {shape: DocumentNode; index: number}) => item.index >= 0)
+      .sort((left: {shape: DocumentNode; index: number}, right: {shape: DocumentNode; index: number}) => left.index - right.index)
+    if (selectedIndices.length < 2) return createLogOnlyEntry(command.type, 'Group Noop')
+
+    const groupId = command.groupId ?? `group-${nid()}`
+    const normalizedGroupPlan = createNormalizedGroupPatchPlan({
+      document,
+      selectedShapeIds: selectedIndices.map((item) => item.shape.id),
+      groupId,
+      groupName: command.name ?? 'Group',
+    })
+    if (!normalizedGroupPlan) return createLogOnlyEntry(command.type, 'Group Noop')
+
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+
+    const forward: HistoryPatch[] = [...normalizedGroupPlan.patches]
+    const backward: HistoryPatch[] = invertHistoryPatches(forward)
+
+    forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: normalizedGroupPlan.insertIndex})
+    backward.unshift({type: 'set-selected-index', prev: normalizedGroupPlan.insertIndex, next: previousSelectedIndex})
+
+    return {
+      id: `shape.group.${normalizedGroupPlan.groupId}`,
+      label: `Group ${selectedIndices.length} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.ungroup') {
+    const selectedPrimaryIndex = readSceneStats(scene).selectedIndex
+    const selectedPrimary = selectedPrimaryIndex >= 0 ? document.shapes[selectedPrimaryIndex] : undefined
+    const targetGroupId = command.groupId ?? (selectedPrimary?.type === 'group' ? selectedPrimary.id : undefined)
+    const groupShape = targetGroupId ? findShapeById(document, targetGroupId) : null
+    if (!groupShape || groupShape.type !== 'group') return createLogOnlyEntry(command.type, 'Ungroup Missing Group')
+
+    const normalizedUngroupPlan = createNormalizedUngroupPatchPlan({
+      document,
+      groupId: groupShape.id,
+    })
+    if (!normalizedUngroupPlan) return createLogOnlyEntry(command.type, 'Ungroup Empty Group')
+
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+
+    const forward: HistoryPatch[] = [...normalizedUngroupPlan.patches]
+    const backward: HistoryPatch[] = invertHistoryPatches(forward)
+    forward.push({type: 'set-selected-index', prev: previousSelectedIndex, next: -1})
+    backward.unshift({type: 'set-selected-index', prev: -1, next: previousSelectedIndex})
+
+    return {
+      id: `shape.ungroup.${normalizedUngroupPlan.groupId}`,
+      label: `Ungroup ${groupShape.name}`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.convert-to-path') {
+    const candidateIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    if (includesMaskLinkedShapeIds(document, candidateIds)) {
+      return createLogOnlyEntry(command.type, 'Convert To Path Blocked By Mask')
+    }
+
+    const targetShapes = candidateIds
+      .map((shapeId: string) => ({
+        shape: findShapeById(document, shapeId),
+        index: document.shapes.findIndex((item) => item.id === shapeId),
+      }))
+      .filter((item: {shape: DocumentNode | null; index: number}): item is {shape: DocumentNode; index: number} => item.shape !== null && item.index >= 0)
+
+    const forward: HistoryPatch[] = []
+    const backward: HistoryPatch[] = []
+    let convertedCount = 0
+
+    targetShapes.forEach(({shape, index}: {shape: DocumentNode; index: number}) => {
+      const converted = convertShapeToPathShape(shape)
+      if (!converted) return
+      convertedCount += 1
+      forward.push({type: 'remove-shape', index, shape})
+      forward.push({type: 'insert-shape', index, shape: converted})
+      backward.push({type: 'remove-shape', index, shape: converted})
+      backward.push({type: 'insert-shape', index, shape})
+    })
+
+    if (convertedCount === 0) return createLogOnlyEntry(command.type, 'Convert To Path Noop')
+    return {
+      id: `shape.convert-to-path.${Date.now()}`,
+      label: `Convert ${convertedCount} Shapes to Path`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.boolean') {
+    const candidateIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    if (includesMaskLinkedShapeIds(document, candidateIds)) {
+      return createLogOnlyEntry(command.type, 'Boolean Blocked By Mask')
+    }
+
+    const resolved = createBooleanReplacePatches(document, candidateIds, command.mode)
+    if (!resolved || resolved.patches.length === 0) {
+      return createLogOnlyEntry(command.type, 'Boolean Noop')
+    }
+
+    const insertedPatches = resolved.patches.filter(
+      (patch): patch is Extract<HistoryPatch, {type: 'insert-shape'}> => patch.type === 'insert-shape',
+    )
+
+    const previousSelectedIndex = readSceneStats(scene).selectedIndex
+    const forward: HistoryPatch[] = [
+      ...resolved.patches,
+      {type: 'set-selected-index', prev: previousSelectedIndex, next: resolved.resultIndex},
+    ]
+
+    const backward: HistoryPatch[] = [
+      {type: 'set-selected-index', prev: resolved.resultIndex, next: previousSelectedIndex},
+      ...insertedPatches
+        .slice()
+        .sort((left, right) => right.index - left.index)
+        .map((patch) => ({type: 'remove-shape' as const, index: patch.index, shape: patch.shape})),
+      ...resolved.patches
+        .filter((patch): patch is Extract<HistoryPatch, {type: 'remove-shape'}> => patch.type === 'remove-shape')
+        .sort((left, right) => left.index - right.index)
+        .map((patch) => ({type: 'insert-shape' as const, index: patch.index, shape: patch.shape})),
+    ]
+
+    return {
+      id: `shape.boolean.${command.mode}.${Date.now()}`,
+      label: `Boolean ${command.mode} (${resolved.touchedCount})`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.align') {
+    const shapeIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    const expandedShapeIds = expandMaskLinkedShapeIds(document, shapeIds)
+
+    const forward = createAlignMovePatches(document, expandedShapeIds, command.mode, command.reference ?? 'selection')
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Align Noop')
+    const backward = forward
+      .slice()
+      .reverse()
+      .map((patch) => ({
+        type: 'move-shape' as const,
+        shapeId: patch.shapeId,
+        prevX: patch.nextX,
+        prevY: patch.nextY,
+        nextX: patch.prevX,
+        nextY: patch.prevY,
+      }))
+
+    return {
+      id: `shape.align.${command.mode}.${Date.now()}`,
+      label: `Align ${forward.length} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'shape.distribute') {
+    const shapeIds = Array.isArray(command.shapeIds) && command.shapeIds.length > 0
+      ? command.shapeIds
+      : getSelectedShapeIndices(scene)
+        .map((index) => document.shapes[index]?.id)
+        .filter((shapeId): shapeId is string => typeof shapeId === 'string')
+    const expandedShapeIds = expandMaskLinkedShapeIds(document, shapeIds)
+
+    const forward = createDistributeMovePatches(document, expandedShapeIds, command.mode)
+    if (forward.length === 0) return createLogOnlyEntry(command.type, 'Distribute Noop')
+    const backward = forward
+      .slice()
+      .reverse()
+      .map((patch) => ({
+        type: 'move-shape' as const,
+        shapeId: patch.shapeId,
+        prevX: patch.nextX,
+        prevY: patch.nextY,
+        nextX: patch.prevX,
+        nextY: patch.prevY,
+      }))
+
+    return {
+      id: `shape.distribute.${command.mode}.${Date.now()}`,
+      label: `Distribute ${forward.length} Shapes`,
+      forward,
+      backward,
+    }
+  }
+
+  if (command.type === 'viewport.zoomIn') return createLogOnlyEntry('viewport.zoomIn', 'Zoom In')
+  if (command.type === 'viewport.zoomOut') return createLogOnlyEntry('viewport.zoomOut', 'Zoom Out')
+  if (command.type === 'viewport.fit') return createLogOnlyEntry('viewport.fit', 'Fit Content')
+  if (command.type === 'tool.select') return createLogOnlyEntry(`tool.${command.tool}`, `Select Tool: ${command.tool}`)
+  if (command.type === 'selection.set') return createLogOnlyEntry('selection.set', 'Set Selection')
+
+  return createLogOnlyEntry(command.type, command.type)
+}

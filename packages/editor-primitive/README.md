@@ -50,31 +50,47 @@ Input event
 ### Pointer
 
 ```ts
-import {createPointerRuntime, applyPointerDown, applyPointerMove, applyPointerUp} from '@venus/editor-primitive'
+import {
+  createPointerRuntime,
+  applyPointerDown,
+  applyPointerMove,
+  applyPointerUp,
+} from "@venus/editor-primitive";
 
-const pointer = createPointerRuntime({x: 0, y: 0})
-const afterDown = applyPointerDown(pointer, event)
-const afterMove = applyPointerMove(afterDown, event)
-const afterUp = applyPointerUp(afterMove, event)
+const pointer = createPointerRuntime({ x: 0, y: 0 });
+const afterDown = applyPointerDown(pointer, event);
+const afterMove = applyPointerMove(afterDown, event);
+const afterUp = applyPointerUp(afterMove, event);
 ```
 
 ### Keyboard
 
 ```ts
-import {createKeyboardRuntime, applyKeyboardKeyDown, applyKeyboardKeyUp} from '@venus/editor-primitive'
+import {
+  createKeyboardRuntime,
+  applyKeyboardKeyDown,
+  applyKeyboardKeyUp,
+} from "@venus/editor-primitive";
 
-const keyboard = createKeyboardRuntime()
-const withSpace = applyKeyboardKeyDown(keyboard, {key: ' '})
-const withoutSpace = applyKeyboardKeyUp(withSpace, {key: ' '})
+const keyboard = createKeyboardRuntime();
+const withSpace = applyKeyboardKeyDown(keyboard, { key: " " });
+const withoutSpace = applyKeyboardKeyUp(withSpace, { key: " " });
 ```
 
 ### Tool + Operation
 
 ```ts
-import {resolveEffectiveTool, createOperationLifecycleManager} from '@venus/editor-primitive'
+import {
+  resolveEffectiveTool,
+  createOperationLifecycleManager,
+} from "@venus/editor-primitive";
 
-const tool = resolveEffectiveTool({currentTool: 'select', effectiveTool: 'select', temporaryTool: 'pan'})
-const lifecycle = createOperationLifecycleManager({dragThresholdPx: 4})
+const tool = resolveEffectiveTool({
+  currentTool: "select",
+  effectiveTool: "select",
+  temporaryTool: "pan",
+});
+const lifecycle = createOperationLifecycleManager({ dragThresholdPx: 4 });
 ```
 
 ### Gesture + Target + Policy
@@ -85,17 +101,19 @@ import {
   resolveGesturePolicy,
   resolveInteractionPolicy,
   resolveInteractionTarget,
-} from '@venus/editor-primitive'
+} from "@venus/editor-primitive";
 
-const gesturePolicy = resolveGesturePolicy({dragThreshold: 6})
-const policy = resolveInteractionPolicy({overlayHitPriority: true})
-const target = resolveInteractionTarget({overlayHandleTarget: {type: 'overlay-handle', id: 'h-1', handle: 'ne'}})
+const gesturePolicy = resolveGesturePolicy({ dragThreshold: 6 });
+const policy = resolveInteractionPolicy({ overlayHitPriority: true });
+const target = resolveInteractionTarget({
+  overlayHandleTarget: { type: "overlay-handle", id: "h-1", handle: "ne" },
+});
 const gesture = resolveGestureIntent({
   previous: pointerBefore,
   next: pointerAfter,
-  eventType: 'pointermove',
+  eventType: "pointermove",
   policy: gesturePolicy,
-})
+});
 ```
 
 ### Shortcut + Selection + Command Bridge
@@ -107,37 +125,48 @@ import {
   createSelectionState,
   matchesShortcut,
   parseShortcutChord,
-} from '@venus/editor-primitive'
+} from "@venus/editor-primitive";
 
-const chord = parseShortcutChord('mod+z')
-const canUndo = matchesShortcut({pressedKeys: keyboard.pressedKeys, platform: 'mac'}, chord)
+const chord = parseShortcutChord("mod+z");
+const canUndo = matchesShortcut(
+  { pressedKeys: keyboard.pressedKeys, platform: "mac" },
+  chord,
+);
 
-const selection = addSelectionId(createSelectionState<string>(), 'node-1')
+const selection = addSelectionId(createSelectionState<string>(), "node-1");
 
-const commandSession = createOperationCommandSession('drag-1', {
+const commandSession = createOperationCommandSession("drag-1", {
   preview: (patch) => previewPatch(patch),
   commit: (patch) => commitPatch(patch),
   cancel: () => cancelPatch(),
-})
+});
 ```
 
 ### Cursor + Viewport
 
 ```ts
-import {resizeDirectionToCssCursor, RUNTIME_ZOOM_PRESETS, resolveRuntimeZoomPresetScale} from '@venus/editor-primitive'
+import {
+  resizeDirectionToCssCursor,
+  RUNTIME_ZOOM_PRESETS,
+  resolveRuntimeZoomPresetScale,
+} from "@venus/editor-primitive";
 
-const cursor = resizeDirectionToCssCursor('ne', 30)
-const nextScale = resolveRuntimeZoomPresetScale(1, 'in')
+const cursor = resizeDirectionToCssCursor("ne", 30);
+const nextScale = resolveRuntimeZoomPresetScale(1, "in");
 ```
 
 ### Overlay + Hover + Capture
 
 ```ts
-import {sortOverlayNodesByZIndex, resolveHoverRuntime, createCaptureRuntime} from '@venus/editor-primitive'
+import {
+  sortOverlayNodesByZIndex,
+  resolveHoverRuntime,
+  createCaptureRuntime,
+} from "@venus/editor-primitive";
 
-const ordered = sortOverlayNodesByZIndex(nodes)
-const hover = resolveHoverRuntime(previousHover, {overlayHit, sceneHit})
-const capture = createCaptureRuntime()
+const ordered = sortOverlayNodesByZIndex(nodes);
+const hover = resolveHoverRuntime(previousHover, { overlayHit, sceneHit });
+const capture = createCaptureRuntime();
 ```
 
 ### Runtime State + Result + Dispatch
@@ -148,23 +177,26 @@ import {
   type InteractionRuntimeState,
   type InteractionResult,
   type NormalizedInteractionEvent,
-} from '@venus/editor-primitive'
+} from "@venus/editor-primitive";
 
 const event: NormalizedInteractionEvent = {
-  type: 'pointer-down',
-  eventId: 'evt-1',
+  type: "pointer-down",
+  eventId: "evt-1",
   event: pointerEvent,
-}
-const result: InteractionResult = dispatchInteractionEvent(state as InteractionRuntimeState, event)
+};
+const result: InteractionResult = dispatchInteractionEvent(
+  state as InteractionRuntimeState,
+  event,
+);
 ```
 
 ### Target Stack + Piercing Pick
 
 ```ts
-import {createTargetStack, pickNextTarget} from '@venus/editor-primitive'
+import { createTargetStack, pickNextTarget } from "@venus/editor-primitive";
 
-const stack = createTargetStack(pointer, targets)
-const next = pickNextTarget(stack, current)
+const stack = createTargetStack(pointer, targets);
+const next = pickNextTarget(stack, current);
 ```
 
 ### Shortcut Guard + Normalized Input
@@ -175,18 +207,42 @@ import {
   createEmptyModifierState,
   shouldHandleEditorShortcut,
   type NormalizedKeyboardEvent,
-} from '@venus/editor-primitive'
+} from "@venus/editor-primitive";
 
-const pointer = createNormalizedPointerEvent(input)
+const pointer = createNormalizedPointerEvent(input);
 const keyboard: NormalizedKeyboardEvent = {
-  key: 'z',
-  code: 'KeyZ',
+  key: "z",
+  code: "KeyZ",
   modifiers: createEmptyModifierState(),
   repeat: false,
   timestamp: Date.now(),
   isComposing: false,
-}
-const canHandle = shouldHandleEditorShortcut({isTextEditing: false, isComposing: keyboard.isComposing})
+};
+const canHandle = shouldHandleEditorShortcut({
+  isTextEditing: false,
+  isComposing: keyboard.isComposing,
+});
+```
+
+### Shortcut Binding Compilation + Matching
+
+```ts
+import {
+  compileShortcutBindings,
+  createShortcutPressedKeys,
+  resolveMatchingShortcutBinding,
+} from "@venus/editor-primitive";
+
+const bindings = compileShortcutBindings([
+  { id: "undo", shortcut: "mod+z,ctrl+z,meta+z" },
+  { id: "temporary-pan", shortcut: "space" },
+]);
+
+const pressedKeys = createShortcutPressedKeys(event);
+const actionId = resolveMatchingShortcutBinding(bindings, {
+  pressedKeys,
+  platform: "mac",
+});
 ```
 
 ## Tests
