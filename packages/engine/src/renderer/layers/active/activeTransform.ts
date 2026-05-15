@@ -1,4 +1,4 @@
-import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../core/types.ts'
+import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../render/index.ts'
 
 const PREVIEW_MATRIX_M02_OFFSET = 2
 const PREVIEW_MATRIX_M10_OFFSET = 3

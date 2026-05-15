@@ -1,4 +1,4 @@
-import type { EngineDrawCommand } from '../../core/types.ts'
+import type { EngineDrawCommand } from '../../render/index.ts'
 
 /**
  * Resolves first active-layer command hit by world-space point.

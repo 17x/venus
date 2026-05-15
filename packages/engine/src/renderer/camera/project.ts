@@ -1,5 +1,5 @@
 import { applyMatrixToPoint } from '../../math/matrix/matrix.ts'
-import type { EngineRenderCamera, EngineRenderPoint } from '../../core/types.ts'
+import type { EngineRenderCamera, EngineRenderPoint } from '../../render/index.ts'
 
 /**
  * Projects one world-space point into screen space using camera matrix.

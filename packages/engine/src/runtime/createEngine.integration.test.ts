@@ -476,7 +476,7 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
   }
 })
 
-test('createEngine supports webgpu backend selection through shared renderer adapter path', async () => {
+test('createEngine supports webgpu backend selection through native-probe hybrid path', async () => {
   const environment = installFakeCanvasEnvironment()
 
   try {
@@ -512,9 +512,10 @@ test('createEngine supports webgpu backend selection through shared renderer ada
       outputHeight: 300,
     })
 
-    await engine.renderFrame()
+    const stats = await engine.renderFrame()
     const diagnostics = engine.getDiagnostics()
     assert.equal(diagnostics.backend, 'webgpu')
+    assert.equal(stats.drawCount, 1)
   } finally {
     environment.restore()
   }

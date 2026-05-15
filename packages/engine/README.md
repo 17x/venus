@@ -7,6 +7,11 @@ Venus 的机制层引擎。它提供纯粹的渲染与几何能力，包括 scen
 - engine 专属能力、边界与接入说明，应保留在当前 package 内。
 - 全局 `docs/` 只保留跨 package 的架构、治理与导航信息。
 
+## 迁移状态
+
+- 2D->3D runtime staged migration 已完成最终验收。
+- 验收台账见 `packages/engine/docs/3d-runtime-migration-task.md`（Status: Accepted）。
+
 当前职责链：
 
 `apps/* -> @venus/runtime + @venus/runtime/interaction -> @venus/runtime/worker + @venus/runtime/shared-memory -> @venus/engine`

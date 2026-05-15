@@ -148,6 +148,40 @@ export default tseslint.config(
     },
   },
   {
+    files: ["packages/engine/src/**/*.ts"],
+    ignores: [
+      "**/*.d.ts",
+      "**/*.test.ts",
+      "packages/engine/src/core/**/*.ts",
+      "packages/engine/src/material/**/*.ts",
+      "packages/engine/src/render/**/*.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/core/types.ts"],
+              message:
+                "Use blueprint render/types domain barrels instead of importing core/types directly.",
+            },
+            {
+              group: ["**/core/renderGraph/**"],
+              message:
+                "Use render domain barrel instead of importing core/renderGraph modules directly.",
+            },
+            {
+              group: ["**/core/materialLighting/**"],
+              message:
+                "Use material domain entrypoint instead of importing core/materialLighting modules directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: [
       "packages/engine/src/renderer/webgl/runtime/resources.ts",
       "packages/engine/src/renderer/webgl/runtime/textures.ts",

@@ -5,8 +5,8 @@ import {
   type EngineCanvasViewportState,
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
-import { createWebGLEngineRenderer } from '../../renderer/webgl/index.ts'
-import { createWebGPUEngineRenderer } from '../../renderer/webgpu/index.ts'
+import { createWebGLEngineRenderer } from '../../gpu/webgl/index.ts'
+import { createWebGPUEngineRenderer } from '../../gpu/webgpu/index.ts'
 import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
 import { getEngineRenderPlanCacheDiagnostics } from '../../renderer/plan/index.ts'
 import type {
@@ -36,10 +36,10 @@ import {
 import type {
   EngineVisibleSet,
   EngineVisibilityFrustum3DQuery,
-} from '../../scene/visibility/contracts.ts'
+} from '../../visibility/index.ts'
 import {
   createEngineVisibilityResolver,
-} from '../../scene/visibility/visibility.ts'
+} from '../../visibility/index.ts'
 import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
 import type {
   EngineNodeId,

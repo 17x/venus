@@ -1,4 +1,4 @@
-import type { EngineRenderCamera } from '../../core/types.ts'
+import type { EngineRenderCamera } from '../../render/index.ts'
 import { projectWorldPoint } from './project.ts'
 import { unprojectScreenPoint } from './unproject.ts'
 

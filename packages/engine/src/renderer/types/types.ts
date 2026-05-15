@@ -10,7 +10,7 @@ import type {
   EngineCameraProjection,
   EngineCameraProjectionKind,
 } from '../../camera/contracts.ts'
-import type { EngineLayeredRenderOutput } from '../../core/types.ts'
+import type { EngineLayeredRenderOutput } from '../../render/index.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
 import type { EngineRenderFallbackReason } from '../fallbackTaxonomy/index.ts'
 

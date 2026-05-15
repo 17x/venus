@@ -1,4 +1,4 @@
-import type { EngineDrawCommand } from '../../core/types.ts'
+import type { EngineDrawCommand } from '../../render/index.ts'
 import { hitTestActiveLayer } from './hitTestActive.ts'
 import { hitTestBaseLayer } from './hitTestBase.ts'
 

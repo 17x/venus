@@ -3,7 +3,7 @@ import { prepareEngineFramePlan } from '../../scene/framePlan.ts'
 import { prepareEngineHitPlan } from '../../scene/hitPlan.ts'
 import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
 import type { EngineNodeId, EngineSceneSnapshot } from '../../scene/types/types.ts'
-import type { EngineVisibleSet } from '../../scene/visibility/contracts.ts'
+import type { EngineVisibleSet } from '../../visibility/index.ts'
 
 // Keep frame and hit plan helper logic outside the main facade so
 // createEngine.ts stays focused on runtime orchestration.

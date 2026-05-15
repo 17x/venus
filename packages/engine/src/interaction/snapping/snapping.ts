@@ -1,4 +1,4 @@
-import {createEngineSpatialIndex} from '../../scene/spatial/index.ts'
+import {createEngineSpatialIndex} from '../../spatial/index.ts'
 
 export type EngineSnapAxis = 'x' | 'y'
 

@@ -2,7 +2,7 @@ import type { Mat3 } from '../../../math/matrix/matrix.ts'
 import type { EngineRendererContext } from '../../../renderer/types/index.ts'
 import type { EngineSceneSnapshot } from '../../../scene/types/types.ts'
 import type { EngineCanvasViewportState } from '../../../interaction/viewport/viewport.ts'
-import { renderLayeredScene } from '../../../core/render.ts'
+import { renderLayeredScene } from '../../../render/index.ts'
 
 /**
  * Resolves one compatibility layered-render output from legacy runtime frame state.

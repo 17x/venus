@@ -1,4 +1,4 @@
-import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../core/types.ts'
+import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../render/index.ts'
 import { resolveOverlayLayout } from './overlayLayout.ts'
 
 /**

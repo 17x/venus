@@ -1,8 +1,8 @@
-import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../core/types.ts'
+import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../render/index.ts'
 import type { EngineRenderableNode } from '../../../scene/types/types.ts'
 import { resolveRenderableNodeBounds } from '../../../scene/geometry/bbox.ts'
 import { shouldCullBaseCommand } from './baseCulling.ts'
-import { resolveEngineDrawCommandShadingBinding } from '../../../core/materialLighting/materialLighting.ts'
+import { resolveEngineDrawCommandShadingBinding } from '../../../material/index.ts'
 
 /**
  * Resolves base-layer draw commands by excluding active nodes from scene rendering.

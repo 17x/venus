@@ -1,4 +1,4 @@
-import type { EngineDrawCommand } from '../../../../core/types.ts'
+import type { EngineDrawCommand } from '../../../../render/index.ts'
 
 /**
  * Declares cache key contract for base-layer command caching.

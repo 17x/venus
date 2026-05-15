@@ -45,7 +45,7 @@ export type {
   EngineMaterialRegistrySnapshot,
   EngineMaterialShadingModel,
   EngineMaterialSurface,
-} from '../material/contracts.ts'
+} from '../material/index.ts'
 
 export type {
   EngineAmbientLight,
@@ -55,7 +55,7 @@ export type {
   EngineLightingBinding,
   EngineLightingRigSnapshot,
   EngineLightType,
-} from '../lighting/contracts.ts'
+} from '../lighting/index.ts'
 
 export type {
   EngineRenderableNode,
@@ -67,7 +67,7 @@ export type {
 
 export type {
   EngineRenderScheduler,
-} from '../runtime/renderScheduler/renderScheduler.ts'
+} from '../scheduler/index.ts'
 export type {
   CreateEngineOptions,
   Engine,
@@ -83,38 +83,38 @@ export type {
   EngineRenderCamera,
   EngineRenderInteractionInput,
   EngineRenderOptions,
-} from '../core/types.ts'
+} from '../render/index.ts'
 export type {
   EngineRenderGraph,
   EngineRenderGraphExecutionContext,
   EngineRenderGraphExecutionResult,
   EngineRenderGraphPassNode,
   EngineRenderPassId,
-} from '../core/renderGraph/contracts.ts'
+} from '../render/index.ts'
 export {
   composeLayeredDrawCommands,
-} from '../core/compose.ts'
+} from '../render/index.ts'
 export {
   renderLayeredScene,
-} from '../core/render.ts'
+} from '../render/index.ts'
 export type {
   EngineDrawCommandShadingBinding,
-} from '../core/materialLighting/materialLighting.ts'
+} from '../material/index.ts'
 export {
   resolveEngineDrawCommandShadingBinding,
-} from '../core/materialLighting/materialLighting.ts'
+} from '../material/index.ts'
 export {
   createLayeredRenderGraph,
   executeEngineRenderGraph,
-} from '../core/renderGraph/renderGraph.ts'
+} from '../render/index.ts'
 
 export type {
   EnginePerformanceGateStatus,
   EnginePerformanceGateThresholds,
-} from '../runtime/createEngine/performanceGate.ts'
+} from '../debug/index.ts'
 export {
   resolveEnginePerformanceGateStatus,
-} from '../runtime/createEngine/performanceGate.ts'
+} from '../debug/index.ts'
 
 export {
   renderBaseLayer,
@@ -124,7 +124,7 @@ export {
 
 export {
   createWebGPUEngineRenderer,
-} from '../renderer/webgpu/index.ts'
+} from '../gpu/webgpu/index.ts'
 
 export {
   createRenderCameraProjector,
@@ -144,29 +144,29 @@ export type {
   LayeredTileCacheKey,
   LayeredTileCache,
   toLayeredTileCacheSignature,
-} from '../renderer/cache/index.ts'
+} from '../resource/index.ts'
 
 export {
   querySpatialIndex,
-} from '../scene/spatial/index.ts'
+} from '../spatial/index.ts'
 export {
   assertEngineCondition,
 } from '../utils/assert.ts'
 export {
   createEngineRenderScheduler,
-} from '../runtime/renderScheduler/renderScheduler.ts'
+} from '../scheduler/index.ts'
 
 export {
   resolveEngineWorkerMode,
-} from '../worker/capabilities/capabilities.ts'
+} from '../platform/index.ts'
 
 export type {
   EngineSpatialIndex,
   EngineSpatialItem,
-} from '../scene/spatial/index.ts'
+} from '../spatial/index.ts'
 export {
   createEngineSpatialIndex,
-} from '../scene/spatial/index.ts'
+} from '../spatial/index.ts'
 
 export type {
   ResolveEngineAdaptiveHitToleranceOptions,
@@ -230,15 +230,15 @@ export type {
   EngineVisibilityQuery,
   EngineVisibilityQueryMode,
   EngineVisibilityViewport2D,
-} from '../scene/visibility/contracts.ts'
+} from '../visibility/index.ts'
 export type {
   CreateEngineVisibilityResolverOptions,
   EngineVisibilityResolver,
-} from '../scene/visibility/visibility.ts'
+} from '../visibility/index.ts'
 export {
   createEngineVisibilityResolver,
   resolveEngineBounds2DVisibilityQuery,
-} from '../scene/visibility/visibility.ts'
+} from '../visibility/index.ts'
 
 export type {
   EngineHitQuery,

@@ -1,4 +1,4 @@
-import {createEngineSpatialIndex} from '../../scene/spatial/index.ts'
+import {createEngineSpatialIndex} from '../../spatial/index.ts'
 import type {EngineEditorHitTestNode, EngineEditorPoint} from '../hitTest/hitTest.ts'
 import {
   resolveHintsForNode,
