@@ -87,35 +87,8 @@ export function resolveViewportSignature(frame: EngineRenderFrame) {
 export function resolveFramePlanCandidateIdSet(frame: EngineRenderFrame) {
   const candidateIds = frame.context.framePlanCandidateIds
   if (!candidateIds || candidateIds.length === 0) {
-    const layeredCandidateIds = resolveLayeredCandidateNodeIds(frame)
-    if (!layeredCandidateIds || layeredCandidateIds.length === 0) {
-      return null
-    }
-
-    return new Set(layeredCandidateIds)
-  }
-
-  return new Set(candidateIds)
-}
-
-/**
- * Resolves migration-time candidate ids from layered render output when shortlist ids are absent.
- * @param frame Current render frame.
- */
-function resolveLayeredCandidateNodeIds(frame: EngineRenderFrame) {
-  const layeredRender = frame.context.layeredRender
-  if (!layeredRender) {
     return null
   }
 
-  const ids = new Set<string>()
-  for (const command of layeredRender.base) {
-    ids.add(command.nodeId)
-  }
-  for (const command of layeredRender.active) {
-    ids.add(command.nodeId)
-  }
-
-  // AI-TEMP: planner falls back to layered base+active ids while runtime shortlist migration is in progress; remove when planner runs on layered-native plan input; ref R-09.
-  return [...ids]
+  return new Set(candidateIds)
 }

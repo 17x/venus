@@ -2,6 +2,7 @@ import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../core/
 import type { EngineRenderableNode } from '../../../scene/types/types.ts'
 import { resolveRenderableNodeBounds } from '../../../scene/geometry/bbox.ts'
 import { applyActivePreviewTransform } from './activeTransform.ts'
+import { resolveEngineDrawCommandShadingBinding } from '../../../core/materialLighting/materialLighting.ts'
 
 /**
  * Resolves active-layer draw commands from active interaction ids only.
@@ -18,6 +19,7 @@ export function renderActiveLayer(input: EngineLayeredRenderInput): EngineDrawCo
     if (!activeIds.has(node.id)) {
       return
     }
+    const shading = resolveEngineDrawCommandShadingBinding(node, input)
 
     const nextCommand: EngineDrawCommand = {
       id: `active:${node.id}`,
@@ -25,6 +27,8 @@ export function renderActiveLayer(input: EngineLayeredRenderInput): EngineDrawCo
       layer: 'active',
       nodeType: node.type,
       bounds: resolveRenderableNodeBounds(node),
+      material: shading.material,
+      lighting: shading.lighting,
     }
     commands.push(applyActivePreviewTransform(nextCommand, input))
   })

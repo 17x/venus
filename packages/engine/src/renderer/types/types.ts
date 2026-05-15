@@ -4,11 +4,17 @@ import type {
   EngineSceneSnapshot,
   EngineTextNode,
 } from '../../scene/types/types.ts'
+import type { EngineDimensionMode } from '../../math/dimension/types.ts'
+import type {
+  EngineCameraPose,
+  EngineCameraProjection,
+  EngineCameraProjectionKind,
+} from '../../camera/contracts.ts'
 import type { EngineLayeredRenderOutput } from '../../core/types.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
 import type { EngineRenderFallbackReason } from '../fallbackTaxonomy/index.ts'
 
-export type EngineBackend = 'canvas2d' | 'webgl'
+export type EngineBackend = 'canvas2d' | 'webgl' | 'webgpu'
 export type EngineRenderQuality = 'full' | 'interactive'
 // Base scene lane selection reflects vector-live/tile-cache/progressive-refresh mode.
 export type BaseSceneRenderMode = 'vector-live' | 'tile-cache' | 'progressive-refresh'
@@ -62,6 +68,14 @@ export interface EngineInteractionPredictorState {
 }
 
 export interface EngineViewportState {
+  /** Optional dimension mode attached by runtime camera compatibility adapters. */
+  dimensionMode?: EngineDimensionMode
+  /** Optional camera projection kind for staged 2D/3D runtime migration. */
+  projectionKind?: EngineCameraProjectionKind
+  /** Optional normalized camera projection contract for future 3D paths. */
+  projection?: EngineCameraProjection
+  /** Optional full camera pose and derived matrix payload for future 3D paths. */
+  pose?: EngineCameraPose
   viewportWidth: number
   viewportHeight: number
   scale: number

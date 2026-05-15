@@ -1,5 +1,6 @@
 import type { EnginePoint, EngineRenderableNode } from '../types/types.ts'
 import type { MutableEngineSceneState } from '../patch/patch.ts'
+import type { EngineMat3Affine2D } from '../../math/dimension/types.ts'
 
 export interface EngineHitTestResult {
   index: number
@@ -25,7 +26,10 @@ export interface EngineHitExecutionOptions {
   maxExactCandidateCount?: number
 }
 
-type Matrix2D = readonly [number, number, number, number, number, number]
+/**
+ * Uses the shared affine matrix compatibility contract during staged 2D/3D migration.
+ */
+type Matrix2D = EngineMat3Affine2D
 const IDENTITY_MATRIX: Matrix2D = [1, 0, 0, 0, 1, 0]
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
 const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6

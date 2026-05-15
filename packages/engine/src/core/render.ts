@@ -1,10 +1,8 @@
-import {
-  renderActiveLayer,
-  renderBaseLayer,
-  renderOverlayLayer,
-} from '../renderer/layers/index.ts'
-import { composeLayeredDrawCommands } from './compose.ts'
 import type { EngineLayeredRenderInput, EngineLayeredRenderOutput } from './types.ts'
+import {
+  createLayeredRenderGraph,
+  executeEngineRenderGraph,
+} from './renderGraph/renderGraph.ts'
 
 /**
  * Executes layered render pipeline and returns per-layer plus composed output.
@@ -13,18 +11,16 @@ import type { EngineLayeredRenderInput, EngineLayeredRenderOutput } from './type
 export function renderLayeredScene(
   input: EngineLayeredRenderInput,
 ): EngineLayeredRenderOutput {
-  const base = renderBaseLayer(input)
-  const active = renderActiveLayer(input)
-  const overlay = renderOverlayLayer(input)
+  const graph = createLayeredRenderGraph()
+  const execution = executeEngineRenderGraph(graph, input)
+  const base = execution.passOutputs['base-pass']
+  const active = execution.passOutputs['active-pass']
+  const overlay = execution.passOutputs['overlay-pass']
 
   return {
     base,
     active,
     overlay,
-    composed: composeLayeredDrawCommands({
-      base,
-      active,
-      overlay,
-    }),
+    composed: execution.composed,
   }
 }

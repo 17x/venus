@@ -2,6 +2,7 @@ import type { EngineDrawCommand, EngineLayeredRenderInput } from '../../../core/
 import type { EngineRenderableNode } from '../../../scene/types/types.ts'
 import { resolveRenderableNodeBounds } from '../../../scene/geometry/bbox.ts'
 import { shouldCullBaseCommand } from './baseCulling.ts'
+import { resolveEngineDrawCommandShadingBinding } from '../../../core/materialLighting/materialLighting.ts'
 
 /**
  * Resolves base-layer draw commands by excluding active nodes from scene rendering.
@@ -21,6 +22,7 @@ export function renderBaseLayer(input: EngineLayeredRenderInput): EngineDrawComm
     if (shouldCullBaseCommand(bounds, input.options?.viewport)) {
       return
     }
+    const shading = resolveEngineDrawCommandShadingBinding(node, input)
 
     commands.push({
       id: `base:${node.id}`,
@@ -28,6 +30,8 @@ export function renderBaseLayer(input: EngineLayeredRenderInput): EngineDrawComm
       layer: 'base',
       nodeType: node.type,
       bounds,
+      material: shading.material,
+      lighting: shading.lighting,
     })
   })
 

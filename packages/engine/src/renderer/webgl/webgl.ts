@@ -137,13 +137,19 @@ function resolveFrameBudget(frame: EngineRenderFrame): EngineFrameBudget {
   * @param frame Current render frame.
 */
 function resolveVisibleElementCountForLod(frame: EngineRenderFrame): number {
+  const candidateIds = frame.context.framePlanCandidateIds
+  if (candidateIds && candidateIds.length > 0) {
+    return candidateIds.length
+  }
+
   const layeredRender = frame.context.layeredRender
   if (!layeredRender) {
     return frame.scene.nodes.length
   }
 
-  // AI-TEMP: use composed command count as LOD visibility proxy during bridge phase; remove when planner consumes layered commands natively; ref R-09.
-  return Math.max(0, layeredRender.composed.length)
+  // Keep overlay commands out of LOD visible-count heuristics to avoid
+  // inflating scene visibility with runtime UI overlays.
+  return Math.max(0, layeredRender.base.length + layeredRender.active.length)
 }
 
 /**

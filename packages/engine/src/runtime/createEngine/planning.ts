@@ -3,6 +3,7 @@ import { prepareEngineFramePlan } from '../../scene/framePlan.ts'
 import { prepareEngineHitPlan } from '../../scene/hitPlan.ts'
 import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
 import type { EngineNodeId, EngineSceneSnapshot } from '../../scene/types/types.ts'
+import type { EngineVisibleSet } from '../../scene/visibility/contracts.ts'
 
 // Keep frame and hit plan helper logic outside the main facade so
 // createEngine.ts stays focused on runtime orchestration.
@@ -12,18 +13,23 @@ import type { EngineNodeId, EngineSceneSnapshot } from '../../scene/types/types.
  * @param viewport Viewport state.
  * @param queryCandidates queryCandidates parameter.
  * @param padding padding parameter.
+ * @param options options parameter.
  */
 export function buildEngineFramePlan(
   scene: EngineSceneSnapshot,
   viewport: EngineCanvasViewportState,
   queryCandidates: (bounds: {x: number; y: number; width: number; height: number}) => EngineNodeId[],
   padding = 0,
+  options?: {
+    resolveVisibleSet?: (bounds: {x: number; y: number; width: number; height: number}) => EngineVisibleSet
+  },
 ) {
   return prepareEngineFramePlan({
     scene,
     viewport,
     padding,
     queryCandidates,
+    resolveVisibleSet: options?.resolveVisibleSet,
   })
 }
 

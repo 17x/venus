@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { composeLayeredDrawCommands } from './compose.ts'
+import { renderLayeredScene } from './render.ts'
 
 test('composeLayeredDrawCommands keeps strict base-active-overlay order', () => {
   const composed = composeLayeredDrawCommands({
@@ -31,4 +32,38 @@ test('composeLayeredDrawCommands keeps strict base-active-overlay order', () => 
 
   // Layer order must remain stable for deterministic draw precedence.
   assert.deepEqual(composed.map((command) => command.layer), ['base', 'active', 'overlay'])
+})
+
+test('renderLayeredScene emits baseline material/lighting bindings for shape draw commands', () => {
+  const output = renderLayeredScene({
+    scene: {
+      revision: 'phase-e-layered',
+      width: 100,
+      height: 100,
+      nodes: [{
+        id: 'shape-1',
+        type: 'shape',
+        shape: 'rect',
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        fill: '#123456',
+      }],
+    },
+    camera: {
+      viewportWidth: 100,
+      viewportHeight: 100,
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+      matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      inverseMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    },
+    interaction: {},
+  })
+
+  assert.equal(output.base.length, 1)
+  assert.equal(output.base[0]?.material?.shadingModel, 'unlit')
+  assert.equal(output.base[0]?.lighting?.mode, 'none')
 })

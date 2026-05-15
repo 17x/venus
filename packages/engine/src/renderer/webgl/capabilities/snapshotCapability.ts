@@ -25,7 +25,8 @@ import type { WebGLQuadPipeline } from '../core/index.ts'
 const DEFAULT_INTERACTION_PREVIEW: Required<EngineInteractionPreviewConfig> = {
   enabled: true,
   mode: 'interaction',
-  // AI-TEMP: keep reuse enabled while pan O(1) stabilization is in progress; remove when pan regressions are green across stress scenes; ref packages/engine/docs/task/debug.md
+  // Keep snapshot reuse enabled by default so interaction frames can remain
+  // on the low-latency reprojection path unless callers explicitly disable it.
   disableReuse: false,
   // Keep pan frames on pure snapshot reprojection; tile work stays schedule-only.
   cacheOnly: true,

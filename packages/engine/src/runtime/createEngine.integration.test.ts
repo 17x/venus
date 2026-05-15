@@ -436,8 +436,14 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
 
     const stats = await engine.renderFrame()
     const hit = engine.hitTest({x: 15, y: 25})
+    const hit2d = engine.hitTest2D({x: 15, y: 25})
+    const hitRay = engine.hitTestRay({
+      origin: {x: 15, y: 25, z: 100},
+      direction: {x: 0, y: 0, z: -1},
+    })
     const miss = engine.hitTest({x: 250, y: 250})
     const candidates = engine.queryViewportCandidates()
+    const performanceGate = engine.getDiagnostics().performanceGate
 
     // The render path should submit only the visible node and surface one draw call.
     assert.equal(stats.drawCount, 1)
@@ -447,8 +453,11 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
 
     // World-space hit testing should find the visible rectangle but reject misses outside the scene.
     assert.equal(hit?.nodeId, 'rect-visible')
+    assert.equal(hit2d?.nodeId, 'rect-visible')
+    assert.equal(hitRay?.nodeId, 'rect-visible')
     assert.equal(miss, null)
     assert.deepEqual(candidates, ['rect-visible'])
+    assert.equal(performanceGate.pass, true)
 
     const drawCall = environment.recordedDrawCalls.at(-1)
     assert.ok(drawCall, 'expected one submitted WebGL draw call')
@@ -462,6 +471,50 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
       width: 120,
       height: 160,
     })
+  } finally {
+    environment.restore()
+  }
+})
+
+test('createEngine supports webgpu backend selection through shared renderer adapter path', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 200,
+        viewportHeight: 150,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      performance: {
+        culling: true,
+        lod: {enabled: false},
+        tiles: {enabled: false},
+        overscan: {enabled: false},
+      },
+      render: {
+        backend: 'webgpu',
+        quality: 'full',
+        modelCompleteComposite: false,
+        interactionPreview: {enabled: false},
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 200,
+      viewportHeight: 150,
+      outputWidth: 400,
+      outputHeight: 300,
+    })
+
+    await engine.renderFrame()
+    const diagnostics = engine.getDiagnostics()
+    assert.equal(diagnostics.backend, 'webgpu')
   } finally {
     environment.restore()
   }

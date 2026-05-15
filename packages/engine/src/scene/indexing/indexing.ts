@@ -1,8 +1,12 @@
 import {createEngineSpatialIndex, type EngineSpatialIndex, type EngineSpatialItem} from '../spatial/index.ts'
 import type {EngineNodeId, EngineRect, EngineRenderableNode} from '../types/types.ts'
 import {resolveLeafNodeWorldBounds} from '../worldBounds/worldBounds.ts'
+import type { EngineMat3Affine2D } from '../../math/dimension/types.ts'
 
-type Matrix2D = readonly [number, number, number, number, number, number]
+/**
+ * Uses the shared affine matrix compatibility contract during staged 2D/3D migration.
+ */
+type Matrix2D = EngineMat3Affine2D
 
 const IDENTITY_MATRIX: Matrix2D = [1, 0, 0, 0, 1, 0]
 

@@ -6,9 +6,11 @@ import {
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
 import { createWebGLEngineRenderer } from '../../renderer/webgl/index.ts'
+import { createWebGPUEngineRenderer } from '../../renderer/webgpu/index.ts'
 import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
 import { getEngineRenderPlanCacheDiagnostics } from '../../renderer/plan/index.ts'
 import type {
+  EngineBackend,
   EngineCanvasSurfaceFactory,
   EngineFrameBudget,
   EngineInteractionPredictorState,
@@ -31,6 +33,13 @@ import {
   prepareEngineHitPlan,
   type EngineHitPlan,
 } from '../../scene/hitPlan.ts'
+import type {
+  EngineVisibleSet,
+  EngineVisibilityFrustum3DQuery,
+} from '../../scene/visibility/contracts.ts'
+import {
+  createEngineVisibilityResolver,
+} from '../../scene/visibility/visibility.ts'
 import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
 import type {
   EngineNodeId,
@@ -38,10 +47,15 @@ import type {
   EngineRenderableNode,
   EngineSceneSnapshot,
 } from '../../scene/types/types.ts'
+import type { EngineRay3 } from '../../math/dimension/types.ts'
 import type {
   EngineScenePatchApplyResult,
   EngineScenePatchBatch,
 } from '../../scene/patch/patch.ts'
+import {
+  createEngineHitResolver,
+  createEnginePointHitQuery,
+} from '../../scene/hit/resolver.ts'
 import { createSystemEngineClock, type EngineClock } from '../../time/index.ts'
 import { createEngineLoop, type EngineLoopController } from '../createEngineLoop/createEngineLoop.ts'
 import {
@@ -76,6 +90,10 @@ import {
 import {
   resolveLayeredRenderBridgeOutput,
 } from '../bridge/index.ts'
+import {
+  resolveEnginePerformanceGateStatus,
+  type EnginePerformanceGateStatus,
+} from './performanceGate.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 
@@ -104,6 +122,8 @@ export interface ResolvedEnginePerformanceOptions {
 }
 
 interface EngineRenderOptions {
+  // Optional: renderer backend selection.
+  backend?: EngineBackend
   quality?: EngineRenderQuality
   webglClearColor?: readonly [number, number, number, number]
   // Short alias for pixel ratio config.
@@ -193,7 +213,7 @@ export interface CreateEngineOptions {
 }
 
 export interface EngineRuntimeDiagnostics {
-  backend: 'webgl'
+  backend: EngineBackend
   renderStats: EngineRenderStats | null
   pixelRatio: number
   outputPixelRatio: number
@@ -295,6 +315,8 @@ export interface EngineRuntimeDiagnostics {
     // Number of high-zoom text SLA violations observed in checked frames.
     highZoomTextSlaViolationCount: number
   }
+  /** Reports runtime performance-gate evaluation based on latest render stats. */
+  performanceGate: EnginePerformanceGateStatus
 }
 
 export interface Engine {
@@ -305,10 +327,18 @@ export interface Engine {
     options?: {revision?: string | number},
   ): EngineScenePatchApplyResult | null
   queryViewportCandidates(padding?: number): EngineNodeId[]
+  /** Resolves one coarse visible-set snapshot from the current 2D viewport camera state. */
+  queryVisibleSet(padding?: number): EngineVisibleSet
+  /** Resolves one coarse visible-set snapshot from an explicit 3D frustum query. */
+  queryFrustumVisibleSet(query: EngineVisibilityFrustum3DQuery): EngineVisibleSet
   queryPointCandidates(point: {x: number; y: number}, tolerance?: number): EngineNodeId[]
   prepareFramePlan(padding?: number): EngineFramePlan
   prepareHitPlan(point: {x: number; y: number}, tolerance?: number): EngineHitPlan
   query(bounds: EngineRect): EngineNodeId[]
+  /** Resolves one 2D point hit using shared 2D/3D hit resolver contracts. */
+  hitTest2D(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
+  /** Resolves one 3D ray hit using shared 2D/3D hit resolver contracts. */
+  hitTestRay(ray: EngineRay3, maxDistance?: number): EngineHitTestResult | null
   hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
   getSnapshot(): EngineSceneSnapshot
@@ -354,7 +384,6 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const FRAME_PLAN_SHORTLIST_DEFAULT_STABLE_FRAME_COUNT = 2
   const DEFAULT_MAX_PIXEL_RATIO = 2
   const DEFAULT_CAMERA_ANIMATION_DURATION_MS = 110
-  const VIEWPORT_PADDING_MULTIPLIER = 2
 
   const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
   const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
@@ -376,6 +405,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const INTERACTION_SETTLE_DELAY_MS = 120
   const INTERACTION_HOLD_MS = 56
   const layeredBridgeEnabled = options.render?.layeredBridgeEnabled ?? false
+  const requestedBackend = options.render?.backend ?? 'webgl'
   let maxPixelRatio = options.render?.maxPixelRatio ?? DEFAULT_MAX_PIXEL_RATIO
   let pixelRatio = resolveEnginePixelRatio(
     options.render?.dpr ?? options.render?.pixelRatio,
@@ -386,7 +416,21 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
   })
-  const renderer = createWebGLEngineRenderer({
+  const visibilityResolver = createEngineVisibilityResolver({
+    queryBounds2D: (bounds) => store.queryCandidates(bounds),
+  })
+  const hitResolver = createEngineHitResolver({
+    resolvePointHits: (query) => {
+      const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
+        budgetPressure: latestBudgetPressure,
+        interactionActive: latestStrategyInteractionActive,
+      })
+      return store.hitTestAllWithSummary(query.point, query.tolerance ?? 0, {
+        maxExactCandidateCount: adaptiveExactBudget,
+      })
+    },
+  })
+  const createRendererOptions = {
     canvas: options.canvas,
     createCanvasSurface: options.host?.createCanvasSurface,
     enableCulling: resolvedPerformance.culling,
@@ -397,7 +441,10 @@ export function createEngine(options: CreateEngineOptions): Engine {
     tileConfig: resolvedPerformance.tileConfig,
     initialRender: options.render?.initialRender,
     interactionPreview: options.render?.interactionPreview,
-  })
+  }
+  const renderer = requestedBackend === 'webgpu'
+    ? createWebGPUEngineRenderer(createRendererOptions)
+    : createWebGLEngineRenderer(createRendererOptions)
   const renderContext: {
     quality: EngineRenderQuality
     lodEnabled: boolean
@@ -740,7 +787,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
       if (ENABLE_FRAME_PLAN_SHORTLIST) {
           const framePlanSignature = resolveEngineFramePlanSignature(scene, viewport)
         if (!latestFramePlan || latestFramePlanSignature !== framePlanSignature) {
-          latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds))
+          latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds), 0, {
+            resolveVisibleSet: (bounds) => visibilityResolver.resolveVisibleSet(scene, {
+              mode: 'bounds-2d',
+              bounds,
+            }),
+          })
           latestFramePlanSignature = framePlanSignature
         }
         const candidateRatio = latestFramePlan.sceneNodeCount > 0
@@ -876,12 +928,25 @@ transaction(run, transactionOptions) {
      * @param padding padding parameter.
      */
 queryViewportCandidates(padding = 0) {
-      return store.queryCandidates({
-        x: -viewport.offsetX - padding,
-        y: -viewport.offsetY - padding,
-        width: viewport.viewportWidth / viewport.scale + padding * VIEWPORT_PADDING_MULTIPLIER,
-        height: viewport.viewportHeight / viewport.scale + padding * VIEWPORT_PADDING_MULTIPLIER,
-      })
+      return this.queryVisibleSet(padding).nodeIds.slice()
+    },
+        /**
+     * Handles queryVisibleSet.
+     * @param padding padding parameter.
+     */
+queryVisibleSet(padding = 0) {
+      return visibilityResolver.resolveViewportVisibleSet(
+        store.getSnapshot(),
+        viewport,
+        padding,
+      )
+    },
+        /**
+     * Handles queryFrustumVisibleSet.
+     * @param query query parameter.
+     */
+queryFrustumVisibleSet(query) {
+      return visibilityResolver.resolveVisibleSet(store.getSnapshot(), query)
     },
         /**
      * Handles queryPointCandidates.
@@ -897,7 +962,12 @@ queryPointCandidates(point, tolerance) {
      */
 prepareFramePlan(padding = 0) {
       const scene = store.getSnapshot()
-      latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds), padding)
+      latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds), padding, {
+        resolveVisibleSet: (bounds) => visibilityResolver.resolveVisibleSet(scene, {
+          mode: 'bounds-2d',
+          bounds,
+        }),
+      })
       latestFramePlanSignature = resolveEngineFramePlanSignature(scene, viewport, padding)
       return latestFramePlan
     },
@@ -924,33 +994,60 @@ query(bounds) {
       return store.queryCandidates(bounds)
     },
         /**
+     * Handles hitTest2D.
+     * @param point point parameter.
+     * @param tolerance tolerance parameter.
+     */
+hitTest2D(point, tolerance) {
+      const resolvedTolerance = tolerance ?? 0
+      const hitSet = hitResolver.resolve(createEnginePointHitQuery(point, resolvedTolerance))
+      latestHitPlan = prepareEngineHitPlan({
+        scene: store.getSnapshot(),
+        point,
+        tolerance: resolvedTolerance,
+        hits: hitSet.hits,
+        exactCheckCount: hitSet.exactCheckCount,
+        exactCheckBudget: hitSet.exactCheckBudget,
+        exactBudgetExceeded: hitSet.exactBudgetExceeded,
+        queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => store.queryPointCandidates(queryPoint, queryTolerance),
+      })
+      return hitSet.primaryHit
+    },
+        /**
+     * Handles hitTestRay.
+     * @param ray ray parameter.
+     * @param maxDistance maxDistance parameter.
+     */
+hitTestRay(ray, maxDistance) {
+      const hitSet = hitResolver.resolve({
+        mode: 'ray-3d',
+        ray,
+        maxDistance,
+      })
+      // Keep hit-plan diagnostics contract populated even for ray queries by
+      // projecting the ray origin through the existing point-based hit-plan view.
+      latestHitPlan = prepareEngineHitPlan({
+        scene: store.getSnapshot(),
+        point: {
+          x: ray.origin.x,
+          y: ray.origin.y,
+        },
+        tolerance: 0,
+        hits: hitSet.hits,
+        exactCheckCount: hitSet.exactCheckCount,
+        exactCheckBudget: hitSet.exactCheckBudget,
+        exactBudgetExceeded: hitSet.exactBudgetExceeded,
+        queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => store.queryPointCandidates(queryPoint, queryTolerance),
+      })
+      return hitSet.primaryHit
+    },
+        /**
      * Handles hitTest.
      * @param point point parameter.
      * @param tolerance tolerance parameter.
      */
 hitTest(point, tolerance) {
-      const resolvedTolerance = tolerance ?? 0
-      const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
-        budgetPressure: latestBudgetPressure,
-        interactionActive: latestStrategyInteractionActive,
-      })
-      // Reuse one exact-hit pass for both the public result and diagnostics so
-      // hit planning does not duplicate the execution cost it is measuring.
-      const hitSummary = store.hitTestAllWithSummary(point, resolvedTolerance, {
-        maxExactCandidateCount: adaptiveExactBudget,
-      })
-      const hits = hitSummary.hits
-      latestHitPlan = prepareEngineHitPlan({
-        scene: store.getSnapshot(),
-        point,
-        tolerance: resolvedTolerance,
-        hits,
-        exactCheckCount: hitSummary.exactCheckCount,
-        exactCheckBudget: hitSummary.exactCheckBudget,
-        exactBudgetExceeded: hitSummary.exactBudgetExceeded,
-        queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => store.queryPointCandidates(queryPoint, queryTolerance),
-      })
-      return hits[0] ?? null
+      return this.hitTest2D(point, tolerance)
     },
         /**
      * Handles getNode.
@@ -1122,7 +1219,7 @@ markDirtyBounds(bounds, zoomLevel) {
     },
     getDiagnostics() {
       return {
-        backend: 'webgl',
+        backend: renderer.capabilities.backend,
         renderStats: latestRenderStats,
         pixelRatio,
         outputPixelRatio,
@@ -1200,6 +1297,7 @@ markDirtyBounds(bounds, zoomLevel) {
           highZoomTextSlaCheckedCount: settleSharpnessState.highZoomTextSlaCheckedCount,
           highZoomTextSlaViolationCount: settleSharpnessState.highZoomTextSlaViolationCount,
         },
+        performanceGate: resolveEnginePerformanceGateStatus(latestRenderStats),
       }
     },
     dispose() {

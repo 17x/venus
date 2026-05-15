@@ -57,20 +57,7 @@ export function resolveLayeredRenderBridgeOutput(input: {
   * @param context Rendering context.
 */
 function resolveBridgeActiveIds(context: EngineRendererContext): ReadonlySet<string> | undefined {
-  const interactionActiveNodeIds = normalizeBridgeActiveNodeIds(context.interactionActiveNodeIds)
-  if (interactionActiveNodeIds) {
-    return interactionActiveNodeIds
-  }
-
-  const protectedNodeIds = context.protectedNodeIds
-  if (!protectedNodeIds || protectedNodeIds.length === 0) {
-    return undefined
-  }
-
-  // AI-TEMP: fallback to protected ids for legacy callers that do not emit
-  // dedicated editing active ids yet; remove when all runtimes publish
-  // interactionActiveNodeIds; ref R-09.
-  return new Set(protectedNodeIds)
+  return normalizeBridgeActiveNodeIds(context.interactionActiveNodeIds)
 }
 
 /**
@@ -92,15 +79,5 @@ function normalizeBridgeActiveNodeIds(
   * @param viewport Viewport state.
 */
 function resolveViewportInverseMatrix(viewport: EngineCanvasViewportState): Mat3 {
-  const compatibleViewport = viewport as EngineCanvasViewportState & {
-    inverseMatrix?: Mat3
-    matrix?: Mat3
-  }
-
-  if (compatibleViewport.inverseMatrix) {
-    return compatibleViewport.inverseMatrix
-  }
-
-  // AI-TEMP: legacy viewport snapshots may omit inverse matrix; remove when viewport contract guarantees inverseMatrix; ref R-09.
-  return (compatibleViewport.matrix ?? viewport.matrix) as Mat3
+  return viewport.inverseMatrix as Mat3
 }

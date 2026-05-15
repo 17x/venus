@@ -1,4 +1,5 @@
 import type { EngineNodeId, EngineRect, EngineSceneSnapshot } from './types/types.ts'
+import type { EngineVisibleSet } from './visibility/contracts.ts'
 
 const sceneNodeCountCache = new WeakMap<EngineSceneSnapshot, number>()
 const VIEWPORT_PADDING_DOUBLE = 2
@@ -17,6 +18,8 @@ export interface PrepareEngineFramePlanOptions {
   scene: EngineSceneSnapshot
   viewport: EngineFramePlanViewport
   queryCandidates: (bounds: EngineRect) => EngineNodeId[]
+  /** Optional visibility resolver hook so frame plan can consume a prebuilt visible set. */
+  resolveVisibleSet?: (bounds: EngineRect) => EngineVisibleSet
   padding?: number
 }
 
@@ -48,7 +51,9 @@ export function prepareEngineFramePlan(
 ): EngineFramePlan {
   const queryPadding = Math.max(0, options.padding ?? 0)
   const viewportBounds = resolveViewportWorldBounds(options.viewport, queryPadding)
-  const candidateNodeIds = options.queryCandidates(viewportBounds)
+  const candidateNodeIds = options.resolveVisibleSet
+    ? options.resolveVisibleSet(viewportBounds).nodeIds.slice()
+    : options.queryCandidates(viewportBounds)
 
   return {
     revision: options.scene.revision,

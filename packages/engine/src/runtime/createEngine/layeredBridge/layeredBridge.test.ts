@@ -44,7 +44,7 @@ test('resolveLayeredRenderBridgeOutput maps runtime frame into layered output', 
   assert.deepEqual(output.composed.map((command) => command.layer), ['base'])
 })
 
-test('resolveLayeredRenderBridgeOutput promotes protected nodes to active layer during migration', () => {
+test('resolveLayeredRenderBridgeOutput keeps protected nodes in base layer without interaction active ids', () => {
   const output = resolveLayeredRenderBridgeOutput({
     scene: {
       revision: 'bridge-2',
@@ -78,9 +78,9 @@ test('resolveLayeredRenderBridgeOutput promotes protected nodes to active layer 
   })
 
   // Bridge migration behavior keeps protected ids rendered through active layer to avoid base-active double draw.
-  assert.equal(output.base.length, 0)
-  assert.equal(output.active.length, 1)
-  assert.deepEqual(output.composed.map((command) => command.layer), ['active'])
+  assert.equal(output.base.length, 1)
+  assert.equal(output.active.length, 0)
+  assert.deepEqual(output.composed.map((command) => command.layer), ['base'])
 })
 
 test('resolveLayeredRenderBridgeOutput prioritizes interaction active ids over protected fallback ids', () => {
@@ -126,8 +126,7 @@ test('resolveLayeredRenderBridgeOutput prioritizes interaction active ids over p
     },
   })
 
-  // Interaction active ids must win so runtime can route true editing targets
-  // even when protected ids still contain selection-protection leftovers.
+  // Active-layer routing depends only on explicit interaction-active ids.
   assert.deepEqual(output.base.map((command) => command.nodeId), ['shape-1'])
   assert.deepEqual(output.active.map((command) => command.nodeId), ['shape-2'])
   assert.deepEqual(output.composed.map((command) => command.layer), ['base', 'active'])

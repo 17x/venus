@@ -1,10 +1,26 @@
 import type { Mat3, Point2D } from '../math/matrix/matrix.ts'
+import type { EngineDimensionMode } from '../math/dimension/types.ts'
 import type { EngineRenderableNode, EngineSceneSnapshot } from '../scene/types/types.ts'
+import type {
+  EngineCameraPose,
+  EngineCameraProjection,
+  EngineCameraProjectionKind,
+} from '../camera/contracts.ts'
+import type { EngineMaterialBinding } from '../material/contracts.ts'
+import type { EngineLightingBinding } from '../lighting/contracts.ts'
 
 /**
  * Declares one camera snapshot used by the layered render pipeline.
  */
 export interface EngineRenderCamera {
+  /** Stores camera dimension mode for compatibility routing in staged migration. */
+  dimensionMode?: EngineDimensionMode
+  /** Stores camera projection kind for quick branch checks in render/hit helpers. */
+  projectionKind?: EngineCameraProjectionKind
+  /** Stores optional normalized projection contract for future 3D camera paths. */
+  projection?: EngineCameraProjection
+  /** Stores optional full camera pose and derived matrix payload for 3D paths. */
+  pose?: EngineCameraPose
   /** Stores viewport width in CSS pixels. */
   viewportWidth: number
   /** Stores viewport height in CSS pixels. */
@@ -93,6 +109,10 @@ export interface EngineDrawCommand {
   }
   /** Stores optional marker payload for debug and overlay categories. */
   marker?: string
+  /** Stores optional resolved material binding for backend shading selection. */
+  material?: EngineMaterialBinding
+  /** Stores optional resolved lighting binding for backend lighting selection. */
+  lighting?: EngineLightingBinding
 }
 
 /**

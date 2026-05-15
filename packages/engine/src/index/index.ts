@@ -16,6 +16,48 @@ export {
 } from '../math/matrix/matrix.ts'
 
 export type {
+  EngineAabb3,
+  EngineDimensionMode,
+  EngineFrustum,
+  EngineFrustumPlane,
+  EngineMat3,
+  EngineMat3Affine2D,
+  EngineMat4,
+  EngineRay3,
+  EngineRect2,
+  EngineVec2,
+  EngineVec3,
+  EngineVec4,
+} from '../math/dimension/types.ts'
+
+export type {
+  EngineCameraClipRange,
+  EngineCameraPose,
+  EngineCameraProjection,
+  EngineCameraProjectionKind,
+  EngineOrthographicCameraProjection,
+  EnginePerspectiveCameraProjection,
+} from '../camera/contracts.ts'
+
+export type {
+  EngineMaterialBinding,
+  EngineMaterialDefinition,
+  EngineMaterialRegistrySnapshot,
+  EngineMaterialShadingModel,
+  EngineMaterialSurface,
+} from '../material/contracts.ts'
+
+export type {
+  EngineAmbientLight,
+  EngineDirectionalLight,
+  EngineLightBase,
+  EngineLightDefinition,
+  EngineLightingBinding,
+  EngineLightingRigSnapshot,
+  EngineLightType,
+} from '../lighting/contracts.ts'
+
+export type {
   EngineRenderableNode,
   EngineSceneSnapshot,
 } from '../scene/types/types.ts'
@@ -42,18 +84,47 @@ export type {
   EngineRenderInteractionInput,
   EngineRenderOptions,
 } from '../core/types.ts'
+export type {
+  EngineRenderGraph,
+  EngineRenderGraphExecutionContext,
+  EngineRenderGraphExecutionResult,
+  EngineRenderGraphPassNode,
+  EngineRenderPassId,
+} from '../core/renderGraph/contracts.ts'
 export {
   composeLayeredDrawCommands,
 } from '../core/compose.ts'
 export {
   renderLayeredScene,
 } from '../core/render.ts'
+export type {
+  EngineDrawCommandShadingBinding,
+} from '../core/materialLighting/materialLighting.ts'
+export {
+  resolveEngineDrawCommandShadingBinding,
+} from '../core/materialLighting/materialLighting.ts'
+export {
+  createLayeredRenderGraph,
+  executeEngineRenderGraph,
+} from '../core/renderGraph/renderGraph.ts'
+
+export type {
+  EnginePerformanceGateStatus,
+  EnginePerformanceGateThresholds,
+} from '../runtime/createEngine/performanceGate.ts'
+export {
+  resolveEnginePerformanceGateStatus,
+} from '../runtime/createEngine/performanceGate.ts'
 
 export {
   renderBaseLayer,
   renderActiveLayer,
   renderOverlayLayer,
 } from '../renderer/layers/index.ts'
+
+export {
+  createWebGPUEngineRenderer,
+} from '../renderer/webgpu/index.ts'
 
 export {
   createRenderCameraProjector,
@@ -149,6 +220,41 @@ export type {
 export {
   resolveEngineGeometryPayload,
 } from '../interaction/geometryPayload/geometryPayload.ts'
+
+export type {
+  EngineVisibleSet,
+  EngineVisibilityBounds2DQuery,
+  EngineVisibilityBounds2DResolver,
+  EngineVisibilityFrustum3DQuery,
+  EngineVisibilityFrustum3DResolver,
+  EngineVisibilityQuery,
+  EngineVisibilityQueryMode,
+  EngineVisibilityViewport2D,
+} from '../scene/visibility/contracts.ts'
+export type {
+  CreateEngineVisibilityResolverOptions,
+  EngineVisibilityResolver,
+} from '../scene/visibility/visibility.ts'
+export {
+  createEngineVisibilityResolver,
+  resolveEngineBounds2DVisibilityQuery,
+} from '../scene/visibility/visibility.ts'
+
+export type {
+  EngineHitQuery,
+  EngineHitQueryMode,
+  EngineHitResolverOptions,
+  EnginePointHitQuery,
+  EngineRayHitQuery,
+  EngineResolvedHitSet,
+} from '../scene/hit/contracts.ts'
+export type {
+  EngineHitResolver,
+} from '../scene/hit/resolver.ts'
+export {
+  createEngineHitResolver,
+  createEnginePointHitQuery,
+} from '../scene/hit/resolver.ts'
 
 export type {
   AffineMatrix,

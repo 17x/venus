@@ -1,11 +1,18 @@
 import type { EngineSceneBufferLayout } from '../buffer/buffer.ts'
+import type {
+  EngineMat3Affine2D,
+  EngineRect2,
+  EngineVec2,
+} from '../../math/dimension/types.ts'
+import type { EngineMaterialRegistrySnapshot } from '../../material/contracts.ts'
+import type { EngineLightingRigSnapshot } from '../../lighting/contracts.ts'
 
 export type EngineNodeId = string
 
-export interface EnginePoint {
-  x: number
-  y: number
-}
+/**
+ * Keeps the legacy point contract stable while delegating to shared dimension primitives.
+ */
+export type EnginePoint = EngineVec2
 
 export interface EngineBezierPoint {
   anchor: EnginePoint
@@ -13,15 +20,17 @@ export interface EngineBezierPoint {
   cp2?: EnginePoint | null
 }
 
-export interface EngineRect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+/**
+ * Keeps the legacy rectangle contract stable while delegating to shared dimension primitives.
+ */
+export type EngineRect = EngineRect2
 
+/**
+ * Keeps the legacy 2D affine transform contract stable for existing scene payloads.
+ */
 export interface EngineTransform2D {
-  matrix: readonly [number, number, number, number, number, number]
+  /** Affine matrix layout [a, b, c, d, e, f] used by current 2D runtime paths. */
+  matrix: EngineMat3Affine2D
 }
 
 export type EngineClipShape =
@@ -41,6 +50,10 @@ export interface EngineNodeBase {
   type: string
   opacity?: number
   blendMode?: string
+  /** Optional scene-material id resolved through scene-level material registry. */
+  materialId?: string
+  /** Optional node-level lighting mode override for mixed 2D/3D scenes. */
+  lightingMode?: 'inherit' | 'unlit' | 'lit'
   transform?: EngineTransform2D
   shadow?: {
     color?: string
@@ -171,4 +184,8 @@ export interface EngineSceneSnapshot {
     removedNodeIds?: readonly EngineNodeId[]
     bufferLayout?: EngineSceneBufferLayout
   }
+  /** Optional scene-level material registry used by render material binding resolution. */
+  materialRegistry?: EngineMaterialRegistrySnapshot
+  /** Optional scene-level lighting rig used by lit shading paths. */
+  lightingRig?: EngineLightingRigSnapshot
 }
