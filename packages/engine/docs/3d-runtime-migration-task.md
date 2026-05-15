@@ -34,6 +34,8 @@ Scope: packages/engine
 13. Phase M: Render-domain internalization and sub-entrypoint consolidation.
 14. Phase N: Compatibility-forwarder retirement and public-boundary freeze.
 15. Phase O: Final acceptance, regression closure, and ledger sign-off.
+16. Phase P: Post-acceptance ledger governance automation.
+17. Phase Q: Ledger guard testability and contract hardening.
 
 ## Type Definition (Phase A)
 
@@ -125,31 +127,82 @@ Tests:
 - Completed (K2): Added compatibility-forwarder barrels so structure aligns without breaking current runtime paths.
 - Completed (K3): Switched public/runtime/high-frequency module references to blueprint domain barrels.
 - Completed (K4): Switched renderer layer/hit/camera/type references from core paths to render domain barrel.
-- In Progress: Phase L domain-boundary hardening and import-governance closure.
 - Completed (L1): Routed `types` domain render contracts through `render` barrel instead of direct `core` imports.
 - Completed (L2): Added lint guard that blocks non-render domains from importing `core/types.ts` directly.
 - Completed (L3): Added lint guard that blocks non-render domains from importing `core/renderGraph/*` directly.
 - Completed (L4): Verified no remaining direct imports violating new guards in active source paths.
 - Completed (L5): Full regression validation passed (test + tsc + eslint).
 - Completed: Phase L domain-boundary hardening and import-governance closure.
-- In Progress: Phase M render-domain internalization and sub-entrypoint consolidation.
 - Completed (M1): Split render domain into local sub-entrypoints (`contracts`, `graph`, `runtime`) and rewired render barrel to aggregate local exports.
 - Completed (M1-Validation): Post-change regression gate passed (test + tsc + eslint).
 - Completed (M2): Added render-owned graph contract module and switched render graph type exports to render-local ownership.
 - Completed (M3): Removed direct `core/renderGraph/*` re-export paths from render outward entrypoints via render-local runtime bridge.
 - Completed (M4): Full regression validation passed (test + tsc + eslint).
 - Completed: Phase M render-domain internalization and sub-entrypoint consolidation.
-- In Progress: Phase N compatibility-forwarder retirement and public-boundary freeze.
 - Completed (N1): Audited compatibility-forwarder usage and classified `core/materialLighting` direct exposure as safe-to-retire from public and renderer outward paths.
 - Completed (N2): Added material/lighting domain barrels and repointed public API plus renderer-layer shading imports away from direct core material-lighting paths.
 - Completed (N3): Added lint guard to block non-core/non-material direct imports of `core/materialLighting/*` and freeze the domain boundary.
 - Completed (N4): Full regression validation passed (test + tsc + eslint).
 - Completed: Phase N compatibility-forwarder retirement and public-boundary freeze.
-- In Progress: Phase O final acceptance, regression closure, and ledger sign-off.
 - Completed (O1): Collected phase evidence across A-N and confirmed all phase checklists are closed in this ledger.
 - Completed (O2): Final acceptance regression gate passed (test + tsc + eslint).
 - Completed (O3): Marked migration ledger status as Accepted and recorded final sign-off notes.
 - Completed: Phase O final acceptance, regression closure, and ledger sign-off.
+- Completed (P1): Added migration-ledger guard script to assert accepted-state invariants (status/checklists/no in-progress markers).
+- Completed (P2): Wired guard command as `guard:migration-ledger` in engine package scripts.
+- Completed (P3): Executed migration-ledger guard and full regression validation (test + tsc + eslint).
+- Completed: Phase P post-acceptance ledger governance automation.
+- Completed (Q1): Refactored migration ledger guard into exported, testable functions with explicit CLI entrypoint behavior.
+- Completed (Q2): Added governance tests covering accepted-state and failure-case ledger scenarios.
+- Completed (Q3): Added governance test command and executed governance + full regression validation (test + tsc + eslint).
+- Completed: Phase Q ledger guard testability and contract hardening.
+
+## [CHANGE REQUEST] (Phase Q)
+
+Target:
+
+- File / Module:
+  - packages/engine/scripts/migration-ledger-guard.mjs
+  - packages/engine/scripts/ledger-guard.test.mjs
+  - packages/engine/package.json
+  - packages/engine/docs/3d-runtime-migration-task.md
+
+Goal:
+
+- Problem being solved:
+  - Current ledger guard is executable-only and lacks direct test coverage.
+  - Phase Q hardens guard contracts by exposing pure validation APIs and adding automated tests.
+
+Change Type:
+
+- Modify / Add:
+  - Refactor guard script to export testable helpers while preserving CLI behavior.
+  - Add governance tests for accepted/failing ledger scenarios.
+  - Wire governance test command into engine package scripts.
+
+Impact:
+
+- Affected modules:
+  - migration ledger governance tooling
+  - package script automation
+
+Cleanup:
+
+- Old logic to remove:
+  - Implicit run-on-import behavior that blocks direct unit-style testing.
+
+Tests:
+
+- Tests to add/update:
+  - Run governance test command.
+  - Run guard command.
+  - Run full engine tests + typecheck + lint.
+
+## Phase Q Task List
+
+- [x] Q1: Refactor migration ledger guard into testable exported functions with explicit CLI entrypoint.
+- [x] Q2: Add governance tests that cover accepted and failure scenarios.
+- [x] Q3: Add package script for governance tests and execute full validation closure.
 
 ## [CHANGE REQUEST] (Phase M)
 
@@ -305,6 +358,51 @@ Tests:
 - Accepted by: engine runtime migration execution log.
 - Acceptance date: 2026-05-15.
 - Scope closed: 2D->3D staged runtime migration plan (Phase A to Phase O).
+
+## [CHANGE REQUEST] (Phase P)
+
+Target:
+
+- File / Module:
+  - packages/engine/scripts/migration-ledger-guard.mjs
+  - packages/engine/package.json
+  - packages/engine/docs/3d-runtime-migration-task.md
+
+Goal:
+
+- Problem being solved:
+  - Accepted migration state existed only as manual document discipline and could regress silently.
+  - Phase P adds executable governance checks to lock accepted-state invariants.
+
+Change Type:
+
+- Add / Modify:
+  - Add one script to validate ledger acceptance invariants.
+  - Add one package script entry for repeated execution.
+  - Record Phase P execution and closure in ledger.
+
+Impact:
+
+- Affected modules:
+  - migration ledger governance automation
+  - engine package scripts
+
+Cleanup:
+
+- Old logic to remove:
+  - None.
+
+Tests:
+
+- Tests to add/update:
+  - Run `pnpm -C packages/engine run guard:migration-ledger`.
+  - Run full engine tests + typecheck + lint.
+
+## Phase P Task List
+
+- [x] P1: Add script to validate accepted-state invariants in migration ledger.
+- [x] P2: Wire script into engine package commands.
+- [x] P3: Execute guard and full regression validation, then record closure.
 
 ## [CHANGE REQUEST] (Phase L)
 
