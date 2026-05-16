@@ -1,0 +1,264 @@
+{
+  "version": 1,
+  "updatedAt": "2026-05-16",
+  "owner": "engine/runtime",
+  "tasks": [
+    {
+      "id": "T0001",
+      "title": "Baseline evidence panel",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0001-baseline-evidence-panel.md"
+    },
+    {
+      "id": "T0002",
+      "title": "Terminology dictionary",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0002-terminology-and-contract-dictionary.md"
+    },
+    {
+      "id": "T0003",
+      "title": "CR template and CI gate",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0003-change-request-and-ci-gate.md"
+    },
+    {
+      "id": "T0004",
+      "title": "Critical-layer contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0004-critical-layer-contract.md"
+    },
+    {
+      "id": "T0005",
+      "title": "Scenario dataset tiers",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0005-scenario-dataset-and-pressure-tiers.md"
+    },
+    {
+      "id": "T0006",
+      "title": "Metrics SDK contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0006-metrics-sdk-and-report-format.md"
+    },
+    {
+      "id": "T0007",
+      "title": "Capability profile contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0007-capability-profile-contract.md"
+    },
+    {
+      "id": "T0008",
+      "title": "Risk ledger",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0008-risk-ledger.md"
+    },
+    {
+      "id": "T0009",
+      "title": "Rollout playbook",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0009-rollout-playbook.md"
+    },
+    {
+      "id": "T0010",
+      "title": "Program dashboard",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0010-program-dashboard.md"
+    },
+    {
+      "id": "T0011",
+      "title": "Boundary charter",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0011-boundary-charter.md"
+    },
+    {
+      "id": "T0012",
+      "title": "Phase-A acceptance",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-a/T0012-phase-a-acceptance.md"
+    },
+    {
+      "id": "T0013",
+      "title": "Settings root structure",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0013-settings-root-structure.md"
+    },
+    {
+      "id": "T0014",
+      "title": "Graphics settings contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0014-graphics-settings-contract.md"
+    },
+    {
+      "id": "T0015",
+      "title": "Performance settings mapper",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0015-performance-settings-mapper.md"
+    },
+    {
+      "id": "T0016",
+      "title": "Runtime settings contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0016-runtime-settings-contract.md"
+    },
+    {
+      "id": "T0017",
+      "title": "Quality preset registry",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0017-quality-preset-registry.md"
+    },
+    {
+      "id": "T0018",
+      "title": "Runtime policy generator",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0018-runtime-policy-generator.md"
+    },
+    {
+      "id": "T0019",
+      "title": "Capability-aware policy resolver",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0019-capability-aware-policy-resolver.md"
+    },
+    {
+      "id": "T0020",
+      "title": "Runtime budget contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0020-runtime-budget-contract.md"
+    },
+    {
+      "id": "T0021",
+      "title": "Pressure monitor contract",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0021-pressure-monitor-contract.md"
+    },
+    {
+      "id": "T0022",
+      "title": "Auto quality scaler v1",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0022-auto-quality-scaler-v1.md"
+    },
+    {
+      "id": "T0023",
+      "title": "Diagnostics settings sampling",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0023-diagnostics-settings-sampling.md"
+    },
+    {
+      "id": "T0024",
+      "title": "Debug settings build guard",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0024-debug-settings-build-guard.md"
+    },
+    {
+      "id": "T0025",
+      "title": "Settings migrator",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0025-settings-migrator.md"
+    },
+    {
+      "id": "T0026",
+      "title": "Settings policy guide",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0026-settings-policy-guide.md"
+    },
+    {
+      "id": "T0027",
+      "title": "Policy runtime wiring",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0027-policy-runtime-wiring.md"
+    },
+    {
+      "id": "T0028",
+      "title": "Policy replay tool",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0028-policy-replay-tool.md"
+    },
+    {
+      "id": "T0029",
+      "title": "Phase-B acceptance",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0029-phase-b-acceptance.md"
+    },
+    {
+      "id": "T0030",
+      "title": "Go no-go review",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-b/T0030-go-no-go-review.md"
+    }
+  ],
+  "metrics": {
+    "slo": {
+      "inputToPhotonP95Ms": null,
+      "inputToPhotonP99Ms": null,
+      "interactiveFpsP95": 715.1796888968258,
+      "settleToSharpP95Ms": null,
+      "settleToSharpP99Ms": null,
+      "criticalLayerMissingRatio": null
+    },
+    "trend": [
+      {
+        "timestampIso": "2026-05-16T05:40:14.942Z",
+        "scenario": "large-image-large-text-high-zoom-fast-pan",
+        "backend": "webgl",
+        "commit": null,
+        "frameCount": 90,
+        "avgFrameMs": 0.776325422222223,
+        "p95FrameMs": 1.370207999999991,
+        "p99FrameMs": 3.081834000000015,
+        "interactiveFrameCount": 90,
+        "staticFrameCount": 0,
+        "cameraFrameCount": 0,
+        "fallbackReasonCounts": {
+          "l0-no-snapshot": 1,
+          "l0-preview-miss": 89
+        }
+      },
+      {
+        "timestampIso": "2026-05-16T05:41:52.219Z",
+        "scenario": "large-image-large-text-high-zoom-fast-pan",
+        "backend": "webgl",
+        "commit": null,
+        "frameCount": 90,
+        "avgFrameMs": 0.7746694444444453,
+        "p95FrameMs": 1.3982500000000186,
+        "p99FrameMs": 2.819500000000005,
+        "interactiveFrameCount": 90,
+        "staticFrameCount": 0,
+        "cameraFrameCount": 0,
+        "fallbackReasonCounts": {
+          "l0-no-snapshot": 1,
+          "l0-preview-miss": 89
+        }
+      }
+    ]
+  },
+  "blockers": []
+}

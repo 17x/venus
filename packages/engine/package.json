@@ -5,7 +5,12 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test src/**/*.test.ts __tests__/**/*.test.ts",
-    "bench:scenario": "tsx src/bench/runBenchmark.ts"
+    "bench:scenario": "tsx src/bench/runBenchmark.ts",
+    "bench:baseline": "tsx src/bench/runBaselineBenchmark.ts",
+    "cr:check": "node ./scripts/check-change-request.mjs",
+    "dashboard:update": "node ./scripts/update-program-dashboard.mjs",
+    "policy:replay": "node ./scripts/policy-replay.mjs",
+    "debug:guard": "node ./scripts/check-debug-settings-release.mjs"
   },
   "exports": {
     ".": "./src/index.ts"

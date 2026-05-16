@@ -77,6 +77,85 @@ export {
 } from '../runtime/createEngine/createEngine.ts'
 
 export type {
+  EngineAntiAliasingMode,
+  EngineCanonicalSettingsBundle,
+  EngineDebugSettings,
+  EngineDeviceCapabilityProfile,
+  EngineDiagnosticsSettings,
+  EngineGraphicsSettings,
+  EngineLegacySettingsPayload,
+  EngineLegacyRuntimeSettings,
+  EnginePerformanceBudgetInput,
+  EnginePerformanceSettings,
+  EnginePresetRegistry,
+  EngineProfileName,
+  EngineQualityPresetName,
+  EngineRuntimeBudgetSettings,
+  EngineSettingsMigrationResult,
+  EngineRuntimeSettings,
+  EngineScalingSettings,
+} from '../settings/index.ts'
+export {
+  DEFAULT_ENGINE_DEBUG_SETTINGS,
+  DEFAULT_ENGINE_DEVICE_CAPABILITY_PROFILE,
+  DEFAULT_ENGINE_DIAGNOSTICS_SETTINGS,
+  DEFAULT_ENGINE_GRAPHICS_SETTINGS,
+  DEFAULT_ENGINE_PERFORMANCE_SETTINGS,
+  DEFAULT_ENGINE_PRESET_REGISTRY,
+  DEFAULT_ENGINE_RUNTIME_BUDGET_SETTINGS,
+  DEFAULT_ENGINE_RUNTIME_SETTINGS,
+  DEFAULT_ENGINE_SCALING_SETTINGS,
+  mapEnginePerformanceSettingsToBudgetInput,
+  resolveEngineDefaultPreset,
+  resolveEngineDeviceCapabilityProfile,
+  resolveEngineGraphicsSettings,
+  resolveEnginePerformanceSettings,
+  resolveEngineRuntimeSettings,
+  migrateEngineSettings,
+  validateEngineGraphicsSettings,
+} from '../settings/index.ts'
+
+export type {
+  EngineCriticalLayerPolicy,
+  EnginePolicyPhase,
+  EngineRuntimePolicy,
+  EngineRuntimePolicyPhaseOverride,
+} from '../runtime/policy/runtimePolicy.ts'
+export {
+  createEngineRuntimePolicy,
+  resolveCapabilityAwareEngineRuntimePolicy,
+} from '../runtime/policy/runtimePolicy.ts'
+
+export type {
+  EngineAutoQualityScalerConfig,
+  EngineAutoQualityScalerDecision,
+  EngineAutoQualityScalerState,
+} from '../runtime/policy/autoQualityScaler.ts'
+export {
+  DEFAULT_ENGINE_AUTO_QUALITY_SCALER_CONFIG,
+  resolveEngineAutoQualityScalerDecision,
+} from '../runtime/policy/autoQualityScaler.ts'
+
+export type {
+  EngineRuntimeBudgetSnapshot,
+  EngineRuntimeBudgetTrace,
+} from '../runtime/budget/runtimeBudget.ts'
+export {
+  createEngineRuntimeBudgetSnapshot,
+} from '../runtime/budget/runtimeBudget.ts'
+
+export type {
+  EnginePressureSample,
+  EnginePressureSignals,
+  EnginePressureThresholds,
+  EnginePressureTier,
+} from '../runtime/budget/pressureMonitor.ts'
+export {
+  DEFAULT_ENGINE_PRESSURE_THRESHOLDS,
+  resolveEnginePressureSample,
+} from '../runtime/budget/pressureMonitor.ts'
+
+export type {
   EngineDrawCommand,
   EngineLayeredRenderInput,
   EngineLayeredRenderOutput,

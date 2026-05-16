@@ -915,3 +915,48 @@ test('createEngine reports high-zoom text sharpness SLA violations on deferred t
     environment.restore()
   }
 })
+
+test('createEngine diagnostics expose runtime policy snapshot fields', async () => {
+  const environment = installFakeCanvasEnvironment()
+  const fakeClock = createFakeClock()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      clock: fakeClock.clock,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 240,
+        viewportHeight: 160,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      settings: {
+        profile: 'editor',
+      },
+      render: {
+        quality: 'full',
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 240,
+      viewportHeight: 160,
+      outputWidth: 240,
+      outputHeight: 160,
+    })
+
+    fakeClock.setNow(0)
+    await engine.renderFrame()
+    const diagnostics = engine.getDiagnostics()
+
+    assert.equal(diagnostics.policy.profile, 'editor')
+    assert.ok(diagnostics.policy.renderScale > 0)
+    assert.ok(diagnostics.policy.pressureScore >= 0)
+    assert.equal(typeof diagnostics.policy.scalerDecisionReason, 'string')
+  } finally {
+    environment.restore()
+  }
+})

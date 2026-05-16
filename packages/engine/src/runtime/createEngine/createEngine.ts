@@ -94,6 +94,30 @@ import {
   resolveEnginePerformanceGateStatus,
   type EnginePerformanceGateStatus,
 } from './performanceGate.ts'
+import {
+  resolveEngineDefaultPreset,
+  resolveEngineDeviceCapabilityProfile,
+  resolveEngineGraphicsSettings,
+  resolveEnginePerformanceSettings,
+  resolveEngineRuntimeSettings,
+  type EngineDeviceCapabilityProfile,
+  type EngineGraphicsSettings,
+  type EnginePerformanceSettings,
+  type EngineProfileName,
+  type EngineQualityPresetName,
+  type EngineRuntimeSettings,
+} from '../../settings/index.ts'
+import {
+  createEngineRuntimePolicy,
+  resolveCapabilityAwareEngineRuntimePolicy,
+} from '../policy/runtimePolicy.ts'
+import {
+  resolveEngineAutoQualityScalerDecision,
+} from '../policy/autoQualityScaler.ts'
+import {
+  resolveEnginePressureSample,
+  type EnginePressureSignals,
+} from '../budget/pressureMonitor.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 
@@ -193,6 +217,15 @@ interface EngineCameraAnimationState {
   previewMissCount: number
 }
 
+interface EngineSettingsOptions {
+  profile?: EngineProfileName
+  preset?: EngineQualityPresetName
+  graphics?: Partial<EngineGraphicsSettings>
+  performance?: Partial<EnginePerformanceSettings>
+  runtime?: Partial<EngineRuntimeSettings>
+  capability?: Partial<EngineDeviceCapabilityProfile>
+}
+
 export interface CreateEngineOptions {
   canvas: HTMLCanvasElement | OffscreenCanvas
   initialScene?: EngineSceneSnapshot
@@ -208,6 +241,7 @@ export interface CreateEngineOptions {
   render?: EngineRenderOptions
   resource?: EngineResourceOptions
   debug?: EngineDebugOptions
+  settings?: EngineSettingsOptions
   clock?: EngineClock
   host?: EngineHostEnvironment
 }
@@ -315,6 +349,19 @@ export interface EngineRuntimeDiagnostics {
     // Number of high-zoom text SLA violations observed in checked frames.
     highZoomTextSlaViolationCount: number
   }
+  // Reports policy snapshot and scaler diagnostics for runtime-policy wiring.
+  policy: {
+    // Resolved scenario profile.
+    profile: EngineProfileName
+    // Resolved quality preset.
+    preset: EngineQualityPresetName
+    // Current policy render scale after auto-scaler adjustments.
+    renderScale: number
+    // Latest weighted pressure score from pressure monitor.
+    pressureScore: number
+    // Latest auto-scaler decision reason.
+    scalerDecisionReason: string
+  }
   /** Reports runtime performance-gate evaluation based on latest render stats. */
   performanceGate: EnginePerformanceGateStatus
 }
@@ -384,6 +431,34 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const FRAME_PLAN_SHORTLIST_DEFAULT_STABLE_FRAME_COUNT = 2
   const DEFAULT_MAX_PIXEL_RATIO = 2
   const DEFAULT_CAMERA_ANIMATION_DURATION_MS = 110
+  const DEFAULT_POLICY_PROFILE: EngineProfileName = 'editor'
+
+  const resolvedSettingsProfile = options.settings?.profile ?? DEFAULT_POLICY_PROFILE
+  const resolvedCapabilityProfile = resolveEngineDeviceCapabilityProfile(options.settings?.capability)
+  const resolvedGraphicsSettings = resolveEngineGraphicsSettings(options.settings?.graphics)
+  const resolvedPerformanceSettings = resolveEnginePerformanceSettings(options.settings?.performance)
+  const resolvedRuntimeSettings = resolveEngineRuntimeSettings(options.settings?.runtime)
+  const resolvedRuntimeBudgetSettings = {
+    drawBudgetMs: Math.max(1, resolvedPerformanceSettings.frameTimeBudgetMs * 0.4),
+    uploadBudgetBytes: resolvedPerformanceSettings.uploadBudgetBytes,
+    cacheBudgetBytes: 200_000_000,
+    tileBudgetCount: 64,
+    workerBudgetCount: resolvedPerformanceSettings.workerBudgetCount,
+    frameBudgetMs: resolvedPerformanceSettings.frameTimeBudgetMs,
+  }
+  const resolvedPreset = options.settings?.preset
+    ?? resolveEngineDefaultPreset(resolvedSettingsProfile, resolvedCapabilityProfile)
+  let resolvedRuntimePolicy = resolveCapabilityAwareEngineRuntimePolicy(
+    createEngineRuntimePolicy(
+      resolvedSettingsProfile,
+      resolvedPreset,
+      resolvedGraphicsSettings,
+      resolvedPerformanceSettings,
+      resolvedRuntimeSettings,
+      resolvedRuntimeBudgetSettings,
+      resolvedCapabilityProfile,
+    ),
+  )
 
   const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
   const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
@@ -571,6 +646,8 @@ export function createEngine(options: CreateEngineOptions): Engine {
     confidence: 0,
   }
   let latestBudgetPressure: EngineFrameBudgetPressure = 'low'
+  let latestPressureScore = 0
+  let latestAutoQualityDecisionReason = 'hold'
   let lastInteractionAtMs = clock.now()
   let lastInteractionKind: EngineInteractionMutationKind = 'none'
   const settleSharpnessState = {
@@ -587,6 +664,10 @@ export function createEngine(options: CreateEngineOptions): Engine {
   }
   const cameraAnimationController = createEngineAnimationController()
   const interactionPredictor = createEngineInteractionPredictor()
+  const policyScaleState = {
+    renderScale: resolvedRuntimePolicy.graphics.renderScale,
+    lastAdjustedAtMs: clock.now(),
+  }
   const CAMERA_ANIMATION_ID = 'engine.camera.viewport'
   let cameraAnimationTarget: EngineCanvasViewportState | null = null
   const cameraAnimationState: EngineCameraAnimationState = {
@@ -731,6 +812,36 @@ export function createEngine(options: CreateEngineOptions): Engine {
     },
     resolveFrame: () => {
       const scene = store.getSnapshot()
+      const pressureSample = resolveEnginePressureSample(
+        resolvePolicyPressureSignals(scene.nodes.length, latestRenderStats),
+        latestBudgetPressure,
+      )
+      latestPressureScore = pressureSample.score
+      const autoQualityDecision = resolveEngineAutoQualityScalerDecision(
+        pressureSample.tier,
+        clock.now(),
+        policyScaleState,
+      )
+      latestAutoQualityDecisionReason = autoQualityDecision.reason
+      if (autoQualityDecision.changed) {
+        policyScaleState.renderScale = autoQualityDecision.nextRenderScale
+        policyScaleState.lastAdjustedAtMs = clock.now()
+        const nextGraphicsSettings = resolveEngineGraphicsSettings({
+          ...resolvedRuntimePolicy.graphics,
+          renderScale: autoQualityDecision.nextRenderScale,
+        })
+        resolvedRuntimePolicy = resolveCapabilityAwareEngineRuntimePolicy(
+          createEngineRuntimePolicy(
+            resolvedSettingsProfile,
+            resolvedPreset,
+            nextGraphicsSettings,
+            resolvedPerformanceSettings,
+            resolvedRuntimeSettings,
+            resolvedRuntimeBudgetSettings,
+            resolvedCapabilityProfile,
+          ),
+        )
+      }
       // Resolve one strategy decision per frame so quality and preview policy
       // stay synchronized across planner and renderer execution.
       const strategyDecision = resolveEngineRenderStrategy({
@@ -771,9 +882,31 @@ export function createEngine(options: CreateEngineOptions): Engine {
         predictorConfidence: latestInteractionPredictor.confidence,
         predictorSpeedPxPerSec: latestInteractionPredictor.speedPxPerSec,
       })
-      renderContext.frameBudget = frameBudgetDecision.budget
-      renderContext.frameBudgetPressure = frameBudgetDecision.pressure
-      latestBudgetPressure = frameBudgetDecision.pressure
+      renderContext.frameBudget = {
+        ...frameBudgetDecision.budget,
+        drawSubmitBudgetMs: Math.min(
+          frameBudgetDecision.budget.drawSubmitBudgetMs,
+          resolvedRuntimePolicy.budget.drawBudgetMs,
+        ),
+        textureUploadBudgetBytes: Math.min(
+          frameBudgetDecision.budget.textureUploadBudgetBytes,
+          resolvedRuntimePolicy.budget.uploadBudgetBytes,
+        ),
+        textureUploadTotalBudgetBytes: Math.min(
+          frameBudgetDecision.budget.textureUploadTotalBudgetBytes,
+          resolvedRuntimePolicy.budget.uploadBudgetBytes,
+        ),
+        tilePreloadMaxUploads: Math.min(
+          frameBudgetDecision.budget.tilePreloadMaxUploads,
+          resolvedRuntimePolicy.budget.tileBudgetCount,
+        ),
+      }
+      const effectiveBudgetPressure = resolveHigherPressureTier(
+        frameBudgetDecision.pressure,
+        pressureSample.tier,
+      )
+      renderContext.frameBudgetPressure = effectiveBudgetPressure
+      latestBudgetPressure = effectiveBudgetPressure
 
       if (settleSharpnessState.pending && clock.now() > settleSharpnessState.deadlineAtMs) {
         // Record one contract miss and force one immediate sharp recovery frame.
@@ -1299,6 +1432,13 @@ markDirtyBounds(bounds, zoomLevel) {
           highZoomTextSlaCheckedCount: settleSharpnessState.highZoomTextSlaCheckedCount,
           highZoomTextSlaViolationCount: settleSharpnessState.highZoomTextSlaViolationCount,
         },
+        policy: {
+          profile: resolvedRuntimePolicy.profile,
+          preset: resolvedRuntimePolicy.preset,
+          renderScale: resolvedRuntimePolicy.graphics.renderScale,
+          pressureScore: latestPressureScore,
+          scalerDecisionReason: latestAutoQualityDecisionReason,
+        },
         performanceGate: resolveEnginePerformanceGateStatus(latestRenderStats),
       }
     },
@@ -1309,6 +1449,48 @@ markDirtyBounds(bounds, zoomLevel) {
       renderer.dispose?.()
     },
   }
+}
+
+/**
+ * Resolve one normalized pressure signal payload from runtime scene and stats snapshots.
+ * @param sceneNodeCount Current scene node count.
+ * @param stats Latest render stats snapshot.
+ * @returns Normalized pressure signal payload.
+ */
+function resolvePolicyPressureSignals(
+  sceneNodeCount: number,
+  stats: EngineRenderStats | null,
+): EnginePressureSignals {
+  const frameMs = stats?.frameMs ?? 0
+  const gpuTextureBytes = stats?.gpuTextureBytes ?? 0
+  const tilePending = stats?.tileSchedulerPendingCount ?? 0
+
+  return {
+    cpuLoad: Math.min(1, frameMs / 16),
+    gpuLoad: Math.min(1, (stats?.drawCount ?? 0) / 2000),
+    memoryLoad: Math.min(1, gpuTextureBytes / 300_000_000),
+    visibilityLoad: Math.min(1, sceneNodeCount / 300_000),
+    streamingLoad: Math.min(1, tilePending / 128),
+  }
+}
+
+/**
+ * Resolve one effective pressure tier by taking the higher-severity tier.
+ * @param left First pressure tier.
+ * @param right Second pressure tier.
+ * @returns Higher-severity pressure tier.
+ */
+function resolveHigherPressureTier(
+  left: EngineFrameBudgetPressure,
+  right: EngineFrameBudgetPressure,
+): EngineFrameBudgetPressure {
+  const rankByTier: Record<EngineFrameBudgetPressure, number> = {
+    low: 0,
+    medium: 1,
+    high: 2,
+  }
+
+  return rankByTier[left] >= rankByTier[right] ? left : right
 }
 
 // Resolve exact-hit candidate budget so interaction and pressure tiers can cap
