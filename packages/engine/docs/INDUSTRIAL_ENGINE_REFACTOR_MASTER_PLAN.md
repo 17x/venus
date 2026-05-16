@@ -123,13 +123,13 @@
 
 说明：
 
-- 任务编号严格串行：T0001 -> T0120
+- 任务编号严格串行：T0001 -> T0160
 - 可以并行开发，但验收与合并顺序按编号推进
 - 每条任务包含：主目标、子任务、交付物、验收标准、测试细节、依赖
 
 ---
 
-## 5. 序列化任务清单（T0001-T0120）
+## 5. 序列化任务清单（T0001-T0160）
 
 ## 阶段 A：治理与基线（T0001-T0012）
 
@@ -3047,6 +3047,22 @@
 
 依赖：T0119
 
+### 阶段 G-H 扩展说明（T0121-T0160）
+
+主目标：完成 GA 后稳定性治理、2D/3D 扩展治理与项目收口就绪控制。
+
+交付物：
+
+- 阶段 G 任务文档：`packages/engine/docs/industrial-refactor/phase-g/`
+- 阶段 H 任务文档：`packages/engine/docs/industrial-refactor/phase-h/`
+- 批次变更请求：`packages/engine/docs/industrial-refactor/change-requests/CR-T0121-T0140-implementation.md`
+- 批次变更请求：`packages/engine/docs/industrial-refactor/change-requests/CR-T0141-T0160-implementation.md`
+
+验收标准：
+
+- T0121-T0160 对应契约、导出、测试与门禁校验完成。
+- 仪表盘任务状态与批次交付物保持一致。
+
 ---
 
 ## 6. 测试体系总设计（跨任务统一）
@@ -3084,6 +3100,7 @@
 - M3（管线与缓存工业化）：完成阶段 D
 - M4（五场景专项达标）：完成阶段 E
 - M5（发布与长期治理）：完成阶段 F
+- M6（GA 后治理与收口）：完成阶段 G-H
 
 ---
 

@@ -138,6 +138,20 @@ import {
 import {
   applyEngineQosBudgetToRendererContext,
 } from '../strategy/qosRendererWiring.ts'
+import {
+  resolveEngineProfilePolicyPack,
+} from '../strategy/profilePolicyPack.ts'
+import {
+  resolveEngineHybridAutoPolicy,
+  type EngineHybridAutoPolicyState,
+} from '../strategy/hybridAutoPolicy.ts'
+import {
+  resolveEngineQosDiagnosticsPanel,
+  type EngineQosDiagnosticsPanel,
+} from '../strategy/qosDiagnosticsPanel.ts'
+import {
+  resolveEngineStrategyConvergence,
+} from '../strategy/strategyConvergence.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 
@@ -384,10 +398,18 @@ export interface EngineRuntimeDiagnostics {
   }
   // Reports QoS controller and guard snapshot for phase-C wiring.
   qos: {
+    // Effective profile used by qos pipeline after hybrid switching.
+    profile: EngineProfileName
     // Stable phase used as qos controller input.
     stablePhase: EngineRenderStrategyPhase
+    // Effective pressure used by qos pipeline.
+    pressure: EngineFrameBudgetPressure
+    // Effective renderer budget after qos and hard-guard policy.
+    budget: EngineFrameBudget
     // Selected degradation ladder level.
     degradationLevel: string
+    // Latest fallback reason captured by qos diagnostics panel.
+    fallbackReason: EngineRenderFallbackReason | null
     // QoS decision trace id payload.
     trace: string
     // Applied hard-guard trigger list.
@@ -682,7 +704,30 @@ export function createEngine(options: CreateEngineOptions): Engine {
   let latestQosTrace = ''
   let latestQosDegradationLevel = 'none'
   let latestQosGuardTriggers: string[] = []
+  let latestQosProfile: EngineProfileName = resolvedSettingsProfile
+  let latestQosPressure: EngineFrameBudgetPressure = latestBudgetPressure
+  let latestQosBudget: EngineFrameBudget = {
+    drawSubmitBudgetMs: 0,
+    textureUploadBudgetBytes: 0,
+    textureUploadTotalBudgetBytes: 0,
+    imageTextureUploadMaxCount: 0,
+    textTextureUploadMaxCount: 0,
+    tilePreloadBudgetMs: 0,
+    tilePreloadMaxUploads: 0,
+    overlayPassBudgetMs: 0,
+  }
   let latestQosStablePhase: EngineRenderStrategyPhase = 'static'
+  let latestQosFallbackReason: EngineRenderFallbackReason | null = null
+  let latestQosPanel: EngineQosDiagnosticsPanel = resolveEngineQosDiagnosticsPanel({
+    profile: latestQosProfile,
+    phase: latestQosStablePhase,
+    pressure: latestQosPressure,
+    budget: latestQosBudget,
+    degradationLevel: latestQosDegradationLevel,
+    fallbackReason: latestQosFallbackReason,
+    guardTriggers: latestQosGuardTriggers,
+    trace: latestQosTrace,
+  })
   let lastInteractionAtMs = clock.now()
   let lastInteractionKind: EngineInteractionMutationKind = 'none'
   const settleSharpnessState = {
@@ -707,6 +752,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
     phase: latestQosStablePhase,
     pendingPhase: null as EngineRenderStrategyPhase | null,
     pendingFrames: 0,
+  }
+  let hybridPolicyState: EngineHybridAutoPolicyState = {
+    profile: 'editor',
+    lastSwitchAtMs: clock.now(),
+    pendingProfile: null,
+    pendingFrameCount: 0,
   }
   const CAMERA_ANIMATION_ID = 'engine.camera.viewport'
   let cameraAnimationTarget: EngineCanvasViewportState | null = null
@@ -954,9 +1005,23 @@ export function createEngine(options: CreateEngineOptions): Engine {
       renderContext.frameBudgetPressure = effectiveBudgetPressure
       latestBudgetPressure = effectiveBudgetPressure
 
+      const convergedStrategyPhase = resolveEngineStrategyConvergence(latestQosStablePhase)
+      let effectiveQosProfile: EngineProfileName = resolvedSettingsProfile
+      if (resolvedSettingsProfile === 'hybrid') {
+        // Hybrid mode derives one concrete profile tendency to avoid frame-to-frame
+        // budget jitter between editor/game/animation semantics.
+        const hybridDecision = resolveEngineHybridAutoPolicy(
+          hybridPolicyState,
+          convergedStrategyPhase.phase,
+          clock.now(),
+        )
+        hybridPolicyState = hybridDecision.state
+        effectiveQosProfile = hybridDecision.effectiveProfile
+      }
+
       const strategyInputV2 = resolveEngineStrategyInputV2({
-        profile: resolvedSettingsProfile,
-        phase: latestQosStablePhase,
+        profile: effectiveQosProfile,
+        phase: convergedStrategyPhase.phase,
         pressure: effectiveBudgetPressure,
         cameraAnimationActive: cameraAnimationState.active,
         predictorConfidence: latestInteractionPredictor.confidence,
@@ -971,6 +1036,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
         capabilityTier: resolvedCapabilityProfile.gpuTier,
         degradation: degradationDecision,
       })
+      const profilePolicyPack = resolveEngineProfilePolicyPack(
+        strategyInputV2.profile,
+        strategyInputV2.phase,
+        strategyInputV2.pressure,
+        qosDecision.budget,
+      )
       const qosHardGuardResult = applyEngineQosHardGuard(
         {
           profile: strategyInputV2.profile,
@@ -979,14 +1050,36 @@ export function createEngine(options: CreateEngineOptions): Engine {
           capabilityTier: resolvedCapabilityProfile.gpuTier,
           degradation: degradationDecision,
         },
-        qosDecision,
+        {
+          ...qosDecision,
+          budget: profilePolicyPack.budget,
+        },
       )
       latestQosTrace = qosHardGuardResult.decision.trace
-      latestQosGuardTriggers = qosHardGuardResult.triggers
+      latestQosGuardTriggers = [
+        ...profilePolicyPack.guardTriggers,
+        ...qosHardGuardResult.triggers,
+      ]
       renderContext.frameBudget = applyEngineQosBudgetToRendererContext(
         renderContext.frameBudget,
         qosHardGuardResult.decision,
       )
+      latestQosProfile = strategyInputV2.profile
+      latestQosPressure = strategyInputV2.pressure
+      latestQosBudget = {
+        ...renderContext.frameBudget,
+      }
+      latestQosFallbackReason = latestRenderStats?.cacheFallbackReason ?? null
+      latestQosPanel = resolveEngineQosDiagnosticsPanel({
+        profile: latestQosProfile,
+        phase: latestQosStablePhase,
+        pressure: latestQosPressure,
+        budget: latestQosBudget,
+        degradationLevel: latestQosDegradationLevel,
+        fallbackReason: latestQosFallbackReason,
+        guardTriggers: latestQosGuardTriggers,
+        trace: latestQosTrace,
+      })
 
       if (settleSharpnessState.pending && clock.now() > settleSharpnessState.deadlineAtMs) {
         // Record one contract miss and force one immediate sharp recovery frame.
@@ -1520,10 +1613,16 @@ markDirtyBounds(bounds, zoomLevel) {
           scalerDecisionReason: latestAutoQualityDecisionReason,
         },
         qos: {
-          stablePhase: latestQosStablePhase,
-          degradationLevel: latestQosDegradationLevel,
-          trace: latestQosTrace,
-          guardTriggers: [...latestQosGuardTriggers],
+          profile: latestQosPanel.profile,
+          stablePhase: latestQosPanel.phase,
+          pressure: latestQosPanel.pressure,
+          budget: {
+            ...latestQosPanel.budget,
+          },
+          degradationLevel: latestQosPanel.degradationLevel,
+          fallbackReason: latestQosPanel.fallbackReason,
+          trace: latestQosPanel.trace,
+          guardTriggers: [...latestQosPanel.guardTriggers],
         },
         performanceGate: resolveEnginePerformanceGateStatus(latestRenderStats),
       }

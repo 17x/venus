@@ -8,3 +8,10 @@ export type {
 export {
   resolveEnginePerformanceGateStatus,
 } from '../runtime/createEngine/performanceGate.ts'
+
+export type {
+  EngineRuntimeInspectorV2Snapshot,
+} from './runtimeInspectorV2.ts'
+export {
+  resolveEngineRuntimeInspectorV2Snapshot,
+} from './runtimeInspectorV2.ts'

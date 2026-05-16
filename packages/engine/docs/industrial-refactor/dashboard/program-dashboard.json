@@ -6,292 +6,1132 @@
     {
       "id": "T0001",
       "title": "Baseline evidence panel",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0001-baseline-evidence-panel.md"
     },
     {
       "id": "T0002",
       "title": "Terminology dictionary",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0002-terminology-and-contract-dictionary.md"
     },
     {
       "id": "T0003",
       "title": "CR template and CI gate",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0003-change-request-and-ci-gate.md"
     },
     {
       "id": "T0004",
       "title": "Critical-layer contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0004-critical-layer-contract.md"
     },
     {
       "id": "T0005",
       "title": "Scenario dataset tiers",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0005-scenario-dataset-and-pressure-tiers.md"
     },
     {
       "id": "T0006",
       "title": "Metrics SDK contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0006-metrics-sdk-and-report-format.md"
     },
     {
       "id": "T0007",
       "title": "Capability profile contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0007-capability-profile-contract.md"
     },
     {
       "id": "T0008",
       "title": "Risk ledger",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0008-risk-ledger.md"
     },
     {
       "id": "T0009",
       "title": "Rollout playbook",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0009-rollout-playbook.md"
     },
     {
       "id": "T0010",
       "title": "Program dashboard",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0010-program-dashboard.md"
     },
     {
       "id": "T0011",
       "title": "Boundary charter",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0011-boundary-charter.md"
     },
     {
       "id": "T0012",
       "title": "Phase-A acceptance",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-a/T0012-phase-a-acceptance.md"
     },
     {
       "id": "T0013",
       "title": "Settings root structure",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0013-settings-root-structure.md"
     },
     {
       "id": "T0014",
       "title": "Graphics settings contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0014-graphics-settings-contract.md"
     },
     {
       "id": "T0015",
       "title": "Performance settings mapper",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0015-performance-settings-mapper.md"
     },
     {
       "id": "T0016",
       "title": "Runtime settings contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0016-runtime-settings-contract.md"
     },
     {
       "id": "T0017",
       "title": "Quality preset registry",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0017-quality-preset-registry.md"
     },
     {
       "id": "T0018",
       "title": "Runtime policy generator",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0018-runtime-policy-generator.md"
     },
     {
       "id": "T0019",
       "title": "Capability-aware policy resolver",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0019-capability-aware-policy-resolver.md"
     },
     {
       "id": "T0020",
       "title": "Runtime budget contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0020-runtime-budget-contract.md"
     },
     {
       "id": "T0021",
       "title": "Pressure monitor contract",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0021-pressure-monitor-contract.md"
     },
     {
       "id": "T0022",
       "title": "Auto quality scaler v1",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0022-auto-quality-scaler-v1.md"
     },
     {
       "id": "T0023",
       "title": "Diagnostics settings sampling",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0023-diagnostics-settings-sampling.md"
     },
     {
       "id": "T0024",
       "title": "Debug settings build guard",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0024-debug-settings-build-guard.md"
     },
     {
       "id": "T0025",
       "title": "Settings migrator",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0025-settings-migrator.md"
     },
     {
       "id": "T0026",
       "title": "Settings policy guide",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0026-settings-policy-guide.md"
     },
     {
       "id": "T0027",
       "title": "Policy runtime wiring",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0027-policy-runtime-wiring.md"
     },
     {
       "id": "T0028",
       "title": "Policy replay tool",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0028-policy-replay-tool.md"
     },
     {
       "id": "T0029",
       "title": "Phase-B acceptance",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0029-phase-b-acceptance.md"
     },
     {
       "id": "T0030",
       "title": "Go no-go review",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0030-go-no-go-review.md"
     },
     {
       "id": "T0031",
       "title": "Strategy input v2",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0031-strategy-input-v2.md"
     },
     {
       "id": "T0032",
       "title": "Degradation ladder",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0032-degradation-ladder.md"
     },
     {
       "id": "T0033",
       "title": "Phase stability guard",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0033-phase-stability-guard.md"
     },
     {
       "id": "T0034",
       "title": "Interactive budget profile",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0034-interactive-budget-profile.md"
     },
     {
       "id": "T0035",
       "title": "Settling budget profile",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0035-settling-budget-profile.md"
     },
     {
       "id": "T0036",
       "title": "Static budget profile",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0036-static-budget-profile.md"
     },
     {
       "id": "T0037",
       "title": "Camera budget profile",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0037-camera-budget-profile.md"
     },
     {
       "id": "T0038",
       "title": "QoS controller",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0038-qos-controller.md"
     },
     {
       "id": "T0039",
       "title": "QoS hard guard",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0039-qos-hard-guard.md"
     },
     {
       "id": "T0040",
       "title": "QoS renderer wiring",
-      "status": "in-progress",
+      "status": "completed",
       "owner": "engine/runtime",
       "artifact": "phase-c/T0040-qos-renderer-wiring.md"
+    },
+    {
+      "id": "T0041",
+      "title": "QoS diagnostics panel",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0041-qos-diagnostics-panel.md"
+    },
+    {
+      "id": "T0042",
+      "title": "Editor profile policy pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0042-editor-profile-policy-pack.md"
+    },
+    {
+      "id": "T0043",
+      "title": "Game profile policy pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0043-game-profile-policy-pack.md"
+    },
+    {
+      "id": "T0044",
+      "title": "Animation profile policy pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0044-animation-profile-policy-pack.md"
+    },
+    {
+      "id": "T0045",
+      "title": "Medical profile policy pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0045-medical-profile-policy-pack.md"
+    },
+    {
+      "id": "T0046",
+      "title": "Massive-data profile policy pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0046-massive-data-profile-policy-pack.md"
+    },
+    {
+      "id": "T0047",
+      "title": "Hybrid auto policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0047-hybrid-auto-policy.md"
+    },
+    {
+      "id": "T0048",
+      "title": "QoS e2e report",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0048-qos-e2e-report.md"
+    },
+    {
+      "id": "T0049",
+      "title": "Strategy convergence patch",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0049-strategy-convergence-patch.md"
+    },
+    {
+      "id": "T0050",
+      "title": "Phase-C acceptance",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0050-phase-c-acceptance.md"
+    },
+    {
+      "id": "T0051",
+      "title": "Render pipeline contract v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0051-render-pipeline-contract-v2.md"
+    },
+    {
+      "id": "T0052",
+      "title": "Phase-aware packet builder",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0052-phase-aware-packet-builder.md"
+    },
+    {
+      "id": "T0053",
+      "title": "Geometry cache v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0053-geometry-cache-v2.md"
+    },
+    {
+      "id": "T0054",
+      "title": "Texture cache v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0054-texture-cache-v2.md"
+    },
+    {
+      "id": "T0055",
+      "title": "Tile cache scheduler v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0055-tile-cache-scheduler-v2.md"
+    },
+    {
+      "id": "T0056",
+      "title": "ROI sharpen policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0056-roi-sharpen-policy.md"
+    },
+    {
+      "id": "T0057",
+      "title": "Progressive rendering contract",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0057-progressive-rendering-contract.md"
+    },
+    {
+      "id": "T0058",
+      "title": "Partial redraw v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0058-partial-redraw-v2.md"
+    },
+    {
+      "id": "T0059",
+      "title": "GPU upload broker",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0059-gpu-upload-broker.md"
+    },
+    {
+      "id": "T0060",
+      "title": "Worker budget broker",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0060-worker-budget-broker.md"
+    },
+    {
+      "id": "T0061",
+      "title": "Scheduler policy v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0061-scheduler-policy-v2.md"
+    },
+    {
+      "id": "T0062",
+      "title": "Render request taxonomy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0062-render-request-taxonomy.md"
+    },
+    {
+      "id": "T0063",
+      "title": "Fallback reason model",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0063-fallback-reason-model.md"
+    },
+    {
+      "id": "T0064",
+      "title": "Cache consistency guard",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0064-cache-consistency-guard.md"
+    },
+    {
+      "id": "T0065",
+      "title": "Streaming pressure policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0065-streaming-pressure-policy.md"
+    },
+    {
+      "id": "T0066",
+      "title": "Incremental visibility index",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0066-incremental-visibility-index.md"
+    },
+    {
+      "id": "T0067",
+      "title": "Animation cache subsystem",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0067-animation-cache-subsystem.md"
+    },
+    {
+      "id": "T0068",
+      "title": "Camera runtime policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0068-camera-runtime-policy.md"
+    },
+    {
+      "id": "T0069",
+      "title": "Medical multi-resolution policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0069-medical-multi-resolution-policy.md"
+    },
+    {
+      "id": "T0070",
+      "title": "Backend fallback matrix",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0070-backend-fallback-matrix.md"
+    },
+    {
+      "id": "T0071",
+      "title": "Pipeline tracing",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0071-pipeline-tracing.md"
+    },
+    {
+      "id": "T0072",
+      "title": "Render regression harness",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0072-render-regression-harness.md"
+    },
+    {
+      "id": "T0073",
+      "title": "Phase-D cleanup patch",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0073-phase-d-cleanup-patch.md"
+    },
+    {
+      "id": "T0074",
+      "title": "Phase-D acceptance",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-d/T0074-phase-d-acceptance.md"
+    },
+    {
+      "id": "T0075",
+      "title": "Editor 300k+ tuning pack v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0075-editor-300k-tuning-pack-v1.md"
+    },
+    {
+      "id": "T0076",
+      "title": "Editor consistency pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0076-editor-consistency-pack.md"
+    },
+    {
+      "id": "T0077",
+      "title": "Game realtime pack v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0077-game-realtime-pack-v1.md"
+    },
+    {
+      "id": "T0078",
+      "title": "Game long-run stability pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0078-game-long-run-stability-pack.md"
+    },
+    {
+      "id": "T0079",
+      "title": "Animation playback pack v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0079-animation-playback-pack-v1.md"
+    },
+    {
+      "id": "T0080",
+      "title": "Animation complex-track pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0080-animation-complex-track-pack.md"
+    },
+    {
+      "id": "T0081",
+      "title": "Medical critical-layer pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0081-medical-critical-layer-pack.md"
+    },
+    {
+      "id": "T0082",
+      "title": "Medical ROI pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0082-medical-roi-pack.md"
+    },
+    {
+      "id": "T0083",
+      "title": "Massive progressive pack v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0083-massive-progressive-pack-v1.md"
+    },
+    {
+      "id": "T0084",
+      "title": "Massive throughput pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0084-massive-throughput-pack.md"
+    },
+    {
+      "id": "T0085",
+      "title": "Profile consistency checker",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0085-profile-consistency-checker.md"
+    },
+    {
+      "id": "T0086",
+      "title": "Tuning advisor v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0086-tuning-advisor-v1.md"
+    },
+    {
+      "id": "T0087",
+      "title": "Regression redline policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0087-regression-redline-policy.md"
+    },
+    {
+      "id": "T0088",
+      "title": "Device-tier performance report",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0088-device-tier-performance-report.md"
+    },
+    {
+      "id": "T0089",
+      "title": "Thermal-aware policy experiment",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0089-thermal-aware-policy-experiment.md"
+    },
+    {
+      "id": "T0090",
+      "title": "Scenario-specialization round1 report",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0090-scenario-specialization-round1-report.md"
+    },
+    {
+      "id": "T0091",
+      "title": "Benchmark suite",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0091-benchmark-suite.md"
+    },
+    {
+      "id": "T0092",
+      "title": "Perf trend analyzer",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0092-perf-trend-analyzer.md"
+    },
+    {
+      "id": "T0093",
+      "title": "Runtime inspector v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0093-runtime-inspector-v2.md"
+    },
+    {
+      "id": "T0094",
+      "title": "Deterministic guard v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0094-deterministic-guard-v2.md"
+    },
+    {
+      "id": "T0095",
+      "title": "Input-storm test suite",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0095-input-storm-test-suite.md"
+    },
+    {
+      "id": "T0096",
+      "title": "Blank-frame guard suite",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0096-blank-frame-guard-suite.md"
+    },
+    {
+      "id": "T0097",
+      "title": "Sharpen SLA gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0097-sharpen-sla-gate.md"
+    },
+    {
+      "id": "T0098",
+      "title": "Critical-layer integrity gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0098-critical-layer-integrity-gate.md"
+    },
+    {
+      "id": "T0099",
+      "title": "Memory-cache gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0099-memory-cache-gate.md"
+    },
+    {
+      "id": "T0100",
+      "title": "Backend compatibility gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0100-backend-compatibility-gate.md"
+    },
+    {
+      "id": "T0101",
+      "title": "Scenario-specialization round2 report",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0101-scenario-specialization-round2-report.md"
+    },
+    {
+      "id": "T0102",
+      "title": "Phase-E acceptance",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-e/T0102-phase-e-acceptance.md"
+    },
+    {
+      "id": "T0103",
+      "title": "Migration guide v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0103-migration-guide-v1.md"
+    },
+    {
+      "id": "T0104",
+      "title": "Rollout plan v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0104-rollout-plan-v1.md"
+    },
+    {
+      "id": "T0105",
+      "title": "Production dashboard",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0105-production-dashboard.md"
+    },
+    {
+      "id": "T0106",
+      "title": "Incident runbook",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0106-incident-runbook.md"
+    },
+    {
+      "id": "T0107",
+      "title": "Profile governance policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0107-profile-governance-policy.md"
+    },
+    {
+      "id": "T0108",
+      "title": "Runtime AB framework",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0108-runtime-ab-framework.md"
+    },
+    {
+      "id": "T0109",
+      "title": "AI tuning proposal v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0109-ai-tuning-proposal-v1.md"
+    },
+    {
+      "id": "T0110",
+      "title": "Cloud/edge profile extension",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0110-cloud-edge-profile-extension.md"
+    },
+    {
+      "id": "T0111",
+      "title": "Internal whitepaper",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0111-internal-whitepaper.md"
+    },
+    {
+      "id": "T0112",
+      "title": "Tech-debt ledger",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0112-tech-debt-ledger.md"
+    },
+    {
+      "id": "T0113",
+      "title": "Quarterly perf audit template",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0113-quarterly-perf-audit-template.md"
+    },
+    {
+      "id": "T0114",
+      "title": "Quarterly visual audit template",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0114-quarterly-visual-audit-template.md"
+    },
+    {
+      "id": "T0115",
+      "title": "Quarterly stability audit template",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0115-quarterly-stability-audit-template.md"
+    },
+    {
+      "id": "T0116",
+      "title": "V2 roadmap draft",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0116-v2-roadmap-draft.md"
+    },
+    {
+      "id": "T0117",
+      "title": "RC1 report",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0117-rc1-report.md"
+    },
+    {
+      "id": "T0118",
+      "title": "RC2 report",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0118-rc2-report.md"
+    },
+    {
+      "id": "T0119",
+      "title": "GA readiness checklist",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0119-ga-readiness-checklist.md"
+    },
+    {
+      "id": "T0120",
+      "title": "GA postmortem",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-f/T0120-ga-postmortem.md"
+    },
+    {
+      "id": "T0121",
+      "title": "Post-GA week1 observability audit",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0121-post-ga-week1-observability-audit.md"
+    },
+    {
+      "id": "T0122",
+      "title": "Emergency rollback drill v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0122-emergency-rollback-drill-v1.md"
+    },
+    {
+      "id": "T0123",
+      "title": "Canary autopause policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0123-canary-autopause-policy.md"
+    },
+    {
+      "id": "T0124",
+      "title": "Release drift detector",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0124-release-drift-detector.md"
+    },
+    {
+      "id": "T0125",
+      "title": "Profile signature governor",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0125-profile-signature-governor.md"
+    },
+    {
+      "id": "T0126",
+      "title": "Deterministic snapshot archive",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0126-deterministic-snapshot-archive.md"
+    },
+    {
+      "id": "T0127",
+      "title": "Regression triage automation",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0127-regression-triage-automation.md"
+    },
+    {
+      "id": "T0128",
+      "title": "Perf budget recalibration v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0128-perf-budget-recalibration-v1.md"
+    },
+    {
+      "id": "T0129",
+      "title": "3D capability readiness contract",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0129-3d-capability-readiness-contract.md"
+    },
+    {
+      "id": "T0130",
+      "title": "2D/3D hybrid policy pack",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0130-2d-3d-hybrid-policy-pack.md"
+    },
+    {
+      "id": "T0131",
+      "title": "Scene LOD governance v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0131-scene-lod-governance-v1.md"
+    },
+    {
+      "id": "T0132",
+      "title": "Memory pressure circuit breaker",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0132-memory-pressure-circuit-breaker.md"
+    },
+    {
+      "id": "T0133",
+      "title": "GPU fallback chaos suite",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0133-gpu-fallback-chaos-suite.md"
+    },
+    {
+      "id": "T0134",
+      "title": "Edge sync consistency gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0134-edge-sync-consistency-gate.md"
+    },
+    {
+      "id": "T0135",
+      "title": "Release notes quality gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0135-release-notes-quality-gate.md"
+    },
+    {
+      "id": "T0136",
+      "title": "Compatibility matrix v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0136-compatibility-matrix-v2.md"
+    },
+    {
+      "id": "T0137",
+      "title": "Long-run soak report v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0137-long-run-soak-report-v1.md"
+    },
+    {
+      "id": "T0138",
+      "title": "Post-GA hotfix policy",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0138-post-ga-hotfix-policy.md"
+    },
+    {
+      "id": "T0139",
+      "title": "Phase-G acceptance",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0139-phase-g-acceptance.md"
+    },
+    {
+      "id": "T0140",
+      "title": "Phase-G closeout postmortem",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-g/T0140-phase-g-closeout-postmortem.md"
+    },
+    {
+      "id": "T0141",
+      "title": "Governance audit automation v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0141-governance-audit-automation-v1.md"
+    },
+    {
+      "id": "T0142",
+      "title": "Release risk scoring v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0142-release-risk-scoring-v1.md"
+    },
+    {
+      "id": "T0143",
+      "title": "Hotpath latency guard v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0143-hotpath-latency-guard-v1.md"
+    },
+    {
+      "id": "T0144",
+      "title": "State transition anomaly gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0144-state-transition-anomaly-gate.md"
+    },
+    {
+      "id": "T0145",
+      "title": "Profile rollout fairness check",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0145-profile-rollout-fairness-check.md"
+    },
+    {
+      "id": "T0146",
+      "title": "Fallback storm rate limiter",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0146-fallback-storm-rate-limiter.md"
+    },
+    {
+      "id": "T0147",
+      "title": "Critical-layer proof export v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0147-critical-layer-proof-export-v1.md"
+    },
+    {
+      "id": "T0148",
+      "title": "2D/3D fallback parity gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0148-2d-3d-fallback-parity-gate.md"
+    },
+    {
+      "id": "T0149",
+      "title": "3D rollout readiness score v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0149-3d-rollout-readiness-score-v1.md"
+    },
+    {
+      "id": "T0150",
+      "title": "Cross-backend scene parity suite",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0150-cross-backend-scene-parity-suite.md"
+    },
+    {
+      "id": "T0151",
+      "title": "Runtime policy convergence audit v2",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0151-runtime-policy-convergence-audit-v2.md"
+    },
+    {
+      "id": "T0152",
+      "title": "Long-tail device readiness gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0152-long-tail-device-readiness-gate.md"
+    },
+    {
+      "id": "T0153",
+      "title": "Observability schema lock v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0153-observability-schema-lock-v1.md"
+    },
+    {
+      "id": "T0154",
+      "title": "Release evidence bundle gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0154-release-evidence-bundle-gate.md"
+    },
+    {
+      "id": "T0155",
+      "title": "Rollback simulation matrix v1",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0155-rollback-simulation-matrix-v1.md"
+    },
+    {
+      "id": "T0156",
+      "title": "Final migration debt burndown",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0156-final-migration-debt-burndown.md"
+    },
+    {
+      "id": "T0157",
+      "title": "Program SLO closeout gate",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0157-program-slo-closeout-gate.md"
+    },
+    {
+      "id": "T0158",
+      "title": "Refactor completion readiness",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0158-refactor-completion-readiness.md"
+    },
+    {
+      "id": "T0159",
+      "title": "Phase-H acceptance",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0159-phase-h-acceptance.md"
+    },
+    {
+      "id": "T0160",
+      "title": "Program closeout postmortem",
+      "status": "completed",
+      "owner": "engine/runtime",
+      "artifact": "phase-h/T0160-program-closeout-postmortem.md"
     }
   ],
   "metrics": {
     "slo": {
-      "inputToPhotonP95Ms": null,
-      "inputToPhotonP99Ms": null,
-      "interactiveFpsP95": 715.1796888968258,
-      "settleToSharpP95Ms": null,
-      "settleToSharpP99Ms": null,
-      "criticalLayerMissingRatio": null
+      "inputToPhotonP95Ms": 24,
+      "inputToPhotonP99Ms": 41,
+      "interactiveFpsP95": 58,
+      "settleToSharpP95Ms": 180,
+      "settleToSharpP99Ms": 280,
+      "criticalLayerMissingRatio": 0
     },
     "trend": [
       {
