@@ -8,6 +8,7 @@ import {createEngine} from '../../engine.ts'
 import {buildDocumentImageAssetUrlMap} from '../../../presets/index.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {createEngineStatsHandler} from './createEngineStatsHandler.ts'
+import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 
 const ENABLE_RUNTIME_RENDER_DIAGNOSTICS = true
 
@@ -195,6 +196,7 @@ export function useEngineRendererLifecycle(params: {
 
     const engine = createEngine({
       canvas: renderSurface,
+      settings: VECTOR_ENGINE_SCENE_PROFILE.settings,
       host: {
         resolvePixelRatio: () => window.devicePixelRatio || 1,
         createCanvasSurface: (width: number, height: number) => {
@@ -207,6 +209,7 @@ export function useEngineRendererLifecycle(params: {
       render: {
         webglClearColor: [1, 1, 1, 1],
         layeredBridgeEnabled: true,
+        interactionPreview: VECTOR_ENGINE_SCENE_PROFILE.render.interactionPreview,
       },
       resource: {
         loader: {

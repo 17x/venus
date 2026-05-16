@@ -4,6 +4,7 @@ import type {
 } from '../../engine.ts'
 import type {CanvasViewportState as EngineViewportState} from '../../../index.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
+import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 
 const OVERSCAN_PX = 0
 const FULL_REDRAW_QUIET_WINDOW_MS = 140
@@ -11,8 +12,10 @@ const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
 const FULL_REDRAW_DEFER_MS = 32
 const RESIZE_COMMIT_DEFER_MS = 260
 const RESIZE_COMMIT_THRESHOLD_PX = 96
-const CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS = 44
-const CAMERA_SETTLE_ANIMATION_DURATION_MS = 72
+const CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS =
+  VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.interactiveZoomDurationMs
+const CAMERA_SETTLE_ANIMATION_DURATION_MS =
+  VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.settleDurationMs
 
 /**
  * Commits viewport and output size updates into the engine with interaction-aware scheduling.
@@ -292,13 +295,21 @@ export function useEngineRendererViewport(params: {
       const viewportStateUpdateStart = performance.now()
       // Keep pan/drag input strictly follow-finger by committing directly.
       // Only wheel/pinch zoom uses short interpolation during active gesture.
-      if (params.interactionActive && params.interactionPhase === 'zoom') {
+      if (
+        params.interactionActive &&
+        params.interactionPhase === 'zoom' &&
+        VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.interactiveZoomEnabled
+      ) {
         engine.updateCameraAnimation(nextViewportState, {
           durationMs: CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS,
           easing: 'linear',
           cachePreviewOnly: true,
         })
-      } else if (!params.interactionActive && wasInteractionActive) {
+      } else if (
+        !params.interactionActive &&
+        wasInteractionActive &&
+        VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.settleEnabled
+      ) {
         // Keep one short settle animation so the first post-gesture frame can
         // converge smoothly to the latest runtime viewport target.
         engine.updateCameraAnimation(nextViewportState, {
