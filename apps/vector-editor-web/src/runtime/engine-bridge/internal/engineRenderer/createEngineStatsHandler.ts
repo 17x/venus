@@ -139,7 +139,6 @@ export function createEngineStatsHandler(params: {
   deferredVisualRecoveryPendingRef: React.MutableRefObject<boolean>
   requestDeferredVisualRecovery: () => void
   presentLatencyRafPendingRef: React.MutableRefObject<boolean>
-  isInteractingRef: React.MutableRefObject<boolean>
   requestEngineRender: (
     mode?: 'interactive' | 'normal',
     reason?: 'scene-dirty' | 'deferred-image-drain' | 'idle-redraw' | 'interactive-viewport' | 'camera-animation' | 'overlay-dirty',
@@ -407,7 +406,9 @@ export function createEngineStatsHandler(params: {
       })
     }
 
-    if (webglStats.cameraAnimationActive && !params.isInteractingRef.current) {
+    // Keep camera interpolation advancing while active regardless of
+    // interaction state, otherwise animation can stall after first input tick.
+    if (webglStats.cameraAnimationActive) {
       params.requestEngineRender('interactive', 'camera-animation')
     }
   }

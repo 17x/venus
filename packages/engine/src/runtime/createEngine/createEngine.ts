@@ -768,6 +768,8 @@ export function createEngine(options: CreateEngineOptions): Engine {
         dirtyRegionCount: renderContext.dirtyRegions?.length ?? 0,
         settleSharpnessPending: settleSharpnessState.pending,
         forceSharpFrame: settleSharpnessState.forceSharpFrame,
+        predictorConfidence: latestInteractionPredictor.confidence,
+        predictorSpeedPxPerSec: latestInteractionPredictor.speedPxPerSec,
       })
       renderContext.frameBudget = frameBudgetDecision.budget
       renderContext.frameBudgetPressure = frameBudgetDecision.pressure

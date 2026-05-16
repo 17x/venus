@@ -304,6 +304,7 @@ export function resolvePacketTextureSourceRect(
  * @param imageCache imageCache parameter.
  * @param budget budget parameter.
  * @param uploadBudget uploadBudget parameter.
+ * @param allowInteractiveUpload Whether interaction frames may upload this image when it is critical.
  */
 export function resolveImageTexture(
   context: WebGLRenderingContext | WebGL2RenderingContext,
@@ -313,6 +314,7 @@ export function resolveImageTexture(
   imageCache: Map<string, CachedTextureEntry>,
   budget: ReturnType<typeof createEngineWebGLResourceBudgetTracker>,
   uploadBudget: ImageUploadBudgetState,
+  allowInteractiveUpload = false,
 ): ResolvedImageTextureResult {
   const imageCacheKey = resolveImageCacheKey(assetId)
   const existing = imageCache.get(assetId)
@@ -329,7 +331,7 @@ export function resolveImageTexture(
     }
   }
 
-  if (frame.context.quality === 'interactive') {
+  if (frame.context.quality === 'interactive' && !allowInteractiveUpload) {
     // Freeze expensive texture uploads during active interaction and rely on
     // settled frames to populate missing image textures.
     return {

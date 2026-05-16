@@ -98,6 +98,7 @@ const TILE_SIZE_CSS_FALLBACK = 512
 const TILE_CACHE_SIZE_MIN = 64
 const TEXTURE_BYTES_PER_PIXEL_RGBA = 4
 const HIGH_ZOOM_TEXT_SLA_SCALE = 2
+const INTERACTIVE_CRITICAL_PACKET_MAX_SCREEN_AREA_PX = 48_000
 
 const DEFAULT_FRAME_BUDGET: EngineFrameBudget = {
   drawSubmitBudgetMs: 28,
@@ -184,6 +185,46 @@ function doesPacketIntersectDirtyRegions(
     ) {
       return true
     }
+  }
+
+  return false
+}
+
+/**
+ * Resolves whether one packet should bypass interaction upload freeze.
+ * @param frame Current render frame.
+ * @param packet Packet payload from WebGL packet plan.
+ * @param activeLayerPass Whether packet belongs to active interaction layer.
+ */
+function shouldPrioritizeInteractiveTexturePacket(
+  frame: EngineRenderFrame,
+  packet: {
+    kind: 'shape' | 'text' | 'image'
+    nodeId: string
+    worldBounds: {x: number; y: number; width: number; height: number}
+  },
+  activeLayerPass: boolean,
+): boolean {
+  if (activeLayerPass) {
+    return true
+  }
+
+  // Keep directly interacted/protected nodes legible during pan/zoom feedback.
+  if (frame.context.interactionActiveNodeIds?.includes(packet.nodeId)) {
+    return true
+  }
+  if (frame.context.protectedNodeIds?.includes(packet.nodeId)) {
+    return true
+  }
+
+  if (packet.kind === 'text' && frame.viewport.scale >= HIGH_ZOOM_TEXT_SLA_SCALE) {
+    return true
+  }
+
+  if (packet.kind === 'image') {
+    const scale = Math.max(0, frame.viewport.scale)
+    const area = Math.max(0, packet.worldBounds.width * scale) * Math.max(0, packet.worldBounds.height * scale)
+    return area <= INTERACTIVE_CRITICAL_PACKET_MAX_SCREEN_AREA_PX
   }
 
   return false
@@ -1040,6 +1081,9 @@ export function createWebGLEngineRenderer(
             imageCache,
             resourceBudget,
             imageUploadBudget,
+            interactiveQuality
+              ? shouldPrioritizeInteractiveTexturePacket(effectiveFrame, packet, activeLayerPass)
+              : false,
           )
           webglTextureUploadMs += imageTexture.uploadMs
           if (imageTexture.deferred) {
@@ -1108,18 +1152,25 @@ export function createWebGLEngineRenderer(
               continue
             }
 
-            // Avoid texture uploads during interaction and fall back only when
-            // there is no existing text texture to preview with.
-            interactiveTextFallbackCount += 1
-            drawCount += drawInteractiveTextFallback(
-              context,
-              pipeline,
+            const shouldUploadCriticalText = shouldPrioritizeInteractiveTexturePacket(
               effectiveFrame,
-              packet.worldBounds,
-              packet.color,
-              packet.opacity,
+              packet,
+              activeLayerPass,
             )
-            continue
+            if (!shouldUploadCriticalText) {
+              // Avoid texture uploads during interaction and fall back only when
+              // packet is not marked as critical in the current frame context.
+              interactiveTextFallbackCount += 1
+              drawCount += drawInteractiveTextFallback(
+                context,
+                pipeline,
+                effectiveFrame,
+                packet.worldBounds,
+                packet.color,
+                packet.opacity,
+              )
+              continue
+            }
           }
 
           // Try cached text texture first

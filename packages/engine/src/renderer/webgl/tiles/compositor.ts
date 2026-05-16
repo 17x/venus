@@ -14,6 +14,7 @@ import {
 import {
   resolvePredictiveTileRingWindow,
 } from '../../interactionPredictiveTiles/index.ts'
+import { resolveRoiPrioritizedPreloadTiles } from './tileRoiPreloadPolicy/tileRoiPreloadPolicy.ts'
 import {
   buildTileTextureSourceFromModelSurface,
   clampTileZoomLevel,
@@ -77,6 +78,10 @@ export function drawModelSurfaceAsTiles(options: {
     visibleTiles,
     zoomLevel,
     preloadRingWindow,
+  )
+  const prioritizedPreloadTiles = resolveRoiPrioritizedPreloadTiles(
+    preloadTiles,
+    options.frame.viewport,
   )
   const pixelRatio = options.frame.context.pixelRatio ?? 1
   const viewportWidthPx = Math.max(1, Math.round(options.frame.viewport.viewportWidth * pixelRatio))
@@ -240,13 +245,13 @@ export function drawModelSurfaceAsTiles(options: {
   }
 
   // In progressive-refresh mode, queue nearby preload work through scheduler.
-  if (options.tileScheduler && preloadTiles.length > 0) {
+  if (options.tileScheduler && prioritizedPreloadTiles.length > 0) {
     const dpr = options.frame.context.pixelRatio ?? 1
     const renderVersion = typeof options.frame.scene.revision === 'number'
       ? options.frame.scene.revision
       : 0
     options.tileScheduler.requestMany(
-      preloadTiles.map((tile) => ({
+      prioritizedPreloadTiles.map((tile) => ({
         key: createTileKey({
           tileX: tile.gridX,
           tileY: tile.gridY,
@@ -265,7 +270,7 @@ export function drawModelSurfaceAsTiles(options: {
         reason: 'preload',
       })),
     )
-    predictivePreloadEnqueueCount = preloadTiles.length
+    predictivePreloadEnqueueCount = prioritizedPreloadTiles.length
 
     predictivePreloadPrunedCount = options.tileScheduler.cancelOutdatedRequests({
       camera: {

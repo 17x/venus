@@ -31,8 +31,6 @@ export {
 
 const renderDiagnosticsListeners = new Set<VoidFunction>()
 let currentRenderDiagnostics = EMPTY_RUNTIME_RENDER_DIAGNOSTICS
-let previousFrameCount = 0
-let previousDrawTimestamp = 0
 let smoothedFpsEstimate = 0
 let peakInstantaneousFps = 0
 let peakSmoothedFpsEstimate = 0
@@ -160,8 +158,6 @@ function normalizeRuntimeInputEvent(
  */
 export function resetRuntimeEventSnapshots() {
   currentRenderDiagnostics = EMPTY_RUNTIME_RENDER_DIAGNOSTICS
-  previousFrameCount = 0
-  previousDrawTimestamp = 0
   smoothedFpsEstimate = 0
   peakInstantaneousFps = 0
   peakSmoothedFpsEstimate = 0
@@ -181,23 +177,34 @@ export function resetRuntimeEventSnapshots() {
  * Publishes runtime render diagnostics for subscribers that track performance and state.
  */
 export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) {
-  const now = globalThis.performance?.now?.() ?? Date.now()
-  const frameDelta = next.frameCount - previousFrameCount
-  const timeDelta = now - previousDrawTimestamp
   let instantaneousFps = 0
 
-  if (previousDrawTimestamp > 0 && frameDelta > 0 && timeDelta > 0) {
-    instantaneousFps = (frameDelta * 1000) / timeDelta
-    // Clamp to realistic display-driven bounds so tiny render times do not report impossible FPS spikes.
-    const clampedInstantaneousFps = Math.min(Math.max(instantaneousFps, 0), 240)
-    const smoothingFactor = 0.2
-    smoothedFpsEstimate = smoothedFpsEstimate > 0
-      ? smoothedFpsEstimate + (clampedInstantaneousFps - smoothedFpsEstimate) * smoothingFactor
-      : clampedInstantaneousFps
+  // Derive FPS from the same render pipeline timings that drive frame
+  // submission so panel values match on-canvas cadence instead of event-loop
+  // publish jitter.
+  const drawMs = Number.isFinite(next.drawMs) ? Math.max(0, next.drawMs) : 0
+  const queueWaitMs = Number.isFinite(next.schedulerQueueWaitMs)
+    ? Math.max(0, next.schedulerQueueWaitMs)
+    : 0
+  const throttleDelayMs = Number.isFinite(next.schedulerThrottleDelayMs)
+    ? Math.max(0, next.schedulerThrottleDelayMs)
+    : 0
+  const presentDelayMs = Number.isFinite(next.presentRafDelayMs)
+    ? Math.max(0, next.presentRafDelayMs)
+    : 0
+  const effectiveFrameMs = drawMs + queueWaitMs + throttleDelayMs + presentDelayMs
+
+  if (effectiveFrameMs > 0) {
+    instantaneousFps = 1000 / effectiveFrameMs
   }
 
-  previousFrameCount = next.frameCount
-  previousDrawTimestamp = now
+  // Clamp to realistic display-driven bounds so tiny timing fluctuations do
+  // not report impossible spikes while preserving high-refresh panels.
+  const clampedInstantaneousFps = Math.min(Math.max(instantaneousFps, 0), 240)
+  const smoothingFactor = 0.2
+  smoothedFpsEstimate = smoothedFpsEstimate > 0
+    ? smoothedFpsEstimate + (clampedInstantaneousFps - smoothedFpsEstimate) * smoothingFactor
+    : clampedInstantaneousFps
 
   peakInstantaneousFps = Math.max(peakInstantaneousFps, Math.min(Math.max(instantaneousFps, 0), 1000))
   peakSmoothedFpsEstimate = Math.max(peakSmoothedFpsEstimate, smoothedFpsEstimate)

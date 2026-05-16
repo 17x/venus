@@ -11,6 +11,8 @@ const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
 const FULL_REDRAW_DEFER_MS = 32
 const RESIZE_COMMIT_DEFER_MS = 260
 const RESIZE_COMMIT_THRESHOLD_PX = 96
+const CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS = 44
+const CAMERA_SETTLE_ANIMATION_DURATION_MS = 72
 
 /**
  * Commits viewport and output size updates into the engine with interaction-aware scheduling.
@@ -288,8 +290,27 @@ export function useEngineRendererViewport(params: {
       params.appliedViewportRef.current.scale !== nextViewportState.scale
     if (viewportChanged) {
       const viewportStateUpdateStart = performance.now()
-      // Keep viewport commits on the stable base API while engine perf APIs remain internal-only.
-      engine.setViewport(nextViewportState)
+      // Keep pan/drag input strictly follow-finger by committing directly.
+      // Only wheel/pinch zoom uses short interpolation during active gesture.
+      if (params.interactionActive && params.interactionPhase === 'zoom') {
+        engine.updateCameraAnimation(nextViewportState, {
+          durationMs: CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS,
+          easing: 'linear',
+          cachePreviewOnly: true,
+        })
+      } else if (!params.interactionActive && wasInteractionActive) {
+        // Keep one short settle animation so the first post-gesture frame can
+        // converge smoothly to the latest runtime viewport target.
+        engine.updateCameraAnimation(nextViewportState, {
+          durationMs: CAMERA_SETTLE_ANIMATION_DURATION_MS,
+          easing: 'linear',
+          cachePreviewOnly: false,
+        })
+      } else {
+        // Preserve immediate commit semantics for non-gesture viewport updates
+        // such as first layout, explicit fit, and resize follow-up commits.
+        engine.setViewport(nextViewportState)
+      }
       params.appliedViewportRef.current = nextViewportState
       viewportStateUpdateMs += performance.now() - viewportStateUpdateStart
     }
@@ -304,7 +325,10 @@ export function useEngineRendererViewport(params: {
 
     if (params.interactionActive) {
       params.cancelDeferredFullRedraw()
-      params.cancelScheduledRender()
+      // Do not cancel the scheduler on every pointer move: repeatedly
+      // cancel+request can starve RAF execution under high-frequency input,
+      // which manifests as "moves once then stalls until interaction stops".
+      // Keep single-flight coalescing and only enqueue interactive priority.
       params.requestEngineRender('interactive', 'interactive-viewport')
       recordViewportCommitMs()
       return

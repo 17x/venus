@@ -26,9 +26,6 @@ export type RuntimeEngine = Omit<
   | 'setDpr'
   | 'setQuality'
   | 'setInteractionPreview'
-  | 'startCameraAnimation'
-  | 'updateCameraAnimation'
-  | 'stopCameraAnimation'
 >
 
 export type {

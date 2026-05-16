@@ -5,9 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test src/**/*.test.ts __tests__/**/*.test.ts",
-    "bench:scenario": "tsx src/bench/runBenchmark.ts",
-    "guard:migration-ledger": "node scripts/migration-ledger-guard.mjs",
-    "test:migration-governance": "node --test scripts/ledger-guard.test.mjs"
+    "bench:scenario": "tsx src/bench/runBenchmark.ts"
   },
   "exports": {
     ".": "./src/index.ts"

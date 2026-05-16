@@ -13,6 +13,10 @@ export type EngineRenderStrategyPhase =
   | 'settling'
 
 // Describes one strategy decision input snapshot for the current frame.
+/**
+ * Engine 渲染策略输入参数。
+ * @field forceFullQualityDuringCameraAnimation AI-TEMP: 工业级渲染实验开关，动画期间强制full-quality，参考游戏/医疗/大数据渲染最佳实践；remove when正式策略落地；ref RENDER_OPTIMIZATION_TASKS.md
+ */
 export interface EngineRenderStrategyInput {
   // High-resolution frame timestamp.
   nowMs: number
@@ -22,6 +26,8 @@ export interface EngineRenderStrategyInput {
   cameraAnimationActive: boolean
   // Whether camera animation is preview-cache only.
   cameraCachePreviewOnly: boolean
+  // AI-TEMP: 动画期间强制full-quality渲染实验开关。
+  forceFullQualityDuringCameraAnimation?: boolean
   // Last interaction mutation timestamp.
   lastInteractionAtMs: number
   // Last viewport mutation kind used by the state machine.
@@ -66,19 +72,31 @@ export function resolveEngineRenderStrategy(
 
   // Keep camera animations on an explicit strategy lane so quality/preview
   // behavior is deterministic even when viewport mutation data is stale.
+  // AI-TEMP: 工业级渲染实验开关，动画期间强制full-quality，参考游戏/医疗/大数据渲染最佳实践。
   if (input.cameraAnimationActive) {
-    return {
-      phase: 'camera',
-      interactionActive: true,
-      quality: 'interactive',
-      interactionPreview: {
-        enabled: true,
-        mode: 'interaction',
-        // Camera preview-only mode should prefer cached snapshots when requested.
-        cacheOnly: input.cameraCachePreviewOnly,
-        maxScaleStep: 8,
-        maxTranslatePx: 100_000,
-      },
+    if (input.forceFullQualityDuringCameraAnimation) {
+      // AI-TEMP: 动画期间不降级、不snapshot复用，确保画质与响应性。
+      return {
+        phase: 'camera',
+        interactionActive: true,
+        quality: 'full',
+        interactionPreview: undefined,
+      }
+    } else {
+      // 默认策略：动画期间走interactive-quality，允许snapshot复用。
+      return {
+        phase: 'camera',
+        interactionActive: true,
+        quality: 'interactive',
+        interactionPreview: {
+          enabled: true,
+          mode: 'interaction',
+          // Camera preview-only mode should prefer cached snapshots when requested.
+          cacheOnly: input.cameraCachePreviewOnly,
+          maxScaleStep: 8,
+          maxTranslatePx: 100_000,
+        },
+      }
     }
   }
 

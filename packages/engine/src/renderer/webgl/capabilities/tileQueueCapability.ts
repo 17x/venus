@@ -14,11 +14,9 @@ import {
   TileScheduler,
   type TileSchedulerCancelOptions,
 } from '../../tileScheduler/index.ts'
+import { resolvePredictivePanQueuePolicy } from '../../interactionPredictiveTiles/index.ts'
 import type { InteractionCompositeSnapshot } from '../preview/composite/webglComposite.ts'
 
-const PAN_PREDICTION_WINDOW_MS = 100
-const PAN_OVERSCAN_BACKWARD_TILES = 1
-const PAN_OVERSCAN_FORWARD_TILES = 2
 const PAN_PREDICTION_LOW_LOD_OFFSET = 1
 const PAN_PREDICTION_FRAME_INTERVAL_MS = 16
 
@@ -161,6 +159,9 @@ function schedulePanPredictiveTileRequests(options: {
   tileCache: EngineTileCache
   scheduler: TileScheduler
 }) {
+  const panQueuePolicy = resolvePredictivePanQueuePolicy(
+    options.frame.context.interactionPredictor,
+  )
   const zoomLevel = getZoomLevelForScale(options.frame.viewport.scale)
   // Prediction region can use one coarser bucket so future area appears quickly, then sharpens later.
   const predictionZoomLevel = Math.max(0, zoomLevel - PAN_PREDICTION_LOW_LOD_OFFSET)
@@ -173,10 +174,10 @@ function schedulePanPredictiveTileRequests(options: {
   // Estimate pan velocity from snapshot->current camera delta in CSS px.
   const deltaX = options.frame.viewport.offsetX - options.snapshot.offsetX
   const deltaY = options.frame.viewport.offsetY - options.snapshot.offsetY
-  const predictedOffsetX = options.frame.viewport.offsetX + ((deltaX / PAN_PREDICTION_FRAME_INTERVAL_MS) * PAN_PREDICTION_WINDOW_MS)
-  const predictedOffsetY = options.frame.viewport.offsetY + ((deltaY / PAN_PREDICTION_FRAME_INTERVAL_MS) * PAN_PREDICTION_WINDOW_MS)
-  const forwardOverscanCssPx = tileSizeCssPx * PAN_OVERSCAN_FORWARD_TILES
-  const backwardOverscanCssPx = tileSizeCssPx * PAN_OVERSCAN_BACKWARD_TILES
+  const predictedOffsetX = options.frame.viewport.offsetX + ((deltaX / PAN_PREDICTION_FRAME_INTERVAL_MS) * panQueuePolicy.predictionWindowMs)
+  const predictedOffsetY = options.frame.viewport.offsetY + ((deltaY / PAN_PREDICTION_FRAME_INTERVAL_MS) * panQueuePolicy.predictionWindowMs)
+  const forwardOverscanCssPx = tileSizeCssPx * panQueuePolicy.forwardOverscanTiles
+  const backwardOverscanCssPx = tileSizeCssPx * panQueuePolicy.backwardOverscanTiles
 
   const viewportTiles = getVisibleTilesForCamera({
     camera: {
@@ -315,7 +316,7 @@ function schedulePanPredictiveTileRequests(options: {
     activeBucketRadius: 0,
     tileSizeCssPx,
     overscanCssPx: forwardOverscanCssPx,
-    nearbyRing: PAN_OVERSCAN_FORWARD_TILES,
+    nearbyRing: panQueuePolicy.forwardOverscanTiles,
   })
 
   return requests.length

@@ -10,7 +10,7 @@ Venus 的机制层引擎。它提供纯粹的渲染与几何能力，包括 scen
 ## 迁移状态
 
 - 2D->3D runtime staged migration 已完成最终验收。
-- 验收台账见 `packages/engine/docs/3d-runtime-migration-task.md`（Status: Accepted）。
+- 最终归档报告见 `packages/engine/docs/3d-runtime-migration-task.md`（Status: Accepted, Archived）。
 
 当前职责链：
 

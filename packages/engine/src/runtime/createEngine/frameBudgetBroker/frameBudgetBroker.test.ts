@@ -39,13 +39,43 @@ test('resolveEngineFrameBudget contracts pan interaction budget', () => {
     interactionActive: true,
   })
 
-  // Pan lane should suppress image uploads and keep lightweight preload slices.
+  // Pan lane should keep a tiny critical upload lane and lightweight preload slices.
   assert.equal(decision.pressure, 'medium')
-  assert.equal(decision.budget.textureUploadBudgetBytes, 0)
-  assert.equal(decision.budget.textureUploadTotalBudgetBytes, 0)
+  assert.equal(decision.budget.textureUploadBudgetBytes, 768 * 1024)
+  assert.equal(decision.budget.textureUploadTotalBudgetBytes, 1536 * 1024)
   assert.equal(decision.budget.imageTextureUploadMaxCount, 0)
   assert.equal(decision.budget.textTextureUploadMaxCount, 0)
   assert.equal(decision.budget.tilePreloadBudgetMs, 1)
+  assert.equal(decision.budget.tilePreloadMaxUploads, 1)
+})
+
+test('resolveEngineFrameBudget keeps at least one preload upload under interaction high pressure', () => {
+  const decision = resolveEngineFrameBudget({
+    ...createBaseInput(),
+    phase: 'zoom',
+    interactionActive: true,
+    sceneNodeCount: 50_000,
+    tileQueuePendingCount: 1_000,
+  })
+
+  // Interaction frames must retain one preload slot to avoid visible edge blanking.
+  assert.equal(decision.pressure, 'high')
+  assert.equal(decision.budget.tilePreloadMaxUploads, 1)
+})
+
+test('resolveEngineFrameBudget boosts interaction preload with high-confidence fast motion', () => {
+  const decision = resolveEngineFrameBudget({
+    ...createBaseInput(),
+    phase: 'camera',
+    interactionActive: true,
+    predictorConfidence: 0.9,
+    predictorSpeedPxPerSec: 1_800,
+  })
+
+  // Predictor-driven acceleration should expand preload before pressure contraction.
+  assert.equal(decision.pressure, 'medium')
+  assert.equal(decision.budget.tilePreloadBudgetMs, 4)
+  assert.equal(decision.budget.tilePreloadMaxUploads, 5)
 })
 
 test('resolveEngineFrameBudget escalates to high pressure with queue saturation', () => {

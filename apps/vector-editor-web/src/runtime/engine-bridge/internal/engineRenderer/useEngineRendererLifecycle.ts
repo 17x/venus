@@ -187,7 +187,6 @@ export function useEngineRendererLifecycle(params: {
       deferredVisualRecoveryPendingRef: params.deferredVisualRecoveryPendingRef,
       requestDeferredVisualRecovery: params.requestDeferredVisualRecovery,
       presentLatencyRafPendingRef: params.presentLatencyRafPendingRef,
-      isInteractingRef: params.isInteractingRef,
       requestEngineRender: params.requestEngineRender,
     })
     const engineOnStats = onStats as NonNullable<

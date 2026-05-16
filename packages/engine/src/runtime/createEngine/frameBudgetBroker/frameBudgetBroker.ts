@@ -19,6 +19,10 @@ export interface EngineFrameBudgetBrokerInput {
   settleSharpnessPending: boolean
   // Whether settle sharpness deadline was missed and one force-sharp frame is required.
   forceSharpFrame: boolean
+  // Predictor confidence in range [0, 1] used by adaptive preload budgeting.
+  predictorConfidence?: number
+  // Predictor speed estimate in px/s used by adaptive preload budgeting.
+  predictorSpeedPxPerSec?: number
 }
 
 // Describes one frame-budget broker decision for diagnostics and renderer lanes.
@@ -58,13 +62,25 @@ const STATIC_MEDIUM_TILE_PENDING_THRESHOLD = 96
 const STATIC_MEDIUM_DIRTY_REGION_THRESHOLD = 8
 
 const PAN_DRAW_SUBMIT_BUDGET_MS = 10
+const PAN_TEXTURE_UPLOAD_BUDGET_MIB = 1
+const PAN_TEXTURE_UPLOAD_TOTAL_BUDGET_MIB = 2
+const PAN_TEXTURE_UPLOAD_BUDGET_BYTES = PAN_TEXTURE_UPLOAD_BUDGET_MIB * ONE_MEBIBYTE
+const PAN_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES = PAN_TEXTURE_UPLOAD_TOTAL_BUDGET_MIB * ONE_MEBIBYTE
+const PAN_IMAGE_TEXTURE_UPLOAD_MAX_COUNT = 1
+const PAN_TEXT_TEXTURE_UPLOAD_MAX_COUNT = 1
 const PAN_TILE_PRELOAD_BUDGET_MS = 2
-const PAN_TILE_PRELOAD_MAX_UPLOADS = 2
+const PAN_TILE_PRELOAD_MAX_UPLOADS = 3
 const PAN_OVERLAY_PASS_BUDGET_MS = 1
 
 const ZOOM_DRAW_SUBMIT_BUDGET_MS = 10
+const ZOOM_TEXTURE_UPLOAD_BUDGET_MIB = 1
+const ZOOM_TEXTURE_UPLOAD_TOTAL_BUDGET_MIB = 2
+const ZOOM_TEXTURE_UPLOAD_BUDGET_BYTES = ZOOM_TEXTURE_UPLOAD_BUDGET_MIB * ONE_MEBIBYTE
+const ZOOM_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES = ZOOM_TEXTURE_UPLOAD_TOTAL_BUDGET_MIB * ONE_MEBIBYTE
+const ZOOM_IMAGE_TEXTURE_UPLOAD_MAX_COUNT = 1
+const ZOOM_TEXT_TEXTURE_UPLOAD_MAX_COUNT = 1
 const ZOOM_TILE_PRELOAD_BUDGET_MS = 2
-const ZOOM_TILE_PRELOAD_MAX_UPLOADS = 1
+const ZOOM_TILE_PRELOAD_MAX_UPLOADS = 3
 const ZOOM_OVERLAY_PASS_BUDGET_MS = 1
 
 const CAMERA_DRAW_SUBMIT_BUDGET_MS = 12
@@ -73,7 +89,7 @@ const CAMERA_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES = CAMERA_TEXTURE_UPLOAD_TOTAL_BUD
 const CAMERA_IMAGE_TEXTURE_UPLOAD_MAX_COUNT = 1
 const CAMERA_TEXT_TEXTURE_UPLOAD_MAX_COUNT = 1
 const CAMERA_TILE_PRELOAD_BUDGET_MS = 4
-const CAMERA_TILE_PRELOAD_MAX_UPLOADS = 3
+const CAMERA_TILE_PRELOAD_MAX_UPLOADS = 5
 const CAMERA_OVERLAY_PASS_BUDGET_MS = 1
 
 const INTERACTIVE_DRAW_SUBMIT_BUDGET_MS = 16
@@ -84,6 +100,13 @@ const INTERACTIVE_TEXT_TEXTURE_UPLOAD_MAX_COUNT = 2
 const INTERACTIVE_TILE_PRELOAD_BUDGET_MS = 6
 const INTERACTIVE_TILE_PRELOAD_MAX_UPLOADS = 4
 const INTERACTIVE_OVERLAY_PASS_BUDGET_MS = 2
+
+const PREDICTIVE_PRELOAD_CONFIDENCE_THRESHOLD = 0.75
+const PREDICTIVE_PRELOAD_SPEED_THRESHOLD = 1_200
+const PREDICTIVE_PRELOAD_BUDGET_BOOST_MS = 2
+const PREDICTIVE_PRELOAD_UPLOAD_BOOST = 2
+const PREDICTIVE_PRELOAD_BUDGET_MAX_MS = 8
+const PREDICTIVE_PRELOAD_UPLOAD_MAX = 8
 
 const SETTLE_RECOVERY_DRAW_SUBMIT_BUDGET_MS = 32
 const SETTLE_RECOVERY_TEXTURE_UPLOAD_BUDGET_BYTES = SETTLE_RECOVERY_TEXTURE_UPLOAD_BUDGET_MIB * ONE_MEBIBYTE
@@ -169,10 +192,12 @@ function resolveInteractionBudget(phase: EngineRenderStrategyPhase): EngineFrame
   if (phase === 'pan') {
     return {
       drawSubmitBudgetMs: PAN_DRAW_SUBMIT_BUDGET_MS,
-      textureUploadBudgetBytes: 0,
-      textureUploadTotalBudgetBytes: 0,
-      imageTextureUploadMaxCount: 0,
-      textTextureUploadMaxCount: 0,
+      // Keep one tiny critical upload lane so icon/text focus content can
+      // stay legible during continuous pan without waiting for settle frames.
+      textureUploadBudgetBytes: PAN_TEXTURE_UPLOAD_BUDGET_BYTES,
+      textureUploadTotalBudgetBytes: PAN_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES,
+      imageTextureUploadMaxCount: PAN_IMAGE_TEXTURE_UPLOAD_MAX_COUNT,
+      textTextureUploadMaxCount: PAN_TEXT_TEXTURE_UPLOAD_MAX_COUNT,
       tilePreloadBudgetMs: PAN_TILE_PRELOAD_BUDGET_MS,
       tilePreloadMaxUploads: PAN_TILE_PRELOAD_MAX_UPLOADS,
       overlayPassBudgetMs: PAN_OVERLAY_PASS_BUDGET_MS,
@@ -182,10 +207,12 @@ function resolveInteractionBudget(phase: EngineRenderStrategyPhase): EngineFrame
   if (phase === 'zoom') {
     return {
       drawSubmitBudgetMs: ZOOM_DRAW_SUBMIT_BUDGET_MS,
-      textureUploadBudgetBytes: 0,
-      textureUploadTotalBudgetBytes: 0,
-      imageTextureUploadMaxCount: 0,
-      textTextureUploadMaxCount: 0,
+      // Keep one tiny critical upload lane so zoom focus content can sharpen
+      // progressively instead of waiting for full settle recovery.
+      textureUploadBudgetBytes: ZOOM_TEXTURE_UPLOAD_BUDGET_BYTES,
+      textureUploadTotalBudgetBytes: ZOOM_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES,
+      imageTextureUploadMaxCount: ZOOM_IMAGE_TEXTURE_UPLOAD_MAX_COUNT,
+      textTextureUploadMaxCount: ZOOM_TEXT_TEXTURE_UPLOAD_MAX_COUNT,
       tilePreloadBudgetMs: ZOOM_TILE_PRELOAD_BUDGET_MS,
       tilePreloadMaxUploads: ZOOM_TILE_PRELOAD_MAX_UPLOADS,
       overlayPassBudgetMs: ZOOM_OVERLAY_PASS_BUDGET_MS,
@@ -218,6 +245,38 @@ function resolveInteractionBudget(phase: EngineRenderStrategyPhase): EngineFrame
 }
 
 /**
+ * Applies predictor-driven tile preload expansion during interaction frames.
+ * @param budget Phase-resolved interaction budget.
+ * @param input Full broker input snapshot.
+ */
+function applyPredictivePreloadBoost(
+  budget: EngineFrameBudget,
+  input: EngineFrameBudgetBrokerInput,
+): EngineFrameBudget {
+  const confidence = Math.max(0, input.predictorConfidence ?? 0)
+  const speed = Math.max(0, input.predictorSpeedPxPerSec ?? 0)
+  if (
+    confidence < PREDICTIVE_PRELOAD_CONFIDENCE_THRESHOLD ||
+    speed < PREDICTIVE_PRELOAD_SPEED_THRESHOLD
+  ) {
+    return budget
+  }
+
+  // AI-TEMP: 工业级交互预取增强，减少高速移动时边缘空白；remove when统一预取控制器上线；ref RENDER_OPTIMIZATION_TASKS.md
+  return {
+    ...budget,
+    tilePreloadBudgetMs: Math.min(
+      PREDICTIVE_PRELOAD_BUDGET_MAX_MS,
+      budget.tilePreloadBudgetMs + PREDICTIVE_PRELOAD_BUDGET_BOOST_MS,
+    ),
+    tilePreloadMaxUploads: Math.min(
+      PREDICTIVE_PRELOAD_UPLOAD_MAX,
+      budget.tilePreloadMaxUploads + PREDICTIVE_PRELOAD_UPLOAD_BOOST,
+    ),
+  }
+}
+
+/**
  * Resolve an aggressive settled-frame recovery budget for sharpness deadline enforcement.
  */
 function resolveSettleRecoveryBudget(): EngineFrameBudget {
@@ -241,12 +300,14 @@ function resolveSettleRecoveryBudget(): EngineFrameBudget {
 function applyPressureContraction(
   budget: EngineFrameBudget,
   pressure: EngineFrameBudgetPressure,
+  interactionActive: boolean,
 ): EngineFrameBudget {
   if (pressure === 'low') {
     return budget
   }
 
   if (pressure === 'medium') {
+    const mediumTileUploadMin = interactionActive ? 1 : 0
     return {
       drawSubmitBudgetMs: Math.max(PRESSURE_MEDIUM_DRAW_BUDGET_MIN_MS, budget.drawSubmitBudgetMs - PRESSURE_MEDIUM_DRAW_BUDGET_DELTA_MS),
       textureUploadBudgetBytes: Math.max(0, Math.floor(budget.textureUploadBudgetBytes * PRESSURE_MEDIUM_TEXTURE_SCALE)),
@@ -254,11 +315,13 @@ function applyPressureContraction(
       imageTextureUploadMaxCount: Math.max(0, budget.imageTextureUploadMaxCount - PRESSURE_MEDIUM_IMAGE_TEXTURE_DELTA),
       textTextureUploadMaxCount: Math.max(0, budget.textTextureUploadMaxCount - PRESSURE_MEDIUM_TEXT_TEXTURE_DELTA),
       tilePreloadBudgetMs: Math.max(PRESSURE_MEDIUM_TILE_PRELOAD_MIN_MS, budget.tilePreloadBudgetMs - PRESSURE_MEDIUM_TILE_PRELOAD_DELTA_MS),
-      tilePreloadMaxUploads: Math.max(0, budget.tilePreloadMaxUploads - PRESSURE_MEDIUM_TILE_UPLOAD_DELTA),
+      // Keep at least one preload upload during interaction to avoid edge blanking.
+      tilePreloadMaxUploads: Math.max(mediumTileUploadMin, budget.tilePreloadMaxUploads - PRESSURE_MEDIUM_TILE_UPLOAD_DELTA),
       overlayPassBudgetMs: Math.max(PRESSURE_MEDIUM_OVERLAY_MIN_MS, budget.overlayPassBudgetMs - PRESSURE_MEDIUM_OVERLAY_DELTA_MS),
     }
   }
 
+  const highTileUploadMin = interactionActive ? 1 : 0
   return {
     drawSubmitBudgetMs: Math.max(PRESSURE_HIGH_DRAW_BUDGET_MIN_MS, budget.drawSubmitBudgetMs - PRESSURE_HIGH_DRAW_BUDGET_DELTA_MS),
     textureUploadBudgetBytes: Math.max(0, Math.floor(budget.textureUploadBudgetBytes * PRESSURE_HIGH_TEXTURE_SCALE)),
@@ -266,7 +329,8 @@ function applyPressureContraction(
     imageTextureUploadMaxCount: Math.max(0, budget.imageTextureUploadMaxCount - PRESSURE_HIGH_IMAGE_TEXTURE_DELTA),
     textTextureUploadMaxCount: Math.max(0, budget.textTextureUploadMaxCount - PRESSURE_HIGH_TEXT_TEXTURE_DELTA),
     tilePreloadBudgetMs: Math.max(PRESSURE_HIGH_TILE_PRELOAD_MIN_MS, budget.tilePreloadBudgetMs - PRESSURE_HIGH_TILE_PRELOAD_DELTA_MS),
-    tilePreloadMaxUploads: Math.max(0, budget.tilePreloadMaxUploads - PRESSURE_HIGH_TILE_UPLOAD_DELTA),
+    // Keep one preload slot under high pressure in interaction frames for forward continuity.
+    tilePreloadMaxUploads: Math.max(highTileUploadMin, budget.tilePreloadMaxUploads - PRESSURE_HIGH_TILE_UPLOAD_DELTA),
     overlayPassBudgetMs: Math.max(PRESSURE_HIGH_OVERLAY_MIN_MS, budget.overlayPassBudgetMs - PRESSURE_HIGH_OVERLAY_DELTA_MS),
   }
 }
@@ -289,11 +353,11 @@ export function resolveEngineFrameBudget(
 
   const pressure = resolvePressure(input)
   const phaseBudget = input.interactionActive
-    ? resolveInteractionBudget(input.phase)
+    ? applyPredictivePreloadBoost(resolveInteractionBudget(input.phase), input)
     : BASE_BUDGET
 
   return {
-    budget: applyPressureContraction(phaseBudget, pressure),
+    budget: applyPressureContraction(phaseBudget, pressure, input.interactionActive),
     pressure,
   }
 }
