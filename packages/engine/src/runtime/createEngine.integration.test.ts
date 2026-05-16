@@ -956,6 +956,9 @@ test('createEngine diagnostics expose runtime policy snapshot fields', async () 
     assert.ok(diagnostics.policy.renderScale > 0)
     assert.ok(diagnostics.policy.pressureScore >= 0)
     assert.equal(typeof diagnostics.policy.scalerDecisionReason, 'string')
+    assert.equal(typeof diagnostics.qos.trace, 'string')
+    assert.ok(diagnostics.qos.guardTriggers.length >= 0)
+    assert.equal(typeof diagnostics.qos.degradationLevel, 'string')
   } finally {
     environment.restore()
   }

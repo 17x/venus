@@ -212,6 +212,76 @@
       "status": "in-progress",
       "owner": "engine/runtime",
       "artifact": "phase-b/T0030-go-no-go-review.md"
+    },
+    {
+      "id": "T0031",
+      "title": "Strategy input v2",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0031-strategy-input-v2.md"
+    },
+    {
+      "id": "T0032",
+      "title": "Degradation ladder",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0032-degradation-ladder.md"
+    },
+    {
+      "id": "T0033",
+      "title": "Phase stability guard",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0033-phase-stability-guard.md"
+    },
+    {
+      "id": "T0034",
+      "title": "Interactive budget profile",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0034-interactive-budget-profile.md"
+    },
+    {
+      "id": "T0035",
+      "title": "Settling budget profile",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0035-settling-budget-profile.md"
+    },
+    {
+      "id": "T0036",
+      "title": "Static budget profile",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0036-static-budget-profile.md"
+    },
+    {
+      "id": "T0037",
+      "title": "Camera budget profile",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0037-camera-budget-profile.md"
+    },
+    {
+      "id": "T0038",
+      "title": "QoS controller",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0038-qos-controller.md"
+    },
+    {
+      "id": "T0039",
+      "title": "QoS hard guard",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0039-qos-hard-guard.md"
+    },
+    {
+      "id": "T0040",
+      "title": "QoS renderer wiring",
+      "status": "in-progress",
+      "owner": "engine/runtime",
+      "artifact": "phase-c/T0040-qos-renderer-wiring.md"
     }
   ],
   "metrics": {

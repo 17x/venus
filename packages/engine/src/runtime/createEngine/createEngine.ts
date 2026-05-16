@@ -118,6 +118,26 @@ import {
   resolveEnginePressureSample,
   type EnginePressureSignals,
 } from '../budget/pressureMonitor.ts'
+import {
+  resolveEngineStrategyInputV2,
+} from '../strategy/strategyInputV2.ts'
+import {
+  resolveEngineDegradationDecision,
+} from '../strategy/degradationLadder.ts'
+import {
+  DEFAULT_ENGINE_PHASE_STABILITY_CONFIG,
+  resolveEngineStablePhase,
+  type EnginePhaseStabilityState,
+} from '../strategy/phaseStabilityGuard.ts'
+import {
+  resolveEngineQosControllerDecision,
+} from '../strategy/qosController.ts'
+import {
+  applyEngineQosHardGuard,
+} from '../strategy/qosHardGuard.ts'
+import {
+  applyEngineQosBudgetToRendererContext,
+} from '../strategy/qosRendererWiring.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 
@@ -361,6 +381,17 @@ export interface EngineRuntimeDiagnostics {
     pressureScore: number
     // Latest auto-scaler decision reason.
     scalerDecisionReason: string
+  }
+  // Reports QoS controller and guard snapshot for phase-C wiring.
+  qos: {
+    // Stable phase used as qos controller input.
+    stablePhase: EngineRenderStrategyPhase
+    // Selected degradation ladder level.
+    degradationLevel: string
+    // QoS decision trace id payload.
+    trace: string
+    // Applied hard-guard trigger list.
+    guardTriggers: string[]
   }
   /** Reports runtime performance-gate evaluation based on latest render stats. */
   performanceGate: EnginePerformanceGateStatus
@@ -648,6 +679,10 @@ export function createEngine(options: CreateEngineOptions): Engine {
   let latestBudgetPressure: EngineFrameBudgetPressure = 'low'
   let latestPressureScore = 0
   let latestAutoQualityDecisionReason = 'hold'
+  let latestQosTrace = ''
+  let latestQosDegradationLevel = 'none'
+  let latestQosGuardTriggers: string[] = []
+  let latestQosStablePhase: EngineRenderStrategyPhase = 'static'
   let lastInteractionAtMs = clock.now()
   let lastInteractionKind: EngineInteractionMutationKind = 'none'
   const settleSharpnessState = {
@@ -667,6 +702,11 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const policyScaleState = {
     renderScale: resolvedRuntimePolicy.graphics.renderScale,
     lastAdjustedAtMs: clock.now(),
+  }
+  let phaseStabilityState: EnginePhaseStabilityState = {
+    phase: latestQosStablePhase,
+    pendingPhase: null as EngineRenderStrategyPhase | null,
+    pendingFrames: 0,
   }
   const CAMERA_ANIMATION_ID = 'engine.camera.viewport'
   let cameraAnimationTarget: EngineCanvasViewportState | null = null
@@ -859,6 +899,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
       renderer.setInteractionPreview?.(strategyDecision.interactionPreview)
       latestStrategyPhase = strategyDecision.phase
       latestStrategyInteractionActive = strategyDecision.interactionActive
+      phaseStabilityState = resolveEngineStablePhase(
+        phaseStabilityState,
+        strategyDecision.phase,
+        DEFAULT_ENGINE_PHASE_STABILITY_CONFIG,
+      )
+      latestQosStablePhase = phaseStabilityState.phase
 
       // Refresh interaction predictor each frame so renderer lanes can adapt
       // prefetch ring and overscan using one shared motion snapshot.
@@ -907,6 +953,40 @@ export function createEngine(options: CreateEngineOptions): Engine {
       )
       renderContext.frameBudgetPressure = effectiveBudgetPressure
       latestBudgetPressure = effectiveBudgetPressure
+
+      const strategyInputV2 = resolveEngineStrategyInputV2({
+        profile: resolvedSettingsProfile,
+        phase: latestQosStablePhase,
+        pressure: effectiveBudgetPressure,
+        cameraAnimationActive: cameraAnimationState.active,
+        predictorConfidence: latestInteractionPredictor.confidence,
+        interactionElapsedMs: Math.max(0, clock.now() - lastInteractionAtMs),
+      })
+      const degradationDecision = resolveEngineDegradationDecision(strategyInputV2)
+      latestQosDegradationLevel = degradationDecision.level
+      const qosDecision = resolveEngineQosControllerDecision({
+        profile: strategyInputV2.profile,
+        phase: strategyInputV2.phase,
+        pressure: strategyInputV2.pressure,
+        capabilityTier: resolvedCapabilityProfile.gpuTier,
+        degradation: degradationDecision,
+      })
+      const qosHardGuardResult = applyEngineQosHardGuard(
+        {
+          profile: strategyInputV2.profile,
+          phase: strategyInputV2.phase,
+          pressure: strategyInputV2.pressure,
+          capabilityTier: resolvedCapabilityProfile.gpuTier,
+          degradation: degradationDecision,
+        },
+        qosDecision,
+      )
+      latestQosTrace = qosHardGuardResult.decision.trace
+      latestQosGuardTriggers = qosHardGuardResult.triggers
+      renderContext.frameBudget = applyEngineQosBudgetToRendererContext(
+        renderContext.frameBudget,
+        qosHardGuardResult.decision,
+      )
 
       if (settleSharpnessState.pending && clock.now() > settleSharpnessState.deadlineAtMs) {
         // Record one contract miss and force one immediate sharp recovery frame.
@@ -1438,6 +1518,12 @@ markDirtyBounds(bounds, zoomLevel) {
           renderScale: resolvedRuntimePolicy.graphics.renderScale,
           pressureScore: latestPressureScore,
           scalerDecisionReason: latestAutoQualityDecisionReason,
+        },
+        qos: {
+          stablePhase: latestQosStablePhase,
+          degradationLevel: latestQosDegradationLevel,
+          trace: latestQosTrace,
+          guardTriggers: [...latestQosGuardTriggers],
         },
         performanceGate: resolveEnginePerformanceGateStatus(latestRenderStats),
       }

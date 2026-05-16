@@ -156,6 +156,56 @@ export {
 } from '../runtime/budget/pressureMonitor.ts'
 
 export type {
+  EngineStrategyInputV2,
+} from '../runtime/strategy/strategyInputV2.ts'
+export {
+  resolveEngineStrategyInputV2,
+} from '../runtime/strategy/strategyInputV2.ts'
+
+export type {
+  EngineDegradationDecision,
+  EngineDegradationLevel,
+} from '../runtime/strategy/degradationLadder.ts'
+export {
+  resolveEngineDegradationDecision,
+} from '../runtime/strategy/degradationLadder.ts'
+
+export type {
+  EnginePhaseStabilityConfig,
+  EnginePhaseStabilityState,
+} from '../runtime/strategy/phaseStabilityGuard.ts'
+export {
+  DEFAULT_ENGINE_PHASE_STABILITY_CONFIG,
+  resolveEngineStablePhase,
+} from '../runtime/strategy/phaseStabilityGuard.ts'
+
+export type {
+  EnginePhaseBudgetProfiles,
+} from '../runtime/strategy/budgetProfiles.ts'
+export {
+  DEFAULT_ENGINE_PHASE_BUDGET_PROFILES,
+} from '../runtime/strategy/budgetProfiles.ts'
+
+export type {
+  EngineQosControllerDecision,
+  EngineQosControllerInput,
+} from '../runtime/strategy/qosController.ts'
+export {
+  resolveEngineQosControllerDecision,
+} from '../runtime/strategy/qosController.ts'
+
+export type {
+  EngineQosHardGuardResult,
+} from '../runtime/strategy/qosHardGuard.ts'
+export {
+  applyEngineQosHardGuard,
+} from '../runtime/strategy/qosHardGuard.ts'
+
+export {
+  applyEngineQosBudgetToRendererContext,
+} from '../runtime/strategy/qosRendererWiring.ts'
+
+export type {
   EngineDrawCommand,
   EngineLayeredRenderInput,
   EngineLayeredRenderOutput,
