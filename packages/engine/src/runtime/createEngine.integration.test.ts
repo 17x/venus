@@ -967,3 +967,48 @@ test('createEngine diagnostics expose runtime policy snapshot fields', async () 
     environment.restore()
   }
 })
+
+test('createEngine diagnostics expose 3D visibility policy and preview execution mode', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 200,
+        viewportHeight: 140,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      performance: {
+        culling: true,
+        lod: {enabled: true},
+        tiles: {enabled: false},
+        overscan: {enabled: false},
+      },
+      render: {
+        quality: 'full',
+        modelCompleteComposite: false,
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 200,
+      viewportHeight: 140,
+      outputWidth: 200,
+      outputHeight: 140,
+    })
+
+    await engine.renderFrame()
+    const diagnostics = engine.getDiagnostics()
+
+    assert.equal(diagnostics.visibility3dPolicy.executionMode, 'fallback-frustum-coarse')
+    assert.equal(diagnostics.visibility3dPolicy.hasFrustumResolver, false)
+    assert.equal(diagnostics.strategySnapshot.previewExecutionMode, 'affine-snapshot')
+  } finally {
+    environment.restore()
+  }
+})

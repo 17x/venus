@@ -5,7 +5,7 @@
  */
 import type { EngineRenderFrame } from '../../types/index.ts'
 import {
-  createTileKey,
+  createTileStreamingKey,
   EngineTileCache,
   getVisibleTilesForCamera,
   getZoomLevelForScale,
@@ -230,13 +230,17 @@ function schedulePanPredictiveTileRequests(options: {
     const viewportKey = `${tile.coord.x}:${tile.coord.y}`
     visibleKeys.add(viewportKey)
     requests.push({
-      key: createTileKey({
+      key: createTileStreamingKey({
         tileX: tile.coord.x,
         tileY: tile.coord.y,
         zoomBucket: zoomLevel,
         dpr,
         themeVersion: 0,
         renderVersion,
+        dimensionMode: options.frame.viewport.dimensionMode ?? '2d',
+        cameraPoseHash: options.frame.viewport.pose
+          ? JSON.stringify(options.frame.viewport.pose)
+          : undefined,
       }),
       coord: {
         x: tile.coord.x,
@@ -257,13 +261,17 @@ function schedulePanPredictiveTileRequests(options: {
 
     overscanKeys.add(viewportKey)
     requests.push({
-      key: createTileKey({
+      key: createTileStreamingKey({
         tileX: tile.coord.x,
         tileY: tile.coord.y,
         zoomBucket: zoomLevel,
         dpr,
         themeVersion: 0,
         renderVersion,
+        dimensionMode: options.frame.viewport.dimensionMode ?? '2d',
+        cameraPoseHash: options.frame.viewport.pose
+          ? JSON.stringify(options.frame.viewport.pose)
+          : undefined,
       }),
       coord: {
         x: tile.coord.x,
@@ -283,13 +291,17 @@ function schedulePanPredictiveTileRequests(options: {
     }
 
     requests.push({
-      key: createTileKey({
+      key: createTileStreamingKey({
         tileX: tile.coord.x,
         tileY: tile.coord.y,
         zoomBucket: predictionZoomLevel,
         dpr,
         themeVersion: 0,
         renderVersion,
+        dimensionMode: options.frame.viewport.dimensionMode ?? '2d',
+        cameraPoseHash: options.frame.viewport.pose
+          ? JSON.stringify(options.frame.viewport.pose)
+          : undefined,
       }),
       coord: {
         x: tile.coord.x,

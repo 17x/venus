@@ -35,6 +35,7 @@ import {
 } from '../../scene/hitPlan.ts'
 import type {
   EngineVisibleSet,
+  EngineVisibility3DPolicyDecision,
   EngineVisibilityFrustum3DQuery,
 } from '../../visibility/index.ts'
 import {
@@ -69,6 +70,9 @@ import {
   resolveEngineFramePlanSignature,
   resolveViewportAnimationTarget,
 } from './planning.ts'
+import {
+  resolveEngineRuntimeDiagnosticsSnapshot,
+} from './diagnosticsSnapshot.ts'
 import {
   resolveEngineRenderStrategy,
   type EngineInteractionMutationKind,
@@ -304,6 +308,8 @@ export interface EngineRuntimeDiagnostics {
     stableFrameCount: number
   }
   viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight'>
+  /** Reports resolved 3D visibility execution policy for current resolver wiring. */
+  visibility3dPolicy: EngineVisibility3DPolicyDecision
   cameraAnimation: EngineCameraAnimationState
   // Reports internal render-strategy state so diagnostics can correlate
   // quality/preview decisions with interaction and fallback behavior.
@@ -361,6 +367,8 @@ export interface EngineRuntimeDiagnostics {
     fallbackReason: EngineRenderFallbackReason | null
     // Predictor confidence from the latest viewport-motion estimate.
     predictorConfidence: number
+    // Preview execution mode used by interaction snapshot lane.
+    previewExecutionMode: 'affine-snapshot' | 'temporal-reprojection-required' | 'unknown'
   }
   // Reports settle sharpness contract state and compliance counters.
   settleSharpness: {
@@ -547,6 +555,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const visibilityResolver = createEngineVisibilityResolver({
     queryBounds2D: (bounds) => store.queryCandidates(bounds),
   })
+  const visibility3DPolicyDecision = visibilityResolver.resolveVisibility3DPolicyDecision()
   const hitResolver = createEngineHitResolver({
     resolvePointHits: (query) => {
       const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
@@ -1526,7 +1535,7 @@ markDirtyBounds(bounds, zoomLevel) {
       return loop.isRunning()
     },
     getDiagnostics() {
-      return {
+      return resolveEngineRuntimeDiagnosticsSnapshot({
         backend: renderer.capabilities.backend,
         renderStats: latestRenderStats,
         pixelRatio,
@@ -1591,7 +1600,9 @@ markDirtyBounds(bounds, zoomLevel) {
           budgetPressure: latestBudgetPressure,
           fallbackReason: latestRenderStats?.cacheFallbackReason ?? null,
           predictorConfidence: latestInteractionPredictor.confidence,
+          previewExecutionMode: latestRenderStats?.webglPreviewExecutionMode ?? 'unknown',
         },
+        visibility3dPolicy: visibility3DPolicyDecision,
         settleSharpness: {
           pending: settleSharpnessState.pending,
           remainingDeadlineMs: settleSharpnessState.pending
@@ -1625,7 +1636,7 @@ markDirtyBounds(bounds, zoomLevel) {
           guardTriggers: [...latestQosPanel.guardTriggers],
         },
         performanceGate: resolveEnginePerformanceGateStatus(latestRenderStats),
-      }
+      })
     },
     dispose() {
       loop.stop()

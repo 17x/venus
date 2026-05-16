@@ -5,7 +5,7 @@
  */
 import type { EngineCanvasSurfaceFactory, EngineRenderFrame } from '../../types/index.ts'
 import { createViewportMatrixForRender, drawWebGLPacket, type WebGLQuadPipeline } from '../core/index.ts'
-import { EngineTileCache, createTileKey, getZoomLevelForScale, type TileZoomLevel } from '../../tileManager/index.ts'
+import { EngineTileCache, createTileStreamingKey, getZoomLevelForScale, type TileZoomLevel } from '../../tileManager/index.ts'
 import { TileScheduler } from '../../tileScheduler/index.ts'
 import {
   ENGINE_RENDER_FALLBACK_REASON,
@@ -252,13 +252,17 @@ export function drawModelSurfaceAsTiles(options: {
       : 0
     options.tileScheduler.requestMany(
       prioritizedPreloadTiles.map((tile) => ({
-        key: createTileKey({
+        key: createTileStreamingKey({
           tileX: tile.gridX,
           tileY: tile.gridY,
           zoomBucket: tile.zoomLevel,
           dpr,
           themeVersion: 0,
           renderVersion,
+          dimensionMode: options.frame.viewport.dimensionMode ?? '2d',
+          cameraPoseHash: options.frame.viewport.pose
+            ? JSON.stringify(options.frame.viewport.pose)
+            : undefined,
         }),
         coord: {
           x: tile.gridX,

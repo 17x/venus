@@ -3,9 +3,12 @@
  */
 export type {
   EngineVisibleSet,
+  EngineVisibility3DExecutionMode,
+  EngineVisibility3DPolicyDecision,
   EngineVisibilityBounds2DQuery,
   EngineVisibilityBounds2DResolver,
   EngineVisibilityFrustum3DQuery,
+  EngineVisibilityFrustum3DOcclusionResolver,
   EngineVisibilityFrustum3DResolver,
   EngineVisibilityQuery,
   EngineVisibilityQueryMode,
@@ -18,4 +21,5 @@ export type {
 export {
   createEngineVisibilityResolver,
   resolveEngineBounds2DVisibilityQuery,
+  resolveEngineVisibility3DPolicyDecision,
 } from '../scene/visibility/visibility.ts'

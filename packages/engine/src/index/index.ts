@@ -1115,8 +1115,11 @@ export {
 
 export type {
   EngineVisibleSet,
+  EngineVisibility3DExecutionMode,
+  EngineVisibility3DPolicyDecision,
   EngineVisibilityBounds2DQuery,
   EngineVisibilityBounds2DResolver,
+  EngineVisibilityFrustum3DOcclusionResolver,
   EngineVisibilityFrustum3DQuery,
   EngineVisibilityFrustum3DResolver,
   EngineVisibilityQuery,
@@ -1130,6 +1133,7 @@ export type {
 export {
   createEngineVisibilityResolver,
   resolveEngineBounds2DVisibilityQuery,
+  resolveEngineVisibility3DPolicyDecision,
 } from '../visibility/index.ts'
 
 export type {

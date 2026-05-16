@@ -378,6 +378,7 @@ export function createWebGLEngineRenderer(
       let cacheFallbackReason: EngineRenderFallbackReason = ENGINE_RENDER_FALLBACK_REASON.NONE
       // Keep WebGL pipeline timing slices explicit for frame-time attribution.
       let webglPreviewReuseMs = 0
+      let webglPreviewExecutionMode: 'affine-snapshot' | 'temporal-reprojection-required' = 'affine-snapshot'
       let webglPlanBuildMs = 0
       let webglTextureUploadMs = 0
       let webglDrawSubmitMs = 0
@@ -513,6 +514,7 @@ export function createWebGLEngineRenderer(
       // Prefer O(1) snapshot reprojection first so pan frames avoid plan/raster work.
       const previewReuseStart = performance.now()
       const previewReuse = snapshotCapability.read(effectiveFrame)
+      webglPreviewExecutionMode = previewReuse.executionMode
       webglPreviewReuseMs += performance.now() - previewReuseStart
       if (previewReuse.reused && !shouldBypassSnapshotReuseForActiveLayer) {
         l0PreviewHitCount += 1
@@ -563,6 +565,7 @@ export function createWebGLEngineRenderer(
             l2TileMissCount,
             cacheFallbackReason,
             webglPreviewReuseMs,
+            webglPreviewExecutionMode,
             webglPlanBuildMs,
             webglTextureUploadMs,
             webglDrawSubmitMs,
@@ -761,6 +764,7 @@ export function createWebGLEngineRenderer(
             dirtyTileCount,
             incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
             webglPreviewReuseMs,
+            webglPreviewExecutionMode,
             webglPlanBuildMs,
             webglTextureUploadMs,
             webglDrawSubmitMs,
@@ -887,6 +891,7 @@ export function createWebGLEngineRenderer(
           l2TileMissCount,
           cacheFallbackReason,
           webglPreviewReuseMs,
+          webglPreviewExecutionMode,
           webglPlanBuildMs,
           webglTextureUploadMs,
           webglDrawSubmitMs,
@@ -1457,6 +1462,7 @@ export function createWebGLEngineRenderer(
         dirtyTileCount: dirtyTileCount,
         incrementalUpdateCount: dirtyTileCount > 0 ? 1 : 0,
         webglPreviewReuseMs,
+        webglPreviewExecutionMode,
         webglPlanBuildMs,
         webglTextureUploadMs,
         webglDrawSubmitMs,

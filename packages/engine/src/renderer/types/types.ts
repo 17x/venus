@@ -173,6 +173,8 @@ export interface EngineRenderStats {
   l2TileHitCount?: number
   l2TileMissCount?: number
   cacheFallbackReason?: EngineRenderFallbackReason
+  // Preview execution mode for the interaction snapshot lane.
+  webglPreviewExecutionMode?: 'affine-snapshot' | 'temporal-reprojection-required'
   // Strategy lane captured at stats emission for diagnostics joins.
   strategySnapshotLane?: 'static' | 'pan' | 'zoom' | 'camera' | 'settling'
   // Budget pressure captured at stats emission for diagnostics joins.

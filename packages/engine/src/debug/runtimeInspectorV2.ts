@@ -13,6 +13,10 @@ export interface EngineRuntimeInspectorV2Snapshot {
   profile: string
   /** Current fallback reason. */
   fallbackReason: string | null
+  /** Current 3D visibility execution mode. */
+  visibility3dExecutionMode: string
+  /** Current interaction preview execution mode. */
+  previewExecutionMode: string
 }
 
 /**
@@ -26,5 +30,7 @@ export function resolveEngineRuntimeInspectorV2Snapshot(
   return {
     ...snapshot,
     fallbackReason: snapshot.fallbackReason ?? null,
+    visibility3dExecutionMode: snapshot.visibility3dExecutionMode || 'fallback-frustum-coarse',
+    previewExecutionMode: snapshot.previewExecutionMode || 'unknown',
   }
 }

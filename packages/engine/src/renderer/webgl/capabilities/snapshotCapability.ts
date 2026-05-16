@@ -13,7 +13,9 @@ import {
 } from '../../fallbackTaxonomy/index.ts'
 import {
   captureCompositeSnapshotFromCurrentFramebuffer,
+  resolveInteractionPreviewExecutionMode,
   tryReuseInteractiveCompositeFrame,
+  type InteractionPreviewExecutionMode,
   type InteractionCompositeSnapshot,
   type ScreenRectPx,
 } from '../preview/index.ts'
@@ -75,6 +77,8 @@ export interface WebGLSnapshotReuseResult {
   culledCount: number
   /** Stores optional edge redraw regions reported by preview path. */
   edgeRedrawRegions: ScreenRectPx[]
+  /** Stores interaction preview execution mode selected for current frame. */
+  executionMode: InteractionPreviewExecutionMode
 }
 
 /**
@@ -139,6 +143,7 @@ export function createWebGLSnapshotCapability(
     * @param frame Frame evaluated for snapshot reuse.
    */
   const read = (frame: EngineRenderFrame): WebGLSnapshotReuseResult => {
+    const executionMode = resolveInteractionPreviewExecutionMode(frame)
     if (config.disableReuse) {
       return {
         reused: false,
@@ -146,10 +151,11 @@ export function createWebGLSnapshotCapability(
         visibleCount: 0,
         culledCount: 0,
         edgeRedrawRegions: [],
+        executionMode,
       }
     }
 
-    return tryReuseInteractiveCompositeFrame({
+    const reuseResult = tryReuseInteractiveCompositeFrame({
       context: options.context,
       pipeline: options.pipeline,
       frame,
@@ -157,6 +163,11 @@ export function createWebGLSnapshotCapability(
       snapshot: currentSnapshot,
       interactionPreview: config,
     })
+
+    return {
+      ...reuseResult,
+      executionMode,
+    }
   }
 
   /**

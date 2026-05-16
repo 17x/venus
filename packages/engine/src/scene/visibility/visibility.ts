@@ -8,6 +8,8 @@ import { resolveRenderableNodeBounds } from '../geometry/bbox.ts'
 import type {
   EngineVisibleSet,
   EngineVisibilityBounds2DResolver,
+  EngineVisibility3DPolicyDecision,
+  EngineVisibilityFrustum3DOcclusionResolver,
   EngineVisibilityFrustum3DResolver,
   EngineVisibilityQuery,
   EngineVisibilityViewport2D,
@@ -24,6 +26,8 @@ export interface CreateEngineVisibilityResolverOptions {
   queryBounds2D: EngineVisibilityBounds2DResolver
   /** Optional callback used by true 3D frustum culling implementations. */
   queryFrustum3D?: EngineVisibilityFrustum3DResolver
+  /** Optional callback used by true 3D occlusion filtering implementations. */
+  queryFrustum3DOcclusion?: EngineVisibilityFrustum3DOcclusionResolver
 }
 
 /**
@@ -47,6 +51,44 @@ export interface EngineVisibilityResolver {
     viewport: EngineVisibilityViewport2D,
     padding?: number,
   ): EngineVisibleSet
+  /**
+   * Resolves one current 3D visibility execution policy snapshot.
+   */
+  resolveVisibility3DPolicyDecision(): EngineVisibility3DPolicyDecision
+}
+
+/**
+ * Intent: resolve 3D visibility execution mode from available callbacks.
+ * @param options Visibility resolver construction options.
+ * @returns 3D visibility policy decision.
+ */
+export function resolveEngineVisibility3DPolicyDecision(
+  options: Pick<CreateEngineVisibilityResolverOptions, 'queryFrustum3D' | 'queryFrustum3DOcclusion'>,
+): EngineVisibility3DPolicyDecision {
+  const hasFrustumResolver = typeof options.queryFrustum3D === 'function'
+  const hasOcclusionResolver = typeof options.queryFrustum3DOcclusion === 'function'
+
+  if (!hasFrustumResolver) {
+    return {
+      executionMode: 'fallback-frustum-coarse',
+      hasFrustumResolver,
+      hasOcclusionResolver,
+    }
+  }
+
+  if (hasOcclusionResolver) {
+    return {
+      executionMode: 'frustum-plus-occlusion',
+      hasFrustumResolver,
+      hasOcclusionResolver,
+    }
+  }
+
+  return {
+    executionMode: 'frustum-only',
+    hasFrustumResolver,
+    hasOcclusionResolver,
+  }
 }
 
 /**
@@ -56,6 +98,7 @@ export interface EngineVisibilityResolver {
 export function createEngineVisibilityResolver(
   options: CreateEngineVisibilityResolverOptions,
 ): EngineVisibilityResolver {
+  const policyDecision = resolveEngineVisibility3DPolicyDecision(options)
   /**
    * Resolves one visible-set snapshot from scene and visibility query payload.
    * @param scene Scene snapshot to evaluate.
@@ -79,7 +122,7 @@ export function createEngineVisibilityResolver(
 
     const nodeIds = query.mode === 'bounds-2d'
       ? options.queryBounds2D(query.bounds)
-      : resolveFrustumNodeIds(options.queryFrustum3D, scene, query.frustum)
+      : resolveFrustumNodeIds(options.queryFrustum3D, options.queryFrustum3DOcclusion, scene, query.frustum)
     const visibleCount = nodeIds.length
 
     return {
@@ -112,6 +155,9 @@ export function createEngineVisibilityResolver(
   return {
     resolveVisibleSet,
     resolveViewportVisibleSet,
+    resolveVisibility3DPolicyDecision() {
+      return policyDecision
+    },
   }
 }
 
@@ -145,14 +191,23 @@ export function resolveEngineBounds2DVisibilityQuery(
  */
 function resolveFrustumNodeIds(
   resolver: EngineVisibilityFrustum3DResolver | undefined,
+  occlusionResolver: EngineVisibilityFrustum3DOcclusionResolver | undefined,
   scene: EngineSceneSnapshot,
   frustum: EngineFrustum,
 ): EngineNodeId[] {
+  let candidateNodeIds: EngineNodeId[]
   if (resolver) {
-    return resolver(scene, frustum)
+    candidateNodeIds = resolver(scene, frustum)
+  } else {
+    candidateNodeIds = resolveFrustumFallbackNodeIds(scene.nodes, frustum)
   }
 
-  return resolveFrustumFallbackNodeIds(scene.nodes, frustum)
+  if (!resolver || !occlusionResolver) {
+    return candidateNodeIds
+  }
+
+  // Run optional occlusion filter only when true 3D frustum candidates exist.
+  return occlusionResolver(scene, frustum, candidateNodeIds)
 }
 
 /**

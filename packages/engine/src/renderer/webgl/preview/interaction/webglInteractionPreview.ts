@@ -28,11 +28,37 @@ const INTERACTION_PREVIEW_OVERVIEW_MAX_TRANSLATE_PX = 560
 const INTERACTION_PREVIEW_OVERVIEW_VIEWPORT_TRANSLATE_RATIO = 0.35
 const SCALE_RATIO_IDENTITY_EPSILON = 1e-3
 
+/**
+ * Declares preview execution lanes for mixed 2D/3D runtime.
+ */
+export type InteractionPreviewExecutionMode = 'affine-snapshot' | 'temporal-reprojection-required'
+
 export interface ScreenRectPx {
   x: number
   y: number
   width: number
   height: number
+}
+
+/**
+ * Intent: resolve preview execution mode from current viewport camera metadata.
+ * @param frame Current render frame.
+ * @returns Preview execution mode for this frame.
+ */
+export function resolveInteractionPreviewExecutionMode(
+  frame: EngineRenderFrame,
+): InteractionPreviewExecutionMode {
+  const dimensionMode = frame.viewport.dimensionMode
+  if (dimensionMode !== '3d') {
+    return 'affine-snapshot'
+  }
+
+  // 3D perspective and pose-driven cameras require temporal reprojection, not affine reuse.
+  if (frame.viewport.projectionKind === 'perspective' || frame.viewport.pose) {
+    return 'temporal-reprojection-required'
+  }
+
+  return 'affine-snapshot'
 }
 
 /**
@@ -61,6 +87,15 @@ export function tryReuseInteractiveCompositeFrame(options: {
 
   const snapshot = options.snapshot
   const frame = options.frame
+  if (resolveInteractionPreviewExecutionMode(frame) === 'temporal-reprojection-required') {
+    return {
+      reused: false,
+      missReason: ENGINE_RENDER_FALLBACK_REASON.L0_PREVIEW_MISS,
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
+  }
   const currentPixelRatio = resolveCompositeSnapshotPixelRatio(frame)
   const allowsCacheOnlyDprReuse =
     options.interactionPreview.cacheOnly && snapshot.pixelRatio >= currentPixelRatio

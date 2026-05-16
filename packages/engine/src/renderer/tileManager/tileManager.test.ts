@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   EngineTileCache,
   createTileKey,
+  createTileStreamingKey,
   getActiveZoomBuckets,
   getTileBounds,
   getTilesIntersectingBounds,
@@ -45,6 +46,31 @@ function withFakePerformanceNow(run: (advance: (value: number) => void) => void)
 test('tileManager helpers resolve stable keys, zoom buckets, and world bounds', () => {
   // Helper contracts should keep tile addressing deterministic across render variants.
   assert.equal(createTileKey({tileX: 1, tileY: 2, zoomBucket: 4, dpr: 2, themeVersion: 0, renderVersion: 9}), '4:1:2:2:0:9')
+  assert.equal(
+    createTileStreamingKey({
+      tileX: 1,
+      tileY: 2,
+      zoomBucket: 4,
+      dpr: 2,
+      themeVersion: 0,
+      renderVersion: 9,
+    }),
+    '2d:4:1:2:2:0:9',
+  )
+  assert.equal(
+    createTileStreamingKey({
+      tileX: 1,
+      tileY: 2,
+      zoomBucket: 4,
+      dpr: 2,
+      themeVersion: 0,
+      renderVersion: 9,
+      dimensionMode: '3d',
+      cameraPoseHash: 'cam:001',
+      depthSlice: 3,
+    }),
+    '3d:4:1:2:2:0:9:cam:001:3',
+  )
   assert.equal(getZoomBucket(0.3), 0.25)
   assert.deepEqual(getActiveZoomBuckets(1), [0.5, 1, 2])
   // Custom bucket lists + radius should remain supported for runtime-configurable zoom ranges.

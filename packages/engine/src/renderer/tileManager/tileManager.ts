@@ -73,6 +73,18 @@ export interface CreateTileKeyInput {
 }
 
 /**
+ * Key input for dimension-aware streaming cache addressing.
+ */
+export interface CreateTileStreamingKeyInput extends CreateTileKeyInput {
+  /** Runtime dimension mode for this tile address. */
+  dimensionMode?: '2d' | '3d' | 'hybrid'
+  /** Stable camera pose hash used by 3D streaming variants. */
+  cameraPoseHash?: string
+  /** Optional depth-slice index used by layered 3D caches. */
+  depthSlice?: number
+}
+
+/**
  * Progressive tile texture entry shape reused by compositor/scheduler services.
  */
 export interface TileTextureEntry {
@@ -186,6 +198,24 @@ export function createTileKey(input: CreateTileKeyInput): TileKey {
     input.themeVersion,
     input.renderVersion,
   ].join(':')
+}
+
+/**
+ * Intent: compose a dimension-aware tile streaming key for mixed 2D/3D caches.
+ * @param input Key input with optional 3D camera/depth discriminators.
+ * @returns Stable tile key for streaming caches.
+ */
+export function createTileStreamingKey(input: CreateTileStreamingKeyInput): TileKey {
+  const baseKey = createTileKey(input)
+  const dimensionMode = input.dimensionMode ?? '2d'
+  if (dimensionMode === '2d') {
+    // Preserve existing 2D cache key compatibility when no 3D discriminators are needed.
+    return `${dimensionMode}:${baseKey}`
+  }
+
+  const cameraPoseHash = input.cameraPoseHash ?? 'camera:default'
+  const depthSlice = Number.isFinite(input.depthSlice) ? String(input.depthSlice) : 'depth:default'
+  return `${dimensionMode}:${baseKey}:${cameraPoseHash}:${depthSlice}`
 }
 
 /**

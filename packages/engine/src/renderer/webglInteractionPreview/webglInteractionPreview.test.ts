@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  resolveInteractionPreviewExecutionMode,
   tryReuseInteractiveCompositeFrame,
 } from './webglInteractionPreview.ts'
 import { ENGINE_RENDER_FALLBACK_REASON } from '../fallbackTaxonomy/fallbackTaxonomy.ts'
@@ -197,4 +198,36 @@ test('tryReuseInteractiveCompositeFrame returns taxonomy translate-exceeded reas
 
   assert.equal(result.reused, false)
   assert.equal(result.missReason, ENGINE_RENDER_FALLBACK_REASON.L0_TRANSLATE_EXCEEDED)
+})
+
+test('tryReuseInteractiveCompositeFrame bypasses affine reuse for 3D perspective frames', () => {
+  const frame = {
+    ...createFrame(),
+    viewport: {
+      ...createFrame().viewport,
+      dimensionMode: '3d' as const,
+      projectionKind: 'perspective' as const,
+    },
+  }
+
+  assert.equal(resolveInteractionPreviewExecutionMode(frame), 'temporal-reprojection-required')
+
+  const result = tryReuseInteractiveCompositeFrame({
+    context: createFakeContext(),
+    pipeline: createFakePipeline(),
+    frame,
+    texture: {} as WebGLTexture,
+    snapshot: createSnapshot(),
+    interactionPreview: {
+      enabled: true,
+      mode: 'interaction',
+      disableReuse: false,
+      cacheOnly: true,
+      maxScaleStep: 1.2,
+      maxTranslatePx: 2400,
+    },
+  })
+
+  assert.equal(result.reused, false)
+  assert.equal(result.missReason, ENGINE_RENDER_FALLBACK_REASON.L0_PREVIEW_MISS)
 })

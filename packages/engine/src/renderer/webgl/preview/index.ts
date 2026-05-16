@@ -10,6 +10,7 @@ export {
 } from './composite/webglComposite.ts'
 
 export {
+  resolveInteractionPreviewExecutionMode,
   tryReuseInteractiveCompositeFrame,
 } from './interaction/webglInteractionPreview.ts'
 
@@ -19,5 +20,6 @@ export type {
 } from './composite/webglComposite.ts'
 
 export type {
+  InteractionPreviewExecutionMode,
   ScreenRectPx,
 } from './interaction/webglInteractionPreview.ts'

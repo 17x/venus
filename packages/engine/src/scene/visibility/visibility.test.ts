@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   createEngineVisibilityResolver,
   resolveEngineBounds2DVisibilityQuery,
+  resolveEngineVisibility3DPolicyDecision,
 } from './visibility.ts'
 import type { EngineSceneSnapshot } from '../types/types.ts'
 
@@ -108,4 +109,39 @@ test('visibility resolver frustum fallback performs coarse culling when 3D callb
   assert.deepEqual(visibleSet.nodeIds, ['a', 'group-1', 'b'])
   assert.equal(visibleSet.visibleCount, 3)
   assert.equal(visibleSet.culledCount, 1)
+})
+
+test('visibility resolver applies optional frustum occlusion filter when provided', () => {
+  const resolver = createEngineVisibilityResolver({
+    queryBounds2D: () => [],
+    queryFrustum3D: () => ['a', 'group-1', 'b', 'c'],
+    queryFrustum3DOcclusion: (_scene, _frustum, candidateNodeIds) => {
+      return candidateNodeIds.filter((nodeId) => nodeId !== 'c')
+    },
+  })
+
+  const visibleSet = resolver.resolveVisibleSet(SCENE, {
+    mode: 'frustum-3d',
+    frustum: {
+      left: {x: 1, y: 0, z: 0, w: 0},
+      right: {x: -1, y: 0, z: 0, w: 200},
+      top: {x: 0, y: 1, z: 0, w: 0},
+      bottom: {x: 0, y: -1, z: 0, w: 200},
+      near: {x: 0, y: 0, z: 1, w: 1},
+      far: {x: 0, y: 0, z: -1, w: 1},
+    },
+  })
+
+  assert.deepEqual(visibleSet.nodeIds, ['a', 'group-1', 'b'])
+  assert.equal(resolver.resolveVisibility3DPolicyDecision().executionMode, 'frustum-plus-occlusion')
+})
+
+test('resolveEngineVisibility3DPolicyDecision reports fallback mode without frustum resolver', () => {
+  const decision = resolveEngineVisibility3DPolicyDecision({
+    queryFrustum3DOcclusion: (_scene, _frustum, candidateNodeIds) => [...candidateNodeIds],
+  })
+
+  assert.equal(decision.executionMode, 'fallback-frustum-coarse')
+  assert.equal(decision.hasFrustumResolver, false)
+  assert.equal(decision.hasOcclusionResolver, true)
 })

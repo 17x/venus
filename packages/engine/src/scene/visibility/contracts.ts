@@ -81,3 +81,32 @@ export type EngineVisibilityFrustum3DResolver = (
   scene: EngineSceneSnapshot,
   frustum: EngineFrustum,
 ) => EngineNodeId[]
+
+/**
+ * Declares one optional 3D occlusion filter callback contract.
+ */
+export type EngineVisibilityFrustum3DOcclusionResolver = (
+  scene: EngineSceneSnapshot,
+  frustum: EngineFrustum,
+  candidateNodeIds: readonly EngineNodeId[],
+) => EngineNodeId[]
+
+/**
+ * Describes high-level 3D visibility execution mode.
+ */
+export type EngineVisibility3DExecutionMode =
+  | 'fallback-frustum-coarse'
+  | 'frustum-only'
+  | 'frustum-plus-occlusion'
+
+/**
+ * Describes one 3D visibility policy decision snapshot.
+ */
+export interface EngineVisibility3DPolicyDecision {
+  /** Execution mode resolved from available callbacks. */
+  executionMode: EngineVisibility3DExecutionMode
+  /** True when a custom frustum resolver is available. */
+  hasFrustumResolver: boolean
+  /** True when a custom occlusion resolver is available. */
+  hasOcclusionResolver: boolean
+}
