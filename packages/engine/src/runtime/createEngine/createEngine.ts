@@ -37,14 +37,10 @@ import {
   resolveInitialViewport,
 } from './config.ts'
 import {
-  resolveEngineRenderStrategy,
   type EngineInteractionMutationKind,
   type EngineRenderStrategyPhase,
 } from './strategy/strategy.ts'
-import {
-  resolveEngineFrameBudget,
-  type EngineFrameBudgetPressure,
-} from './frameBudgetBroker/frameBudgetBroker.ts'
+import { type EngineFrameBudgetPressure } from './frameBudgetBroker/frameBudgetBroker.ts'
 import { createEngineInteractionPredictor } from './interactionPredictor/interactionPredictor.ts'
 import {
   createEngineAnimationController,
@@ -65,19 +61,11 @@ import {
   resolveCapabilityAwareEngineRuntimePolicy,
 } from '../policy/runtimePolicy.ts'
 import {
-  resolveEngineAutoQualityScalerDecision,
+  type EngineAutoQualityScalerState,
 } from '../policy/autoQualityScaler.ts'
 import {
-  resolveEnginePressureSample,
-} from '../budget/pressureMonitor.ts'
-import {
   resolveAdaptiveHitTestExactBudget,
-  resolveHigherPressureTier,
-  resolvePolicyPressureSignals,
 } from './createEnginePolicyHelpers.ts'
-import {
-  resolveEngineShortlistFramePlanning,
-} from './createEngineShortlistFramePlanner.ts'
 import {
   createEngineSceneFacade,
 } from './createEngineSceneFacade.ts'
@@ -97,39 +85,24 @@ import {
   createEngineRuntimeFacade,
 } from './createEngineRuntimeFacade.ts'
 import {
-  resolveEngineStrategyInputV2,
-} from '../strategy/strategyInputV2.ts'
+  resolveCreateEngineDiagnosticsInput,
+} from './createEngineDiagnosticsInput.ts'
 import {
-  resolveEngineDegradationDecision,
-} from '../strategy/degradationLadder.ts'
+  resolveCreateEngineFrame,
+} from './createEngineFrameResolver.ts'
 import {
-  DEFAULT_ENGINE_PHASE_STABILITY_CONFIG,
-  resolveEngineStablePhase,
   type EnginePhaseStabilityState,
 } from '../strategy/phaseStabilityGuard.ts'
 import {
-  resolveEngineQosControllerDecision,
-} from '../strategy/qosController.ts'
-import {
-  applyEngineQosHardGuard,
-} from '../strategy/qosHardGuard.ts'
-import {
-  applyEngineQosBudgetToRendererContext,
-} from '../strategy/qosRendererWiring.ts'
-import {
-  resolveEngineProfilePolicyPack,
-} from '../strategy/profilePolicyPack.ts'
-import {
-  resolveEngineHybridAutoPolicy,
   type EngineHybridAutoPolicyState,
 } from '../strategy/hybridAutoPolicy.ts'
+import {
+  type EngineDegradationLevel,
+} from '../strategy/degradationLadder.ts'
 import {
   resolveEngineQosDiagnosticsPanel,
   type EngineQosDiagnosticsPanel,
 } from '../strategy/qosDiagnosticsPanel.ts'
-import {
-  resolveEngineStrategyConvergence,
-} from '../strategy/strategyConvergence.ts'
 import type {
   CreateEngineOptions,
   Engine,
@@ -330,7 +303,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
   let latestPressureScore = 0
   let latestAutoQualityDecisionReason = 'hold'
   let latestQosTrace = ''
-  let latestQosDegradationLevel = 'none'
+  let latestQosDegradationLevel: EngineDegradationLevel = 'none'
   let latestQosGuardTriggers: string[] = []
   let latestQosProfile: EngineProfileName = resolvedSettingsProfile
   let latestQosPressure: EngineFrameBudgetPressure = latestBudgetPressure
@@ -372,7 +345,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
   }
   const cameraAnimationController = createEngineAnimationController()
   const interactionPredictor = createEngineInteractionPredictor()
-  const policyScaleState = {
+  let policyScaleState: EngineAutoQualityScalerState = {
     renderScale: resolvedRuntimePolicy.graphics.renderScale,
     lastAdjustedAtMs: clock.now(),
   }
@@ -437,208 +410,53 @@ export function createEngine(options: CreateEngineOptions): Engine {
     },
     resolveFrame: () => {
       const scene = store.getSnapshot()
-      const pressureSample = resolveEnginePressureSample(
-        resolvePolicyPressureSignals(scene.nodes.length, latestRenderStats),
-        latestBudgetPressure,
-      )
-      latestPressureScore = pressureSample.score
-      const autoQualityDecision = resolveEngineAutoQualityScalerDecision(
-        pressureSample.tier,
-        clock.now(),
-        policyScaleState,
-      )
-      latestAutoQualityDecisionReason = autoQualityDecision.reason
-      if (autoQualityDecision.changed) {
-        policyScaleState.renderScale = autoQualityDecision.nextRenderScale
-        policyScaleState.lastAdjustedAtMs = clock.now()
-        const nextGraphicsSettings = resolveEngineGraphicsSettings({
-          ...resolvedRuntimePolicy.graphics,
-          renderScale: autoQualityDecision.nextRenderScale,
-        })
-        resolvedRuntimePolicy = resolveCapabilityAwareEngineRuntimePolicy(
-          createEngineRuntimePolicy(
-            resolvedSettingsProfile,
-            resolvedPreset,
-            nextGraphicsSettings,
-            resolvedPerformanceSettings,
-            resolvedRuntimeSettings,
-            resolvedRuntimeBudgetSettings,
-            resolvedCapabilityProfile,
-          ),
-        )
-      }
-      // Resolve one strategy decision per frame so quality and preview policy
-      // stay synchronized across planner and renderer execution.
-      const strategyDecision = resolveEngineRenderStrategy({
-        nowMs: clock.now(),
-        lodEnabled: renderContext.lodEnabled,
-        cameraAnimationActive: cameraAnimationState.active,
-        cameraCachePreviewOnly: cameraAnimationState.cachePreviewOnly,
-        lastInteractionAtMs,
-        lastInteractionKind,
-        settleDelayMs: INTERACTION_SETTLE_DELAY_MS,
-        interactionHoldMs: INTERACTION_HOLD_MS,
-        forceSharpFrame: settleSharpnessState.forceSharpFrame,
-      })
-      renderContext.quality = strategyDecision.quality
-      renderContext.interactionActive = strategyDecision.interactionActive
-      renderer.setInteractionPreview?.(strategyDecision.interactionPreview)
-      latestStrategyPhase = strategyDecision.phase
-      latestStrategyInteractionActive = strategyDecision.interactionActive
-      phaseStabilityState = resolveEngineStablePhase(
-        phaseStabilityState,
-        strategyDecision.phase,
-        DEFAULT_ENGINE_PHASE_STABILITY_CONFIG,
-      )
-      latestQosStablePhase = phaseStabilityState.phase
-
-      // Refresh interaction predictor each frame so renderer lanes can adapt
-      // prefetch ring and overscan using one shared motion snapshot.
-      latestInteractionPredictor = interactionPredictor.update({
-        nowMs: clock.now(),
-        viewport,
-        interactionActive: strategyDecision.interactionActive,
-      })
-      renderContext.interactionPredictor = latestInteractionPredictor
-
-      // Resolve one frame budget snapshot so renderer lanes share the same
-      // draw/upload/preload throttling contract for this frame.
-      const frameBudgetDecision = resolveEngineFrameBudget({
-        phase: strategyDecision.phase,
-        interactionActive: strategyDecision.interactionActive,
-        sceneNodeCount: scene.nodes.length,
-        tileQueuePendingCount: latestRenderStats?.tileSchedulerPendingCount ?? 0,
-        dirtyRegionCount: renderContext.dirtyRegions?.length ?? 0,
-        settleSharpnessPending: settleSharpnessState.pending,
-        forceSharpFrame: settleSharpnessState.forceSharpFrame,
-        predictorConfidence: latestInteractionPredictor.confidence,
-        predictorSpeedPxPerSec: latestInteractionPredictor.speedPxPerSec,
-      })
-      renderContext.frameBudget = {
-        ...frameBudgetDecision.budget,
-        drawSubmitBudgetMs: Math.min(
-          frameBudgetDecision.budget.drawSubmitBudgetMs,
-          resolvedRuntimePolicy.budget.drawBudgetMs,
-        ),
-        textureUploadBudgetBytes: Math.min(
-          frameBudgetDecision.budget.textureUploadBudgetBytes,
-          resolvedRuntimePolicy.budget.uploadBudgetBytes,
-        ),
-        textureUploadTotalBudgetBytes: Math.min(
-          frameBudgetDecision.budget.textureUploadTotalBudgetBytes,
-          resolvedRuntimePolicy.budget.uploadBudgetBytes,
-        ),
-        tilePreloadMaxUploads: Math.min(
-          frameBudgetDecision.budget.tilePreloadMaxUploads,
-          resolvedRuntimePolicy.budget.tileBudgetCount,
-        ),
-      }
-      const effectiveBudgetPressure = resolveHigherPressureTier(
-        frameBudgetDecision.pressure,
-        pressureSample.tier,
-      )
-      renderContext.frameBudgetPressure = effectiveBudgetPressure
-      latestBudgetPressure = effectiveBudgetPressure
-
-      const convergedStrategyPhase = resolveEngineStrategyConvergence(latestQosStablePhase)
-      let effectiveQosProfile: EngineProfileName = resolvedSettingsProfile
-      if (resolvedSettingsProfile === 'hybrid') {
-        // Hybrid mode derives one concrete profile tendency to avoid frame-to-frame
-        // budget jitter between editor/game/animation semantics.
-        const hybridDecision = resolveEngineHybridAutoPolicy(
-          hybridPolicyState,
-          convergedStrategyPhase.phase,
-          clock.now(),
-        )
-        hybridPolicyState = hybridDecision.state
-        effectiveQosProfile = hybridDecision.effectiveProfile
-      }
-
-      const strategyInputV2 = resolveEngineStrategyInputV2({
-        profile: effectiveQosProfile,
-        phase: convergedStrategyPhase.phase,
-        pressure: effectiveBudgetPressure,
-        cameraAnimationActive: cameraAnimationState.active,
-        predictorConfidence: latestInteractionPredictor.confidence,
-        interactionElapsedMs: Math.max(0, clock.now() - lastInteractionAtMs),
-      })
-      const degradationDecision = resolveEngineDegradationDecision(strategyInputV2)
-      latestQosDegradationLevel = degradationDecision.level
-      const qosDecision = resolveEngineQosControllerDecision({
-        profile: strategyInputV2.profile,
-        phase: strategyInputV2.phase,
-        pressure: strategyInputV2.pressure,
-        capabilityTier: resolvedCapabilityProfile.gpuTier,
-        degradation: degradationDecision,
-      })
-      const profilePolicyPack = resolveEngineProfilePolicyPack(
-        strategyInputV2.profile,
-        strategyInputV2.phase,
-        strategyInputV2.pressure,
-        qosDecision.budget,
-      )
-      const qosHardGuardResult = applyEngineQosHardGuard(
-        {
-          profile: strategyInputV2.profile,
-          phase: strategyInputV2.phase,
-          pressure: strategyInputV2.pressure,
-          capabilityTier: resolvedCapabilityProfile.gpuTier,
-          degradation: degradationDecision,
-        },
-        {
-          ...qosDecision,
-          budget: profilePolicyPack.budget,
-        },
-      )
-      latestQosTrace = qosHardGuardResult.decision.trace
-      latestQosGuardTriggers = [
-        ...profilePolicyPack.guardTriggers,
-        ...qosHardGuardResult.triggers,
-      ]
-      renderContext.frameBudget = applyEngineQosBudgetToRendererContext(
-        renderContext.frameBudget,
-        qosHardGuardResult.decision,
-      )
-      latestQosProfile = strategyInputV2.profile
-      latestQosPressure = strategyInputV2.pressure
-      latestQosBudget = {
-        ...renderContext.frameBudget,
-      }
-      latestQosFallbackReason = latestRenderStats?.cacheFallbackReason ?? null
-      latestQosPanel = resolveEngineQosDiagnosticsPanel({
-        profile: latestQosProfile,
-        phase: latestQosStablePhase,
-        pressure: latestQosPressure,
-        budget: latestQosBudget,
-        degradationLevel: latestQosDegradationLevel,
-        fallbackReason: latestQosFallbackReason,
-        guardTriggers: latestQosGuardTriggers,
-        trace: latestQosTrace,
-      })
-
-      if (settleSharpnessState.pending && clock.now() > settleSharpnessState.deadlineAtMs) {
-        // Record one contract miss and force one immediate sharp recovery frame.
-        if (!settleSharpnessState.deadlineMissRecorded) {
-          settleSharpnessState.deadlineMissRecorded = true
-          settleSharpnessState.missCount += 1
-          settleSharpnessState.lastMissLatencyMs = Math.max(0, clock.now() - lastInteractionAtMs)
-        }
-
-        settleSharpnessState.forceSharpFrame = true
-      }
-
-      const shortlistPlanning = resolveEngineShortlistFramePlanning({
-        enabled: ENABLE_FRAME_PLAN_SHORTLIST,
+      const frameResolution = resolveCreateEngineFrame({
         scene,
         viewport,
-        framePlanPadding: resolveFramePlanQueryPaddingWorld(viewport),
-        thresholds: {
+        renderContext,
+        renderer,
+        nowMs: clock.now(),
+        cameraAnimationState,
+        settleSharpnessState,
+        interactionPredictorUpdate: (args) => interactionPredictor.update(args),
+        resolvedRuntimePolicy,
+        resolvedSettingsProfile,
+        resolvedPreset,
+        resolvedPerformanceSettings,
+        resolvedRuntimeSettings,
+        resolvedRuntimeBudgetSettings,
+        resolvedCapabilityProfile,
+        policyScaleState,
+        phaseStabilityState,
+        hybridPolicyState,
+        latestRenderStats,
+        latestBudgetPressure,
+        latestInteractionPredictor,
+        latestQosBudget,
+        latestQosGuardTriggers,
+        latestQosTrace,
+        latestQosProfile,
+        latestQosPressure,
+        latestQosFallbackReason,
+        lastInteractionAtMs,
+        lastInteractionKind,
+        latestStrategyPhase,
+        latestStrategyInteractionActive,
+        latestQosStablePhase,
+        latestQosDegradationLevel,
+        latestPressureScore,
+        latestAutoQualityDecisionReason,
+        latestQosPanel,
+        interactionSettleDelayMs: INTERACTION_SETTLE_DELAY_MS,
+        interactionHoldMs: INTERACTION_HOLD_MS,
+        shortlistEnabled: ENABLE_FRAME_PLAN_SHORTLIST,
+        shortlistThresholds: {
           ratioThreshold: FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD,
           hysteresisRatio: FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO,
           minSceneNodes: FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES,
           stableFrameCount: FRAME_PLAN_SHORTLIST_STABLE_FRAME_COUNT,
         },
-        state: {
+        shortlistState: {
           latestFramePlan,
           latestFramePlanSignature,
           shortlistActive,
@@ -651,42 +469,47 @@ export function createEngine(options: CreateEngineOptions): Engine {
           shortlistEnterRatioThreshold,
           shortlistLeaveRatioThreshold,
         },
-        protectedNodeIds: renderContext.protectedNodeIds,
+        framePlanPadding: resolveFramePlanQueryPaddingWorld(viewport),
         queryCandidates: (bounds) => store.queryCandidates(bounds),
         resolveVisibleSet: (bounds) => visibilityResolver.resolveVisibleSet(scene, {
           mode: 'bounds-2d',
           bounds,
         }),
+        layeredBridgeEnabled,
       })
-      latestFramePlan = shortlistPlanning.latestFramePlan
-      latestFramePlanSignature = shortlistPlanning.latestFramePlanSignature
-      shortlistActive = shortlistPlanning.shortlistActive
-      shortlistCandidateRatio = shortlistPlanning.shortlistCandidateRatio
-      shortlistAppliedCandidateCount = shortlistPlanning.shortlistAppliedCandidateCount
-      shortlistPendingState = shortlistPlanning.shortlistPendingState
-      shortlistPendingFrameCount = shortlistPlanning.shortlistPendingFrameCount
-      shortlistToggleCount = shortlistPlanning.shortlistToggleCount
-      shortlistDebounceBlockedToggleCount = shortlistPlanning.shortlistDebounceBlockedToggleCount
-      shortlistEnterRatioThreshold = shortlistPlanning.shortlistEnterRatioThreshold
-      shortlistLeaveRatioThreshold = shortlistPlanning.shortlistLeaveRatioThreshold
-      renderContext.framePlanCandidateIds = shortlistPlanning.framePlanCandidateIds
-      renderContext.framePlanVersion = shortlistPlanning.framePlanVersion
-
-      if (layeredBridgeEnabled) {
-        renderContext.layeredRender = resolveLayeredRenderBridgeOutput({
-          scene,
-          viewport,
-          context: renderContext,
-        })
-      } else {
-        renderContext.layeredRender = undefined
-      }
-
-      return {
-        scene,
-        viewport,
-        context: renderContext,
-      }
+      resolvedRuntimePolicy = frameResolution.resolvedRuntimePolicy
+      policyScaleState = frameResolution.policyScaleState
+      phaseStabilityState = frameResolution.phaseStabilityState
+      hybridPolicyState = frameResolution.hybridPolicyState
+      latestPressureScore = frameResolution.latestPressureScore
+      latestAutoQualityDecisionReason = frameResolution.latestAutoQualityDecisionReason
+      latestStrategyPhase = frameResolution.latestStrategyPhase
+      latestStrategyInteractionActive = frameResolution.latestStrategyInteractionActive
+      latestQosStablePhase = frameResolution.latestQosStablePhase
+      latestInteractionPredictor = frameResolution.latestInteractionPredictor
+      latestBudgetPressure = frameResolution.latestBudgetPressure
+      latestQosDegradationLevel = frameResolution.latestQosDegradationLevel
+      latestQosTrace = frameResolution.latestQosTrace
+      latestQosGuardTriggers = frameResolution.latestQosGuardTriggers
+      latestQosProfile = frameResolution.latestQosProfile
+      latestQosPressure = frameResolution.latestQosPressure
+      latestQosBudget = frameResolution.latestQosBudget
+      latestQosFallbackReason = frameResolution.latestQosFallbackReason
+      latestQosPanel = frameResolution.latestQosPanel
+      latestFramePlan = frameResolution.shortlistPlanning.latestFramePlan
+      latestFramePlanSignature = frameResolution.shortlistPlanning.latestFramePlanSignature
+      shortlistActive = frameResolution.shortlistPlanning.shortlistActive
+      shortlistCandidateRatio = frameResolution.shortlistPlanning.shortlistCandidateRatio
+      shortlistAppliedCandidateCount = frameResolution.shortlistPlanning.shortlistAppliedCandidateCount
+      shortlistPendingState = frameResolution.shortlistPlanning.shortlistPendingState
+      shortlistPendingFrameCount = frameResolution.shortlistPlanning.shortlistPendingFrameCount
+      shortlistToggleCount = frameResolution.shortlistPlanning.shortlistToggleCount
+      shortlistDebounceBlockedToggleCount = frameResolution.shortlistPlanning.shortlistDebounceBlockedToggleCount
+      shortlistEnterRatioThreshold = frameResolution.shortlistPlanning.shortlistEnterRatioThreshold
+      shortlistLeaveRatioThreshold = frameResolution.shortlistPlanning.shortlistLeaveRatioThreshold
+      renderContext.framePlanCandidateIds = frameResolution.shortlistPlanning.framePlanCandidateIds
+      renderContext.framePlanVersion = frameResolution.shortlistPlanning.framePlanVersion
+      return frameResolution.frame
     },
     onStats: handleRenderStats,
   })
@@ -750,7 +573,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
       startLoop: () => loop.start(),
       stopLoop: () => loop.stop(),
       isRunning: () => loop.isRunning(),
-      resolveDiagnosticsInput: () => ({
+      resolveDiagnosticsInput: () => resolveCreateEngineDiagnosticsInput({
         backend: renderer.capabilities.backend,
         latestRenderStats,
         pixelRatio,

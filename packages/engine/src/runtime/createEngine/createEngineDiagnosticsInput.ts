@@ -5,7 +5,7 @@ import { buildEngineRuntimeDiagnosticsSnapshot } from './createEngineDiagnostics
  * @param options Runtime snapshot dependencies used to build diagnostics input.
  */
 export function resolveCreateEngineDiagnosticsInput(options: {
-  backend: string
+  backend: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['backend']
   latestRenderStats: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['latestRenderStats']
   pixelRatio: number
   outputPixelRatio: number
