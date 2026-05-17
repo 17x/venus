@@ -1,31 +1,9 @@
-import type { EngineOverlayDrawNode } from '../../interaction/overlayCanvas.ts'
-import { createWebGLEngineRenderer } from '../../gpu/webgl/index.ts'
-import { createWebGPUEngineRenderer } from '../../gpu/webgpu/index.ts'
-import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
-import type {
-  EngineFrameBudget,
-  EngineInteractionPredictorState,
-  EngineRenderQuality,
-  EngineRenderStats,
-  EngineResourceLoader,
-  EngineTextShaper,
-} from '../../renderer/types/index.ts'
 import {
   createEngineSceneStore,
 } from '../../scene/store/store.ts'
 import {
-  type EngineFramePlan,
-} from '../../scene/framePlan.ts'
-import {
-  type EngineHitPlan,
-} from '../../scene/hitPlan.ts'
-import {
   createEngineVisibilityResolver,
 } from '../../visibility/index.ts'
-import type {
-  EngineNodeId,
-  EngineRect,
-} from '../../scene/types/types.ts'
 import {
   createEngineHitResolver,
 } from '../../scene/hit/resolver.ts'
@@ -36,33 +14,10 @@ import {
   resolveEnginePixelRatio,
   resolveInitialViewport,
 } from './config.ts'
-import {
-  type EngineInteractionMutationKind,
-  type EngineRenderStrategyPhase,
-} from './strategy/strategy.ts'
-import { type EngineFrameBudgetPressure } from './frameBudgetBroker/frameBudgetBroker.ts'
 import { createEngineInteractionPredictor } from './interactionPredictor/interactionPredictor.ts'
 import {
   createEngineAnimationController,
 } from '../../animation/index.ts'
-import {
-  resolveLayeredRenderBridgeOutput,
-} from '../bridge/index.ts'
-import {
-  resolveEngineDefaultPreset,
-  resolveEngineDeviceCapabilityProfile,
-  resolveEngineGraphicsSettings,
-  resolveEnginePerformanceSettings,
-  resolveEngineRuntimeSettings,
-  type EngineProfileName,
-} from '../../settings/index.ts'
-import {
-  createEngineRuntimePolicy,
-  resolveCapabilityAwareEngineRuntimePolicy,
-} from '../policy/runtimePolicy.ts'
-import {
-  type EngineAutoQualityScalerState,
-} from '../policy/autoQualityScaler.ts'
 import {
   resolveAdaptiveHitTestExactBudget,
 } from './createEnginePolicyHelpers.ts'
@@ -90,19 +45,9 @@ import {
 import {
   resolveCreateEngineFrame,
 } from './createEngineFrameResolver.ts'
-import {
-  type EnginePhaseStabilityState,
-} from '../strategy/phaseStabilityGuard.ts'
-import {
-  type EngineHybridAutoPolicyState,
-} from '../strategy/hybridAutoPolicy.ts'
-import {
-  type EngineDegradationLevel,
-} from '../strategy/degradationLadder.ts'
-import {
-  resolveEngineQosDiagnosticsPanel,
-  type EngineQosDiagnosticsPanel,
-} from '../strategy/qosDiagnosticsPanel.ts'
+import { resolveCreateEnginePolicyBootstrap } from './createEnginePolicyBootstrap.ts'
+import { resolveCreateEngineRendererBootstrap } from './createEngineRendererBootstrap.ts'
+import { resolveCreateEngineRuntimeStateBootstrap } from './createEngineRuntimeStateBootstrap.ts'
 import type {
   CreateEngineOptions,
   Engine,
@@ -139,34 +84,16 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const FRAME_PLAN_SHORTLIST_DEFAULT_STABLE_FRAME_COUNT = 2
   const DEFAULT_MAX_PIXEL_RATIO = 2
   const DEFAULT_CAMERA_ANIMATION_DURATION_MS = 110
-  const DEFAULT_POLICY_PROFILE: EngineProfileName = 'editor'
-
-  const resolvedSettingsProfile = options.settings?.profile ?? DEFAULT_POLICY_PROFILE
-  const resolvedCapabilityProfile = resolveEngineDeviceCapabilityProfile(options.settings?.capability)
-  const resolvedGraphicsSettings = resolveEngineGraphicsSettings(options.settings?.graphics)
-  const resolvedPerformanceSettings = resolveEnginePerformanceSettings(options.settings?.performance)
-  const resolvedRuntimeSettings = resolveEngineRuntimeSettings(options.settings?.runtime)
-  const resolvedRuntimeBudgetSettings = {
-    drawBudgetMs: Math.max(1, resolvedPerformanceSettings.frameTimeBudgetMs * 0.4),
-    uploadBudgetBytes: resolvedPerformanceSettings.uploadBudgetBytes,
-    cacheBudgetBytes: 200_000_000,
-    tileBudgetCount: 64,
-    workerBudgetCount: resolvedPerformanceSettings.workerBudgetCount,
-    frameBudgetMs: resolvedPerformanceSettings.frameTimeBudgetMs,
-  }
-  const resolvedPreset = options.settings?.preset
-    ?? resolveEngineDefaultPreset(resolvedSettingsProfile, resolvedCapabilityProfile)
-  let resolvedRuntimePolicy = resolveCapabilityAwareEngineRuntimePolicy(
-    createEngineRuntimePolicy(
-      resolvedSettingsProfile,
-      resolvedPreset,
-      resolvedGraphicsSettings,
-      resolvedPerformanceSettings,
-      resolvedRuntimeSettings,
-      resolvedRuntimeBudgetSettings,
-      resolvedCapabilityProfile,
-    ),
-  )
+  const {
+    resolvedSettingsProfile,
+    resolvedCapabilityProfile,
+    resolvedPerformanceSettings,
+    resolvedRuntimeSettings,
+    resolvedRuntimeBudgetSettings,
+    resolvedPreset,
+    resolvedRuntimePolicy: bootstrapRuntimePolicy,
+  } = resolveCreateEnginePolicyBootstrap(options)
+  let resolvedRuntimePolicy = bootstrapRuntimePolicy
 
   const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
   const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
@@ -189,7 +116,6 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const INTERACTION_HOLD_MS = 56
   const FRAME_PLAN_MAX_OVERSCAN_RATIO = 1
   const layeredBridgeEnabled = options.render?.layeredBridgeEnabled ?? false
-  const requestedBackend = options.render?.backend ?? 'webgl'
   let maxPixelRatio = options.render?.maxPixelRatio ?? DEFAULT_MAX_PIXEL_RATIO
   let pixelRatio = resolveEnginePixelRatio(
     options.render?.dpr ?? options.render?.pixelRatio,
@@ -197,6 +123,16 @@ export function createEngine(options: CreateEngineOptions): Engine {
     options.host?.resolvePixelRatio,
   )
   let outputPixelRatio = 1
+  const {
+    renderer,
+    renderContext,
+  } = resolveCreateEngineRendererBootstrap(
+    options,
+    resolvedPerformance,
+    resolvedLodEnabled,
+    pixelRatio,
+    outputPixelRatio,
+  )
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
   })
@@ -215,51 +151,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
       })
     },
   })
-  const createRendererOptions = {
-    canvas: options.canvas,
-    createCanvasSurface: options.host?.createCanvasSurface,
-    enableCulling: resolvedPerformance.culling,
-    clearColor: options.render?.webglClearColor,
-    antialias: options.render?.webglAntialias ?? true,
-    modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
-    lod: resolvedPerformance.lodConfig,
-    tileConfig: resolvedPerformance.tileConfig,
-    initialRender: options.render?.initialRender,
-    interactionPreview: options.render?.interactionPreview,
-  }
-  const renderer = requestedBackend === 'webgpu'
-    ? createWebGPUEngineRenderer(createRendererOptions)
-    : createWebGLEngineRenderer(createRendererOptions)
-  const renderContext: {
-    quality: EngineRenderQuality
-    lodEnabled: boolean
-    interactionActive?: boolean
-    pixelRatio: number
-    outputPixelRatio: number
-    loader?: EngineResourceLoader
-    textShaper?: EngineTextShaper
-    dirtyRegions?: Array<{zoomLevel?: number; bounds: EngineRect}>
-    framePlanCandidateIds?: readonly EngineNodeId[]
-    framePlanVersion?: number
-    protectedNodeIds?: readonly EngineNodeId[]
-    interactionActiveNodeIds?: readonly EngineNodeId[]
-    overlayNodes?: readonly EngineOverlayDrawNode[]
-    frameBudget?: EngineFrameBudget
-    frameBudgetPressure?: EngineFrameBudgetPressure
-    interactionPredictor?: EngineInteractionPredictorState
-    layeredRender?: ReturnType<typeof resolveLayeredRenderBridgeOutput>
-  } = {
-    // Force full quality when LOD is disabled so detail degradation paths
-    // cannot lower fidelity via interaction-mode quality switches.
-    quality: resolvedLodEnabled
-      ? (options.render?.quality ?? 'full')
-      : 'full',
-    lodEnabled: resolvedLodEnabled,
-    pixelRatio,
-    outputPixelRatio,
-    loader: options.resource?.loader,
-    textShaper: options.resource?.textShaper,
-  }
+
   const clock = options.clock ?? createSystemEngineClock()
   let viewport = resolveInitialViewport(options.canvas, options.viewport)
   const { applyResizeSurface } = createEngineResizeLifecycle({
@@ -276,90 +168,50 @@ export function createEngine(options: CreateEngineOptions): Engine {
       viewport = nextViewport
     },
   })
-  let latestRenderStats: EngineRenderStats | null = null
-  let latestFramePlan: EngineFramePlan | null = null
-  let latestFramePlanSignature = ''
-  let shortlistActive = false
-  let shortlistCandidateRatio = 1
-  let shortlistAppliedCandidateCount = 0
-  let shortlistPendingState: boolean | null = null
-  let shortlistPendingFrameCount = 0
-  let shortlistToggleCount = 0
-  let shortlistDebounceBlockedToggleCount = 0
-  let shortlistEnterRatioThreshold =
-    FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD - FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
-  let shortlistLeaveRatioThreshold =
-    FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD + FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO
-  let latestHitPlan: EngineHitPlan | null = null
-  let latestStrategyPhase: EngineRenderStrategyPhase = 'static'
-  let latestStrategyInteractionActive = false
-  let latestInteractionPredictor: EngineInteractionPredictorState = {
-    directionX: 0,
-    directionY: 0,
-    speedPxPerSec: 0,
-    confidence: 0,
-  }
-  let latestBudgetPressure: EngineFrameBudgetPressure = 'low'
-  let latestPressureScore = 0
-  let latestAutoQualityDecisionReason = 'hold'
-  let latestQosTrace = ''
-  let latestQosDegradationLevel: EngineDegradationLevel = 'none'
-  let latestQosGuardTriggers: string[] = []
-  let latestQosProfile: EngineProfileName = resolvedSettingsProfile
-  let latestQosPressure: EngineFrameBudgetPressure = latestBudgetPressure
-  let latestQosBudget: EngineFrameBudget = {
-    drawSubmitBudgetMs: 0,
-    textureUploadBudgetBytes: 0,
-    textureUploadTotalBudgetBytes: 0,
-    imageTextureUploadMaxCount: 0,
-    textTextureUploadMaxCount: 0,
-    tilePreloadBudgetMs: 0,
-    tilePreloadMaxUploads: 0,
-    overlayPassBudgetMs: 0,
-  }
-  let latestQosStablePhase: EngineRenderStrategyPhase = 'static'
-  let latestQosFallbackReason: EngineRenderFallbackReason | null = null
-  let latestQosPanel: EngineQosDiagnosticsPanel = resolveEngineQosDiagnosticsPanel({
-    profile: latestQosProfile,
-    phase: latestQosStablePhase,
-    pressure: latestQosPressure,
-    budget: latestQosBudget,
-    degradationLevel: latestQosDegradationLevel,
-    fallbackReason: latestQosFallbackReason,
-    guardTriggers: latestQosGuardTriggers,
-    trace: latestQosTrace,
-  })
-  let lastInteractionAtMs = clock.now()
-  let lastInteractionKind: EngineInteractionMutationKind = 'none'
-  const settleSharpnessState = {
-    pending: false,
-    deadlineAtMs: 0,
-    deadlineMissRecorded: false,
-    forceSharpFrame: false,
-    metCount: 0,
-    missCount: 0,
-    lastLatencyMs: 0,
-    lastMissLatencyMs: 0,
-    highZoomTextSlaCheckedCount: 0,
-    highZoomTextSlaViolationCount: 0,
-  }
+  let {
+    latestRenderStats,
+    latestFramePlan,
+    latestFramePlanSignature,
+    shortlistActive,
+    shortlistCandidateRatio,
+    shortlistAppliedCandidateCount,
+    shortlistPendingState,
+    shortlistPendingFrameCount,
+    shortlistToggleCount,
+    shortlistDebounceBlockedToggleCount,
+    shortlistEnterRatioThreshold,
+    shortlistLeaveRatioThreshold,
+    latestHitPlan,
+    latestStrategyPhase,
+    latestStrategyInteractionActive,
+    latestInteractionPredictor,
+    latestBudgetPressure,
+    latestPressureScore,
+    latestAutoQualityDecisionReason,
+    latestQosTrace,
+    latestQosDegradationLevel,
+    latestQosGuardTriggers,
+    latestQosProfile,
+    latestQosPressure,
+    latestQosBudget,
+    latestQosStablePhase,
+    latestQosFallbackReason,
+    latestQosPanel,
+    lastInteractionAtMs,
+    lastInteractionKind,
+    settleSharpnessState,
+    policyScaleState,
+    phaseStabilityState,
+    hybridPolicyState,
+  } = resolveCreateEngineRuntimeStateBootstrap(
+    clock.now(),
+    resolvedSettingsProfile,
+    resolvedRuntimePolicy,
+    FRAME_PLAN_SHORTLIST_RATIO_THRESHOLD,
+    FRAME_PLAN_SHORTLIST_HYSTERESIS_RATIO,
+  )
   const cameraAnimationController = createEngineAnimationController()
   const interactionPredictor = createEngineInteractionPredictor()
-  let policyScaleState: EngineAutoQualityScalerState = {
-    renderScale: resolvedRuntimePolicy.graphics.renderScale,
-    lastAdjustedAtMs: clock.now(),
-  }
-  let phaseStabilityState: EnginePhaseStabilityState = {
-    phase: latestQosStablePhase,
-    pendingPhase: null as EngineRenderStrategyPhase | null,
-    pendingFrames: 0,
-  }
-  let hybridPolicyState: EngineHybridAutoPolicyState = {
-    profile: 'editor',
-    lastSwitchAtMs: clock.now(),
-    pendingProfile: null,
-    pendingFrameCount: 0,
-  }
   const {
     cameraAnimationState,
     markInteractionMutation,
