@@ -84,8 +84,6 @@ const renderPlanCache = new WeakMap<EngineRenderFrame['scene'], CachedRenderPlan
 let renderPlanCacheHitCount = 0
 let renderPlanCacheMissCount = 0
 
-// Expose one immutable diagnostics snapshot so runtime telemetry can report
-// render-plan geometry cache behavior consistently across backends.
 /**
  * Returns immutable diagnostics for render-plan cache hit/miss behavior.
  */
@@ -98,7 +96,6 @@ export function getEngineRenderPlanCacheDiagnostics(): EngineRenderPlanCacheDiag
   }
 }
 
-// Build or reuse the render plan and stamp per-frame geometry cache metrics.
 /**
  * Handles prepareEngineRenderPlan.
  * @param frame Current render frame.

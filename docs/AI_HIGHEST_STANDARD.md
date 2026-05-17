@@ -252,3 +252,53 @@ A change is valid only if all are true:
 7. File split rules were satisfied when split triggers existed.
 
 If any item fails, the change is rejected.
+
+## 12. AI Refactor Execution Cadence (Global)
+
+This section defines the mandatory AI execution cadence for large refactors and split-heavy work.
+
+### 12.1 Baseline Gate (Once Per Session)
+
+Before split-heavy edits, AI must capture one baseline:
+
+- Typecheck baseline
+- Relevant test baseline
+- File-shape guard baseline
+
+AI must not rerun full baseline checks after every patch unless a high-risk gate requires it.
+
+### 12.2 Batch Size Rule
+
+AI must execute refactors in bounded batches:
+
+- 2-4 patches per batch, or
+- 80-150 net changed lines per batch
+
+At batch end, run validation according to risk tier.
+
+### 12.3 Risk-Tier Validation Rule
+
+Each batch must be classified and validated by risk:
+
+- Low risk (comments/types-only/extraction with no behavior change): typecheck only.
+- Medium risk (state wiring/diagnostics composition/strategy input plumbing): typecheck + targeted tests.
+- High risk (render path/budget/fallback/interaction loop changes): typecheck + targeted tests + focused regression tests.
+
+### 12.4 Stage Gates
+
+AI must enforce stage gates in order:
+
+1. Structure gate: extraction compiles (typecheck pass).
+2. Behavior gate: relevant targeted tests pass.
+3. Governance gate: changed-scope file-shape guard reflects expected state.
+
+AI must fix failing gates before starting the next behavioral batch.
+
+### 12.5 Full Validation Frequency
+
+Full validation (broad tests + all-scope guard) is required:
+
+- At milestone completion of a major file split, and
+- At final handoff.
+
+AI should avoid full validation after every patch unless a high-risk regression indicates systemic breakage.

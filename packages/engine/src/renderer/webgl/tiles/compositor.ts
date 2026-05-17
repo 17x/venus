@@ -1,30 +1,11 @@
-/**
- * Renderer/WebGL tile subsystem module.
- * Owns tile compositing draw flow and tile upload scheduling integration.
- * Does not own global renderer lifecycle or capability state persistence.
- */
 import type { EngineCanvasSurfaceFactory, EngineRenderFrame } from '../../types/index.ts'
 import { createViewportMatrixForRender, drawWebGLPacket, type WebGLQuadPipeline } from '../core/index.ts'
 import { EngineTileCache, createTileStreamingKey, getZoomLevelForScale, type TileZoomLevel } from '../../tileManager/index.ts'
 import { TileScheduler } from '../../tileScheduler/index.ts'
-import {
-  ENGINE_RENDER_FALLBACK_REASON,
-  type EngineRenderFallbackReason,
-} from '../../fallbackTaxonomy/index.ts'
-import {
-  resolvePredictiveTileRingWindow,
-} from '../../interactionPredictiveTiles/index.ts'
+import { ENGINE_RENDER_FALLBACK_REASON, type EngineRenderFallbackReason } from '../../fallbackTaxonomy/index.ts'
+import { resolvePredictiveTileRingWindow } from '../../interactionPredictiveTiles/index.ts'
 import { resolveRoiPrioritizedPreloadTiles } from './tileRoiPreloadPolicy/tileRoiPreloadPolicy.ts'
-import {
-  buildTileTextureSourceFromModelSurface,
-  clampTileZoomLevel,
-  resolveTileFramebufferRegion,
-  uploadSurfaceTexture,
-  uploadTileTexture,
-} from './textureIO.ts'
-
-// Keep tile composition and tile upload plumbing outside the main WebGL file
-// so the primary backend can focus on frame orchestration.
+import { buildTileTextureSourceFromModelSurface, clampTileZoomLevel, resolveTileFramebufferRegion, uploadSurfaceTexture, uploadTileTexture } from './textureIO.ts'
 interface TileCompositorDrawEntry {
   bounds: {x: number; y: number; width: number; height: number}
   texture: WebGLTexture
@@ -47,8 +28,8 @@ interface TileCompositorResult {
 
 /**
  * Draw base scene from tile cache and rebuild/upload missing tiles on demand.
-  * @param options Options object for this operation.
-*/
+ * @param options Options object for this operation.
+ */
 export function drawModelSurfaceAsTiles(options: {
   context: WebGLRenderingContext | WebGL2RenderingContext
   frame: EngineRenderFrame
@@ -65,6 +46,8 @@ export function drawModelSurfaceAsTiles(options: {
   preloadBudgetMs?: number
   maxPreloadUploads?: number
 }): TileCompositorResult | null {
+  // AI-TEMP: Disable framebuffer-seed upload path due regression risk in tile upload flow; remove when direct framebuffer-copy uploads are re-enabled and covered by dedicated tests; ref ENG-TILE-UPLOAD-REGRESSION.
+  const enableFramebufferSeedUpload = false
   // Resolve the cache bucket from the current scale with hysteresis so zoom
   // transitions reuse adjacent layers without pinning all tiles to 100%.
   const zoomLevel = resolveTileCacheZoomLevel(options.frame.viewport.scale, options.previousZoomLevel)
@@ -110,7 +93,7 @@ export function drawModelSurfaceAsTiles(options: {
     const existingTexture = cachedTexture ?? null
 
     // Seed default framebuffer once from modelSurface so missing tiles can use GPU copy path.
-    if (!seededFramebufferForTiles) {
+    if (enableFramebufferSeedUpload && !seededFramebufferForTiles) {
       sourceTexture = uploadSurfaceTexture(options.context, options.modelSurface)
       if (!sourceTexture) {
         fallbackReason = ENGINE_RENDER_FALLBACK_REASON.L2_TILE_SEED_UPLOAD_FAILED
@@ -192,7 +175,7 @@ export function drawModelSurfaceAsTiles(options: {
       }
     }
 
-    if (!uploaded.texture) {
+    if (enableFramebufferSeedUpload && !uploaded.texture) {
       fallbackReason = seededFramebufferForTiles
         ? ENGINE_RENDER_FALLBACK_REASON.L2_TILE_FRAMEBUFFER_COPY_FALLBACK_CANVAS
         : fallbackReason
@@ -229,7 +212,7 @@ export function drawModelSurfaceAsTiles(options: {
     // Keep visible tile upload synchronous so this frame's tile positions stay deterministic.
     const uploadedEntry = upsertTileTexture(tile)
     if (!uploadedEntry.texture) {
-      fallbackReason = seededFramebufferForTiles
+      fallbackReason = enableFramebufferSeedUpload && seededFramebufferForTiles
         ? ENGINE_RENDER_FALLBACK_REASON.L2_TILE_FRAMEBUFFER_COPY_FAILED
         : ENGINE_RENDER_FALLBACK_REASON.L2_TILE_SOURCE_BUILD_FAILED
       if (sourceTexture) {

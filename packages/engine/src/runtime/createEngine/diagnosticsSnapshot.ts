@@ -1,7 +1,7 @@
 // Module responsibility: compose runtime diagnostics snapshots from normalized runtime sections.
 // Non-responsibility: render loop orchestration or policy mutation.
 
-import type { EngineRuntimeDiagnostics } from './createEngine.ts'
+import type { EngineRuntimeDiagnostics } from './createEngineContracts.ts'
 
 /**
  * Describes normalized runtime diagnostics sections consumed by snapshot composition.
