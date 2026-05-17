@@ -829,6 +829,15 @@ export {
 } from '../runtime/release/threeDimensionalRolloutReadinessScoreV1.ts'
 
 export type {
+  EngineThreeDimensionalMechanismReadinessInputV1,
+  EngineThreeDimensionalMechanismTelemetrySignalsV1,
+} from '../runtime/release/threeDimensionalMechanismReadinessV1.ts'
+export {
+  computeEngineThreeDimensionalMechanismReadinessInputV1,
+  computeEngineThreeDimensionalMechanismReadinessV1,
+} from '../runtime/release/threeDimensionalMechanismReadinessV1.ts'
+
+export type {
   EngineCrossBackendSceneParitySample,
 } from '../runtime/release/crossBackendSceneParitySuite.ts'
 export {
@@ -897,6 +906,22 @@ export type {
 export {
   computeEnginePhaseHAcceptance,
 } from '../runtime/release/phaseHAcceptance.ts'
+
+export type {
+  EnginePhaseReleaseBundleInputV1,
+  EnginePhaseReleaseBundleResultV1,
+} from '../runtime/release/phaseReleaseBundleV1.ts'
+export {
+  computeEnginePhaseReleaseBundleV1,
+} from '../runtime/release/phaseReleaseBundleV1.ts'
+
+export type {
+  EnginePhaseReleaseFinalVerdictInputV1,
+  EnginePhaseReleaseFinalVerdictResultV1,
+} from '../runtime/release/phaseReleaseFinalVerdictV1.ts'
+export {
+  computeEnginePhaseReleaseFinalVerdictV1,
+} from '../runtime/release/phaseReleaseFinalVerdictV1.ts'
 
 export type {
   EngineProgramCloseoutPostmortemChecklist,

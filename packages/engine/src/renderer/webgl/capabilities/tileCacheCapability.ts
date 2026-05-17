@@ -12,6 +12,8 @@ import {
 } from '../../tileManager/index.ts'
 
 const PIXEL_RATIO_SYNC_EPSILON = 1e-6
+const TILE_ZOOM_LEVEL_MIN = 0
+const TILE_ZOOM_LEVEL_MAX = 5
 
 /**
  * Stores constructor options for tile cache capability.
@@ -185,15 +187,19 @@ export function createWebGLTileCacheCapability(
     )
     for (const dirtyRegion of input.frame.context.dirtyRegions ?? []) {
       const dirtyTilesBefore = tileCache.getDirtyTiles().length
-      // Keep invalidation aligned with the bucket that this frame will render.
-      if (dirtyRegion.previousBounds) {
-        tileCache.invalidateTilesForBoundsDelta(
-          dirtyRegion.previousBounds,
-          dirtyRegion.bounds,
-          dirtyZoomLevel,
-        )
-      } else {
-        tileCache.invalidateTilesInBounds(dirtyRegion.bounds, dirtyZoomLevel)
+      const zoomLevels = resolveDirtyRegionInvalidationZoomLevels(dirtyRegion.zoomLevel, dirtyZoomLevel)
+      for (const zoomLevel of zoomLevels) {
+        // Keep invalidation aligned with the frame bucket and nearby zoom buckets
+        // so post-edit zoom transitions never reuse stale tile textures.
+        if (dirtyRegion.previousBounds) {
+          tileCache.invalidateTilesForBoundsDelta(
+            dirtyRegion.previousBounds,
+            dirtyRegion.bounds,
+            zoomLevel,
+          )
+        } else {
+          tileCache.invalidateTilesInBounds(dirtyRegion.bounds, zoomLevel)
+        }
       }
       dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
     }
@@ -226,4 +232,39 @@ export function createWebGLTileCacheCapability(
     delete: deleteCache,
     snapshot,
   }
+}
+
+/**
+ * Resolves dirty-region invalidation zoom buckets for tile-cache coherence.
+ * @param explicitZoomLevel Optional dirty region zoom-level hint from caller.
+ * @param activeZoomLevel Current frame active zoom level.
+ * @returns Deterministic list of zoom buckets that must be invalidated.
+ */
+function resolveDirtyRegionInvalidationZoomLevels(
+  explicitZoomLevel: number | undefined,
+  activeZoomLevel: TileZoomLevel,
+): TileZoomLevel[] {
+  if (typeof explicitZoomLevel === 'number' && Number.isFinite(explicitZoomLevel)) {
+    return [clampTileZoomLevel(explicitZoomLevel)]
+  }
+
+  const levels = new Set<TileZoomLevel>()
+  for (let level = TILE_ZOOM_LEVEL_MIN; level <= TILE_ZOOM_LEVEL_MAX; level += 1) {
+    levels.add(clampTileZoomLevel(level))
+  }
+  levels.add(activeZoomLevel)
+  levels.add(clampTileZoomLevel(activeZoomLevel - 1))
+  levels.add(clampTileZoomLevel(activeZoomLevel + 1))
+
+  return Array.from(levels)
+}
+
+/**
+ * Clamps numeric zoom level into tile zoom-level union range.
+ * @param level Raw numeric zoom level.
+ * @returns Clamped tile zoom level.
+ */
+function clampTileZoomLevel(level: number): TileZoomLevel {
+  const clamped = Math.max(TILE_ZOOM_LEVEL_MIN, Math.min(TILE_ZOOM_LEVEL_MAX, Math.round(level)))
+  return clamped as TileZoomLevel
 }

@@ -68,7 +68,7 @@ export function drawModelSurfaceAsTiles(options: {
   // Resolve the cache bucket from the current scale with hysteresis so zoom
   // transitions reuse adjacent layers without pinning all tiles to 100%.
   const zoomLevel = resolveTileCacheZoomLevel(options.frame.viewport.scale, options.previousZoomLevel)
-  const viewportBounds = resolveViewportWorldBounds(options.frame)
+  const viewportBounds = resolveViewportWorldBounds(options.frame, options.tileCache)
   const visibleTiles = options.tileCache.getVisibleTiles(viewportBounds, zoomLevel)
   const preloadRingWindow = resolvePredictiveTileRingWindow(
     Math.max(0, options.preloadRing ?? 0),
@@ -394,18 +394,44 @@ function drawTileCompositorPass(options: {
 /**
  * Handles resolveViewportWorldBounds.
  * @param frame Current render frame.
+ * @param tileCache Tile cache used to read overscan settings.
  */
-function resolveViewportWorldBounds(frame: EngineRenderFrame) {
+function resolveViewportWorldBounds(frame: EngineRenderFrame, tileCache: EngineTileCache) {
   // Clamp to a valid scale so transient invalid viewport states cannot break tile coverage.
   const safeScale = Number.isFinite(frame.viewport.scale) && Math.abs(frame.viewport.scale) > Number.EPSILON
     ? frame.viewport.scale
     : 1
+  const overscanCssPx = optionsTileOverscanCssPx(frame, tileCache)
+  const overscanWorld = overscanCssPx / Math.max(Number.EPSILON, Math.abs(safeScale))
   return {
-    x: -frame.viewport.offsetX / safeScale,
-    y: -frame.viewport.offsetY / safeScale,
-    width: frame.viewport.viewportWidth / safeScale,
-    height: frame.viewport.viewportHeight / safeScale,
+    x: -frame.viewport.offsetX / safeScale - overscanWorld,
+    y: -frame.viewport.offsetY / safeScale - overscanWorld,
+    width: frame.viewport.viewportWidth / safeScale + overscanWorld * 2,
+    height: frame.viewport.viewportHeight / safeScale + overscanWorld * 2,
   }
+}
+
+/**
+ * Handles optionsTileOverscanCssPx.
+ * @param frame Current render frame.
+ * @param tileCache Tile cache instance that stores overscan config.
+ */
+function optionsTileOverscanCssPx(
+  frame: EngineRenderFrame,
+  tileCache: EngineTileCache,
+) {
+  if (!tileCache.getOverscanEnabled()) {
+    return 0
+  }
+
+  const overscanBorderPx = tileCache.getOverscanBorderPx()
+  if (!Number.isFinite(overscanBorderPx) || overscanBorderPx <= 0) {
+    return 0
+  }
+
+  // Keep overscan bounded by viewport size to avoid runaway tile fan-out at tiny scales.
+  const maxViewportEdge = Math.max(frame.viewport.viewportWidth, frame.viewport.viewportHeight)
+  return Math.min(overscanBorderPx, maxViewportEdge)
 }
 
 /**

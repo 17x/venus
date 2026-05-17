@@ -11,6 +11,7 @@ import {
 } from '../../../presets/index.ts'
 import type {SceneShapeSnapshot} from '../../../shared-memory/index.ts'
 import {type EngineRendererProps, type RuntimeRenderPhase} from '../engineTypes.ts'
+import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 import {useEngineRendererLifecycle} from './useEngineRendererLifecycle.ts'
 import {useEngineRendererSceneSync} from './useEngineRendererSceneSync.ts'
 import {useEngineRendererViewport} from './useEngineRendererViewport.ts'
@@ -31,7 +32,20 @@ export function EngineRenderer({
   interactionPhase = 'settled',
 }: EngineRendererProps) {
   const INTERACTION_SETTLE_MS = 120
-  const OVERSCAN_PX = 0
+  const INTERACTION_ACTIVE_SCHEDULER_INTERVAL_MS = 4
+  const OVERSCAN_PX = VECTOR_ENGINE_SCENE_PROFILE.overscanPx
+
+  /**
+   * Resolves whether one render phase is considered actively interacting.
+   * @param phase Runtime render phase.
+   * @returns True when the phase is an active interaction lane.
+   */
+  const isInteractionPhase = (phase: RuntimeRenderPhase): boolean => (
+    phase === 'pan' ||
+    phase === 'zoom' ||
+    phase === 'drag' ||
+    phase === 'precision'
+  )
 
   const renderSurfaceRef = React.useRef<HTMLCanvasElement | null>(null)
   const engineRef = React.useRef<Engine | null>(null)
@@ -163,6 +177,7 @@ export function EngineRenderer({
       revision: stats.version,
       backgroundFill: '#ffffff',
       backgroundStroke: '#d0d7de',
+      compatibility: VECTOR_ENGINE_SCENE_PROFILE.sceneAdapter,
     }),
     [document, shapes, stats.version],
   )
@@ -179,21 +194,18 @@ export function EngineRenderer({
   }, [interactionPhase, transformPreviewActive])
 
   const interactionActive = React.useMemo(() => {
-    return (
-      effectiveInteractionPhase === 'pan' ||
-      effectiveInteractionPhase === 'zoom' ||
-      effectiveInteractionPhase === 'drag' ||
-      effectiveInteractionPhase === 'precision'
-    )
+    return isInteractionPhase(effectiveInteractionPhase)
   }, [effectiveInteractionPhase])
 
   const effectiveInteractiveIntervalMs = React.useMemo(() => {
     if (interactionActive) {
-      return 0
+      // Keep scheduler cadence low-but-nonzero during gestures so render
+      // pressure remains responsive without starving main-thread input.
+      return INTERACTION_ACTIVE_SCHEDULER_INTERVAL_MS
     }
 
     return 8
-  }, [interactionActive])
+  }, [interactionActive, INTERACTION_ACTIVE_SCHEDULER_INTERVAL_MS])
 
   isInteractingRef.current = isInteracting
 
@@ -338,6 +350,15 @@ export function EngineRenderer({
   }, [effectiveInteractiveIntervalMs])
 
   React.useEffect(() => {
+    if (!isInteractionPhase(effectiveInteractionPhase)) {
+      if (interactionSettleTimerRef.current !== null) {
+        window.clearTimeout(interactionSettleTimerRef.current)
+        interactionSettleTimerRef.current = null
+      }
+      setIsInteracting(false)
+      return
+    }
+
     lastInteractionAtRef.current = performance.now()
     setIsInteracting(true)
     if (interactionSettleTimerRef.current !== null) {
@@ -347,7 +368,7 @@ export function EngineRenderer({
       setIsInteracting(false)
       interactionSettleTimerRef.current = null
     }, INTERACTION_SETTLE_MS)
-  }, [INTERACTION_SETTLE_MS, viewport.offsetX, viewport.offsetY, viewport.scale])
+  }, [INTERACTION_SETTLE_MS, effectiveInteractionPhase, viewport.offsetX, viewport.offsetY, viewport.scale])
 
   React.useEffect(() => {
     if (isInteracting || !deferredVisualRecoveryAfterInteractionRef.current) {

@@ -228,3 +228,152 @@ Validation:
 
 - `pnpm --filter @venus/engine test -- src/runtime/createEngine.integration.test.ts src/debug/runtimeInspectorV2Contracts.test.ts src/scene/visibility/visibility.test.ts src/renderer/tileManager/tileManager.test.ts src/renderer/webglInteractionPreview/webglInteractionPreview.test.ts src/renderer/webgl/preview/interaction/webglInteractionPreview.test.ts`
 - `pnpm --filter @venus/engine exec tsc --noEmit`
+
+## Task-06 (Completed): Baseline and Release-Gate Coverage
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module: `src/bench/baselineReport/baselineReport.ts`
+- File / Module: `src/bench/baselineReport/baselineReport.test.ts`
+- File / Module: `src/runtime/release/threeDimensionalMechanismReadinessV1.ts`
+- File / Module: `src/runtime/release/phaseHReleaseContracts.test.ts`
+- File / Module: `src/index/index.ts`
+
+Goal:
+
+- Problem being solved: include new 3D mechanism diagnostics in benchmark aggregate outputs and add one release gate contract for mechanism wiring readiness.
+
+Change Type:
+
+- Add + Modify
+
+Impact:
+
+- Affected modules: benchmark baseline report, release contract gates, top-level exports
+
+Cleanup:
+
+- Old logic to remove: none; additive contract extension only.
+
+Tests:
+
+- Tests to add/update:
+  - baseline report aggregate counts include preview and 3D visibility execution modes
+  - phase H release contracts include mechanism readiness gate
+
+Validation:
+
+- `pnpm --filter @venus/engine test -- src/bench/baselineReport/baselineReport.test.ts src/runtime/release/phaseHReleaseContracts.test.ts`
+- `pnpm --filter @venus/engine exec tsc --noEmit`
+
+## Task-07 (Completed): Baseline Summary to Mechanism-Gate Composition
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module: `src/runtime/release/threeDimensionalMechanismReadinessV1.ts`
+- File / Module: `src/runtime/release/phaseHReleaseContracts.test.ts`
+- File / Module: `src/index/index.ts`
+
+Goal:
+
+- Problem being solved: consume baseline summary execution-mode counters in release contracts by composing mechanism readiness input from telemetry signals.
+
+Change Type:
+
+- Modify
+
+Impact:
+
+- Affected modules: 3D mechanism readiness contract, phase-H release contract tests, index exports
+
+Cleanup:
+
+- Old logic to remove: none; existing gate preserved while input composition path is added.
+
+Tests:
+
+- Tests to add/update:
+  - phase-H release contracts include telemetry-derived mechanism readiness assertion
+
+Validation:
+
+- `pnpm --filter @venus/engine test -- src/runtime/release/phaseHReleaseContracts.test.ts src/bench/baselineReport/baselineReport.test.ts`
+- `pnpm --filter @venus/engine exec tsc --noEmit`
+
+## Task-08 (Completed): Unified Phase E/F/G/H Bundle Gate
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module: `src/runtime/release/phaseReleaseBundleV1.ts`
+- File / Module: `src/runtime/release/phaseFReleaseContracts.test.ts`
+- File / Module: `src/runtime/release/phaseHReleaseContracts.test.ts`
+- File / Module: `src/index/index.ts`
+
+Goal:
+
+- Problem being solved: unify phase-E/F/G/H acceptance into one sequential gate contract to provide a single release-ready verdict.
+
+Change Type:
+
+- Add + Modify
+
+Impact:
+
+- Affected modules: phase release contracts and tests, top-level index exports
+
+Cleanup:
+
+- Old logic to remove: none; existing phase contracts remain as source gates while bundle gate composes them.
+
+Tests:
+
+- Tests to add/update:
+  - phase-F release contracts test covers bundle happy-path and sequential blocking
+  - phase-H release contracts test covers final releaseReady verdict
+
+Validation:
+
+- `pnpm --filter @venus/engine test -- src/runtime/release/phaseFReleaseContracts.test.ts src/runtime/release/phaseGReleaseContracts.test.ts src/runtime/release/phaseHReleaseContracts.test.ts`
+- `pnpm --filter @venus/engine exec tsc --noEmit`
+
+## Task-09 (Completed): Single-Entry Final Release Verdict API
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module: `src/runtime/release/phaseReleaseFinalVerdictV1.ts`
+- File / Module: `src/runtime/release/phaseHReleaseContracts.test.ts`
+- File / Module: `src/index/index.ts`
+
+Goal:
+
+- Problem being solved: provide one final release verdict API that composes E/F/G/H bundle gating with phase-H blocker controls.
+
+Change Type:
+
+- Add + Modify
+
+Impact:
+
+- Affected modules: phase release contracts, phase-H tests, top-level exports
+
+Cleanup:
+
+- Old logic to remove: none; composition API is additive and reuses existing contracts.
+
+Tests:
+
+- Tests to add/update:
+  - phase-H release contracts include single-entry final verdict assertions for blocker-free and blocker-present paths
+
+Validation:
+
+- `pnpm --filter @venus/engine test -- src/runtime/release/phaseFReleaseContracts.test.ts src/runtime/release/phaseGReleaseContracts.test.ts src/runtime/release/phaseHReleaseContracts.test.ts`
+- `pnpm --filter @venus/engine exec tsc --noEmit`

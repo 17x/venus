@@ -82,13 +82,21 @@ export interface WebGLSnapshotReuseResult {
 }
 
 /**
+ * Stores optional read-time parameters for snapshot reuse evaluation.
+ */
+export interface WebGLSnapshotReadInput {
+  /** Stores renderer clear color that preview reuse should use before blit. */
+  clearColor?: readonly [number, number, number, number]
+}
+
+/**
  * Defines fixed CRUD-style snapshot capability methods for renderer orchestration.
  */
 export interface WebGLSnapshotCapability {
   /** Creates snapshot state by capturing the current framebuffer output. */
   create(input: WebGLSnapshotCaptureInput): InteractionCompositeSnapshot | null
   /** Reads snapshot reuse decision against the provided frame. */
-  read(frame: EngineRenderFrame): WebGLSnapshotReuseResult
+  read(frame: EngineRenderFrame, input?: WebGLSnapshotReadInput): WebGLSnapshotReuseResult
   /** Updates preview policy or explicit snapshot payload. */
   update(input: {
     /** Stores optional interaction preview policy overrides. */
@@ -141,8 +149,9 @@ export function createWebGLSnapshotCapability(
   /**
    * Resolves whether the latest snapshot can be reused for the current frame.
     * @param frame Frame evaluated for snapshot reuse.
+    * @param input Optional read-time overrides used for preview reuse.
    */
-  const read = (frame: EngineRenderFrame): WebGLSnapshotReuseResult => {
+  const read = (frame: EngineRenderFrame, input?: WebGLSnapshotReadInput): WebGLSnapshotReuseResult => {
     const executionMode = resolveInteractionPreviewExecutionMode(frame)
     if (config.disableReuse) {
       return {
@@ -162,6 +171,7 @@ export function createWebGLSnapshotCapability(
       texture: options.texture,
       snapshot: currentSnapshot,
       interactionPreview: config,
+      clearColor: input?.clearColor,
     })
 
     return {

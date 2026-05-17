@@ -186,6 +186,7 @@ export function resolveEngineBounds2DVisibilityQuery(
 /**
  * Resolves one frustum visible-id list with conservative fallback behavior.
  * @param resolver Optional true 3D frustum culling callback.
+ * @param occlusionResolver Optional true 3D occlusion filtering callback.
  * @param scene Scene snapshot.
  * @param frustum Query frustum.
  */

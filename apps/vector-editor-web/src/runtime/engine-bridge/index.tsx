@@ -4,7 +4,7 @@ export {
 } from './internal/engineViewport.tsx'
 export {
   EngineRenderer,
-} from './internal/engineRenderer.tsx'
+} from './internal/engineRenderer/engineRenderer.tsx'
 export type {
   EngineOverlayProps,
   EngineOverlayRenderer,

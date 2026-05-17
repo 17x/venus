@@ -540,6 +540,8 @@ export function createEngine(options: CreateEngineOptions): Engine {
   )
   const INTERACTION_SETTLE_DELAY_MS = 120
   const INTERACTION_HOLD_MS = 56
+  const FRAME_PLAN_MAX_OVERSCAN_RATIO = 1
+  const RENDER_RECOVERY_MAX_EXTRA_FRAMES = 2
   const layeredBridgeEnabled = options.render?.layeredBridgeEnabled ?? false
   const requestedBackend = options.render?.backend ?? 'webgl'
   let maxPixelRatio = options.render?.maxPixelRatio ?? DEFAULT_MAX_PIXEL_RATIO
@@ -585,6 +587,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const renderContext: {
     quality: EngineRenderQuality
     lodEnabled: boolean
+    interactionActive?: boolean
     pixelRatio: number
     outputPixelRatio: number
     loader?: EngineResourceLoader
@@ -816,6 +819,28 @@ export function createEngine(options: CreateEngineOptions): Engine {
     cameraAnimationState.cachePreviewOnly = false
   }
 
+  /**
+   * Intent: resolve frame-plan world padding from tile overscan settings.
+   * @param nextViewport Current viewport snapshot.
+   * @returns World-space frame-plan padding.
+   */
+  const resolveFramePlanQueryPaddingWorld = (nextViewport: EngineCanvasViewportState): number => {
+    const tileConfig = resolvedPerformance.tileConfig
+    if (!tileConfig?.enabled || !tileConfig.overscanEnabled) {
+      return 0
+    }
+
+    const borderPx = tileConfig.overscanBorderPx ?? 0
+    if (!Number.isFinite(borderPx) || borderPx <= 0) {
+      return 0
+    }
+
+    const safeScale = Math.max(Number.EPSILON, Math.abs(nextViewport.scale))
+    const overscanWorld = borderPx / safeScale
+    const viewportWorldMaxEdge = Math.max(nextViewport.viewportWidth, nextViewport.viewportHeight) / safeScale
+    return Math.min(overscanWorld, viewportWorldMaxEdge * FRAME_PLAN_MAX_OVERSCAN_RATIO)
+  }
+
   const startCameraAnimationInternal = (
     target: EngineViewportOptions,
     animationOptions?: EngineCameraAnimationOptions,
@@ -956,6 +981,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
         forceSharpFrame: settleSharpnessState.forceSharpFrame,
       })
       renderContext.quality = strategyDecision.quality
+      renderContext.interactionActive = strategyDecision.interactionActive
       renderer.setInteractionPreview?.(strategyDecision.interactionPreview)
       latestStrategyPhase = strategyDecision.phase
       latestStrategyInteractionActive = strategyDecision.interactionActive
@@ -1103,8 +1129,9 @@ export function createEngine(options: CreateEngineOptions): Engine {
 
       if (ENABLE_FRAME_PLAN_SHORTLIST) {
           const framePlanSignature = resolveEngineFramePlanSignature(scene, viewport)
+        const framePlanPadding = resolveFramePlanQueryPaddingWorld(viewport)
         if (!latestFramePlan || latestFramePlanSignature !== framePlanSignature) {
-          latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds), 0, {
+          latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds), framePlanPadding, {
             resolveVisibleSet: (bounds) => visibilityResolver.resolveVisibleSet(scene, {
               mode: 'bounds-2d',
               bounds,
@@ -1520,7 +1547,30 @@ markDirtyBounds(bounds, zoomLevel) {
         now: clock.now(),
         dt: 0,
       })
-      const stats = await loop.renderOnce()
+      let stats = await loop.renderOnce()
+
+      for (let extraFrame = 0; extraFrame < RENDER_RECOVERY_MAX_EXTRA_FRAMES; extraFrame += 1) {
+        const currentStats = latestRenderStats ?? stats
+        const hasSceneNodes = store.getSnapshot().nodes.length > 0
+        const hasDeferredDetail =
+          (currentStats.webglDeferredImageTextureCount ?? 0) > 0 ||
+          (currentStats.webglDeferredTextTextureCount ?? 0) > 0 ||
+          (currentStats.webglInteractiveTextFallbackCount ?? 0) > 0
+        const requiresEmptyFrameRecovery = hasSceneNodes && currentStats.drawCount <= 0
+        const requiresSettleSharpRecovery =
+          latestStrategyPhase === 'settling' &&
+          (currentStats.engineFrameQuality !== 'full' || hasDeferredDetail)
+
+        if (!requiresEmptyFrameRecovery && !requiresSettleSharpRecovery) {
+          break
+        }
+
+        // Force one sharp recovery pass so callers never observe persistent
+        // empty/interactive-quality output after zoom/camera settling.
+        settleSharpnessState.forceSharpFrame = true
+        stats = await loop.renderOnce()
+      }
+
       // Clear dirty regions after each render so they don't stale-accumulate
       renderContext.dirtyRegions = undefined
       return latestRenderStats ?? stats

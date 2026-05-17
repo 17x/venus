@@ -6,12 +6,13 @@ import type {CanvasViewportState as EngineViewportState} from '../../../index.ts
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 
-const OVERSCAN_PX = 0
+const OVERSCAN_PX = VECTOR_ENGINE_SCENE_PROFILE.overscanPx
 const FULL_REDRAW_QUIET_WINDOW_MS = 140
 const FULL_REDRAW_IDLE_TIMEOUT_MS = 80
 const FULL_REDRAW_DEFER_MS = 32
 const RESIZE_COMMIT_DEFER_MS = 260
 const RESIZE_COMMIT_THRESHOLD_PX = 96
+const HIGH_ZOOM_FORCE_NORMAL_RENDER_SCALE = 2
 const CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS =
   VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.interactiveZoomDurationMs
 const CAMERA_SETTLE_ANIMATION_DURATION_MS =
@@ -340,7 +341,12 @@ export function useEngineRendererViewport(params: {
       // cancel+request can starve RAF execution under high-frequency input,
       // which manifests as "moves once then stalls until interaction stops".
       // Keep single-flight coalescing and only enqueue interactive priority.
-      params.requestEngineRender('interactive', 'interactive-viewport')
+      const highZoomInteraction =
+        params.interactionPhase === 'zoom' &&
+        nextViewportState.scale >= HIGH_ZOOM_FORCE_NORMAL_RENDER_SCALE
+      // High-zoom gesture frames prioritize normal scheduling so texture/detail
+      // convergence is not starved by repeated interactive-only throttling.
+      params.requestEngineRender(highZoomInteraction ? 'normal' : 'interactive', 'interactive-viewport')
       recordViewportCommitMs()
       return
     }

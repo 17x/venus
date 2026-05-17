@@ -8,6 +8,7 @@ import {
   createAffineMatrixAroundPoint,
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
+  resolveEngineGeometryPayload,
   resolveEngineAdaptiveHitTolerance,
   resolveNodeTransform,
   toResolvedNodeSvgTransform,
@@ -15,6 +16,8 @@ import {
 import type {
   Engine as InternalEngine,
   CreateEngineOptions,
+  EngineGeometryPayload,
+  ResolveEngineGeometryPayloadOptions,
 } from '@venus/engine'
 
 /**
@@ -30,6 +33,8 @@ export type RuntimeEngine = Omit<
 
 export type {
   EngineOverlayDrawNode,
+  EngineGeometryPayload,
+  ResolveEngineGeometryPayloadOptions,
   ResolveEngineAdaptiveHitToleranceOptions,
   EngineRenderScheduler,
 } from '@venus/engine'
@@ -48,6 +53,7 @@ export {
   createEngineRenderScheduler,
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
+  resolveEngineGeometryPayload,
   resolveEngineAdaptiveHitTolerance,
   resolveNodeTransform,
   toResolvedNodeSvgTransform,

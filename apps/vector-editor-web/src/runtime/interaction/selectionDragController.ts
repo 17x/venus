@@ -4,7 +4,7 @@ import {
 import {
   getNormalizedBoundsFromBox,
   resolveEngineGeometryPayload,
-} from '@venus/engine'
+} from '../engine-bridge/engine.ts'
 import {hasPassedDragThreshold, resolveDragDistance} from '@venus/editor-primitive'
 import type {SceneShapeSnapshot} from '../shared-memory/index.ts'
 import {resolveMaskLinkedShapeIds} from '../../runtime/interaction/maskGroup.ts'

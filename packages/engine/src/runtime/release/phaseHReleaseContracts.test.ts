@@ -10,6 +10,8 @@ import { computeEngineFallbackStormRateLimiter } from './fallbackStormRateLimite
 import { computeEngineCriticalLayerProofExportV1 } from './criticalLayerProofExportV1.ts'
 import { computeEngineFallbackParityGate2d3d } from './fallbackParityGate2d3d.ts'
 import { computeEngineThreeDimensionalRolloutReadinessScoreV1 } from './threeDimensionalRolloutReadinessScoreV1.ts'
+import { computeEngineThreeDimensionalMechanismReadinessInputV1 } from './threeDimensionalMechanismReadinessV1.ts'
+import { computeEngineThreeDimensionalMechanismReadinessV1 } from './threeDimensionalMechanismReadinessV1.ts'
 import { computeEngineCrossBackendSceneParitySuite } from './crossBackendSceneParitySuite.ts'
 import { computeEngineRuntimePolicyConvergenceAuditV2 } from './runtimePolicyConvergenceAuditV2.ts'
 import { computeEngineLongTailDeviceReadinessGate } from './longTailDeviceReadinessGate.ts'
@@ -21,6 +23,8 @@ import { computeEngineProgramSloCloseoutGate } from './programSloCloseoutGate.ts
 import { computeEngineRefactorCompletionReadiness } from './refactorCompletionReadiness.ts'
 import { computeEnginePhaseHAcceptance } from './phaseHAcceptance.ts'
 import { computeEngineProgramCloseoutPostmortem } from './programCloseoutPostmortem.ts'
+import { computeEnginePhaseReleaseBundleV1 } from './phaseReleaseBundleV1.ts'
+import { computeEnginePhaseReleaseFinalVerdictV1 } from './phaseReleaseFinalVerdictV1.ts'
 
 test('phase H release contracts compute expected completion-control results', () => {
   assert.equal(computeEngineGovernanceAuditAutomationV1([{ key: 'cr-linked', satisfied: true }]), true)
@@ -55,6 +59,24 @@ test('phase H release contracts compute expected completion-control results', ()
   assert.equal(
     computeEngineThreeDimensionalRolloutReadinessScoreV1({ capabilityScore: 80, stabilityScore: 70, governanceScore: 90 }),
     80,
+  )
+  assert.equal(
+    computeEngineThreeDimensionalMechanismReadinessV1({
+      visibilityPolicyReady: true,
+      previewExecutionModeReady: true,
+      streamingKeyReady: true,
+    }),
+    true,
+  )
+  assert.equal(
+    computeEngineThreeDimensionalMechanismReadinessV1(
+      computeEngineThreeDimensionalMechanismReadinessInputV1({
+        previewExecutionModeCounts: { 'affine-snapshot': 48 },
+        visibility3dExecutionModeCounts: { 'frustum-plus-occlusion': 48 },
+        streamingKeyReady: true,
+      }),
+    ),
+    true,
   )
   assert.equal(
     computeEngineCrossBackendSceneParitySuite([{ sceneId: 's1', backendPair: 'webgl-webgpu', parityPreserved: true }]),
@@ -99,6 +121,48 @@ test('phase H release contracts compute expected completion-control results', ()
     true,
   )
   assert.equal(computeEnginePhaseHAcceptance({ blockerCount: 0, mandatoryGatesPassed: true }), true)
+  assert.equal(
+    computeEnginePhaseReleaseBundleV1({
+      phaseEAccepted: true,
+      phaseFAccepted: true,
+      phaseGAccepted: true,
+      phaseHAccepted: true,
+    }).releaseReady,
+    true,
+  )
+  assert.equal(
+    computeEnginePhaseReleaseBundleV1({
+      phaseEAccepted: true,
+      phaseFAccepted: true,
+      phaseGAccepted: false,
+      phaseHAccepted: true,
+    }).releaseReady,
+    false,
+  )
+  assert.equal(
+    computeEnginePhaseReleaseFinalVerdictV1({
+      phaseBundleInput: {
+        phaseEAccepted: true,
+        phaseFAccepted: true,
+        phaseGAccepted: true,
+        phaseHAccepted: true,
+      },
+      blockerCount: 0,
+    }).releaseAccepted,
+    true,
+  )
+  assert.equal(
+    computeEnginePhaseReleaseFinalVerdictV1({
+      phaseBundleInput: {
+        phaseEAccepted: true,
+        phaseFAccepted: true,
+        phaseGAccepted: true,
+        phaseHAccepted: true,
+      },
+      blockerCount: 1,
+    }).releaseAccepted,
+    false,
+  )
   assert.equal(
     computeEngineProgramCloseoutPostmortem({
       timelineComplete: true,

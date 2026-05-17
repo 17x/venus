@@ -24,6 +24,33 @@ const SCENE_DIRTY_SKIP_FORCE_RENDER_FRAMES =
   DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames
 
 /**
+ * Determines whether scene preparation can be skipped for viewport-only updates.
+ * @param input Scene revision and interaction state for fast-path evaluation.
+ * @returns True when scene prep can safely be skipped.
+ */
+export function canSkipScenePreparationForViewportOnlyUpdate(input: {
+  shouldBootstrapScene: boolean
+  previousRevision: number | null
+  nextRevision: number
+  transformPreviewActive: boolean
+  effectiveInteractionPhase: RuntimeRenderPhase
+}): boolean {
+  if (input.shouldBootstrapScene) {
+    return false
+  }
+
+  if (input.previousRevision === null || input.previousRevision !== input.nextRevision) {
+    return false
+  }
+
+  if (input.transformPreviewActive) {
+    return false
+  }
+
+  return input.effectiveInteractionPhase !== 'drag' && input.effectiveInteractionPhase !== 'precision'
+}
+
+/**
  * Synchronizes runtime scene data into the engine and schedules scene-driven renders.
  * @param params Scene synchronization inputs, refs, and render request callbacks.
  */
@@ -149,20 +176,17 @@ export function useEngineRendererSceneSync(params: {
 
     const previous = params.previousRenderPrepRef.current
     const shouldBootstrapScene = !params.hasLoadedSceneInEngineRef.current
-    const sceneRevisionStable = Boolean(
-      previous &&
-      previous.revision === params.statsVersion &&
-      previous.document === params.document &&
-      previous.shapes === params.shapes,
-    )
-    const shouldAllowViewportOnlySceneSkip =
-      !params.transformPreviewActive &&
-      params.effectiveInteractionPhase !== 'drag' &&
-      params.effectiveInteractionPhase !== 'precision'
+    const shouldSkipScenePreparation = canSkipScenePreparationForViewportOnlyUpdate({
+      shouldBootstrapScene,
+      previousRevision: previous?.revision ?? null,
+      nextRevision: params.statsVersion,
+      transformPreviewActive: params.transformPreviewActive,
+      effectiveInteractionPhase: params.effectiveInteractionPhase,
+    })
 
     // Skip expensive scene diff/prep for viewport-only updates (common during
     // wheel/pinch zoom) when scene revision and document identity are stable.
-    if (!shouldBootstrapScene && sceneRevisionStable && shouldAllowViewportOnlySceneSkip) {
+    if (shouldSkipScenePreparation) {
       // Explicitly record fast-path scene timings so viewport-only frames are
       // distinguishable from full scene-prep frames in diagnostics.
       params.runtimeStageTimingMsRef.current.scenePrepareMs = 0

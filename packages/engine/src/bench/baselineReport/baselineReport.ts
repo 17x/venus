@@ -45,6 +45,10 @@ export interface EngineBaselineSummary {
   cameraFrameCount: number
   /** Distinct fallback reason counters keyed by reason string. */
   fallbackReasonCounts: Record<string, number>
+  /** Distinct interaction preview execution mode counters keyed by mode string. */
+  previewExecutionModeCounts: Record<string, number>
+  /** Distinct 3D visibility execution mode counters keyed by mode string. */
+  visibility3dExecutionModeCounts: Record<string, number>
 }
 
 /**
@@ -69,6 +73,10 @@ export interface EngineFrameDiagnosticsSnapshot {
   frameMs: number
   /** Whether settle-to-sharp contract still waits for full-quality sharp frame. */
   settlePending: boolean
+  /** Interaction preview execution mode for this frame. */
+  previewExecutionMode: 'affine-snapshot' | 'temporal-reprojection-required' | 'unknown'
+  /** 3D visibility execution mode resolved by runtime diagnostics. */
+  visibility3dExecutionMode: string
 }
 
 /**
@@ -130,6 +138,21 @@ function resolveFallbackReasonCounts(statsList: EngineRenderStats[]): Record<str
 }
 
 /**
+ * Intent: fold arbitrary string values into deterministic frequency counters.
+ * @param values Source values collected across frame diagnostics.
+ * @returns Frequency counters keyed by normalized value.
+ */
+function resolveStringValueCounts(values: readonly string[]): Record<string, number> {
+  const counters: Record<string, number> = {}
+  for (const value of values) {
+    const key = value || 'unknown'
+    counters[key] = (counters[key] ?? 0) + 1
+  }
+
+  return counters
+}
+
+/**
  * Intent: build one baseline report payload from render stats and diagnostics snapshots.
  * @param run Reproducibility metadata for the benchmark run.
  * @param statsList Frame-level render stats.
@@ -150,6 +173,8 @@ export function buildEngineBaselineReport(
     static: 0,
     camera: 0,
   }
+  const previewExecutionModes: string[] = []
+  const visibility3dExecutionModes: string[] = []
 
   const snapshots = diagnosticsList.map((diagnostics, frameIndex) => {
     const phase = resolveProgramPhase(diagnostics.strategy.phase)
@@ -166,8 +191,15 @@ export function buildEngineBaselineReport(
       visibleCount: stats?.visibleCount ?? 0,
       frameMs: stats?.frameMs ?? 0,
       settlePending: diagnostics.settleSharpness.pending,
+      previewExecutionMode: diagnostics.strategySnapshot.previewExecutionMode,
+      visibility3dExecutionMode: diagnostics.visibility3dPolicy.executionMode,
     }
   })
+
+  for (const diagnostics of diagnosticsList) {
+    previewExecutionModes.push(diagnostics.strategySnapshot.previewExecutionMode)
+    visibility3dExecutionModes.push(diagnostics.visibility3dPolicy.executionMode)
+  }
 
   const avgFrameMs = frameCount > 0
     ? frameMsList.reduce((sum, value) => sum + value, 0) / frameCount
@@ -197,6 +229,8 @@ export function buildEngineBaselineReport(
       staticFrameCount: phaseCounters.static,
       cameraFrameCount: phaseCounters.camera,
       fallbackReasonCounts: resolveFallbackReasonCounts(statsList),
+      previewExecutionModeCounts: resolveStringValueCounts(previewExecutionModes),
+      visibility3dExecutionModeCounts: resolveStringValueCounts(visibility3dExecutionModes),
     },
     snapshots,
   }

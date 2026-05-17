@@ -73,6 +73,8 @@ export function tryReuseInteractiveCompositeFrame(options: {
   texture: WebGLTexture
   snapshot: InteractionCompositeSnapshot | null
   interactionPreview: Required<EngineInteractionPreviewConfig>
+  /** Stores renderer clear color used by the backend when starting each frame. */
+  clearColor?: readonly [number, number, number, number]
 }) {
   // Reuse path must always return taxonomy-backed miss reasons for diagnostics coherence.
   if (!options.interactionPreview.enabled || !options.snapshot) {
@@ -103,6 +105,18 @@ export function tryReuseInteractiveCompositeFrame(options: {
     return {
       reused: false,
       missReason: ENGINE_RENDER_FALLBACK_REASON.L0_REVISION_MISMATCH,
+      visibleCount: 0,
+      culledCount: 0,
+      edgeRedrawRegions: [] as ScreenRectPx[],
+    }
+  }
+
+  if (snapshot.visibleCount <= 0 && frame.scene.nodes.length > 0) {
+    // Reject blank snapshot reuse when scene still has nodes. This avoids
+    // persisting black-base frames where overlay/stroke lanes still draw.
+    return {
+      reused: false,
+      missReason: ENGINE_RENDER_FALLBACK_REASON.L0_PREVIEW_MISS,
       visibleCount: 0,
       culledCount: 0,
       edgeRedrawRegions: [] as ScreenRectPx[],
@@ -208,7 +222,10 @@ export function tryReuseInteractiveCompositeFrame(options: {
   )
   options.context.enable(options.context.BLEND)
   options.context.blendFunc(options.context.ONE, options.context.ONE_MINUS_SRC_ALPHA)
-  options.context.clearColor(0, 0, 0, 0)
+  // Keep preview clear color aligned with renderer clear color to avoid
+  // transparent-black reveals when composition momentarily misses content.
+  const [clearR, clearG, clearB, clearA] = options.clearColor ?? [0, 0, 0, 0]
+  options.context.clearColor(clearR, clearG, clearB, clearA)
   options.context.clear(options.context.COLOR_BUFFER_BIT)
 
   const previewFrame: EngineRenderFrame = {

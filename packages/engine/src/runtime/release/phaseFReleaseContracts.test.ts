@@ -18,6 +18,7 @@ import { validateEngineV2RoadmapDraft } from './v2RoadmapDraft.ts'
 import { passEngineRcValidation } from './rcValidation.ts'
 import { validateEngineGaReadiness } from './gaReadinessChecklist.ts'
 import { validateEngineGaPostmortem } from './gaPostmortem.ts'
+import { computeEnginePhaseReleaseBundleV1 } from './phaseReleaseBundleV1.ts'
 
 test('phase E/F release contract validators behave as expected', () => {
   const round2 = resolveEngineScenarioSpecializationRound2([
@@ -47,4 +48,34 @@ test('phase E/F release contract validators behave as expected', () => {
   assert.equal(passEngineRcValidation({ phase: 'rc1', blockerDefectCount: 0 }), true)
   assert.equal(validateEngineGaReadiness({ docsFrozen: true, changelogReady: true, opsHandoffReady: true }), true)
   assert.equal(validateEngineGaPostmortem({ timeline: true, week1Review: true, nextBacklog: true }), true)
+  assert.deepEqual(
+    computeEnginePhaseReleaseBundleV1({
+      phaseEAccepted: true,
+      phaseFAccepted: true,
+      phaseGAccepted: true,
+      phaseHAccepted: true,
+    }),
+    {
+      phaseEReady: true,
+      phaseFReady: true,
+      phaseGReady: true,
+      phaseHReady: true,
+      releaseReady: true,
+    },
+  )
+  assert.deepEqual(
+    computeEnginePhaseReleaseBundleV1({
+      phaseEAccepted: true,
+      phaseFAccepted: false,
+      phaseGAccepted: true,
+      phaseHAccepted: true,
+    }),
+    {
+      phaseEReady: true,
+      phaseFReady: false,
+      phaseGReady: false,
+      phaseHReady: false,
+      releaseReady: false,
+    },
+  )
 })

@@ -260,6 +260,9 @@ export interface EngineRendererContext {
   // Explicit LOD toggle used by planner/renderer detail-degradation gates.
   // When false, LOD-specific simplifications should be bypassed.
   lodEnabled?: boolean
+  // Optional: true when frame is in active interaction lane (pan/zoom/drag).
+  // Renderers can use this to throttle heavy paths even if quality stays `full`.
+  interactionActive?: boolean
   // Pixel ratio used by renderers to map CSS-space viewport math to backing
   // store resolution for side render targets on high-DPI displays.
   pixelRatio?: number

@@ -366,6 +366,8 @@ export function createWebGLEngineRenderer(
       const activeLayerNodeIdSet = new Set(frame.context.interactionActiveNodeIds ?? [])
       const activeLayerMaskEnabled = activeLayerNodeIdSet.size > 0
       const interactiveQuality = lodState.interactiveQuality
+      const interactionActive = Boolean(frame.context.interactionActive)
+      const interactionRenderLane = interactiveQuality || interactionActive
       const baseSceneRenderMode = lodState.baseSceneRenderMode
       // Engine WebGL renderer composes base scene first, then applies overlay pass.
       const tileCacheBaseSceneOnly = true
@@ -508,15 +510,22 @@ export function createWebGLEngineRenderer(
       const highZoomTextSlaScale = HIGH_ZOOM_TEXT_SLA_SCALE
       const predictorState = effectiveFrame.context.interactionPredictor
       const hasDirtyRegions = (effectiveFrame.context.dirtyRegions?.length ?? 0) > 0
+      const highZoomInteractionActive =
+        interactionActive && effectiveFrame.viewport.scale >= HIGH_ZOOM_TEXT_SLA_SCALE
       const shouldBypassSnapshotReuseForActiveLayer =
         activeLayerMaskEnabled && hasDirtyRegions
+      const shouldBypassSnapshotReuseForHighZoomInteraction = highZoomInteractionActive
+      const shouldBypassSnapshotReuse =
+        shouldBypassSnapshotReuseForActiveLayer || shouldBypassSnapshotReuseForHighZoomInteraction
 
       // Prefer O(1) snapshot reprojection first so pan frames avoid plan/raster work.
       const previewReuseStart = performance.now()
-      const previewReuse = snapshotCapability.read(effectiveFrame)
+      const previewReuse = snapshotCapability.read(effectiveFrame, {
+        clearColor,
+      })
       webglPreviewExecutionMode = previewReuse.executionMode
       webglPreviewReuseMs += performance.now() - previewReuseStart
-      if (previewReuse.reused && !shouldBypassSnapshotReuseForActiveLayer) {
+      if (previewReuse.reused && !shouldBypassSnapshotReuse) {
         l0PreviewHitCount += 1
         // Snapshot reprojection can expose new edge strips during pan. Cache-only
         // early return must be bypassed when those strips exist, otherwise newly
@@ -606,12 +615,18 @@ export function createWebGLEngineRenderer(
         }
       } else {
         l0PreviewMissCount += 1
-        cacheFallbackReason = previewReuse.missReason ?? ENGINE_RENDER_FALLBACK_REASON.L0_PREVIEW_MISS
+        // High-zoom interaction should not trust affine snapshot reuse because
+        // it can delay fine-detail convergence and expose edge blank strips.
+        if (shouldBypassSnapshotReuseForHighZoomInteraction) {
+          cacheFallbackReason = ENGINE_RENDER_FALLBACK_REASON.L0_ZOOM_ONLY_PAN_BLOCKED
+        } else {
+          cacheFallbackReason = previewReuse.missReason ?? ENGINE_RENDER_FALLBACK_REASON.L0_PREVIEW_MISS
+        }
       }
 
       // Keep full-fidelity composite for settled frames, but fall back to the
       // packet pipeline during interaction so pan/zoom can keep frame pace.
-      if (modelCompleteComposite && !interactiveQuality) {
+      if (modelCompleteComposite && !interactionRenderLane) {
         l1CompositeHitCount += 1
         const modelSurfacePixelRatio = effectiveFrame.context.pixelRatio ?? effectiveFrame.context.outputPixelRatio ?? 1
         // Size the model-complete offscreen surface from its own DPR lane so
@@ -706,15 +721,23 @@ export function createWebGLEngineRenderer(
             cacheFallbackReason = tileDrawResult.fallbackReason
           }
 
-          const tileSnapshotCaptureStart = performance.now()
-          const tileSnapshot = snapshotCapability.create({
-            frame: effectiveFrame,
-            visibleCount: modelStats.visibleCount,
-            culledCount: modelStats.culledCount,
-          })
-          webglSnapshotCaptureMs += performance.now() - tileSnapshotCaptureStart
-          if (!tileSnapshot) {
-            // Keep previous snapshot when capture fails so interaction preview can still reuse it.
+          // Avoid caching frames where base scene resolved empty while only overlay
+          // affordances are visible; those snapshots cause black-base reuse loops.
+          const shouldSkipTileSnapshotCapture =
+            effectiveFrame.scene.nodes.length > 0 &&
+            modelStats.visibleCount === 0 &&
+            (effectiveFrame.context.overlayNodes?.length ?? 0) > 0
+          if (!shouldSkipTileSnapshotCapture) {
+            const tileSnapshotCaptureStart = performance.now()
+            const tileSnapshot = snapshotCapability.create({
+              frame: effectiveFrame,
+              visibleCount: modelStats.visibleCount,
+              culledCount: modelStats.culledCount,
+            })
+            webglSnapshotCaptureMs += performance.now() - tileSnapshotCaptureStart
+            if (!tileSnapshot) {
+              // Keep previous snapshot when capture fails so interaction preview can still reuse it.
+            }
           }
 
           const tileStats = tileCacheCapability.read({kind: 'stats'})
@@ -829,114 +852,124 @@ export function createWebGLEngineRenderer(
             modelSurface.canvas as unknown as TexImageSource,
           )
         } catch {
-          return {
-            ...modelStats,
-            baseSceneRenderMode,
-            tileCacheBaseSceneOnly,
-            frameMs: performance.now() - startAt,
-          }
+          // Keep packet path as safety net when model-complete upload fails;
+          // returning early here can preserve an empty frame under rare GPU failures.
+          l1CompositeMissCount += 1
+          cacheFallbackReason = ENGINE_RENDER_FALLBACK_REASON.L3_EMPTY_FRAME_MODEL_FALLBACK
         }
 
-        const compositeDrawStart = performance.now()
-        drawCompositeTextureFrame({
-          context,
-          pipeline,
-          frame: compositeFrame,
-          texture: compositeTexture,
-          viewportWidth: frame.viewport.viewportWidth,
-          viewportHeight: frame.viewport.viewportHeight,
-          textureSource: 'canvas-upload',
-        })
-        webglDrawSubmitMs += performance.now() - compositeDrawStart
+        if (cacheFallbackReason === ENGINE_RENDER_FALLBACK_REASON.L3_EMPTY_FRAME_MODEL_FALLBACK) {
+          // Continue into packet path below.
+        } else {
+          const compositeDrawStart = performance.now()
+          drawCompositeTextureFrame({
+            context,
+            pipeline,
+            frame: compositeFrame,
+            texture: compositeTexture,
+            viewportWidth: frame.viewport.viewportWidth,
+            viewportHeight: frame.viewport.viewportHeight,
+            textureSource: 'canvas-upload',
+          })
+          webglDrawSubmitMs += performance.now() - compositeDrawStart
 
-        snapshotCapability.update({
-          snapshot: {
-          revision: effectiveFrame.scene.revision,
-          scale: effectiveFrame.viewport.scale,
-          offsetX: effectiveFrame.viewport.offsetX,
-          offsetY: effectiveFrame.viewport.offsetY,
-          viewportWidth: effectiveFrame.viewport.viewportWidth,
-          viewportHeight: effectiveFrame.viewport.viewportHeight,
-          pixelRatio: resolveCompositeSnapshotPixelRatio(effectiveFrame),
-          visibleCount: modelStats.visibleCount,
-          culledCount: modelStats.culledCount,
-          textureSource: 'canvas-upload',
-          },
-        })
-        const overlayDrawCount = drawOverlayPass(effectiveFrame)
+          // Avoid promoting composite uploads as reusable snapshots when base
+          // visibility is empty and output is overlay-only.
+          const shouldSkipCompositeSnapshotUpdate =
+            effectiveFrame.scene.nodes.length > 0 &&
+            modelStats.visibleCount === 0 &&
+            (effectiveFrame.context.overlayNodes?.length ?? 0) > 0
+          if (!shouldSkipCompositeSnapshotUpdate) {
+            snapshotCapability.update({
+              snapshot: {
+                revision: effectiveFrame.scene.revision,
+                scale: effectiveFrame.viewport.scale,
+                offsetX: effectiveFrame.viewport.offsetX,
+                offsetY: effectiveFrame.viewport.offsetY,
+                viewportWidth: effectiveFrame.viewport.viewportWidth,
+                viewportHeight: effectiveFrame.viewport.viewportHeight,
+                pixelRatio: resolveCompositeSnapshotPixelRatio(effectiveFrame),
+                visibleCount: modelStats.visibleCount,
+                culledCount: modelStats.culledCount,
+                textureSource: 'canvas-upload',
+              },
+            })
+          }
+          const overlayDrawCount = drawOverlayPass(effectiveFrame)
 
-        return {
-          ...modelStats,
-          drawCount: Math.max(1, modelStats.drawCount) + overlayDrawCount,
-          baseSceneRenderMode,
-          tileCacheBaseSceneOnly,
-          cacheHits: 0,
-          cacheMisses: 0,
-          webglRenderPath: 'model-complete',
-          webglCompositeUploadBytes:
-            Math.max(1, effectiveFrame.viewport.viewportWidth) *
-            Math.max(1, effectiveFrame.viewport.viewportHeight) *
-            Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
-            Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
-            TEXTURE_BYTES_PER_PIXEL_RGBA,
-          webglInteractiveTextFallbackCount: 0,
-          webglTextTextureUploadCount: 0,
-          webglTextTextureUploadBytes: 0,
-          webglTextCacheHitCount: 0,
-          l0PreviewHitCount,
-          l0PreviewMissCount,
-          l1CompositeHitCount,
-          l1CompositeMissCount,
-          l2TileHitCount,
-          l2TileMissCount,
-          cacheFallbackReason,
-          webglPreviewReuseMs,
-          webglPreviewExecutionMode,
-          webglPlanBuildMs,
-          webglTextureUploadMs,
-          webglDrawSubmitMs,
-          webglSnapshotCaptureMs,
-          webglModelRenderMs,
-          webglBudgetPressure: frameBudgetPressure,
-          webglDrawSubmitBudgetMs: frameBudget.drawSubmitBudgetMs,
-          webglTextureUploadBudgetBytes: frameBudget.textureUploadBudgetBytes,
-          webglTextureUploadTotalBudgetBytes: frameBudget.textureUploadTotalBudgetBytes,
-          webglImageTextureUploadBudgetCount: frameBudget.imageTextureUploadMaxCount,
-          webglTextTextureUploadBudgetCount: frameBudget.textTextureUploadMaxCount,
-          webglTilePreloadBudgetMs: frameBudget.tilePreloadBudgetMs,
-          webglTilePreloadBudgetUploads: frameBudget.tilePreloadMaxUploads,
-          webglOverlayPassBudgetMs: frameBudget.overlayPassBudgetMs,
-          webglDrawSubmitBudgetExceeded: drawSubmitBudgetExceeded,
-          webglTextureUploadBudgetExceeded: textureUploadBudgetExceeded,
-          webglOverlayBudgetExceeded: overlayBudgetExceeded,
-          webglPredictorDirectionX: predictorState?.directionX,
-          webglPredictorDirectionY: predictorState?.directionY,
-          webglPredictorSpeedPxPerSec: predictorState?.speedPxPerSec,
-          webglPredictorConfidence: predictorState?.confidence,
-          webglPredictorPreloadRing: 0,
-          webglPredictorOverscanCssPx: 0,
-          webglPredictivePreloadEnqueueCount: 0,
-          webglPredictivePreloadProcessedCount: 0,
-          webglPredictivePreloadPrunedCount: 0,
-          webglHighZoomTextSlaChecked: false,
-          webglHighZoomTextSlaScale: HIGH_ZOOM_TEXT_SLA_SCALE,
-          webglHighZoomTextSlaViolationCount: 0,
-          webglDeferredTextTextureCount: 0,
-          tileSchedulerPendingCount: tileQueueCapability?.read().pendingCount ?? 0,
-          panScheduleRequestCount,
-          tileSynchronousRebuildCount,
-          gpuTextureBytes: resourceBudget.getTextureBytes(),
-          imageTextureBytes: resolveCachedTextureBytes(imageCache),
-          frameMs: performance.now() - startAt,
+          return {
+            ...modelStats,
+            drawCount: Math.max(1, modelStats.drawCount) + overlayDrawCount,
+            baseSceneRenderMode,
+            tileCacheBaseSceneOnly,
+            cacheHits: 0,
+            cacheMisses: 0,
+            webglRenderPath: 'model-complete',
+            webglCompositeUploadBytes:
+              Math.max(1, effectiveFrame.viewport.viewportWidth) *
+              Math.max(1, effectiveFrame.viewport.viewportHeight) *
+              Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
+              Math.max(1, effectiveFrame.context.outputPixelRatio ?? effectiveFrame.context.pixelRatio ?? 1) *
+              TEXTURE_BYTES_PER_PIXEL_RGBA,
+            webglInteractiveTextFallbackCount: 0,
+            webglTextTextureUploadCount: 0,
+            webglTextTextureUploadBytes: 0,
+            webglTextCacheHitCount: 0,
+            l0PreviewHitCount,
+            l0PreviewMissCount,
+            l1CompositeHitCount,
+            l1CompositeMissCount,
+            l2TileHitCount,
+            l2TileMissCount,
+            cacheFallbackReason,
+            webglPreviewReuseMs,
+            webglPreviewExecutionMode,
+            webglPlanBuildMs,
+            webglTextureUploadMs,
+            webglDrawSubmitMs,
+            webglSnapshotCaptureMs,
+            webglModelRenderMs,
+            webglBudgetPressure: frameBudgetPressure,
+            webglDrawSubmitBudgetMs: frameBudget.drawSubmitBudgetMs,
+            webglTextureUploadBudgetBytes: frameBudget.textureUploadBudgetBytes,
+            webglTextureUploadTotalBudgetBytes: frameBudget.textureUploadTotalBudgetBytes,
+            webglImageTextureUploadBudgetCount: frameBudget.imageTextureUploadMaxCount,
+            webglTextTextureUploadBudgetCount: frameBudget.textTextureUploadMaxCount,
+            webglTilePreloadBudgetMs: frameBudget.tilePreloadBudgetMs,
+            webglTilePreloadBudgetUploads: frameBudget.tilePreloadMaxUploads,
+            webglOverlayPassBudgetMs: frameBudget.overlayPassBudgetMs,
+            webglDrawSubmitBudgetExceeded: drawSubmitBudgetExceeded,
+            webglTextureUploadBudgetExceeded: textureUploadBudgetExceeded,
+            webglOverlayBudgetExceeded: overlayBudgetExceeded,
+            webglPredictorDirectionX: predictorState?.directionX,
+            webglPredictorDirectionY: predictorState?.directionY,
+            webglPredictorSpeedPxPerSec: predictorState?.speedPxPerSec,
+            webglPredictorConfidence: predictorState?.confidence,
+            webglPredictorPreloadRing: 0,
+            webglPredictorOverscanCssPx: 0,
+            webglPredictivePreloadEnqueueCount: 0,
+            webglPredictivePreloadProcessedCount: 0,
+            webglPredictivePreloadPrunedCount: 0,
+            webglHighZoomTextSlaChecked: false,
+            webglHighZoomTextSlaScale: HIGH_ZOOM_TEXT_SLA_SCALE,
+            webglHighZoomTextSlaViolationCount: 0,
+            webglDeferredTextTextureCount: 0,
+            tileSchedulerPendingCount: tileQueueCapability?.read().pendingCount ?? 0,
+            panScheduleRequestCount,
+            tileSynchronousRebuildCount,
+            gpuTextureBytes: resourceBudget.getTextureBytes(),
+            imageTextureBytes: resolveCachedTextureBytes(imageCache),
+            frameMs: performance.now() - startAt,
+          }
         }
       }
 
       const planBuildStart = performance.now()
       const plan = prepareEngineRenderPlan(effectiveFrame)
-      if (interactiveQuality || !modelCompleteComposite) {
+      if (interactionRenderLane || !modelCompleteComposite) {
         l1CompositeMissCount += 1
         if (cacheFallbackReason === ENGINE_RENDER_FALLBACK_REASON.NONE) {
-          cacheFallbackReason = interactiveQuality
+          cacheFallbackReason = interactionRenderLane
             ? ENGINE_RENDER_FALLBACK_REASON.L1_BYPASS_INTERACTIVE
             : ENGINE_RENDER_FALLBACK_REASON.L1_DISABLED
         }
@@ -985,7 +1018,7 @@ export function createWebGLEngineRenderer(
       // canvas2d model renderer as a fallback compositor to produce accurate
       // text run output which we then upload to textures per-node.
       const needsModelTextComposite =
-        !interactiveQuality && packetPlan.richTextPacketCount > 0
+        !interactionRenderLane && packetPlan.richTextPacketCount > 0
 
       if (needsModelTextComposite) {
         // Render the full model into the modelSurface canvas so we can crop
@@ -1066,7 +1099,7 @@ export function createWebGLEngineRenderer(
 
         if (
           !activeLayerPass &&
-          interactiveQuality &&
+          interactionRenderLane &&
           shouldSkipInteractiveTinyPacket(effectiveFrame, packet.kind, packet.worldBounds)
         ) {
           // Skip imperceptible packets in interaction fallback to preserve frame budget.
@@ -1086,7 +1119,7 @@ export function createWebGLEngineRenderer(
             imageCache,
             resourceBudget,
             imageUploadBudget,
-            interactiveQuality
+            interactionRenderLane
               ? shouldPrioritizeInteractiveTexturePacket(effectiveFrame, packet, activeLayerPass)
               : false,
           )
@@ -1139,7 +1172,7 @@ export function createWebGLEngineRenderer(
             continue
           }
 
-          if (interactiveQuality) {
+          if (interactionRenderLane) {
             // Interactive mode prefers cached text textures when content is
             // unchanged so pan/zoom previews avoid collapsing to solid blocks.
             if (cached && canReuseInteractiveTextTexture(cached, textCacheKey)) {
@@ -1340,21 +1373,31 @@ export function createWebGLEngineRenderer(
           ? ENGINE_RENDER_FALLBACK_REASON.L3_EMPTY_FRAME_MODEL_FALLBACK
           : cacheFallbackReason
         const modelSurfacePixelRatio = effectiveFrame.context.pixelRatio ?? effectiveFrame.context.outputPixelRatio ?? 1
-        modelRenderer.resize?.({
-          viewportWidth: effectiveFrame.viewport.viewportWidth,
-          viewportHeight: effectiveFrame.viewport.viewportHeight,
-          outputWidth: Math.max(1, Math.round(effectiveFrame.viewport.viewportWidth * modelSurfacePixelRatio)),
-          outputHeight: Math.max(1, Math.round(effectiveFrame.viewport.viewportHeight * modelSurfacePixelRatio)),
-        })
-        const modelFrame: EngineRenderFrame = {
+        // Force full-quality model fallback so zero-draw recovery cannot inherit
+        // interaction-tier culling/placeholder decisions that produced empty output.
+        const modelFallbackFrame: EngineRenderFrame = {
           ...effectiveFrame,
           context: {
             ...effectiveFrame.context,
+            quality: 'full',
+            lodEnabled: false,
+          },
+        }
+        modelRenderer.resize?.({
+          viewportWidth: modelFallbackFrame.viewport.viewportWidth,
+          viewportHeight: modelFallbackFrame.viewport.viewportHeight,
+          outputWidth: Math.max(1, Math.round(modelFallbackFrame.viewport.viewportWidth * modelSurfacePixelRatio)),
+          outputHeight: Math.max(1, Math.round(modelFallbackFrame.viewport.viewportHeight * modelSurfacePixelRatio)),
+        })
+        const modelFrameWithOutputRatio: EngineRenderFrame = {
+          ...modelFallbackFrame,
+          context: {
+            ...modelFallbackFrame.context,
             outputPixelRatio: modelSurfacePixelRatio,
           },
         }
         const modelFallbackRenderStart = performance.now()
-        await modelRenderer.render(modelFrame)
+        await modelRenderer.render(modelFrameWithOutputRatio)
         webglModelRenderMs += performance.now() - modelFallbackRenderStart
 
         context.bindTexture(context.TEXTURE_2D, compositeTexture)
@@ -1369,9 +1412,9 @@ export function createWebGLEngineRenderer(
         )
 
         const compositeFrame: EngineRenderFrame = {
-          ...effectiveFrame,
+          ...modelFallbackFrame,
           viewport: {
-            ...effectiveFrame.viewport,
+            ...modelFallbackFrame.viewport,
             matrix: createViewportMatrixForRender(1, 0, 0),
             scale: 1,
             offsetX: 0,
@@ -1395,15 +1438,28 @@ export function createWebGLEngineRenderer(
       const initialRenderPhase = initialRenderController?.getPhase()
       const initialRenderProgress = initialRenderController?.getDetailPassProgress()
 
-      const snapshotCaptureStart = performance.now()
-      const snapshot = snapshotCapability.create({
-        frame: effectiveFrame,
-        visibleCount: plan.stats.visibleCount,
-        culledCount: plan.stats.culledCount,
-      })
-      webglSnapshotCaptureMs += performance.now() - snapshotCaptureStart
-      if (!snapshot) {
-        // Keep previous snapshot when capture fails so interaction preview can still reuse it.
+      const snapshotState = snapshotCapability.snapshot()
+      // Guard packet-path snapshot capture under the same overlay-only condition.
+      const shouldSkipPacketSnapshotCapture =
+        effectiveFrame.scene.nodes.length > 0 &&
+        plan.stats.visibleCount === 0 &&
+        (effectiveFrame.context.overlayNodes?.length ?? 0) > 0
+      const shouldCaptureSnapshot =
+        !shouldSkipPacketSnapshotCapture &&
+        (!snapshotState.snapshot ||
+          (!interactionRenderLane && snapshotState.snapshot.revision !== effectiveFrame.scene.revision)
+        )
+      if (shouldCaptureSnapshot) {
+        const snapshotCaptureStart = performance.now()
+        const snapshot = snapshotCapability.create({
+          frame: effectiveFrame,
+          visibleCount: plan.stats.visibleCount,
+          culledCount: plan.stats.culledCount,
+        })
+        webglSnapshotCaptureMs += performance.now() - snapshotCaptureStart
+        if (!snapshot) {
+          // Keep previous snapshot when capture fails so interaction preview can still reuse it.
+        }
       }
       drawCount += drawOverlayPass(effectiveFrame)
 

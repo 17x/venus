@@ -294,9 +294,10 @@ function resolveSettleRecoveryBudget(): EngineFrameBudget {
 
 /**
  * Apply pressure-tier contraction against an already phase-adjusted budget.
-  * @param budget budget parameter.
+ * @param budget Phase-adjusted budget to contract.
  * @param pressure pressure parameter.
-*/
+ * @param interactionActive Whether current frame is interaction-active.
+ */
 function applyPressureContraction(
   budget: EngineFrameBudget,
   pressure: EngineFrameBudgetPressure,

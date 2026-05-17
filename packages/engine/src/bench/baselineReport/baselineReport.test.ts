@@ -114,6 +114,12 @@ function createDiagnosticsFixtures(): EngineRuntimeDiagnostics[] {
         budgetPressure: 'medium',
         fallbackReason: null,
         predictorConfidence: 0.8,
+        previewExecutionMode: 'affine-snapshot',
+      },
+      visibility3dPolicy: {
+        executionMode: 'fallback-frustum-coarse',
+        hasFrustumResolver: false,
+        hasOcclusionResolver: false,
       },
       settleSharpness: {
         pending: true,
@@ -132,6 +138,32 @@ function createDiagnosticsFixtures(): EngineRuntimeDiagnostics[] {
         fallbackHealthy: true,
         overBudgetHealthy: true,
         aggregateHealthy: true,
+      },
+      policy: {
+        profile: 'editor',
+        preset: 'balanced',
+        renderScale: 1,
+        pressureScore: 0,
+        scalerDecisionReason: 'hold',
+      },
+      qos: {
+        profile: 'editor',
+        stablePhase: 'pan',
+        pressure: 'medium',
+        budget: {
+          drawSubmitBudgetMs: 1,
+          textureUploadBudgetBytes: 1,
+          textureUploadTotalBudgetBytes: 2,
+          imageTextureUploadMaxCount: 1,
+          textTextureUploadMaxCount: 1,
+          tilePreloadBudgetMs: 1,
+          tilePreloadMaxUploads: 1,
+          overlayPassBudgetMs: 1,
+        },
+        degradationLevel: 'none',
+        fallbackReason: null,
+        trace: 'trace-1',
+        guardTriggers: [],
       },
     },
     {
@@ -204,6 +236,12 @@ function createDiagnosticsFixtures(): EngineRuntimeDiagnostics[] {
         budgetPressure: 'low',
         fallbackReason: 'preview-throttle',
         predictorConfidence: 0.2,
+        previewExecutionMode: 'temporal-reprojection-required',
+      },
+      visibility3dPolicy: {
+        executionMode: 'frustum-plus-occlusion',
+        hasFrustumResolver: true,
+        hasOcclusionResolver: true,
       },
       settleSharpness: {
         pending: false,
@@ -222,6 +260,32 @@ function createDiagnosticsFixtures(): EngineRuntimeDiagnostics[] {
         fallbackHealthy: true,
         overBudgetHealthy: true,
         aggregateHealthy: true,
+      },
+      policy: {
+        profile: 'editor',
+        preset: 'balanced',
+        renderScale: 1,
+        pressureScore: 0,
+        scalerDecisionReason: 'hold',
+      },
+      qos: {
+        profile: 'editor',
+        stablePhase: 'camera',
+        pressure: 'low',
+        budget: {
+          drawSubmitBudgetMs: 1,
+          textureUploadBudgetBytes: 1,
+          textureUploadTotalBudgetBytes: 2,
+          imageTextureUploadMaxCount: 1,
+          textTextureUploadMaxCount: 1,
+          tilePreloadBudgetMs: 1,
+          tilePreloadMaxUploads: 1,
+          overlayPassBudgetMs: 1,
+        },
+        degradationLevel: 'none',
+        fallbackReason: null,
+        trace: 'trace-2',
+        guardTriggers: [],
       },
     },
   ]
@@ -245,7 +309,13 @@ test('buildEngineBaselineReport returns expected aggregates and snapshots', () =
   assert.equal(report.summary.staticFrameCount, 0)
   assert.equal(report.summary.fallbackReasonCounts.none, 1)
   assert.equal(report.summary.fallbackReasonCounts['preview-throttle'], 1)
+  assert.equal(report.summary.previewExecutionModeCounts['affine-snapshot'], 1)
+  assert.equal(report.summary.previewExecutionModeCounts['temporal-reprojection-required'], 1)
+  assert.equal(report.summary.visibility3dExecutionModeCounts['fallback-frustum-coarse'], 1)
+  assert.equal(report.summary.visibility3dExecutionModeCounts['frustum-plus-occlusion'], 1)
   assert.equal(report.snapshots.length, 2)
   assert.equal(report.snapshots[0]?.phase, 'interactive')
   assert.equal(report.snapshots[1]?.phase, 'camera')
+  assert.equal(report.snapshots[0]?.previewExecutionMode, 'affine-snapshot')
+  assert.equal(report.snapshots[1]?.previewExecutionMode, 'temporal-reprojection-required')
 })

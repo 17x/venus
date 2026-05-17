@@ -7,7 +7,7 @@ import {
   DEFAULT_RUNTIME_DIRTY_REGION_TREND_POLICY,
 } from '../../renderPolicy.ts'
 import {buildRuntimeDiagnosticsPayload} from '../../runtimeDiagnosticsPayload.ts'
-import {shouldQueueDeferredVisualRecovery} from '../engineRendererRecovery.ts'
+import {shouldQueueDeferredVisualRecovery} from '../engineRendererRecovery/engineRendererRecovery.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 
 const PLAN_DIAGNOSTIC_SAMPLE_MS = 1200
@@ -168,6 +168,8 @@ export function createEngineStatsHandler(params: {
   groupCollapseCount?: number
   groupCollapseCulledCount?: number
 }) => void {
+  let consecutiveEmptyFrameRecoveryCount = 0
+
   return (nextStats) => {
     const webglStats = nextStats as typeof nextStats & {
       engineFrameQuality?: 'full' | 'interactive'
@@ -303,6 +305,17 @@ export function createEngineStatsHandler(params: {
       interactiveTextFallbackCount,
     })) {
       params.requestDeferredVisualRecovery()
+    }
+
+    if (nextStats.drawCount <= 0 && nextStats.visibleCount > 0) {
+      // Guard against persistent blank output by forcing one immediate redraw
+      // when the frame unexpectedly reports empty draw submission.
+      if (consecutiveEmptyFrameRecoveryCount < 2) {
+        consecutiveEmptyFrameRecoveryCount += 1
+        params.requestEngineRender('normal', 'idle-redraw')
+      }
+    } else {
+      consecutiveEmptyFrameRecoveryCount = 0
     }
 
     params.drawSerialRef.current += 1

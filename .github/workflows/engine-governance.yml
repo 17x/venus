@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,6 +37,9 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Engine File Shape Guard
+        run: pnpm governance:file-shape -- --scope engine --base origin/main
 
       - name: Engine CR Gate
         run: pnpm engine:cr:check

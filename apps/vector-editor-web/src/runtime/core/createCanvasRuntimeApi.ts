@@ -3,7 +3,7 @@ import {
   resolveEngineGeometryPayload,
   type EngineGeometryPayload,
   type ResolveEngineGeometryPayloadOptions,
-} from '@venus/engine'
+} from '../engine-bridge/engine.ts'
 import {
   createDefaultCanvasInteractions,
   type DefaultCanvasInteractions,

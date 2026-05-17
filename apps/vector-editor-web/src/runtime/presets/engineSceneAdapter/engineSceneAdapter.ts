@@ -15,6 +15,20 @@ export interface CreateEngineSceneFromRuntimeSnapshotOptions {
   backgroundStroke?: string
   includeShapeIds?: readonly string[]
   includeDocumentBackground?: boolean
+  /** Optional compatibility options for 2D/3D bridge-safe scene payloads. */
+  compatibility?: EngineSceneAdapterCompatibilityOptions
+}
+
+/**
+ * Declares compatibility knobs used to keep vector scene payloads forward-ready.
+ */
+export interface EngineSceneAdapterCompatibilityOptions {
+  /** Declares target dimension mode for bridge diagnostics and payload shaping. */
+  dimensionMode?: '2d' | 'hybrid-2d3d'
+  /** Declares default node lighting behavior when source shape has no explicit mode. */
+  defaultLightingMode?: 'inherit' | 'unlit' | 'lit'
+  /** Declares default material binding id when source shape has no explicit material. */
+  defaultMaterialId?: string
 }
 
 /**
@@ -27,6 +41,9 @@ export interface CreateEngineSceneFromRuntimeSnapshotOptions {
 export function createEngineSceneFromRuntimeSnapshot(
   options: CreateEngineSceneFromRuntimeSnapshotOptions,
 ): EngineSceneSnapshot {
+  const compatibility = options.compatibility
+  const defaultLightingMode = compatibility?.defaultLightingMode
+  const defaultMaterialId = compatibility?.defaultMaterialId
   const includeShapeIdSet = options.includeShapeIds
     ? new Set(options.includeShapeIds)
     : null
@@ -66,6 +83,8 @@ export function createEngineSceneFromRuntimeSnapshot(
         type: 'group',
         children: [],
         transform: sourceTransform,
+        lightingMode: defaultLightingMode,
+        materialId: defaultMaterialId,
       })
       return
     }
@@ -83,6 +102,8 @@ export function createEngineSceneFromRuntimeSnapshot(
           height: sourceBounds?.height ?? shape.height,
           transform: sourceTransform,
           clip,
+          lightingMode: defaultLightingMode,
+          materialId: defaultMaterialId,
           fill: paint.fill,
           stroke: paint.stroke,
           strokeWidth: paint.strokeWidth,
@@ -101,6 +122,8 @@ export function createEngineSceneFromRuntimeSnapshot(
         shadow: resolveNodeShadow(sourceShape),
         assetId: sourceShape?.assetId ?? sourceShape?.id ?? shape.id,
         clip,
+        lightingMode: defaultLightingMode,
+        materialId: defaultMaterialId,
       })
       return
     }
@@ -116,6 +139,8 @@ export function createEngineSceneFromRuntimeSnapshot(
         transform: sourceTransform,
         shadow: resolveNodeShadow(sourceShape),
         clip,
+        lightingMode: defaultLightingMode,
+        materialId: defaultMaterialId,
         cacheKey: shape.textRenderHash ? `worker:${shape.textRenderHash}` : undefined,
         lineCount: shape.textLineCount,
         maxLineHeight: shape.textMaxLineHeight,
@@ -187,6 +212,8 @@ export function createEngineSceneFromRuntimeSnapshot(
       shadow: resolveNodeShadow(sourceShape),
       clip,
       transform: sourceTransform,
+      lightingMode: defaultLightingMode,
+      materialId: defaultMaterialId,
       fill: paint.fill,
       stroke: paint.stroke,
       strokeWidth: paint.strokeWidth,
