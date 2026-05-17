@@ -25,6 +25,8 @@ is kept as a diagnostics surface.
 ## Documentation and team skills
 
 - Docs home: [`docs/index.md`](./docs/index.md)
+- AI execution docs: [`ai/README.md`](./ai/README.md)
+- AI archive docs: [`ai/archive/scattered`](./ai/archive/scattered)
 - Team-shared Codex skills: [`.codex/skills`](./.codex/skills)
 - Install team skills into your local Codex home when needed:
   - `./tooling/codex/install-team-skills.sh`

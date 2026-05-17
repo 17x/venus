@@ -1,6 +1,5 @@
 # Venus Documentation Index
 
-Canonical AI governance entrypoint:
+Core docs:
 
-- [AI Highest-Level Standard](./AI_HIGHEST_STANDARD.md)
 - [Monorepo Responsibility Standard](./MONOREPO_RESPONSIBILITY_STANDARD.md)
