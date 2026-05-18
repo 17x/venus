@@ -21,6 +21,8 @@ export interface ResolveEngineRuntimeDiagnosticsSnapshotInput {
   framePlan: EngineRuntimeDiagnostics['framePlan']
   /** Latest hit plan snapshot. */
   hitPlan: EngineRuntimeDiagnostics['hitPlan']
+  /** 3D hit resolver capability diagnostics section. */
+  hit3dPolicy: EngineRuntimeDiagnostics['hit3dPolicy']
   /** Shortlist diagnostics section. */
   shortlist: EngineRuntimeDiagnostics['shortlist']
   /** Viewport diagnostics section. */
@@ -63,6 +65,7 @@ export function resolveEngineRuntimeDiagnosticsSnapshot(
     scene: input.scene,
     framePlan: input.framePlan,
     hitPlan: input.hitPlan,
+    hit3dPolicy: input.hit3dPolicy,
     shortlist: input.shortlist,
     viewport: input.viewport,
     cameraAnimation: input.cameraAnimation,

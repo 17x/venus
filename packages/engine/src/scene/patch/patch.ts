@@ -3,6 +3,7 @@ import type { EngineSpatialIndex } from '../spatial/index.ts'
 import {
   createEngineSceneNodeMap,
   createEngineSceneSpatialIndex,
+  type CreateEngineSceneSpatialIndexOptions,
   loadEngineSceneSpatialIndex,
   removeEngineSceneNodeSubtree,
   type EngineSceneSpatialMeta,
@@ -44,6 +45,7 @@ export interface MutableEngineSceneState {
   revision: string | number
   width: number
   height: number
+  spatialDimension: '2d' | '3d'
   nodes: EngineRenderableNode[]
   // Node lookup and spatial index are maintained incrementally so worker and
   // interaction code do not need to rebuild coarse indexes on every patch.
@@ -51,32 +53,50 @@ export interface MutableEngineSceneState {
   spatialIndex: EngineSpatialIndex<EngineSceneSpatialMeta>
 }
 
+/**
+ * Declares optional mutable scene state bootstrap options.
+ */
+export interface CreateMutableEngineSceneStateOptions {
+  /** Declares spatial index dimension mode used by scene indexing. */
+  spatialDimension?: CreateEngineSceneSpatialIndexOptions['dimension']
+}
+
 // Initialize mutable scene state from snapshot input or an empty baseline.
 /**
  * Handles createMutableEngineSceneState.
  * @param scene Scene snapshot.
+ * @param options Mutable scene state options.
  */
 export function createMutableEngineSceneState(
   scene?: EngineSceneSnapshot,
+  options: CreateMutableEngineSceneStateOptions = {},
 ): MutableEngineSceneState {
+  const resolvedSpatialDimension = options.spatialDimension ?? '3d'
+
   if (!scene) {
-    const spatialIndex = createEngineSceneSpatialIndex()
+    const spatialIndex = createEngineSceneSpatialIndex({
+      dimension: resolvedSpatialDimension,
+    })
     return {
       revision: 0,
       width: 0,
       height: 0,
+      spatialDimension: resolvedSpatialDimension,
       nodes: [],
       nodeMap: new Map(),
       spatialIndex,
     }
   }
 
-  const spatialIndex = createEngineSceneSpatialIndex()
+  const spatialIndex = createEngineSceneSpatialIndex({
+    dimension: resolvedSpatialDimension,
+  })
   loadEngineSceneSpatialIndex(spatialIndex, scene.nodes)
   return {
     revision: scene.revision,
     width: scene.width,
     height: scene.height,
+    spatialDimension: resolvedSpatialDimension,
     nodes: [...scene.nodes],
     nodeMap: createEngineSceneNodeMap(scene.nodes),
     spatialIndex,

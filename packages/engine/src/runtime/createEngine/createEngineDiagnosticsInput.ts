@@ -12,6 +12,7 @@ export function resolveCreateEngineDiagnosticsInput(options: {
   sceneDiagnostics: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['sceneDiagnostics']
   latestFramePlan: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['latestFramePlan']
   latestHitPlan: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['latestHitPlan']
+  hit3dPolicy: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['hit3dPolicy']
   shortlistState: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['shortlistState']
   viewport: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['viewport']
   cameraAnimationState: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['cameraAnimationState']
@@ -39,6 +40,7 @@ export function resolveCreateEngineDiagnosticsInput(options: {
     sceneDiagnostics: options.sceneDiagnostics,
     latestFramePlan: options.latestFramePlan,
     latestHitPlan: options.latestHitPlan,
+    hit3dPolicy: options.hit3dPolicy,
     shortlistState: options.shortlistState,
     viewport: options.viewport,
     cameraAnimationState: options.cameraAnimationState,

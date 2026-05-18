@@ -15,10 +15,23 @@ export interface EngineSceneSpatialMeta {
 }
 
 /**
- * Creates spatial index instance for scene-node bounds queries.
+ * Declares options for scene spatial index creation.
  */
-export function createEngineSceneSpatialIndex() {
-  return createEngineSpatialIndex<EngineSceneSpatialMeta>()
+export interface CreateEngineSceneSpatialIndexOptions {
+  /** Declares which spatial dimension mode the scene index should use. */
+  dimension?: '2d' | '3d'
+}
+
+/**
+ * Creates spatial index instance for scene-node bounds queries.
+ * @param options Scene spatial index options.
+ */
+export function createEngineSceneSpatialIndex(
+  options: CreateEngineSceneSpatialIndexOptions = {},
+) {
+  return createEngineSpatialIndex<EngineSceneSpatialMeta>({
+    dimension: options.dimension,
+  })
 }
 
 /**

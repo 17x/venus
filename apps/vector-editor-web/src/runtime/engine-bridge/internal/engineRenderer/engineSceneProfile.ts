@@ -38,8 +38,16 @@ export interface VectorEngineSceneProfile {
     profile: 'editor'
     preset: 'balanced'
   }
+  /** Spatial indexing dimension mode used by engine scene-store bootstrap. */
+  spatial: {
+    dimension: '2d' | '3d'
+  }
   /** Render profile defaults used by engine bridge lifecycle wiring. */
   render: {
+    /** Preferred renderer backend for runtime engine boot. */
+    backend: 'webgl' | 'webgpu'
+    /** Enables model-complete canvas2d composite fallback when true. */
+    modelCompleteComposite: boolean
     interactionPreview: {
       enabled: boolean
       mode: 'zoom-only'
@@ -64,7 +72,12 @@ export const VECTOR_ENGINE_SCENE_PROFILE: VectorEngineSceneProfile = {
     profile: 'editor' as const,
     preset: 'balanced' as const,
   },
+  spatial: {
+    dimension: '3d',
+  },
   render: {
+    backend: 'webgl',
+    modelCompleteComposite: false,
     interactionPreview: {
       enabled: true,
       mode: 'zoom-only' as const,

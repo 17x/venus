@@ -1,7 +1,14 @@
 import { createWebGLEngineRenderer } from '../webgl/index.ts'
-import type { EngineRenderer } from '../types/index.ts'
-
-const WEBGPU_CONTEXT_ID = 'webgpu'
+import type { EngineRenderFrame, EngineRenderStats, EngineRenderer } from '../types/index.ts'
+import {
+  initializeWebGPUNativeState,
+  resolveWebGPURectBatchEligibility,
+  submitWebGPUNativePass,
+  submitWebGPUNativeRectBatchPass,
+  type WebGPUNativePassResult,
+  type WebGPUNativeState,
+  type WebGPURectBatchEligibility,
+} from './webgpuNativeRuntime.ts'
 
 /**
  * Creates one WebGPU renderer entrypoint with native-probe lifecycle and shared WebGL fallback rendering.
@@ -13,6 +20,8 @@ export function createWebGPUEngineRenderer(
   // Keep output behavior stable through shared WebGL rendering while this
   // module incrementally grows native WebGPU execution coverage.
   const webglRenderer = createWebGLEngineRenderer(options)
+  let nativeState: WebGPUNativeState | null = null
+  let nativeInitializationAttempted = false
 
   return {
     id: webglRenderer.id.replace('webgl', 'webgpu-hybrid'),
@@ -20,12 +29,11 @@ export function createWebGPUEngineRenderer(
       ...webglRenderer.capabilities,
       backend: 'webgpu',
     },
-    init: webglRenderer.init
-      ? async () => {
-        await webglRenderer.init?.()
-        await probeWebGPUNativeExecution(options)
-      }
-      : undefined,
+    init: async () => {
+      await webglRenderer.init?.()
+      nativeInitializationAttempted = true
+      nativeState = await initializeWebGPUNativeState(options)
+    },
     resize: webglRenderer.resize
       ? (size) => {
         webglRenderer.resize?.(size)
@@ -37,10 +45,52 @@ export function createWebGPUEngineRenderer(
       }
       : undefined,
     render: async (frame) => {
-      return webglRenderer.render(frame)
+      if (!nativeState && !nativeInitializationAttempted) {
+        // Some runtime hosts may skip explicit renderer.init calls.
+        // Initialize lazily so WebGPU native diagnostics stay observable.
+        nativeInitializationAttempted = true
+        nativeState = await initializeWebGPUNativeState(options)
+      }
+
+      const rectBatchEligibility = resolveWebGPURectBatchEligibility(frame.scene.nodes)
+      const canUseNativeClearOnlyPath = frame.scene.nodes.length === 0
+      const canUseNativeRectBatchPath =
+        rectBatchEligibility.rejectedReason === 'none' && rectBatchEligibility.eligibleCount > 0
+      const initialPassResult = canUseNativeClearOnlyPath
+        ? submitWebGPUNativePass(nativeState)
+        : {submitted: false, failed: false}
+
+      if (canUseNativeClearOnlyPath && initialPassResult.submitted) {
+        return resolveNativeClearOnlyStats(frame, nativeState, initialPassResult, rectBatchEligibility)
+      }
+
+      const webglStats = await webglRenderer.render(frame)
+      const passResult = canUseNativeClearOnlyPath
+        ? initialPassResult
+        : canUseNativeRectBatchPath
+          ? submitWebGPUNativeRectBatchPass(nativeState, frame.scene.nodes)
+          : submitWebGPUNativePass(nativeState)
+      const renderPath: NonNullable<EngineRenderStats['webgpuRenderPath']> =
+        canUseNativeRectBatchPath && passResult.submitted
+          ? 'native-rect-batch'
+          : 'hybrid-webgl'
+
+      return {
+        ...webglStats,
+        // AI-TEMP: keep WebGL presentation as compatibility fallback while native rect path is being verified; remove when native rect draw submission fully replaces fallback for eligible scenes; ref B3-webgpu-native-main-pass.
+        webgpuRenderPath: renderPath,
+        webgpuNativeSubmissionAttemptedCount: nativeState ? 1 : 0,
+        webgpuNativeSubmissionSuccessCount: passResult.submitted ? 1 : 0,
+        webgpuNativeSubmissionFailureCount: passResult.failed ? 1 : 0,
+        webgpuNativeSubmissionTotalCount: nativeState?.submittedCount ?? 0,
+        webgpuNativeSubmissionTotalFailureCount: nativeState?.failedCount ?? 0,
+        webgpuNativeRectBatchEligibleCount: rectBatchEligibility.eligibleCount,
+        webgpuNativeRectBatchRejectedReason: rectBatchEligibility.rejectedReason,
+      }
     },
     dispose: webglRenderer.dispose
       ? () => {
+        nativeState = null
         webglRenderer.dispose?.()
       }
       : undefined,
@@ -48,157 +98,35 @@ export function createWebGPUEngineRenderer(
 }
 
 /**
- * Probes WebGPU context/device initialization and executes one no-op clear pass.
- * @param options Renderer creation options shared with the WebGL backend.
+ * Builds one render stats payload for native clear-only WebGPU frames.
+ * @param frame Current render frame payload.
+ * @param state Initialized native WebGPU state.
+ * @param passResult Native submit attempt result.
+ * @param rectBatchEligibility Current rect-batch eligibility snapshot.
  */
-async function probeWebGPUNativeExecution(
-  options: Parameters<typeof createWebGLEngineRenderer>[0],
-): Promise<void> {
-  const probeSurface = resolveWebGPUProbeSurface(options)
-  if (!probeSurface) {
-    return
+function resolveNativeClearOnlyStats(
+  frame: EngineRenderFrame,
+  state: WebGPUNativeState | null,
+  passResult: WebGPUNativePassResult,
+  rectBatchEligibility: WebGPURectBatchEligibility,
+): EngineRenderStats {
+  return {
+    drawCount: 0,
+    visibleCount: 0,
+    culledCount: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    frameReuseHits: 0,
+    frameReuseMisses: 0,
+    frameMs: 0,
+    engineFrameQuality: frame.context.quality,
+    webgpuRenderPath: 'native-clear-only',
+    webgpuNativeSubmissionAttemptedCount: state ? 1 : 0,
+    webgpuNativeSubmissionSuccessCount: passResult.submitted ? 1 : 0,
+    webgpuNativeSubmissionFailureCount: passResult.failed ? 1 : 0,
+    webgpuNativeSubmissionTotalCount: state?.submittedCount ?? 0,
+    webgpuNativeSubmissionTotalFailureCount: state?.failedCount ?? 0,
+    webgpuNativeRectBatchEligibleCount: rectBatchEligibility.eligibleCount,
+    webgpuNativeRectBatchRejectedReason: rectBatchEligibility.rejectedReason,
   }
-
-  const webgpuContext = resolveWebGPUContext(probeSurface)
-  if (!webgpuContext) {
-    return
-  }
-
-  const navigatorRecord = resolveRecord((globalThis as Record<string, unknown>)['navigator'])
-  const gpuRecord = navigatorRecord ? resolveRecord(navigatorRecord['gpu']) : null
-  if (!gpuRecord) {
-    return
-  }
-
-  const requestAdapter = gpuRecord ? resolveCallable(gpuRecord, 'requestAdapter') : null
-  if (!requestAdapter) {
-    return
-  }
-
-  const adapterCandidate = await requestAdapter.call(gpuRecord)
-  const adapterRecord = resolveRecord(adapterCandidate)
-  if (!adapterRecord) {
-    return
-  }
-
-  const requestDevice = adapterRecord ? resolveCallable(adapterRecord, 'requestDevice') : null
-  if (!requestDevice) {
-    return
-  }
-
-  const deviceCandidate = await requestDevice.call(adapterRecord)
-  const deviceRecord = resolveRecord(deviceCandidate)
-  if (!deviceRecord) {
-    return
-  }
-
-  const getPreferredCanvasFormat = resolveCallable(gpuRecord, 'getPreferredCanvasFormat')
-  const preferredFormat = getPreferredCanvasFormat
-    ? String(getPreferredCanvasFormat.call(gpuRecord))
-    : 'bgra8unorm'
-  const configure = resolveCallable(webgpuContext, 'configure')
-  if (!configure) {
-    return
-  }
-
-  configure.call(webgpuContext, {
-    device: deviceCandidate,
-    format: preferredFormat,
-    alphaMode: 'premultiplied',
-  })
-
-  const queueRecord = resolveRecord(deviceRecord['queue'])
-  const submit = queueRecord ? resolveCallable(queueRecord, 'submit') : null
-  const createCommandEncoder = resolveCallable(deviceRecord, 'createCommandEncoder')
-  const getCurrentTexture = resolveCallable(webgpuContext, 'getCurrentTexture')
-  if (!submit || !createCommandEncoder || !getCurrentTexture) {
-    return
-  }
-
-  const encoderRecord = resolveRecord(createCommandEncoder.call(deviceRecord))
-  const textureRecord = resolveRecord(getCurrentTexture.call(webgpuContext))
-  const createView = textureRecord ? resolveCallable(textureRecord, 'createView') : null
-  const beginRenderPass = encoderRecord ? resolveCallable(encoderRecord, 'beginRenderPass') : null
-  const finish = encoderRecord ? resolveCallable(encoderRecord, 'finish') : null
-  if (!encoderRecord || !createView || !beginRenderPass || !finish) {
-    return
-  }
-
-  const passEncoderRecord = resolveRecord(beginRenderPass.call(encoderRecord, {
-    colorAttachments: [{
-      view: createView.call(textureRecord),
-      loadOp: 'clear',
-      storeOp: 'store',
-      clearValue: {r: 0, g: 0, b: 0, a: 0},
-    }],
-  }))
-  const end = passEncoderRecord ? resolveCallable(passEncoderRecord, 'end') : null
-  if (!end) {
-    return
-  }
-
-  end.call(passEncoderRecord)
-  submit.call(queueRecord, [finish.call(encoderRecord)])
-}
-
-/**
- * Resolves the canvas surface used by WebGPU probe initialization.
- * @param options Renderer creation options shared with the WebGL backend.
- */
-function resolveWebGPUProbeSurface(
-  options: Parameters<typeof createWebGLEngineRenderer>[0],
-): HTMLCanvasElement | OffscreenCanvas | null {
-  if (options.createCanvasSurface) {
-    const createdSurface = options.createCanvasSurface(1, 1)
-    if (createdSurface) {
-      return createdSurface
-    }
-  }
-
-  return options.canvas
-}
-
-/**
- * Resolves one WebGPU canvas context from the provided surface when available.
- * @param surface Canvas surface used for context lookup.
- */
-function resolveWebGPUContext(
-  surface: HTMLCanvasElement | OffscreenCanvas,
-): Record<string, unknown> | null {
-  const contextGetter = (surface as unknown as {getContext?: (contextId: string) => unknown}).getContext
-  if (!contextGetter) {
-    return null
-  }
-
-  const context = contextGetter(WEBGPU_CONTEXT_ID)
-  return resolveRecord(context)
-}
-
-/**
- * Resolves one record-like object from unknown values.
- * @param value Candidate value.
- */
-function resolveRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object') {
-    return null
-  }
-
-  return value as Record<string, unknown>
-}
-
-/**
- * Resolves one callable function from record fields.
- * @param record Record that should contain callable field.
- * @param key Property key expected to hold callable field.
- */
-function resolveCallable(
-  record: Record<string, unknown>,
-  key: string,
-): ((...args: unknown[]) => unknown) | null {
-  const candidate = record[key]
-  if (typeof candidate !== 'function') {
-    return null
-  }
-
-  return candidate as (...args: unknown[]) => unknown
 }

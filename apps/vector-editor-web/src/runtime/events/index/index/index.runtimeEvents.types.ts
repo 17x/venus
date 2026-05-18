@@ -113,6 +113,29 @@ export interface RuntimeRenderDiagnosticsStats {
     }
     webgl: {
       webglRenderPath: 'model-complete' | 'packet' | 'none'
+      // Mirrors backend-selected WebGPU path to monitor hybrid fallback pressure.
+      webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+      // Counts native WebGPU submit attempts in the current frame.
+      webgpuNativeSubmissionAttemptedCount: number
+      // Counts successful native WebGPU submit operations in the current frame.
+      webgpuNativeSubmissionSuccessCount: number
+      // Counts failed native WebGPU submit operations in the current frame.
+      webgpuNativeSubmissionFailureCount: number
+      // Tracks cumulative successful native WebGPU submit operations.
+      webgpuNativeSubmissionTotalCount: number
+      // Tracks cumulative failed native WebGPU submit operations.
+      webgpuNativeSubmissionTotalFailureCount: number
+      // Captures native rect-batch eligible shape count for current scene snapshot.
+      webgpuNativeRectBatchEligibleCount: number
+      // Records why native rect batching was rejected when eligibility is not full.
+      webgpuNativeRectBatchRejectedReason:
+        | 'none'
+        | 'scene-empty'
+        | 'group-node-unsupported'
+        | 'non-shape-node-unsupported'
+        | 'non-rect-shape-unsupported'
+        | 'shape-style-unsupported'
+        | 'shape-transform-unsupported'
       webglInteractiveTextFallbackCount: number
       webglImageTextureUploadCount: number
       webglImageTextureUploadBytes: number
@@ -297,6 +320,29 @@ export interface RuntimeRenderDiagnostics {
   frameReuseMissCount: number
   cacheMode: 'none' | 'frame'
   webglRenderPath: 'model-complete' | 'packet' | 'none'
+  // Mirrors backend-selected WebGPU path to monitor hybrid fallback pressure.
+  webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+  // Counts native WebGPU submit attempts in the current frame.
+  webgpuNativeSubmissionAttemptedCount: number
+  // Counts successful native WebGPU submit operations in the current frame.
+  webgpuNativeSubmissionSuccessCount: number
+  // Counts failed native WebGPU submit operations in the current frame.
+  webgpuNativeSubmissionFailureCount: number
+  // Tracks cumulative successful native WebGPU submit operations.
+  webgpuNativeSubmissionTotalCount: number
+  // Tracks cumulative failed native WebGPU submit operations.
+  webgpuNativeSubmissionTotalFailureCount: number
+  // Captures native rect-batch eligible shape count for current scene snapshot.
+  webgpuNativeRectBatchEligibleCount: number
+  // Records why native rect batching was rejected when eligibility is not full.
+  webgpuNativeRectBatchRejectedReason:
+    | 'none'
+    | 'scene-empty'
+    | 'group-node-unsupported'
+    | 'non-shape-node-unsupported'
+    | 'non-rect-shape-unsupported'
+    | 'shape-style-unsupported'
+    | 'shape-transform-unsupported'
   webglInteractiveTextFallbackCount: number
   webglImageTextureUploadCount: number
   webglImageTextureUploadBytes: number

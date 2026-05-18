@@ -120,9 +120,12 @@ export function createEngineVisibilityResolver(
       }
     }
 
+    const frustumResolution = query.mode === 'frustum-3d'
+      ? resolveFrustumNodeIds(options.queryFrustum3D, options.queryFrustum3DOcclusion, scene, query.frustum)
+      : null
     const nodeIds = query.mode === 'bounds-2d'
       ? options.queryBounds2D(query.bounds)
-      : resolveFrustumNodeIds(options.queryFrustum3D, options.queryFrustum3DOcclusion, scene, query.frustum)
+      : frustumResolution?.nodeIds ?? []
     const visibleCount = nodeIds.length
 
     return {
@@ -132,6 +135,8 @@ export function createEngineVisibilityResolver(
       visibleCount,
       sceneNodeCount,
       culledCount: Math.max(0, sceneNodeCount - visibleCount),
+      frustumCandidateCount: frustumResolution?.candidateCount,
+      frustumOccludedCount: frustumResolution?.occludedCount,
       bounds2D: query.mode === 'bounds-2d'
         ? query.bounds
         : undefined,
@@ -195,20 +200,42 @@ function resolveFrustumNodeIds(
   occlusionResolver: EngineVisibilityFrustum3DOcclusionResolver | undefined,
   scene: EngineSceneSnapshot,
   frustum: EngineFrustum,
-): EngineNodeId[] {
+): {nodeIds: EngineNodeId[]; candidateCount: number; occludedCount: number} {
   let candidateNodeIds: EngineNodeId[]
   if (resolver) {
     candidateNodeIds = resolver(scene, frustum)
   } else {
-    candidateNodeIds = resolveFrustumFallbackNodeIds(scene.nodes, frustum)
+    candidateNodeIds = resolveEngineFrustumFallbackNodeIds(scene, frustum)
   }
 
   if (!resolver || !occlusionResolver) {
-    return candidateNodeIds
+    return {
+      nodeIds: candidateNodeIds,
+      candidateCount: candidateNodeIds.length,
+      occludedCount: 0,
+    }
   }
 
   // Run optional occlusion filter only when true 3D frustum candidates exist.
-  return occlusionResolver(scene, frustum, candidateNodeIds)
+  const occlusionFilteredNodeIds = occlusionResolver(scene, frustum, candidateNodeIds)
+  return {
+    nodeIds: occlusionFilteredNodeIds,
+    candidateCount: candidateNodeIds.length,
+    occludedCount: Math.max(0, candidateNodeIds.length - occlusionFilteredNodeIds.length),
+  }
+}
+
+/**
+ * Resolves one default frustum-candidate id list from a scene snapshot.
+ * @param scene Scene snapshot.
+ * @param frustum Query frustum.
+ * @returns Stable visible node id list for coarse fallback-frustum evaluation.
+ */
+export function resolveEngineFrustumFallbackNodeIds(
+  scene: EngineSceneSnapshot,
+  frustum: EngineFrustum,
+): EngineNodeId[] {
+  return resolveFrustumFallbackNodeIds(scene.nodes, frustum)
 }
 
 /**

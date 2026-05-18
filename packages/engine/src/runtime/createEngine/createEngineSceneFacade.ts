@@ -145,6 +145,9 @@ export function createEngineSceneFacade(options: {
           exactCheckCount: hitSet.exactCheckCount,
           exactCheckBudget: hitSet.exactCheckBudget,
           exactBudgetExceeded: hitSet.exactBudgetExceeded,
+          resolutionPath: hitSet.resolutionPath,
+          selectionPolicy: hitSet.selectionPolicy,
+          rayMissClass: hitSet.rayMissClass,
           queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => options.store.queryPointCandidates(queryPoint, queryTolerance),
         }),
       )
@@ -175,6 +178,9 @@ export function createEngineSceneFacade(options: {
           exactCheckCount: hitSet.exactCheckCount,
           exactCheckBudget: hitSet.exactCheckBudget,
           exactBudgetExceeded: hitSet.exactBudgetExceeded,
+          resolutionPath: hitSet.resolutionPath,
+          selectionPolicy: hitSet.selectionPolicy,
+          rayMissClass: hitSet.rayMissClass,
           queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => options.store.queryPointCandidates(queryPoint, queryTolerance),
         }),
       )

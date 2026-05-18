@@ -1,4 +1,5 @@
 import type { EngineHitTestResult } from './hitTest/hitTest.ts'
+import type { EngineHitResolutionPath, EngineHitSelectionPolicy, EngineRayMissClass } from './hit/contracts.ts'
 import type { EnginePoint, EngineSceneSnapshot } from './types/types.ts'
 
 export interface EngineHitPlan {
@@ -14,6 +15,12 @@ export interface EngineHitPlan {
   exactCheckBudget: number
   // Whether exact-hit traversal stopped due to budget exhaustion.
   exactBudgetExceeded: boolean
+  // Concrete resolver path used by the originating hit execution.
+  resolutionPath: EngineHitResolutionPath
+  // Ordering policy used to choose the primary hit.
+  selectionPolicy: EngineHitSelectionPolicy
+  // Ray miss class emitted by resolver diagnostics (point hits report none).
+  rayMissClass: EngineRayMissClass
   primaryHitNodeId: string | null
 }
 
@@ -29,6 +36,12 @@ export interface PrepareEngineHitPlanOptions {
   exactCheckBudget?: number
   // Optional marker emitted when exact-check cap was reached.
   exactBudgetExceeded?: boolean
+  // Optional resolver-path marker emitted by the hit resolver.
+  resolutionPath?: EngineHitResolutionPath
+  // Optional selection-policy marker emitted by the hit resolver.
+  selectionPolicy?: EngineHitSelectionPolicy
+  // Optional ray miss classification emitted by the hit resolver.
+  rayMissClass?: EngineRayMissClass
 }
 
 // Keep hit-plan construction read-only so shortlist diagnostics can evolve
@@ -59,6 +72,9 @@ export function prepareEngineHitPlan(
     exactCheckCount: Math.max(0, options.exactCheckCount ?? 0),
     exactCheckBudget: Math.max(0, options.exactCheckBudget ?? Number.POSITIVE_INFINITY),
     exactBudgetExceeded: options.exactBudgetExceeded ?? false,
+    resolutionPath: options.resolutionPath ?? 'point-2d',
+    selectionPolicy: options.selectionPolicy ?? 'paint-order-2d',
+    rayMissClass: options.rayMissClass ?? 'none',
     primaryHitNodeId: hits[0]?.nodeId ?? null,
   }
 }

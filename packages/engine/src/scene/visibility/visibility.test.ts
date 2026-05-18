@@ -109,6 +109,8 @@ test('visibility resolver frustum fallback performs coarse culling when 3D callb
   assert.deepEqual(visibleSet.nodeIds, ['a', 'group-1', 'b'])
   assert.equal(visibleSet.visibleCount, 3)
   assert.equal(visibleSet.culledCount, 1)
+  assert.equal(visibleSet.frustumCandidateCount, 3)
+  assert.equal(visibleSet.frustumOccludedCount, 0)
 })
 
 test('visibility resolver applies optional frustum occlusion filter when provided', () => {
@@ -133,6 +135,8 @@ test('visibility resolver applies optional frustum occlusion filter when provide
   })
 
   assert.deepEqual(visibleSet.nodeIds, ['a', 'group-1', 'b'])
+  assert.equal(visibleSet.frustumCandidateCount, 4)
+  assert.equal(visibleSet.frustumOccludedCount, 1)
   assert.equal(resolver.resolveVisibility3DPolicyDecision().executionMode, 'frustum-plus-occlusion')
 })
 

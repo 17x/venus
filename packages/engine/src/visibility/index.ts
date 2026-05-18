@@ -21,5 +21,6 @@ export type {
 export {
   createEngineVisibilityResolver,
   resolveEngineBounds2DVisibilityQuery,
+  resolveEngineFrustumFallbackNodeIds,
   resolveEngineVisibility3DPolicyDecision,
 } from '../scene/visibility/visibility.ts'

@@ -197,6 +197,7 @@ export function useEngineRendererLifecycle(params: {
     const engine = createEngine({
       canvas: renderSurface,
       settings: VECTOR_ENGINE_SCENE_PROFILE.settings,
+      spatial: VECTOR_ENGINE_SCENE_PROFILE.spatial,
       host: {
         resolvePixelRatio: () => window.devicePixelRatio || 1,
         createCanvasSurface: (width: number, height: number) => {
@@ -207,8 +208,10 @@ export function useEngineRendererLifecycle(params: {
         },
       },
       render: {
+        backend: VECTOR_ENGINE_SCENE_PROFILE.render.backend,
         webglClearColor: [1, 1, 1, 1],
         layeredBridgeEnabled: true,
+        modelCompleteComposite: VECTOR_ENGINE_SCENE_PROFILE.render.modelCompleteComposite,
         interactionPreview: VECTOR_ENGINE_SCENE_PROFILE.render.interactionPreview,
       },
       resource: {

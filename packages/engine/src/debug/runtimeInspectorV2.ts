@@ -30,7 +30,7 @@ export function resolveEngineRuntimeInspectorV2Snapshot(
   return {
     ...snapshot,
     fallbackReason: snapshot.fallbackReason ?? null,
-    visibility3dExecutionMode: snapshot.visibility3dExecutionMode || 'fallback-frustum-coarse',
+    visibility3dExecutionMode: snapshot.visibility3dExecutionMode || 'frustum-only',
     previewExecutionMode: snapshot.previewExecutionMode || 'unknown',
   }
 }

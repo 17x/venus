@@ -65,6 +65,10 @@ export interface EngineVisibleSet {
   sceneNodeCount: number
   /** Coarse culling count computed as sceneNodeCount - visibleCount. */
   culledCount: number
+  /** Optional frustum candidate count before occlusion filtering. */
+  frustumCandidateCount?: number
+  /** Optional occlusion-pruned count computed from frustum candidates. */
+  frustumOccludedCount?: number
   /** Optional source bounds when the query mode is bounds-2d. */
   bounds2D?: EngineRect2
 }

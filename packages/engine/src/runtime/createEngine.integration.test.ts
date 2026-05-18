@@ -134,6 +134,90 @@ test('createEngine supports webgpu backend selection through native-probe hybrid
     const diagnostics = engine.getDiagnostics()
     assert.equal(diagnostics.backend, 'webgpu')
     assert.equal(stats.drawCount, 1)
+    assert.equal(stats.webgpuRenderPath, 'native-rect-batch')
+    assert.equal(stats.webgpuNativeSubmissionAttemptedCount ?? 0, 1)
+    assert.equal(stats.webgpuNativeSubmissionSuccessCount ?? 0, 1)
+    assert.equal(stats.webgpuNativeSubmissionFailureCount ?? 0, 0)
+    assert.equal(stats.webgpuNativeRectBatchEligibleCount ?? 0, 2)
+    assert.equal(stats.webgpuNativeRectBatchRejectedReason ?? 'none', 'none')
+    const latestWebGPUCommand = environment.recordedWebGPUCommands.at(-1)
+    assert.ok(latestWebGPUCommand)
+    assert.equal(latestWebGPUCommand.finishCount, 1)
+    assert.equal(latestWebGPUCommand.submittedBufferCount, 1)
+    assert.equal(latestWebGPUCommand.drawCallCount, 1)
+    assert.equal(latestWebGPUCommand.drawnVertexCount, 12)
+    assert.equal(latestWebGPUCommand.passes.length, 1)
+    assert.deepEqual(latestWebGPUCommand.passes[0]?.clearValue, {
+      r: 1,
+      g: 0,
+      b: 0,
+      a: 1,
+    })
+  } finally {
+    environment.restore()
+  }
+})
+
+test('createEngine uses webgpu native clear-only path for empty scenes', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: {
+        revision: 0,
+        width: 1,
+        height: 1,
+        nodes: [],
+      },
+      viewport: {
+        viewportWidth: 200,
+        viewportHeight: 150,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      performance: {
+        culling: true,
+        lod: {enabled: false},
+        tiles: {enabled: false},
+        overscan: {enabled: false},
+      },
+      render: {
+        backend: 'webgpu',
+        quality: 'full',
+        modelCompleteComposite: false,
+        interactionPreview: {enabled: false},
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 200,
+      viewportHeight: 150,
+      outputWidth: 400,
+      outputHeight: 300,
+    })
+
+    const stats = await engine.renderFrame()
+    assert.equal(stats.webgpuRenderPath, 'native-clear-only')
+    assert.equal(stats.drawCount, 0)
+    assert.equal(stats.webgpuNativeSubmissionAttemptedCount ?? 0, 1)
+    assert.equal(stats.webgpuNativeSubmissionSuccessCount ?? 0, 1)
+    assert.equal(stats.webgpuNativeSubmissionFailureCount ?? 0, 0)
+    const latestWebGPUCommand = environment.recordedWebGPUCommands.at(-1)
+    assert.ok(latestWebGPUCommand)
+    assert.equal(latestWebGPUCommand.finishCount, 1)
+    assert.equal(latestWebGPUCommand.submittedBufferCount, 1)
+    assert.equal(latestWebGPUCommand.drawCallCount, 0)
+    assert.equal(latestWebGPUCommand.drawnVertexCount, 0)
+    assert.equal(latestWebGPUCommand.passes.length, 1)
+    assert.deepEqual(latestWebGPUCommand.passes[0]?.clearValue, {
+      r: 0,
+      g: 0,
+      b: 0,
+      a: 0,
+    })
   } finally {
     environment.restore()
   }
@@ -416,6 +500,8 @@ test('createEngine hitTest applies adaptive exact-check budget during interactio
     // Interaction frames resolve medium pressure, so exact checks are capped.
     assert.equal(diagnostics.hitPlan?.exactCheckBudget, 20)
     assert.equal(diagnostics.hitPlan?.exactBudgetExceeded, true)
+    assert.equal(diagnostics.hitPlan?.resolutionPath, 'point-2d')
+    assert.equal(diagnostics.hitPlan?.selectionPolicy, 'paint-order-2d')
     assert.ok((diagnostics.hitPlan?.exactCheckCount ?? 0) <= 20)
 
     // Strategy snapshot should mirror lane/pressure/fallback state from runtime.

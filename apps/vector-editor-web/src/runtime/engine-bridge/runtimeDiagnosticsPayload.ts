@@ -44,6 +44,29 @@ interface RuntimeStageTimingSnapshot {
 interface WebglStatsSnapshot {
   engineFrameQuality?: 'full' | 'interactive'
   webglRenderPath?: 'model-complete' | 'packet' | 'none'
+  // Mirrors backend-selected WebGPU path to monitor hybrid fallback pressure.
+  webgpuRenderPath?: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+  // Counts native WebGPU submit attempts in the current frame.
+  webgpuNativeSubmissionAttemptedCount?: number
+  // Counts successful native WebGPU submit operations in the current frame.
+  webgpuNativeSubmissionSuccessCount?: number
+  // Counts failed native WebGPU submit operations in the current frame.
+  webgpuNativeSubmissionFailureCount?: number
+  // Tracks cumulative successful native WebGPU submit operations.
+  webgpuNativeSubmissionTotalCount?: number
+  // Tracks cumulative failed native WebGPU submit operations.
+  webgpuNativeSubmissionTotalFailureCount?: number
+  // Captures native rect-batch eligible shape count for current scene snapshot.
+  webgpuNativeRectBatchEligibleCount?: number
+  // Records why native rect batching was rejected when eligibility is not full.
+  webgpuNativeRectBatchRejectedReason?:
+    | 'none'
+    | 'scene-empty'
+    | 'group-node-unsupported'
+    | 'non-shape-node-unsupported'
+    | 'non-rect-shape-unsupported'
+    | 'shape-style-unsupported'
+    | 'shape-transform-unsupported'
   webglInteractiveTextFallbackCount?: number
   webglImageTextureUploadCount?: number
   webglImageTextureUploadBytes?: number
@@ -280,6 +303,21 @@ export function buildRuntimeDiagnosticsPayload(
     frameReuseMissCount: input.renderStats.frameReuseMisses,
     cacheMode: input.renderStats.frameReuseHits > 0 ? 'frame' : 'none',
     webglRenderPath: input.webglStats.webglRenderPath ?? 'none',
+    webgpuRenderPath: input.webglStats.webgpuRenderPath ?? 'hybrid-webgl',
+    webgpuNativeSubmissionAttemptedCount:
+      input.webglStats.webgpuNativeSubmissionAttemptedCount ?? 0,
+    webgpuNativeSubmissionSuccessCount:
+      input.webglStats.webgpuNativeSubmissionSuccessCount ?? 0,
+    webgpuNativeSubmissionFailureCount:
+      input.webglStats.webgpuNativeSubmissionFailureCount ?? 0,
+    webgpuNativeSubmissionTotalCount:
+      input.webglStats.webgpuNativeSubmissionTotalCount ?? 0,
+    webgpuNativeSubmissionTotalFailureCount:
+      input.webglStats.webgpuNativeSubmissionTotalFailureCount ?? 0,
+    webgpuNativeRectBatchEligibleCount:
+      input.webglStats.webgpuNativeRectBatchEligibleCount ?? 0,
+    webgpuNativeRectBatchRejectedReason:
+      input.webglStats.webgpuNativeRectBatchRejectedReason ?? 'none',
     webglInteractiveTextFallbackCount:
       input.webglStats.webglInteractiveTextFallbackCount ?? 0,
     webglImageTextureUploadCount:

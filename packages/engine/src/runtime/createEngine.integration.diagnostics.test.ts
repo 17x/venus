@@ -216,9 +216,212 @@ test('createEngine diagnostics expose 3D visibility policy and preview execution
     await engine.renderFrame()
     const diagnostics = engine.getDiagnostics()
 
-    assert.equal(diagnostics.visibility3dPolicy.executionMode, 'fallback-frustum-coarse')
-    assert.equal(diagnostics.visibility3dPolicy.hasFrustumResolver, false)
+    assert.equal(diagnostics.visibility3dPolicy.executionMode, 'frustum-only')
+    assert.equal(diagnostics.visibility3dPolicy.hasFrustumResolver, true)
+    assert.equal(diagnostics.hit3dPolicy.hasRayResolver, false)
+    assert.equal(diagnostics.scene.spatialDimension, '3d')
     assert.equal(diagnostics.strategySnapshot.previewExecutionMode, 'affine-snapshot')
+  } finally {
+    environment.restore()
+  }
+})
+
+/**
+ * Verifies diagnostics reflect explicit scene spatial dimension overrides.
+ */
+test('createEngine diagnostics expose explicit 2D spatial dimension override', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 160,
+        viewportHeight: 120,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      spatial: {
+        dimension: '2d',
+      },
+      render: {
+        quality: 'full',
+        modelCompleteComposite: false,
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 160,
+      viewportHeight: 120,
+      outputWidth: 160,
+      outputHeight: 120,
+    })
+
+    await engine.renderFrame()
+    const diagnostics = engine.getDiagnostics()
+    assert.equal(diagnostics.scene.spatialDimension, '2d')
+  } finally {
+    environment.restore()
+  }
+})
+
+/**
+ * Verifies diagnostics hit-plan tracks ray fallback resolution path labels.
+ */
+test('createEngine diagnostics expose ray fallback resolution path metadata', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 220,
+        viewportHeight: 160,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      render: {
+        quality: 'full',
+        modelCompleteComposite: false,
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 220,
+      viewportHeight: 160,
+      outputWidth: 220,
+      outputHeight: 160,
+    })
+
+    await engine.renderFrame()
+    engine.hitTestRay({
+      origin: {x: 10, y: 10, z: 5},
+      direction: {x: 0, y: 0, z: -1},
+    })
+    const diagnostics = engine.getDiagnostics()
+    assert.equal(diagnostics.hitPlan?.selectionPolicy, 'depth-first-ray')
+    assert.equal(diagnostics.hitPlan?.rayMissClass, 'ray-fallback-projected-point-no-hit')
+    assert.ok((diagnostics.hitPlan?.exactCheckBudget ?? 0) >= 1)
+    assert.equal(diagnostics.hitPlan?.resolutionPath, 'ray-fallback-plane-projection')
+  } finally {
+    environment.restore()
+  }
+})
+
+/**
+ * Verifies diagnostics hit-plan tracks native 3D ray resolver path labels.
+ */
+test('createEngine diagnostics expose ray native resolution path metadata', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 220,
+        viewportHeight: 160,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      hit: {
+        resolveRay3D: () => ({
+          hits: [{
+            index: 0,
+            nodeId: 'native-ray-hit',
+            nodeType: 'shape',
+            hitType: 'shape-body',
+            score: 1,
+            zOrder: 0,
+            hitPoint: {x: 10, y: 10},
+          }],
+          exactCheckCount: 3,
+          exactCheckBudget: 4,
+          exactBudgetExceeded: false,
+        }),
+      },
+      render: {
+        quality: 'full',
+        modelCompleteComposite: false,
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 220,
+      viewportHeight: 160,
+      outputWidth: 220,
+      outputHeight: 160,
+    })
+
+    await engine.renderFrame()
+    engine.hitTestRay({
+      origin: {x: 10, y: 10, z: 5},
+      direction: {x: 0, y: 0, z: -1},
+    })
+    const diagnostics = engine.getDiagnostics()
+    assert.equal(diagnostics.hit3dPolicy.hasRayResolver, true)
+    assert.equal(diagnostics.hitPlan?.resolutionPath, 'ray-native-3d')
+    assert.equal(diagnostics.hitPlan?.selectionPolicy, 'depth-first-ray')
+    assert.equal(diagnostics.hitPlan?.rayMissClass, 'none')
+    assert.equal(diagnostics.hitPlan?.exactCheckCount, 3)
+    assert.equal(diagnostics.hitPlan?.exactCheckBudget, 4)
+    assert.equal(diagnostics.hitPlan?.exactBudgetExceeded, false)
+  } finally {
+    environment.restore()
+  }
+})
+
+/**
+ * Verifies diagnostics classify fallback ray misses and expose zero budget usage.
+ */
+test('createEngine diagnostics classify fallback ray misses with zero traversal budget', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 220,
+        viewportHeight: 160,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      render: {
+        quality: 'full',
+        modelCompleteComposite: false,
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 220,
+      viewportHeight: 160,
+      outputWidth: 220,
+      outputHeight: 160,
+    })
+
+    await engine.renderFrame()
+    engine.hitTestRay({
+      origin: {x: 0, y: 0, z: 10},
+      direction: {x: 1, y: 0, z: 0},
+    })
+    const diagnostics = engine.getDiagnostics()
+    assert.equal(diagnostics.hitPlan?.resolutionPath, 'ray-fallback-plane-miss')
+    assert.equal(diagnostics.hitPlan?.selectionPolicy, 'depth-first-ray')
+    assert.equal(diagnostics.hitPlan?.rayMissClass, 'ray-parallel-scene-plane')
+    assert.equal(diagnostics.hitPlan?.exactCheckCount, 0)
+    assert.equal(diagnostics.hitPlan?.exactCheckBudget, 0)
+    assert.equal(diagnostics.hitPlan?.exactBudgetExceeded, false)
   } finally {
     environment.restore()
   }

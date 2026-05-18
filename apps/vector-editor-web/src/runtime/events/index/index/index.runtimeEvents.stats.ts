@@ -47,6 +47,21 @@ export function resolveRuntimeRenderDiagnosticsStats(
       },
       webgl: {
         webglRenderPath: diagnostics.webglRenderPath,
+        webgpuRenderPath: diagnostics.webgpuRenderPath,
+        webgpuNativeSubmissionAttemptedCount:
+          diagnostics.webgpuNativeSubmissionAttemptedCount,
+        webgpuNativeSubmissionSuccessCount:
+          diagnostics.webgpuNativeSubmissionSuccessCount,
+        webgpuNativeSubmissionFailureCount:
+          diagnostics.webgpuNativeSubmissionFailureCount,
+        webgpuNativeSubmissionTotalCount:
+          diagnostics.webgpuNativeSubmissionTotalCount,
+        webgpuNativeSubmissionTotalFailureCount:
+          diagnostics.webgpuNativeSubmissionTotalFailureCount,
+        webgpuNativeRectBatchEligibleCount:
+          diagnostics.webgpuNativeRectBatchEligibleCount,
+        webgpuNativeRectBatchRejectedReason:
+          diagnostics.webgpuNativeRectBatchRejectedReason,
         webglInteractiveTextFallbackCount: diagnostics.webglInteractiveTextFallbackCount,
         webglImageTextureUploadCount: diagnostics.webglImageTextureUploadCount,
         webglImageTextureUploadBytes: diagnostics.webglImageTextureUploadBytes,

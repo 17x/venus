@@ -3,6 +3,7 @@ import {
 } from '../../scene/store/store.ts'
 import {
   createEngineVisibilityResolver,
+  resolveEngineFrustumFallbackNodeIds,
 } from '../../visibility/index.ts'
 import {
   createEngineHitResolver,
@@ -135,9 +136,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
   )
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
+    spatialDimension: options.spatial?.dimension ?? '3d',
   })
   const visibilityResolver = createEngineVisibilityResolver({
     queryBounds2D: (bounds) => store.queryCandidates(bounds),
+    queryFrustum3D: options.visibility?.queryFrustum3D ?? resolveEngineFrustumFallbackNodeIds,
+    queryFrustum3DOcclusion: options.visibility?.queryFrustum3DOcclusion,
   })
   const visibility3DPolicyDecision = visibilityResolver.resolveVisibility3DPolicyDecision()
   const hitResolver = createEngineHitResolver({
@@ -150,6 +154,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
         maxExactCandidateCount: adaptiveExactBudget,
       })
     },
+    resolveRayHits: options.hit?.resolveRay3D,
   })
 
   const clock = options.clock ?? createSystemEngineClock()
@@ -433,6 +438,9 @@ export function createEngine(options: CreateEngineOptions): Engine {
         sceneDiagnostics: store.getDiagnostics(),
         latestFramePlan,
         latestHitPlan,
+        hit3dPolicy: {
+          hasRayResolver: Boolean(options.hit?.resolveRay3D),
+        },
         shortlistState: {
           active: shortlistActive,
           candidateRatio: shortlistCandidateRatio,

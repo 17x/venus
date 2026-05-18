@@ -11,6 +11,13 @@ import type {
 export type EngineHitQueryMode = 'point-2d' | 'ray-3d'
 
 /**
+ * Declares resolver-side selection policy labels for hit ordering diagnostics.
+ */
+export type EngineHitSelectionPolicy =
+  | 'paint-order-2d'
+  | 'depth-first-ray'
+
+/**
  * Declares one 2D point-hit query payload.
  */
 export interface EnginePointHitQuery {
@@ -47,9 +54,51 @@ export type EngineHitQuery =
 export interface EngineHitResolverOptions {
   /** Executes exact/coarse 2D hit traversal and returns detailed summary. */
   resolvePointHits(query: EnginePointHitQuery): EngineHitExecutionSummary
-  /** Optional native 3D ray-hit resolver callback. */
-  resolveRayHits?: (query: EngineRayHitQuery) => EngineHitTestResult[]
+  /**
+   * Optional native 3D ray-hit resolver callback.
+   * Accepts either a compact hit list or a full summary with ray-budget diagnostics.
+   */
+  resolveRayHits?: (query: EngineRayHitQuery) => EngineRayHitResolutionResult
 }
+
+/**
+ * Declares one detailed native 3D ray-hit resolution summary payload.
+ */
+export interface EngineRayHitResolutionSummary {
+  /** Ordered hit list resolved by native 3D ray traversal. */
+  hits: EngineHitTestResult[]
+  /** Optional exact-check count observed by native traversal. */
+  exactCheckCount?: number
+  /** Optional exact-check budget used by native traversal. */
+  exactCheckBudget?: number
+  /** Optional marker emitted when native traversal budget was exhausted. */
+  exactBudgetExceeded?: boolean
+}
+
+/**
+ * Declares supported return payload shapes for native 3D ray-hit callbacks.
+ */
+export type EngineRayHitResolutionResult = EngineHitTestResult[] | EngineRayHitResolutionSummary
+
+/**
+ * Declares hit resolution-path labels used by diagnostics and migration audits.
+ */
+export type EngineHitResolutionPath =
+  | 'point-2d'
+  | 'ray-native-3d'
+  | 'ray-fallback-plane-projection'
+  | 'ray-fallback-plane-miss'
+
+/**
+ * Declares ray miss classification labels used by 3D hit diagnostics.
+ */
+export type EngineRayMissClass =
+  | 'none'
+  | 'ray-parallel-scene-plane'
+  | 'ray-away-from-scene-plane'
+  | 'ray-max-distance-exceeded'
+  | 'ray-fallback-projected-point-no-hit'
+  | 'ray-native-no-hit'
 
 /**
  * Declares one resolved hit-set snapshot shared across runtime hit consumers.
@@ -67,4 +116,10 @@ export interface EngineResolvedHitSet {
   exactCheckBudget: number
   /** Whether exact traversal hit the configured budget cap. */
   exactBudgetExceeded: boolean
+  /** Concrete resolver path used to produce this hit-set payload. */
+  resolutionPath: EngineHitResolutionPath
+  /** Selection policy used to order this hit set and choose the primary hit. */
+  selectionPolicy: EngineHitSelectionPolicy
+  /** Ray-specific miss class for diagnostics (point path always reports none). */
+  rayMissClass: EngineRayMissClass
 }

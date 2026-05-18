@@ -82,7 +82,10 @@ export function resolveCreateEngineRendererBootstrap(
     enableCulling: resolvedPerformance.culling,
     clearColor: options.render?.webglClearColor,
     antialias: options.render?.webglAntialias ?? true,
-    modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
+    // AI-TEMP: keep explicit opt-in compatibility lane for model-complete 2D composite;
+    // remove when native WebGPU/WebGL rich-text and zero-draw recovery fully replace this path;
+    // ref ai/operations/engine-lifecycle-render-audit-and-3d-roadmap-2026-05-18.md
+    modelCompleteComposite: options.render?.modelCompleteComposite ?? false,
     lod: resolvedPerformance.lodConfig,
     tileConfig: resolvedPerformance.tileConfig,
     initialRender: options.render?.initialRender,

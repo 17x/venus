@@ -16,6 +16,6 @@ test('resolveEngineRuntimeInspectorV2Snapshot normalizes fallback and execution 
   })
 
   assert.equal(snapshot.fallbackReason, null)
-  assert.equal(snapshot.visibility3dExecutionMode, 'fallback-frustum-coarse')
+  assert.equal(snapshot.visibility3dExecutionMode, 'frustum-only')
   assert.equal(snapshot.previewExecutionMode, 'unknown')
 })

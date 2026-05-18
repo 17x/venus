@@ -32,6 +32,7 @@ export interface EngineSceneStoreDiagnostics {
   revision: string | number
   nodeCount: number
   indexedNodeCount: number
+  spatialDimension: '2d' | '3d'
   planVersion: number
   bufferVersion: number
   width: number
@@ -80,6 +81,7 @@ export interface EngineSceneStore {
 
 export interface CreateEngineSceneStoreOptions {
   initialScene?: EngineSceneSnapshot
+  spatialDimension?: '2d' | '3d'
 }
 
 /**
@@ -96,7 +98,9 @@ export interface CreateEngineSceneStoreOptions {
 export function createEngineSceneStore(
   options: CreateEngineSceneStoreOptions = {},
 ): EngineSceneStore {
-  const state = createMutableEngineSceneState(options.initialScene)
+  const state = createMutableEngineSceneState(options.initialScene, {
+    spatialDimension: options.spatialDimension,
+  })
   const snapshot: EngineSceneSnapshot = {
     revision: state.revision,
     width: state.width,
@@ -329,6 +333,7 @@ getNode(nodeId) {
     getBufferLayout() {
       return bufferLayout
     },
+    // Expose low-cost scene/index telemetry for runtime diagnostics polling.
     getDiagnostics() {
       return {
         revision: state.revision,
@@ -336,6 +341,7 @@ getNode(nodeId) {
         // Keep diagnostics reads cheap: full-index scans here would run on
         // frame-time debug polling paths and can tank FPS on small scenes too.
         indexedNodeCount: state.nodeMap.size,
+        spatialDimension: state.spatialDimension,
         planVersion: snapshot.metadata?.planVersion ?? 0,
         bufferVersion: snapshot.metadata?.bufferVersion ?? 0,
         width: state.width,

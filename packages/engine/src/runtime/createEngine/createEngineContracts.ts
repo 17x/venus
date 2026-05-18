@@ -13,8 +13,15 @@ import type {
 import type { EngineSceneStoreDiagnostics, EngineSceneStoreTransaction } from '../../scene/store/store.ts'
 import type { EngineFramePlan } from '../../scene/framePlan.ts'
 import type { EngineHitPlan } from '../../scene/hitPlan.ts'
-import type { EngineVisibleSet, EngineVisibility3DPolicyDecision, EngineVisibilityFrustum3DQuery } from '../../visibility/index.ts'
+import type {
+  EngineVisibleSet,
+  EngineVisibility3DPolicyDecision,
+  EngineVisibilityFrustum3DOcclusionResolver,
+  EngineVisibilityFrustum3DQuery,
+  EngineVisibilityFrustum3DResolver,
+} from '../../visibility/index.ts'
 import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
+import type { EngineRayHitResolutionResult } from '../../scene/hit/contracts.ts'
 import type {
   EngineNodeId,
   EngineRect,
@@ -101,6 +108,10 @@ export interface EngineRenderOptions {
   tileConfig?: EngineTileConfig
   initialRender?: EngineInitialRenderConfig
   interactionPreview?: EngineInteractionPreviewConfig
+  /**
+   * Compatibility-only 2D model-composite lane toggle.
+   * Defaults to false so the primary runtime path stays on packet/frustum-first flow.
+   */
   modelCompleteComposite?: boolean
   shortlist?: {
     enabled?: boolean
@@ -161,6 +172,24 @@ export interface EngineHostEnvironment {
 }
 
 /**
+ * Visibility adapter hooks for 3D frustum and occlusion resolution.
+ */
+export interface EngineVisibilityOptions {
+  /** Optional callback used by true 3D frustum culling implementations. */
+  queryFrustum3D?: EngineVisibilityFrustum3DResolver
+  /** Optional callback used by true 3D occlusion filtering implementations. */
+  queryFrustum3DOcclusion?: EngineVisibilityFrustum3DOcclusionResolver
+}
+
+/**
+ * Hit adapter hooks for staged 2D-to-3D hit resolver migration.
+ */
+export interface EngineHitOptions {
+  /** Optional callback used by native 3D ray-hit implementations. */
+  resolveRay3D?: (query: {ray: EngineRay3; maxDistance?: number}) => EngineRayHitResolutionResult
+}
+
+/**
  * Runtime camera animation state.
  */
 export interface EngineCameraAnimationState {
@@ -183,6 +212,14 @@ export interface EngineSettingsOptions {
 }
 
 /**
+ * Spatial indexing options used by scene-store bootstrap.
+ */
+export interface EngineSpatialOptions {
+  /** Declares target spatial index dimension mode. */
+  dimension?: '2d' | '3d'
+}
+
+/**
  * Root createEngine options contract.
  */
 export interface CreateEngineOptions {
@@ -197,6 +234,9 @@ export interface CreateEngineOptions {
   resource?: EngineResourceOptions
   debug?: EngineDebugOptions
   settings?: EngineSettingsOptions
+  spatial?: EngineSpatialOptions
+  visibility?: EngineVisibilityOptions
+  hit?: EngineHitOptions
   clock?: EngineClock
   host?: EngineHostEnvironment
 }
@@ -212,6 +252,11 @@ export interface EngineRuntimeDiagnostics {
   scene: EngineSceneStoreDiagnostics
   framePlan: EngineFramePlan | null
   hitPlan: EngineHitPlan | null
+  /** Exposes 3D hit resolver capability state for diagnostics dashboards. */
+  hit3dPolicy: {
+    /** Marks whether a native 3D ray resolver callback is currently configured. */
+    hasRayResolver: boolean
+  }
   shortlist: {
     active: boolean
     candidateRatio: number

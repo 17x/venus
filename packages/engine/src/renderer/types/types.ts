@@ -213,6 +213,29 @@ export interface EngineRenderStats {
   canvas2dContourParseCount?: number
   canvas2dSingleLineTextFastPathCount?: number
   canvas2dPrecomputedTextLineHeightCount?: number
+  // Number of native WebGPU submit attempts in the current frame.
+  webgpuNativeSubmissionAttemptedCount?: number
+  // Number of native WebGPU submit successes in the current frame.
+  webgpuNativeSubmissionSuccessCount?: number
+  // Number of native WebGPU submit failures in the current frame.
+  webgpuNativeSubmissionFailureCount?: number
+  // Cumulative native WebGPU submit successes since renderer init.
+  webgpuNativeSubmissionTotalCount?: number
+  // Cumulative native WebGPU submit failures since renderer init.
+  webgpuNativeSubmissionTotalFailureCount?: number
+  // Current WebGPU execution route for this frame.
+  webgpuRenderPath?: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+  // Number of nodes eligible for native WebGPU rect-batch execution in this frame.
+  webgpuNativeRectBatchEligibleCount?: number
+  // Reason why native WebGPU rect-batch could not be used for this frame.
+  webgpuNativeRectBatchRejectedReason?:
+    | 'none'
+    | 'scene-empty'
+    | 'group-node-unsupported'
+    | 'non-shape-node-unsupported'
+    | 'non-rect-shape-unsupported'
+    | 'shape-style-unsupported'
+    | 'shape-transform-unsupported'
 }
 
 export interface EngineRendererCapabilities {

@@ -35,6 +35,7 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
   sceneDiagnostics: EngineRuntimeDiagnostics['scene']
   latestFramePlan: EngineRuntimeDiagnostics['framePlan']
   latestHitPlan: EngineRuntimeDiagnostics['hitPlan']
+  hit3dPolicy: EngineRuntimeDiagnostics['hit3dPolicy']
   shortlistState: {
     active: boolean
     candidateRatio: number
@@ -101,6 +102,7 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
     scene: options.sceneDiagnostics,
     framePlan: options.latestFramePlan,
     hitPlan: options.latestHitPlan,
+    hit3dPolicy: options.hit3dPolicy,
     shortlist: {
       active: options.shortlistState.active,
       candidateRatio: options.shortlistState.candidateRatio,
