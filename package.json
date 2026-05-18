@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Composable canvas runtime monorepo for multi-editor products",
   "scripts": {
+    "init:workspace": "pnpm install && pnpm governance:check && pnpm governance:file-shape && pnpm typecheck",
     "dev": "pnpm --filter @venus/vector-editor-web dev",
     "build": "pnpm --filter @venus/vector-editor-web build",
     "dev vector": "pnpm --filter @venus/vector-editor-web dev",

@@ -31,7 +31,7 @@ function EditorFrameSidePanelsComponent(props: EditorFrameSidePanelsProps) {
     </div>
 
     <div className={'pointer-events-none absolute right-3 top-3 bottom-3 z-20 flex'}>
-      <div className={'pointer-events-auto h-full overflow-hidden rounded-lg'} style={{width: FIXED_RIGHT_PANEL_WIDTH}}>
+      <div className={'pointer-events-auto h-full overflow-hidden rounded-lg'}>
         <RightSidebar
           {...props.rightSidebarProps}
           rightPanelMinimized={props.rightPanelMinimized}

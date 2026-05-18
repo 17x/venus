@@ -49,6 +49,12 @@ is kept as a diagnostics surface.
 pnpm install
 ```
 
+Or run the workspace initialization command (install + governance + typecheck):
+
+```sh
+pnpm init:workspace
+```
+
 ## Quick start
 
 From the repo root:

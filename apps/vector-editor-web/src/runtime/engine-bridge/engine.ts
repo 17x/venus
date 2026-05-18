@@ -16,8 +16,6 @@ import {
 import type {
   Engine as InternalEngine,
   CreateEngineOptions,
-  EngineGeometryPayload,
-  ResolveEngineGeometryPayloadOptions,
 } from '@venus/engine'
 
 /**
