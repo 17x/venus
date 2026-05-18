@@ -19,6 +19,21 @@ export default tseslint.config(
       },
     },
     rules: {
+      "max-len": [
+        "warn",
+        {
+          code: 120,
+          tabWidth: 2,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+          ignoreRegExpLiterals: true,
+          ignoreComments: true,
+        },
+      ],
+      "object-curly-newline": "off",
+      "array-bracket-newline": "off",
+      "function-paren-newline": "off",
       "no-restricted-imports": [
         "error",
         {

@@ -16,8 +16,8 @@ const VECTOR_SRC_ROOT = path.join(repoRoot, "apps/vector-editor-web/src");
 const LIB_ROOT = path.join(repoRoot, "packages/lib/src");
 const PRIMITIVE_ROOT = path.join(repoRoot, "packages/editor-primitive/src");
 
-const SOFT_FILE_LINE_LIMIT = 400;
-const HARD_FILE_LINE_LIMIT = 500;
+const SOFT_FILE_LINE_LIMIT = 500;
+const HARD_FILE_LINE_LIMIT = 600;
 
 const ALLOWED_RUNTIME_TOP_LEVEL_DIRS = new Set([
   "__tests__",

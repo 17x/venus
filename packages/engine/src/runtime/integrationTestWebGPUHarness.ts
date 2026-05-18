@@ -18,8 +18,12 @@ export interface RecordedWebGPUCommandSummary {
   submittedBufferCount: number
   /** Stores number of draw calls issued on the pass encoder. */
   drawCallCount: number
+  /** Stores number of drawIndexed calls issued on the pass encoder. */
+  drawIndexedCallCount: number
   /** Stores accumulated vertex count submitted through draw calls. */
   drawnVertexCount: number
+  /** Stores accumulated index count submitted through drawIndexed calls. */
+  drawnIndexCount: number
   /** Stores number of render pipeline creation calls. */
   pipelineCreateCount: number
   /** Stores number of buffer creation calls. */
@@ -28,6 +32,12 @@ export interface RecordedWebGPUCommandSummary {
   setPipelineCount: number
   /** Stores number of setVertexBuffer calls issued on pass encoders. */
   setVertexBufferCount: number
+  /** Stores number of setIndexBuffer calls issued on pass encoders. */
+  setIndexBufferCount: number
+  /** Stores render pipeline descriptors received by createRenderPipeline. */
+  pipelineDescriptors: Array<Record<string, unknown>>
+  /** Stores buffer descriptors received by createBuffer. */
+  bufferDescriptors: Array<Record<string, unknown>>
 }
 
 /**
@@ -98,11 +108,16 @@ export function createFakeWebGPUDevice(
         finishCount: 0,
         submittedBufferCount: 0,
         drawCallCount: 0,
+        drawIndexedCallCount: 0,
         drawnVertexCount: 0,
+        drawnIndexCount: 0,
         pipelineCreateCount: 0,
         bufferCreateCount: 0,
         setPipelineCount: 0,
         setVertexBufferCount: 0,
+        setIndexBufferCount: 0,
+        pipelineDescriptors: [],
+        bufferDescriptors: [],
       }
       recordedWebGPUCommands.push(summary)
 
@@ -140,6 +155,12 @@ export function createFakeWebGPUDevice(
               summary.setVertexBufferCount += 1
             },
             /**
+             * Handles setIndexBuffer.
+             */
+            setIndexBuffer() {
+              summary.setIndexBufferCount += 1
+            },
+            /**
              * Handles draw.
              * @param vertexCount Draw vertex count.
              */
@@ -147,6 +168,16 @@ export function createFakeWebGPUDevice(
               summary.drawCallCount += 1
               if (typeof vertexCount === 'number' && Number.isFinite(vertexCount)) {
                 summary.drawnVertexCount += vertexCount
+              }
+            },
+            /**
+             * Handles drawIndexed.
+             * @param indexCount Draw index count.
+             */
+            drawIndexed(indexCount?: unknown) {
+              summary.drawIndexedCallCount += 1
+              if (typeof indexCount === 'number' && Number.isFinite(indexCount)) {
+                summary.drawnIndexCount += indexCount
               }
             },
             end() {},
@@ -163,23 +194,39 @@ export function createFakeWebGPUDevice(
     },
     /**
      * Handles createRenderPipeline.
+     * @param descriptor Pipeline descriptor passed by renderer code.
      */
-    createRenderPipeline() {
+    createRenderPipeline(descriptor?: unknown) {
       const latestSummary = recordedWebGPUCommands[recordedWebGPUCommands.length - 1]
       if (latestSummary) {
         latestSummary.pipelineCreateCount += 1
+        if (isRecord(descriptor)) {
+          latestSummary.pipelineDescriptors.push(descriptor)
+        }
       }
       return {}
     },
     /**
      * Handles createBuffer.
+     * @param descriptor Buffer descriptor passed by renderer code.
      */
-    createBuffer() {
+    createBuffer(descriptor?: unknown) {
       const latestSummary = recordedWebGPUCommands[recordedWebGPUCommands.length - 1]
       if (latestSummary) {
         latestSummary.bufferCreateCount += 1
+        if (isRecord(descriptor)) {
+          latestSummary.bufferDescriptors.push(descriptor)
+        }
       }
       return {}
     },
   }
+}
+
+/**
+ * Verifies one unknown value is a plain key-value object record.
+ * @param candidate Unknown value that may represent a descriptor object.
+ */
+function isRecord(candidate: unknown): candidate is Record<string, unknown> {
+  return typeof candidate === 'object' && candidate !== null
 }

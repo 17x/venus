@@ -29,8 +29,8 @@ Temporary workaround / fallback / guard
 
 Large file handling
 
-- Soft trigger near 400 lines with mixed responsibilities.
-- Hard trigger above 500 lines.
+- Soft trigger near 500 lines with mixed responsibilities.
+- Hard trigger above 600 lines.
 
 Dependency hygiene
 

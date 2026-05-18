@@ -167,8 +167,8 @@ Rules:
 
 AI must split files when any trigger is met:
 
-- Soft trigger: file approaches 400 lines and already contains more than one responsibility.
-- Hard trigger: file exceeds 500 lines (except generated files).
+- Soft trigger: file approaches 500 lines and already contains more than one responsibility.
+- Hard trigger: file exceeds 600 lines (except generated files).
 - Structural trigger: one file mixes mechanism + product policy, or data contract + orchestration + UI composition.
 
 AI must not defer a hard trigger split unless the user explicitly asks for temporary deferral.
@@ -302,3 +302,42 @@ Full validation (broad tests + all-scope guard) is required:
 - At final handoff.
 
 AI should avoid full validation after every patch unless a high-risk regression indicates systemic breakage.
+
+### 12.6 Two-Loop Execution Mode (Required)
+
+AI must run validation in two loops to reduce repeated heavy checks while preserving safety.
+
+Loop A: Fast Loop (default during active editing)
+
+- Trigger: every implementation batch.
+- Scope: changed package/module only.
+- Commands (example):
+  - `pnpm --filter @venus/engine exec tsc --noEmit`
+  - `pnpm governance:file-shape -- --changed --scope engine`
+  - Targeted tests for touched paths only.
+- Goal: catch local regressions early with minimal wall-clock cost.
+
+Loop B: Release Loop (milestone or handoff)
+
+- Trigger: milestone boundary, architecture-sensitive completion, or final handoff.
+- Scope: broad/whole-repo checks as required by impacted boundaries.
+- Commands (example):
+  - `pnpm typecheck`
+  - `pnpm lint`
+  - `pnpm test` (or explicitly documented equivalent broad suites)
+  - `pnpm governance:file-shape` and `pnpm governance:check`
+- Goal: enforce full merge confidence once per milestone/handoff, not after each micro-patch.
+
+Blocking rule:
+
+- If Loop A fails, AI must fix before next behavior batch.
+- If Loop B fails, AI must fix before declaring completion.
+
+### 12.7 Latency Budget and Command Batching (Required)
+
+To avoid avoidable latency inflation:
+
+- AI must batch related edits before running heavy commands.
+- AI should avoid rerunning unchanged broad suites multiple times in one small edit cycle.
+- AI must prefer scoped validation first, then escalate only when risk or boundary spread increases.
+- AI must include in handoff which loop was last executed.

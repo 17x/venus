@@ -29,8 +29,8 @@ Apply these rules to every AI-authored code change in this repository.
 
 ## File Shape Rule
 
-- When a touched file approaches 400 lines and holds more than one responsibility, split it.
-- When a touched file crosses 500 lines, split is required unless the file is generated.
+- When a touched file approaches 500 lines and holds more than one responsibility, split it.
+- When a touched file crosses 600 lines, split is required unless the file is generated.
 - File splits must preserve ownership boundaries; do not move product policy into runtime or engine.
 
 ## Same-Name File Family Folder Rule

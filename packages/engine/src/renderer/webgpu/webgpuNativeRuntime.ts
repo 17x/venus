@@ -1,6 +1,10 @@
 import { createWebGLEngineRenderer } from '../webgl/index.ts'
 import type { EngineRenderStats } from '../types/index.ts'
 import type { EngineRenderableNode } from '../../scene/types/types.ts'
+import {
+  resolveOrCreateStagedRectPipeline,
+  type WebGPUStagedRectPipelineState,
+} from './webgpuStagedRectPipeline.ts'
 
 const WEBGPU_CONTEXT_ID = 'webgpu'
 const WEBGPU_FALLBACK_FORMAT = 'bgra8unorm'
@@ -21,6 +25,8 @@ export interface WebGPUNativeState {
   submittedCount: number
   /** Tracks failed native submit attempts. */
   failedCount: number
+  /** Stores staged native rect pipeline cache state for format-based reuse. */
+  stagedRectPipeline: WebGPUStagedRectPipelineState
 }
 
 /**
@@ -41,6 +47,18 @@ export interface WebGPURectBatchEligibility {
   eligibleCount: number
   /** First rejection reason when native rect-batch cannot be used. */
   rejectedReason: NonNullable<EngineRenderStats['webgpuNativeRectBatchRejectedReason']>
+}
+
+/**
+ * Stores deterministic staged geometry payload emitted for native rect-batch execution.
+ */
+interface WebGPURectBatchGeometryPayload {
+  /** Packed XY vertex stream used to size staged vertex buffer allocations. */
+  vertexData: Float32Array
+  /** Packed uint16 index stream used to size staged index buffer allocations. */
+  indexData: Uint16Array
+  /** Compatibility vertex count used when drawIndexed is unavailable. */
+  compatibilityDrawVertexCount: number
 }
 
 /**
@@ -114,6 +132,10 @@ export async function initializeWebGPUNativeState(
     format: preferredFormat,
     submittedCount: 0,
     failedCount: 0,
+    stagedRectPipeline: {
+      key: null,
+      pipeline: null,
+    },
   }
 
   const probeResult = submitWebGPUNativePass(nativeState)
@@ -141,8 +163,8 @@ export function submitWebGPUNativeRectBatchPass(
   }
 
   const clearValue = resolveRectBatchClearValue(nodes)
-  const drawVertexCount = resolveRectBatchDrawVertexCount(nodes)
-  return submitWebGPUNativePassWithClearValue(state, clearValue, drawVertexCount)
+  const geometryPayload = resolveRectBatchGeometryPayload(nodes)
+  return submitWebGPUNativePassWithClearValue(state, clearValue, geometryPayload)
 }
 
 /**
@@ -214,12 +236,12 @@ export function resolveWebGPURectBatchEligibility(
  * Submits one native WebGPU pass with the provided clear color payload.
  * @param state Initialized native WebGPU state.
  * @param clearValue Clear color payload forwarded to beginRenderPass.
- * @param drawVertexCount Optional staged vertex count for draw-call emission.
+ * @param drawPayload Optional staged rect geometry payload used for buffer sizing and draw emission.
  */
 function submitWebGPUNativePassWithClearValue(
   state: WebGPUNativeState | null,
   clearValue: {r: number; g: number; b: number; a: number},
-  drawVertexCount = 0,
+  drawPayload: WebGPURectBatchGeometryPayload | null = null,
 ): WebGPUNativePassResult {
   if (!state) {
     return {
@@ -262,8 +284,10 @@ function submitWebGPUNativePassWithClearValue(
       }],
     }))
     const draw = passEncoderRecord ? resolveCallable(passEncoderRecord, 'draw') : null
+    const drawIndexed = passEncoderRecord ? resolveCallable(passEncoderRecord, 'drawIndexed') : null
     const setPipeline = passEncoderRecord ? resolveCallable(passEncoderRecord, 'setPipeline') : null
     const setVertexBuffer = passEncoderRecord ? resolveCallable(passEncoderRecord, 'setVertexBuffer') : null
+    const setIndexBuffer = passEncoderRecord ? resolveCallable(passEncoderRecord, 'setIndexBuffer') : null
     const end = passEncoderRecord ? resolveCallable(passEncoderRecord, 'end') : null
     if (!end) {
       state.failedCount += 1
@@ -273,7 +297,8 @@ function submitWebGPUNativePassWithClearValue(
       }
     }
 
-    if (drawVertexCount > 0) {
+    const drawIndexCount = drawPayload?.indexData.length ?? 0
+    if (drawIndexCount > 0) {
       if (!draw) {
         state.failedCount += 1
         return {
@@ -285,17 +310,31 @@ function submitWebGPUNativePassWithClearValue(
       const createRenderPipeline = resolveCallable(state.device, 'createRenderPipeline')
       const createBuffer = resolveCallable(state.device, 'createBuffer')
       // AI-TEMP: stage minimal pipeline+buffer binding to exercise native draw plumbing before full shader/material pipeline lands; remove when production rect pipeline owns setup/bind; ref B3-webgpu-native-main-pass.
-      if (createRenderPipeline && createBuffer && setPipeline && setVertexBuffer) {
-        const pipeline = createRenderPipeline.call(state.device, {})
+      if (createRenderPipeline && createBuffer && setPipeline && setVertexBuffer && setIndexBuffer) {
+        const pipeline = resolveOrCreateStagedRectPipeline(
+          state.stagedRectPipeline,
+          state.format,
+          (...args: unknown[]) => createRenderPipeline.call(state.device, ...args),
+        )
         const vertexBuffer = createBuffer.call(state.device, {
-          size: Math.max(drawVertexCount * 4, 4),
+          size: Math.max(drawPayload?.vertexData.byteLength ?? 0, 4),
+          usage: 0,
+        })
+        const indexBuffer = createBuffer.call(state.device, {
+          size: Math.max(drawPayload?.indexData.byteLength ?? 0, 2),
           usage: 0,
         })
         setPipeline.call(passEncoderRecord, pipeline)
         setVertexBuffer.call(passEncoderRecord, 0, vertexBuffer)
+        setIndexBuffer.call(passEncoderRecord, indexBuffer, 'uint16')
       }
 
-      draw.call(passEncoderRecord, drawVertexCount)
+      if (drawIndexed) {
+        drawIndexed.call(passEncoderRecord, drawIndexCount)
+      } else {
+        // AI-TEMP: keep compatibility fallback to draw for runtimes lacking drawIndexed in staged harness; remove when all supported runtimes expose drawIndexed; ref B3-webgpu-native-main-pass.
+        draw.call(passEncoderRecord, drawPayload?.compatibilityDrawVertexCount ?? 0)
+      }
     }
 
     end.call(passEncoderRecord)
@@ -315,12 +354,12 @@ function submitWebGPUNativePassWithClearValue(
 }
 
 /**
- * Resolves staged vertex count for native rect-batch proof-of-execution.
+ * Resolves deterministic staged geometry payload for native rect-batch proof-of-execution.
  * @param nodes Scene node list from the current frame.
  */
-function resolveRectBatchDrawVertexCount(
+function resolveRectBatchGeometryPayload(
   nodes: readonly EngineRenderableNode[],
-): number {
+): WebGPURectBatchGeometryPayload {
   let rectCount = 0
   for (const node of nodes) {
     if (node.type === 'shape' && node.shape === 'rect') {
@@ -328,7 +367,42 @@ function resolveRectBatchDrawVertexCount(
     }
   }
 
-  return rectCount * 6
+  const vertexData = new Float32Array(rectCount * 8)
+  const indexData = new Uint16Array(rectCount * 6)
+  let vertexCursor = 0
+  let indexCursor = 0
+  let rectIndex = 0
+  for (const node of nodes) {
+    if (node.type !== 'shape' || node.shape !== 'rect') {
+      continue
+    }
+
+    const baseVertex = rectIndex * 4
+    vertexData[vertexCursor] = node.x
+    vertexData[vertexCursor + 1] = node.y
+    vertexData[vertexCursor + 2] = node.x + node.width
+    vertexData[vertexCursor + 3] = node.y
+    vertexData[vertexCursor + 4] = node.x
+    vertexData[vertexCursor + 5] = node.y + node.height
+    vertexData[vertexCursor + 6] = node.x + node.width
+    vertexData[vertexCursor + 7] = node.y + node.height
+    indexData[indexCursor] = baseVertex
+    indexData[indexCursor + 1] = baseVertex + 1
+    indexData[indexCursor + 2] = baseVertex + 2
+    indexData[indexCursor + 3] = baseVertex + 2
+    indexData[indexCursor + 4] = baseVertex + 1
+    indexData[indexCursor + 5] = baseVertex + 3
+    vertexCursor += 8
+    indexCursor += 6
+    rectIndex += 1
+  }
+
+  return {
+    vertexData,
+    indexData,
+    // AI-TEMP: fallback draw path still consumes a synthetic non-indexed count for harness compatibility; remove when drawIndexed becomes mandatory across supported runtimes; ref B3-webgpu-native-main-pass.
+    compatibilityDrawVertexCount: rectCount * 6,
+  }
 }
 
 /**

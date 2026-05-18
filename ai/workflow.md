@@ -54,3 +54,11 @@ Execution discipline:
 
 - Do not skip steps.
 - If rules conflict, choose stricter rule and smallest safe change.
+
+Validation cadence (mandatory):
+
+- Use Fast Loop for active editing cycles: scoped typecheck + changed-scope governance + targeted tests.
+- Use Release Loop at milestone/handoff: broad typecheck + lint + broad tests + governance checks.
+- Do not run full broad validation after every micro-patch unless high-risk regression signals require it.
+- If Fast Loop fails, fix before the next behavior batch.
+- If Release Loop fails, fix before declaring completion.

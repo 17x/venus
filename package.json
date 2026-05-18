@@ -20,6 +20,8 @@
     "engine:dashboard:update": "pnpm --filter @venus/engine dashboard:update",
     "engine:policy:replay": "pnpm --filter @venus/engine policy:replay",
     "engine:debug:guard": "pnpm --filter @venus/engine debug:guard",
+    "ai:fast-loop": "pnpm --filter @venus/engine exec tsc --noEmit && pnpm governance:file-shape -- --changed --scope engine && pnpm --filter @venus/engine test",
+    "ai:release-loop": "pnpm typecheck && pnpm lint && pnpm test && pnpm governance:file-shape && pnpm governance:check",
     "typecheck": "tsc -b tsconfig.json",
     "perf:gate": "pnpm --filter @venus/vector-editor-web perf:gate",
     "test": "pnpm -r --if-present test",
