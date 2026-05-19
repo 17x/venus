@@ -2,18 +2,44 @@ import type { EnginePoint, EngineRenderableNode } from '../types/types.ts'
 import type { MutableEngineSceneState } from '../patch/patch.ts'
 import type { EngineMat3Affine2D } from '../../math/dimension/types.ts'
 
+/**
+ * Describes the renderable target category selected by hit execution.
+ */
+export type EngineHitTargetKind = 'shape' | 'mesh' | 'instance'
+
+/**
+ * Describes one ordered hit-test result emitted by point or ray hit execution.
+ */
 export interface EngineHitTestResult {
+  /** Traversal index used as a deterministic tie-breaker. */
   index: number
+  /** Node id selected by the hit. */
   nodeId: string
+  /** Scene node type selected by the hit. */
   nodeType: EngineRenderableNode['type']
+  /** Local hit primitive classification. */
   hitType: 'shape-body'
+  /** Higher score wins when depth ordering is unavailable or tied. */
   score: number
+  /** Paint or render ordering score used by compatibility hit paths. */
   zOrder: number
+  /** 2D hit point in scene/world coordinates. */
   hitPoint: EnginePoint
+  /** Optional 3D target kind for native ray hits. */
+  hitTargetKind?: EngineHitTargetKind
+  /** Optional instance identifier when hitTargetKind is instance. */
+  instanceId?: string
+  /** Optional ray distance where lower values should win depth-first ordering. */
+  rayDistance?: number
 }
 
+/**
+ * Describes one hit execution summary including traversal budget diagnostics.
+ */
 export interface EngineHitExecutionSummary {
+  /** Ordered hit results. */
   hits: EngineHitTestResult[]
+  /** Number of exact hit checks performed. */
   exactCheckCount: number
   // Maximum exact checks allowed for this hit-test execution.
   exactCheckBudget: number

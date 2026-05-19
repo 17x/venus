@@ -10,6 +10,13 @@ import {
   resolveWebGPURectBatchGeometryPayload,
   type WebGPURectBatchGeometryPayload,
 } from './webgpuRectBatchGeometry.ts'
+import {
+  applyWebGPUTimestampResolve,
+  applyWebGPUTimestampWrite,
+  resolveWebGPUNativeGpuTimingState,
+  resolveWebGPUTimestampQuerySupport,
+  type WebGPUNativeGpuTimingState,
+} from './webgpuNativeTiming.ts'
 
 const WEBGPU_CONTEXT_ID = 'webgpu'
 const WEBGPU_FALLBACK_FORMAT = 'bgra8unorm'
@@ -17,7 +24,7 @@ const WEBGPU_FALLBACK_FORMAT = 'bgra8unorm'
 /**
  * Stores one reusable native WebGPU execution state snapshot.
  */
-export interface WebGPUNativeState {
+export interface WebGPUNativeState extends WebGPUNativeGpuTimingState {
   /** WebGPU context record bound to the probe surface. */
   context: Record<string, unknown>
   /** Device record used for command encoder/queue submission. */
@@ -92,7 +99,10 @@ export async function initializeWebGPUNativeState(
     return null
   }
 
-  const deviceCandidate = await requestDevice.call(adapterRecord)
+  const deviceCandidate = await requestDevice.call(
+    adapterRecord,
+    resolveWebGPUTimestampQuerySupport(adapterRecord) ? {requiredFeatures: ['timestamp-query']} : undefined,
+  )
   const deviceRecord = resolveRecord(deviceCandidate)
   if (!deviceRecord) {
     return null
@@ -118,6 +128,7 @@ export async function initializeWebGPUNativeState(
     return null
   }
 
+  const gpuTimingState = resolveWebGPUNativeGpuTimingState(adapterRecord, deviceRecord)
   const nativeState: WebGPUNativeState = {
     context: webgpuContext,
     device: deviceRecord,
@@ -125,6 +136,7 @@ export async function initializeWebGPUNativeState(
     format: preferredFormat,
     submittedCount: 0,
     failedCount: 0,
+    ...gpuTimingState,
     stagedRectPipeline: {
       key: null,
       pipeline: null,
@@ -269,6 +281,8 @@ function submitWebGPUNativePassWithClearValue(
       }
     }
 
+    state.gpuTimingLastWriteCount = 0
+    applyWebGPUTimestampWrite(state, encoderRecord, 0)
     const passEncoderRecord = resolveRecord(beginRenderPass.call(encoderRecord, {
       colorAttachments: [{
         view: createView.call(textureRecord),
@@ -341,6 +355,8 @@ function submitWebGPUNativePassWithClearValue(
     }
 
     end.call(passEncoderRecord)
+    applyWebGPUTimestampWrite(state, encoderRecord, 1)
+    applyWebGPUTimestampResolve(state, state.device, encoderRecord)
     submit.call(state.queue, [finish.call(encoderRecord)])
     state.submittedCount += 1
     return {

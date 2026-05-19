@@ -21,6 +21,8 @@ export interface EngineHitPlan {
   selectionPolicy: EngineHitSelectionPolicy
   // Ray miss class emitted by resolver diagnostics (point hits report none).
   rayMissClass: EngineRayMissClass
+  // Primary hit target kind emitted by native 3D ray diagnostics.
+  primaryHitTargetKind: 'shape' | 'mesh' | 'instance' | 'none'
   primaryHitNodeId: string | null
 }
 
@@ -42,6 +44,8 @@ export interface PrepareEngineHitPlanOptions {
   selectionPolicy?: EngineHitSelectionPolicy
   // Optional ray miss classification emitted by the hit resolver.
   rayMissClass?: EngineRayMissClass
+  // Optional primary target kind emitted by the hit resolver.
+  primaryHitTargetKind?: EngineHitPlan['primaryHitTargetKind']
 }
 
 // Keep hit-plan construction read-only so shortlist diagnostics can evolve
@@ -75,6 +79,21 @@ export function prepareEngineHitPlan(
     resolutionPath: options.resolutionPath ?? 'point-2d',
     selectionPolicy: options.selectionPolicy ?? 'paint-order-2d',
     rayMissClass: options.rayMissClass ?? 'none',
+    primaryHitTargetKind: options.primaryHitTargetKind ?? resolvePrimaryHitTargetKind(hits[0] ?? null),
     primaryHitNodeId: hits[0]?.nodeId ?? null,
   }
+}
+
+/**
+ * Resolves a hit-plan target kind from the primary hit result.
+ * @param hit Primary hit candidate.
+ */
+function resolvePrimaryHitTargetKind(
+  hit: EngineHitTestResult | null,
+): EngineHitPlan['primaryHitTargetKind'] {
+  if (!hit) {
+    return 'none'
+  }
+
+  return hit.hitTargetKind ?? 'shape'
 }

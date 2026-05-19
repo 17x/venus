@@ -1,33 +1,18 @@
 import type { EngineOverlayDrawNode } from '../../interaction/overlayCanvas.ts'
 import type {
-  EngineBackend,
-  EngineCanvasSurfaceFactory,
-  EngineFrameBudget,
-  EngineInteractionPreviewConfig,
-  EngineRenderQuality,
-  EngineRenderSurfaceSize,
-  EngineRenderStats,
-  EngineResourceLoader,
-  EngineTextShaper,
+  EngineBackend, EngineCanvasSurfaceFactory, EngineFrameBudget, EngineInteractionPreviewConfig, EngineRenderQuality,
+  EngineRenderSurfaceSize, EngineRenderStats, EngineResourceLoader, EngineTextShaper,
 } from '../../renderer/types/index.ts'
 import type { EngineSceneStoreDiagnostics, EngineSceneStoreTransaction } from '../../scene/store/store.ts'
 import type { EngineFramePlan } from '../../scene/framePlan.ts'
 import type { EngineHitPlan } from '../../scene/hitPlan.ts'
 import type {
-  EngineVisibleSet,
-  EngineVisibility3DPolicyDecision,
-  EngineVisibilityFrustum3DOcclusionResolver,
-  EngineVisibilityFrustum3DQuery,
-  EngineVisibilityFrustum3DResolver,
+  EngineVisibleSet, EngineVisibilityLodPlan, EngineVisibility3DPolicyDecision,
+  EngineVisibilityFrustum3DOcclusionResolver, EngineVisibilityFrustum3DQuery, EngineVisibilityFrustum3DResolver,
 } from '../../visibility/index.ts'
 import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
 import type { EngineRayHitResolutionResult } from '../../scene/hit/contracts.ts'
-import type {
-  EngineNodeId,
-  EngineRect,
-  EngineRenderableNode,
-  EngineSceneSnapshot,
-} from '../../scene/types/types.ts'
+import type { EngineNodeId, EngineRect, EngineRenderableNode, EngineSceneSnapshot } from '../../scene/types/types.ts'
 import type { EngineRay3 } from '../../math/dimension/types.ts'
 import type { EngineScenePatchApplyResult, EngineScenePatchBatch } from '../../scene/patch/patch.ts'
 import type { EngineClock } from '../../time/index.ts'
@@ -36,18 +21,17 @@ import type { EngineTileConfig } from '../../renderer/tileManager/index.ts'
 import type { EngineInitialRenderConfig } from '../../renderer/initialRender/index.ts'
 import type { EngineEasingDefinition } from '../../animation/index.ts'
 import type {
-  EngineDeviceCapabilityProfile,
-  EngineGraphicsSettings,
-  EnginePerformanceSettings,
-  EngineProfileName,
-  EngineQualityPresetName,
-  EngineRuntimeSettings,
+  EngineDeviceCapabilityProfile, EngineGraphicsSettings, EnginePerformanceSettings, EngineProfileName,
+  EngineQualityPresetName, EngineRuntimeSettings,
 } from '../../settings/index.ts'
+import type { EngineCamera3DSnapshot } from '../../camera/camera3dControllers/camera3dControllers.ts'
 import type { EngineFrameBudgetPressure } from './frameBudgetBroker/frameBudgetBroker.ts'
 import type { EngineRenderStrategyPhase, EngineInteractionMutationKind } from './strategy/strategy.ts'
 import type { EngineCanvasViewportState } from '../../interaction/viewport/viewport.ts'
 import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
 import type { EnginePerformanceGateStatus } from './performanceGate.ts'
+import type { EngineRuntimeDiagnosticsWebGPU } from './createEngineWebGPUDiagnostics.ts'
+import type { EngineCreateVisibilityOcclusionDiagnostics } from './createEngineVisibilityOcclusionDiagnostics.ts'
 
 /**
  * Boolean-or-object toggles used by performance option sections.
@@ -190,6 +174,14 @@ export interface EngineHitOptions {
 }
 
 /**
+ * Camera 3D runtime options for staged camera-controller wiring.
+ */
+export interface EngineCamera3DOptions {
+  /** Optional initial 3D camera snapshot tracked by runtime diagnostics and facade APIs. */
+  snapshot?: EngineCamera3DSnapshot | null
+}
+
+/**
  * Runtime camera animation state.
  */
 export interface EngineCameraAnimationState {
@@ -235,6 +227,8 @@ export interface CreateEngineOptions {
   debug?: EngineDebugOptions
   settings?: EngineSettingsOptions
   spatial?: EngineSpatialOptions
+  /** Optional 3D camera state used by staged camera-controller runtime wiring. */
+  camera3d?: EngineCamera3DOptions
   visibility?: EngineVisibilityOptions
   hit?: EngineHitOptions
   clock?: EngineClock
@@ -247,8 +241,72 @@ export interface CreateEngineOptions {
 export interface EngineRuntimeDiagnostics {
   backend: EngineBackend
   renderStats: EngineRenderStats | null
+  /** Aggregates WebGPU execution and fallback telemetry derived from latest render stats. */
+  webgpu: EngineRuntimeDiagnosticsWebGPU
   pixelRatio: number
   outputPixelRatio: number
+  /** Exposes resource cache pressure and streaming backlog diagnostics. */
+  resource: {
+    /** Total GPU texture bytes retained by renderer caches. */
+    gpuTextureBytes: number
+    /** Image texture bytes retained by image caches. */
+    imageTextureBytes: number
+    /** Texture upload bytes submitted by the latest frame. */
+    textureUploadBytes: number
+    /** Texture upload byte budget available to the latest frame. */
+    textureUploadBudgetBytes: number
+    /** Normalized upload budget utilization in range [0, 1]. */
+    textureUploadBudgetUtilization: number
+    /** True when the renderer reported upload budget pressure. */
+    textureUploadBudgetExceeded: boolean
+    /** Pending asynchronous tile/resource scheduling backlog count. */
+    tileSchedulerPendingCount: number
+    /** Normalized streaming backlog pressure in range [0, 1]. */
+    streamingLoad: number
+  }
+  /** Exposes scene-level performance profile and pass-cost diagnostics. */
+  performanceProfile: {
+    /** Total frame time reported by the renderer. */
+    frameMs: number
+    /** Flattened scene node count from the latest frame plan. */
+    sceneNodeCount: number
+    /** Visible node count reported by the latest renderer frame. */
+    visibleCount: number
+    /** Culled node count reported by the latest renderer frame. */
+    culledCount: number
+    /** Normalized culled / total-scene ratio. */
+    cullingRatio: number
+    /** Draw submission count reported by the latest renderer frame. */
+    drawCount: number
+    /** Normalized draw-count pressure per visible node. */
+    drawDensity: number
+    /** Normalized cache hit rate from latest renderer stats. */
+    cacheHitRate: number
+    /** Renderer pass timing breakdown in milliseconds. */
+    passCosts: {
+      /** Geometry/frame plan build time. */
+      planBuildMs: number
+      /** Texture upload time. */
+      textureUploadMs: number
+      /** Draw submission time. */
+      drawSubmitMs: number
+      /** Snapshot capture time. */
+      snapshotCaptureMs: number
+      /** Model-complete render time. */
+      modelRenderMs: number
+      /** Sum of known pass timing fields. */
+      knownPassTotalMs: number
+    }
+    /** Normalized budget utilization signals for pass and upload budgets. */
+    budgetUtilization: {
+      /** Draw submit budget utilization. */
+      drawSubmit: number
+      /** Texture upload byte budget utilization. */
+      textureUploadBytes: number
+      /** Overlay pass budget utilization. */
+      overlayPass: number
+    }
+  }
   scene: EngineSceneStoreDiagnostics
   framePlan: EngineFramePlan | null
   hitPlan: EngineHitPlan | null
@@ -273,7 +331,24 @@ export interface EngineRuntimeDiagnostics {
     stableFrameCount: number
   }
   viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight'>
+  /** Exposes staged 3D camera runtime state without changing renderer execution. */
+  camera3d: {
+    /** True when a 3D camera snapshot is currently registered. */
+    active: boolean
+    /** Controller family that produced the active snapshot. */
+    controller: EngineCamera3DSnapshot['controller'] | 'none'
+    /** Projection kind for the active snapshot. */
+    projectionKind: EngineCamera3DSnapshot['projection']['kind'] | 'none'
+    /** Active camera position for diagnostics dashboards. */
+    position: EngineCamera3DSnapshot['pose']['position'] | null
+    /** Active camera target for diagnostics dashboards. */
+    target: EngineCamera3DSnapshot['pose']['target'] | null
+  }
   visibility3dPolicy: EngineVisibility3DPolicyDecision
+  /** Exposes pressure-aware visibility LOD counts derived from latest frame-plan candidates. */
+  visibilityLod: EngineVisibilityLodPlan
+  /** Exposes staged hierarchical occlusion diagnostics derived from latest frame-plan candidates. */
+  visibilityOcclusion: EngineCreateVisibilityOcclusionDiagnostics
   cameraAnimation: EngineCameraAnimationState
   strategy: {
     phase: EngineRenderStrategyPhase
@@ -362,6 +437,12 @@ export interface Engine {
   setViewport(next: EngineViewportOptions): EngineCanvasViewportState
   panBy(deltaX: number, deltaY: number): EngineCanvasViewportState
   zoomTo(scale: number, anchor?: {x: number; y: number}): EngineCanvasViewportState
+  /** Registers or replaces the active 3D camera snapshot tracked by runtime diagnostics. */
+  setCamera3DSnapshot(snapshot: EngineCamera3DSnapshot | null): void
+  /** Returns the active 3D camera snapshot, if one is registered. */
+  getCamera3DSnapshot(): EngineCamera3DSnapshot | null
+  /** Clears the active 3D camera snapshot. */
+  clearCamera3DSnapshot(): void
   startCameraAnimation(target: EngineViewportOptions, options?: EngineCameraAnimationOptions): void
   updateCameraAnimation(target: EngineViewportOptions, options?: EngineCameraAnimationOptions): void
   stopCameraAnimation(options?: {commitTarget?: boolean}): void

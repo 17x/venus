@@ -190,14 +190,19 @@ test('createEngineHitResolver applies depth-first ordering for native ray hits b
       score: 1,
       zOrder: 2,
       hitPoint: {x: 0, y: 0},
+      hitTargetKind: 'mesh',
+      rayDistance: 30,
     }, {
       index: 5,
       nodeId: 'near-hit',
       nodeType: 'shape',
       hitType: 'shape-body',
       score: 5,
-      zOrder: 9,
+      zOrder: 1,
       hitPoint: {x: 0, y: 0},
+      hitTargetKind: 'instance',
+      instanceId: 'instance-a',
+      rayDistance: 3,
     }],
   })
 
@@ -211,8 +216,52 @@ test('createEngineHitResolver applies depth-first ordering for native ray hits b
 
   assert.equal(result.selectionPolicy, 'depth-first-ray')
   assert.equal(result.primaryHit?.nodeId, 'near-hit')
+  assert.equal(result.primaryHit?.hitTargetKind, 'instance')
+  assert.equal(result.primaryHit?.instanceId, 'instance-a')
+  assert.equal(result.primaryHitTargetKind, 'instance')
   assert.equal(result.hits[0]?.nodeId, 'near-hit')
   assert.equal(result.hits[1]?.nodeId, 'far-hit')
+})
+
+test('createEngineHitResolver keeps z-order ordering for native ray hits without explicit ray distance', () => {
+  const resolver = createEngineHitResolver({
+    resolvePointHits: () => ({
+      hits: [],
+      exactCheckCount: 0,
+      exactCheckBudget: 0,
+      exactBudgetExceeded: false,
+    }),
+    resolveRayHits: () => [{
+      index: 1,
+      nodeId: 'low-z',
+      nodeType: 'shape',
+      hitType: 'shape-body',
+      score: 1,
+      zOrder: 1,
+      hitPoint: {x: 0, y: 0},
+      hitTargetKind: 'mesh',
+    }, {
+      index: 2,
+      nodeId: 'high-z',
+      nodeType: 'shape',
+      hitType: 'shape-body',
+      score: 1,
+      zOrder: 5,
+      hitPoint: {x: 0, y: 0},
+      hitTargetKind: 'mesh',
+    }],
+  })
+
+  const result = resolver.resolve({
+    mode: 'ray-3d',
+    ray: {
+      origin: {x: 0, y: 0, z: 10},
+      direction: {x: 0, y: 0, z: -1},
+    },
+  })
+
+  assert.equal(result.primaryHit?.nodeId, 'high-z')
+  assert.equal(result.primaryHitTargetKind, 'mesh')
 })
 
 test('createEngineHitResolver supports native 3d ray summary payload with explicit budget metrics', () => {

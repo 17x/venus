@@ -148,6 +148,7 @@ export function createEngineSceneFacade(options: {
           resolutionPath: hitSet.resolutionPath,
           selectionPolicy: hitSet.selectionPolicy,
           rayMissClass: hitSet.rayMissClass,
+          primaryHitTargetKind: hitSet.primaryHitTargetKind,
           queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => options.store.queryPointCandidates(queryPoint, queryTolerance),
         }),
       )
@@ -181,6 +182,7 @@ export function createEngineSceneFacade(options: {
           resolutionPath: hitSet.resolutionPath,
           selectionPolicy: hitSet.selectionPolicy,
           rayMissClass: hitSet.rayMissClass,
+          primaryHitTargetKind: hitSet.primaryHitTargetKind,
           queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => options.store.queryPointCandidates(queryPoint, queryTolerance),
         }),
       )

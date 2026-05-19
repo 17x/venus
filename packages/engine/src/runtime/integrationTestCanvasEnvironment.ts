@@ -302,6 +302,7 @@ export function installFakeCanvasEnvironment(): FakeCanvasEnvironment {
     },
     async requestAdapter() {
       return {
+        features: new Set(['timestamp-query']),
         async requestDevice() {
           return createFakeWebGPUDevice(recordedWebGPUCommands)
         },

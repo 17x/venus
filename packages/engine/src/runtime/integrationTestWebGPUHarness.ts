@@ -42,6 +42,12 @@ export interface RecordedWebGPUCommandSummary {
   writeBufferCallCount: number
   /** Stores total uploaded bytes across queue writeBuffer calls. */
   uploadedBufferBytes: number
+  /** Stores number of encoder writeTimestamp calls issued per frame. */
+  timestampWriteCount: number
+  /** Stores number of encoder resolveQuerySet calls issued per frame. */
+  timestampResolveCount: number
+  /** Stores number of encoder copyBufferToBuffer calls issued per frame. */
+  timestampCopyCount: number
 }
 
 /**
@@ -57,6 +63,7 @@ export function createFakeWebGPUContext(
     },
     async requestAdapter() {
       return {
+        features: new Set(['timestamp-query']),
         async requestDevice() {
           return createFakeWebGPUDevice(recordedWebGPUCommands)
         },
@@ -139,10 +146,31 @@ export function createFakeWebGPUDevice(
         bufferDescriptors: [],
         writeBufferCallCount: 0,
         uploadedBufferBytes: 0,
+        timestampWriteCount: 0,
+        timestampResolveCount: 0,
+        timestampCopyCount: 0,
       }
       recordedWebGPUCommands.push(summary)
 
       return {
+        /**
+         * Handles writeTimestamp.
+         */
+        writeTimestamp() {
+          summary.timestampWriteCount += 1
+        },
+        /**
+         * Handles resolveQuerySet.
+         */
+        resolveQuerySet() {
+          summary.timestampResolveCount += 1
+        },
+        /**
+         * Handles copyBufferToBuffer.
+         */
+        copyBufferToBuffer() {
+          summary.timestampCopyCount += 1
+        },
         /**
          * Handles beginRenderPass.
          * @param descriptor Render pass descriptor.
@@ -239,6 +267,12 @@ export function createFakeWebGPUDevice(
           latestSummary.bufferDescriptors.push(descriptor)
         }
       }
+      return {}
+    },
+    /**
+     * Handles createQuerySet.
+     */
+    createQuerySet() {
       return {}
     },
   }

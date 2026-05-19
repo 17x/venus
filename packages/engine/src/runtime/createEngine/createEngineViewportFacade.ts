@@ -3,6 +3,7 @@ import {
   resolveEngineViewportState,
   zoomEngineViewportState,
 } from '../../interaction/viewport/viewport.ts'
+import type { EngineCamera3DSnapshot } from '../../camera/camera3dControllers/camera3dControllers.ts'
 import type { Engine } from './createEngineContracts.ts'
 
 /**
@@ -17,6 +18,8 @@ export function createEngineViewportFacade(options: {
   startCameraAnimationInternal: Engine['startCameraAnimation']
   markInteractionMutation: (kind: 'set' | 'pan' | 'zoom') => void
   applyResizeSurface: Engine['resize']
+  getCamera3DSnapshot: () => EngineCamera3DSnapshot | null
+  setCamera3DSnapshotState: (snapshot: EngineCamera3DSnapshot | null) => void
   renderContext: {
     protectedNodeIds?: readonly string[]
     interactionActiveNodeIds?: readonly string[]
@@ -68,6 +71,26 @@ export function createEngineViewportFacade(options: {
       const nextViewport = zoomEngineViewportState(options.getViewport(), scale, anchor)
       options.setViewportState(nextViewport)
       return nextViewport
+    },
+    /**
+     * Intent: register the active 3D camera snapshot for staged runtime consumers.
+     * @param snapshot Camera snapshot to register, or null to clear state.
+     */
+    setCamera3DSnapshot(snapshot) {
+      options.setCamera3DSnapshotState(snapshot)
+    },
+    /**
+     * Intent: read the active 3D camera snapshot without mutating runtime state.
+     * @returns Active 3D camera snapshot, or null.
+     */
+    getCamera3DSnapshot() {
+      return options.getCamera3DSnapshot()
+    },
+    /**
+     * Intent: clear the active 3D camera snapshot through the same state boundary as setter.
+     */
+    clearCamera3DSnapshot() {
+      options.setCamera3DSnapshotState(null)
     },
     /**
      * Handles startCameraAnimation.
@@ -175,6 +198,9 @@ export function createEngineViewportFacade(options: {
     | 'setViewport'
     | 'panBy'
     | 'zoomTo'
+    | 'setCamera3DSnapshot'
+    | 'getCamera3DSnapshot'
+    | 'clearCamera3DSnapshot'
     | 'startCameraAnimation'
     | 'updateCameraAnimation'
     | 'stopCameraAnimation'

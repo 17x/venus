@@ -418,6 +418,7 @@ export type {
   EngineHitResolverOptions,
   EnginePointHitQuery,
   EngineRayHitQuery,
+  EngineRayHitTargetKind,
   EngineResolvedHitSet,
 } from '../scene/hit/contracts.ts'
 export type {

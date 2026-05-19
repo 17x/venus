@@ -2,13 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createEngine } from './createEngine/createEngine.ts'
-import {
-  createFakeClock,
-  createScene,
-  createTextHeavyScene,
-  installFakeCanvasEnvironment,
-} from './createEngine.integrationTestHelpers.ts'
-
+import { createFakeClock, createScene, createTextHeavyScene, installFakeCanvasEnvironment } from './createEngine.integrationTestHelpers.ts'
 /**
  * Verifies geometry cache counters and hit-rate metrics are emitted in render stats.
  */
@@ -171,6 +165,13 @@ test('createEngine diagnostics expose runtime policy snapshot fields', async () 
     assert.equal(typeof diagnostics.qos.pressure, 'string')
     assert.ok(diagnostics.qos.budget.drawSubmitBudgetMs >= 0)
     assert.equal(diagnostics.qos.fallbackReason, null)
+    assert.ok(diagnostics.resource.gpuTextureBytes >= 0)
+    assert.ok(diagnostics.resource.textureUploadBudgetUtilization >= 0)
+    assert.ok(diagnostics.resource.streamingLoad >= 0)
+    assert.ok(diagnostics.performanceProfile.frameMs >= 0)
+    assert.ok(diagnostics.performanceProfile.passCosts.knownPassTotalMs >= 0)
+    assert.ok(diagnostics.performanceProfile.budgetUtilization.drawSubmit >= 0)
+    assert.ok(diagnostics.performanceProfile.cacheHitRate >= 0)
   } finally {
     environment.restore()
   }
@@ -216,11 +217,76 @@ test('createEngine diagnostics expose 3D visibility policy and preview execution
     await engine.renderFrame()
     const diagnostics = engine.getDiagnostics()
 
-    assert.equal(diagnostics.visibility3dPolicy.executionMode, 'frustum-only')
-    assert.equal(diagnostics.visibility3dPolicy.hasFrustumResolver, true)
-    assert.equal(diagnostics.hit3dPolicy.hasRayResolver, false)
+    assert.deepEqual([diagnostics.visibility3dPolicy.executionMode, diagnostics.visibility3dPolicy.hasFrustumResolver, diagnostics.hit3dPolicy.hasRayResolver], ['frustum-only', true, false])
     assert.equal(diagnostics.scene.spatialDimension, '3d')
+    assert.ok(diagnostics.visibilityLod.fullCount >= 1)
+    assert.equal(diagnostics.visibilityLod.culledCount, 0)
+    assert.deepEqual(diagnostics.visibilityOcclusion.mode, 'rank-proxy')
+    assert.ok(diagnostics.visibilityOcclusion.candidateCount >= 1 && diagnostics.visibilityOcclusion.visibleCount >= 1)
     assert.equal(diagnostics.strategySnapshot.previewExecutionMode, 'affine-snapshot')
+  } finally {
+    environment.restore()
+  }
+})
+
+/**
+ * Verifies diagnostics expose WebGPU path and native submission counters.
+ */
+test('createEngine diagnostics expose WebGPU execution telemetry', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 200,
+        viewportHeight: 140,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      performance: {
+        culling: true,
+        lod: {enabled: false},
+        tiles: {enabled: false},
+        overscan: {enabled: false},
+      },
+      render: {
+        backend: 'webgpu',
+        quality: 'full',
+        modelCompleteComposite: false,
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 200,
+      viewportHeight: 140,
+      outputWidth: 200,
+      outputHeight: 140,
+    })
+
+    await engine.renderFrame()
+    const diagnostics = engine.getDiagnostics()
+    assert.equal(diagnostics.webgpu.renderPath, 'native-rect-batch')
+    assert.equal(diagnostics.webgpu.nativeSubmission.attemptedCount, 1)
+    assert.equal(diagnostics.webgpu.nativeSubmission.successCount, 1)
+    assert.equal(diagnostics.webgpu.nativeSubmission.failureCount, 0)
+    assert.ok(diagnostics.webgpu.nativeSubmission.totalSuccessCount >= 1)
+    assert.equal(diagnostics.webgpu.rectBatch.rejectedReason, 'none')
+    assert.ok(diagnostics.webgpu.rectBatch.eligibleCount > 0)
+    assert.ok(diagnostics.webgpu.pass3d.candidateCount > 0 && diagnostics.webgpu.pass3d.batchCount > 0)
+    assert.ok(diagnostics.webgpu.pass3d.unlitBatchCount > 0)
+    assert.equal(diagnostics.webgpu.pass3d.unsupportedCount, 0)
+    assert.equal(diagnostics.webgpu.pass3d.nativeCoverageRatio, 1)
+    assert.deepEqual(diagnostics.webgpu.binding3d, {
+      materialUniformBytes: 32, lightUniformBytes: 0, instanceUniformBytes: 64, totalUniformBytes: 96,
+    })
+    assert.deepEqual(diagnostics.webgpu.gpuTiming, {supported: true, sampleState: 'supported-uninstrumented', queryPlanState: 'ready-unresolved', queryWriteCount: 2, lastWriteCount: 2, lastResolveCount: 1, lastCopyCount: 1, readbackBufferBytes: 16, frameMs: null})
+    assert.deepEqual(diagnostics.webgpu.camera3d, {
+      active: false, controller: 'none', projectionKind: 'none', uniformBytes: 0, uniformFloatCount: 0,
+    })
   } finally {
     environment.restore()
   }
@@ -342,6 +408,9 @@ test('createEngine diagnostics expose ray native resolution path metadata', asyn
             score: 1,
             zOrder: 0,
             hitPoint: {x: 10, y: 10},
+            hitTargetKind: 'instance',
+            instanceId: 'diagnostic-instance',
+            rayDistance: 2,
           }],
           exactCheckCount: 3,
           exactCheckBudget: 4,
@@ -371,6 +440,7 @@ test('createEngine diagnostics expose ray native resolution path metadata', asyn
     assert.equal(diagnostics.hitPlan?.resolutionPath, 'ray-native-3d')
     assert.equal(diagnostics.hitPlan?.selectionPolicy, 'depth-first-ray')
     assert.equal(diagnostics.hitPlan?.rayMissClass, 'none')
+    assert.equal(diagnostics.hitPlan?.primaryHitTargetKind, 'instance')
     assert.equal(diagnostics.hitPlan?.exactCheckCount, 3)
     assert.equal(diagnostics.hitPlan?.exactCheckBudget, 4)
     assert.equal(diagnostics.hitPlan?.exactBudgetExceeded, false)

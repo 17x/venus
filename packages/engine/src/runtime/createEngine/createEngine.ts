@@ -1,13 +1,9 @@
-import {
-  createEngineSceneStore,
-} from '../../scene/store/store.ts'
+import { createEngineSceneStore } from '../../scene/store/store.ts'
 import {
   createEngineVisibilityResolver,
   resolveEngineFrustumFallbackNodeIds,
 } from '../../visibility/index.ts'
-import {
-  createEngineHitResolver,
-} from '../../scene/hit/resolver.ts'
+import { createEngineHitResolver } from '../../scene/hit/resolver.ts'
 import { createSystemEngineClock } from '../../time/index.ts'
 import { createEngineLoop, type EngineLoopController } from '../createEngineLoop/createEngineLoop.ts'
 import {
@@ -43,6 +39,7 @@ import {
 import {
   resolveCreateEngineDiagnosticsInput,
 } from './createEngineDiagnosticsInput.ts'
+import { applyCreateEngineInitialResize } from './createEngineInitialResize.ts'
 import {
   resolveCreateEngineFrame,
 } from './createEngineFrameResolver.ts'
@@ -56,13 +53,14 @@ import type {
 
 export type {
   CreateEngineOptions,
+  EngineCamera3DOptions,
+  EngineCameraAnimationOptions,
   Engine,
   EngineOverscanOptions,
   EnginePerformanceOptionsObject,
   ResolvedEnginePerformanceOptions,
   EngineRuntimeDiagnostics,
   EngineViewportOptions,
-  EngineCameraAnimationOptions,
   EngineResizeOptions,
 } from './createEngineContracts.ts'
 
@@ -159,6 +157,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
 
   const clock = options.clock ?? createSystemEngineClock()
   let viewport = resolveInitialViewport(options.canvas, options.viewport)
+  let camera3DSnapshot = options.camera3d?.snapshot ?? null
   const { applyResizeSurface } = createEngineResizeLifecycle({
     canvas: options.canvas,
     renderer,
@@ -271,6 +270,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
         scene,
         viewport,
         renderContext,
+        camera3DSnapshot,
         renderer,
         nowMs: clock.now(),
         cameraAnimationState,
@@ -371,13 +371,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
     onStats: handleRenderStats,
   })
 
-  // Keep renderer and viewport dimensions in sync so callers can just pass the
-  // engine canvas once and then rely on `resize(...)`.
-  applyResizeSurface({
+  applyCreateEngineInitialResize({
+    canvas: options.canvas,
     viewportWidth: viewport.viewportWidth,
     viewportHeight: viewport.viewportHeight,
-    outputWidth: Math.max(1, options.canvas.width ?? Math.round(viewport.viewportWidth * outputPixelRatio)),
-    outputHeight: Math.max(1, options.canvas.height ?? Math.round(viewport.viewportHeight * outputPixelRatio)),
+    outputPixelRatio,
+    applyResizeSurface,
   })
 
   return {
@@ -406,6 +405,10 @@ export function createEngine(options: CreateEngineOptions): Engine {
       startCameraAnimationInternal,
       markInteractionMutation,
       applyResizeSurface,
+      getCamera3DSnapshot: () => camera3DSnapshot,
+      setCamera3DSnapshotState: (snapshot) => {
+        camera3DSnapshot = snapshot
+      },
       renderContext,
     }),
     ...createEngineRuntimeFacade({
@@ -463,6 +466,7 @@ export function createEngine(options: CreateEngineOptions): Engine {
           viewportWidth: viewport.viewportWidth,
           viewportHeight: viewport.viewportHeight,
         },
+        camera3DSnapshot,
         cameraAnimationState,
         latestStrategyPhase,
         latestStrategyInteractionActive,
@@ -492,5 +496,3 @@ export function createEngine(options: CreateEngineOptions): Engine {
     }),
   }
 }
-
-

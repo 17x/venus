@@ -10,6 +10,7 @@ import type {
   EngineCameraProjection,
   EngineCameraProjectionKind,
 } from '../../camera/contracts.ts'
+import type { EngineCamera3DSnapshot } from '../../camera/camera3dControllers/camera3dControllers.ts'
 import type { EngineLayeredRenderOutput } from '../../render/index.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
 import type { EngineRenderFallbackReason } from '../fallbackTaxonomy/index.ts'
@@ -112,6 +113,56 @@ export interface EngineRenderStats {
   frameReuseHits: number
   frameReuseMisses: number
   frameMs: number
+  // Number of leaf scene nodes considered by the WebGPU 3D pass planner.
+  webgpu3DPassCandidateCount?: number
+  // Number of material/lighting/geometry batches produced by the WebGPU 3D pass planner.
+  webgpu3DPassBatchCount?: number
+  // Number of candidates unsupported by the native WebGPU 3D pass planner.
+  webgpu3DPassUnsupportedCount?: number
+  // Native WebGPU 3D pass coverage ratio in range [0, 1].
+  webgpu3DPassNativeCoverageRatio?: number
+  // Number of planned WebGPU 3D pass batches eligible for instanced submission.
+  webgpu3DPassInstancedBatchCount?: number
+  // Number of planned WebGPU 3D pass batches requiring scene-light bindings.
+  webgpu3DPassLitBatchCount?: number
+  // Number of planned WebGPU 3D pass batches that render unlit.
+  webgpu3DPassUnlitBatchCount?: number
+  // Estimated material uniform bytes required by planned WebGPU 3D bindings.
+  webgpu3DBindingMaterialUniformBytes?: number
+  // Estimated light uniform bytes required by planned WebGPU 3D bindings.
+  webgpu3DBindingLightUniformBytes?: number
+  // Estimated instance uniform bytes required by planned WebGPU 3D bindings.
+  webgpu3DBindingInstanceUniformBytes?: number
+  // Estimated total uniform bytes required by planned WebGPU 3D bindings.
+  webgpu3DBindingTotalUniformBytes?: number
+  // True when initialized WebGPU adapter/device supports timestamp-query.
+  webgpuGpuTimingSupported?: boolean
+  // Current GPU timing sample state; sampled timings require timestamp query instrumentation.
+  webgpuGpuTimingSampleState?: 'unsupported' | 'supported-uninstrumented' | 'sampled' | 'failed'
+  // Current timestamp-query lifecycle plan state before GPU timing readback is available.
+  webgpuGpuTimingQueryPlanState?: 'unsupported' | 'missing-query-set' | 'ready-unresolved'
+  // Number of timestamp writes expected by the current query lifecycle plan.
+  webgpuGpuTimingQueryWriteCount?: number
+  // Number of timestamp writes emitted during the latest native WebGPU pass.
+  webgpuGpuTimingLastWriteCount?: number
+  // Number of timestamp query resolve commands emitted during the latest native WebGPU pass.
+  webgpuGpuTimingLastResolveCount?: number
+  // Number of timestamp buffer copy commands emitted during the latest native WebGPU pass.
+  webgpuGpuTimingLastCopyCount?: number
+  // Bytes reserved for timestamp readback during the latest native WebGPU pass.
+  webgpuGpuTimingReadbackBufferBytes?: number
+  // Last sampled GPU frame duration in milliseconds when timestamp instrumentation has produced data.
+  webgpuGpuFrameMs?: number
+  // True when the current WebGPU frame received a 3D camera snapshot.
+  webgpuCamera3DActive?: boolean
+  // Controller family for the current WebGPU frame camera snapshot.
+  webgpuCamera3DController?: EngineCamera3DSnapshot['controller'] | 'none'
+  // Projection kind for the current WebGPU frame camera snapshot.
+  webgpuCamera3DProjectionKind?: EngineCamera3DSnapshot['projection']['kind'] | 'none'
+  // Byte size of the WebGPU-ready camera uniform payload for the current frame.
+  webgpuCamera3DUniformBytes?: number
+  // Float count of the WebGPU-ready camera uniform payload for the current frame.
+  webgpuCamera3DUniformFloatCount?: number
   webglRenderPath?: 'model-complete' | 'packet'
   webglInteractiveTextFallbackCount?: number
   webglTextTextureUploadCount?: number
@@ -292,6 +343,8 @@ export interface EngineRendererContext {
   // Main-canvas output pixel ratio stays app-owned and stable across
   // interaction phases so renderers can decouple final output from side LOD.
   outputPixelRatio?: number
+  // Optional staged 3D camera snapshot for native renderer camera-uniform preparation.
+  camera3DSnapshot?: EngineCamera3DSnapshot | null
   loader?: EngineResourceLoader
   textShaper?: EngineTextShaper
   // Optional: dirty regions for incremental tile updates.

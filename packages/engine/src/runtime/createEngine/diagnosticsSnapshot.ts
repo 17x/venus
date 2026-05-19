@@ -11,10 +11,16 @@ export interface ResolveEngineRuntimeDiagnosticsSnapshotInput {
   backend: EngineRuntimeDiagnostics['backend']
   /** Latest render stats snapshot. */
   renderStats: EngineRuntimeDiagnostics['renderStats']
+  /** WebGPU execution and fallback telemetry section. */
+  webgpu: EngineRuntimeDiagnostics['webgpu']
   /** Effective render pixel ratio. */
   pixelRatio: EngineRuntimeDiagnostics['pixelRatio']
   /** Effective output pixel ratio. */
   outputPixelRatio: EngineRuntimeDiagnostics['outputPixelRatio']
+  /** Resource cache and streaming diagnostics section. */
+  resource: EngineRuntimeDiagnostics['resource']
+  /** Scene performance profile diagnostics section. */
+  performanceProfile: EngineRuntimeDiagnostics['performanceProfile']
   /** Scene store diagnostics snapshot. */
   scene: EngineRuntimeDiagnostics['scene']
   /** Latest frame plan snapshot. */
@@ -27,6 +33,8 @@ export interface ResolveEngineRuntimeDiagnosticsSnapshotInput {
   shortlist: EngineRuntimeDiagnostics['shortlist']
   /** Viewport diagnostics section. */
   viewport: EngineRuntimeDiagnostics['viewport']
+  /** Staged 3D camera diagnostics section. */
+  camera3d: EngineRuntimeDiagnostics['camera3d']
   /** Camera animation diagnostics section. */
   cameraAnimation: EngineRuntimeDiagnostics['cameraAnimation']
   /** Strategy diagnostics section. */
@@ -39,6 +47,10 @@ export interface ResolveEngineRuntimeDiagnosticsSnapshotInput {
   strategySnapshot: EngineRuntimeDiagnostics['strategySnapshot']
   /** 3D visibility policy diagnostics section. */
   visibility3dPolicy: EngineRuntimeDiagnostics['visibility3dPolicy']
+  /** Visibility LOD diagnostics section. */
+  visibilityLod: EngineRuntimeDiagnostics['visibilityLod']
+  /** Visibility occlusion diagnostics section. */
+  visibilityOcclusion: EngineRuntimeDiagnostics['visibilityOcclusion']
   /** Settle sharpness diagnostics section. */
   settleSharpness: EngineRuntimeDiagnostics['settleSharpness']
   /** Policy diagnostics section. */
@@ -60,20 +72,26 @@ export function resolveEngineRuntimeDiagnosticsSnapshot(
   return {
     backend: input.backend,
     renderStats: input.renderStats,
+    webgpu: input.webgpu,
     pixelRatio: input.pixelRatio,
     outputPixelRatio: input.outputPixelRatio,
+    resource: input.resource,
+    performanceProfile: input.performanceProfile,
     scene: input.scene,
     framePlan: input.framePlan,
     hitPlan: input.hitPlan,
     hit3dPolicy: input.hit3dPolicy,
     shortlist: input.shortlist,
     viewport: input.viewport,
+    camera3d: input.camera3d,
     cameraAnimation: input.cameraAnimation,
     strategy: input.strategy,
     predictor: input.predictor,
     budget: input.budget,
     strategySnapshot: input.strategySnapshot,
     visibility3dPolicy: input.visibility3dPolicy,
+    visibilityLod: input.visibilityLod,
+    visibilityOcclusion: input.visibilityOcclusion,
     settleSharpness: input.settleSharpness,
     policy: input.policy,
     qos: input.qos,

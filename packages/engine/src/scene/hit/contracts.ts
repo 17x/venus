@@ -18,6 +18,11 @@ export type EngineHitSelectionPolicy =
   | 'depth-first-ray'
 
 /**
+ * Declares 3D ray target classes for native mesh/instance hit diagnostics.
+ */
+export type EngineRayHitTargetKind = 'shape' | 'mesh' | 'instance'
+
+/**
  * Declares one 2D point-hit query payload.
  */
 export interface EnginePointHitQuery {
@@ -122,4 +127,6 @@ export interface EngineResolvedHitSet {
   selectionPolicy: EngineHitSelectionPolicy
   /** Ray-specific miss class for diagnostics (point path always reports none). */
   rayMissClass: EngineRayMissClass
+  /** Primary hit target kind for native 3D mesh/instance diagnostics. */
+  primaryHitTargetKind: EngineRayHitTargetKind | 'none'
 }

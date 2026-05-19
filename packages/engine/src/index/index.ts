@@ -38,6 +38,61 @@ export type {
   EngineOrthographicCameraProjection,
   EnginePerspectiveCameraProjection,
 } from '../camera/contracts.ts'
+export type {
+  EngineCamera3DControllerKind,
+  EngineCamera3DSnapshot,
+  EngineCameraProjectionTransition,
+  EngineCameraProjectionTransitionInput,
+  EngineCameraReplayKeyframe,
+  EngineFlyCameraInput,
+  EngineFpsCameraInput,
+  EngineOrbitCameraInput,
+} from '../camera/camera3dControllers/camera3dControllers.ts'
+export {
+  createOrthographicCameraProjection,
+  createPerspectiveCameraProjection,
+  resolveCameraProjectionTransition,
+  resolveCameraReplaySnapshot,
+  resolveFlyCameraSnapshot,
+  resolveFpsCameraSnapshot,
+  resolveOrbitCameraSnapshot,
+} from '../camera/camera3dControllers/camera3dControllers.ts'
+
+export type {
+  EngineStreamingAssetKind,
+  EngineStreamingAssetRequest,
+  EngineStreamingBudget,
+  EngineStreamingCacheEntry,
+  EngineStreamingExecutionDiagnostics,
+  EngineStreamingExecutionSummary,
+  EngineStreamingPlan,
+  EngineStreamingPlanExecutor,
+  EngineStreamingPlanInput,
+} from '../resource/index.ts'
+export {
+  executeEngineStreamingPlan,
+  resolveEngineStreamingExecutionDiagnostics,
+  resolveEngineStreamingPlan,
+} from '../resource/index.ts'
+
+export type {
+  EngineVisibilityLodCandidate,
+  EngineVisibilityLodEntry,
+  EngineVisibilityLodLevel,
+  EngineVisibilityLodPlan,
+  EngineVisibilityLodPlanInput,
+  EngineVisibilityLodPressure,
+  EngineVisibilityLodThresholds,
+  EngineVisibilityOcclusionCandidate,
+  EngineVisibilityOcclusionEntry,
+  EngineVisibilityOcclusionPlan,
+  EngineVisibilityOcclusionPlanInput,
+  EngineVisibilityOcclusionThresholds,
+} from '../visibility/index.ts'
+export {
+  resolveEngineVisibilityOcclusionPlan,
+  resolveEngineVisibilityLodPlan,
+} from '../visibility/index.ts'
 
 export type {
   EngineMaterialBinding,
@@ -64,6 +119,48 @@ export type {
 export type {
   EngineHitTestResult,
 } from '../scene/hitTest/hitTest.ts'
+export type {
+  EngineMeshRayCandidate,
+  EngineMeshRayGeometry,
+  EngineMeshRayHitInput,
+  EngineMeshRayTriangleIndex,
+} from '../scene/hit/meshRayIntersector/meshRayIntersector.ts'
+export {
+  resolveEngineMeshRayHits,
+} from '../scene/hit/meshRayIntersector/meshRayIntersector.ts'
+export type {
+  EngineSceneMeshRayCandidateInput,
+  EngineSceneMeshRayCandidateResult,
+  EngineSceneMeshRayInstance,
+  EngineSceneMeshRaySource,
+} from '../scene/hit/meshRayIntersector/sceneMeshRayAdapter.ts'
+export {
+  resolveEngineSceneMeshRayCandidates,
+} from '../scene/hit/meshRayIntersector/sceneMeshRayAdapter.ts'
+
+export type {
+  EngineWebGPU3DBindingPlan,
+  EngineWebGPU3DBindingPlanInput,
+  EngineWebGPU3DBindingPlanSummary,
+  EngineWebGPUCameraUniformPlan,
+  EngineWebGPU3DPassBatch,
+  EngineWebGPU3DPassCandidate,
+  EngineWebGPU3DPassCoverage,
+  EngineWebGPU3DPassPlan,
+  EngineWebGPU3DPassPlanInput,
+  EngineWebGPUTimestampReadbackInput,
+  EngineWebGPUTimestampReadbackResult,
+  EngineWebGPUTimestampQueryPlan,
+  EngineWebGPUTimestampQueryPlanInput,
+  EngineWebGPUTimestampQueryPlanState,
+} from '../renderer/webgpu/index.ts'
+export {
+  resolveEngineWebGPU3DBindingPlan,
+  resolveEngineWebGPUCameraUniformPlan,
+  resolveEngineWebGPU3DPassPlan,
+  resolveEngineWebGPUTimestampQueryPlan,
+  resolveWebGPUTimestampReadback,
+} from '../renderer/webgpu/index.ts'
 
 export type {
   EngineRenderScheduler,

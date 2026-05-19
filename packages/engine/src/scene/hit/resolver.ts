@@ -48,6 +48,7 @@ export function createEngineHitResolver(
         resolutionPath: 'point-2d',
         selectionPolicy: 'paint-order-2d',
         rayMissClass: 'none',
+        primaryHitTargetKind: resolvePrimaryHitTargetKind(hits[0] ?? null),
       }
     }
 
@@ -69,6 +70,7 @@ export function createEngineHitResolver(
       resolutionPath,
       selectionPolicy: 'depth-first-ray',
       rayMissClass,
+      primaryHitTargetKind: resolvePrimaryHitTargetKind(rayHits[0] ?? null),
     }
   }
 
@@ -236,6 +238,12 @@ function orderRayHitsByDepthPriority(
   return hits
     .slice()
     .sort((left, right) => {
+      const leftRayDistance = resolveComparableRayDistance(left.rayDistance)
+      const rightRayDistance = resolveComparableRayDistance(right.rayDistance)
+      if (leftRayDistance !== rightRayDistance) {
+        return leftRayDistance - rightRayDistance
+      }
+
       if (right.zOrder !== left.zOrder) {
         return right.zOrder - left.zOrder
       }
@@ -244,4 +252,28 @@ function orderRayHitsByDepthPriority(
       }
       return left.index - right.index
     })
+}
+
+/**
+ * Resolves a comparable ray distance where missing distances sort after explicit depths.
+ * @param rayDistance Candidate ray distance.
+ */
+function resolveComparableRayDistance(rayDistance: number | undefined): number {
+  return typeof rayDistance === 'number' && Number.isFinite(rayDistance)
+    ? Math.max(0, rayDistance)
+    : Number.POSITIVE_INFINITY
+}
+
+/**
+ * Resolves the primary target kind exposed by hit diagnostics.
+ * @param hit Primary hit candidate.
+ */
+function resolvePrimaryHitTargetKind(
+  hit: EngineResolvedHitSet['primaryHit'],
+): EngineResolvedHitSet['primaryHitTargetKind'] {
+  if (!hit) {
+    return 'none'
+  }
+
+  return hit?.hitTargetKind ?? 'shape'
 }

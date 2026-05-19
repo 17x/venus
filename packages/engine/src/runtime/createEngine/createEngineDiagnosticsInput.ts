@@ -15,6 +15,7 @@ export function resolveCreateEngineDiagnosticsInput(options: {
   hit3dPolicy: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['hit3dPolicy']
   shortlistState: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['shortlistState']
   viewport: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['viewport']
+  camera3DSnapshot: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['camera3DSnapshot']
   cameraAnimationState: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['cameraAnimationState']
   latestStrategyPhase: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['latestStrategyPhase']
   latestStrategyInteractionActive: Parameters<typeof buildEngineRuntimeDiagnosticsSnapshot>[0]['latestStrategyInteractionActive']
@@ -43,6 +44,7 @@ export function resolveCreateEngineDiagnosticsInput(options: {
     hit3dPolicy: options.hit3dPolicy,
     shortlistState: options.shortlistState,
     viewport: options.viewport,
+    camera3DSnapshot: options.camera3DSnapshot,
     cameraAnimationState: options.cameraAnimationState,
     latestStrategyPhase: options.latestStrategyPhase,
     latestStrategyInteractionActive: options.latestStrategyInteractionActive,

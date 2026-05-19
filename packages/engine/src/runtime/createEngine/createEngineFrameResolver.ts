@@ -9,6 +9,7 @@ import type {
 import type { EngineSceneSnapshot } from '../../scene/types/types.ts'
 import type { EngineCanvasViewportState } from '../../interaction/viewport/viewport.ts'
 import type { EngineVisibleSet } from '../../visibility/index.ts'
+import type { EngineCamera3DSnapshot } from '../../camera/camera3dControllers/camera3dControllers.ts'
 import type {
   EnginePerformanceSettings,
   EngineProfileName,
@@ -49,6 +50,7 @@ export function resolveCreateEngineFrame(options: {
   scene: EngineSceneSnapshot
   viewport: EngineCanvasViewportState
   renderContext: EngineRendererContext
+  camera3DSnapshot: EngineCamera3DSnapshot | null
   renderer: EngineRenderer
   nowMs: number
   cameraAnimationState: {
@@ -177,6 +179,7 @@ export function resolveCreateEngineFrame(options: {
   options.renderer.setInteractionPreview?.(strategyDecision.interactionPreview)
   const latestStrategyPhase = strategyDecision.phase
   const latestStrategyInteractionActive = strategyDecision.interactionActive
+  options.renderContext.camera3DSnapshot = options.camera3DSnapshot
 
   const phaseStabilityState = resolveEngineStablePhase(
     options.phaseStabilityState,

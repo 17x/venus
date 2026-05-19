@@ -7,6 +7,7 @@ import type {
 import type {
   EngineVisibility3DPolicyDecision,
 } from '../../visibility/index.ts'
+import type { EngineCamera3DSnapshot } from '../../camera/camera3dControllers/camera3dControllers.ts'
 import type { EngineFrameBudgetPressure } from './frameBudgetBroker/frameBudgetBroker.ts'
 import type {
   EngineRenderStrategyPhase,
@@ -20,6 +21,18 @@ import {
 import {
   resolveEngineRuntimeDiagnosticsSnapshot,
 } from './diagnosticsSnapshot.ts'
+import {
+  resolveCreateEngineVisibilityLodDiagnostics,
+} from './createEngineVisibilityLodDiagnostics.ts'
+import {
+  resolveCreateEngineResourceDiagnostics,
+} from './createEngineResourceDiagnostics.ts'
+import {
+  resolveCreateEnginePerformanceProfileDiagnostics,
+} from './createEnginePerformanceProfileDiagnostics.ts'
+import {
+  resolveCreateEngineVisibilityOcclusionDiagnostics,
+} from './createEngineVisibilityOcclusionDiagnostics.ts'
 import type { EngineRuntimeDiagnostics } from './createEngineContracts.ts'
 
 /**
@@ -58,6 +71,7 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
     viewportWidth: number
     viewportHeight: number
   }
+  camera3DSnapshot: EngineCamera3DSnapshot | null
   cameraAnimationState: {
     active: boolean
     cachePreviewOnly: boolean
@@ -97,8 +111,61 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
   return resolveEngineRuntimeDiagnosticsSnapshot({
     backend: options.backend,
     renderStats: options.latestRenderStats,
+    webgpu: {
+      renderPath: options.latestRenderStats?.webgpuRenderPath ?? 'unknown',
+      nativeSubmission: {
+        attemptedCount: options.latestRenderStats?.webgpuNativeSubmissionAttemptedCount ?? 0,
+        successCount: options.latestRenderStats?.webgpuNativeSubmissionSuccessCount ?? 0,
+        failureCount: options.latestRenderStats?.webgpuNativeSubmissionFailureCount ?? 0,
+        totalSuccessCount: options.latestRenderStats?.webgpuNativeSubmissionTotalCount ?? 0,
+        totalFailureCount: options.latestRenderStats?.webgpuNativeSubmissionTotalFailureCount ?? 0,
+      },
+      rectBatch: {
+        eligibleCount: options.latestRenderStats?.webgpuNativeRectBatchEligibleCount ?? 0,
+        rejectedReason: options.latestRenderStats?.webgpuNativeRectBatchRejectedReason ?? 'unknown',
+      },
+      pass3d: {
+        candidateCount: options.latestRenderStats?.webgpu3DPassCandidateCount ?? 0,
+        batchCount: options.latestRenderStats?.webgpu3DPassBatchCount ?? 0,
+        unsupportedCount: options.latestRenderStats?.webgpu3DPassUnsupportedCount ?? 0,
+        nativeCoverageRatio: options.latestRenderStats?.webgpu3DPassNativeCoverageRatio ?? 0,
+        instancedBatchCount: options.latestRenderStats?.webgpu3DPassInstancedBatchCount ?? 0,
+        litBatchCount: options.latestRenderStats?.webgpu3DPassLitBatchCount ?? 0,
+        unlitBatchCount: options.latestRenderStats?.webgpu3DPassUnlitBatchCount ?? 0,
+      },
+      binding3d: {
+        materialUniformBytes: options.latestRenderStats?.webgpu3DBindingMaterialUniformBytes ?? 0,
+        lightUniformBytes: options.latestRenderStats?.webgpu3DBindingLightUniformBytes ?? 0,
+        instanceUniformBytes: options.latestRenderStats?.webgpu3DBindingInstanceUniformBytes ?? 0,
+        totalUniformBytes: options.latestRenderStats?.webgpu3DBindingTotalUniformBytes ?? 0,
+      },
+      gpuTiming: {
+        supported: options.latestRenderStats?.webgpuGpuTimingSupported ?? false,
+        sampleState: options.latestRenderStats?.webgpuGpuTimingSampleState ?? 'unsupported',
+        queryPlanState: options.latestRenderStats?.webgpuGpuTimingQueryPlanState ?? 'unsupported',
+        queryWriteCount: options.latestRenderStats?.webgpuGpuTimingQueryWriteCount ?? 0,
+        lastWriteCount: options.latestRenderStats?.webgpuGpuTimingLastWriteCount ?? 0,
+        lastResolveCount: options.latestRenderStats?.webgpuGpuTimingLastResolveCount ?? 0,
+        lastCopyCount: options.latestRenderStats?.webgpuGpuTimingLastCopyCount ?? 0,
+        readbackBufferBytes: options.latestRenderStats?.webgpuGpuTimingReadbackBufferBytes ?? 0,
+        frameMs: options.latestRenderStats?.webgpuGpuFrameMs ?? null,
+      },
+      camera3d: {
+        active: options.latestRenderStats?.webgpuCamera3DActive ?? false,
+        controller: options.latestRenderStats?.webgpuCamera3DController ?? 'none',
+        projectionKind: options.latestRenderStats?.webgpuCamera3DProjectionKind ?? 'none',
+        uniformBytes: options.latestRenderStats?.webgpuCamera3DUniformBytes ?? 0,
+        uniformFloatCount: options.latestRenderStats?.webgpuCamera3DUniformFloatCount ?? 0,
+      },
+    },
     pixelRatio: options.pixelRatio,
     outputPixelRatio: options.outputPixelRatio,
+    resource: resolveCreateEngineResourceDiagnostics(options.latestRenderStats, options.frameBudget),
+    performanceProfile: resolveCreateEnginePerformanceProfileDiagnostics(
+      options.latestRenderStats,
+      options.latestFramePlan,
+      options.frameBudget,
+    ),
     scene: options.sceneDiagnostics,
     framePlan: options.latestFramePlan,
     hitPlan: options.latestHitPlan,
@@ -125,6 +192,7 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
       viewportWidth: options.viewport.viewportWidth,
       viewportHeight: options.viewport.viewportHeight,
     },
+    camera3d: resolveCamera3DDiagnostics(options.camera3DSnapshot),
     cameraAnimation: {
       active: options.cameraAnimationState.active,
       cachePreviewOnly: options.cameraAnimationState.cachePreviewOnly,
@@ -163,6 +231,11 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
       previewExecutionMode: options.latestRenderStats?.webglPreviewExecutionMode ?? 'unknown',
     },
     visibility3dPolicy: options.visibility3dPolicyDecision,
+    visibilityLod: resolveCreateEngineVisibilityLodDiagnostics(
+      options.latestFramePlan,
+      options.latestBudgetPressure,
+    ),
+    visibilityOcclusion: resolveCreateEngineVisibilityOcclusionDiagnostics(options.latestFramePlan),
     settleSharpness: {
       pending: options.settleSharpnessState.pending,
       remainingDeadlineMs: options.settleSharpnessState.pending
@@ -197,4 +270,31 @@ export function buildEngineRuntimeDiagnosticsSnapshot(options: {
     },
     performanceGate: resolveEnginePerformanceGateStatus(options.latestRenderStats),
   })
+}
+
+/**
+ * Intent: resolve compact diagnostics for the active staged 3D camera snapshot.
+ * @param snapshot Active runtime 3D camera snapshot.
+ * @returns 3D camera diagnostics payload.
+ */
+function resolveCamera3DDiagnostics(
+  snapshot: EngineCamera3DSnapshot | null,
+): EngineRuntimeDiagnostics['camera3d'] {
+  if (!snapshot) {
+    return {
+      active: false,
+      controller: 'none',
+      projectionKind: 'none',
+      position: null,
+      target: null,
+    }
+  }
+
+  return {
+    active: true,
+    controller: snapshot.controller,
+    projectionKind: snapshot.projection.kind,
+    position: snapshot.pose.position,
+    target: snapshot.pose.target,
+  }
 }
