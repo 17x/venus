@@ -38,6 +38,10 @@ export interface RecordedWebGPUCommandSummary {
   pipelineDescriptors: Array<Record<string, unknown>>
   /** Stores buffer descriptors received by createBuffer. */
   bufferDescriptors: Array<Record<string, unknown>>
+  /** Stores number of queue writeBuffer calls issued per frame. */
+  writeBufferCallCount: number
+  /** Stores total uploaded bytes across queue writeBuffer calls. */
+  uploadedBufferBytes: number
 }
 
 /**
@@ -98,6 +102,21 @@ export function createFakeWebGPUDevice(
         }
         latestSummary.submittedBufferCount = submittedBufferCount
       },
+      /**
+       * Handles writeBuffer.
+       * @param _buffer Destination buffer token.
+       * @param _bufferOffset Destination byte offset.
+       * @param data Typed array payload source.
+       */
+      writeBuffer(_buffer: unknown, _bufferOffset: number, data: unknown) {
+        const latestSummary = recordedWebGPUCommands[recordedWebGPUCommands.length - 1]
+        if (!latestSummary) {
+          return
+        }
+
+        latestSummary.writeBufferCallCount += 1
+        latestSummary.uploadedBufferBytes += resolveByteLength(data)
+      },
     },
     /**
      * Handles createCommandEncoder.
@@ -118,6 +137,8 @@ export function createFakeWebGPUDevice(
         setIndexBufferCount: 0,
         pipelineDescriptors: [],
         bufferDescriptors: [],
+        writeBufferCallCount: 0,
+        uploadedBufferBytes: 0,
       }
       recordedWebGPUCommands.push(summary)
 
@@ -229,4 +250,20 @@ export function createFakeWebGPUDevice(
  */
 function isRecord(candidate: unknown): candidate is Record<string, unknown> {
   return typeof candidate === 'object' && candidate !== null
+}
+
+/**
+ * Resolves byte length from typed-array or ArrayBuffer-like payloads.
+ * @param data Unknown payload passed into writeBuffer.
+ */
+function resolveByteLength(data: unknown): number {
+  if (ArrayBuffer.isView(data)) {
+    return data.byteLength
+  }
+
+  if (data instanceof ArrayBuffer) {
+    return data.byteLength
+  }
+
+  return 0
 }

@@ -5,6 +5,11 @@ import {
   resolveOrCreateStagedRectPipeline,
   type WebGPUStagedRectPipelineState,
 } from './webgpuStagedRectPipeline.ts'
+import {
+  resolveWebGPURectBatchClearValue,
+  resolveWebGPURectBatchGeometryPayload,
+  type WebGPURectBatchGeometryPayload,
+} from './webgpuRectBatchGeometry.ts'
 
 const WEBGPU_CONTEXT_ID = 'webgpu'
 const WEBGPU_FALLBACK_FORMAT = 'bgra8unorm'
@@ -47,18 +52,6 @@ export interface WebGPURectBatchEligibility {
   eligibleCount: number
   /** First rejection reason when native rect-batch cannot be used. */
   rejectedReason: NonNullable<EngineRenderStats['webgpuNativeRectBatchRejectedReason']>
-}
-
-/**
- * Stores deterministic staged geometry payload emitted for native rect-batch execution.
- */
-interface WebGPURectBatchGeometryPayload {
-  /** Packed XY vertex stream used to size staged vertex buffer allocations. */
-  vertexData: Float32Array
-  /** Packed uint16 index stream used to size staged index buffer allocations. */
-  indexData: Uint16Array
-  /** Compatibility vertex count used when drawIndexed is unavailable. */
-  compatibilityDrawVertexCount: number
 }
 
 /**
@@ -162,8 +155,8 @@ export function submitWebGPUNativeRectBatchPass(
     }
   }
 
-  const clearValue = resolveRectBatchClearValue(nodes)
-  const geometryPayload = resolveRectBatchGeometryPayload(nodes)
+  const clearValue = resolveWebGPURectBatchClearValue(nodes)
+  const geometryPayload = resolveWebGPURectBatchGeometryPayload(nodes)
   return submitWebGPUNativePassWithClearValue(state, clearValue, geometryPayload)
 }
 
@@ -252,6 +245,7 @@ function submitWebGPUNativePassWithClearValue(
 
   try {
     const submit = resolveCallable(state.queue, 'submit')
+    const writeBuffer = resolveCallable(state.queue, 'writeBuffer')
     const createCommandEncoder = resolveCallable(state.device, 'createCommandEncoder')
     const getCurrentTexture = resolveCallable(state.context, 'getCurrentTexture')
     if (!submit || !createCommandEncoder || !getCurrentTexture) {
@@ -299,6 +293,14 @@ function submitWebGPUNativePassWithClearValue(
 
     const drawIndexCount = drawPayload?.indexData.length ?? 0
     if (drawIndexCount > 0) {
+      if (!drawPayload) {
+        state.failedCount += 1
+        return {
+          submitted: false,
+          failed: true,
+        }
+      }
+
       if (!draw) {
         state.failedCount += 1
         return {
@@ -324,6 +326,7 @@ function submitWebGPUNativePassWithClearValue(
           size: Math.max(drawPayload?.indexData.byteLength ?? 0, 2),
           usage: 0,
         })
+        uploadWebGPURectBatchPayload(writeBuffer, vertexBuffer, indexBuffer, drawPayload)
         setPipeline.call(passEncoderRecord, pipeline)
         setVertexBuffer.call(passEncoderRecord, 0, vertexBuffer)
         setIndexBuffer.call(passEncoderRecord, indexBuffer, 'uint16')
@@ -354,96 +357,25 @@ function submitWebGPUNativePassWithClearValue(
 }
 
 /**
- * Resolves deterministic staged geometry payload for native rect-batch proof-of-execution.
- * @param nodes Scene node list from the current frame.
+ * Uploads staged rect vertex/index payload into created WebGPU buffers when queue writeBuffer is available.
+ * @param writeBuffer Queue writeBuffer callable resolved from native queue.
+ * @param vertexBuffer Created staged vertex buffer token.
+ * @param indexBuffer Created staged index buffer token.
+ * @param drawPayload Staged geometry payload for the current frame.
  */
-function resolveRectBatchGeometryPayload(
-  nodes: readonly EngineRenderableNode[],
-): WebGPURectBatchGeometryPayload {
-  let rectCount = 0
-  for (const node of nodes) {
-    if (node.type === 'shape' && node.shape === 'rect') {
-      rectCount += 1
-    }
+function uploadWebGPURectBatchPayload(
+  writeBuffer: ((...args: unknown[]) => unknown) | null,
+  vertexBuffer: unknown,
+  indexBuffer: unknown,
+  drawPayload: WebGPURectBatchGeometryPayload,
+): void {
+  // AI-TEMP: keep upload optional because compatibility harnesses may omit queue.writeBuffer; remove when runtime baseline guarantees writeBuffer availability; ref B3-webgpu-native-main-pass.
+  if (!writeBuffer) {
+    return
   }
 
-  const vertexData = new Float32Array(rectCount * 8)
-  const indexData = new Uint16Array(rectCount * 6)
-  let vertexCursor = 0
-  let indexCursor = 0
-  let rectIndex = 0
-  for (const node of nodes) {
-    if (node.type !== 'shape' || node.shape !== 'rect') {
-      continue
-    }
-
-    const baseVertex = rectIndex * 4
-    vertexData[vertexCursor] = node.x
-    vertexData[vertexCursor + 1] = node.y
-    vertexData[vertexCursor + 2] = node.x + node.width
-    vertexData[vertexCursor + 3] = node.y
-    vertexData[vertexCursor + 4] = node.x
-    vertexData[vertexCursor + 5] = node.y + node.height
-    vertexData[vertexCursor + 6] = node.x + node.width
-    vertexData[vertexCursor + 7] = node.y + node.height
-    indexData[indexCursor] = baseVertex
-    indexData[indexCursor + 1] = baseVertex + 1
-    indexData[indexCursor + 2] = baseVertex + 2
-    indexData[indexCursor + 3] = baseVertex + 2
-    indexData[indexCursor + 4] = baseVertex + 1
-    indexData[indexCursor + 5] = baseVertex + 3
-    vertexCursor += 8
-    indexCursor += 6
-    rectIndex += 1
-  }
-
-  return {
-    vertexData,
-    indexData,
-    // AI-TEMP: fallback draw path still consumes a synthetic non-indexed count for harness compatibility; remove when drawIndexed becomes mandatory across supported runtimes; ref B3-webgpu-native-main-pass.
-    compatibilityDrawVertexCount: rectCount * 6,
-  }
-}
-
-/**
- * Resolves one clear-color payload from the first eligible rect fill in the scene.
- * @param nodes Scene node list from the current frame.
- */
-function resolveRectBatchClearValue(
-  nodes: readonly EngineRenderableNode[],
-): {r: number; g: number; b: number; a: number} {
-  for (const node of nodes) {
-    if (node.type === 'shape' && node.shape === 'rect') {
-      const fillColor = parseHexColorToWebGPUClearValue(node.fill)
-      if (fillColor) {
-        return fillColor
-      }
-    }
-  }
-
-  return {r: 0, g: 0, b: 0, a: 1}
-}
-
-/**
- * Parses one CSS hex color string into WebGPU clear-color components.
- * @param fill Node fill payload.
- */
-function parseHexColorToWebGPUClearValue(
-  fill: EngineRenderableNode extends {fill?: infer T} ? T : unknown,
-): {r: number; g: number; b: number; a: number} | null {
-  if (typeof fill !== 'string') {
-    return null
-  }
-
-  const normalized = fill.startsWith('#') ? fill.slice(1) : fill
-  if (normalized.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return null
-  }
-
-  const red = Number.parseInt(normalized.slice(0, 2), 16) / 255
-  const green = Number.parseInt(normalized.slice(2, 4), 16) / 255
-  const blue = Number.parseInt(normalized.slice(4, 6), 16) / 255
-  return {r: red, g: green, b: blue, a: 1}
+  writeBuffer(vertexBuffer, 0, drawPayload.vertexData)
+  writeBuffer(indexBuffer, 0, drawPayload.indexData)
 }
 
 /**
