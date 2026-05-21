@@ -137,9 +137,46 @@ export interface SelectedSchemaMeta {
   sourceFeatureKinds?: string[]
 }
 
+/**
+ * Declares field-level mixed-state flags for multi-selection inspector rendering.
+ */
+export interface SelectedMixedFields {
+  /** Indicates fill enabled flag differs across selected shapes. */
+  fillEnabled?: boolean
+  /** Indicates fill color differs across selected shapes. */
+  fillColor?: boolean
+  /** Indicates stroke enabled flag differs across selected shapes. */
+  strokeEnabled?: boolean
+  /** Indicates stroke color differs across selected shapes. */
+  strokeColor?: boolean
+  /** Indicates stroke weight differs across selected shapes. */
+  strokeWeight?: boolean
+  /** Indicates stroke cap differs across selected shapes. */
+  strokeCap?: boolean
+  /** Indicates stroke join differs across selected shapes. */
+  strokeJoin?: boolean
+  /** Indicates stroke dashed mode differs across selected shapes. */
+  strokeDashed?: boolean
+  /** Indicates opacity differs across selected shapes. */
+  opacity?: boolean
+  /** Indicates corner radius differs across selected shapes. */
+  cornerRadius?: boolean
+  /** Indicates shadow enabled flag differs across selected shapes. */
+  shadowEnabled?: boolean
+  /** Indicates shadow color differs across selected shapes. */
+  shadowColor?: boolean
+  /** Indicates shadow X offset differs across selected shapes. */
+  shadowOffsetX?: boolean
+  /** Indicates shadow Y offset differs across selected shapes. */
+  shadowOffsetY?: boolean
+  /** Indicates shadow blur differs across selected shapes. */
+  shadowBlur?: boolean
+}
+
 export type SelectedElementProps = ElementProps & {
   imageMeta?: SelectedImageMeta
   schemaMeta?: SelectedSchemaMeta
+  mixedFields?: SelectedMixedFields
 }
 
 export interface EditorRuntimeCommands {

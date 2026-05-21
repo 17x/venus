@@ -13,6 +13,10 @@ import {
   type RuntimeReactiveUpdater,
 } from '../../runtime/subscriptions/index.ts'
 import {useRuntimeReactiveBridgeSlice} from './useRuntimeReactiveBridgeSlice.ts'
+import type {
+  RuntimeInteractionDiagnosticCoverage,
+  RuntimeInteractionDiagnosticEntry,
+} from './interactionDiagnosticPolicy.ts'
 
 /**
  * Declares runtime-owned transient interaction state shared with UI adapters.
@@ -90,6 +94,13 @@ export type EditorRuntimeInteractionEvent = {
   selectedCount: number
   /** Stores latest layer-count value mirrored to shell subscribers. */
   layerCount: number
+} | {
+  /** Stores event topic name for runtime interaction diagnostics transitions. */
+  type: 'runtime.interaction.diagnostic'
+  /** Stores latest diagnostic entry emitted by key-path instrumentation. */
+  entry: RuntimeInteractionDiagnosticEntry
+  /** Stores current metric-log coverage snapshot used for acceptance checks. */
+  coverage: RuntimeInteractionDiagnosticCoverage
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { EngineEditorPoint } from './hitTest.ts'
+import type { EngineEditorPoint } from '../hitTest.ts'
 
 const PATH_HASH_CELL_SIZE_MULTIPLIER = 2
 const PATH_HASH_MIN_SEGMENTS = 48

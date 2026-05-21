@@ -7,6 +7,9 @@ import {
   type EditorRuntimeActionExecutorOptions,
 } from '../runtime/createEditorRuntimeActionExecutor.ts'
 
+/**
+ * Defines dependencies consumed by useEditorRuntime action-executor adapter.
+ */
 interface UseEditorRuntimeExecuteActionOptions {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
   addAsset: (asset: EditorFileAsset) => void
@@ -21,6 +24,10 @@ interface UseEditorRuntimeExecuteActionOptions {
   reorderSelectedShape: (direction: 'up' | 'down' | 'top' | 'bottom') => void
   saveFile: (document: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
   selectedNode: import('../../runtime/model/index.ts').DocumentNode | null
+  /** Stores active path sub-selection consumed by path-anchor actions. */
+  pathSubSelection: import('../../runtime/interaction/index.ts').PathSubSelection | null
+  /** Stores preview document snapshot used for path-anchor mutation commits. */
+  previewDocument: import('../../runtime/model/index.ts').EditorDocument
   selectedShapeIds: string[]
   setClipboard: React.Dispatch<React.SetStateAction<ElementProps[]>>
   setCurrentTool: (toolName: ToolName) => void

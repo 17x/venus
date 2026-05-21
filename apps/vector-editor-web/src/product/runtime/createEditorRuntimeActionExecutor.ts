@@ -2,6 +2,7 @@ import type * as React from 'react'
 import {applyMatrixToPoint} from '../../runtime/index.ts'
 import type {ToolName} from '../../runtime/model/index.ts'
 import type {ElementProps} from '../../runtime/types/index.ts'
+import type {PathSubSelection} from '../../runtime/interaction/index.ts'
 import {
   handleGroupNodesAction,
   handleUngroupNodesAction,
@@ -21,6 +22,13 @@ import {
   resolveViewportZoomFromExecuteAction,
 } from './actionResolvers.ts'
 import {applyElementModifyAction} from '../useEditorRuntime/elementModify.ts'
+import {
+  resolvePathAnchorDeleteBezierPoints,
+  resolvePathAnchorInsertBezierPoints,
+  resolvePathSegmentSplitBezierPoints,
+  resolvePathAnchorToggleBezierPoints,
+  resolvePathToggleClosedBezierPoints,
+} from './pathAnchorEditPolicy/pathAnchorEditPolicy.ts'
 import type {
   EditorExecutor,
 } from '../useEditorRuntime/types.ts'
@@ -58,6 +66,10 @@ export interface EditorRuntimeActionExecutorOptions {
   saveFile: (document: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
   /** Stores current selected node for action branches that inspect selection detail. */
   selectedNode: import('../../runtime/model/index.ts').DocumentNode | null
+  /** Stores active path sub-selection so path-anchor actions can resolve anchor/segment targets. */
+  pathSubSelection: PathSubSelection | null
+  /** Stores preview document used by path-anchor actions to preserve in-flight path edits. */
+  previewDocument: import('../../runtime/model/index.ts').EditorDocument
   /** Stores selected shape id list used by group/align/move actions. */
   selectedShapeIds: string[]
   /** Updates clipboard state in product layer. */
@@ -78,6 +90,50 @@ export interface EditorRuntimeActionExecutorOptions {
 export function createEditorRuntimeActionExecutor(
   options: EditorRuntimeActionExecutorOptions,
 ): EditorExecutor {
+  /**
+   * Resolves whether path bezier list currently represents a closed contour.
+   * @param bezierPoints Path bezier points from target shape.
+   */
+  const resolveIsClosedPath = (bezierPoints: NonNullable<import('../../runtime/model/index.ts').DocumentNode['bezierPoints']>) => {
+    return (
+      bezierPoints.length > 2 &&
+      bezierPoints[0]?.anchor.x === bezierPoints[bezierPoints.length - 1]?.anchor.x &&
+      bezierPoints[0]?.anchor.y === bezierPoints[bezierPoints.length - 1]?.anchor.y
+    )
+  }
+
+  /**
+   * Commits one full bezier-point replacement through existing command channel.
+   * @param shapeId Target path shape id.
+   * @param nextBezierPoints Next bezier points after path-anchor edit.
+   */
+  const commitPathBezierPoints = (shapeId: string, nextBezierPoints: NonNullable<import('../../runtime/model/index.ts').DocumentNode['bezierPoints']>) => {
+    const shape = options.previewDocument.shapes.find((item) => item.id === shapeId)
+    if (!shape || shape.type !== 'path') {
+      return
+    }
+
+    const shapeIndex = options.previewDocument.shapes.findIndex((item) => item.id === shape.id)
+    if (shapeIndex < 0) {
+      return
+    }
+
+    options.handleCommand({type: 'shape.remove', shapeId: shape.id})
+    options.handleCommand({
+      type: 'shape.insert',
+      index: shapeIndex,
+      shape: {
+        ...shape,
+        bezierPoints: nextBezierPoints,
+      },
+    })
+    options.handleCommand({
+      type: 'selection.set',
+      shapeIds: [shape.id],
+      mode: 'replace',
+    })
+  }
+
   /**
    * Executes one editor action event against runtime and product state dependencies.
    */
@@ -152,6 +208,140 @@ export function createEditorRuntimeActionExecutor(
         elements: copied,
         existingShapeIds: existingIds,
       }))
+      return
+    }
+
+    if (type === 'path-anchor-delete') {
+      const activePathSelection = options.pathSubSelection
+      const anchorIndex = activePathSelection?.anchorPoint?.index
+      if (!activePathSelection || activePathSelection.hitType !== 'anchorPoint' || typeof anchorIndex !== 'number' || !Number.isInteger(anchorIndex)) {
+        return
+      }
+      const resolvedAnchorIndex = anchorIndex
+
+      const shape = options.previewDocument.shapes.find((item) => item.id === activePathSelection.shapeId)
+      if (!shape || shape.type !== 'path' || !Array.isArray(shape.bezierPoints)) {
+        return
+      }
+
+      const nextBezierPoints = resolvePathAnchorDeleteBezierPoints({
+        bezierPoints: shape.bezierPoints,
+        anchorIndex: resolvedAnchorIndex,
+        isClosedPath: resolveIsClosedPath(shape.bezierPoints),
+      })
+      if (!nextBezierPoints) {
+        options.add('Path anchor delete rejected: minimal path topology must be preserved.', 'info')
+        return
+      }
+
+      commitPathBezierPoints(shape.id, nextBezierPoints)
+      return
+    }
+
+    if (type === 'path-anchor-toggle-type') {
+      const activePathSelection = options.pathSubSelection
+      const anchorIndex = activePathSelection?.anchorPoint?.index
+      if (!activePathSelection || activePathSelection.hitType !== 'anchorPoint' || typeof anchorIndex !== 'number' || !Number.isInteger(anchorIndex)) {
+        return
+      }
+      const resolvedAnchorIndex = anchorIndex
+
+      const shape = options.previewDocument.shapes.find((item) => item.id === activePathSelection.shapeId)
+      if (!shape || shape.type !== 'path' || !Array.isArray(shape.bezierPoints)) {
+        return
+      }
+
+      const nextBezierPoints = resolvePathAnchorToggleBezierPoints({
+        bezierPoints: shape.bezierPoints,
+        anchorIndex: resolvedAnchorIndex,
+      })
+      if (!nextBezierPoints) {
+        return
+      }
+
+      commitPathBezierPoints(shape.id, nextBezierPoints)
+      return
+    }
+
+    if (type === 'path-anchor-insert') {
+      const activePathSelection = options.pathSubSelection
+      const segmentIndex = activePathSelection?.segment?.index
+      if (!activePathSelection || activePathSelection.hitType !== 'segment' || !activePathSelection.segment || typeof segmentIndex !== 'number' || !Number.isInteger(segmentIndex)) {
+        return
+      }
+      const resolvedSegmentIndex = segmentIndex
+
+      const shape = options.previewDocument.shapes.find((item) => item.id === activePathSelection.shapeId)
+      if (!shape || shape.type !== 'path' || !Array.isArray(shape.bezierPoints)) {
+        return
+      }
+
+      const nextBezierPoints = resolvePathAnchorInsertBezierPoints({
+        bezierPoints: shape.bezierPoints,
+        segmentIndex: resolvedSegmentIndex,
+        point: {
+          x: activePathSelection.segment.x,
+          y: activePathSelection.segment.y,
+        },
+      })
+      if (!nextBezierPoints) {
+        return
+      }
+
+      commitPathBezierPoints(shape.id, nextBezierPoints)
+      return
+    }
+
+    if (type === 'path-segment-split') {
+      const activePathSelection = options.pathSubSelection
+      const segmentIndex = activePathSelection?.segment?.index
+      if (!activePathSelection || activePathSelection.hitType !== 'segment' || !activePathSelection.segment || typeof segmentIndex !== 'number' || !Number.isInteger(segmentIndex)) {
+        return
+      }
+      const resolvedSegmentIndex = segmentIndex
+
+      const shape = options.previewDocument.shapes.find((item) => item.id === activePathSelection.shapeId)
+      if (!shape || shape.type !== 'path' || !Array.isArray(shape.bezierPoints)) {
+        return
+      }
+
+      const nextBezierPoints = resolvePathSegmentSplitBezierPoints({
+        bezierPoints: shape.bezierPoints,
+        segmentIndex: resolvedSegmentIndex,
+        point: {
+          x: activePathSelection.segment.x,
+          y: activePathSelection.segment.y,
+        },
+      })
+      if (!nextBezierPoints) {
+        return
+      }
+
+      commitPathBezierPoints(shape.id, nextBezierPoints)
+      return
+    }
+
+    if (type === 'path-toggle-closed') {
+      const activePathSelection = options.pathSubSelection
+      if (!activePathSelection) {
+        return
+      }
+
+      const shape = options.previewDocument.shapes.find((item) => item.id === activePathSelection.shapeId)
+      if (!shape || shape.type !== 'path' || !Array.isArray(shape.bezierPoints)) {
+        return
+      }
+
+      const nextBezierPoints = resolvePathToggleClosedBezierPoints({
+        bezierPoints: shape.bezierPoints,
+        isClosedPath: resolveIsClosedPath(shape.bezierPoints),
+      })
+      if (!nextBezierPoints) {
+        options.add('Path close/open toggle rejected: minimal topology must be preserved.', 'info')
+        return
+      }
+
+      commitPathBezierPoints(shape.id, nextBezierPoints)
       return
     }
 

@@ -23,11 +23,14 @@ import {useEditorRuntimeExecuteAction} from './executeAction.ts'
 import {useEditorRuntimeCoreCallbacks} from './coreCallbacks.ts'
 import {useEditorRuntimeCanvasInteractions} from './canvasInteractions.ts'
 import {createEditorRuntimeCommandController} from '../runtime/createEditorRuntimeCommandController.ts'
+import {resolveRuntimeSnappingEnablement} from '../runtime/snappingPolicy.ts'
+import {
+  createRuntimeInteractionDiagnosticLogger,
+  type RuntimeInteractionDiagnosticEvent,
+} from '../runtime/interactionDiagnosticPolicy.ts'
 import {buildUseEditorRuntimeOutputs, buildUseEditorRuntimeUiState} from './outputs.ts'
 import {useEditorRuntimeCommandActions, useEditorRuntimePointerHandlers} from './interactions.ts'
 import {useEditorRuntimeCursorState, useEditorRuntimeUiStateAndSync} from './presentation.ts'
-
-const SNAP_AUTO_DISABLE_SHAPE_COUNT = 25_000
 
 export type {
   EditorDocumentState,
@@ -106,10 +109,25 @@ const useEditorRuntime = (options: {
   const runtimeToolRegistryRef = useRef(createRuntimeToolRegistry())
   const runtimeEditingModeControllerRef = useRef(createRuntimeEditingModeController('idle'))
   const selectionDragControllerRef = useRef(createSelectionDragController({allowFrameSelection: false}))
+  const interactionDiagnosticLoggerRef = useRef(createRuntimeInteractionDiagnosticLogger())
   const createWorker = useCallback(
     () => options.createWorker(),
     [options],
   )
+
+  // Keep one stable diagnostics recorder so key-path logs share one coverage/rollback session.
+  const recordInteractionDiagnostic = useCallback((event: RuntimeInteractionDiagnosticEvent) => {
+    const snapshot = interactionDiagnosticLoggerRef.current.record(event)
+    if (!snapshot.latestEntry) {
+      return
+    }
+
+    interactionBridge.bridge.dispatch({
+      type: 'runtime.interaction.diagnostic',
+      entry: snapshot.latestEntry,
+      coverage: snapshot.coverage,
+    })
+  }, [interactionBridge.bridge])
 
   const {
     canvasRuntime,
@@ -220,6 +238,7 @@ const useEditorRuntime = (options: {
       dispatchRuntimeEvent: (event) => {
         interactionBridge.bridge.dispatch(event)
       },
+      recordInteractionDiagnostic,
     })
   }, [
     add,
@@ -228,6 +247,7 @@ const useEditorRuntime = (options: {
     currentTool,
     interactionDocument,
     interactionBridge.bridge,
+    recordInteractionDiagnostic,
     previewShapes,
     selectedNode,
     selectedShapeIds,
@@ -326,6 +346,8 @@ const useEditorRuntime = (options: {
     reorderSelectedShape,
     saveFile,
     selectedNode,
+    pathSubSelection,
+    previewDocument,
     selectedShapeIds,
     setClipboard,
     setCurrentTool,
@@ -358,10 +380,14 @@ const useEditorRuntime = (options: {
     },
   })
 
-  const effectiveSnappingEnabled = snappingEnabled && interactionDocument.shapes.length < SNAP_AUTO_DISABLE_SHAPE_COUNT
+  const effectiveSnappingEnabled = resolveRuntimeSnappingEnablement({
+    userEnabled: snappingEnabled,
+    interactionShapeCount: interactionDocument.shapes.length,
+  }).enabled
 
   const canvasInteractions = useEditorRuntimeCanvasInteractions({
     interactionBridge: interactionBridge.bridge,
+    recordInteractionDiagnostic,
     add,
     canvasRuntime,
     clearTransformPreview,

@@ -1,5 +1,5 @@
 import type { DocumentNode, EditorDocument, ToolId, ToolName } from '../model/index.ts'
-import type { ShapeTransformBatchCommand } from '@venus/engine'
+import type { ShapeTransformBatchCommand } from '../interaction/transformSessionManager.ts'
 import type { CollaborationOperation, CollaborationState } from './collaboration.ts'
 import type { HistorySummary } from './history.ts'
 import type { PointerState } from '../shared-memory/index.ts'
@@ -100,6 +100,7 @@ export type EditorRuntimeCommand =
         fill?: DocumentNode['fill']
         stroke?: DocumentNode['stroke']
         shadow?: DocumentNode['shadow']
+        textRuns?: DocumentNode['textRuns']
         cornerRadius?: number
         cornerRadii?: DocumentNode['cornerRadii']
         ellipseStartAngle?: number

@@ -193,16 +193,22 @@ export function resolveSelectionDragMoveStartState(input: {
   }
 }
 
+/**
+ * Resolves snapped transform preview and emitted guides for one active transform frame.
+ * @param input Preview payload and snapping policy context.
+ */
 export function resolveSelectionDragMovePreviewState(input: {
   preview: Parameters<typeof resolveSnappedTransformPreview>[0]
   handle: Parameters<typeof resolveSnappedTransformPreview>[1]['handle']
   snappingEnabled: Parameters<typeof resolveSnappedTransformPreview>[1]['snappingEnabled']
   previewDocument: Parameters<typeof resolveSnappedTransformPreview>[1]['previewDocument']
+  snapToleranceWorld?: Parameters<typeof resolveSnappedTransformPreview>[1]['snapToleranceWorld']
 }) {
   const resolved = resolveSnappedTransformPreview(input.preview, {
     handle: input.handle,
     snappingEnabled: input.snappingEnabled,
     previewDocument: input.previewDocument,
+    snapToleranceWorld: input.snapToleranceWorld,
   })
 
   return {

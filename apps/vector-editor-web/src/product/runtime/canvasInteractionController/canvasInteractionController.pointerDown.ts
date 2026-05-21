@@ -22,6 +22,11 @@ import {
   resolveMarqueeTransformHandleAtPoint,
   startTransformSessionFromSelection,
 } from '../transformInteractionPolicy.ts'
+import {resolveShapeStyleDragFromBehavior} from './shapeStyleDragResolver.ts'
+import {resolvePointerLifecycleTransition} from './pointerLifecycleState.ts'
+import {applyRuntimeEditingModeTransition} from '../runtimeEditingModeTransitionPolicy.ts'
+import {resolveRuntimeHitPriorityPlan} from '../hitPriorityPolicy.ts'
+import {filterRuntimeSelectionCandidateIds} from '../selectionFilterPolicy.ts'
 import type {
   EditorRuntimeCanvasInteractionControllerOptions,
   EditorRuntimeCanvasInteractionControllerState,
@@ -46,7 +51,11 @@ function resolvePointerDownMarqueeHandle(
   })
 }
 
-// Resolve element-specific style-handle pointer-down hit and drag payload.
+/**
+ * Resolves element-specific style-handle pointer-down hit and drag payload.
+ * @param point Pointer world position.
+ * @param options Canvas interaction controller options.
+ */
 function resolvePointerDownShapeStyleHandle(
   point: {x: number; y: number},
   options: EditorRuntimeCanvasInteractionControllerOptions,
@@ -93,38 +102,7 @@ function resolvePointerDownShapeStyleHandle(
     pointer: point,
     model: overlayModel,
   })
-  const dragBehavior = hit?.control.dragBehavior
-  const payload = dragBehavior?.payload as Record<string, unknown> | undefined
-
-  if (dragBehavior?.kind === 'rect-radius' && payload && typeof payload.shapeId === 'string' && typeof payload.corner === 'string') {
-    if (payload.corner !== 'topLeft' && payload.corner !== 'topRight' && payload.corner !== 'bottomRight' && payload.corner !== 'bottomLeft') {
-      return null
-    }
-    return {
-      kind: 'rect-radius',
-      payload: {
-        shapeId: payload.shapeId,
-        corner: payload.corner,
-        point,
-      },
-    }
-  }
-
-  if (dragBehavior?.kind === 'arc-angle' && payload && typeof payload.shapeId === 'string' && typeof payload.boundary === 'string') {
-    if (payload.boundary !== 'start' && payload.boundary !== 'end') {
-      return null
-    }
-    return {
-      kind: 'ellipse-arc',
-      payload: {
-        shapeId: payload.shapeId,
-        boundary: payload.boundary,
-        point,
-      },
-    }
-  }
-
-  return null
+  return resolveShapeStyleDragFromBehavior(hit?.control.dragBehavior, point)
 }
 
 /**
@@ -140,6 +118,15 @@ export function createPointerDownHandler(
     point: {x: number; y: number},
     modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
   ) => {
+    const lifecycle = resolvePointerLifecycleTransition(
+      controllerState.pointerLifecyclePhase,
+      'input.pointer.down',
+    )
+    controllerState.pointerLifecyclePhase = lifecycle.next
+    if (!lifecycle.accepted) {
+      return
+    }
+
     // Emit runtime pointer lifecycle events so non-React subscribers can observe input flow.
     options.interactionBridge.dispatch({
       type: 'input.pointer.down',
@@ -148,7 +135,7 @@ export function createPointerDownHandler(
     options.setHoveredTransformHandle(null)
     options.setHoveredShapeId(null)
     if (options.currentTool === 'zoomIn' || options.currentTool === 'zoomOut') {
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: 'zooming',
         reason: `pointer-down:${options.currentTool}`,
       })
@@ -157,35 +144,46 @@ export function createPointerDownHandler(
     }
 
     if (options.currentTool === 'selector' || options.currentTool === 'dselector') {
-      const shapeStyleHandle = resolvePointerDownShapeStyleHandle(point, options)
-      if (shapeStyleHandle) {
-        // Element-specific style drags are independent from transform handles.
-        options.setShapeStyleHandleDrag(shapeStyleHandle)
-        options.setActiveTransformHandle(null)
-        options.setSnapGuides([])
-        options.runtimeEditingModeControllerRef.current?.transition({
-          to: 'dragging',
-          reason: `pointer-down:${shapeStyleHandle.kind}`,
-        })
-        return
-      }
+      const pointerDownHitPriority = resolveRuntimeHitPriorityPlan({
+        tool: options.currentTool,
+        stage: 'pointer-down',
+      })
 
-      const marqueeHandle = resolvePointerDownMarqueeHandle(point, options)
-      if (marqueeHandle) {
-        const startedTransformSession = startTransformSessionFromSelection({
-          point,
-          handle: marqueeHandle,
-          selectedShapeIds: options.selectedShapeIds,
-          previewShapeById: options.previewShapeById,
-          selectedBounds: options.selectionState.selectedBounds,
-          transformManagerRef: options.transformManagerRef,
-          setActiveTransformHandle: options.setActiveTransformHandle,
-          runtimeEditingModeControllerRef: options.runtimeEditingModeControllerRef,
-          setSnapGuides: options.setSnapGuides,
-        })
-        if (startedTransformSession) {
+      if (pointerDownHitPriority.lanes.includes('control-point')) {
+        const shapeStyleHandle = resolvePointerDownShapeStyleHandle(point, options)
+        if (shapeStyleHandle) {
+          // Element-specific style drags are independent from transform handles.
+          options.setShapeStyleHandleDrag(shapeStyleHandle)
+          options.setActiveTransformHandle(null)
+          options.setSnapGuides([])
+          applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
+            to: 'dragging',
+            reason: `pointer-down:${shapeStyleHandle.kind}`,
+          })
           return
         }
+
+        const marqueeHandle = resolvePointerDownMarqueeHandle(point, options)
+        if (marqueeHandle) {
+          const startedTransformSession = startTransformSessionFromSelection({
+            point,
+            handle: marqueeHandle,
+            selectedShapeIds: options.selectedShapeIds,
+            previewShapeById: options.previewShapeById,
+            selectedBounds: options.selectionState.selectedBounds,
+            transformManagerRef: options.transformManagerRef,
+            setActiveTransformHandle: options.setActiveTransformHandle,
+            runtimeEditingModeControllerRef: options.runtimeEditingModeControllerRef,
+            setSnapGuides: options.setSnapGuides,
+          })
+          if (startedTransformSession) {
+            return
+          }
+        }
+      }
+
+      if (!pointerDownHitPriority.lanes.includes('object')) {
+        return
       }
 
       if (options.currentTool === 'dselector') {
@@ -207,7 +205,7 @@ export function createPointerDownHandler(
         }
       }
 
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: options.currentTool === 'dselector' ? 'directSelecting' : 'selecting',
         reason: `pointer-down:${options.currentTool}`,
       })
@@ -215,6 +213,27 @@ export function createPointerDownHandler(
         viewportScale: options.canvasRuntime.viewport.scale,
         viewportWidth: options.canvasRuntime.viewport.viewportWidth,
         viewportHeight: options.canvasRuntime.viewport.viewportHeight,
+      })
+      // Sample pointer-down hit candidates through the same geometry source used by click/hover
+      // so diagnostics can be compared across key paths without tolerance drift.
+      const pointerDownGeometryPayload = options.canvasRuntime.requestEngineGeometry({
+        pointer: point,
+        tolerance: adaptiveHitTolerance.worldPx,
+        clipTolerance: Math.max(0.5, adaptiveHitTolerance.worldPx * 0.25),
+        allowFrameSelection: false,
+        excludeClipBoundImage: true,
+        strictStrokeHitTest: false,
+        resolveHoveredFromPointer: true,
+        outlineLevel: 'low',
+      })
+      const pointerDownHitCandidateIds = filterRuntimeSelectionCandidateIds({
+        candidateIds: pointerDownGeometryPayload.pointHitNodeIds,
+        interactionDocument: options.interactionDocument,
+      })
+      options.recordInteractionDiagnostic?.({
+        kind: 'hit-candidate',
+        stage: 'pointer-down',
+        candidateCount: pointerDownHitCandidateIds.length,
       })
       const selectedBounds = options.selectionState.selectedBounds
       const selectedNodes = options.selectedShapeIds
@@ -291,7 +310,7 @@ export function createPointerDownHandler(
       })
       options.setSnapGuides([])
       options.setPathSubSelectionHover(null)
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: draftPrimitiveState.nextEditingMode,
         reason: draftPrimitiveState.transitionReason,
       })
@@ -305,7 +324,7 @@ export function createPointerDownHandler(
     })
     if (insertShapeState) {
       options.setSnapGuides([])
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: insertShapeState.nextEditingMode,
         reason: insertShapeState.transitionReason,
       })
@@ -319,7 +338,7 @@ export function createPointerDownHandler(
       })
       options.selectionDragControllerRef.current?.clear()
       options.setSnapGuides([])
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: penPointerDownState.nextEditingMode,
         reason: penPointerDownState.transitionReason,
       })

@@ -338,7 +338,7 @@ export function EngineRenderer({
           return Promise.resolve(null)
         }
 
-        return engine.renderFrame()
+        return engine.render()
       },
       interactiveIntervalMs: effectiveInteractiveIntervalMs,
     })

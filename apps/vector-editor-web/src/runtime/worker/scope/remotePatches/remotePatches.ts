@@ -23,6 +23,7 @@ import {
   asOptionalStringOrUndef,
   asRotateBatch,
   asShadowValue,
+  asTextRunsValue,
   asStringOrNull,
   asStrokeValue,
   asTransformBatch,
@@ -149,6 +150,7 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
     const nextFill = Object.prototype.hasOwnProperty.call(patchRecord, 'fill') ? asFillValue(patchRecord.fill) : cloneFill(shape.fill)
     const nextStroke = Object.prototype.hasOwnProperty.call(patchRecord, 'stroke') ? asStrokeValue(patchRecord.stroke) : cloneStroke(shape.stroke)
     const nextShadow = Object.prototype.hasOwnProperty.call(patchRecord, 'shadow') ? asShadowValue(patchRecord.shadow) : cloneShadow(shape.shadow)
+    const nextTextRuns = Object.prototype.hasOwnProperty.call(patchRecord, 'textRuns') ? asTextRunsValue(patchRecord.textRuns) : shape.textRuns?.map((run) => ({start: run.start, end: run.end, style: run.style ? {...run.style} : undefined}))
     const nextCornerRadius = Object.prototype.hasOwnProperty.call(patchRecord, 'cornerRadius') ? asOptionalNumberOrUndef(patchRecord.cornerRadius) : shape.cornerRadius
     const nextCornerRadii = Object.prototype.hasOwnProperty.call(patchRecord, 'cornerRadii') ? asCornerRadiiValue(patchRecord.cornerRadii) : cloneCornerRadii(shape.cornerRadii)
     const nextEllipseStartAngle = Object.prototype.hasOwnProperty.call(patchRecord, 'ellipseStartAngle') ? asOptionalNumberOrUndef(patchRecord.ellipseStartAngle) : shape.ellipseStartAngle
@@ -165,6 +167,8 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
       nextStroke,
       prevShadow: cloneShadow(shape.shadow),
       nextShadow,
+      prevTextRuns: shape.textRuns?.map((run) => ({start: run.start, end: run.end, style: run.style ? {...run.style} : undefined})),
+      nextTextRuns,
       prevCornerRadius: shape.cornerRadius,
       nextCornerRadius,
       prevCornerRadii: cloneCornerRadii(shape.cornerRadii),

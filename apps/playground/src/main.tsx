@@ -1,4 +1,10 @@
 import {createEngine, type EngineSceneSnapshot} from '@venus/engine'
+import {
+	createScenarioCatalog,
+	resolveInitialScenarioId,
+	syncScenarioQuery,
+	type PlaygroundScenario,
+} from './scenarios/scenarioCatalog'
 import './index.css'
 
 // Keep test scene dimensions compact so viewport behaviors are easy to observe.
@@ -11,6 +17,11 @@ const ZOOM_OUT_FACTOR = 10.98
 const CONTINUOUS_ZOOM_INTERVAL_MS = 1
 
 type ContinuousZoomDirection = 'in' | 'out'
+
+type SceneBounds = {
+	width: number
+	height: number
+}
 
 // Seed a deterministic baseline scene for quick runtime/manual verification.
 const createInitialScene = (revision: number): EngineSceneSnapshot => {
@@ -97,6 +108,34 @@ const createInitialScene = (revision: number): EngineSceneSnapshot => {
 	}
 }
 
+/**
+ * Pick a scenario snapshot from the catalog and keep initial bounds synchronized.
+ * @param revision Monotonic scene revision used to build deterministic snapshots.
+ */
+const createInitialScenarioSnapshot = (
+	revision: number,
+): {
+	sceneSnapshot: EngineSceneSnapshot
+	initialScenarioId: string
+	initialScenarioDescription: string
+	initialSceneBounds: SceneBounds
+} => {
+	const scenarioCatalog = createScenarioCatalog(revision)
+	const initialScenarioId = resolveInitialScenarioId(scenarioCatalog)
+	const initialScenario =
+		scenarioCatalog.find((scenario) => scenario.id === initialScenarioId) ?? scenarioCatalog[0]
+	const sceneSnapshot = initialScenario?.buildScene(revision) ?? createInitialScene(revision)
+	return {
+		sceneSnapshot,
+		initialScenarioId: initialScenario?.id ?? '',
+		initialScenarioDescription: initialScenario?.description ?? 'Unspecified scenario.',
+		initialSceneBounds: {
+			width: sceneSnapshot.width,
+			height: sceneSnapshot.height,
+		},
+	}
+}
+
 // Build the playground shell in plain DOM to keep framework-free integration.
 const mountPlayground = () => {
 	const root = document.getElementById('root')
@@ -109,6 +148,11 @@ const mountPlayground = () => {
 			<aside class="command-panel">
 				<h1 class="command-title">Engine Commands</h1>
 				<p class="command-subtitle">Playground / No Framework</p>
+				<div class="scenario-group">
+					<label class="scenario-label" for="scenario-select">Scenario</label>
+					<select id="scenario-select" class="scenario-select"></select>
+					<p id="scenario-description" class="scenario-description"></p>
+				</div>
 				<div class="command-group" id="command-group"></div>
 			</aside>
 			<main class="canvas-stage">
@@ -122,19 +166,32 @@ const mountPlayground = () => {
 
 	const canvas = root.querySelector<HTMLCanvasElement>('#playground-canvas')
 	const commandGroup = root.querySelector<HTMLDivElement>('#command-group')
+	const scenarioSelect = root.querySelector<HTMLSelectElement>('#scenario-select')
+	const scenarioDescription = root.querySelector<HTMLParagraphElement>('#scenario-description')
 	const statusLine = root.querySelector<HTMLDivElement>('#status-line')
-	if (!canvas || !commandGroup || !statusLine) {
+	if (!canvas || !commandGroup || !scenarioSelect || !scenarioDescription || !statusLine) {
 		throw new Error('playground UI mount failed')
 	}
 
 	let sceneRevision = 1
+	let scenarioCatalog = createScenarioCatalog(sceneRevision)
+	const initialScenario = createInitialScenarioSnapshot(sceneRevision)
+	let activeScenarioId = initialScenario.initialScenarioId
+	let sceneBounds = initialScenario.initialSceneBounds
+	let viewportState = {
+		viewportWidth: TEST_SCENE_WIDTH,
+		viewportHeight: TEST_SCENE_HEIGHT,
+		scale: 1,
+		offsetX: 0,
+		offsetY: 0,
+	}
 	let continuousZoomDirection: ContinuousZoomDirection | null = null
 	let continuousZoomTimer: number | null = null
 
 	// Keep runtime initialization explicit for easier command-path debugging.
 	const engine = createEngine({
 		canvas,
-		initialScene: createInitialScene(sceneRevision),
+		initialScene: initialScenario.sceneSnapshot,
 		culling: true,
 		lod: {enabled: false},
 		render: {
@@ -147,12 +204,15 @@ const mountPlayground = () => {
 	// Update status from runtime diagnostics so command effects are visible.
 	const refreshStatus = () => {
 		const diagnostics = engine.getDiagnostics()
-		const viewport = diagnostics.viewport
+		const activeScenario = scenarioCatalog.find((scenario) => scenario.id === activeScenarioId)
+		const nodeCount =
+			diagnostics.framePlan?.sceneNodeCount ?? diagnostics.composition?.activeNodeCount ?? engine.getSnapshot().nodes.length
 		statusLine.textContent = [
-			`nodes ${diagnostics.scene.nodeCount}`,
-			`scale ${viewport.scale.toFixed(3)}`,
-			`offsetX ${viewport.offsetX.toFixed(1)}`,
-			`offsetY ${viewport.offsetY.toFixed(1)}`,
+			`scenario ${activeScenario?.id ?? 'unknown'}`,
+			`nodes ${nodeCount}`,
+			`scale ${viewportState.scale.toFixed(3)}`,
+			`offsetX ${viewportState.offsetX.toFixed(1)}`,
+			`offsetY ${viewportState.offsetY.toFixed(1)}`,
 			`zoomLoop ${continuousZoomDirection ?? 'off'}`,
 		].join(' | ')
 	}
@@ -172,36 +232,34 @@ const mountPlayground = () => {
 		canvas.width = Math.max(1, Math.round(viewportWidth * outputDpr))
 		canvas.height = Math.max(1, Math.round(viewportHeight * outputDpr))
 		const nextScale = Math.min(
-			(viewportWidth * 0.84) / TEST_SCENE_WIDTH,
-			(viewportHeight * 0.84) / TEST_SCENE_HEIGHT,
+			(viewportWidth * 0.84) / sceneBounds.width,
+			(viewportHeight * 0.84) / sceneBounds.height,
 		)
 
-		engine.resize({
+		viewportState = engine.resize({
 			viewportWidth,
 			viewportHeight,
 			outputWidth: canvas.width,
 			outputHeight: canvas.height,
 		})
-		engine.setViewport({
+		viewportState = engine.setViewport({
 			viewportWidth,
 			viewportHeight,
 			scale: nextScale,
-			offsetX: (viewportWidth - TEST_SCENE_WIDTH * nextScale) * 0.5,
-			offsetY: (viewportHeight - TEST_SCENE_HEIGHT * nextScale) * 0.5,
+			offsetX: (viewportWidth - sceneBounds.width * nextScale) * 0.5,
+			offsetY: (viewportHeight - sceneBounds.height * nextScale) * 0.5,
 		})
 
 		await renderNow()
 	}
 
 	// Apply zoom around viewport center to keep command effects predictable.
+	/**
+	 * Apply multiplicative zoom using the tracked viewport state as the source of truth.
+	 * @param factor Multiplicative zoom factor.
+	 */
 	const zoomByFactor = async (factor: number) => {
-		const diagnostics = engine.getDiagnostics()
-		const viewport = diagnostics.viewport
-		const anchor = {
-			x: viewport.viewportWidth * 0.5,
-			y: viewport.viewportHeight * 0.5,
-		}
-		engine.zoomTo(viewport.scale * factor, anchor)
+		viewportState = engine.zoomTo(viewportState.scale * factor)
 		await renderNow()
 	}
 
@@ -244,7 +302,51 @@ const mountPlayground = () => {
 	// Rebuild baseline data so command regressions always start from known state.
 	const resetScene = async () => {
 		sceneRevision += 1
-		engine.loadScene(createInitialScene(sceneRevision))
+		scenarioCatalog = createScenarioCatalog(sceneRevision)
+		const activeScenario =
+			scenarioCatalog.find((scenario) => scenario.id === activeScenarioId) ?? scenarioCatalog[0]
+		if (!activeScenario) {
+			return
+		}
+		const nextSnapshot = activeScenario.buildScene(sceneRevision)
+		sceneBounds = {
+			width: nextSnapshot.width,
+			height: nextSnapshot.height,
+		}
+		scenarioDescription.textContent = activeScenario.description
+		syncScenarioQuery(activeScenario.id)
+		engine.loadScene(nextSnapshot)
+		await fitSceneToViewport()
+	}
+
+	/**
+	 * Load the target scenario and recenter viewport around the new snapshot bounds.
+	 * @param scenarioId Scenario identifier selected from the command panel.
+	 */
+	const loadScenario = async (scenarioId: string) => {
+		const nextScenario = scenarioCatalog.find((scenario) => scenario.id === scenarioId)
+		if (!nextScenario) {
+			return
+		}
+
+		activeScenarioId = nextScenario.id
+		sceneRevision += 1
+		scenarioCatalog = createScenarioCatalog(sceneRevision)
+		const activeScenario =
+			scenarioCatalog.find((scenario) => scenario.id === activeScenarioId) ?? scenarioCatalog[0]
+		if (!activeScenario) {
+			return
+		}
+
+		const nextSnapshot = activeScenario.buildScene(sceneRevision)
+		sceneBounds = {
+			width: nextSnapshot.width,
+			height: nextSnapshot.height,
+		}
+		scenarioDescription.textContent = `${activeScenario.description} (${activeScenario.tags.join(', ')})`
+		syncScenarioQuery(activeScenario.id)
+		scenarioSelect.value = activeScenario.id
+		engine.loadScene(nextSnapshot)
 		await fitSceneToViewport()
 	}
 
@@ -261,6 +363,7 @@ const mountPlayground = () => {
 		onClick: () => void
 		zoomMode?: ContinuousZoomDirection
 	}> = [
+		{label: 'Load Scenario', onClick: run(async () => loadScenario(scenarioSelect.value))},
 		{label: 'Render Once', onClick: run(renderNow)},
 		{label: 'Reset Scene', onClick: run(resetScene)},
 		{label: 'Reset View', onClick: run(fitSceneToViewport)},
@@ -269,14 +372,14 @@ const mountPlayground = () => {
 		{
 			label: 'Pan Left',
 			onClick: run(async () => {
-				engine.panBy(36, 0)
+				viewportState = engine.panBy(36, 0)
 				await renderNow()
 			}),
 		},
 		{
 			label: 'Pan Right',
 			onClick: run(async () => {
-				engine.panBy(-36, 0)
+				viewportState = engine.panBy(-36, 0)
 				await renderNow()
 			}),
 		},
@@ -304,6 +407,25 @@ const mountPlayground = () => {
 		}
 		button.addEventListener('click', command.onClick)
 		commandGroup.append(button)
+	})
+
+	// Keep scenario selection declarative so each scene can be deep-linked and replayed.
+	scenarioCatalog.forEach((scenario: PlaygroundScenario) => {
+		const option = document.createElement('option')
+		option.value = scenario.id
+		option.textContent = scenario.label
+		scenarioSelect.append(option)
+	})
+
+	scenarioSelect.value = activeScenarioId
+	scenarioDescription.textContent = `${initialScenario.initialScenarioDescription} (${scenarioCatalog
+		.find((scenario) => scenario.id === activeScenarioId)
+		?.tags.join(', ')})`
+	syncScenarioQuery(activeScenarioId)
+
+	// Apply the newly selected scenario immediately for fast validation loops.
+	scenarioSelect.addEventListener('change', () => {
+		void loadScenario(scenarioSelect.value)
 	})
 
 	// Refit on resize so centered small-canvas behavior remains stable.

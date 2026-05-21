@@ -66,6 +66,40 @@ body {
   line-height: 1.4;
 }
 
+/* Group scenario controls so capability matrix selection stays visible and stable. */
+.scenario-group {
+  display: grid;
+  gap: 6px;
+}
+
+.scenario-label {
+  color: #bfdbfe;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.scenario-select {
+  border: 1px solid rgb(71 85 105 / 0.9);
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.scenario-select:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+}
+
+.scenario-description {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 /* Use one-column command stack so stress controls remain obvious. */
 .command-group {
   display: grid;

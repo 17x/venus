@@ -1,6 +1,6 @@
 import type {OverlayControl} from '@venus/editor-primitive'
 import {CONTROL_PRIORITY} from '@venus/editor-primitive'
-import {getNormalizedBoundsFromBox} from '@venus/engine'
+import {getNormalizedBoundsFromBox} from '@venus/lib'
 import type {DocumentNode} from '../../runtime/model/index.ts'
 
 /**

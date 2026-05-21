@@ -1,5 +1,24 @@
-import {createShapeTransformRecord, type BoxTransformSource} from '@venus/engine'
 import type {TransformPreviewShape} from '../interaction/index.ts'
+
+/**
+ * Declares minimal box-transform source consumed by preview sync checks.
+ */
+export interface BoxTransformSource {
+  /** Stores left position in world coordinates. */
+  x: number
+  /** Stores top position in world coordinates. */
+  y: number
+  /** Stores width in world coordinates. */
+  width: number
+  /** Stores height in world coordinates. */
+  height: number
+  /** Stores optional rotation in degrees. */
+  rotation?: number
+  /** Stores optional horizontal flip flag. */
+  flipX?: boolean
+  /** Stores optional vertical flip flag. */
+  flipY?: boolean
+}
 
 export type TransformPreviewState<T extends TransformPreviewShape> = {
   shapes: T[]
@@ -43,6 +62,24 @@ export function isTransformPreviewSynced<T extends TransformPreviewShape>(
       !!shape.flipY === !!previewShape.flipY
     )
   })
+}
+
+/**
+ * Resolves stable transform record for preview/document equality checks.
+ * @param source Shape-like box transform payload from document or preview.
+ */
+function createShapeTransformRecord(source: BoxTransformSource) {
+  const width = Math.max(1, source.width)
+  const height = Math.max(1, source.height)
+  return {
+    x: source.x,
+    y: source.y,
+    width,
+    height,
+    rotation: source.rotation ?? 0,
+    flipX: !!source.flipX,
+    flipY: !!source.flipY,
+  }
 }
 
 /**

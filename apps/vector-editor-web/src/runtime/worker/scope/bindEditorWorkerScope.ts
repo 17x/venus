@@ -3,7 +3,7 @@
 import {createCollaborationManager} from '../collaboration.ts'
 import type {EditorDocument, ToolName} from '../../model/index.ts'
 import {createHistoryManager} from '../history.ts'
-import {createEngineSpatialIndex} from '@venus/engine'
+import {createWorkerSpatialIndex} from './types.ts'
 import {
   attachSceneMemory,
   readSceneStats,
@@ -39,7 +39,7 @@ export function bindEditorWorkerScope(scope: DedicatedWorkerGlobalScope) {
   let strictStrokeHitTest = false
   let currentToolName: ToolName = 'selector'
 
-  const spatialIndex = createEngineSpatialIndex<{
+  const spatialIndex = createWorkerSpatialIndex<{
     shapeId: string
     type: import('../../model/index.ts').DocumentNode['type']
     order: number

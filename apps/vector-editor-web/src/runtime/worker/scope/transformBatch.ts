@@ -1,7 +1,27 @@
 import type {DocumentNode} from '../../model/index.ts'
-import {toLegacyShapeTransformRecord, type MatrixFirstNodeTransform, type ShapeTransformRecord} from '@venus/engine'
+import type {MatrixFirstNodeTransform} from '../../interaction/transformSessionManager.ts'
 import type {HistoryPatch} from '../history.ts'
 import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke} from './model.ts'
+
+/**
+ * Declares legacy shape transform fields consumed by history patch generation.
+ */
+interface ShapeTransformRecord {
+  /** Stores shape x position. */
+  x: number
+  /** Stores shape y position. */
+  y: number
+  /** Stores shape width. */
+  width: number
+  /** Stores shape height. */
+  height: number
+  /** Stores shape rotation in degrees. */
+  rotation: number
+  /** Stores optional horizontal flip state. */
+  flipX?: boolean
+  /** Stores optional vertical flip state. */
+  flipY?: boolean
+}
 
 type ParsedTransformBatchItem = {
   id: string
@@ -31,6 +51,25 @@ export function resolveTransformBatchItemToLegacy(item: {
       flipX: !!to.flipX,
       flipY: !!to.flipY,
     },
+  }
+}
+
+/**
+ * Resolves matrix-first transform payload into legacy shape-transform record.
+ * @param transform Matrix-first transform payload received from runtime command.
+ */
+function toLegacyShapeTransformRecord(transform: MatrixFirstNodeTransform) {
+  const bounds = transform.bounds
+  const width = Math.max(1, transform.width ?? (bounds.maxX - bounds.minX))
+  const height = Math.max(1, transform.height ?? (bounds.maxY - bounds.minY))
+  return {
+    x: bounds.minX,
+    y: bounds.minY,
+    width,
+    height,
+    rotation: transform.rotation ?? 0,
+    flipX: !!transform.flipX,
+    flipY: !!transform.flipY,
   }
 }
 
@@ -158,13 +197,20 @@ function asMatrixFirstTransform(value: Record<string, unknown>): MatrixFirstNode
     return null
   }
 
-  const matrix = Array.isArray(value.matrix) && value.matrix.length === 9
+  const matrixEntries = Array.isArray(value.matrix)
     ? value.matrix.map((entry) => asNumber(entry)).filter((entry): entry is number => entry !== null)
     : null
 
-  if (!matrix || matrix.length !== 9) {
+  if (!matrixEntries || (matrixEntries.length !== 6 && matrixEntries.length !== 9)) {
     return null
   }
+
+  const matrix = matrixEntries.length === 9
+    ? [
+        matrixEntries[0], matrixEntries[1], matrixEntries[2],
+        matrixEntries[3], matrixEntries[4], matrixEntries[5],
+      ]
+    : matrixEntries
 
   const center = value.center && typeof value.center === 'object'
     ? value.center as Record<string, unknown>

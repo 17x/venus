@@ -2,7 +2,6 @@ import {
   convertDrawPointsToBezierPoints,
   getBoundingRectFromBezierPoints,
   nid,
-  type DocumentNode,
   type ToolId,
   type ToolName,
 } from '../../runtime/model/index.ts'
@@ -29,6 +28,11 @@ import {
 interface PenDraftState {
   points: Array<{x: number; y: number}>
 }
+
+export {
+  buildSelectedProps,
+  buildSelectedPropsForSelection,
+} from './selectedPropsPolicy.ts'
 
 export function mapToolNameToToolId(toolName: ToolName): ToolId {
   switch (toolName) {
@@ -212,75 +216,6 @@ export function createShapeElementFromDrag(
   }
 
   return null
-}
-
-export function buildSelectedProps(shape: DocumentNode | null): ElementProps | null {
-  if (!shape) {
-    return null
-  }
-
-  return {
-    id: shape.id,
-    type: shape.type,
-    name: shape.text ?? shape.name,
-    asset: shape.assetId,
-    assetUrl: shape.assetUrl,
-    clipPathId: shape.clipPathId,
-    clipRule: shape.clipRule,
-    schemaMeta: resolveSelectedSchemaMeta(shape),
-    x: shape.x,
-    y: shape.y,
-    width: shape.width,
-    height: shape.height,
-    points: shape.points?.map((point) => ({...point})),
-    bezierPoints: shape.bezierPoints?.map((point) => ({
-      anchor: {...point.anchor},
-      cp1: point.cp1 ? {...point.cp1} : point.cp1,
-      cp2: point.cp2 ? {...point.cp2} : point.cp2,
-    })),
-    strokeStartArrowhead: shape.strokeStartArrowhead,
-    strokeEndArrowhead: shape.strokeEndArrowhead,
-    rotation: shape.rotation ?? 0,
-    flipX: shape.flipX ?? false,
-    flipY: shape.flipY ?? false,
-    opacity: 1,
-    fill: resolveSelectedFill(shape),
-    stroke: resolveSelectedStroke(shape),
-    shadow: shape.shadow ? {...shape.shadow} : undefined,
-    cornerRadius: shape.cornerRadius,
-    cornerRadii: shape.cornerRadii ? {...shape.cornerRadii} : undefined,
-    ellipseStartAngle: shape.ellipseStartAngle,
-    ellipseEndAngle: shape.ellipseEndAngle,
-  }
-}
-
-function resolveSelectedSchemaMeta(shape: DocumentNode) {
-  return shape.schema
-    ? {
-        sourceNodeType: shape.schema.sourceNodeType,
-        sourceNodeKind: shape.schema.sourceNodeKind,
-        sourceFeatureKinds: shape.schema.sourceFeatureKinds?.slice(),
-      }
-    : undefined
-}
-
-function resolveSelectedFill(shape: DocumentNode) {
-  return shape.fill
-    ? {...shape.fill}
-    : {
-        enabled: shape.type !== 'text' && shape.type !== 'lineSegment' && shape.type !== 'path',
-        color: '#ffffff',
-      }
-}
-
-function resolveSelectedStroke(shape: DocumentNode) {
-  return shape.stroke
-    ? {...shape.stroke}
-    : {
-        enabled: true,
-        color: '#000000',
-        weight: 1,
-      }
 }
 
 export function cloneElementProps(element: ElementProps): ElementProps {

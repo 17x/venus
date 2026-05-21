@@ -1,15 +1,15 @@
 import {
-  DEFAULT_ENGINE_VIEWPORT,
-  clampEngineViewportScale,
-  fitEngineViewportToDocument,
-  panEngineViewportState,
-  resolveEngineViewportState,
-  resizeEngineViewportState,
-  zoomEngineViewportState,
-  type EngineCanvasViewportState,
-  type EngineViewportScaleRange,
-  type EngineViewportFitDocumentLike,
-} from '@venus/engine'
+  DEFAULT_VIEWPORT as DEFAULT_ENGINE_VIEWPORT,
+  clampViewportScale as clampEngineViewportScale,
+  fitViewportToDocument as fitEngineViewportToDocument,
+  panViewportState as panEngineViewportState,
+  resolveViewportState as resolveEngineViewportState,
+  resizeViewportState as resizeEngineViewportState,
+  zoomViewportState as zoomEngineViewportState,
+  type CanvasViewportState as EngineCanvasViewportState,
+  type ViewportScaleRange as EngineViewportScaleRange,
+  type ViewportFitDocumentLike as EngineViewportFitDocumentLike,
+} from '@venus/lib'
 
 // Runtime viewport API keeps historical naming while delegating mechanism ownership to engine.
 export type CanvasViewportState = EngineCanvasViewportState

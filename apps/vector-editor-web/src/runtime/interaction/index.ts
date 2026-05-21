@@ -1,7 +1,3 @@
-// Runtime bridge now exports shared zoom policy from @venus/editor-primitive.
-export {
-  resolveEngineCanvasLodProfile as resolveCanvasLodProfile,
-} from '@venus/engine'
 export { collectResizeTransformTargets } from './transformTargets.ts'
 // Snapping
 export {

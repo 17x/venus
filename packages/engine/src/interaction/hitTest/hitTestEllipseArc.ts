@@ -1,4 +1,4 @@
-import type { EngineEditorPoint } from './hitTest.ts'
+import type { EngineEditorPoint } from '../hitTest.ts'
 import {
   isPointInsideEllipse,
   isPointNearEllipseEdge,

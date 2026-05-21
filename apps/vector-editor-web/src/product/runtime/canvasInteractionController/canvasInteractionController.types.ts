@@ -1,5 +1,6 @@
 import type * as React from 'react'
 import type {SelectorOverlayItem} from '@venus/editor-primitive'
+import type {PointerSelectorModifiers} from '@venus/editor-primitive'
 import type {ToolName} from '../../../runtime/model/index.ts'
 import type {
   DraftPrimitive,
@@ -16,13 +17,8 @@ import {
 } from '@venus/editor-primitive'
 import type {HoverHitBudgetState} from '../../useEditorRuntime/helpers.ts'
 import type {ElementProps} from '../../../runtime/types/index.ts'
-
-type PointerModifierState = {
-  shiftKey: boolean
-  metaKey: boolean
-  ctrlKey: boolean
-  altKey: boolean
-}
+import type {PointerLifecyclePhase} from './pointerLifecycleState.ts'
+import type {RuntimeInteractionDiagnosticEvent} from '../interactionDiagnosticPolicy.ts'
 
 /**
  * Declares mutable controller state kept across pointer events.
@@ -30,12 +26,14 @@ type PointerModifierState = {
 export interface EditorRuntimeCanvasInteractionControllerState {
   /** Stores hover throttling state for pointer-move hit-test budget control. */
   hoverHitBudget: HoverHitBudgetState
+  /** Stores pointer lifecycle phase used to guard down/up/leave sequencing. */
+  pointerLifecyclePhase: PointerLifecyclePhase
   /** Stores pointer-selector FSM state across pointer lifecycle events. */
   pointerSelectorState: ReturnType<typeof createPointerSelectorState>
   /** Stores start screen point for pointer-selector drag threshold resolution. */
   pointerSelectorStartScreen: {x: number; y: number} | null
   /** Stores modifiers captured on pointer-down for pointer-up selection mode resolution. */
-  pointerSelectorModifiers: PointerModifierState | undefined
+  pointerSelectorModifiers: PointerSelectorModifiers | undefined
 }
 
 /**
@@ -71,6 +69,8 @@ export interface EditorRuntimeCanvasInteractionHandlers {
 export interface EditorRuntimeCanvasInteractionControllerOptions {
   /** Stores runtime interaction bridge used to publish input lifecycle events. */
   interactionBridge: ReturnType<typeof import('../useEditorRuntimeInteractionBridge.ts').useEditorRuntimeInteractionBridge>['bridge']
+  /** Records runtime interaction diagnostics from pointer key paths. */
+  recordInteractionDiagnostic?: (event: RuntimeInteractionDiagnosticEvent) => void
   /** Stores notification callback used by pointer-release flows. */
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
   /** Stores runtime snapshot bridge used by interaction handlers. */

@@ -11,16 +11,8 @@
     ".": "./src/index.ts",
     "./math": "./src/math/index.ts",
     "./geometry": "./src/geometry/index.ts",
-    "./ids": "./src/ids/index.ts",
-    "./events": "./src/events/index.ts",
-    "./lifecycle": "./src/lifecycle/index.ts",
     "./scheduler": "./src/scheduler/index.ts",
-    "./patch": "./src/patch/index.ts",
-    "./collections": "./src/collections/index.ts",
-    "./logger": "./src/logger/index.ts",
     "./worker": "./src/worker/index.ts",
-    "./serialization": "./src/serialization/index.ts",
-    "./assert": "./src/assert/index.ts",
     "./viewport": "./src/viewport/index.ts"
   },
   "devDependencies": {

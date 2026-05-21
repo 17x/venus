@@ -1,9 +1,54 @@
-import {
-  createEngineAnimationController,
-  type EngineAnimationController,
-  type EngineEasingDefinition,
-  type EngineEasingFunction,
-} from '@venus/engine'
+/**
+ * Declares one easing function over normalized progress values.
+ */
+export type EngineEasingFunction = (t: number) => number
+
+/**
+ * Declares easing definitions accepted by preset animation policies.
+ */
+export type EngineEasingDefinition = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | EngineEasingFunction
+
+/**
+ * Declares one animation task managed by the preset animation controller.
+ */
+interface PresetAnimationTask {
+  /** Stores stable task id. */
+  id: string
+  /** Stores task start timestamp. */
+  startedAt: number
+  /** Stores source scalar value. */
+  from: number
+  /** Stores destination scalar value. */
+  to: number
+  /** Stores task duration in milliseconds. */
+  durationMs: number
+  /** Stores resolved easing function. */
+  easing: EngineEasingFunction
+  /** Stores per-frame update callback. */
+  onUpdate: (value: number) => void
+  /** Stores optional completion callback. */
+  onComplete?: () => void
+}
+
+/**
+ * Declares runtime animation controller contract used by vector presets.
+ */
+export interface EngineAnimationController {
+  /** Starts or replaces one animation task and returns its id. */
+  start: (options: {
+    id?: string
+    from: number
+    to: number
+    durationMs: number
+    easing?: EngineEasingDefinition
+    onUpdate: (value: number) => void
+    onComplete?: () => void
+  }) => string
+  /** Stops one animation task by id. */
+  stop: (id: string) => void
+  /** Stops all active animation tasks. */
+  stopAll: () => void
+}
 
 export type CubicBezierTuple = readonly [number, number, number, number]
 export type PresetEasing = EngineEasingDefinition | CubicBezierTuple
@@ -57,10 +102,64 @@ export function resolvePresetEasing(easing: PresetEasing | undefined): EngineEas
 export function createPresetAnimationController(
   options?: PresetAnimationControllerOptions,
 ): EngineAnimationController {
-  return createEngineAnimationController({
-    idFactory: options?.idFactory,
-    resolveEasing: resolvePresetEasing,
-  })
+  const tasks = new Map<string, PresetAnimationTask>()
+  let rafId: number | null = null
+
+  const tick = () => {
+    rafId = null
+    const now = performance.now()
+
+    tasks.forEach((task, id) => {
+      const elapsed = now - task.startedAt
+      const progress = task.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, elapsed / task.durationMs))
+      const value = task.from + (task.to - task.from) * task.easing(progress)
+      task.onUpdate(value)
+
+      if (progress >= 1) {
+        tasks.delete(id)
+        task.onComplete?.()
+      }
+    })
+
+    if (tasks.size > 0) {
+      rafId = requestAnimationFrame(tick)
+    }
+  }
+
+  const ensureTicking = () => {
+    if (rafId !== null) {
+      return
+    }
+    rafId = requestAnimationFrame(tick)
+  }
+
+  return {
+    start: ({id, from, to, durationMs, easing, onUpdate, onComplete}) => {
+      const taskId = id ?? (options?.idFactory?.() ?? `preset-animation-${Date.now()}`)
+      tasks.set(taskId, {
+        id: taskId,
+        startedAt: performance.now(),
+        from,
+        to,
+        durationMs,
+        easing: resolvePresetEasing(easing),
+        onUpdate,
+        onComplete,
+      })
+      ensureTicking()
+      return taskId
+    },
+    stop: (id) => {
+      tasks.delete(id)
+    },
+    stopAll: () => {
+      tasks.clear()
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+    },
+  }
 }
 
 function createCubicBezierEasing(x1: number, y1: number, x2: number, y2: number): EngineEasingFunction {

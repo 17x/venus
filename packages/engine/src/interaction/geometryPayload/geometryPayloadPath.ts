@@ -1,6 +1,6 @@
 import { sampleBezierPathPolygon } from '@venus/lib/geometry'
 
-import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
+import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest.ts'
 
 const PATH_BEZIER_MIN_POINT_COUNT = 2
 const PATH_BEZIER_SEGMENT_SAMPLES_HIGH = 24

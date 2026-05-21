@@ -1,6 +1,9 @@
 import type {BezierPoint, DocumentNode} from '../../model/index.ts'
 import {getBezierPathBounds, getPathBounds} from './model.ts'
 
+type TextRunRecord = NonNullable<DocumentNode['textRuns']>[number]
+type TextRunStyleRecord = NonNullable<TextRunRecord['style']>
+
 function asString(value: unknown) {
   return typeof value === 'string' ? value : null
 }
@@ -109,6 +112,77 @@ function asShadow(value: unknown): DocumentNode['shadow'] {
   }
 }
 
+function asTextShadow(value: unknown): TextRunStyleRecord['shadow'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  return {
+    color: typeof record.color === 'string' ? record.color : undefined,
+    offsetX: typeof record.offsetX === 'number' ? record.offsetX : undefined,
+    offsetY: typeof record.offsetY === 'number' ? record.offsetY : undefined,
+    blur: typeof record.blur === 'number' ? record.blur : undefined,
+  }
+}
+
+function asTextStyle(value: unknown): TextRunStyleRecord | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  return {
+    color: typeof record.color === 'string' ? record.color : undefined,
+    fontFamily: typeof record.fontFamily === 'string' ? record.fontFamily : undefined,
+    fontSize: typeof record.fontSize === 'number' ? record.fontSize : undefined,
+    fontWeight: typeof record.fontWeight === 'number' ? record.fontWeight : undefined,
+    letterSpacing: typeof record.letterSpacing === 'number' ? record.letterSpacing : undefined,
+    lineHeight: typeof record.lineHeight === 'number' ? record.lineHeight : undefined,
+    textAlign: record.textAlign === 'left' || record.textAlign === 'center' || record.textAlign === 'right'
+      ? record.textAlign
+      : undefined,
+    verticalAlign: record.verticalAlign === 'top' || record.verticalAlign === 'middle' || record.verticalAlign === 'bottom'
+      ? record.verticalAlign
+      : undefined,
+    shadow: asTextShadow(record.shadow),
+    paragraphIndentLeft: typeof record.paragraphIndentLeft === 'number' ? record.paragraphIndentLeft : undefined,
+    paragraphIndentFirst: typeof record.paragraphIndentFirst === 'number' ? record.paragraphIndentFirst : undefined,
+    paragraphIndentRight: typeof record.paragraphIndentRight === 'number' ? record.paragraphIndentRight : undefined,
+    paragraphSpaceBeforeLine: typeof record.paragraphSpaceBeforeLine === 'number' ? record.paragraphSpaceBeforeLine : undefined,
+    paragraphSpaceAfterLine: typeof record.paragraphSpaceAfterLine === 'number' ? record.paragraphSpaceAfterLine : undefined,
+  }
+}
+
+function asTextRun(value: unknown): TextRunRecord | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const record = value as Record<string, unknown>
+  const start = typeof record.start === 'number' ? record.start : null
+  const end = typeof record.end === 'number' ? record.end : null
+  if (start === null || end === null) {
+    return null
+  }
+
+  return {
+    start,
+    end,
+    style: asTextStyle(record.style),
+  }
+}
+
+function asTextRuns(value: unknown): DocumentNode['textRuns'] {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  return value
+    .map((item) => asTextRun(item))
+    .filter((item): item is TextRunRecord => Boolean(item))
+}
+
 function asCornerRadii(value: unknown): DocumentNode['cornerRadii'] {
   if (!value || typeof value !== 'object') {
     return undefined
@@ -174,6 +248,7 @@ function asDocumentNode(value: unknown): DocumentNode | null {
   const fill = asFill(record.fill)
   const stroke = asStroke(record.stroke)
   const shadow = asShadow(record.shadow)
+  const textRuns = asTextRuns(record.textRuns)
   const cornerRadius = asOptionalNumber(record.cornerRadius)
   const cornerRadii = asCornerRadii(record.cornerRadii)
   const ellipseStartAngle = asOptionalNumber(record.ellipseStartAngle)
@@ -217,6 +292,7 @@ function asDocumentNode(value: unknown): DocumentNode | null {
     type: type as DocumentNode['type'],
     name,
     text,
+    textRuns,
     assetId,
     assetUrl,
     clipPathId,
@@ -284,6 +360,10 @@ export function asStrokeValue(value: unknown) {
 
 export function asShadowValue(value: unknown) {
   return asShadow(value)
+}
+
+export function asTextRunsValue(value: unknown) {
+  return asTextRuns(value)
 }
 
 export function asCornerRadiiValue(value: unknown) {

@@ -28,6 +28,21 @@ export function cloneCornerRadii(cornerRadii?: DocumentNode['cornerRadii']) {
   return cornerRadii ? {...cornerRadii} : undefined
 }
 
+export function cloneTextRuns(textRuns?: DocumentNode['textRuns']) {
+  return textRuns?.map((run) => ({
+    start: run.start,
+    end: run.end,
+    style: run.style
+      ? {
+          ...run.style,
+          shadow: run.style.shadow
+            ? {...run.style.shadow}
+            : undefined,
+        }
+      : undefined,
+  }))
+}
+
 export function getPathBounds(points: Array<{x: number; y: number}>) {
   const minX = Math.min(...points.map((point) => point.x))
   const minY = Math.min(...points.map((point) => point.y))
@@ -68,6 +83,7 @@ export function cloneDocument(document: EditorDocument): EditorDocument {
       assetUrl: shape.assetUrl,
       clipPathId: shape.clipPathId,
       clipRule: shape.clipRule,
+      textRuns: cloneTextRuns(shape.textRuns),
       fill: cloneFill(shape.fill),
       stroke: cloneStroke(shape.stroke),
       shadow: cloneShadow(shape.shadow),

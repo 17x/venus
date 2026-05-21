@@ -49,6 +49,8 @@ export function PaintRow(props: {
   label: string
   enabled: boolean
   color: string
+  mixedEnabled?: boolean
+  mixedColor?: boolean
   onChangeEnabled: (enabled: boolean) => void
   onChangeColor: (color: string) => void
   children?: ReactNode
@@ -74,6 +76,10 @@ export function PaintRow(props: {
           }}
         />
       </div>
+      {(props.mixedColor || props.mixedEnabled) &&
+        <div className={'pl-[74px] text-[10px] leading-4 text-slate-500'}>
+          Mixed
+        </div>}
       {props.children}
     </div>
   )

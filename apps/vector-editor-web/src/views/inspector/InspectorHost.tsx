@@ -33,7 +33,7 @@ interface InspectorHostProps {
   onReorderLayers: (direction: 'up' | 'down' | 'top' | 'bottom', meta: ShellCommandMeta) => void
   onModifySelection: (mode: 'replace' | 'toggle' | 'add', ids: string[], meta: ShellCommandMeta) => void
   onPickHistory: (historyId: number, meta: ShellCommandMeta) => void
-  onPatchElementProps: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+  onPatchElementProps: (elementIds: string[], patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }
 
 export default function InspectorHost(props: InspectorHostProps) {
@@ -72,6 +72,7 @@ export default function InspectorHost(props: InspectorHostProps) {
               ? <PageInspectorSection/>
               : <PropPanel
                   props={selectedProps ?? undefined}
+                  selectedIds={selectedIds}
                   executeAction={executeAction}
                   onPatchElementProps={onPatchElementProps}
                   onMinimize={() => onTogglePanel('properties', {

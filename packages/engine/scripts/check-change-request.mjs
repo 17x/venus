@@ -3,9 +3,9 @@
 import { execSync } from "node:child_process";
 
 /**
- * Intent: run a git command and return trimmed stdout, or empty string when command fails.
- * @param {string} command shell command to execute.
- * @returns {string} command output without trailing whitespace.
+ * Intent: run one git command and return trimmed stdout, or empty string on failure.
+ * @param {string} command Shell command to execute.
+ * @returns {string} Command output without trailing whitespace.
  */
 function getCommandOutput(command) {
   try {
@@ -19,8 +19,8 @@ function getCommandOutput(command) {
 }
 
 /**
- * Intent: choose a diff range usable in both CI and local runs.
- * @returns {string} git diff range expression.
+ * Intent: choose a diff range that works in CI and local runs.
+ * @returns {string} Git diff range expression.
  */
 function resolveDiffRange() {
   const base = process.env.CR_CHECK_BASE ?? "origin/main";
@@ -35,15 +35,15 @@ function resolveDiffRange() {
 
 /**
  * Intent: collect changed files for the selected diff range.
- * @param {string} diffRange git revision range.
- * @returns {string[]} changed file paths.
+ * @param {string} diffRange Git revision range.
+ * @returns {string[]} Changed file paths.
  */
 function listChangedFiles(diffRange) {
-  const command =
+  const trackedCommand =
     diffRange === "HEAD"
       ? "git diff --name-only HEAD"
       : `git diff --name-only ${diffRange}`;
-  const trackedOutput = getCommandOutput(command);
+  const trackedOutput = getCommandOutput(trackedCommand);
   const untrackedOutput = getCommandOutput(
     "git ls-files --others --exclude-standard",
   );
@@ -54,7 +54,6 @@ function listChangedFiles(diffRange) {
         .map((line) => line.trim())
         .filter(Boolean)
     : [];
-
   const untrackedFiles = untrackedOutput
     ? untrackedOutput
         .split("\n")
@@ -66,9 +65,9 @@ function listChangedFiles(diffRange) {
 }
 
 /**
- * Intent: determine whether a changed file requires a CR by touching engine implementation paths.
- * @param {string} filePath changed file path.
- * @returns {boolean} true when CR is mandatory for this change path.
+ * Intent: detect whether a changed file touches engine implementation paths.
+ * @param {string} filePath Changed file path.
+ * @returns {boolean} True when CR is mandatory.
  */
 function requiresCrForFile(filePath) {
   const normalizedPath = filePath.replace(/^\.\//, "");
@@ -81,9 +80,9 @@ function requiresCrForFile(filePath) {
 }
 
 /**
- * Intent: determine whether a changed file satisfies CR evidence requirement.
- * @param {string} filePath changed file path.
- * @returns {boolean} true when file is a CR artifact.
+ * Intent: detect whether a changed file qualifies as CR evidence.
+ * @param {string} filePath Changed file path.
+ * @returns {boolean} True when file is a CR artifact.
  */
 function isCrArtifact(filePath) {
   const normalizedPath = filePath.replace(/^\.\//, "");
@@ -97,7 +96,7 @@ function isCrArtifact(filePath) {
 }
 
 /**
- * Intent: enforce CR presence for non-trivial engine changes.
+ * Intent: enforce CR artifact presence for engine implementation changes.
  */
 function main() {
   const diffRange = resolveDiffRange();

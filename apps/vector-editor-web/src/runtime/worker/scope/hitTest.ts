@@ -1,9 +1,9 @@
 import type {DocumentNode, EditorDocument} from '../../model/index.ts'
 import {
-  isPointInsideEngineClipShape,
-  resolveEngineVisibilityHitTestBudget,
-  isPointInsideEngineShapeHitArea,
-} from '@venus/engine'
+  isPointInsideRuntimeClipShape,
+  isPointInsideRuntimeShapeHitArea,
+  resolveRuntimeVisibilityHitTestBudget,
+} from '../../interaction/runtimeHitTest.ts'
 import {withResolvedPathHints} from '../../../runtime/interaction/pathHitTestHints.ts'
 import type {WorkerSpatialIndex} from './types.ts'
 
@@ -70,7 +70,7 @@ export function hitTestDocumentCandidates(
   const topCandidateWidth = topCandidate ? Math.max(0, topCandidate.maxX - topCandidate.minX) : 0
   const topCandidateHeight = topCandidate ? Math.max(0, topCandidate.maxY - topCandidate.minY) : 0
   // Visibility budget maps local candidate visibility to hit-test precision cost.
-  const visibilityBudget = resolveEngineVisibilityHitTestBudget({
+  const visibilityBudget = resolveRuntimeVisibilityHitTestBudget({
     candidateCount: sortedCandidates.length,
     topCandidateAreaPx2: topCandidateWidth * topCandidateHeight,
     topCandidateMinEdgePx: Math.min(topCandidateWidth, topCandidateHeight),
@@ -121,18 +121,17 @@ export function hitTestDocumentCandidates(
     // accidentally select through the unclipped host bounds.
     if (shape.clipPathId) {
       const clipSource = shapeById.get(shape.clipPathId)
-      if (clipSource && !isPointInsideClipSource(pointer, clipSource, shapeById)) {
+      if (clipSource && !isPointInsideClipSource(pointer, clipSource)) {
         continue
       }
     }
 
     exactCandidateCount += 1
 
-    if (!isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(shape), {
+    if (!isPointInsideRuntimeShapeHitArea(pointer, withResolvedPathHints(shape), {
       allowFrameSelection,
       tolerance: Math.max(LINE_HIT_TOLERANCE, PATH_HIT_TOLERANCE, POLYGON_EDGE_HIT_TOLERANCE),
       strictStrokeHitTest,
-      shapeById,
     })) {
       continue
     }
@@ -198,12 +197,8 @@ function appendHitCandidate(
 function isPointInsideClipSource(
   pointer: {x: number; y: number},
   clipSource: DocumentNode,
-  shapeById: Map<string, DocumentNode>,
 ) {
-  return isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
-    tolerance: 1.5,
-    shapeById,
-  })
+  return isPointInsideRuntimeClipShape(pointer, withResolvedPathHints(clipSource))
 }
 
 

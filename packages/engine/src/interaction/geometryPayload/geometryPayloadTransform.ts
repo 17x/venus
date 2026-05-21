@@ -1,7 +1,7 @@
 import {
   applyAffineMatrixToPoint,
   resolveNodeTransform,
-} from '../shapeTransform/shapeTransform.ts'
+} from '../shapeTransform.ts'
 import {
   resolveRoundedRectCornerRadii,
 } from '../hitTest/geometry.ts'
@@ -15,7 +15,7 @@ import {
 import {
   resolveEllipseOutlineShape,
 } from './geometryPayloadEllipse.ts'
-import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
+import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest.ts'
 import type {
   EngineGeometryBounds,
   EngineGeometryOutline,

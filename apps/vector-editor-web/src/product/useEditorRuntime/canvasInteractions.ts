@@ -17,6 +17,7 @@ function createInitialControllerState(): EditorRuntimeCanvasInteractionControlle
       lastAt: 0,
       lastPoint: null,
     },
+    pointerLifecyclePhase: 'idle',
     pointerSelectorState: createPointerSelectorState(),
     pointerSelectorStartScreen: null,
     pointerSelectorModifiers: undefined,

@@ -9,6 +9,7 @@ export {
   asFillValue,
   asStrokeValue,
   asShadowValue,
+  asTextRunsValue,
   asCornerRadiiValue,
   asClipRuleValue,
 } from './serdePrimitives.ts'

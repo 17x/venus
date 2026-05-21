@@ -16,18 +16,20 @@ export interface RightSidebarProps {
   panelWidth: number
   context: InspectorContext
   selectedProps: SelectedElementProps | null
+  selectedIds: string[]
   executeAction: EditorExecutor
   onMinimize: VoidFunction
   onSetZoom: (zoomPercent: number) => void
   onSetInspectorContext: (context: InspectorContext) => void
-  onPatchElementProps: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+  onPatchElementProps: (elementIds: string[], patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }
 
 const InspectorPanelBody = memo(function InspectorPanelBody(props: {
   context: InspectorContext
   selectedProps: SelectedElementProps | null
+  selectedIds: string[]
   executeAction: EditorExecutor
-  onPatchElementProps: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+  onPatchElementProps: (elementIds: string[], patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }) {
   return (
     <div
@@ -40,6 +42,7 @@ const InspectorPanelBody = memo(function InspectorPanelBody(props: {
         ? <PageInspectorSection/>
         : <PropPanel
             props={props.selectedProps ?? undefined}
+            selectedIds={props.selectedIds}
             executeAction={props.executeAction}
             onPatchElementProps={props.onPatchElementProps}
           />}
@@ -131,6 +134,7 @@ function RightSidebarComponent(props: RightSidebarProps) {
         <InspectorPanelBody
           context={props.context}
           selectedProps={props.selectedProps}
+          selectedIds={props.selectedIds}
           executeAction={props.executeAction}
           onPatchElementProps={props.onPatchElementProps}
         />

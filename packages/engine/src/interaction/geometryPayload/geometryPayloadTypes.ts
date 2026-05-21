@@ -1,4 +1,4 @@
-import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
+import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest.ts'
 
 /**
  * Declares axis-aligned bounds payload returned by engine geometry queries.

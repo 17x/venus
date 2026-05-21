@@ -1,13 +1,55 @@
 import {
   applyAffineMatrixToPoint,
-  type AffineMatrix,
   createAffineMatrixAroundPoint,
-  createMatrixFirstNodeTransform,
+  getNormalizedBoundsFromBox,
+  invertAffineMatrix,
+  type AffineMatrix,
   type NormalizedBounds,
-  resolveShapeTransformRecord,
-  type ShapeTransformBatchCommand,
-  type ShapeTransformBatchItem,
-} from '@venus/engine'
+} from '@venus/lib'
+
+/**
+ * Declares matrix-first node transform payload used by transform batch serialization.
+ */
+export interface MatrixFirstNodeTransform {
+  /** Stores affine matrix payload in 2x3 form. */
+  matrix: AffineMatrix
+  /** Stores normalized bounds derived from the matrix transform. */
+  bounds: NormalizedBounds
+  /** Stores center point used by rotate/scale interactions. */
+  center: {x: number; y: number}
+  /** Stores width derived from bounds. */
+  width: number
+  /** Stores height derived from bounds. */
+  height: number
+  /** Stores rotation degrees. */
+  rotation: number
+  /** Stores horizontal flip flag. */
+  flipX: boolean
+  /** Stores vertical flip flag. */
+  flipY: boolean
+}
+
+/**
+ * Declares one shape transform item inside a batched transform command.
+ */
+export interface ShapeTransformBatchItem {
+  /** Stores target shape id. */
+  id: string
+  /** Stores source matrix-first transform. */
+  fromMatrix: MatrixFirstNodeTransform
+  /** Stores destination matrix-first transform. */
+  toMatrix: MatrixFirstNodeTransform
+}
+
+/**
+ * Declares runtime transform command payload consumed by worker protocol.
+ */
+export interface ShapeTransformBatchCommand {
+  /** Stores command discriminator. */
+  type: 'shape.transform.batch'
+  /** Stores shape transform item list. */
+  transforms: ShapeTransformBatchItem[]
+}
 
 export type TransformHandleKind =
   | 'move'
@@ -75,7 +117,6 @@ export interface TransformShapeSource {
   flipX?: boolean
   flipY?: boolean
 }
-export type {ShapeTransformBatchCommand}
 
 export interface TransformSession {
   shapeIds: string[]
@@ -458,4 +499,70 @@ function resolveRotationAfterReflection(rotation: number, reflectedAcrossSingleA
 function normalizeDegrees(value: number) {
   const normalized = value % 360
   return normalized < 0 ? normalized + 360 : normalized
+}
+
+/**
+ * Resolves normalized shape transform record used by transform session math.
+ * @param shape Shape-like input with optional rotation/flip metadata.
+ */
+function resolveShapeTransformRecord(shape: TransformShapeSource) {
+  const width = Math.max(1, shape.width)
+  const height = Math.max(1, shape.height)
+  const x = shape.x
+  const y = shape.y
+  const rotation = shape.rotation ?? 0
+  const flipX = !!shape.flipX
+  const flipY = !!shape.flipY
+  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  }
+  const matrix = createAffineMatrixAroundPoint(center, {
+    rotationDegrees: rotation,
+    scaleX: flipX ? -1 : 1,
+    scaleY: flipY ? -1 : 1,
+  })
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    rotation,
+    flipX,
+    flipY,
+    bounds,
+    center,
+    matrix,
+    inverseMatrix: invertAffineMatrix(matrix),
+  }
+}
+
+/**
+ * Resolves matrix-first payload used by worker transform-batch command path.
+ * @param shape Shape transform preview payload.
+ */
+function createMatrixFirstNodeTransform(shape: TransformPreviewShape): MatrixFirstNodeTransform {
+  const resolved = resolveShapeTransformRecord({
+    id: shape.shapeId,
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+    rotation: shape.rotation,
+    flipX: shape.flipX,
+    flipY: shape.flipY,
+  })
+
+  return {
+    matrix: resolved.matrix,
+    bounds: resolved.bounds,
+    center: resolved.center,
+    width: resolved.width,
+    height: resolved.height,
+    rotation: resolved.rotation,
+    flipX: resolved.flipX,
+    flipY: resolved.flipY,
+  }
 }

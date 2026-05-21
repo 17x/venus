@@ -108,10 +108,14 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
       })
     },
     onElementModify(payload) {
-      options.executeAction('element-modify', [{
-        id: payload.elementId,
+      if (payload.elementIds.length === 0) {
+        return
+      }
+
+      options.executeAction('element-modify', payload.elementIds.map((id) => ({
+        id,
         props: payload.patch,
-      }])
+      })))
     },
   }), [
     options.executeAction,
@@ -180,12 +184,10 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
       })
     },
     onPatchLayers: (ids, patch, sourceControl) => {
-      ids.forEach((elementId) => {
-        dispatchShellCommand('element.modify', {elementId, patch}, {
-          sourcePanel: 'left-sidebar',
-          sourceControl,
-          commitType: 'final',
-        })
+      dispatchShellCommand('element.modify', {elementIds: ids, patch}, {
+        sourcePanel: 'left-sidebar',
+        sourceControl,
+        commitType: 'final',
       })
     },
   }), [
@@ -210,6 +212,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
   const rightSidebarProps: Omit<RightSidebarProps, 'rightPanelMinimized' | 'panelWidth' | 'onMinimize'> = useMemo(() => ({
     context: options.inspectorContext,
     selectedProps: options.selectedProps,
+    selectedIds: options.selectedIds,
     executeAction: options.executeAction,
     onSetZoom: (zoomPercent) => {
       dispatchShellCommand('shell.setZoom', {zoomPercent}, {
@@ -225,13 +228,14 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
         commitType: 'final',
       })
     },
-    onPatchElementProps: (elementId, patch, meta) => {
-      dispatchShellCommand('element.modify', {elementId, patch}, meta)
+    onPatchElementProps: (elementIds, patch, meta) => {
+      dispatchShellCommand('element.modify', {elementIds, patch}, meta)
     },
   }), [
     dispatchShellCommand,
     options.executeAction,
     options.inspectorContext,
+    options.selectedIds,
     options.selectedProps,
   ])
 

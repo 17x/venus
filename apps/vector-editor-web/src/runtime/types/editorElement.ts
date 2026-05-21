@@ -113,6 +113,16 @@ export interface TextStyle {
   verticalAlign?: 'top' | 'middle' | 'bottom'
   // Stores optional text shadow style.
   shadow?: TextShadow
+  // Stores paragraph left indent.
+  paragraphIndentLeft?: number
+  // Stores paragraph first-line indent.
+  paragraphIndentFirst?: number
+  // Stores paragraph right indent.
+  paragraphIndentRight?: number
+  // Stores paragraph spacing before line block.
+  paragraphSpaceBeforeLine?: number
+  // Stores paragraph spacing after line block.
+  paragraphSpaceAfterLine?: number
 }
 
 // Declares one rich-text segment range and style.

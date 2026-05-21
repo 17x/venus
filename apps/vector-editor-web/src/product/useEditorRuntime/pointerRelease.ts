@@ -2,6 +2,9 @@ import {createShapeElementFromDrag, createShapeElementFromTool} from '../editorR
 import type {ElementProps} from '../../runtime/types/index.ts'
 import type {ShapeStyleHandleDrag} from '../runtime/shapeStyleHandles.ts'
 import {resolvePointerUpTransformResult} from '../runtime/transformInteractionPolicy.ts'
+import {applyRuntimeEditingModeTransition} from '../runtime/runtimeEditingModeTransitionPolicy.ts'
+import {shouldClearTransformPreviewOnPointerUp} from '../runtime/pointerReleaseCommitPolicy.ts'
+import type {RuntimeInteractionDiagnosticEvent} from '../runtime/interactionDiagnosticPolicy.ts'
 
 /**
  * Handles pointer release commits for draw/transform pipelines in one deterministic flow.
@@ -49,10 +52,12 @@ export function handleCanvasPointerUp(options: {
   selectionDragControllerRef: React.RefObject<import('../../runtime/interaction/index.ts').SelectionDragController>
   transformManagerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createTransformSessionManager>>
   transformPreview: import('../../runtime/interaction/index.ts').TransformPreview | null
+  recordInteractionDiagnostic?: (event: RuntimeInteractionDiagnosticEvent) => void
 }) {
   // Resolve pointer-up side effects in priority order so one interaction mode commits exactly once.
+  const pointerUpStartAt = performance.now()
   options.setHoveredShapeId(null)
-  options.runtimeEditingModeControllerRef.current?.transition({
+  applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
     to: 'idle',
     reason: 'pointer-up',
   })
@@ -114,10 +119,39 @@ export function handleCanvasPointerUp(options: {
     if (pointerUpTransform.transformCommand) {
       options.handleCommand(pointerUpTransform.transformCommand)
       options.markTransformPreviewCommitPending()
-    } else {
+      options.recordInteractionDiagnostic?.({
+        kind: 'transform-commit',
+        stage: 'pointer-up',
+        durationMs: Math.max(0, performance.now() - pointerUpStartAt),
+      })
+    } else if (shouldClearTransformPreviewOnPointerUp({
+      hasResolvedTransformCommit: true,
+      hasTransformCommand: false,
+      hasTransformPreview: Boolean(options.transformPreview),
+    })) {
       options.clearTransformPreview()
+      options.recordInteractionDiagnostic?.({
+        kind: 'transform-rollback',
+        stage: 'pointer-up',
+        reason: 'pointer-up-no-transform-command',
+      })
     }
     return
+  }
+
+  // One defensive cleanup path for stale preview state: if no active transform
+  // session resolved on pointer-up, preview must not outlive interaction commit.
+  if (shouldClearTransformPreviewOnPointerUp({
+    hasResolvedTransformCommit: false,
+    hasTransformCommand: false,
+    hasTransformPreview: Boolean(options.transformPreview),
+  })) {
+    options.clearTransformPreview()
+    options.recordInteractionDiagnostic?.({
+      kind: 'transform-rollback',
+      stage: 'pointer-up',
+      reason: 'pointer-up-stale-preview-cleanup',
+    })
   }
 
   options.penTool.handlePointerUp()
@@ -146,9 +180,10 @@ export function handleCanvasPointerLeave(options: {
   setPenDraftPoints: React.Dispatch<React.SetStateAction<Array<{x: number; y: number}> | null>>
   setSnapGuides: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').SnapGuide[]>>
   transformManagerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createTransformSessionManager>>
+  recordInteractionDiagnostic?: (event: RuntimeInteractionDiagnosticEvent) => void
 }) {
   // Clear transient interaction state when pointer leaves so next entry starts from clean runtime state.
-  options.runtimeEditingModeControllerRef.current?.transition({
+  applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
     to: 'idle',
     reason: 'pointer-leave',
   })
@@ -165,4 +200,9 @@ export function handleCanvasPointerLeave(options: {
   options.setDraftPrimitive(null)
   options.setHoveredShapeId(null)
   options.setPathSubSelectionHover(null)
+  options.recordInteractionDiagnostic?.({
+    kind: 'transform-rollback',
+    stage: 'pointer-leave',
+    reason: 'pointer-leave-cancel',
+  })
 }

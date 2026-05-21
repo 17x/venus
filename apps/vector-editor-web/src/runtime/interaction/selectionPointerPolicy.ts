@@ -1,5 +1,6 @@
 import type {DocumentNode} from '../model/index.ts'
-import {isPointInsideEngineShapeHitArea, isPointInsideRotatedBounds} from '@venus/engine'
+import {isPointInsideRuntimeShapeHitArea} from './runtimeHitTest.ts'
+import {isPointInsideRotatedBounds} from '@venus/lib'
 import {hasSelectedAncestorInDocument} from './selectionHierarchy.ts'
 import {withResolvedPathHints} from '../../runtime/interaction/pathHitTestHints.ts'
 
@@ -24,9 +25,8 @@ export function shouldClearSelectionOnPointerDown(
   }
 
   const tolerance = options.tolerance ?? 6
-  return !options.selectedNodes.some((shape) => isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(shape), {
+  return !options.selectedNodes.some((shape) => isPointInsideRuntimeShapeHitArea(pointer, withResolvedPathHints(shape), {
     tolerance,
-    shapeById: options.shapeById,
   }))
 }
 

@@ -1,6 +1,6 @@
 import type {CollaborationOperation} from '../collaboration.ts'
 import type {EditorRuntimeCommand} from '../protocol.ts'
-import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke} from './model.ts'
+import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, cloneTextRuns} from './model.ts'
 
 export function createLocalOperation(command: EditorRuntimeCommand, actorId: string): CollaborationOperation {
   return {
@@ -32,6 +32,7 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     if (Object.prototype.hasOwnProperty.call(command.patch, 'fill')) patchPayload.fill = cloneFill(command.patch.fill)
     if (Object.prototype.hasOwnProperty.call(command.patch, 'stroke')) patchPayload.stroke = cloneStroke(command.patch.stroke)
     if (Object.prototype.hasOwnProperty.call(command.patch, 'shadow')) patchPayload.shadow = cloneShadow(command.patch.shadow)
+    if (Object.prototype.hasOwnProperty.call(command.patch, 'textRuns')) patchPayload.textRuns = cloneTextRuns(command.patch.textRuns)
     if (Object.prototype.hasOwnProperty.call(command.patch, 'cornerRadius')) patchPayload.cornerRadius = command.patch.cornerRadius
     if (Object.prototype.hasOwnProperty.call(command.patch, 'cornerRadii')) patchPayload.cornerRadii = cloneCornerRadii(command.patch.cornerRadii)
     if (Object.prototype.hasOwnProperty.call(command.patch, 'ellipseStartAngle')) patchPayload.ellipseStartAngle = command.patch.ellipseStartAngle

@@ -52,7 +52,7 @@ export interface ShellCommandPayloadMap {
     ids: string[]
   }
   'element.modify': {
-    elementId: string
+    elementIds: string[]
     patch: Record<string, unknown>
   }
 }

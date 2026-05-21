@@ -39,16 +39,24 @@ export function resolveDragStartTransformPayload(
   }
 }
 
+/**
+ * Resolves one transform preview with optional move-snap policy applied.
+ * @param preview Current transform preview payload.
+ * @param options Handle/snapping/document context including optional tolerance override.
+ */
 export function resolveSnappedTransformPreview(
   preview: TransformPreview,
   options: {
     handle: TransformHandleKind | null | undefined
     snappingEnabled: boolean
     previewDocument: EditorDocument
+    snapToleranceWorld?: number
   },
 ): {preview: TransformPreview; guides: SnapGuide[]} {
   if (options.handle === 'move' && options.snappingEnabled) {
-    return resolveMoveSnapPreview(preview, options.previewDocument)
+    return resolveMoveSnapPreview(preview, options.previewDocument, {
+      tolerance: options.snapToleranceWorld,
+    })
   }
 
   return {preview, guides: [] as SnapGuide[]}

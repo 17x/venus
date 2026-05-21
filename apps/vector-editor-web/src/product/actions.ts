@@ -52,6 +52,11 @@ export const EDIT = {
     {id: 'elementMoveRight', disabled: false, editorAction: 'element-move-right', shortcut: 'arrowright'},
     {id: 'elementMoveDown', disabled: false, editorAction: 'element-move-down', shortcut: 'arrowdown'},
     {id: 'elementMoveLeft', disabled: false, editorAction: 'element-move-left', shortcut: 'arrowleft'},
+    {id: 'pathAnchorDelete', disabled: false, editorAction: 'path-anchor-delete', shortcut: 'shift+backspace'},
+    {id: 'pathAnchorToggleType', disabled: false, editorAction: 'path-anchor-toggle-type', shortcut: 'shift+s'},
+    {id: 'pathAnchorInsert', disabled: false, editorAction: 'path-anchor-insert', shortcut: 'shift+i'},
+    {id: 'pathSegmentSplit', disabled: false, editorAction: 'path-segment-split', shortcut: 'shift+d'},
+    {id: 'pathToggleClosed', disabled: false, editorAction: 'path-toggle-closed', shortcut: 'shift+c'},
     // {id: 'findReplace', editorAction: 'history-redo', shortcut: 'ctrl+f'},
   ],
 }

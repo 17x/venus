@@ -9,12 +9,13 @@ import {PropPanelShapeProps} from './PropPanelShapeProps.tsx'
 
 interface PropPanelProps {
   props?: SelectedElementProps
+  selectedIds?: string[]
   executeAction: EditorExecutor
   onMinimize?: VoidFunction
-  onPatchElementProps?: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+  onPatchElementProps?: (elementIds: string[], patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }
 
-const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: PropPanelProps) => {
+const PropPanel = ({props, selectedIds = [], executeAction, onMinimize, onPatchElementProps}: PropPanelProps) => {
   const {t} = useTranslation()
   const [localProps, setLocalProps] = useState(props)
 
@@ -31,6 +32,7 @@ const PropPanel = ({props, executeAction, onMinimize, onPatchElementProps}: Prop
         {localProps
           ? <PropPanelShapeProps
               props={localProps}
+              selectedIds={selectedIds}
               executeAction={executeAction}
               onPatchElementProps={onPatchElementProps}
             />

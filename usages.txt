@@ -1,0 +1,49 @@
+packages/engine/src/scheduler/renderScheduler.ts:} from "@venus/lib/scheduler";
+packages/engine/src/interaction/viewportPan.ts:} from "@venus/lib/viewport";
+packages/engine/src/interaction/viewportPan.ts:export { createViewportPanOrigin as createEngineViewportPanOrigin } from "@venus/lib/viewport";
+packages/engine/src/interaction/viewportPan.ts:export { accumulateWheelPanOffset as accumulateEngineWheelPanOffset } from "@venus/lib/viewport";
+packages/engine/src/interaction/viewportPan.ts:export { accumulatePointerPanOffset as accumulateEnginePointerPanOffset } from "@venus/lib/viewport";
+packages/engine/src/interaction/workerCapabilities.ts:} from "@venus/lib/worker";
+packages/engine/src/interaction/workerCapabilities.ts:export { resolveWorkerMode as resolveEngineWorkerMode } from "@venus/lib/worker";
+packages/engine/src/interaction/hitTest.ts:import { getNormalizedBoundsFromBox } from '@venus/lib/geometry'
+packages/engine/src/interaction/shapeTransform.ts:} from "@venus/lib";
+packages/engine/src/interaction/zoom.ts:} from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { DEFAULT_ZOOM_SESSION as DEFAULT_ENGINE_ZOOM_SESSION } from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { accumulateZoomSession as accumulateEngineZoomSession } from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { detectZoomInputSource as detectEngineZoomInputSource } from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { getZoomSettleDelay as getEngineZoomSettleDelay } from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { handleZoomWheel as handleEngineZoomWheel } from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { normalizeZoomDelta as normalizeEngineZoomDelta } from "@venus/lib/viewport";
+packages/engine/src/interaction/zoom.ts:export { resetZoomSession as resetEngineZoomSession } from "@venus/lib/viewport";
+packages/engine/src/interaction/geometryPayload/geometryPayloadPath.ts:import { sampleBezierPathPolygon } from '@venus/lib/geometry'
+packages/engine/src/interaction/hitTest/pathBezier.ts:import { sampleBezierPathPolygon as sampleBezierPathPolygonFromLib } from '@venus/lib/geometry'
+packages/engine/src/interaction/hitTest/matrix/matrix.ts:} from '@venus/lib/math'
+apps/vector-editor-web/src/runtime/viewport/types.ts:export type {CanvasViewportState} from '@venus/lib'
+apps/vector-editor-web/src/runtime/viewport/controller.ts:} from '@venus/lib'
+apps/vector-editor-web/src/runtime/viewport/matrix.ts:import type {Mat3} from '@venus/lib'
+apps/vector-editor-web/src/runtime/viewport/matrix.ts:export type {Mat3, Point2D} from '@venus/lib'
+apps/vector-editor-web/src/runtime/viewport/matrix.ts:export {applyMatrixToPoint} from '@venus/lib'
+apps/vector-editor-web/src/runtime/model/document-runtime/normalizedDocumentRuntime.ts:import {getNormalizedBoundsFromBox} from '@venus/lib/geometry'
+apps/vector-editor-web/src/runtime/model/nid.ts:export {createNid as nid} from '@venus/lib/ids'
+apps/vector-editor-web/src/runtime/model/nid.ts:export {createNid as default} from '@venus/lib/ids'
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:} from '@venus/lib/math'
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:import {getNormalizedBoundsFromBox as getNormalizedBoundsFromBoxFromLib} from '@venus/lib/geometry'
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so affine primitive ownership stays package-level.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so vector model keeps API shape without duplicating mechanism.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so scale matrix behavior is shared across packages.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so rotation matrix math remains single-source.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so matrix composition semantics stay consistent in runtime + engine.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so singular-matrix fallback behavior is centrally maintained.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so point transform math remains shared and deterministic.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so around-point composition does not drift between model/runtime usages.
+apps/vector-editor-web/src/runtime/model/geometry/geometry.ts:  // Delegate to @venus/lib so normalized bounds are produced by one package-owned implementation.
+apps/vector-editor-web/src/runtime/zoom/index.ts:} from '@venus/lib'
+apps/vector-editor-web/src/runtime/engine-bridge/engine.ts:} from '@venus/lib'
+apps/vector-editor-web/src/runtime/engine-bridge/engine.ts:import {createSingleFlightScheduler} from '@venus/lib/scheduler'
+apps/vector-editor-web/src/runtime/engine-bridge/engine.ts:import type {SchedulerMode} from '@venus/lib/scheduler'
+apps/vector-editor-web/src/runtime/worker/scope/patchBatch.ts:} from '@venus/lib/patch'
+apps/vector-editor-web/src/runtime/worker/scope/sceneSpatial.ts:} from '@venus/lib'
+apps/vector-editor-web/src/runtime/interaction/selectionPointerPolicy.ts:import {isPointInsideRotatedBounds} from '@venus/lib'
+apps/vector-editor-web/src/runtime/interaction/transformSessionManager.ts:} from '@venus/lib'
+apps/vector-editor-web/src/runtime/interaction/viewportGestures.ts:} from '@venus/lib'
+apps/vector-editor-web/src/product/runtime/shapeStyleHandles.ts:import {getNormalizedBoundsFromBox} from '@venus/lib'

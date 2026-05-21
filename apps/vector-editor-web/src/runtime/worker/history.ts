@@ -77,6 +77,56 @@ export type HistoryPatch =
         offsetY?: number
         blur?: number
       }
+      prevTextRuns?: {
+        start: number
+        end: number
+        style?: {
+          color?: string
+          fontFamily?: string
+          fontSize?: number
+          fontWeight?: number
+          letterSpacing?: number
+          lineHeight?: number
+          textAlign?: 'left' | 'center' | 'right'
+          verticalAlign?: 'top' | 'middle' | 'bottom'
+          shadow?: {
+            color?: string
+            offsetX?: number
+            offsetY?: number
+            blur?: number
+          }
+          paragraphIndentLeft?: number
+          paragraphIndentFirst?: number
+          paragraphIndentRight?: number
+          paragraphSpaceBeforeLine?: number
+          paragraphSpaceAfterLine?: number
+        }
+      }[]
+      nextTextRuns?: {
+        start: number
+        end: number
+        style?: {
+          color?: string
+          fontFamily?: string
+          fontSize?: number
+          fontWeight?: number
+          letterSpacing?: number
+          lineHeight?: number
+          textAlign?: 'left' | 'center' | 'right'
+          verticalAlign?: 'top' | 'middle' | 'bottom'
+          shadow?: {
+            color?: string
+            offsetX?: number
+            offsetY?: number
+            blur?: number
+          }
+          paragraphIndentLeft?: number
+          paragraphIndentFirst?: number
+          paragraphIndentRight?: number
+          paragraphSpaceBeforeLine?: number
+          paragraphSpaceAfterLine?: number
+        }
+      }[]
       prevCornerRadius?: number
       nextCornerRadius?: number
       prevCornerRadii?: {

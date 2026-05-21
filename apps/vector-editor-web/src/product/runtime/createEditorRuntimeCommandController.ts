@@ -11,6 +11,9 @@ import {
   resolveRuntimeCommandSideEffects,
 } from './commandResolvers.ts'
 import type {ShapeStyleHandleDrag} from './shapeStyleHandles.ts'
+import {applyRuntimeEditingModeTransition} from './runtimeEditingModeTransitionPolicy.ts'
+import {filterRuntimeSelectionCandidateIds} from './selectionFilterPolicy.ts'
+import type {RuntimeInteractionDiagnosticEvent} from './interactionDiagnosticPolicy.ts'
 
 /**
  * Declares dependencies required by the pure runtime command controller.
@@ -66,6 +69,8 @@ export interface EditorRuntimeCommandControllerOptions {
   setLastCommandType: (next: string | null) => void
   /** Publishes command-channel events through runtime interaction bridge. */
   dispatchRuntimeEvent: (event: import('./useEditorRuntimeInteractionBridge.ts').EditorRuntimeInteractionEvent) => void
+  /** Records runtime interaction diagnostics from command key paths. */
+  recordInteractionDiagnostic?: (event: RuntimeInteractionDiagnosticEvent) => void
 }
 
 /**
@@ -133,7 +138,15 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
         resolveHoveredFromPointer: true,
         outlineLevel: 'low',
       })
-      const hitShapeIds = geometryPayload.pointHitNodeIds
+      const hitShapeIds = filterRuntimeSelectionCandidateIds({
+        candidateIds: geometryPayload.pointHitNodeIds,
+        interactionDocument: options.interactionDocument,
+      })
+      options.recordInteractionDiagnostic?.({
+        kind: 'hit-candidate',
+        stage: 'selection-cycle',
+        candidateCount: hitShapeIds.length,
+      })
 
       if (hitShapeIds.length === 0) {
         options.add('No selectable shape found under the pointer.', 'info')
@@ -169,7 +182,7 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
       }
 
       options.setIsolationGroupId(nextGroupId)
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: 'isolatedGroupEditing',
         reason: 'group-isolation:enter',
         metadata: {groupId: nextGroupId},
@@ -179,7 +192,7 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
 
     if (command.type === 'group.exit-isolation') {
       options.setIsolationGroupId(null)
-      options.runtimeEditingModeControllerRef.current?.transition({
+      applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
         to: options.currentTool === 'dselector' ? 'directSelecting' : 'selecting',
         reason: 'group-isolation:exit',
       })

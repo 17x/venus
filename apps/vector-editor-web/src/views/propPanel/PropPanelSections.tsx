@@ -98,18 +98,153 @@ export function LayoutSection({props, patchNumericField}: SectionProps) {
 export function AppearanceSection(props: SectionProps & {
   currentFontFamily: string
   onChangeFontFamily: (nextFontFamily: string) => void
+  onChangeTextFontSize: (nextValue: number) => void
+  onChangeTextLineHeight: (nextValue: number) => void
+  onChangeTextLetterSpacing: (nextValue: number) => void
+  onChangeTextAlign: (nextValue: 'left' | 'center' | 'right') => void
+  onChangeTextVerticalAlign: (nextValue: 'top' | 'middle' | 'bottom') => void
+  onChangeParagraphIndentLeft: (nextValue: number) => void
+  onChangeParagraphIndentFirst: (nextValue: number) => void
+  onChangeParagraphIndentRight: (nextValue: number) => void
+  onChangeParagraphSpaceBefore: (nextValue: number) => void
+  onChangeParagraphSpaceAfter: (nextValue: number) => void
 }) {
   const {t} = useTranslation()
+  const mixedFields = props.props.mixedFields
+  const textRuns = Array.isArray((props.props as {textRuns?: unknown}).textRuns)
+    ? ((props.props as {textRuns?: unknown}).textRuns as Array<{style?: Record<string, unknown>}>)
+    : []
+  const firstRunStyle = (textRuns[0]?.style ?? {}) as Record<string, unknown>
+  const textFontSize = typeof firstRunStyle.fontSize === 'number' ? firstRunStyle.fontSize : 16
+  const textLineHeight = typeof firstRunStyle.lineHeight === 'number' ? firstRunStyle.lineHeight : 1.4
+  const textLetterSpacing = typeof firstRunStyle.letterSpacing === 'number' ? firstRunStyle.letterSpacing : 0
+  const textAlign = firstRunStyle.textAlign === 'center' || firstRunStyle.textAlign === 'right' ? firstRunStyle.textAlign : 'left'
+  const textVerticalAlign = firstRunStyle.verticalAlign === 'top' || firstRunStyle.verticalAlign === 'bottom' ? firstRunStyle.verticalAlign : 'middle'
+  const paragraphIndentLeft = typeof firstRunStyle.paragraphIndentLeft === 'number' ? firstRunStyle.paragraphIndentLeft : 0
+  const paragraphIndentFirst = typeof firstRunStyle.paragraphIndentFirst === 'number' ? firstRunStyle.paragraphIndentFirst : 0
+  const paragraphIndentRight = typeof firstRunStyle.paragraphIndentRight === 'number' ? firstRunStyle.paragraphIndentRight : 0
+  const paragraphSpaceBeforeLine = typeof firstRunStyle.paragraphSpaceBeforeLine === 'number' ? firstRunStyle.paragraphSpaceBeforeLine : 0
+  const paragraphSpaceAfterLine = typeof firstRunStyle.paragraphSpaceAfterLine === 'number' ? firstRunStyle.paragraphSpaceAfterLine : 0
 
   return (
     <SectionBlock title={t('inspector.properties.sections.appearance', 'Appearance')}>
       {props.props.type === 'text' &&
-        <FieldRow label={t('inspector.properties.fields.fontFamily', {defaultValue: 'Font'})}>
-          <PropPanelFontFamilyPicker
-            value={props.currentFontFamily}
-            onChange={props.onChangeFontFamily}
-          />
-        </FieldRow>}
+        <>
+          <FieldRow label={t('inspector.properties.fields.fontFamily', {defaultValue: 'Font'})}>
+            <PropPanelFontFamilyPicker
+              value={props.currentFontFamily}
+              onChange={props.onChangeFontFamily}
+            />
+          </FieldRow>
+          <div className={'grid grid-cols-2 gap-2'}>
+            <IconInputField
+              value={Number(textFontSize)}
+              min={1}
+              step={0.5}
+              title={t('inspector.properties.fields.fontSize', {defaultValue: 'Font Size'})}
+              leading={<span className={'text-[10px] font-semibold'}>Fs</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeTextFontSize(nextValue)
+              }}
+            />
+            <IconInputField
+              value={Number(textLineHeight)}
+              min={0.5}
+              step={0.05}
+              title={t('inspector.properties.fields.lineHeight', {defaultValue: 'Line Height'})}
+              leading={<span className={'text-[10px] font-semibold'}>Lh</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeTextLineHeight(nextValue)
+              }}
+            />
+          </div>
+          <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2'}>
+            <Select
+              className={EDITOR_TEXT_CONTROL_CLASS}
+              selectValue={textAlign}
+              onSelectChange={(nextValue) => {
+                props.onChangeTextAlign(String(nextValue) as 'left' | 'center' | 'right')
+              }}
+              placeholderResolver={(value) => String(value)}
+            >
+              <SelectItem value={'left'}>Left</SelectItem>
+              <SelectItem value={'center'}>Center</SelectItem>
+              <SelectItem value={'right'}>Right</SelectItem>
+            </Select>
+            <Select
+              className={EDITOR_TEXT_CONTROL_CLASS}
+              selectValue={textVerticalAlign}
+              onSelectChange={(nextValue) => {
+                props.onChangeTextVerticalAlign(String(nextValue) as 'top' | 'middle' | 'bottom')
+              }}
+              placeholderResolver={(value) => String(value)}
+            >
+              <SelectItem value={'top'}>Top</SelectItem>
+              <SelectItem value={'middle'}>Middle</SelectItem>
+              <SelectItem value={'bottom'}>Bottom</SelectItem>
+            </Select>
+          </div>
+          <div className={'grid grid-cols-2 gap-2'}>
+            <IconInputField
+              value={Number(textLetterSpacing)}
+              step={0.1}
+              title={t('inspector.properties.fields.letterSpacing', {defaultValue: 'Letter Spacing'})}
+              leading={<span className={'text-[10px] font-semibold'}>Ls</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeTextLetterSpacing(nextValue)
+              }}
+            />
+            <IconInputField
+              value={Number(paragraphIndentFirst)}
+              step={0.5}
+              title={t('inspector.properties.fields.paragraphIndentFirst', {defaultValue: 'First Indent'})}
+              leading={<span className={'text-[10px] font-semibold'}>Fi</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeParagraphIndentFirst(nextValue)
+              }}
+            />
+          </div>
+          <div className={'grid grid-cols-2 gap-2'}>
+            <IconInputField
+              value={Number(paragraphIndentLeft)}
+              step={0.5}
+              title={t('inspector.properties.fields.paragraphIndentLeft', {defaultValue: 'Indent Left'})}
+              leading={<span className={'text-[10px] font-semibold'}>Il</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeParagraphIndentLeft(nextValue)
+              }}
+            />
+            <IconInputField
+              value={Number(paragraphIndentRight)}
+              step={0.5}
+              title={t('inspector.properties.fields.paragraphIndentRight', {defaultValue: 'Indent Right'})}
+              leading={<span className={'text-[10px] font-semibold'}>Ir</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeParagraphIndentRight(nextValue)
+              }}
+            />
+          </div>
+          <div className={'grid grid-cols-2 gap-2'}>
+            <IconInputField
+              value={Number(paragraphSpaceBeforeLine)}
+              step={0.5}
+              title={t('inspector.properties.fields.paragraphSpaceBefore', {defaultValue: 'Space Before'})}
+              leading={<span className={'text-[10px] font-semibold'}>Sb</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeParagraphSpaceBefore(nextValue)
+              }}
+            />
+            <IconInputField
+              value={Number(paragraphSpaceAfterLine)}
+              step={0.5}
+              title={t('inspector.properties.fields.paragraphSpaceAfter', {defaultValue: 'Space After'})}
+              leading={<span className={'text-[10px] font-semibold'}>Sa</span>}
+              onChange={(nextValue: number) => {
+                props.onChangeParagraphSpaceAfter(nextValue)
+              }}
+            />
+          </div>
+        </>}
       <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px] items-center gap-2'}>
         <IconInputField
           value={Number(props.props.opacity ?? 1)}
@@ -133,12 +268,15 @@ export function AppearanceSection(props: SectionProps & {
           icon={<LuCircle size={14}/>}
         />
       </div>
+      {(mixedFields?.opacity || mixedFields?.cornerRadius) &&
+        <div className={'text-[10px] leading-4 text-slate-500'}>Mixed</div>}
     </SectionBlock>
   )
 }
 
 export function FillSection({props, patchElementProps}: SectionProps) {
   const {t} = useTranslation()
+  const mixedFields = props.mixedFields
   const fill = {
     enabled: props.fill?.enabled ?? true,
     color: props.fill?.color ?? '#000000',
@@ -150,6 +288,8 @@ export function FillSection({props, patchElementProps}: SectionProps) {
         label={t('inspector.properties.fields.fillColor', 'Fill')}
         enabled={fill.enabled}
         color={fill.color}
+        mixedEnabled={mixedFields?.fillEnabled}
+        mixedColor={mixedFields?.fillColor}
         onChangeEnabled={(enabled) => {
           patchElementProps({fill: {enabled, color: fill.color}})
         }}
@@ -166,6 +306,7 @@ export function StrokeSection(props: SectionProps & {
   onChangeStrokePosition: (nextPosition: string) => void
 }) {
   const {t} = useTranslation()
+  const mixedFields = props.props.mixedFields
   const stroke = {
     enabled: props.props.stroke?.enabled ?? true,
     color: props.props.stroke?.color ?? '#000000',
@@ -181,6 +322,8 @@ export function StrokeSection(props: SectionProps & {
         label={t('inspector.properties.fields.lineColor', 'Stroke')}
         enabled={stroke.enabled}
         color={stroke.color}
+        mixedEnabled={mixedFields?.strokeEnabled}
+        mixedColor={mixedFields?.strokeColor}
         onChangeEnabled={(enabled) => {
           props.patchElementProps({stroke: {enabled, color: stroke.color, weight: stroke.weight, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
         }}
@@ -314,6 +457,8 @@ export function EffectsSection({props, patchElementProps}: SectionProps) {
           patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: Number(nextValue)}})
         }}
       />
+      {(props.mixedFields?.shadowEnabled || props.mixedFields?.shadowColor || props.mixedFields?.shadowOffsetX || props.mixedFields?.shadowOffsetY || props.mixedFields?.shadowBlur) &&
+        <div className={'text-[10px] leading-4 text-slate-500'}>Mixed</div>}
     </SectionBlock>
   )
 }

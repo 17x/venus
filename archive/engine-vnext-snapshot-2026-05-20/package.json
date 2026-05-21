@@ -1,0 +1,25 @@
+{
+  "name": "@venus/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Canonical @venus/engine package after vNext cutover",
+  "scripts": {
+    "test": "node --import tsx --test src/testing/*.test.ts src/testing/*.test.mjs",
+    "cr:check": "node ./scripts/check-change-request.mjs",
+    "dashboard:update": "node ./scripts/update-program-dashboard.mjs",
+    "policy:replay": "node ./scripts/policy-replay.mjs",
+    "debug:guard": "node ./scripts/check-debug-settings-release.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@venus/lib": "workspace:*",
+    "@venus/engine-legacy": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0",
+    "tsx": "^4.21.0"
+  }
+}

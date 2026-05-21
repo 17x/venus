@@ -4,6 +4,7 @@ import type {
   EditorExecutor,
   SelectedElementProps,
 } from '../../product/useEditorRuntime/types.ts'
+import type {TextStyle} from '../../runtime/types/index.ts'
 import {EDITOR_TEXT_PANEL_BODY_CLASS} from '../editorChrome/editorTypography.ts'
 import {
   AppearanceSection,
@@ -22,12 +23,14 @@ import { Separator } from '../../ui/kit/components/ui/separator.tsx'
 
 interface PropPanelShapePropsProps {
   props: SelectedElementProps
+  selectedIds: string[]
   executeAction: EditorExecutor
-  onPatchElementProps?: (elementId: string, patch: Record<string, unknown>, meta: ShellCommandMeta) => void
+  onPatchElementProps?: (elementIds: string[], patch: Record<string, unknown>, meta: ShellCommandMeta) => void
 }
 
 export function PropPanelShapeProps({
   props,
+  selectedIds,
   executeAction,
   onPatchElementProps,
 }: PropPanelShapePropsProps) {
@@ -49,8 +52,10 @@ export function PropPanelShapeProps({
       return
     }
 
+    const targetIds = selectedIds.length > 0 ? selectedIds : [props.id]
+
     if (onPatchElementProps) {
-      onPatchElementProps(props.id, sanitizedNextProps as Record<string, unknown>, {
+      onPatchElementProps(targetIds, sanitizedNextProps as Record<string, unknown>, {
         sourcePanel: 'properties-panel',
         sourceControl: 'property-field-input',
         commitType: 'final',
@@ -58,10 +63,10 @@ export function PropPanelShapeProps({
       return
     }
 
-    executeAction('element-modify', [{
-      id: props.id,
+    executeAction('element-modify', targetIds.map((id) => ({
+      id,
       props: sanitizedNextProps,
-    }])
+    })))
   }
 
   const patchNumericField = (field: keyof SelectedElementProps, nextValue: number) => {
@@ -84,6 +89,16 @@ export function PropPanelShapeProps({
   }, [props])
 
   const applyTextFontFamily = (nextFontFamily: string) => {
+    applyTextRunStylePatch({
+      fontFamily: nextFontFamily,
+    })
+  }
+
+  /**
+   * Applies one text style patch to every current text run.
+   * @param nextStylePatch Text style fields to merge into each run style.
+   */
+  function applyTextRunStylePatch(nextStylePatch: Partial<TextStyle>) {
     if (props.type !== 'text') {
       return
     }
@@ -105,13 +120,35 @@ export function PropPanelShapeProps({
       end: typeof run.end === 'number' ? run.end : fallbackRunLength,
       style: {
         ...(run.style ?? {}),
-        fontFamily: nextFontFamily,
+        ...nextStylePatch,
       },
     }))
 
     patchElementProps({
       textRuns: nextRuns,
     } as Partial<SelectedElementProps>)
+  }
+
+  /**
+   * Applies one numeric text style field across all current text runs.
+   * @param key Target text style key.
+   * @param value Next numeric value.
+   */
+  function applyTextRunNumericStyle<K extends keyof TextStyle>(key: K, value: number) {
+    applyTextRunStylePatch({
+      [key]: value,
+    } as Partial<TextStyle>)
+  }
+
+  /**
+   * Applies one string text style field across all current text runs.
+   * @param key Target text style key.
+   * @param value Next string value.
+   */
+  function applyTextRunStringStyle<K extends keyof TextStyle>(key: K, value: string) {
+    applyTextRunStylePatch({
+      [key]: value,
+    } as Partial<TextStyle>)
   }
 
   return (
@@ -125,6 +162,36 @@ export function PropPanelShapeProps({
         patchElementProps={patchElementProps}
         currentFontFamily={currentFontFamily}
         onChangeFontFamily={applyTextFontFamily}
+        onChangeTextFontSize={(nextValue) => {
+          applyTextRunNumericStyle('fontSize', nextValue)
+        }}
+        onChangeTextLineHeight={(nextValue) => {
+          applyTextRunNumericStyle('lineHeight', nextValue)
+        }}
+        onChangeTextLetterSpacing={(nextValue) => {
+          applyTextRunNumericStyle('letterSpacing', nextValue)
+        }}
+        onChangeTextAlign={(nextValue) => {
+          applyTextRunStringStyle('textAlign', nextValue)
+        }}
+        onChangeTextVerticalAlign={(nextValue) => {
+          applyTextRunStringStyle('verticalAlign', nextValue)
+        }}
+        onChangeParagraphIndentLeft={(nextValue) => {
+          applyTextRunNumericStyle('paragraphIndentLeft', nextValue)
+        }}
+        onChangeParagraphIndentFirst={(nextValue) => {
+          applyTextRunNumericStyle('paragraphIndentFirst', nextValue)
+        }}
+        onChangeParagraphIndentRight={(nextValue) => {
+          applyTextRunNumericStyle('paragraphIndentRight', nextValue)
+        }}
+        onChangeParagraphSpaceBefore={(nextValue) => {
+          applyTextRunNumericStyle('paragraphSpaceBeforeLine', nextValue)
+        }}
+        onChangeParagraphSpaceAfter={(nextValue) => {
+          applyTextRunNumericStyle('paragraphSpaceAfterLine', nextValue)
+        }}
       />
       <FillSection props={props} patchNumericField={patchNumericField} patchElementProps={patchElementProps}/>
       <StrokeSection

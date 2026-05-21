@@ -1,17 +1,17 @@
 import {
-  DEFAULT_ENGINE_ZOOM_SESSION,
-  accumulateEngineZoomSession,
-  detectEngineZoomInputSource,
-  getEngineZoomSettleDelay,
-  handleEngineZoomWheel,
-  normalizeEngineZoomDelta,
-  resetEngineZoomSession,
-  type EngineNormalizedZoomDelta,
-  type EngineZoomInputSource,
-  type EngineZoomSessionState,
-  type EngineZoomWheelInput,
-  type EngineZoomWheelResult,
-} from '@venus/engine'
+  DEFAULT_ZOOM_SESSION as DEFAULT_ENGINE_ZOOM_SESSION,
+  accumulateZoomSession as accumulateEngineZoomSession,
+  detectZoomInputSource as detectEngineZoomInputSource,
+  getZoomSettleDelay as getEngineZoomSettleDelay,
+  handleZoomWheel as handleEngineZoomWheel,
+  normalizeZoomDelta as normalizeEngineZoomDelta,
+  resetZoomSession as resetEngineZoomSession,
+  type NormalizedZoomDelta as EngineNormalizedZoomDelta,
+  type ZoomInputSource as EngineZoomInputSource,
+  type ZoomSessionState as EngineZoomSessionState,
+  type ZoomWheelInput as EngineZoomWheelInput,
+  type ZoomWheelResult as EngineZoomWheelResult,
+} from '@venus/lib'
 
 // Runtime zoom API preserves historical names while delegating mechanism logic to engine.
 export type ZoomWheelInput = EngineZoomWheelInput

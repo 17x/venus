@@ -1,9 +1,8 @@
 import { type EditorDocument } from '../model/index.ts'
 import {
-  isPointInsideEngineClipShape,
-  isPointInsideEngineShapeHitArea,
-  resolveEngineWorkerMode,
-} from '@venus/engine'
+  isPointInsideRuntimeClipShape,
+  isPointInsideRuntimeShapeHitArea,
+} from '../interaction/runtimeHitTest.ts'
 import type {
   CollaborationOperation,
   CollaborationState,
@@ -149,11 +148,10 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   let started = false
 
   const listeners = new Set<VoidFunction>()
-  const workerModeResolution = resolveEngineWorkerMode({
-    preferWorker: true,
-    preferSharedMemory: true,
+  const sabSupported = typeof SharedArrayBuffer !== 'undefined'
+  const workerModeResolution = resolveRuntimeWorkerMode({
+    hasSharedArrayBuffer: sabSupported,
   })
-  const sabSupported = workerModeResolution.mode === 'worker-shared-memory'
 
   // `snapshot` is the single mutable runtime record. React hooks subscribe to
   // controller updates and receive shallow-copied views of this object.
@@ -444,6 +442,24 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 }
 
+/**
+ * Resolves worker mode metadata locally so runtime diagnostics preserve mode reason.
+ * @param options SharedArrayBuffer capability sampled from current runtime.
+ */
+function resolveRuntimeWorkerMode(options: {hasSharedArrayBuffer: boolean}) {
+  if (options.hasSharedArrayBuffer) {
+    return {
+      mode: 'worker-shared-memory',
+      reason: 'shared-array-buffer-enabled',
+    }
+  }
+
+  return {
+    mode: 'worker-message',
+    reason: 'shared-array-buffer-unavailable',
+  }
+}
+
 function hitTestSnapshot(
   document: EditorDocument,
   shapes: SceneShapeSnapshot[],
@@ -464,18 +480,14 @@ function hitTestSnapshot(
     }
     if (source.clipPathId) {
       const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideEngineClipShape(pointer, withResolvedPathHints(clipSource), {
-        tolerance: 1.5,
-        shapeById,
-      })) {
+      if (clipSource && !isPointInsideRuntimeClipShape(pointer, withResolvedPathHints(clipSource))) {
         continue
       }
     }
-    if (isPointInsideEngineShapeHitArea(pointer, withResolvedPathHints(source), {
+    if (isPointInsideRuntimeShapeHitArea(pointer, withResolvedPathHints(source), {
       allowFrameSelection,
       tolerance: HIT_TEST_TOLERANCE,
       strictStrokeHitTest,
-      shapeById,
     })) {
       return index
     }

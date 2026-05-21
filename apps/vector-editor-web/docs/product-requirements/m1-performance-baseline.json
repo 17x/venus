@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-05-21T09:13:18.540Z",
+  "reportRunCount": 1,
+  "percentileWindow": {
+    "p50": 0.5,
+    "p95": 0.95
+  },
+  "scenes": [
+    {
+      "name": "100k",
+      "scale": "large",
+      "runSampleCount": 1,
+      "frameTimeMsP50": 19.6,
+      "frameTimeMsP95": 19.6,
+      "hitTestMsP50": 3.7,
+      "hitTestMsP95": 3.7,
+      "cacheHitRateP50": 0.73,
+      "cacheHitRateP95": 0.73,
+      "visibleCandidateCountP50": 30100,
+      "visibleCandidateCountP95": 30100,
+      "cacheHitRate": 0.73,
+      "visibleCandidateCount": 30100
+    },
+    {
+      "name": "10k",
+      "scale": "small",
+      "runSampleCount": 1,
+      "frameTimeMsP50": 11.2,
+      "frameTimeMsP95": 11.2,
+      "hitTestMsP50": 1.6,
+      "hitTestMsP95": 1.6,
+      "cacheHitRateP50": 0.84,
+      "cacheHitRateP95": 0.84,
+      "visibleCandidateCountP50": 9100,
+      "visibleCandidateCountP95": 9100,
+      "cacheHitRate": 0.84,
+      "visibleCandidateCount": 9100
+    },
+    {
+      "name": "50k",
+      "scale": "medium",
+      "runSampleCount": 1,
+      "frameTimeMsP50": 14.8,
+      "frameTimeMsP95": 14.8,
+      "hitTestMsP50": 2.9,
+      "hitTestMsP95": 2.9,
+      "cacheHitRateP50": 0.79,
+      "cacheHitRateP95": 0.79,
+      "visibleCandidateCountP50": 17900,
+      "visibleCandidateCountP95": 17900,
+      "cacheHitRate": 0.79,
+      "visibleCandidateCount": 17900
+    },
+    {
+      "name": "mixed(text/image/path)",
+      "scale": "mixed",
+      "runSampleCount": 1,
+      "frameTimeMsP50": 15.1,
+      "frameTimeMsP95": 15.1,
+      "hitTestMsP50": 3.1,
+      "hitTestMsP95": 3.1,
+      "cacheHitRateP50": 0.76,
+      "cacheHitRateP95": 0.76,
+      "visibleCandidateCountP50": 21300,
+      "visibleCandidateCountP95": 21300,
+      "cacheHitRate": 0.76,
+      "visibleCandidateCount": 21300
+    }
+  ]
+}

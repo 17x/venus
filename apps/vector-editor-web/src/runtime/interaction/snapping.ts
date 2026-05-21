@@ -1,40 +1,140 @@
-import {
-  resolveEngineMoveSnapPreview,
-  type EngineMoveSnapOptions,
-  type EngineMoveSnapPreview,
-  type EngineSnapAxis,
-  type EngineSnapGuide,
-  type EngineSnapGuideLine,
-} from '@venus/engine'
 // Keep runtime interaction independent from top-level facade exports.
 import {applyMatrixToPoint, type Mat3} from '../viewport/matrix.ts'
 import type {TransformPreview} from './transformSessionManager.ts'
 
-export type SnapAxis = EngineSnapAxis
-export type SnapGuide = EngineSnapGuide
-export type MoveSnapOptions = EngineMoveSnapOptions
+/** Declares snap axis values used by vector guide rendering. */
+export type SnapAxis = 'x' | 'y'
+/** Declares one snap guide emitted by local move-snap resolver. */
+export interface SnapGuide {
+  /** Stores snapped axis for the guide. */
+  axis: SnapAxis
+  /** Stores guide semantic kind used by overlay rendering. */
+  kind: 'edge-min' | 'edge-max' | 'center'
+  /** Stores snapped world coordinate value on guide axis. */
+  value: number
+}
 
-export type SnapGuideLine = EngineSnapGuideLine
+/** Declares optional options accepted by local move-snap resolver. */
+export interface MoveSnapOptions {
+  /** Stores snap tolerance in world units. */
+  tolerance?: number
+}
+
+/** Declares one rendered snap guide line in viewport space. */
+export interface SnapGuideLine {
+  /** Stores stable guide line id for keyed rendering. */
+  id: string
+  /** Stores start x coordinate. */
+  x1: number
+  /** Stores start y coordinate. */
+  y1: number
+  /** Stores end x coordinate. */
+  x2: number
+  /** Stores end y coordinate. */
+  y2: number
+}
 
 /**
- * Runtime-interaction keeps the document-aware adapter for compatibility,
- * while engine owns the move-snap solving mechanism.
+ * Resolves snapped preview + guide list using vector-local move snapping.
+ * @param preview Current transform preview payload.
+ * @param document Current document shape list for static snap targets.
+ * @param options Optional snap tolerance configuration.
  */
 export function resolveMoveSnapPreview(
   preview: TransformPreview,
   document: {shapes: Array<{id: string; x: number; y: number; width: number; height: number}>},
   options?: MoveSnapOptions,
 ): {preview: TransformPreview; guides: SnapGuide[]} {
-  const result = resolveEngineMoveSnapPreview(
-    preview as EngineMoveSnapPreview,
-    document,
-    options,
+  if (preview.shapes.length === 0) {
+    return {preview, guides: []}
+  }
+
+  const movingShapeIds = new Set(preview.shapes.map((shape) => shape.shapeId))
+  const staticShapes = document.shapes.filter((shape) => !movingShapeIds.has(shape.id))
+  if (staticShapes.length === 0) {
+    return {preview, guides: []}
+  }
+
+  const tolerance = Math.max(0, options?.tolerance ?? 4)
+  const previewBounds = preview.shapes.map((shape) => ({
+    id: shape.shapeId,
+    ...normalizeBounds(shape),
+  }))
+
+  const bestX = resolveBestAxisSnap(
+    previewBounds.flatMap((shape) => [
+      {kind: 'edge-min' as const, value: shape.minX},
+      {kind: 'center' as const, value: (shape.minX + shape.maxX) / 2},
+      {kind: 'edge-max' as const, value: shape.maxX},
+    ]),
+    staticShapes.flatMap((shape) => {
+      const bounds = normalizeBounds(shape)
+      return [bounds.minX, (bounds.minX + bounds.maxX) / 2, bounds.maxX]
+    }),
+    tolerance,
+  )
+  const bestY = resolveBestAxisSnap(
+    previewBounds.flatMap((shape) => [
+      {kind: 'edge-min' as const, value: shape.minY},
+      {kind: 'center' as const, value: (shape.minY + shape.maxY) / 2},
+      {kind: 'edge-max' as const, value: shape.maxY},
+    ]),
+    staticShapes.flatMap((shape) => {
+      const bounds = normalizeBounds(shape)
+      return [bounds.minY, (bounds.minY + bounds.maxY) / 2, bounds.maxY]
+    }),
+    tolerance,
   )
 
-  return {
-    preview: result.preview as TransformPreview,
-    guides: result.guides,
+  const snappedPreview: TransformPreview = {
+    shapes: preview.shapes.map((shape) => ({
+      ...shape,
+      x: shape.x + (bestX?.delta ?? 0),
+      y: shape.y + (bestY?.delta ?? 0),
+    })),
   }
+
+  const guides: SnapGuide[] = []
+  if (bestX) {
+    guides.push({axis: 'x', kind: bestX.kind, value: bestX.target})
+  }
+  if (bestY) {
+    guides.push({axis: 'y', kind: bestY.kind, value: bestY.target})
+  }
+
+  return {
+    preview: snappedPreview,
+    guides,
+  }
+}
+
+/**
+ * Resolves the best snap delta for one axis from moving/static anchor sets.
+ * @param movingAnchors Moving-shape anchors along one axis.
+ * @param staticAnchors Static-shape anchors along one axis.
+ * @param tolerance Maximum snap distance.
+ */
+function resolveBestAxisSnap(
+  movingAnchors: Array<{kind: 'edge-min' | 'edge-max' | 'center'; value: number}>,
+  staticAnchors: number[],
+  tolerance: number,
+) {
+  let best: {delta: number; target: number; kind: 'edge-min' | 'edge-max' | 'center'} | null = null
+
+  for (const moving of movingAnchors) {
+    for (const target of staticAnchors) {
+      const delta = target - moving.value
+      const absDelta = Math.abs(delta)
+      if (absDelta > tolerance) {
+        continue
+      }
+      if (!best || absDelta < Math.abs(best.delta)) {
+        best = {delta, target, kind: moving.kind}
+      }
+    }
+  }
+
+  return best
 }
 
 export function resolveSnapGuideLines(options: {

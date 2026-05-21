@@ -61,6 +61,7 @@ export function resolveElementModifyCommands(input: {
     fill?: DocumentNode['fill']
     stroke?: DocumentNode['stroke']
     shadow?: DocumentNode['shadow']
+    textRuns?: DocumentNode['textRuns']
     cornerRadius?: number
     cornerRadii?: DocumentNode['cornerRadii']
     ellipseStartAngle?: number
@@ -94,6 +95,19 @@ export function resolveElementModifyCommands(input: {
           ...(input.shape.shadow ?? {}),
           ...(incoming as Record<string, unknown>),
         }
+      : undefined
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input.props, 'textRuns')) {
+    const incoming = input.props.textRuns
+    stylePatch.textRuns = Array.isArray(incoming)
+      ? incoming.map((run) => ({
+          start: Number(run.start ?? 0),
+          end: Number(run.end ?? 0),
+          style: run.style && typeof run.style === 'object'
+            ? {...run.style}
+            : undefined,
+        }))
       : undefined
   }
 

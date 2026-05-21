@@ -7,7 +7,6 @@ import type {
 import {createEngine} from '../../engine.ts'
 import {buildDocumentImageAssetUrlMap} from '../../../presets/index.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
-import {createEngineStatsHandler} from './createEngineStatsHandler.ts'
 import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 
 const ENABLE_RUNTIME_RENDER_DIAGNOSTICS = true
@@ -146,106 +145,27 @@ export function useEngineRendererLifecycle(params: {
       return
     }
 
-    const onStats = createEngineStatsHandler({
-      drawSerialRef: params.drawSerialRef,
-      renderSchedulerRef: params.renderSchedulerRef,
-      engineRef: params.engineRef as React.MutableRefObject<{
-        getDiagnostics: () => {
-          pixelRatio: number
-          outputPixelRatio: number
-          framePlan?: {
-            planVersion?: number
-            candidateCount?: number
-            sceneNodeCount?: number
-          }
-          hitPlan?: {
-            planVersion?: number
-            candidateCount?: number
-            hitCount?: number
-            exactCheckCount?: number
-          }
-          shortlist?: {
-            active?: boolean
-            candidateRatio?: number
-            appliedCandidateCount?: number
-            pendingState?: boolean | null
-            pendingFrameCount?: number
-            toggleCount?: number
-            debounceBlockedToggleCount?: number
-            enterRatioThreshold?: number
-            leaveRatioThreshold?: number
-            stableFrameCount?: number
-          }
-        }
-      } | null>,
-      runtimeStageTimingMsRef: params.runtimeStageTimingMsRef,
-      renderRequestStatsRef: params.renderRequestStatsRef,
-      lastPlanDiagnosticSampleAtRef: params.lastPlanDiagnosticSampleAtRef,
-      latestPlanDiagnosticsRef: params.latestPlanDiagnosticsRef,
-      latestRenderPrepStatsRef: params.latestRenderPrepStatsRef,
-      lastZeroVisibilityDebugFrameRef: params.lastZeroVisibilityDebugFrameRef,
-      sceneApplyDebugRef: params.sceneApplyDebugRef,
-      deferredVisualRecoveryPendingRef: params.deferredVisualRecoveryPendingRef,
-      requestDeferredVisualRecovery: params.requestDeferredVisualRecovery,
-      presentLatencyRafPendingRef: params.presentLatencyRafPendingRef,
-      requestEngineRender: params.requestEngineRender,
-    })
-    const engineOnStats = onStats as NonNullable<
-      NonNullable<Parameters<typeof createEngine>[0]['debug']>['onStats']
-    >
-
     const engine = createEngine({
-      canvas: renderSurface,
-      settings: VECTOR_ENGINE_SCENE_PROFILE.settings,
-      spatial: VECTOR_ENGINE_SCENE_PROFILE.spatial,
-      host: {
-        resolvePixelRatio: () => window.devicePixelRatio || 1,
-        createCanvasSurface: (width: number, height: number) => {
-          const element = window.document.createElement('canvas')
-          element.width = width
-          element.height = height
-          return element
-        },
-      },
-      render: {
-        backend: VECTOR_ENGINE_SCENE_PROFILE.render.backend,
-        webglClearColor: [1, 1, 1, 1],
-        layeredBridgeEnabled: true,
-        modelCompleteComposite: VECTOR_ENGINE_SCENE_PROFILE.render.modelCompleteComposite,
-        interactionPreview: VECTOR_ENGINE_SCENE_PROFILE.render.interactionPreview,
-      },
-      resource: {
-        loader: {
-          resolveImage: (assetId: string) => {
-            const src = params.assetUrlByIdRef.current.get(assetId)
-            if (!src) {
-              return null
+      backend: VECTOR_ENGINE_SCENE_PROFILE.render.backend,
+      surface: {
+        width: Math.max(1, renderSurface.clientWidth || renderSurface.width || 1),
+        height: Math.max(1, renderSurface.clientHeight || renderSurface.height || 1),
+        canvas: {
+          width: renderSurface.width,
+          height: renderSurface.height,
+          getContext: (contextId) => {
+            if (contextId === '2d') {
+              return renderSurface.getContext('2d')
             }
-
-            const cached = params.imageCacheRef.current.get(src)
-            if (cached) {
-              return cached.complete && cached.naturalWidth > 0
-                ? cached
-                : null
+            if (contextId === 'webgl') {
+              return renderSurface.getContext('webgl')
             }
-
-            const image = new Image()
-            image.decoding = 'async'
-            image.onload = () => {
-              params.requestDeferredVisualRecovery()
-            }
-            image.onerror = () => {
-              params.imageCacheRef.current.delete(src)
-            }
-            image.src = src
-            params.imageCacheRef.current.set(src, image)
-            return null
+            return renderSurface.getContext('webgl2')
           },
         },
       },
-      debug: {
-        onStats: ENABLE_RUNTIME_RENDER_DIAGNOSTICS ? engineOnStats : undefined,
-      },
+      // AI-TEMP: keep debug wiring on boolean contract during hard-cut; remove when engine exposes typed diagnostics subscription replacing compat onStats callback; ref ai/operations/vector-engine-vnext-feasibility-2026-05-21.md
+      debug: ENABLE_RUNTIME_RENDER_DIAGNOSTICS,
     })
     params.engineRef.current = engine
     params.hasLoadedSceneInEngineRef.current = false

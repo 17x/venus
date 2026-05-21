@@ -27,6 +27,13 @@ import {
   resolveMarqueeControlSizing,
   resolveMarqueeTransformHandleAtPoint,
 } from '../transformInteractionPolicy.ts'
+import {resolveShapeStyleDragFromBehavior} from './shapeStyleDragResolver.ts'
+import {applyRuntimeEditingModeTransition} from '../runtimeEditingModeTransitionPolicy.ts'
+import {
+  resolveRuntimeHitPriorityPlan,
+  resolveRuntimePointerSelectorPhase,
+} from '../hitPriorityPolicy.ts'
+import {filterRuntimeSelectionCandidateIds} from '../selectionFilterPolicy.ts'
 import type {
   EditorRuntimeCanvasInteractionControllerOptions,
   EditorRuntimeCanvasInteractionControllerState,
@@ -54,7 +61,11 @@ function resolveHoveredMarqueeHandle(
   })
 }
 
-// Resolve element-specific style-handle hover hit through overlay control model.
+/**
+ * Resolves element-specific style-handle hover hit through overlay control model.
+ * @param point Pointer world position.
+ * @param options Canvas interaction controller options.
+ */
 function resolveHoveredShapeStyleHandle(
   point: {x: number; y: number},
   options: EditorRuntimeCanvasInteractionControllerOptions,
@@ -101,38 +112,7 @@ function resolveHoveredShapeStyleHandle(
     pointer: point,
     model: overlayModel,
   })
-  const dragBehavior = hit?.control.dragBehavior
-  const payload = dragBehavior?.payload as Record<string, unknown> | undefined
-
-  if (dragBehavior?.kind === 'rect-radius' && payload && typeof payload.shapeId === 'string' && typeof payload.corner === 'string') {
-    if (payload.corner !== 'topLeft' && payload.corner !== 'topRight' && payload.corner !== 'bottomRight' && payload.corner !== 'bottomLeft') {
-      return null
-    }
-    return {
-      kind: 'rect-radius',
-      payload: {
-        shapeId: payload.shapeId,
-        corner: payload.corner,
-        point,
-      },
-    }
-  }
-
-  if (dragBehavior?.kind === 'arc-angle' && payload && typeof payload.shapeId === 'string' && typeof payload.boundary === 'string') {
-    if (payload.boundary !== 'start' && payload.boundary !== 'end') {
-      return null
-    }
-    return {
-      kind: 'ellipse-arc',
-      payload: {
-        shapeId: payload.shapeId,
-        boundary: payload.boundary,
-        point,
-      },
-    }
-  }
-
-  return null
+  return resolveShapeStyleDragFromBehavior(hit?.control.dragBehavior, point)
 }
 
 /**
@@ -183,6 +163,7 @@ export function createPointerMoveHandler(
         transformManagerRef: options.transformManagerRef,
         snappingEnabled: options.snappingEnabled,
         previewDocument: options.interactionDocument,
+        viewportScale: options.canvasRuntime.viewport.scale,
         setSnapGuides: options.setSnapGuides,
         setTransformPreview: options.setTransformPreview,
       })
@@ -283,7 +264,7 @@ export function createPointerMoveHandler(
               startBounds: dragStartState.startBounds,
             })
             options.setActiveTransformHandle(dragStartState.activeTransformHandle)
-            options.runtimeEditingModeControllerRef.current?.transition({
+            applyRuntimeEditingModeTransition(options.runtimeEditingModeControllerRef.current, {
               to: dragStartState.nextEditingMode,
               reason: dragStartState.transitionReason,
             })
@@ -298,6 +279,7 @@ export function createPointerMoveHandler(
           transformManagerRef: options.transformManagerRef,
           snappingEnabled: options.snappingEnabled,
           previewDocument: options.interactionDocument,
+          viewportScale: options.canvasRuntime.viewport.scale,
           setSnapGuides: options.setSnapGuides,
           setTransformPreview: options.setTransformPreview,
         })
@@ -316,38 +298,54 @@ export function createPointerMoveHandler(
       )
       controllerState.pointerSelectorState = pointerSelectorMove.state
       options.setSelectorOverlayItems(pointerSelectorMove.overlays)
-      if (pointerSelectorMove.state.phase === 'marquee') {
+      const pointerMoveHitPriority = resolveRuntimeHitPriorityPlan({
+        tool: options.currentTool,
+        stage: 'pointer-move',
+        pointerSelectorPhase: resolveRuntimePointerSelectorPhase(pointerSelectorMove.state.phase),
+      })
+
+      if (pointerMoveHitPriority.lanes.includes('overlay') && pointerSelectorMove.state.phase === 'marquee') {
         clearHoveredTransformHandle()
         clearHoveredShape()
         clearSnapGuides()
         return
       }
 
-      const hoveredMarqueeHandle = resolveHoveredMarqueeHandle(point, options)
-      if (hoveredMarqueeHandle) {
-        options.setHoveredTransformHandle((current) => (current === hoveredMarqueeHandle ? current : hoveredMarqueeHandle))
-        // Keep selected hover outline alive while marquee handles are active
-        // so marquee and element outline can render together (group handled in renderer).
-        const hoveredSelectionPayload = options.canvasRuntime.requestEngineGeometry({
-          pointer: point,
-          tolerance: adaptiveHitTolerance.worldPx,
-          clipTolerance: Math.max(0.5, adaptiveHitTolerance.worldPx * 0.25),
-          allowFrameSelection: false,
-          excludeClipBoundImage: true,
-          strictStrokeHitTest: false,
-          resolveHoveredFromPointer: true,
-          outlineLevel: 'low',
-        })
-        const selectedIdSet = new Set(options.selectedShapeIds)
-        const hoveredSelectedId = hoveredSelectionPayload.pointHitNodeIds.find((id: string) => selectedIdSet.has(id)) ?? null
-        setHoveredShape(hoveredSelectedId)
-        return
+      if (pointerMoveHitPriority.lanes.includes('control-point')) {
+        const hoveredMarqueeHandle = resolveHoveredMarqueeHandle(point, options)
+        if (hoveredMarqueeHandle) {
+          options.setHoveredTransformHandle((current) => (current === hoveredMarqueeHandle ? current : hoveredMarqueeHandle))
+          // Keep selected hover outline alive while marquee handles are active
+          // so marquee and element outline can render together (group handled in renderer).
+          const hoveredSelectionPayload = options.canvasRuntime.requestEngineGeometry({
+            pointer: point,
+            tolerance: adaptiveHitTolerance.worldPx,
+            clipTolerance: Math.max(0.5, adaptiveHitTolerance.worldPx * 0.25),
+            allowFrameSelection: false,
+            excludeClipBoundImage: true,
+            strictStrokeHitTest: false,
+            resolveHoveredFromPointer: true,
+            outlineLevel: 'low',
+          })
+          const selectedIdSet = new Set(options.selectedShapeIds)
+          const hoveredSelectedId = filterRuntimeSelectionCandidateIds({
+            candidateIds: hoveredSelectionPayload.pointHitNodeIds,
+            interactionDocument: options.interactionDocument,
+          }).find((id: string) => selectedIdSet.has(id)) ?? null
+          setHoveredShape(hoveredSelectedId)
+          return
+        }
+
+        const hoveredShapeStyleHandle = resolveHoveredShapeStyleHandle(point, options)
+        if (hoveredShapeStyleHandle) {
+          // Style handles should suppress regular hover hits while pointer is over control dots.
+          clearHoveredTransformHandle()
+          clearHoveredShape()
+          return
+        }
       }
 
-      const hoveredShapeStyleHandle = resolveHoveredShapeStyleHandle(point, options)
-      if (hoveredShapeStyleHandle) {
-        // Style handles should suppress regular hover hits while pointer is over control dots.
-        clearHoveredTransformHandle()
+      if (!pointerMoveHitPriority.lanes.includes('object')) {
         clearHoveredShape()
         return
       }
@@ -414,6 +412,15 @@ export function createPointerMoveHandler(
       resolveHoveredFromPointer: true,
       outlineLevel: 'low',
     })
-    setHoveredShape(hoverGeometryPayload.pointHitNodeIds[0] ?? null)
+    const filteredHoverIds = filterRuntimeSelectionCandidateIds({
+      candidateIds: hoverGeometryPayload.pointHitNodeIds,
+      interactionDocument: options.interactionDocument,
+    })
+    options.recordInteractionDiagnostic?.({
+      kind: 'hit-candidate',
+      stage: 'pointer-move',
+      candidateCount: filteredHoverIds.length,
+    })
+    setHoveredShape(filteredHoverIds[0] ?? null)
   }
 }

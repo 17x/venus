@@ -9,6 +9,8 @@ import {
   handleCanvasPointerLeave,
   handleCanvasPointerUp,
 } from '../../useEditorRuntime/pointerRelease.ts'
+import {resolvePointerLifecycleTransition} from './pointerLifecycleState.ts'
+import {filterRuntimeSelectionCandidateIds} from '../selectionFilterPolicy.ts'
 import type {
   EditorRuntimeCanvasInteractionControllerOptions,
   EditorRuntimeCanvasInteractionControllerState,
@@ -22,6 +24,15 @@ export function createPointerUpHandler(
   controllerState: EditorRuntimeCanvasInteractionControllerState,
 ) {
   return () => {
+    const lifecycle = resolvePointerLifecycleTransition(
+      controllerState.pointerLifecyclePhase,
+      'input.pointer.up',
+    )
+    controllerState.pointerLifecyclePhase = lifecycle.next
+    if (!lifecycle.accepted) {
+      return
+    }
+
     // Emit runtime pointer lifecycle events so non-React subscribers can observe input flow.
     options.interactionBridge.dispatch({
       type: 'input.pointer.up',
@@ -54,7 +65,16 @@ export function createPointerUpHandler(
               strictStrokeHitTest: false,
               outlineLevel: 'low',
             })
-            return pointPayload.pointHitNodeIds.slice(0, 1)
+            const filteredPointIds = filterRuntimeSelectionCandidateIds({
+              candidateIds: pointPayload.pointHitNodeIds,
+              interactionDocument: options.interactionDocument,
+            })
+            options.recordInteractionDiagnostic?.({
+              kind: 'hit-candidate',
+              stage: 'pointer-up',
+              candidateCount: filteredPointIds.length,
+            })
+            return filteredPointIds.slice(0, 1)
           },
           selectRect: (rect: SelectorRect, queryOptions) => {
             const selectorRect = {
@@ -70,7 +90,16 @@ export function createPointerUpHandler(
               marqueeMode: queryOptions.mode,
               outlineLevel: 'low',
             })
-            return marqueePayload.marqueeResolvedNodeIds
+            const filteredMarqueeIds = filterRuntimeSelectionCandidateIds({
+              candidateIds: marqueePayload.marqueeResolvedNodeIds,
+              interactionDocument: options.interactionDocument,
+            })
+            options.recordInteractionDiagnostic?.({
+              kind: 'hit-candidate',
+              stage: 'pointer-up',
+              candidateCount: filteredMarqueeIds.length,
+            })
+            return filteredMarqueeIds
           },
         }
 
@@ -109,6 +138,15 @@ export function createPointerLeaveHandler(
   controllerState: EditorRuntimeCanvasInteractionControllerState,
 ) {
   return () => {
+    const lifecycle = resolvePointerLifecycleTransition(
+      controllerState.pointerLifecyclePhase,
+      'input.pointer.leave',
+    )
+    controllerState.pointerLifecyclePhase = lifecycle.next
+    if (!lifecycle.accepted) {
+      return
+    }
+
     // Emit runtime pointer lifecycle events so non-React subscribers can observe input flow.
     options.interactionBridge.dispatch({
       type: 'input.pointer.leave',

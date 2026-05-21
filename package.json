@@ -44,7 +44,9 @@
   },
   "packageManager": "pnpm@8.7.4",
   "devDependencies": {
+    "@types/node": "^25.9.0",
     "eslint-plugin-jsdoc": "^62.9.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3"
   }
 }

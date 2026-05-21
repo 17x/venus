@@ -1,9 +1,9 @@
 import {nid, type DocumentNode, type EditorDocument} from '../../../model/index.ts'
-import type {MatrixFirstNodeTransform} from '@venus/engine'
+import type {MatrixFirstNodeTransform} from '../../../interaction/transformSessionManager.ts'
 import {getSelectedShapeIndices, readSceneStats, type SceneMemory} from '../../../shared-memory/index.ts'
 import type {HistoryEntry, HistoryPatch} from '../../history.ts'
 import type {EditorRuntimeCommand} from '../../protocol.ts'
-import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, findShapeById} from '../model.ts'
+import {cloneCornerRadii, cloneFill, cloneShadow, cloneStroke, cloneTextRuns, findShapeById} from '../model.ts'
 import {createLogOnlyEntry, invertHistoryPatches} from './localHistoryEntry.helpers.ts'
 import {
   createMaskLinkedReorderPatches,
@@ -145,6 +145,7 @@ export function createLocalHistoryEntry(
     const nextFill = command.patch.fill === undefined ? cloneFill(shape.fill) : cloneFill(command.patch.fill)
     const nextStroke = command.patch.stroke === undefined ? cloneStroke(shape.stroke) : cloneStroke(command.patch.stroke)
     const nextShadow = command.patch.shadow === undefined ? cloneShadow(shape.shadow) : cloneShadow(command.patch.shadow)
+    const nextTextRuns = command.patch.textRuns === undefined ? cloneTextRuns(shape.textRuns) : cloneTextRuns(command.patch.textRuns)
     const nextCornerRadius = command.patch.cornerRadius === undefined ? shape.cornerRadius : command.patch.cornerRadius
     const nextCornerRadii = command.patch.cornerRadii === undefined ? cloneCornerRadii(shape.cornerRadii) : cloneCornerRadii(command.patch.cornerRadii)
     const nextEllipseStartAngle = command.patch.ellipseStartAngle === undefined ? shape.ellipseStartAngle : command.patch.ellipseStartAngle
@@ -154,8 +155,8 @@ export function createLocalHistoryEntry(
     return {
       id: `shape.patch.${shape.id}`,
       label: `Patch ${shape.name}`,
-      forward: [{type: 'patch-shape', shapeId: shape.id, prevFill: cloneFill(shape.fill), nextFill, prevStroke: cloneStroke(shape.stroke), nextStroke, prevShadow: cloneShadow(shape.shadow), nextShadow, prevCornerRadius: shape.cornerRadius, nextCornerRadius, prevCornerRadii: cloneCornerRadii(shape.cornerRadii), nextCornerRadii, prevEllipseStartAngle: shape.ellipseStartAngle, nextEllipseStartAngle, prevEllipseEndAngle: shape.ellipseEndAngle, nextEllipseEndAngle, prevFlipX: !!shape.flipX, nextFlipX, prevFlipY: !!shape.flipY, nextFlipY}],
-      backward: [{type: 'patch-shape', shapeId: shape.id, prevFill: nextFill, nextFill: cloneFill(shape.fill), prevStroke: nextStroke, nextStroke: cloneStroke(shape.stroke), prevShadow: nextShadow, nextShadow: cloneShadow(shape.shadow), prevCornerRadius: nextCornerRadius, nextCornerRadius: shape.cornerRadius, prevCornerRadii: nextCornerRadii, nextCornerRadii: cloneCornerRadii(shape.cornerRadii), prevEllipseStartAngle: nextEllipseStartAngle, nextEllipseStartAngle: shape.ellipseStartAngle, prevEllipseEndAngle: nextEllipseEndAngle, nextEllipseEndAngle: shape.ellipseEndAngle, prevFlipX: nextFlipX, nextFlipX: !!shape.flipX, prevFlipY: nextFlipY, nextFlipY: !!shape.flipY}],
+      forward: [{type: 'patch-shape', shapeId: shape.id, prevFill: cloneFill(shape.fill), nextFill, prevStroke: cloneStroke(shape.stroke), nextStroke, prevShadow: cloneShadow(shape.shadow), nextShadow, prevTextRuns: cloneTextRuns(shape.textRuns), nextTextRuns, prevCornerRadius: shape.cornerRadius, nextCornerRadius, prevCornerRadii: cloneCornerRadii(shape.cornerRadii), nextCornerRadii, prevEllipseStartAngle: shape.ellipseStartAngle, nextEllipseStartAngle, prevEllipseEndAngle: shape.ellipseEndAngle, nextEllipseEndAngle, prevFlipX: !!shape.flipX, nextFlipX, prevFlipY: !!shape.flipY, nextFlipY}],
+      backward: [{type: 'patch-shape', shapeId: shape.id, prevFill: nextFill, nextFill: cloneFill(shape.fill), prevStroke: nextStroke, nextStroke: cloneStroke(shape.stroke), prevShadow: nextShadow, nextShadow: cloneShadow(shape.shadow), prevTextRuns: nextTextRuns, nextTextRuns: cloneTextRuns(shape.textRuns), prevCornerRadius: nextCornerRadius, nextCornerRadius: shape.cornerRadius, prevCornerRadii: nextCornerRadii, nextCornerRadii: cloneCornerRadii(shape.cornerRadii), prevEllipseStartAngle: nextEllipseStartAngle, nextEllipseStartAngle: shape.ellipseStartAngle, prevEllipseEndAngle: nextEllipseEndAngle, nextEllipseEndAngle: shape.ellipseEndAngle, prevFlipX: nextFlipX, nextFlipX: !!shape.flipX, prevFlipY: nextFlipY, nextFlipY: !!shape.flipY}],
     }
   }
 

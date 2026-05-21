@@ -2,13 +2,12 @@ import type {DocumentNode, EditorDocument} from '../../model/index.ts'
 import {
   getNormalizedBoundsFromBox,
   intersectNormalizedBounds,
-  type EngineSpatialItem,
-} from '@venus/engine'
+} from '@venus/lib'
 import {
   writeShapeToScene,
   type SceneMemory,
 } from '../../shared-memory/index.ts'
-import type {WorkerSpatialIndex} from './types.ts'
+import type {WorkerSpatialIndex, WorkerSpatialItem} from './types.ts'
 import {
   findShapeById,
   getBezierPathBounds,
@@ -27,7 +26,7 @@ export function rebuildSpatialIndex(
 function createSpatialItem(
   shape: DocumentNode,
   order: number,
-): EngineSpatialItem<{
+): WorkerSpatialItem<{
   shapeId: string
   type: DocumentNode['type']
   order: number

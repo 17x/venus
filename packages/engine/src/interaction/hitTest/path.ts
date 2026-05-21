@@ -13,7 +13,7 @@ import {
 import type {
   EngineEditorHitTestNode,
   EngineEditorPoint,
-} from './hitTest.ts'
+} from '../hitTest.ts'
 
 export { sampleBezierPathPolygon } from './pathBezier.ts'
 

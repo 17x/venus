@@ -80,3 +80,45 @@ export function readRunShadow(style: unknown) {
     blur,
   }
 }
+
+/**
+ * Reads one optional paragraph style payload from unknown text-run style data.
+ * @param style Unknown text style payload.
+ */
+export function readRunParagraphStyle(style: unknown) {
+  if (!style || typeof style !== 'object') {
+    return undefined
+  }
+
+  const value = style as {
+    paragraphIndentLeft?: unknown
+    paragraphIndentFirst?: unknown
+    paragraphIndentRight?: unknown
+    paragraphSpaceBeforeLine?: unknown
+    paragraphSpaceAfterLine?: unknown
+  }
+
+  const paragraphIndentLeft = typeof value.paragraphIndentLeft === 'number' ? value.paragraphIndentLeft : undefined
+  const paragraphIndentFirst = typeof value.paragraphIndentFirst === 'number' ? value.paragraphIndentFirst : undefined
+  const paragraphIndentRight = typeof value.paragraphIndentRight === 'number' ? value.paragraphIndentRight : undefined
+  const paragraphSpaceBeforeLine = typeof value.paragraphSpaceBeforeLine === 'number' ? value.paragraphSpaceBeforeLine : undefined
+  const paragraphSpaceAfterLine = typeof value.paragraphSpaceAfterLine === 'number' ? value.paragraphSpaceAfterLine : undefined
+
+  if (
+    paragraphIndentLeft === undefined &&
+    paragraphIndentFirst === undefined &&
+    paragraphIndentRight === undefined &&
+    paragraphSpaceBeforeLine === undefined &&
+    paragraphSpaceAfterLine === undefined
+  ) {
+    return undefined
+  }
+
+  return {
+    paragraphIndentLeft,
+    paragraphIndentFirst,
+    paragraphIndentRight,
+    paragraphSpaceBeforeLine,
+    paragraphSpaceAfterLine,
+  }
+}

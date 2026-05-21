@@ -1,7 +1,7 @@
 import {
   applyAffineMatrixToPoint,
-} from '../shapeTransform/shapeTransform.ts'
-import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
+} from '../shapeTransform.ts'
+import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest.ts'
 import type {
   EngineGeometryBounds,
   EngineGeometryOutline,

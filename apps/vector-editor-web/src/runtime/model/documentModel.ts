@@ -113,6 +113,16 @@ export interface TextStyle {
   verticalAlign?: 'top' | 'middle' | 'bottom'
   /** Stores optional text-level shadow style. */
   shadow?: ShapeShadowStyle
+  /** Stores paragraph left indent in px. */
+  paragraphIndentLeft?: number
+  /** Stores paragraph first-line indent in px. */
+  paragraphIndentFirst?: number
+  /** Stores paragraph right indent in px. */
+  paragraphIndentRight?: number
+  /** Stores paragraph spacing before in px. */
+  paragraphSpaceBeforeLine?: number
+  /** Stores paragraph spacing after in px. */
+  paragraphSpaceAfterLine?: number
 }
 
 /** Declares one styled text segment in the node text payload. */

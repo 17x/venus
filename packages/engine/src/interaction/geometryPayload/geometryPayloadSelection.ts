@@ -1,9 +1,9 @@
-import {createEngineSpatialIndex} from '../../spatial/index.ts'
-import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
+import { createEngineSpatialIndex } from '../../spatial/engineSpatialIndex.ts'
+import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest.ts'
 import {
   isPointInsideEngineClipShape,
   isPointInsideEngineShapeHitArea,
-} from '../hitTest/hitTest.ts'
+} from '../hitTest.ts'
 import {
   withResolvedPathHints,
 } from './geometryPayloadPath.ts'

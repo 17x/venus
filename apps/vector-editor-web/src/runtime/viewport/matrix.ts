@@ -1,7 +1,7 @@
-import type {Mat3} from '@venus/engine'
+import type {Mat3} from '@venus/lib'
 
-export type {Mat3, Point2D} from '@venus/engine'
-export {applyMatrixToPoint} from '@venus/engine'
+export type {Mat3, Point2D} from '@venus/lib'
+export {applyMatrixToPoint} from '@venus/lib'
 
 /**
  * Build a viewport matrix from scale and translation offsets.

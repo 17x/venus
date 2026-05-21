@@ -3,10 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "description": "Canonical @venus/engine package after vNext cutover",
   "scripts": {
-    "test": "node --experimental-strip-types --test src/**/*.test.ts __tests__/**/*.test.ts",
-    "bench:scenario": "tsx src/bench/runBenchmark.ts",
-    "bench:baseline": "tsx src/bench/runBaselineBenchmark.ts",
+    "test": "node --import tsx --test src/testing/*.test.ts src/testing/*.test.mjs",
     "cr:check": "node ./scripts/check-change-request.mjs",
     "dashboard:update": "node ./scripts/update-program-dashboard.mjs",
     "policy:replay": "node ./scripts/policy-replay.mjs",
@@ -20,7 +19,7 @@
     "rbush-3d": "^0.0.4"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.0",
     "tsx": "^4.21.0"
   }
 }

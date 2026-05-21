@@ -276,7 +276,7 @@ export function useEngineRendererSceneSync(params: {
               }
             : params.replayScenePayload,
         )
-        engine.loadScene(nextEngineScene)
+        engine.setGraph(nextEngineScene)
         params.hasLoadedSceneInEngineRef.current = true
         // Track scene load mode/count so visible=0 episodes can be tied back
         // to the last scene mutation path before render diagnostics dropped.
@@ -296,7 +296,7 @@ export function useEngineRendererSceneSync(params: {
         const upsertNodes = incrementalScene.nodes
 
         if (upsertNodes.length > 0) {
-          engine.applyScenePatchBatch({
+          engine.updateGraph({
             patches: [{
               revision: params.statsVersion,
               upsertNodes,
@@ -321,7 +321,10 @@ export function useEngineRendererSceneSync(params: {
             changedIds,
           })
           if (mergedDirtyBounds) {
-            engine.markDirtyBounds(mergedDirtyBounds)
+            engine.invalidate({
+              reason: 'scene-dirty-merged-bounds',
+              region: mergedDirtyBounds,
+            })
             dirtyBoundsMarkCount = 1
             dirtyBoundsMarkArea = Math.max(
               0,

@@ -204,6 +204,7 @@ export function applyPatches(
       shape.fill = patch.nextFill
       shape.stroke = patch.nextStroke
       shape.shadow = patch.nextShadow
+      shape.textRuns = patch.nextTextRuns
       shape.cornerRadius = patch.nextCornerRadius
       shape.cornerRadii = patch.nextCornerRadii
       shape.ellipseStartAngle = patch.nextEllipseStartAngle

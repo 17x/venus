@@ -13,6 +13,8 @@ import {
   buildVectorOverlayModel,
   resolveVectorOverlayHit,
 } from '../../runtime/primitive/index.ts'
+import {applyRuntimeEditingModeTransition} from './runtimeEditingModeTransitionPolicy.ts'
+import {resolveRuntimeMoveSnapToleranceWorld} from './snappingPolicy.ts'
 
 /** Declares opaque drag payload type forwarded by overlay controls. */
 type DragBehaviorPayload = Record<string, unknown>
@@ -205,7 +207,7 @@ export function startTransformSessionFromSelection(input: {
     startBounds: input.selectedBounds,
   })
   input.setActiveTransformHandle(input.handle)
-  input.runtimeEditingModeControllerRef.current?.transition({
+  applyRuntimeEditingModeTransition(input.runtimeEditingModeControllerRef.current, {
     to: 'dragging',
     reason: `pointer-down:marquee-${input.handle}`,
   })
@@ -219,6 +221,7 @@ export function startTransformSessionFromSelection(input: {
  * @param transformManagerRef Transform manager ref.
  * @param snappingEnabled Whether snapping is enabled for current interaction.
  * @param previewDocument Document used for snapping checks.
+ * @param viewportScale Current viewport scale for policy-driven snap tolerance.
  * @param setSnapGuides Snap-guide setter.
  * @param setTransformPreview Transform-preview setter.
  */
@@ -227,6 +230,7 @@ export function applyTransformPreviewFromManager(input: {
   transformManagerRef: React.RefObject<ReturnType<typeof import('../../runtime/interaction/index.ts').createTransformSessionManager>>
   snappingEnabled: boolean
   previewDocument: import('../../runtime/model/index.ts').EditorDocument
+  viewportScale: number
   setSnapGuides: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').SnapGuide[]>>
   setTransformPreview: (next: TransformPreview | null) => void
 }) {
@@ -245,6 +249,9 @@ export function applyTransformPreviewFromManager(input: {
     handle: transformSession.handle,
     snappingEnabled: input.snappingEnabled,
     previewDocument: input.previewDocument,
+    snapToleranceWorld: resolveRuntimeMoveSnapToleranceWorld({
+      viewportScale: input.viewportScale,
+    }),
   })
   input.setSnapGuides(transformPreviewState.snapGuides)
   input.setTransformPreview(transformPreviewState.transformPreview)

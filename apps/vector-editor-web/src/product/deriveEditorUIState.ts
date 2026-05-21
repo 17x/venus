@@ -1,4 +1,4 @@
-import {buildHistoryArray, buildSelectedProps} from './editorRuntimeHelpers/editorRuntimeHelpers.ts'
+import {buildHistoryArray, buildSelectedPropsForSelection} from './editorRuntimeHelpers/editorRuntimeHelpers.ts'
 import type {EditorUIState} from './useEditorRuntime/types.ts'
 import type {DocumentNode} from '../runtime/model/index.ts'
 import type {CanvasRuntimeBridgeState} from './useCanvasRuntimeBridge.ts'
@@ -37,7 +37,7 @@ export function deriveEditorUIState(options: {
     },
     layerItems: buildLayerItemsCached(canvasRuntime.document.shapes),
     selectedIds,
-    selectedProps: buildSelectedProps(selectedNode),
+    selectedProps: buildSelectedPropsForSelection(canvasRuntime.document.shapes, selectedIds, selectedNode),
     // Runtime hook overrides this with the live snapping toggle state.
     snappingEnabled: true,
     showPrint,

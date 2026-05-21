@@ -1,5 +1,5 @@
 import { sampleBezierPathPolygon as sampleBezierPathPolygonFromLib } from '@venus/lib/geometry'
-import type { EngineEditorBezierPoint, EngineEditorPoint } from './hitTest.ts'
+import type { EngineEditorBezierPoint, EngineEditorPoint } from '../hitTest.ts'
 
 const DEFAULT_SEGMENTS_PER_CURVE = 12
 const MIN_SAFE_TOLERANCE = 0.5

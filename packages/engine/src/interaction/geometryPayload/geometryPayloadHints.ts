@@ -1,5 +1,5 @@
-import { resolveNodeTransform } from '../shapeTransform/shapeTransform.ts'
-import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
+import { resolveNodeTransform } from '../shapeTransform.ts'
+import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest.ts'
 import { resolvePathAnchors } from './geometryPayloadPath.ts'
 import type { EngineGeometryHint } from './geometryPayloadTypes.ts'
 

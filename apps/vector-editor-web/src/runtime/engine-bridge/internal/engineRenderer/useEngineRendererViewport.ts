@@ -5,6 +5,7 @@ import type {
 import type {CanvasViewportState as EngineViewportState} from '../../../index.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
+import {resolveViewportSettleDirtyBounds} from './viewportSettleDirtyBounds/viewportSettleDirtyBounds.ts'
 
 const OVERSCAN_PX = VECTOR_ENGINE_SCENE_PROFILE.overscanPx
 const FULL_REDRAW_QUIET_WINDOW_MS = 140
@@ -13,10 +14,6 @@ const FULL_REDRAW_DEFER_MS = 32
 const RESIZE_COMMIT_DEFER_MS = 260
 const RESIZE_COMMIT_THRESHOLD_PX = 96
 const HIGH_ZOOM_FORCE_NORMAL_RENDER_SCALE = 2
-const CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS =
-  VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.interactiveZoomDurationMs
-const CAMERA_SETTLE_ANIMATION_DURATION_MS =
-  VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.settleDurationMs
 
 /**
  * Commits viewport and output size updates into the engine with interaction-aware scheduling.
@@ -116,12 +113,16 @@ export function useEngineRendererViewport(params: {
       offsetY: number
       scale: number
     }) => {
-      const safeScale = Math.max(Number.EPSILON, Math.abs(viewportState.scale))
-      engine.markDirtyBounds({
-        x: -viewportState.offsetX / safeScale,
-        y: -viewportState.offsetY / safeScale,
-        width: viewportState.viewportWidth / safeScale,
-        height: viewportState.viewportHeight / safeScale,
+      const dirtyBounds = resolveViewportSettleDirtyBounds(viewportState)
+      if (!dirtyBounds) {
+        // At extreme zoom-out, forced settle invalidation is intentionally skipped
+        // to avoid unbounded world dirty expansion and frame-thread lockups.
+        return
+      }
+
+      engine.invalidate({
+        reason: 'viewport-settle-dirty-bounds',
+        region: dirtyBounds,
       })
     }
 
@@ -205,12 +206,7 @@ export function useEngineRendererViewport(params: {
         params.renderRequestStatsRef.current.canvasResizeLastCommitReason = 'initial-commit'
         params.renderRequestStatsRef.current.canvasResizeLastOutputSize = `${outputWidth}x${outputHeight}`
         const resizeStart = performance.now()
-        engine.resize({
-          viewportWidth: renderWidth,
-          viewportHeight: renderHeight,
-          outputWidth,
-          outputHeight,
-        })
+        engine.resize(renderWidth, renderHeight)
         viewportResizeMs += performance.now() - resizeStart
         params.appliedRenderSizeRef.current = {width: renderWidth, height: renderHeight}
         params.appliedOutputSizeRef.current = {width: outputWidth, height: outputHeight}
@@ -255,12 +251,7 @@ export function useEngineRendererViewport(params: {
             params.renderRequestStatsRef.current.canvasResizeDeferredCommitCount += 1
             params.renderRequestStatsRef.current.canvasResizeLastCommitReason = 'deferred-commit'
             params.renderRequestStatsRef.current.canvasResizeLastOutputSize = `${pendingOutputWidth}x${pendingOutputHeight}`
-            liveEngine.resize({
-              viewportWidth: pendingRenderSize.width,
-              viewportHeight: pendingRenderSize.height,
-              outputWidth: pendingOutputWidth,
-              outputHeight: pendingOutputHeight,
-            })
+            liveEngine.resize(pendingRenderSize.width, pendingRenderSize.height)
             params.appliedRenderSizeRef.current = pendingRenderSize
             params.appliedOutputSizeRef.current = {
               width: pendingOutputWidth,
@@ -301,11 +292,7 @@ export function useEngineRendererViewport(params: {
         params.interactionPhase === 'zoom' &&
         VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.interactiveZoomEnabled
       ) {
-        engine.updateCameraAnimation(nextViewportState, {
-          durationMs: CAMERA_INTERACTIVE_ZOOM_ANIMATION_DURATION_MS,
-          easing: 'linear',
-          cachePreviewOnly: true,
-        })
+        engine.setView(nextViewportState)
       } else if (
         !params.interactionActive &&
         wasInteractionActive &&
@@ -313,15 +300,11 @@ export function useEngineRendererViewport(params: {
       ) {
         // Keep one short settle animation so the first post-gesture frame can
         // converge smoothly to the latest runtime viewport target.
-        engine.updateCameraAnimation(nextViewportState, {
-          durationMs: CAMERA_SETTLE_ANIMATION_DURATION_MS,
-          easing: 'linear',
-          cachePreviewOnly: false,
-        })
+        engine.setView(nextViewportState)
       } else {
         // Preserve immediate commit semantics for non-gesture viewport updates
         // such as first layout, explicit fit, and resize follow-up commits.
-        engine.setViewport(nextViewportState)
+        engine.setView(nextViewportState)
       }
       params.appliedViewportRef.current = nextViewportState
       viewportStateUpdateMs += performance.now() - viewportStateUpdateStart

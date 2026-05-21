@@ -1,4 +1,10 @@
-import type {EngineHitTestResult} from '@venus/engine'
+/** Declares minimal picking hit contract consumed by runtime adapter. */
+export interface RuntimePickingHit {
+  /** Stores render-entity identifier resolved by picking stage. */
+  entityId: string
+  /** Stores picking rank where lower means better match. */
+  rank: number
+}
 
 // --- Product-level hit-test result types ---
 
@@ -82,13 +88,13 @@ export interface RuntimeNodeStateProvider {
 /**
  * Bridges engine-level hit-test results into product-consumable candidates.
  *
- * The current engine API returns a single EngineHitTestResult | null.
- * This adapter accepts an array to support future multi-hit queries.
- * For now, callers wrap the single engine result into a one-element array.
+ * The current runtime picking API exposes ordered hit items.
+ * This adapter consumes the ordered hit list and enriches each hit with
+ * product semantics (lock/visibility/isolation policy).
  */
 export function createRuntimeHitTestAdapter(stateProvider: RuntimeNodeStateProvider) {
   function enrichResult(
-    engineResults: EngineHitTestResult[],
+    engineResults: readonly RuntimePickingHit[],
     queryPoint: {x: number; y: number},
     options?: RuntimeHitTestFilterOptions,
   ): RuntimeHitTestResult {
@@ -98,7 +104,7 @@ export function createRuntimeHitTestAdapter(stateProvider: RuntimeNodeStateProvi
 
     for (let i = 0; i < engineResults.length; i++) {
       const er = engineResults[i]
-      const nodeId = er.nodeId
+      const nodeId = er.entityId
       if (excludeIds?.has(nodeId)) continue
       if (seenNodeIds.has(nodeId)) continue
 
@@ -125,12 +131,12 @@ export function createRuntimeHitTestAdapter(stateProvider: RuntimeNodeStateProvi
 
       candidates.push({
         nodeId,
-        renderEntityId: er.nodeId,
+        renderEntityId: er.entityId,
         kind,
-        hitType: er.hitType ?? er.nodeType ?? 'bounds',
+        hitType: 'bounds',
         worldPoint: queryPoint,
-        score: er.score ?? i,
-        zOrder: er.zOrder ?? (engineResults.length - i),
+        score: er.rank,
+        zOrder: engineResults.length - i,
         locked,
         hidden,
         eligible,

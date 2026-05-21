@@ -25,6 +25,7 @@ import type {SelectorOverlayItem} from '@venus/editor-primitive'
 import {
   type ShapeStyleHandleDrag,
 } from '../../runtime/shapeStyleHandles.ts'
+import {resolveRuntimeEffectiveSnapGuides} from '../../runtime/snappingPolicy.ts'
 import {
   DEFAULT_PRESENTATION_CONFIG,
   DEFAULT_SELECTION_CONFIG,
@@ -209,70 +210,13 @@ export function useEditorRuntimeDerivedState(options: {
     interactionDocument,
     effectiveHoveredShapeId,
   ), [effectiveHoveredShapeId, interactionDocument])
-  const effectiveSnapGuides = useMemo(() => {
-    if (!overlayInteractionDegraded) {
-      return snapGuides
-    }
-
-    const selectedBounds = selectionState.selectedBounds
-    if (!selectedBounds) {
-      // No active moving/selected bounds: keep one stable guide per axis.
-      const primaryGuideByAxis = new Map<SnapGuide['axis'], SnapGuide>()
-      for (const guide of snapGuides) {
-        if (!primaryGuideByAxis.has(guide.axis)) {
-          primaryGuideByAxis.set(guide.axis, guide)
-        }
-      }
-      return Array.from(primaryGuideByAxis.values())
-    }
-
-    const resolveAnchorValue = (guide: SnapGuide) => {
-      if (guide.axis === 'x') {
-        if (guide.kind === 'edge-min') {
-          return selectedBounds.minX
-        }
-        if (guide.kind === 'edge-max') {
-          return selectedBounds.maxX
-        }
-        return (selectedBounds.minX + selectedBounds.maxX) / 2
-      }
-
-      if (guide.kind === 'edge-min') {
-        return selectedBounds.minY
-      }
-      if (guide.kind === 'edge-max') {
-        return selectedBounds.maxY
-      }
-      return (selectedBounds.minY + selectedBounds.maxY) / 2
-    }
-
-    // Preserve coarse snapping readability under degraded overlays by keeping
-    // the most relevant guide per axis for the current moving selection.
-    const primaryGuideByAxis = new Map<SnapGuide['axis'], SnapGuide>()
-    for (const guide of snapGuides) {
-      const existing = primaryGuideByAxis.get(guide.axis)
-      if (!existing) {
-        primaryGuideByAxis.set(guide.axis, guide)
-        continue
-      }
-
-      const existingDistance = Math.abs(resolveAnchorValue(existing) - existing.value)
-      const nextDistance = Math.abs(resolveAnchorValue(guide) - guide.value)
-      if (nextDistance < existingDistance) {
-        primaryGuideByAxis.set(guide.axis, guide)
-      }
-    }
-    return Array.from(primaryGuideByAxis.values())
-  }, [overlayInteractionDegraded, selectionState.selectedBounds, snapGuides])
-  const overlayGuideSelectionStrategy = useMemo<OverlayDiagnostics['guideSelectionStrategy']>(() => {
-    if (!overlayInteractionDegraded) {
-      return 'full'
-    }
-
-    return selectionState.selectedBounds
-      ? 'axis-relevance'
-      : 'axis-first'
-  }, [overlayInteractionDegraded, selectionState.selectedBounds])
+  const reducedSnapGuides = useMemo(() => resolveRuntimeEffectiveSnapGuides({
+    guides: snapGuides,
+    overlayInteractionDegraded,
+    selectedBounds: selectionState.selectedBounds,
+  }), [overlayInteractionDegraded, selectionState.selectedBounds, snapGuides])
+  const effectiveSnapGuides = reducedSnapGuides.guides
+  const overlayGuideSelectionStrategy = reducedSnapGuides.strategy
   const overlayDiagnostics = useMemo<OverlayDiagnostics>(() => ({
     degraded: overlayInteractionDegraded,
     guideInputCount: snapGuides.length,
