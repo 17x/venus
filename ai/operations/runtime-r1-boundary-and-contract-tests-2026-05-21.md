@@ -5,10 +5,10 @@
 Target:
 
 - File / Module:
-  - `packages/_vnext/runtime/src/platform/browserRuntimeAdapters.ts`
-  - `packages/_vnext/runtime/src/platform/nodeRuntimeAdapters.ts`
-  - `packages/_vnext/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
-  - `packages/_vnext/runtime/src/index.ts`
+  - `packages/runtime/src/platform/browserRuntimeAdapters.ts`
+  - `packages/runtime/src/platform/nodeRuntimeAdapters.ts`
+  - `packages/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
+  - `packages/runtime/src/index.ts`
   - `ai/refactor-vnext/repo-refactor-management.md`
 
 Goal:
@@ -23,7 +23,7 @@ Change Type:
 Impact:
 
 - Affected modules:
-  - `packages/_vnext/runtime`（staging 合同与测试）
+  - `packages/runtime`（staging 合同与测试）
   - `ai/refactor-vnext/repo-refactor-management.md`（任务状态回写）
 
 Cleanup:
@@ -34,6 +34,6 @@ Cleanup:
 Tests:
 
 - Tests to add/update:
-  - `pnpm dlx tsx --test packages/_vnext/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
+  - `pnpm dlx tsx --test packages/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
   - `pnpm --filter @venus/engine cr:check`
   - `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`

@@ -5,8 +5,8 @@
 Target:
 
 - File / Module:
-  - `packages/_vnext/platform-browser/**`
-  - `packages/_vnext/platform-node/**`
+  - `packages/platform-browser/**`
+  - `packages/platform-node/**`
   - `ai/refactor-vnext/repo-refactor-management.md`
 
 Goal:
@@ -32,7 +32,7 @@ Cleanup:
 Tests:
 
 - Tests to add/update:
-  - `pnpm dlx tsx --test packages/_vnext/platform-browser/src/tests/browserPlatformAdapters.contract.test.ts`
-  - `pnpm dlx tsx --test packages/_vnext/platform-node/src/tests/nodePlatformAdapters.contract.test.ts`
+  - `pnpm dlx tsx --test packages/platform-browser/src/tests/browserPlatformAdapters.contract.test.ts`
+  - `pnpm dlx tsx --test packages/platform-node/src/tests/nodePlatformAdapters.contract.test.ts`
   - `pnpm --filter @venus/engine cr:check`
   - `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`

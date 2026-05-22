@@ -59,13 +59,13 @@ Final canonical folders must not retain `_vnext`, `v2`, `new`, `temp`, or migrat
 Recommended repo staging:
 
 ```txt
-packages/_vnext/runtime/
+packages/runtime/
 packages/_vnext/engine/
-packages/_vnext/renderer-canvas2d/
-packages/_vnext/renderer-webgl/
-packages/_vnext/renderer-webgpu/
-packages/_vnext/platform-browser/
-packages/_vnext/platform-node/
+packages/renderer-canvas2d/
+packages/renderer-webgl/
+packages/renderer-webgpu/
+packages/platform-browser/
+packages/platform-node/
 apps/_vnext/vector-editor-web/
 ```
 

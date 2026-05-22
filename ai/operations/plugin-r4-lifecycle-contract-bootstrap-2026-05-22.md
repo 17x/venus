@@ -5,7 +5,7 @@
 Target:
 
 - File / Module:
-  - `packages/_vnext/plugin-lifecycle/**`
+  - `packages/plugin-lifecycle/**`
   - `ai/refactor-vnext/repo-refactor-management.md`
 
 Goal:
@@ -31,6 +31,6 @@ Cleanup:
 Tests:
 
 - Tests to add/update:
-  - `pnpm dlx tsx --test packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`
+  - `pnpm dlx tsx --test packages/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`
   - `pnpm --filter @venus/engine cr:check`
   - `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`

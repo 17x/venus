@@ -95,14 +95,32 @@ test("api docs coverage and EN/CN parity baseline", async () => {
         "engine.events.on",
         "Event Envelope",
         "engine.lifecycle.beforeMount",
+        "engine.lifecycle.mounted",
+        "engine.lifecycle.beforeUnmount",
+        "engine.lifecycle.unmounted",
+        "engine.lifecycle.ready",
+        "engine.lifecycle.disposed",
+        "engine.document.graphSet",
+        "engine.document.graphPatched",
+        "engine.document.revisionChanged",
+        "engine.view.changed",
+        "engine.interaction.stateChanged",
+        "engine.interaction.pickCompleted",
+        "engine.interaction.pickFailed",
+        "engine.resource.loadProgress",
+        "engine.resource.loadFailed",
         "engine.view.viewportResized",
         "engine.streaming.backpressure",
+        "engine.diagnostics.warning",
         "engine.diagnostics.traceReady",
         "engine.diagnostics.captureReady",
         "engine.diagnostics.error",
         "engine.replay.started",
         "engine.replay.completed",
         "engine.replay.failed",
+        "engine.render.backendSwitched",
+        "engine.render.frameStarted",
+        "engine.render.frameFailed",
         "engine.render.frameCompleted",
       ],
     },
@@ -147,6 +165,14 @@ test("api docs coverage and EN/CN parity baseline", async () => {
 
     for (const marker of pair.markers) {
       assert.ok(enContent.includes(marker), `${pair.en} missing marker: ${marker}`);
+    }
+
+    // Enforces CN marker parity for canonical event-domain tokens while excluding EN-only heading text.
+    if (pair.en === "en/api/event-api.md") {
+      const cnMarkers = pair.markers.filter((marker) => marker !== "Event Envelope");
+      for (const marker of cnMarkers) {
+        assert.ok(cnContent.includes(marker), `${pair.cn} missing marker: ${marker}`);
+      }
     }
   }
 });

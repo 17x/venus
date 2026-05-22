@@ -5,11 +5,11 @@
 Target:
 
 - File / Module:
-  - `packages/_vnext/renderer-shared/package.json`
-  - `packages/_vnext/renderer-shared/README.md`
-  - `packages/_vnext/renderer-shared/src/contracts/rendererBackendContract.ts`
-  - `packages/_vnext/renderer-shared/src/tests/rendererContractConformance.test.ts`
-  - `packages/_vnext/renderer-shared/src/index.ts`
+  - `packages/renderer-shared/package.json`
+  - `packages/renderer-shared/README.md`
+  - `packages/renderer-shared/src/contracts/rendererBackendContract.ts`
+  - `packages/renderer-shared/src/tests/rendererContractConformance.test.ts`
+  - `packages/renderer-shared/src/index.ts`
   - `ai/refactor-vnext/repo-refactor-management.md`
 
 Goal:
@@ -24,7 +24,7 @@ Change Type:
 Impact:
 
 - Affected modules:
-  - `packages/_vnext/renderer-shared`（新增 staging 合同包）
+  - `packages/renderer-shared`（新增 staging 合同包）
   - `ai/refactor-vnext/repo-refactor-management.md`（R2 任务状态回写）
 
 Cleanup:
@@ -35,6 +35,6 @@ Cleanup:
 Tests:
 
 - Tests to add/update:
-  - `pnpm dlx tsx --test packages/_vnext/renderer-shared/src/tests/rendererContractConformance.test.ts`
+  - `pnpm dlx tsx --test packages/renderer-shared/src/tests/rendererContractConformance.test.ts`
   - `pnpm --filter @venus/engine cr:check`
   - `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`

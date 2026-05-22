@@ -10,7 +10,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./math": "./src/math/index.ts",
-    "./geometry": "./src/geometry/index.ts"
+    "./geometry": "./src/geometry/index.ts",
+    "./scheduler": "./src/scheduler/index.ts",
+    "./worker": "./src/worker/index.ts",
+    "./viewport": "./src/viewport/index.ts"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

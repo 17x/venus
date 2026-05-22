@@ -2455,6 +2455,1205 @@ Tests:
 5. `pnpm --filter @venus/engine cr:check`：pass
 6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
 
+## 56. Batch-30 CHANGE REQUEST（Render Backend Switch 事件可观测性）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/api/createEngine.ts
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 事件契约与文档已声明 `engine.render.backendSwitched`，但 runtime 当前未在 `setBackendPreference` 发射该事件，导致 contract-to-runtime 语义缺口。
+  - hard-cut 与 docs coverage 目前未对该事件建立阻断断言。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（最小行为补齐 + 测试门禁补齐）
+
+Impact:
+
+- Affected modules:
+  - render backend preference 切换语义
+  - hard-cut 事件行为回归门禁
+  - docs marker 覆盖门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补充缺失发射。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.render.backendSwitched` 监听与断言
+  - docs coverage 增加 `engine.render.backendSwitched` marker
+
+## 58. Batch-31 CHANGE REQUEST（Document 事件域行为阻断补齐）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 仅阻断了 `engine.document.graphPatched`，对 `engine.document.graphSet` 与 `engine.document.revisionChanged` 缺少直接行为断言。
+  - docs coverage marker 未锁定 document 事件域完整关键 token，存在文档回退漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试行为覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - Document 事件域回归门禁
+  - event-api docs marker 门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐事件断言与 marker。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 graphSet/revisionChanged 监听、触发与断言
+  - docs coverage 增加 graphSet/revisionChanged marker
+
+## 59. Batch-31 执行记录（Document 事件域阻断补齐）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 59.1 Scope
+
+1. 在 hard-cut 补齐 `engine.document.graphSet` 与 `engine.document.revisionChanged` 监听与断言。
+2. 在 docs coverage 补齐 document 事件域 marker 阻断。
+3. 保持 runtime 行为不变，仅增强测试门禁覆盖。
+
+### 59.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 59.3 API 变更审计台账（Batch-31）
+
+| API                             | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.document.graphSet        | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.document.revisionChanged | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 59.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 60. Batch-32 CHANGE REQUEST（Lifecycle Disposed 终态阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - runtime 已发射 `engine.lifecycle.disposed`，但 hard-cut 尚未建立终态行为断言。
+  - docs coverage 尚未锁定 `engine.lifecycle.disposed` marker，存在文档回退漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - lifecycle 终态事件回归门禁
+  - event-api docs marker 门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 disposed 终态断言与 marker。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.lifecycle.disposed` 监听与终态断言
+  - docs coverage 增加 `engine.lifecycle.disposed` marker
+
+## 61. Batch-32 执行记录（Lifecycle Disposed 终态阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 61.1 Scope
+
+1. 在 hard-cut 补齐 `engine.lifecycle.disposed` 监听与终态断言。
+2. 在 docs coverage 补齐 `engine.lifecycle.disposed` marker 阻断。
+3. 保持 runtime 行为不变，仅增强测试门禁覆盖。
+
+### 61.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 61.3 API 变更审计台账（Batch-32）
+
+| API                       | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.lifecycle.disposed | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 61.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 62. Batch-33 CHANGE REQUEST（Render FrameStarted 显式阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 对 `engine.render.frameStarted` 仅通过 `onMany` 间接注册，缺少显式计数断言。
+  - docs coverage marker 未锁定 `engine.render.frameStarted`，存在文档回退漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - render 开始阶段事件回归门禁
+  - event-api docs marker 门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 frameStarted 显式断言与 marker。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.render.frameStarted` 显式监听与断言
+  - docs coverage 增加 `engine.render.frameStarted` marker
+
+## 63. Batch-33 执行记录（Render FrameStarted 显式阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 63.1 Scope
+
+1. 在 hard-cut 补齐 `engine.render.frameStarted` 显式监听与计数断言。
+2. 在 docs coverage 补齐 `engine.render.frameStarted` marker 阻断。
+3. 保持 runtime 行为不变，仅增强测试门禁覆盖。
+
+### 63.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 63.3 API 变更审计台账（Batch-33）
+
+| API                        | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| -------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.render.frameStarted | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 63.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 64. Batch-34 CHANGE REQUEST（Render 阶段门禁补强）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 虽覆盖 `engine.render.frameStarted` 计数，但未覆盖 pause/resume 门控行为。
+  - 当前 hard-cut 对 `engine.render.frameFailed` 缺少显式失败路径断言，docs marker 虽在但行为阻断不足。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - render 开始阶段事件门控回归门禁
+  - render 失败路径事件回归门禁
+  - event-api docs marker 门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 frameStarted 门控断言与 frameFailed 行为断言/marker。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.render.frameStarted` pause/resume 门控断言
+  - hard-cut 增加 `engine.render.frameFailed` 显式失败路径断言
+  - docs coverage 增加 `engine.render.frameFailed` marker
+
+## 65. Batch-34 执行记录（Render 阶段门禁补强）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 65.1 Scope
+
+1. 在 hard-cut 补齐 `engine.render.frameStarted` pause/resume 门控断言。
+2. 在 hard-cut 补齐 `engine.render.frameFailed` 显式失败路径断言。
+3. 在 docs coverage 补齐 `engine.render.frameFailed` marker 阻断。
+4. 保持 runtime 行为不变，仅增强测试门禁覆盖。
+
+### 65.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 65.3 API 变更审计台账（Batch-34）
+
+| API                        | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| -------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.render.frameStarted | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.render.frameFailed  | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 65.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 66. Batch-35 CHANGE REQUEST（Render FrameCompleted 门控阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 对 `engine.render.frameCompleted` 以 sampled/throttled 方式间接覆盖，但缺少显式 listener 计数与 pause/resume 门控断言。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - render 完成阶段事件回归门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 frameCompleted 显式门控断言。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.render.frameCompleted` 显式监听计数与 pause/resume 门控断言
+
+## 67. Batch-35 执行记录（Render FrameCompleted 门控阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 67.1 Scope
+
+1. 在 hard-cut 补齐 `engine.render.frameCompleted` 显式监听计数断言。
+2. 在 hard-cut 补齐 `engine.render.frameCompleted` pause/resume 门控断言。
+3. 保持 runtime 行为与 docs marker 不变，仅增强行为门禁覆盖。
+
+### 67.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+
+### 67.3 API 变更审计台账（Batch-35）
+
+| API                          | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ---------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.render.frameCompleted | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 67.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 68. Batch-36 CHANGE REQUEST（Render FrameFailed 门控阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 已覆盖 `engine.render.frameFailed` 失败触发计数，但缺少 pause/resume 门控断言。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - render 失败阶段事件回归门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 frameFailed 显式门控断言。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.render.frameFailed` pause/resume 门控断言
+
+## 69. Batch-36 执行记录（Render FrameFailed 门控阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 69.1 Scope
+
+1. 在 hard-cut 补齐 `engine.render.frameFailed` pause/resume 门控断言。
+2. 保持 runtime 行为与 docs marker 不变，仅增强行为门禁覆盖。
+
+### 69.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+
+### 69.3 API 变更审计台账（Batch-36）
+
+| API                       | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.render.frameFailed | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 69.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 70. Batch-37 CHANGE REQUEST（Render BackendSwitched 门控阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 已覆盖 `engine.render.backendSwitched` 触发计数，但缺少 pause/resume 门控断言。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - render backend-switch 事件回归门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 backendSwitched 显式门控断言。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.render.backendSwitched` pause/resume 门控断言
+
+## 71. Batch-37 执行记录（Render BackendSwitched 门控阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 71.1 Scope
+
+1. 在 hard-cut 补齐 `engine.render.backendSwitched` pause/resume 门控断言。
+2. 保持 runtime 行为与 docs marker 不变，仅增强行为门禁覆盖。
+
+### 71.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+
+### 71.3 API 变更审计台账（Batch-37）
+
+| API                           | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ----------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.render.backendSwitched | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 71.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 72. Batch-38 CHANGE REQUEST（Lifecycle Ready 门控阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 对 `engine.lifecycle.ready` 仅有触发计数断言，缺少 pause/resume 门控断言。
+  - docs coverage marker 未锁定 `engine.lifecycle.ready`，存在文档回退漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - lifecycle ready 事件回归门禁
+  - event-api docs marker 门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 lifecycle.ready 显式门控断言与 marker。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.lifecycle.ready` pause/resume 门控断言
+  - docs coverage 增加 `engine.lifecycle.ready` marker
+
+## 73. Batch-38 执行记录（Lifecycle Ready 门控阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 73.1 Scope
+
+1. 在 hard-cut 补齐 `engine.lifecycle.ready` pause/resume 门控断言。
+2. 在 docs coverage 补齐 `engine.lifecycle.ready` marker 阻断。
+3. 保持 runtime 行为不变，仅增强测试门禁覆盖。
+
+### 73.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 73.3 API 变更审计台账（Batch-38）
+
+| API                    | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ---------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.lifecycle.ready | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 73.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 74. Batch-39 CHANGE REQUEST（Document RevisionChanged 门控阻断）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 对 `engine.document.revisionChanged` 仅有触发计数断言，缺少 pause/resume 门控断言。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（测试门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - document revision 事件回归门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 revisionChanged 显式门控断言。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 `engine.document.revisionChanged` pause/resume 门控断言
+
+## 75. Batch-39 执行记录（Document RevisionChanged 门控阻断）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 75.1 Scope
+
+1. 在 hard-cut 补齐 `engine.document.revisionChanged` pause/resume 门控断言。
+2. 保持 runtime 行为与 docs marker 不变，仅增强行为门禁覆盖。
+
+### 75.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+
+### 75.3 API 变更审计台账（Batch-39）
+
+| API                             | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.document.revisionChanged | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 75.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 76. Batch-40 CHANGE REQUEST（Lifecycle Mounted/Unmounted Marker 门禁强化）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 docs coverage 对 `engine.lifecycle.mounted` / `engine.lifecycle.beforeUnmount` / `engine.lifecycle.unmounted` 未做 marker 阻断，生命周期事件文档回归存在漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（文档门禁覆盖补齐）
+
+Impact:
+
+- Affected modules:
+  - Event API 文档 EN/CN 生命周期段落的回归门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；仅补齐 lifecycle mounted/unmount marker 阻断。
+
+Tests:
+
+- Tests to add/update:
+  - docs coverage 增加 `engine.lifecycle.mounted` / `engine.lifecycle.beforeUnmount` / `engine.lifecycle.unmounted` marker 断言
+
+## 77. Batch-40 执行记录（Lifecycle Mounted/Unmounted Marker 门禁强化）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 77.1 Scope
+
+1. 在 docs coverage 为 Event API 补齐 mounted/unmount 生命周期 marker 阻断。
+2. 保持 runtime 与 hard-cut 行为不变，仅强化 EN/CN 文档对齐回归门禁。
+
+### 77.2 交付文件
+
+1. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 77.3 API 变更审计台账（Batch-40）
+
+| API                            | Contract Path                                                 | Test Path                                                    | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.lifecycle.mounted       | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/apiDocsCoverage.contract.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.lifecycle.beforeUnmount | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/apiDocsCoverage.contract.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.lifecycle.unmounted     | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/apiDocsCoverage.contract.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 77.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 78. Batch-41 CHANGE REQUEST（Interaction/Resource Marker + Event Gating Split）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+  - packages/engine/src/testing/createEngine.event-gating.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 docs coverage 尚未对 interaction/resource 关键事件建立 marker 阻断；同时 hard-cut 单文件持续膨胀，需要将事件门禁断言职责拆到独立测试模块并继续扩展 pause/resume 覆盖。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（文档门禁覆盖补齐）
+  - Add（新增独立事件门禁测试文件）
+
+Impact:
+
+- Affected modules:
+  - Event API 文档 EN/CN 的 interaction/resource/streaming 回归门禁
+  - 事件 pause/resume 回归测试职责拆分
+
+Cleanup:
+
+- Old logic to remove:
+  - 本批不删除既有 hard-cut 断言；通过新增独立测试文件承接后续事件门禁扩展，降低单文件继续膨胀风险。
+
+Tests:
+
+- Tests to add/update:
+  - docs coverage 增加 interaction/resource marker 断言
+  - 新增 `createEngine.event-gating.test.ts`，补齐 interaction/resource/streaming 事件 pause/resume 行为断言
+
+## 79. Batch-41 执行记录（Interaction/Resource Marker + Event Gating Split）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 79.1 Scope
+
+1. 在 docs coverage 为 Event API 补齐 interaction/resource 相关 marker 阻断。
+2. 新增独立事件门禁测试文件，补齐 interaction/resource/streaming 的 pause/resume 断言。
+3. 通过测试职责拆分限制 hard-cut 文件继续膨胀。
+
+### 79.2 交付文件
+
+1. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+2. 事件门禁测试拆分：
+   - `packages/engine/src/testing/createEngine.event-gating.test.ts`
+
+### 79.3 API 变更审计台账（Batch-41）
+
+| API                              | Contract Path                                                 | Test Path                                                     | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| -------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.interaction.stateChanged  | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.interaction.pickCompleted | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.interaction.pickFailed    | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.resource.loadProgress     | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.resource.loadFailed       | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.streaming.backpressure    | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 79.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.event-gating.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+5. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（116 passed, 0 failed）
+6. `pnpm --filter @venus/engine cr:check`：pass
+7. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 80. Batch-42 CHANGE REQUEST（View/GraphPatched/Diagnostics Marker + Event Gating Expansion）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+  - packages/engine/src/testing/createEngine.event-gating.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 docs coverage 尚未对 `engine.document.graphPatched` / `engine.view.changed` / `engine.diagnostics.warning` 建立 marker 阻断；独立事件门禁测试尚未覆盖上述事件 pause/resume 语义。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（文档 marker 门禁补齐）
+  - Modify（事件门禁测试覆盖扩展）
+
+Impact:
+
+- Affected modules:
+  - Event API 文档 EN/CN 的 document/view/diagnostics 回归门禁
+  - 事件 pause/resume 行为回归覆盖（独立测试模块）
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；在拆分后的 event-gating 测试上增量补齐缺口。
+
+Tests:
+
+- Tests to add/update:
+  - docs coverage 增加 graphPatched/view.changed/diagnostics.warning marker 断言
+  - event-gating 测试新增对应三类事件 pause/resume 门控断言
+
+## 81. Batch-42 执行记录（View/GraphPatched/Diagnostics Marker + Event Gating Expansion）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 81.1 Scope
+
+1. 在 docs coverage 为 Event API 补齐 graphPatched/view.changed/diagnostics.warning marker 阻断。
+2. 在独立 event-gating 测试中补齐 document/view/diagnostics 的 pause/resume 门控断言。
+3. 保持 runtime 行为不变，仅强化测试与文档回归门禁。
+
+### 81.2 交付文件
+
+1. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+2. 事件门禁测试扩展：
+   - `packages/engine/src/testing/createEngine.event-gating.test.ts`
+
+### 81.3 API 变更审计台账（Batch-42）
+
+| API                          | Contract Path                                                 | Test Path                                                     | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ---------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.document.graphPatched | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.view.changed          | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.diagnostics.warning   | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.event-gating.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 81.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.event-gating.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+5. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（116 passed, 0 failed）
+6. `pnpm --filter @venus/engine cr:check`：pass
+7. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 82. Batch-43 CHANGE REQUEST（Event API CN Marker 同步门禁）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 当前 docs coverage 的 marker 仅约束 EN 文档，CN 文档即使丢失关键事件 token 也不会被阻断，存在双语文档回归漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（文档门禁逻辑补强）
+
+Impact:
+
+- Affected modules:
+  - Event API EN/CN 双语 marker 一致性回归门禁
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；在现有 marker 循环基础上新增 CN 侧校验分支。
+
+Tests:
+
+- Tests to add/update:
+  - docs coverage 对 `en/api/event-api.md` 的 marker 同步校验 `cn/api/event-api.md`（排除 EN-only 标题 marker）
+
+## 83. Batch-43 执行记录（Event API CN Marker 同步门禁）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 83.1 Scope
+
+1. 在 docs coverage 增加 Event API 的 CN marker 同步校验。
+2. 保留 EN-only 的标题 marker 语义，避免因翻译差异导致误报。
+3. 保持 runtime 与其它测试行为不变，仅增强文档回归阻断。
+
+### 83.2 交付文件
+
+1. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 83.3 API 变更审计台账（Batch-43）
+
+| API Surface                     | Contract Path                                                 | Test Path                                                    | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| Event API marker parity (EN/CN) | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/apiDocsCoverage.contract.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 83.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.event-gating.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+5. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（116 passed, 0 failed）
+6. `pnpm --filter @venus/engine cr:check`：pass
+7. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 84. Batch-44 CHANGE REQUEST（public-types 拆分循环依赖修复）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/api/public-types/engine-handle.types.ts
+  - packages/engine/src/api/public-types/runtime-capability.types.ts
+
+Goal:
+
+- Problem being solved:
+  - `public-types.ts` 拆分后，`engine-handle.types.ts` 与 `runtime-capability.types.ts` 仍通过 `../public-types` 回指 barrel，形成类型循环依赖，导致 `createEngine.ts` 在 `events/hooks/capability` 区段丢失上下文类型并触发大量 `TS7006`。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（类型导入路径修复）
+
+Impact:
+
+- Affected modules:
+  - engine public types 分层依赖
+  - createEngine facade 上下文类型推断稳定性
+
+Cleanup:
+
+- Old logic to remove:
+  - 移除 split 文件中 `from "../public-types"` 的回指导入，改为按模块直接导入（core/facade/runtime-document-world/runtime-services/runtime-capability）。
+
+Tests:
+
+- Tests to add/update:
+  - 无新增测试；使用既有 compile/test gate 验证类型上下文恢复。
+
+## 85. Batch-44 执行记录（public-types 拆分循环依赖修复）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 85.1 Scope
+
+1. 修复 split 后 `engine-handle.types.ts` 的错误模块归属导入。
+2. 修复 `runtime-capability.types.ts` 对 runtime type 的来源路径，避免通过 barrel 回指。
+3. 恢复 `createEngine.ts` 的上下文类型推断，消除隐式 any 回归。
+
+### 85.2 交付文件
+
+1. 类型导入修复：
+   - `packages/engine/src/api/public-types/engine-handle.types.ts`
+2. 类型导入修复：
+   - `packages/engine/src/api/public-types/runtime-capability.types.ts`
+
+### 85.3 API 变更审计台账（Batch-44）
+
+| API Surface                     | Contract Path                           | Test Path                                                 | Doc EN                                       | Doc CN                                       | Stability | Level     | Status |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- | --------- | --------- | ------ |
+| public-types split import graph | packages/engine/src/api/public-types.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/developer-api.md | packages/engine/docs/cn/api/developer-api.md | beta      | developer | DONE   |
+
+### 85.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.event-gating.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+5. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（116 passed, 0 failed）
+6. `pnpm --filter @venus/engine cr:check`：pass
+7. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 86. Batch-45 CHANGE REQUEST（public-types 回指导入回归防线）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/publicTypesSplitImportGraph.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - Batch-44 修复了 split public-types 的回指导入循环依赖，但缺少自动化回归防线；后续重构若再次引入 `from "../public-types"`，将重新触发类型上下文丢失风险。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Add（新增 contract 测试门禁）
+
+Impact:
+
+- Affected modules:
+  - public-types 分片导入图稳定性
+  - createEngine 上下文类型推断稳定性（间接）
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；新增回归阻断测试。
+
+Tests:
+
+- Tests to add/update:
+  - 新增 `publicTypesSplitImportGraph.contract.test.ts`，断言 `packages/engine/src/api/public-types/**/*.ts` 不得导入 `../public-types`。
+
+## 87. Batch-45 执行记录（public-types 回指导入回归防线）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 87.1 Scope
+
+1. 新增 split public-types 导入图回归门禁测试。
+2. 锁定 `../public-types` 回指导入为 forbidden pattern，防止循环依赖复发。
+3. 保持 runtime 行为不变，仅增强治理测试。
+
+### 87.2 交付文件
+
+1. 新增 contract 测试：
+   - `packages/engine/src/testing/publicTypesSplitImportGraph.contract.test.ts`
+
+### 87.3 API 变更审计台账（Batch-45）
+
+| API Surface                           | Contract Path                           | Test Path                                                                | Doc EN                                       | Doc CN                                       | Stability | Level     | Status |
+| ------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------- | --------- | --------- | ------ |
+| public-types split import graph guard | packages/engine/src/api/public-types.ts | packages/engine/src/testing/publicTypesSplitImportGraph.contract.test.ts | packages/engine/docs/en/api/developer-api.md | packages/engine/docs/cn/api/developer-api.md | beta      | developer | DONE   |
+
+### 87.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/publicTypesSplitImportGraph.contract.test.ts`：pass（1 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.event-gating.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+5. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+6. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（117 passed, 0 failed）
+7. `pnpm --filter @venus/engine cr:check`：pass
+8. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 88. Batch-46 CHANGE REQUEST（空白画布归因与 viewport 首帧尺寸引导）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - apps/vector-editor-web/src/runtime/engine-bridge/internal/engineViewport.tsx
+
+Goal:
+
+- Problem being solved:
+  - 画布空白问题排查后，engine core 合约与回归测试均通过，风险集中在 vector 集成侧的首帧门控链路：渲染调度依赖 `viewportReadyRef`，而该标志依赖 viewport 尺寸上报。
+  - 当首帧仅等待 `ResizeObserver` 异步回调时，可能出现“初始化阶段长时间无有效尺寸，渲染不启动”的空白窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（vector 集成侧首帧尺寸引导）
+
+Impact:
+
+- Affected modules:
+  - vector engine-bridge viewport bootstrap
+  - 首帧渲染调度可达性
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除；在 `ResizeObserver` 订阅前增加一次同步尺寸上报。
+
+Tests:
+
+- Tests to add/update:
+  - 无新增测试；使用既有 engine/vector 编译与回归门禁验证。
+
+## 89. Batch-46 执行记录（空白画布归因与 viewport 首帧尺寸引导）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 89.1 Scope
+
+1. 归因结论：问题更偏 vector 调用链（viewport 首帧门控）而非 engine 实现缺陷。
+2. 在 `EngineViewport` 的 resize effect 中，新增 mount 时一次性 `onViewportResize` 初始尺寸上报。
+3. 保留 `ResizeObserver` 持续监听逻辑，确保后续尺寸变化路径不变。
+
+### 89.2 交付文件
+
+1. viewport 首帧引导修复：
+   - `apps/vector-editor-web/src/runtime/engine-bridge/internal/engineViewport.tsx`
+
+### 89.3 API 变更审计台账（Batch-46）
+
+| API Surface                      | Contract Path                                                                | Test Path                                                 | Doc EN                                       | Doc CN                                       | Stability | Level     | Status |
+| -------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- | --------- | --------- | ------ |
+| viewport bootstrap render gating | apps/vector-editor-web/src/runtime/engine-bridge/internal/engineViewport.tsx | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/developer-api.md | packages/engine/docs/cn/api/developer-api.md | beta      | developer | DONE   |
+
+### 89.4 Validation
+
+1. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+2. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.event-gating.test.ts`：pass（1 passed, 0 failed）
+5. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/publicTypesSplitImportGraph.contract.test.ts`：pass（1 passed, 0 failed）
+6. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+7. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（117 passed, 0 failed）
+8. `pnpm --filter @venus/engine cr:check`：pass
+
+## 57. Batch-30 执行记录（Render Backend Switch 事件补齐）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 57.1 Scope
+
+1. 在 runtime 的 `setBackendPreference` 路径补齐 `engine.render.backendSwitched` 事件发射。
+2. 在 hard-cut 增加 `engine.render.backendSwitched` 监听与行为断言。
+3. 在 docs coverage 增加 `engine.render.backendSwitched` marker 阻断。
+
+### 57.2 交付文件
+
+1. Runtime 行为实现：
+   - `packages/engine/src/api/createEngine.ts`
+2. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+3. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 57.3 API 变更审计台账（Batch-30）
+
+| API                           | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ----------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.render.backendSwitched | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 57.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
 ## 52. Batch-28 CHANGE REQUEST（事件隔离与诊断错误可观测性）
 
 [CHANGE REQUEST]

@@ -11,9 +11,9 @@ Target:
   - `packages/engine/src/adapters/backend/canvas2dBackendAdapter.ts`
   - `packages/engine/src/adapters/backend/webglBackendAdapter.ts`
   - `packages/engine/src/adapters/backend/webgpuBackendAdapter.ts`
-  - `packages/_vnext/renderer-canvas2d/src/**`
-  - `packages/_vnext/renderer-webgl/src/**`
-  - `packages/_vnext/renderer-webgpu/src/**`
+  - `packages/renderer-canvas2d/src/**`
+  - `packages/renderer-webgl/src/**`
+  - `packages/renderer-webgpu/src/**`
 
 Goal:
 

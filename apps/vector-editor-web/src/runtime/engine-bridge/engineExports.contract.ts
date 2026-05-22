@@ -1,5 +1,6 @@
 import {
   EngineRenderScheduler,
+  RuntimeEngine,
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
   createEngine,
@@ -12,7 +13,6 @@ import {
 } from './engine.ts'
 import type {
   CreateEngineOptions,
-  EngineHandle,
 } from '@venus/engine'
 
 /**
@@ -21,7 +21,7 @@ import type {
  * when canonical @venus/engine export names drift during refactors.
  */
 export const ENGINE_EXPORT_CONTRACT: {
-  createEngine: (options: CreateEngineOptions) => EngineHandle
+  createEngine: (options: CreateEngineOptions) => RuntimeEngine
   createEngineRenderScheduler: typeof createEngineRenderScheduler
   applyAffineMatrixToPoint: typeof applyAffineMatrixToPoint
   createAffineMatrixAroundPoint: typeof createAffineMatrixAroundPoint

@@ -53,7 +53,7 @@ Tests:
 ## 2. 当前决策表（2026-05-22）
 
 1. 保留在 app：`apps/vector-editor-web` 的产品 UI/状态编排能力（运行时边界仍在稳定中）。
-2. 允许独立为 plugin 合同层：`packages/_vnext/plugin-lifecycle`（通用生命周期合同，不承载领域策略）。
+2. 允许独立为 plugin 合同层：`packages/plugin-lifecycle`（通用生命周期合同，不承载领域策略）。
 3. 暂不创建：`plugin-medical`、`plugin-gis`、`plugin-cad`、`plugin-video` 等领域插件包。
 
 ## 3. 占位插件防护结论

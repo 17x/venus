@@ -3,7 +3,6 @@ import type {
   EngineGraphNodeInput,
   EngineGraphPatchInput,
   EngineHandle,
-  EngineEventListener,
   EngineHookListener,
   EngineHookStage,
   EngineInvalidateInput,
@@ -15,7 +14,6 @@ import type {
   EngineRayInput,
   EngineRaycastHit,
   EngineRaycastOptions,
-  EngineRenderResult,
   EngineRuntimeBackendFallbackTraceItem,
   EngineRuntimeBackendFallbackHistoryOutput,
   EngineRuntimeBackendStateOutput,
@@ -78,6 +76,7 @@ import type {
   EngineRuntimeBarrierApplyOutput,
   EngineRuntimeReadbackOutput,
   EngineRuntimeSpatialQueryOutput,
+  EnginePublicCapabilitiesOutput,
   EnginePublicMetricsOutput,
   EngineRuntimeResourceCollectGarbageInput,
   EngineRuntimeResourceCollectGarbageOutput,
@@ -103,9 +102,6 @@ import type {
   EngineViewInput,
   EngineViewSnapshot,
 } from "./public-types";
-import type { EngineBackend } from "../backend/backend";
-import { resolveBackendSelectionFromProtocol } from "../protocol/backend/backend-selection";
-import { resolveEngineBackendFromAdapters } from "../backend/backendAdapterRegistry";
 import { createEngineRuntimeShell } from "../runtime/engineRuntime";
 import {
   resolveEnginePerformanceOptions,
@@ -122,9 +118,6 @@ import type { EngineDocumentChangeSet } from "../document/document-contracts";
 import type {
   EngineDocumentChangeOperation,
   EngineDocumentSnapshot,
-  EngineDocumentNode,
-  EngineDocumentNodeKind,
-  EngineDocumentNodePayload,
 } from "../document/document-contracts";
 import {
   type EngineIncrementalCompileOutput,
@@ -138,8 +131,6 @@ import {
   ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION,
 } from "./runtimeCapabilityMap";
 import { createEngineRuntimeFromProfile } from "../runtime/runtime-builder";
-import { browserPlatformRuntimeProfile } from "../profiles/browser/browser-runtime-profile";
-import { headlessRuntimeProfile } from "../profiles/headless/headless-runtime-profile";
 import { createEngineDocumentGraphModule } from "../document/documentGraph/documentGraph";
 import { createEngineSceneCompilerModule } from "../compiler/sceneCompiler/sceneCompiler";
 import { createEngineRuntimeWorldModule } from "../scene-runtime/runtimeWorld/runtimeWorld";
@@ -176,171 +167,28 @@ import {
   type EngineRenderScheduler,
   type EngineRenderSchedulerDiagnostics,
 } from "../scheduler/renderScheduler";
+import {
+  performanceNow,
+  resolveCreateEngineRuntimeProfile,
+  resolveDirtyDomainsFromCompileOutput,
+  resolveDocumentNodeFromGraphNode,
+  resolveEngineBackend,
+  resolveRayPickCandidateFromGraphNode,
+  resolveSpatialQueryNodeFromGraphNode,
+  resolveViewSnapshotFromViewportState,
+} from "./createEngine.foundation";
+import { createEngineEventsAndHooksFacade } from "./createEngine.events-hooks.facade";
+import { createEngineExtensionAndSchedulerFacade } from "./createEngine.extension-scheduler.facade";
+import { createEngineCachePolicySecurityFacade } from "./createEngine.cache-policy-security.facade";
+import { createEngineCapabilityFacade } from "./createEngine.capability.facade";
+import { createEngineRuntimeFacadeNamespace } from "./createEngine.runtime.facade";
+import { createEngineMediaOverlayFacade } from "./createEngine.media-overlay.facade";
+import { createEngineDiagnosticsReplayFacade } from "./createEngine.diagnostics-replay.facade";
+import { createEngineLifecycleViewFacade } from "./createEngine.lifecycle-view.facade";
+import { createEngineGraphRenderFacade } from "./createEngine.graph-render.facade";
+import { createEngineEventsHooksCacheFoundation } from "./createEngine.events-hooks-cache.foundation";
 
 const ENGINE_RUNTIME_DOCUMENT_SCHEMA_VERSION = 1;
-
-/**
- * Resolves one document node kind from graph-node input.
- * @param node Graph node payload received from public setGraph/updateGraph APIs.
- */
-function resolveDocumentNodeKindFromGraphNode(node: EngineGraphNodeInput): EngineDocumentNodeKind {
-  if (node.kind === "group" || node.kind === "shape" || node.kind === "text" || node.kind === "image" || node.kind === "custom") {
-    return node.kind;
-  }
-  const fallbackKind = typeof node.type === "string" ? node.type : "shape";
-  if (fallbackKind === "group" || fallbackKind === "shape" || fallbackKind === "text" || fallbackKind === "image" || fallbackKind === "custom") {
-    return fallbackKind;
-  }
-  return "shape";
-}
-
-/**
- * Resolves one document payload revision object from graph-node input payload.
- * @param node Graph node payload received from public setGraph/updateGraph APIs.
- */
-function resolveDocumentNodePayloadFromGraphNode(node: EngineGraphNodeInput): EngineDocumentNodePayload {
-  const rawPayload = node.payload;
-  return {
-    transformRevision: typeof rawPayload?.transformRevision === "number" ? rawPayload.transformRevision : 1,
-    geometryRevision: typeof rawPayload?.geometryRevision === "number" ? rawPayload.geometryRevision : 1,
-    materialRevision: typeof rawPayload?.materialRevision === "number" ? rawPayload.materialRevision : 1,
-    textRevision: typeof rawPayload?.textRevision === "number" ? rawPayload.textRevision : 1,
-    visibilityRevision: typeof rawPayload?.visibilityRevision === "number" ? rawPayload.visibilityRevision : 1,
-    pickingRevision: typeof rawPayload?.pickingRevision === "number" ? rawPayload.pickingRevision : 1,
-    gpuUploadRevision: typeof rawPayload?.gpuUploadRevision === "number" ? rawPayload.gpuUploadRevision : 1,
-  };
-}
-
-/**
- * Resolves one document node from graph-node input.
- * @param node Graph node payload received from public setGraph/updateGraph APIs.
- */
-function resolveDocumentNodeFromGraphNode(node: EngineGraphNodeInput): EngineDocumentNode {
-  return {
-    id: node.id,
-    kind: resolveDocumentNodeKindFromGraphNode(node),
-    parentId: typeof node.parentId === "string" ? node.parentId : undefined,
-    payload: resolveDocumentNodePayloadFromGraphNode(node),
-  };
-}
-
-/**
- * Resolves one public view snapshot from viewport state.
- * @param viewport Viewport state resolved by viewport facade.
- */
-function resolveViewSnapshotFromViewportState(viewport: {
-  width: number;
-  height: number;
-  offsetX: number;
-  offsetY: number;
-  scale: number;
-}): EngineViewSnapshot {
-  return {
-    viewportWidth: viewport.width,
-    viewportHeight: viewport.height,
-    offsetX: viewport.offsetX,
-    offsetY: viewport.offsetY,
-    scale: viewport.scale,
-  };
-}
-
-/**
- * Resolves one finite numeric value from unknown input.
- * @param value Raw input value.
- * @param fallback Fallback value when input is not finite.
- */
-function resolveFiniteNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-/**
- * Resolves one spatial query node from raw graph node payload.
- * @param node Raw graph node payload tracked by createEngine graph state.
- */
-function resolveSpatialQueryNodeFromGraphNode(node: EngineGraphNodeInput): EngineSpatialQueryNode {
-  const x = resolveFiniteNumber(node.x, 0);
-  const y = resolveFiniteNumber(node.y, 0);
-  const width = Math.abs(resolveFiniteNumber(node.width, 0));
-  const height = Math.abs(resolveFiniteNumber(node.height, 0));
-  return {
-    id: node.id,
-    x,
-    y,
-    width,
-    height,
-  };
-}
-
-/**
- * Resolves one ray-pick candidate from raw graph node payload.
- * @param node Raw graph node payload tracked by createEngine graph state.
- */
-function resolveRayPickCandidateFromGraphNode(node: EngineGraphNodeInput): EngineRayPickCandidate {
-  const x = resolveFiniteNumber(node.x, 0);
-  const y = resolveFiniteNumber(node.y, 0);
-  const z = resolveFiniteNumber(node.z, 0);
-  const width = Math.abs(resolveFiniteNumber(node.width, 0));
-  const height = Math.abs(resolveFiniteNumber(node.height, 0));
-  const depth = Math.abs(resolveFiniteNumber(node.depth, 0));
-  return {
-    id: node.id,
-    minX: x,
-    maxX: x + width,
-    minY: y,
-    maxY: y + height,
-    minZ: z,
-    maxZ: z + depth,
-  };
-}
-
-/**
- * Resolves backend instance for the current createEngine invocation.
- * @param options Engine creation options with requested backend and surface.
- */
-function resolveEngineBackend(
-  options: CreateEngineOptions,
-  backendSelectorModule: ReturnType<typeof createEngineBackendSelectorModule>,
-): {
-  backend: EngineBackend;
-  backendSelection: ReturnType<typeof resolveBackendSelectionFromProtocol>;
-} {
-  const backendSelection = backendSelectorModule.resolveSelection(options);
-  /**
-   * Normalizes selector output to concrete adapter mode for strict backend adapter resolution.
-   * @param mode Resolved selector mode that may still be typed as EngineBackendMode.
-   */
-  function normalizeResolvedBackendMode(mode: typeof backendSelection.resolved): "webgpu" | "webgl" | "canvas2d" | "headless" {
-    if (mode === "auto") {
-      // Keep runtime deterministic even if selector contract drifts and leaks auto mode.
-      return "headless";
-    }
-    return mode;
-  }
-  const backend = resolveEngineBackendFromAdapters(
-    normalizeResolvedBackendMode(backendSelection.resolved),
-    {
-      surface: options.surface,
-      canvas2d: options.canvas2d,
-    },
-  );
-  return {
-    backend,
-    backendSelection,
-  };
-}
-
-/**
- * Resolves the runtime profile selected for one createEngine invocation.
- * @param backendSelection Backend selection metadata resolved for this engine instance.
- */
-function resolveCreateEngineRuntimeProfile(backendSelection: {
-  resolved: string;
-}) {
-  if (backendSelection.resolved === "headless") {
-    return headlessRuntimeProfile;
-  }
-  return browserPlatformRuntimeProfile;
-}
 
 /**
  * Creates the canonical engine facade with explicit backend and lifecycle diagnostics.
@@ -475,6 +323,15 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     task: unknown;
   }>();
   let schedulerTaskCounter = 0;
+
+  /**
+   * Allocates one deterministic scheduler task id.
+   */
+  function createSchedulerTaskId(): string {
+    schedulerTaskCounter += 1;
+    return `scheduler-task-${schedulerTaskCounter}`;
+  }
+
   const cacheNamespaces = new Map<string, Map<string, {
     value: unknown;
     tags: readonly string[];
@@ -491,6 +348,15 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   const assetStates = new Map<string, "loaded" | "preloaded" | "unloaded">();
   const headlessSessions = new Map<string, { createdAtMs: number }>();
   let headlessSessionCounter = 0;
+
+  /**
+   * Allocates one deterministic headless session id.
+   */
+  function createHeadlessSessionId(): string {
+    headlessSessionCounter += 1;
+    return `headless-${headlessSessionCounter}`;
+  }
+
   const runtimeGpuResources = new Map<string, EngineRuntimeGpuResourceDescriptor>();
   const runtimeUploadBatches = new Map<string, readonly string[]>();
   const runtimeBarrierPlans = new Map<string, readonly string[]>();
@@ -2327,1041 +2193,155 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     },
   });
 
-  /**
-   * Resolves the listener set for one event type, creating it when requested.
-   * @param type Event type token used as listener registry key.
-   * @param createWhenMissing Whether to create registry records when absent.
-   */
-  function resolveEventListenerSet(
-    type: string,
-    createWhenMissing: boolean,
-  ): Set<(payload: unknown) => void> | undefined {
-    const existing = eventListeners.get(type);
-    if (existing || !createWhenMissing) {
-      return existing;
-    }
-    const created = new Set<(payload: unknown) => void>();
-    eventListeners.set(type, created);
-    return created;
-  }
-
-  /**
-   * Validates one event type token and throws canonical error on invalid input.
-   * @param type Event type input from events API calls.
-   */
-  function assertValidEventType(type: string): void {
-    if (typeof type !== "string" || type.length === 0) {
-      throw new Error("ENGINE_EVENTS_INVALID_TYPE");
-    }
-  }
-
-  /**
-   * Validates one event listener callback and throws canonical error on invalid input.
-   * @param listener Event listener callback from events API calls.
-   */
-  function assertValidEventListener(listener: EngineEventListener): void {
-    if (typeof listener !== "function") {
-      throw new Error("ENGINE_EVENTS_INVALID_LISTENER");
-    }
-  }
-
-  /**
-   * Registers one event listener with optional scope metadata.
-   * @param type Event type token used as listener registry key.
-   * @param listener Event listener callback.
-   * @param scope Optional listener scope token used by offAll operations.
-   */
-  function registerEventListener(
-    type: string,
-    listener: EngineEventListener,
-    scope?: "global" | "session" | "trace",
-    options?: { sampleRate?: number; throttleMs?: number },
-  ): void {
-    assertValidEventType(type);
-    assertValidEventListener(listener);
-    const listeners = resolveEventListenerSet(type, true);
-    listeners?.add(listener);
-    const metadataMap = eventListenerMetadata.get(type) ?? new Map<(payload: unknown) => void, {
-      scope?: "global" | "session" | "trace";
-      sampleRate?: number;
-      throttleMs?: number;
-    }>();
-    metadataMap.set(listener, {
-      scope,
-      sampleRate: options?.sampleRate,
-      throttleMs: options?.throttleMs,
-    });
-    eventListenerMetadata.set(type, metadataMap);
-  }
-
-  /**
-   * Unregisters one event listener and cleans empty registry records.
-   * @param type Event type token used as listener registry key.
-   * @param listener Event listener callback.
-   */
-  function unregisterEventListener(type: string, listener: EngineEventListener): void {
-    assertValidEventType(type);
-    assertValidEventListener(listener);
-    const listeners = eventListeners.get(type);
-    listeners?.delete(listener);
-    const metadataMap = eventListenerMetadata.get(type);
-    metadataMap?.delete(listener);
-    if (metadataMap && metadataMap.size === 0) {
-      eventListenerMetadata.delete(type);
-    }
-    const listenerDeliveryMap = eventListenerLastDeliveredAt.get(type);
-    listenerDeliveryMap?.delete(listener);
-    if (listenerDeliveryMap && listenerDeliveryMap.size === 0) {
-      eventListenerLastDeliveredAt.delete(type);
-    }
-    if (listeners && listeners.size === 0) {
-      eventListeners.delete(type);
-      eventListenerMetadata.delete(type);
-      eventTypeDeliveryCounters.delete(type);
-      eventListenerLastDeliveredAt.delete(type);
-    }
-  }
-
-  /**
-   * Removes listeners either globally or by one scope token.
-   * @param scope Optional scope token used to filter listener removals.
-   */
-  function unregisterAllEventListeners(scope?: "global" | "session" | "trace"): void {
-    if (!scope) {
-      eventListeners.clear();
-      eventListenerMetadata.clear();
-      pausedEventTypes.clear();
-      eventTypeDeliveryCounters.clear();
-      eventListenerLastDeliveredAt.clear();
-      return;
-    }
-    for (const [type, listeners] of eventListeners) {
-      const metadataMap = eventListenerMetadata.get(type);
-      if (!metadataMap) {
-        continue;
-      }
-      for (const [listener, metadata] of metadataMap) {
-        if (metadata.scope === scope) {
-          listeners.delete(listener);
-          metadataMap.delete(listener);
-          eventListenerLastDeliveredAt.get(type)?.delete(listener);
-        }
-      }
-      if (metadataMap.size === 0) {
-        eventListenerMetadata.delete(type);
-      }
-      if (listeners.size === 0) {
-        eventListeners.delete(type);
-        eventTypeDeliveryCounters.delete(type);
-        eventListenerLastDeliveredAt.delete(type);
-      }
-    }
-  }
-
-  /**
-   * Emits one event envelope to registered listeners with pause/sample/throttle controls.
-   * @param type Event type token.
-   * @param payload Event payload object.
-   */
-  function emitEvent(type: string, payload: unknown): void {
-    if (pausedEventTypes.has(type)) {
-      return;
-    }
-    const listeners = eventListeners.get(type);
-    if (!listeners || listeners.size === 0) {
-      return;
-    }
-    const deliveryCount = (eventTypeDeliveryCounters.get(type) ?? 0) + 1;
-    eventTypeDeliveryCounters.set(type, deliveryCount);
-    const metadataMap = eventListenerMetadata.get(type);
-    const lastDeliveredMap = eventListenerLastDeliveredAt.get(type) ?? new Map<(payload: unknown) => void, number>();
-    eventListenerLastDeliveredAt.set(type, lastDeliveredMap);
-    const timestamp = resolveNow();
-    const envelope = {
-      type,
-      timestamp,
-      engineId,
-      revision: String(documentSnapshot.revision),
-      payload,
-    };
-    for (const listener of [...listeners]) {
-      const metadata = metadataMap?.get(listener);
-      const sampleRate = metadata?.sampleRate;
-      if (typeof sampleRate === "number" && sampleRate > 0 && sampleRate < 1) {
-        const interval = Math.max(1, Math.floor(1 / sampleRate));
-        if (deliveryCount % interval !== 0) {
-          continue;
-        }
-      }
-      const throttleMs = metadata?.throttleMs;
-      if (typeof throttleMs === "number" && throttleMs > 0) {
-        const lastDeliveredAt = lastDeliveredMap.get(listener);
-        if (typeof lastDeliveredAt === "number" && timestamp - lastDeliveredAt < throttleMs) {
-          continue;
-        }
-      }
-      try {
-        listener(envelope);
-        lastDeliveredMap.set(listener, timestamp);
-      } catch (error) {
-        if (type !== "engine.diagnostics.error") {
-          emitEvent("engine.diagnostics.error", {
-            code: "ENGINE_EVENTS_LISTENER_FAILURE",
-            sourceType: type,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-    }
-  }
-
-  /**
-   * Resolves one hook-listener set and creates records when requested.
-   * @param stage Hook stage token used as listener registry key.
-   * @param createWhenMissing Whether to create registry records when absent.
-   */
-  function resolveHookListenerSet(
-    stage: EngineHookStage,
-    createWhenMissing: boolean,
-  ): Set<EngineHookListener> | undefined {
-    const existing = hookListeners.get(stage);
-    if (existing || !createWhenMissing) {
-      return existing;
-    }
-    const created = new Set<EngineHookListener>();
-    hookListeners.set(stage, created);
-    return created;
-  }
-
-  /**
-   * Validates one hook listener callback.
-   * @param listener Hook listener callback from hooks API calls.
-   */
-  function assertValidHookListener(listener: EngineHookListener): void {
-    if (typeof listener !== "function") {
-      throw new Error("ENGINE_HOOKS_INVALID_LISTENER");
-    }
-  }
-
-  /**
-   * Registers one hook listener for provided stage token.
-   * @param stage Hook stage token used as listener registry key.
-   * @param listener Hook listener callback.
-   * @param scope Optional listener scope token used by offAll operations.
-   */
-  function registerHookListener(
-    stage: EngineHookStage,
-    listener: EngineHookListener,
-    scope?: "global" | "session" | "trace",
-  ): { dispose: () => void } {
-    assertValidHookListener(listener);
-    const listeners = resolveHookListenerSet(stage, true);
-    listeners?.add(listener);
-    const metadataMap = hookListenerMetadata.get(stage) ?? new Map<EngineHookListener, {
-      scope?: "global" | "session" | "trace";
-    }>();
-    metadataMap.set(listener, {
-      scope,
-    });
-    hookListenerMetadata.set(stage, metadataMap);
-    return {
-      dispose: () => {
-        unregisterHookListener(stage, listener);
-      },
-    };
-  }
-
-  /**
-   * Unregisters one hook listener for provided stage token.
-   * @param stage Hook stage token used as listener registry key.
-   * @param listener Hook listener callback.
-   */
-  function unregisterHookListener(stage: EngineHookStage, listener: EngineHookListener): void {
-    assertValidHookListener(listener);
-    const listeners = hookListeners.get(stage);
-    listeners?.delete(listener);
-    const metadataMap = hookListenerMetadata.get(stage);
-    metadataMap?.delete(listener);
-    if (metadataMap && metadataMap.size === 0) {
-      hookListenerMetadata.delete(stage);
-    }
-    if (listeners && listeners.size === 0) {
-      hookListeners.delete(stage);
-      hookListenerMetadata.delete(stage);
-    }
-  }
-
-  /**
-   * Removes hook listeners either globally or by one scope token.
-   * @param scope Optional scope token used to filter listener removals.
-   */
-  function unregisterAllHookListeners(scope?: "global" | "session" | "trace"): void {
-    if (!scope) {
-      hookListeners.clear();
-      hookListenerMetadata.clear();
-      return;
-    }
-    for (const stage of hookStages) {
-      const listeners = hookListeners.get(stage);
-      const metadataMap = hookListenerMetadata.get(stage);
-      if (!listeners || !metadataMap) {
-        continue;
-      }
-      for (const [listener, metadata] of metadataMap) {
-        if (metadata.scope === scope) {
-          listeners.delete(listener);
-          metadataMap.delete(listener);
-        }
-      }
-      if (metadataMap.size === 0) {
-        hookListenerMetadata.delete(stage);
-      }
-      if (listeners.size === 0) {
-        hookListeners.delete(stage);
-      }
-    }
-  }
-
-  /**
-   * Emits one hook-stage envelope to registered listeners.
-   * @param stage Hook stage token.
-   * @param context Optional stage-specific context payload.
-   */
-  function emitHook(stage: EngineHookStage, context?: unknown): void {
-    const listeners = hookListeners.get(stage);
-    if (!listeners || listeners.size === 0) {
-      return;
-    }
-    const envelope = {
-      stage,
-      timestamp: resolveNow(),
-      engineId,
-      revision: String(documentSnapshot.revision),
-      context,
-    };
-    for (const listener of [...listeners]) {
-      try {
-        listener(envelope);
-      } catch (error) {
-        emitEvent("engine.diagnostics.error", {
-          code: "ENGINE_HOOKS_LISTENER_FAILURE",
-          stage,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-  }
-
-  /**
-   * Returns deterministic hook-listener stats snapshot.
-   */
-  function resolveHookListenerStats(): {
-    totalListeners: number;
-    perStage: Readonly<Record<EngineHookStage, number>>;
-  } {
-    let totalListeners = 0;
-    const perStage = {
-      beforeCompile: 0,
-      afterCompile: 0,
-      beforeRenderPlan: 0,
-      afterRenderPlan: 0,
-      beforeSubmit: 0,
-      afterSubmit: 0,
-    } satisfies Record<EngineHookStage, number>;
-    for (const stage of hookStages) {
-      const count = hookListeners.get(stage)?.size ?? 0;
-      perStage[stage] = count;
-      totalListeners += count;
-    }
-    return {
-      totalListeners,
-      perStage,
-    };
-  }
-
-  /**
-   * Returns deterministic event-listener stats snapshot.
-   */
-  function resolveEventListenerStats(): {
-    totalListeners: number;
-    pausedTypes: readonly string[];
-    perType: Readonly<Record<string, number>>;
-  } {
-    const perTypeEntries = [...eventListeners.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([type, listeners]) => [type, listeners.size] as const);
-    let totalListeners = 0;
-    const perType: Record<string, number> = {};
-    for (const [type, count] of perTypeEntries) {
-      totalListeners += count;
-      perType[type] = count;
-    }
-    return {
-      totalListeners,
-      pausedTypes: [...pausedEventTypes].sort(),
-      perType,
-    };
-  }
-
-  /**
-   * Records one security audit entry for governance operations.
-   * @param type Audit event type token.
-   * @param payload Audit payload object.
-   */
-  function appendSecurityAuditLog(type: string, payload: Readonly<Record<string, unknown>>): void {
-    securityAuditCounter += 1;
-    securityAuditLog.push({
-      id: `audit-${securityAuditCounter}`,
-      type,
-      timestamp: resolveNow(),
-      payload,
-    });
-  }
-
-  /**
-   * Resolves one cache namespace entry map and optional stats records.
-   * @param namespace Cache namespace token.
-   * @param createWhenMissing Whether to create records when namespace is missing.
-   */
-  function resolveCacheNamespace(
-    namespace: string,
-    createWhenMissing: boolean,
-  ): {
-    entries: Map<string, { value: unknown; tags: readonly string[]; policy: { ttlMs?: number; pinned?: boolean; tags?: readonly string[] } | undefined }>;
-    stats: { hitCount: number; missCount: number };
-  } {
-    if (typeof namespace !== "string" || namespace.length === 0) {
-      throw new Error("ENGINE_CACHE_INVALID_NAMESPACE");
-    }
-    const existingEntries = cacheNamespaces.get(namespace);
-    const existingStats = cacheNamespaceStats.get(namespace);
-    if (!existingEntries || !existingStats) {
-      if (!createWhenMissing) {
-        return {
-          entries: new Map(),
-          stats: { hitCount: 0, missCount: 0 },
-        };
-      }
-      const createdEntries = new Map<string, { value: unknown; tags: readonly string[]; policy: { ttlMs?: number; pinned?: boolean; tags?: readonly string[] } | undefined }>();
-      const createdStats = { hitCount: 0, missCount: 0 };
-      cacheNamespaces.set(namespace, createdEntries);
-      cacheNamespaceStats.set(namespace, createdStats);
-      return {
-        entries: createdEntries,
-        stats: createdStats,
-      };
-    }
-    return {
-      entries: existingEntries,
-      stats: existingStats,
-    };
-  }
+  // Centralizes event/hook/cache orchestration helpers to keep createEngine focused on top-level assembly.
+  const {
+    registerEventListener,
+    unregisterEventListener,
+    unregisterAllEventListeners,
+    assertValidEventType,
+    assertValidEventListener,
+    emitEvent,
+    registerHookListener,
+    unregisterAllHookListeners,
+    emitHook,
+    resolveHookListenerStats,
+    resolveEventListenerStats,
+    appendSecurityAuditLog,
+    resolveCacheNamespace,
+  } = createEngineEventsHooksCacheFoundation({
+    eventListeners,
+    eventListenerMetadata,
+    pausedEventTypes,
+    eventTypeDeliveryCounters,
+    eventListenerLastDeliveredAt,
+    hookStages,
+    hookListeners,
+    hookListenerMetadata,
+    cacheNamespaces,
+    cacheNamespaceStats,
+    securityAuditLog,
+    getSecurityAuditCounter: () => securityAuditCounter,
+    setSecurityAuditCounter: (nextCounter) => {
+      securityAuditCounter = nextCounter;
+    },
+    resolveNow,
+    engineId,
+    resolveRevision: () => documentSnapshot.revision,
+  });
 
   return {
-    /**
-     * Resolves engine readiness and emits lifecycle-ready event payload.
-     */
-    async ready() {
-      emitEvent("engine.lifecycle.ready", {
-        mounted: mountTarget !== null,
-      });
-      return Promise.resolve();
-    },
-    /**
-     * Mounts engine host target and emits lifecycle-mounted event payload.
-      * @param target Mount host descriptor consumed by runtime shell.
-     */
-    mount(target) {
-      emitEvent("engine.lifecycle.beforeMount", {
-        mounted: mountTarget !== null,
-      });
-      mountTarget = target;
-      emitEvent("engine.lifecycle.mounted", {
-        mounted: true,
-      });
-    },
-    /**
-     * Unmounts engine host target and emits lifecycle-unmounted event payload.
-     */
-    unmount() {
-      emitEvent("engine.lifecycle.beforeUnmount", {
-        mounted: mountTarget !== null,
-      });
-      mountTarget = null;
-      emitEvent("engine.lifecycle.unmounted", {
-        mounted: false,
-      });
-    },
-    configure(config) {
-      developerConfig = {
-        ...developerConfig,
-        ...config,
-      };
-    },
-    getConfig() {
-      return {
-        ...developerConfig,
-        mounted: mountTarget !== null,
-        viewportLayout,
-        interactionState,
-        transformPreview,
-        annotationCount: annotations.length,
-        mediaSourceCount: mediaSources.length,
-        mediaTimeMs,
-        backendPreference,
-        runtimeBackendDebugOptions,
-      };
-    },
-    resetConfig(scope) {
-      if (scope && scope in developerConfig) {
-        const next = { ...developerConfig };
-        delete (next as Record<string, unknown>)[scope];
-        developerConfig = next;
-        return;
-      }
-      developerConfig = {
-        debug: Boolean(options.debug),
-      };
-    },
-    start() {
-      runtimeFacade.start();
-    },
-    stop() {
-      runtimeFacade.stop();
-    },
-    pause() {
-      runtimeShell.pause();
-    },
-    resume() {
-      runtimeShell.resume();
-    },
-    /**
-     * Resizes runtime surface and emits viewport resize + view change events.
-     * @param width Next viewport width in pixels.
-     * @param height Next viewport height in pixels.
-     */
-    resize(width, height) {
-      lastInteractionAtMs = resolveNow();
-      lastInteractionKind = "set";
-      viewportFacade.resize(width, height);
-      const resized = runtimeShell.resize(width, height);
-      emitEvent("engine.view.viewportResized", {
-        width,
-        height,
-      });
-      emitEvent("engine.view.changed", {
-        viewport: resolveViewSnapshotFromViewportState(viewportFacade.getViewport()),
-      });
-      return resized;
-    },
-    /**
-     * Applies full graph snapshot and emits deterministic document events.
-      * @param graph Complete graph snapshot used to replace document state.
-     */
-    setGraph(graph) {
-      emitHook("beforeCompile", {
-        operation: "setGraph",
-        inputRevision: graph.revision,
-      });
-      applyGraphSnapshot(graph);
-      emitHook("afterCompile", {
-        operation: "setGraph",
-        nodeCount: graphNodeState.size,
-      });
-      emitEvent("engine.document.graphSet", {
-        revision: documentSnapshot.revision,
-        nodeCount: graphNodeState.size,
-      });
-      emitEvent("engine.document.revisionChanged", {
-        revision: documentSnapshot.revision,
-      });
-    },
-    /**
-     * Applies incremental graph patch and emits deterministic document events.
-      * @param patch Incremental patch batch merged into existing graph state.
-     */
-    updateGraph(patch) {
-      emitHook("beforeCompile", {
-        operation: "updateGraph",
-        patchCount: patch.patches.length,
-      });
-      applyGraphPatchBatch(patch);
-      emitHook("afterCompile", {
-        operation: "updateGraph",
-        patchCount: patch.patches.length,
-        nodeCount: graphNodeState.size,
-      });
-      emitEvent("engine.document.graphPatched", {
-        revision: documentSnapshot.revision,
-        patchCount: patch.patches.length,
-      });
-      emitEvent("engine.document.revisionChanged", {
-        revision: documentSnapshot.revision,
-      });
-    },
-    batchUpdateGraph(patches) {
-      for (const patch of patches) {
-        applyGraphPatchBatch(patch);
-      }
-    },
-    getGraph() {
-      return {
-        revision: documentSnapshot.revision,
-        nodes: [...graphNodeState.values()],
-      };
-    },
-    clearGraph() {
-      applyGraphSnapshot({ nodes: [] });
-    },
-    validateGraph(graph) {
-      const issues: string[] = [];
-      if (!graph || !Array.isArray(graph.nodes)) {
-        issues.push("ENGINE_GRAPH_INVALID_INPUT");
-      }
-      if (Array.isArray(graph?.nodes)) {
-        for (const node of graph.nodes) {
-          if (typeof node.id !== "string" || node.id.length === 0) {
-            issues.push("ENGINE_GRAPH_INVALID_NODE_ID");
-            break;
-          }
-        }
-      }
-      return {
-        valid: issues.length === 0,
-        issues,
-      };
-    },
-    normalizeGraph(input) {
-      const sortedNodes = [...(input.nodes ?? [])].sort((left, right) => left.id.localeCompare(right.id));
-      return {
-        revision: input.revision,
-        nodes: sortedNodes,
-      };
-    },
-    importGraph(payload) {
-      const graph =
-        payload && typeof payload === "object" && Array.isArray((payload as { nodes?: unknown }).nodes)
-          ? (payload as EngineGraphInput)
-          : { nodes: [] as const };
-      const normalized = {
-        revision: graph.revision,
-        nodes: [...graph.nodes],
-      };
-      applyGraphSnapshot(normalized);
-      return normalized;
-    },
-    exportGraph() {
-      return {
-        revision: documentSnapshot.revision,
-        nodes: [...graphNodeState.values()],
-      };
-    },
-    query(bounds) {
-      return queryGraph(bounds);
-    },
-    /**
-     * Resolves point picking result and emits pick completed/failed events.
-     * @param point Point payload used by picking.
-     * @param pickOptions Optional picking controls.
-     */
-    pick(point, pickOptions) {
-      const result = pickGraph(point, pickOptions);
-      if (result.hits.length > 0) {
-        emitEvent("engine.interaction.pickCompleted", {
-          hitCount: result.hits.length,
-          point,
-        });
-      } else {
-        emitEvent("engine.interaction.pickFailed", {
-          point,
-          reason: "NO_HITS",
-        });
-      }
-      return result;
-    },
-    /**
-     * Resolves raycast result and emits pick completed/failed events.
-     * @param ray Ray payload used by raycast.
-     * @param raycastOptions Optional raycast controls.
-     */
-    raycast(ray, raycastOptions) {
-      const hit = raycastGraph(ray, raycastOptions);
-      if (hit) {
-        emitEvent("engine.interaction.pickCompleted", {
-          hitCount: 1,
-          ray,
-        });
-      } else {
-        emitEvent("engine.interaction.pickFailed", {
-          ray,
-          reason: "NO_HITS",
-        });
-      }
-      return hit;
-    },
-    /**
-     * Renders one frame and emits frame started/completed/failed events.
-     */
-    async render(): Promise<EngineRenderResult> {
-      emitHook("beforeRenderPlan", {
-        interactionKind: lastInteractionKind,
-      });
-      emitEvent("engine.render.frameStarted", {
-        interactionKind: lastInteractionKind,
-      });
-      try {
-        const stats = resolveFrameOrchestration(resolveNow());
-        const result = {
-          drawCount: latestExecutionSnapshot.drawCount,
-          visibleCount: latestExecutionSnapshot.visibleCandidateIds.length,
-          frameMs: Math.max(0, stats.timestampMs),
-        };
-        emitHook("afterRenderPlan", result);
-        emitHook("beforeSubmit", {
-          drawCount: result.drawCount,
-        });
-        emitHook("afterSubmit", {
-          drawCount: result.drawCount,
-        });
-        emitEvent("engine.render.frameCompleted", result);
-        return result;
-      } catch (error) {
-        emitEvent("engine.render.frameFailed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
-    },
-    async renderNow(): Promise<EngineRenderResult> {
-      return this.render();
-    },
-    /**
-     * Applies view patch and emits canonical view-changed event.
-     * @param view View patch payload.
-     */
-    setView(view) {
-      const snapshot = applyViewPatch(view);
-      emitEvent("engine.view.changed", {
-        viewport: snapshot,
-      });
-      return snapshot;
-    },
-    getView() {
-      return resolveViewSnapshotFromViewportState(viewportFacade.getViewport());
-    },
-    /**
-     * Fits viewport to bounds and emits canonical view-changed event.
-     * @param bounds World-space bounds payload.
-     */
-    fitToBounds(bounds) {
-      const snapshot = applyViewPatch({
-        offsetX: bounds.x,
-        offsetY: bounds.y,
-      });
-      emitEvent("engine.view.changed", {
-        viewport: snapshot,
-      });
-      return snapshot;
-    },
-    /**
-     * Resets viewport and emits canonical view-changed event.
-     */
-    resetView() {
-      const snapshot = applyViewPatch({
-        offsetX: 0,
-        offsetY: 0,
-        scale: 1,
-      });
-      emitEvent("engine.view.changed", {
-        viewport: snapshot,
-      });
-      return snapshot;
-    },
-    setViewportLayout(layout) {
-      viewportLayout = layout;
-    },
-    getViewportLayout() {
-      return viewportLayout;
-    },
-    screenToWorld(point) {
-      const viewport = viewportFacade.getViewport();
-      return {
-        x: point.x / Math.max(viewport.scale, 0.0001) + viewport.offsetX,
-        y: point.y / Math.max(viewport.scale, 0.0001) + viewport.offsetY,
-      };
-    },
-    worldToScreen(point) {
-      const viewport = viewportFacade.getViewport();
-      return {
-        x: (point.x - viewport.offsetX) * viewport.scale,
-        y: (point.y - viewport.offsetY) * viewport.scale,
-      };
-    },
-    setQuality(profile) {
-      qualityProfile = profile;
-    },
-    getQuality() {
-      return qualityProfile;
-    },
-    setFrameBudget(budget) {
-      frameBudgetMs = Number.isFinite(budget) ? Math.max(1, budget) : frameBudgetMs;
-    },
-    getFrameBudget() {
-      return frameBudgetMs;
-    },
-    setOverlays(overlays) {
-      overlayNodes = [...overlays];
-    },
-    appendOverlays(overlays) {
-      overlayNodes = [...overlayNodes, ...overlays];
-    },
-    updateOverlay(overlayId, patch) {
-      overlayNodes = overlayNodes.map((overlay) => {
-        if (typeof overlay === "object" && overlay !== null && "id" in overlay && (overlay as { id?: unknown }).id === overlayId) {
-          return {
-            ...(overlay as Record<string, unknown>),
-            ...patch,
-          };
-        }
-        return overlay;
-      });
-    },
-    removeOverlay(overlayId) {
-      overlayNodes = overlayNodes.filter(
-        (overlay) => !(typeof overlay === "object" && overlay !== null && "id" in overlay && (overlay as { id?: unknown }).id === overlayId),
-      );
-    },
-    clearOverlays() {
-      overlayNodes = [];
-    },
-    setTransformPreview(preview) {
-      transformPreview = preview;
-    },
-    clearTransformPreview() {
-      transformPreview = null;
-    },
-    setAnnotations(nextAnnotations) {
-      annotations = [...nextAnnotations];
-    },
-    clearAnnotations() {
-      annotations = [];
-    },
-    invalidate(input) {
-      lastInvalidatePayload = input ?? { reason: "manual-invalidate" };
-    },
-    pickRect(rect, options) {
-      const tolerance = Math.max(0, options?.tolerance ?? 0);
-      const queryResult = queryGraph({
-        x: rect.x - tolerance,
-        y: rect.y - tolerance,
-        width: rect.width + tolerance * 2,
-        height: rect.height + tolerance * 2,
-      });
-      return {
-        hits: queryResult.nodeIds.map((id, rank) => ({ id, rank })),
-      };
-    },
-    pickLasso(lasso, options) {
-      if (!Array.isArray(lasso.points) || lasso.points.length === 0) {
-        return { hits: [] };
-      }
-      const xs = lasso.points.map((point) => point.x);
-      const ys = lasso.points.map((point) => point.y);
-      return this.pickRect(
-        {
-          x: Math.min(...xs),
-          y: Math.min(...ys),
-          width: Math.max(...xs) - Math.min(...xs),
-          height: Math.max(...ys) - Math.min(...ys),
-        },
-        options,
-      );
-    },
-    queryFrustum() {
-      return {
-        nodeIds: [...graphNodeState.keys()].sort(),
-      };
-    },
-    /**
-     * Sets interaction state and emits state-changed event.
-     * @param state Interaction state payload.
-     */
-    setInteractionState(state) {
-      interactionState = state;
-      lastInteractionAtMs = resolveNow();
-      lastInteractionKind = "set";
-      emitEvent("engine.interaction.stateChanged", {
-        active: true,
-        state,
-      });
-    },
-    /**
-     * Clears interaction state and emits state-changed event.
-     */
-    clearInteractionState() {
-      interactionState = null;
-      emitEvent("engine.interaction.stateChanged", {
-        active: false,
-      });
-    },
-    /**
-     * Loads assets and emits deterministic resource progress/failure events.
-     * @param assets Asset descriptors to load.
-     */
-    loadAssets(assets) {
-      const outcomes: Array<{ assetId: string; state: "loaded" | "missing" }> = [];
-      const total = Math.max(1, assets.length);
-      let completed = 0;
-      for (const asset of assets) {
-        if (typeof asset.id !== "string" || asset.id.length === 0) {
-          emitEvent("engine.resource.loadFailed", {
-            assetId: String(asset.id ?? ""),
-            reason: "INVALID_ASSET_ID",
-          });
-          outcomes.push({
-            assetId: String(asset.id ?? ""),
-            state: "missing",
-          });
-          continue;
-        }
-        assetStates.set(asset.id, "loaded");
-        completed += 1;
-        emitEvent("engine.resource.loadProgress", {
-          assetId: asset.id,
-          completed,
-          total,
-        });
-        outcomes.push({
-          assetId: asset.id,
-          state: "loaded",
-        });
-      }
-      return outcomes;
-    },
-    /**
-     * Preloads assets and emits deterministic resource progress/failure events.
-     * @param request Asset descriptors to preload.
-     */
-    preloadAssets(request) {
-      const outcomes: Array<{ assetId: string; state: "preloaded" | "missing" }> = [];
-      const total = Math.max(1, request.length);
-      let completed = 0;
-      for (const asset of request) {
-        if (typeof asset.id !== "string" || asset.id.length === 0) {
-          emitEvent("engine.resource.loadFailed", {
-            assetId: String(asset.id ?? ""),
-            reason: "INVALID_ASSET_ID",
-          });
-          outcomes.push({
-            assetId: String(asset.id ?? ""),
-            state: "missing",
-          });
-          continue;
-        }
-        assetStates.set(asset.id, "preloaded");
-        completed += 1;
-        emitEvent("engine.resource.loadProgress", {
-          assetId: asset.id,
-          completed,
-          total,
-        });
-        outcomes.push({
-          assetId: asset.id,
-          state: "preloaded",
-        });
-      }
-      return outcomes;
-    },
-    /**
-     * Unloads assets and emits deterministic resource failure events for missing ids.
-     * @param assetIds Asset ids to unload.
-     */
-    unloadAssets(assetIds) {
-      for (const assetId of assetIds) {
-        if (!assetStates.has(assetId)) {
-          emitEvent("engine.resource.loadFailed", {
-            assetId,
-            reason: "ASSET_NOT_FOUND",
-          });
-        }
-        assetStates.set(assetId, "unloaded");
-      }
-      return assetIds.map((assetId) => ({ assetId, state: "unloaded" as const }));
-    },
-    getAssetState(assetId) {
-      return {
-        assetId,
-        state: assetStates.get(assetId) ?? "missing",
-      };
-    },
-    getAssetStats() {
-      let loadedCount = 0;
-      let preloadedCount = 0;
-      for (const state of assetStates.values()) {
-        if (state === "loaded") {
-          loadedCount += 1;
-        }
-        if (state === "preloaded") {
-          preloadedCount += 1;
-        }
-      }
-      return {
-        loadedCount,
-        preloadedCount,
-        totalCount: assetStates.size,
-      };
-    },
-    /**
-     * Sets media sources used by streaming controls.
-     * @param sources Media source descriptors.
-     */
-    setMediaSources(sources) {
-      mediaSources = [...sources];
-    },
-    /**
-     * Seeks media timeline and emits streaming backpressure when no source is available.
-     * @param time Target media timestamp in milliseconds.
-     */
-    seekMedia(time) {
-      if (mediaSources.length === 0) {
-        emitEvent("engine.streaming.backpressure", {
-          reason: "NO_MEDIA_SOURCE",
-        });
-      }
-      mediaTimeMs = Math.max(0, Number.isFinite(time) ? time : mediaTimeMs);
-    },
-    captureImage() {
-      return {
-        mimeType: "image/png",
-        dataUrl: "data:image/png;base64,",
-      };
-    },
-    captureVideoFrame() {
-      return {
-        timestampMs: resolveNow(),
-        mimeType: "image/png",
-        dataUrl: "data:image/png;base64,",
-      };
-    },
-    setBackendPreference(preference) {
-      backendPreference = preference;
-    },
-    getCapabilities() {
-      return {
+    ...createEngineLifecycleViewFacade({
+      emitEvent,
+      isMounted: () => mountTarget !== null,
+      setMountTarget: (target) => {
+        mountTarget = target;
+      },
+      getDeveloperConfig: () => developerConfig,
+      setDeveloperConfig: (config) => {
+        developerConfig = config;
+      },
+      getViewportLayout: () => viewportLayout,
+      setViewportLayout: (layout) => {
+        viewportLayout = layout;
+      },
+      getInteractionState: () => interactionState,
+      getTransformPreview: () => transformPreview,
+      getAnnotationCount: () => annotations.length,
+      getMediaSourceCount: () => mediaSources.length,
+      getMediaTimeMs: () => mediaTimeMs,
+      getBackendPreference: () => backendPreference,
+      getRuntimeBackendDebugOptions: () => runtimeBackendDebugOptions,
+      runtimeStart: () => runtimeFacade.start(),
+      runtimeStop: () => runtimeFacade.stop(),
+      runtimePause: () => runtimeShell.pause(),
+      runtimeResume: () => runtimeShell.resume(),
+      markInteractionSet: () => {
+        lastInteractionAtMs = resolveNow();
+        lastInteractionKind = "set";
+      },
+      resizeRuntime: (width, height) => runtimeShell.resize(width, height),
+      resizeViewport: (width, height) => {
+        viewportFacade.resize(width, height);
+      },
+      resolveViewportSnapshot: () => resolveViewSnapshotFromViewportState(viewportFacade.getViewport()),
+      applyViewPatch,
+      getViewportState: () => viewportFacade.getViewport(),
+      getQuality: () => qualityProfile,
+      setQuality: (profile) => {
+        qualityProfile = profile;
+      },
+      getFrameBudget: () => frameBudgetMs,
+      setFrameBudget: (budget) => {
+        frameBudgetMs = Number.isFinite(budget) ? Math.max(1, budget) : frameBudgetMs;
+      },
+      defaultDebugEnabled: Boolean(options.debug),
+    }),
+    ...createEngineGraphRenderFacade({
+      emitHook,
+      emitEvent,
+      applyGraphSnapshot,
+      applyGraphPatchBatch,
+      getGraphRevision: () => documentSnapshot.revision,
+      getGraphNodes: () => [...graphNodeState.values()],
+      getGraphNodeCount: () => graphNodeState.size,
+      queryGraph,
+      pickGraph,
+      raycastGraph,
+      resolveFrameOrchestration,
+      resolveNow,
+      getLastInteractionKind: () => lastInteractionKind,
+      getLatestExecutionSnapshot: () => latestExecutionSnapshot,
+    }),
+    ...createEngineMediaOverlayFacade({
+      getOverlayNodes: () => overlayNodes,
+      setOverlayNodes: (nodes) => {
+        overlayNodes = nodes;
+      },
+      setTransformPreview: (preview) => {
+        transformPreview = preview;
+      },
+      getTransformPreview: () => transformPreview,
+      setAnnotations: (nextAnnotations) => {
+        annotations = nextAnnotations;
+      },
+      getAnnotations: () => annotations,
+      setInvalidatePayload: (payload) => {
+        lastInvalidatePayload = payload as EngineInvalidateInput;
+      },
+      queryGraph,
+      getGraphNodeIds: () => [...graphNodeState.keys()],
+      setInteractionState: (state) => {
+        interactionState = state;
+      },
+      markInteractionSet: () => {
+        lastInteractionAtMs = resolveNow();
+        lastInteractionKind = "set";
+      },
+      emitEvent,
+      assetStates,
+      setMediaSources: (sources) => {
+        mediaSources = sources;
+      },
+      getMediaSources: () => mediaSources,
+      setMediaTimeMs: (timeMs) => {
+        mediaTimeMs = timeMs;
+      },
+      getMediaTimeMs: () => mediaTimeMs,
+      resolveNow,
+      getBackendPreference: () => backendPreference,
+      setBackendPreference: (preference) => {
+        backendPreference = preference;
+      },
+      getRuntimeCapabilitySnapshot: (): EnginePublicCapabilitiesOutput => ({
         schemaVersion: ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION,
         runtime: Object.values(ENGINE_RUNTIME_CAPABILITY_MAP),
-      };
-    },
-    createHeadlessSession() {
-      headlessSessionCounter += 1;
-      const sessionId = `headless-${headlessSessionCounter}`;
-      headlessSessions.set(sessionId, { createdAtMs: resolveNow() });
-      return { sessionId };
-    },
-    destroyHeadlessSession(sessionId) {
-      const destroyed = headlessSessions.delete(sessionId);
-      return { destroyed };
-    },
+      }),
+      createHeadlessSessionId,
+      headlessSessions,
+    }),
+    /**
+     * Keeps headless render parity by reusing the primary render path output counters.
+     */
     async renderHeadless() {
       const rendered = await this.render();
       return {
@@ -3369,487 +2349,95 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         visibleCount: rendered.visibleCount,
       };
     },
-    events: {
-      /**
-       * Registers one scoped listener in deterministic insertion order.
-       */
-      on: (type, listener, options) => {
-        registerEventListener(type, listener, options?.scope, options);
+    ...createEngineEventsAndHooksFacade({
+      registerEventListener,
+      unregisterEventListener,
+      unregisterAllEventListeners,
+      assertValidEventType,
+      assertValidEventListener,
+      pausedEventTypes,
+      resolveEventListenerStats,
+      registerHookListener,
+      unregisterAllHookListeners,
+      resolveHookListenerStats,
+    }),
+    ...createEngineExtensionAndSchedulerFacade({
+      extensionRegistry,
+      schedulerTaskRegistry,
+      getFrameBudgetMs: () => frameBudgetMs,
+      createSchedulerTaskId,
+    }),
+    ...createEngineCachePolicySecurityFacade({
+      cacheNamespaces,
+      resolveCacheNamespace,
+      getPolicyRenderState: () => policyRenderState,
+      setPolicyRenderState: (state) => {
+        policyRenderState = state;
       },
-      /**
-       * Unregisters one listener for one event type.
-       */
-      off: (type, listener) => {
-        unregisterEventListener(type, listener);
+      getPolicyResourceState: () => policyResourceState,
+      setPolicyResourceState: (state) => {
+        policyResourceState = state;
       },
-      /**
-       * Registers one one-shot listener for one event type.
-       */
-      once: (type, listener, options) => {
-        assertValidEventType(type);
-        assertValidEventListener(listener);
-        const onceListener = (payload: unknown) => {
-          listener(payload);
-          unregisterEventListener(type, onceListener);
-        };
-        registerEventListener(type, onceListener, options?.scope, options);
+      getPolicyFallbackState: () => policyFallbackState,
+      setPolicyFallbackState: (state) => {
+        policyFallbackState = state;
       },
-      /**
-       * Registers one listener across multiple event types.
-       */
-      onMany: (types, listener, options) => {
-        if (!Array.isArray(types)) {
-          throw new Error("ENGINE_EVENTS_INVALID_TYPE");
-        }
-        for (const type of types) {
-          registerEventListener(type, listener, options?.scope, options);
-        }
-      },
-      /**
-       * Removes listeners globally or by scope token.
-       */
-      offAll: (scope) => {
-        unregisterAllEventListeners(scope);
-      },
-      /**
-       * Pauses delivery for one event type.
-       */
-      pause: (type) => {
-        assertValidEventType(type);
-        pausedEventTypes.add(type);
-      },
-      /**
-       * Resumes delivery for one event type.
-       */
-      resume: (type) => {
-        assertValidEventType(type);
-        pausedEventTypes.delete(type);
-      },
-      /**
-       * Returns deterministic listener stats snapshot.
-       */
-      getListenerStats: () => resolveEventListenerStats(),
-    },
-    hooks: {
-      /**
-       * Registers one hook listener before compile stage.
-       */
-      beforeCompile: (listener, options) => registerHookListener("beforeCompile", listener, options?.scope),
-      /**
-       * Registers one hook listener after compile stage.
-       */
-      afterCompile: (listener, options) => registerHookListener("afterCompile", listener, options?.scope),
-      /**
-       * Registers one hook listener before render-plan stage.
-       */
-      beforeRenderPlan: (listener, options) => registerHookListener("beforeRenderPlan", listener, options?.scope),
-      /**
-       * Registers one hook listener after render-plan stage.
-       */
-      afterRenderPlan: (listener, options) => registerHookListener("afterRenderPlan", listener, options?.scope),
-      /**
-       * Registers one hook listener before submit stage.
-       */
-      beforeSubmit: (listener, options) => registerHookListener("beforeSubmit", listener, options?.scope),
-      /**
-       * Registers one hook listener after submit stage.
-       */
-      afterSubmit: (listener, options) => registerHookListener("afterSubmit", listener, options?.scope),
-      /**
-       * Removes hook listeners globally or by scope token.
-       */
-      offAll: (scope) => {
-        unregisterAllHookListeners(scope);
-      },
-      /**
-       * Returns deterministic hook listener stats snapshot.
-       */
-      getStats: () => resolveHookListenerStats(),
-    },
-    extension: {
-      /**
-       * Registers one extension plugin and marks initial registry state.
-       */
-      register: (plugin) => {
-        if (!plugin || typeof plugin.id !== "string" || plugin.id.length === 0) {
-          throw new Error("ENGINE_EXTENSION_INVALID_PLUGIN");
-        }
-        if (extensionRegistry.has(plugin.id)) {
-          throw new Error("ENGINE_EXTENSION_DUPLICATE_PLUGIN");
-        }
-        extensionRegistry.set(plugin.id, {
-          pluginId: plugin.id,
-          state: "registered",
-        });
-        return {
-          pluginId: plugin.id,
-          state: "registered",
-        };
-      },
-      /**
-       * Unregisters one extension plugin by id.
-       */
-      unregister: (pluginId) => {
-        const removed = extensionRegistry.delete(pluginId);
-        return {
-          removed,
-        };
-      },
-      /**
-       * Returns deterministic extension registry list in lexical id order.
-       */
-      list: () => [...extensionRegistry.values()].sort((left, right) => left.pluginId.localeCompare(right.pluginId)),
-      /**
-       * Returns extension state for one plugin id.
-       */
-      getState: (pluginId) => {
-        const plugin = extensionRegistry.get(pluginId);
-        if (!plugin) {
-          throw new Error("ENGINE_EXTENSION_NOT_FOUND");
-        }
-        return {
-          pluginId: plugin.pluginId,
-          state: plugin.state,
-        };
-      },
-    },
-    scheduler: {
-      /**
-       * Schedules one governance task with deterministic id assignment.
-       */
-      schedule: (task, options) => {
-        if (task === undefined) {
-          throw new Error("ENGINE_SCHEDULER_INVALID_TASK");
-        }
-        const queue = typeof options?.queue === "string" && options.queue.length > 0
-          ? options.queue
-          : "default";
-        if (queue.length === 0) {
-          throw new Error("ENGINE_SCHEDULER_INVALID_QUEUE");
-        }
-        schedulerTaskCounter += 1;
-        const taskId = `scheduler-task-${schedulerTaskCounter}`;
-        schedulerTaskRegistry.set(taskId, {
-          taskId,
-          queue,
-          priority: options?.priority ?? "normal",
-          budgetMs: Number.isFinite(options?.budgetMs) ? Math.max(1, options!.budgetMs as number) : frameBudgetMs,
-          task,
-        });
-        return {
-          taskId,
-        };
-      },
-      /**
-       * Cancels one scheduled governance task.
-       */
-      cancel: (taskId) => {
-        if (!schedulerTaskRegistry.has(taskId)) {
-          return {
-            cancelled: false,
-          };
-        }
-        schedulerTaskRegistry.delete(taskId);
-        return {
-          cancelled: true,
-        };
-      },
-      /**
-       * Flushes scheduler tasks for one optional queue.
-       */
-      flush: (queue) => {
-        if (queue !== undefined && (typeof queue !== "string" || queue.length === 0)) {
-          throw new Error("ENGINE_SCHEDULER_INVALID_QUEUE");
-        }
-        let flushed = 0;
-        for (const [taskId, taskRecord] of schedulerTaskRegistry) {
-          if (queue === undefined || taskRecord.queue === queue) {
-            schedulerTaskRegistry.delete(taskId);
-            flushed += 1;
-          }
-        }
-        return {
-          flushed,
-        };
-      },
-      /**
-       * Returns current scheduler queue stats snapshot.
-       */
-      getQueueStats: () => ({
-        pending: schedulerTaskRegistry.size,
-        running: 0,
-        budgetMs: frameBudgetMs,
-      }),
-    },
-    cache: {
-      /**
-       * Returns cached value from one namespace and key pair.
-       */
-      get: (namespace, key) => {
-        if (typeof key !== "string" || key.length === 0) {
-          throw new Error("ENGINE_CACHE_INVALID_KEY");
-        }
-        const { entries, stats } = resolveCacheNamespace(namespace, false);
-        if (!entries.has(key)) {
-          stats.missCount += 1;
-          return undefined;
-        }
-        stats.hitCount += 1;
-        return entries.get(key)?.value;
-      },
-      /**
-       * Sets cached value for one namespace and key pair.
-       */
-      set: (namespace, key, value, policy) => {
-        if (typeof key !== "string" || key.length === 0) {
-          throw new Error("ENGINE_CACHE_INVALID_KEY");
-        }
-        const { entries } = resolveCacheNamespace(namespace, true);
-        entries.set(key, {
-          value,
-          tags: Array.isArray(policy?.tags) ? [...policy!.tags] : [],
-          policy,
-        });
-      },
-      /**
-       * Invalidates cache entries for one namespace with optional key.
-       */
-      invalidate: (namespace, key) => {
-        const { entries } = resolveCacheNamespace(namespace, false);
-        if (key === undefined) {
-          entries.clear();
-          return;
-        }
-        if (typeof key !== "string" || key.length === 0) {
-          throw new Error("ENGINE_CACHE_INVALID_KEY");
-        }
-        entries.delete(key);
-      },
-      /**
-       * Invalidates cache entries matching one tag token.
-       */
-      invalidateByTag: (tag) => {
-        if (typeof tag !== "string" || tag.length === 0) {
-          throw new Error("ENGINE_CACHE_INVALID_TAG");
-        }
-        for (const entries of cacheNamespaces.values()) {
-          for (const [key, entry] of entries) {
-            if (entry.tags.includes(tag)) {
-              entries.delete(key);
-            }
-          }
-        }
-      },
-      /**
-       * Returns cache stats snapshot for one namespace.
-       */
-      getStats: (namespace) => {
-        const { entries, stats } = resolveCacheNamespace(namespace, false);
-        return {
-          hitCount: stats.hitCount,
-          missCount: stats.missCount,
-          entryCount: entries.size,
-        };
-      },
-    },
-    policy: {
-      /**
-       * Sets render policy payload.
-       */
-      setRenderPolicy: (policy) => {
-        if (!policy || typeof policy !== "object") {
-          throw new Error("ENGINE_POLICY_INVALID_INPUT");
-        }
-        policyRenderState = { ...policy };
-      },
-      /**
-       * Sets resource policy payload.
-       */
-      setResourcePolicy: (policy) => {
-        if (!policy || typeof policy !== "object") {
-          throw new Error("ENGINE_POLICY_INVALID_INPUT");
-        }
-        policyResourceState = { ...policy };
-      },
-      /**
-       * Sets fallback policy payload.
-       */
-      setFallbackPolicy: (policy) => {
-        if (!policy || typeof policy !== "object") {
-          throw new Error("ENGINE_POLICY_INVALID_INPUT");
-        }
-        policyFallbackState = { ...policy };
-      },
-      /**
-       * Returns effective policy snapshot.
-       */
-      getEffectivePolicy: () => ({
-        render: policyRenderState,
-        resource: policyResourceState,
-        fallback: policyFallbackState,
-      }),
-    },
-    security: {
-      /**
-       * Sets security trust-level token.
-       */
-      setTrustLevel: (level) => {
-        if (level !== "low" && level !== "standard" && level !== "high") {
-          throw new Error("ENGINE_SECURITY_INVALID_TRUST_LEVEL");
-        }
+      getSecurityTrustLevel: () => securityTrustLevel,
+      setSecurityTrustLevel: (level) => {
         securityTrustLevel = level;
-        appendSecurityAuditLog("engine.security.setTrustLevel", {
-          level,
-        });
       },
-      /**
-       * Sets security resource-access policy.
-       */
-      setResourceAccessPolicy: (policy) => {
-        if (!policy || typeof policy !== "object") {
-          throw new Error("ENGINE_SECURITY_INVALID_POLICY");
-        }
-        const quota = (policy as { quota?: unknown }).quota;
-        if (typeof quota === "number" && quota < 0) {
-          throw new Error("ENGINE_SECURITY_QUOTA_EXCEEDED");
-        }
-        securityResourceAccessPolicy = { ...policy };
-        appendSecurityAuditLog("engine.security.setResourceAccessPolicy", {
-          trustLevel: securityTrustLevel,
-          quota,
-        });
+      getSecurityResourceAccessPolicy: () => securityResourceAccessPolicy,
+      setSecurityResourceAccessPolicy: (policy) => {
+        securityResourceAccessPolicy = policy;
       },
-      /**
-       * Returns latest security audit log entries.
-       */
-      getAuditLog: (options) => {
-        const limit = typeof options?.limit === "number" && Number.isFinite(options.limit)
-          ? Math.max(0, Math.floor(options.limit))
-          : securityAuditLog.length;
-        if (limit === 0) {
-          return [];
-        }
-        const start = Math.max(0, securityAuditLog.length - limit);
-        return securityAuditLog.slice(start).map((entry) => ({
-          ...entry,
-          policy: securityResourceAccessPolicy,
-        }));
-      },
-    },
+      getSecurityAuditLog: () => securityAuditLog,
+      appendSecurityAuditLog,
+    }),
     /**
      * Preserves legacy event registration API by delegating to engine.events.on.
+     * @param event Event type token used as listener registry key.
+     * @param listener Event listener callback.
      */
     on(event, listener) {
       registerEventListener(event, listener);
     },
     /**
      * Preserves legacy event unregister API by delegating to engine.events.off.
+     * @param event Event type token used as listener registry key.
+     * @param listener Event listener callback.
      */
     off(event, listener) {
       unregisterEventListener(event, listener);
     },
     /**
      * Preserves legacy one-shot listener API by delegating to engine.events.once.
+     * @param event Event type token used as listener registry key.
+     * @param listener Event listener callback.
      */
     once(event, listener) {
       this.events.once(event, listener);
     },
-    getMetrics() {
-      return {
+    ...createEngineDiagnosticsReplayFacade({
+      resolveMetrics: () => ({
         encodedCommandCount: lastEncodedCommandCount,
         replayedCommandCount: lastReplayEventCount,
         drawCount: latestExecutionSnapshot.drawCount,
-      };
-    },
-    /**
-     * Enables/disables diagnostics payload enrichment and emits warning on disable.
-     * @param enabled Whether diagnostics payload enrichment remains enabled.
-     */
-    setDiagnosticsEnabled(enabled) {
-      diagnosticsEnabled = enabled;
-      if (!enabled) {
-        emitEvent("engine.diagnostics.warning", {
-          code: "ENGINE_DIAGNOSTICS_DISABLED",
-        });
-      }
-    },
-    /**
-     * Captures debug frame payload and emits diagnostics capture-ready event.
-     */
-    captureDebugFrame() {
-      const output = {
+      }),
+      setDiagnosticsEnabledFlag: (enabled) => {
+        diagnosticsEnabled = enabled;
+      },
+      emitEvent,
+      captureDebugFrameOutput: () => ({
         mimeType: "image/png",
         dataUrl: "data:image/png;base64,",
-      };
-      emitEvent("engine.diagnostics.captureReady", output);
-      return output;
-    },
-    /**
-     * Creates replay token and emits replay-started event payload.
-      * @param scope Optional replay token scope object.
-     */
-    createReplayToken(scope) {
-      const token = createRuntimeReplayToken(scope);
-      emitEvent("engine.replay.started", {
-        scope,
-        token: token.token,
-      });
-      return token;
-    },
-    /**
-     * Replays one token and emits replay completion/failure event payloads.
-      * @param token Replay token string accepted by runtime replay subsystem.
-     */
-    replay(token) {
-      try {
-        const replayResult = replayRuntimeToken(token);
-        // Emits failed event for rejected tokens to keep replay outcome observability explicit.
-        if (!replayResult.accepted) {
-          emitEvent("engine.replay.failed", {
-            token,
-            error: "ENGINE_REPLAY_REJECTED_TOKEN",
-          });
-          return replayResult;
-        }
-        emitEvent("engine.replay.completed", {
-          token,
-          accepted: replayResult.accepted,
-        });
-        return replayResult;
-      } catch (error) {
-        emitEvent("engine.replay.failed", {
-          token,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
-    },
-    getDiagnostics() {
-      const diagnostics = resolvePublicDiagnostics();
-      if (!diagnosticsEnabled) {
-        return {
-          ...diagnostics,
-          framePlan: undefined,
-          hitPlan: undefined,
-        };
-      }
-      return {
-        ...diagnostics,
-        overlays: {
-          count: overlayNodes.length,
-        },
-      };
-    },
-    /**
-     * Captures one runtime frame token and emits diagnostics capture-ready event.
-     */
-    captureFrame() {
-      const output = runtimeShell.captureFrame();
-      emitEvent("engine.diagnostics.captureReady", output);
-      return output;
-    },
-    getStats() {
-      return {
+      }),
+      createRuntimeReplayToken,
+      replayRuntimeToken,
+      resolvePublicDiagnostics,
+      isDiagnosticsEnabled: () => diagnosticsEnabled,
+      getOverlayCount: () => overlayNodes.length,
+      captureFrame: () => runtimeShell.captureFrame(),
+      resolveStats: () => ({
         ...runtimeShell.getStats(),
         runtimeProfileId: runtimeProfile.id,
         runtimeCapabilityCount: profileRuntime.capabilityIds.length,
@@ -3866,159 +2454,109 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         lastReplayFirstCommandId,
         lastBoundaryViolationCount: boundaryValidation.violations.length,
         lastPublicApiViolationCount: publicApiSurfaceViolations.length,
-      };
-    },
-    getBackendInfo() {
-      return runtimeShell.getBackendInfo();
-    },
-    runtime: {
-      getDocumentSnapshot: () => resolveRuntimeDocumentSnapshot(),
-      getDocumentRevision: () => resolveRuntimeDocumentRevision(),
-      applyChangeSet: (input) => applyRuntimeDocumentChangeSet(input),
-      compileWorld: (options) => compileRuntimeWorld(options),
-      getRuntimeWorld: () => resolveRuntimeWorldSnapshotOutput(),
-      getRuntimeWorldStats: () => resolveRuntimeWorldGraphStatsOutput(),
-      getDirtyState: () => resolveRuntimeDirtyStateOutput(),
-      markDirty: (domain, token) => markRuntimeDirtyDomain({ domain, token }),
-      flushDirtyState: (domains) => flushRuntimeDirtyDomains({ domains }),
-      scheduleIncrementalCompile: (options) => scheduleRuntimeIncrementalCompile(options),
-      forceFullCompile: (reason) => forceRuntimeFullCompile(reason),
-      createRenderPlan: (request) => createRuntimeFramePlan(request),
-      inspectRenderPlan: (plan) => inspectRuntimePlan(plan),
-      encodeCommandBuffer: (plan) => encodeRuntimeCommandPlan(plan),
-      validateCommandBuffer: (buffer) => validateRuntimeCommandBuffer(buffer),
-      submit: (commandBuffer) => submitRuntimeCommandBuffer(commandBuffer),
-      submitBatch: (commandBuffers) => submitRuntimeCommandBufferBatch(commandBuffers),
-      createGpuResource: (descriptor) => createRuntimeGpuResource(descriptor),
-      updateGpuResource: (resourceId, patch) => updateRuntimeGpuResource(resourceId, patch),
-      destroyGpuResource: (resourceId) => destroyRuntimeGpuResource(resourceId),
-      createUploadBatch: (request) => createRuntimeUploadBatch(request),
-      createBarrierPlan: (request) => createRuntimeBarrierPlan(request),
-      applyBarrierPlan: (plan) => applyRuntimeBarrierPlan(plan),
-      readbackResource: (request) => readbackRuntimeResource(request),
-      queryViewportCandidates: (query) => queryRuntimeViewportCandidates(query),
-      queryFrustumVisibleSet: (query) => queryRuntimeFrustumVisibleSet(query),
-      hitTestPlanar: (point, pickOptions) => pickGraph(point, pickOptions),
-      hitTestRay: (ray, raycastOptions) => raycastGraph(ray, raycastOptions),
-      querySpatialIndex: (query) => queryRuntimeSpatialIndex(query),
-      getBackendState: () => resolveRuntimeBackendState(),
-      switchBackend: (target, switchOptions) => switchRuntimeBackend(target, switchOptions),
-      getBackendFallbackHistory: () => resolveRuntimeBackendFallbackHistory(),
-      setBackendDebugOptions: (debugOptions) => setRuntimeBackendDebugOptions(debugOptions),
-      captureFrame: (captureOptions) => captureRuntimeFrame(captureOptions),
-      captureCommandTrace: (options) => captureRuntimeCommandTrace(options),
-      createReplayToken: (scope) => createRuntimeReplayToken(scope),
-      replay: (token) => replayRuntimeToken(token),
-      getMetrics: () => resolveRuntimePublicMetrics(),
-      getTrace: (traceId) => getRuntimeTrace(traceId),
-      document: {
-        createSnapshot: (input) => createRuntimeDocumentSnapshot(input),
-        validateSnapshot: (input) => validateRuntimeDocumentSnapshot(input),
-        getRevision: () => resolveRuntimeDocumentRevision(),
-        getSchemaVersion: () => resolveRuntimeDocumentSchemaVersion(),
-        applyChangeSet: (input) => applyRuntimeDocumentChangeSet(input),
-        diffSnapshots: (input) => diffRuntimeDocumentSnapshots(input),
-        rebaseChangeSet: (input) => rebaseRuntimeDocumentChangeSet(input),
-        serializeSnapshot: (input) => serializeRuntimeDocumentSnapshot(input),
-        deserializeSnapshot: (input) => deserializeRuntimeDocumentSnapshot(input),
-      },
-      world: {
-        compileFromDocument: (input) => compileRuntimeWorldFromDocument(input),
-        getWorldSnapshot: () => resolveRuntimeWorldSnapshotOutput(),
-        queryEntity: (input) => queryRuntimeWorldEntity(input),
-        queryComponent: (input) => queryRuntimeWorldComponent(input),
-        getGraphStats: () => resolveRuntimeWorldGraphStatsOutput(),
-        queryNodeTransform: (source) => queryRuntimeNodeTransform(source),
-        formatNodeSvgTransform: (transform) => formatRuntimeNodeSvgTransform(transform),
-        clear: () => clearRuntimeWorldSnapshot(),
-      },
-      dirty: {
-        getState: () => resolveRuntimeDirtyStateOutput(),
-        mark: (input) => markRuntimeDirtyDomain(input),
-        markBatch: (input) => markRuntimeDirtyDomainsBatch(input),
-        getPendingDomains: () => resolveRuntimePendingDirtyDomains(),
-        flush: (input) => flushRuntimeDirtyDomains(input),
-        reset: () => resetRuntimeDirtyState(),
-      },
-      command: {
-        createEncoder: (input) => createRuntimeCommandEncoder(input),
-        encode: (plan) => encodeRuntimeCommandPlan(plan),
-        validate: (buffer) => validateRuntimeCommandBuffer(buffer),
-        optimize: (input) => optimizeRuntimeCommandBuffer(input),
-        inspect: (buffer) => inspectRuntimeCommandBuffer(buffer),
-        replay: (buffer) => replayRuntimeCommandBuffer(buffer),
-      },
-      backend: {
-        listAvailable: () => resolveRuntimeBackendListAvailableOutput(),
-        select: (input) => selectRuntimeBackend(input),
-        getActive: () => resolveRuntimeBackendGetActiveOutput(),
-        getCapabilities: () => resolveRuntimeBackendCapabilities(),
-        getLimits: () => resolveRuntimeBackendLimits(),
-        getFallbackTrace: () => resolveRuntimeBackendGetFallbackTraceOutput(),
-        probeHeadless: () => probeRuntimeHeadlessBackend(),
-      },
-      plan: {
-        createFramePlan: (request) => createRuntimeFramePlan(request),
-        createVisibilityPlan: (request) => createRuntimeVisibilityPlan(request),
-        createLodPlan: (request) => createRuntimeLodPlan(request),
-        createRoiPlan: (request) => createRuntimeRoiPlan(request),
-        createBudgetPlan: (request) => createRuntimeBudgetPlan(request),
-        createHitGeometryPayload: (request) => createRuntimeHitGeometryPayload(request),
-        resolveHitTolerance: (options) => resolveRuntimeHitTolerance(options),
-        requestFrame: (mode) => requestRuntimePlanFrame(mode),
-        cancelFrame: (requestId) => cancelRuntimePlanFrame(requestId),
-        setInteractiveInterval: (intervalMs) => setRuntimePlanInteractiveInterval(intervalMs),
-        getSchedulerDiagnostics: () => resolveRuntimePlanSchedulerDiagnostics(),
-        inspect: (plan) => inspectRuntimePlan(plan),
-      },
-      resource: {
-        register: (descriptor) => registerRuntimeResource(descriptor),
-        update: (resourceId, patch) => updateRuntimeResource(resourceId, patch),
-        release: (resourceId) => releaseRuntimeResource(resourceId),
-        pin: (resourceId) => pinRuntimeResource(resourceId),
-        unpin: (resourceId) => unpinRuntimeResource(resourceId),
-        getResidency: (resourceId) => getRuntimeResourceResidency(resourceId),
-        collectGarbage: (options) => collectRuntimeResources(options),
-      },
-      observability: {
-        startTrace: (options) => startRuntimeTrace(options),
-        stopTrace: (traceId) => stopRuntimeTrace(traceId),
-        getTrace: (traceId) => getRuntimeTrace(traceId),
-        getMetricsSnapshot: () => getRuntimeMetricsSnapshot(),
-        captureFrame: (options) => captureRuntimeFrame(options),
-        createReplayToken: (scope) => createRuntimeReplayToken(scope),
-        replay: (token) => replayRuntimeToken(token),
-      },
-    },
-    capability: {
-      geometry: {
-        computeNodeTransform: (source) => queryRuntimeNodeTransform(source),
-        formatNodeSvgTransform: (transform) => formatRuntimeNodeSvgTransform(transform),
-      },
-      spatial: {
-        query: (query) => queryGraph(query),
-        createHitGeometryPayload: (request) => createRuntimeHitGeometryPayload(request),
-      },
-      picking: {
-        pick: (point, pickOptions) => pickGraph(point, pickOptions),
-        raycast: (ray, raycastOptions) => raycastGraph(ray, raycastOptions),
-        getAdaptiveTolerance: (options) => resolveRuntimeHitTolerance(options),
-      },
-      diagnostics: {
-        getSummary: () => resolvePublicDiagnostics(),
-      },
-      replay: {
-        createToken: (scope) => createRuntimeReplayToken(scope),
-        validateToken: (token) => ({
-          valid: typeof token === "string" && token.startsWith("replay-"),
-        }),
-        run: (token) => replayRuntimeToken(token),
-        export: (token) => ({
-          token,
-          accepted: typeof token === "string" && token.startsWith("replay-"),
-        }),
-      },
-    },
+      }),
+      getBackendInfo: () => runtimeShell.getBackendInfo(),
+    }),
+    runtime: createEngineRuntimeFacadeNamespace({
+      resolveRuntimeDocumentSnapshot,
+      resolveRuntimeDocumentRevision,
+      applyRuntimeDocumentChangeSet,
+      compileRuntimeWorld,
+      resolveRuntimeWorldSnapshotOutput,
+      resolveRuntimeWorldGraphStatsOutput,
+      resolveRuntimeDirtyStateOutput,
+      markRuntimeDirtyDomain,
+      flushRuntimeDirtyDomains,
+      scheduleRuntimeIncrementalCompile,
+      forceRuntimeFullCompile,
+      createRuntimeFramePlan,
+      inspectRuntimePlan,
+      encodeRuntimeCommandPlan,
+      validateRuntimeCommandBuffer,
+      submitRuntimeCommandBuffer,
+      submitRuntimeCommandBufferBatch,
+      createRuntimeGpuResource,
+      updateRuntimeGpuResource,
+      destroyRuntimeGpuResource,
+      createRuntimeUploadBatch,
+      createRuntimeBarrierPlan,
+      applyRuntimeBarrierPlan,
+      readbackRuntimeResource,
+      queryRuntimeViewportCandidates,
+      queryRuntimeFrustumVisibleSet,
+      pickGraph,
+      raycastGraph,
+      queryRuntimeSpatialIndex,
+      resolveRuntimeBackendState,
+      switchRuntimeBackend,
+      resolveRuntimeBackendFallbackHistory,
+      setRuntimeBackendDebugOptions,
+      captureRuntimeFrame,
+      captureRuntimeCommandTrace,
+      createRuntimeReplayToken,
+      replayRuntimeToken,
+      resolveRuntimePublicMetrics,
+      getRuntimeTrace,
+      createRuntimeDocumentSnapshot,
+      validateRuntimeDocumentSnapshot,
+      resolveRuntimeDocumentSchemaVersion,
+      diffRuntimeDocumentSnapshots,
+      rebaseRuntimeDocumentChangeSet,
+      serializeRuntimeDocumentSnapshot,
+      deserializeRuntimeDocumentSnapshot,
+      compileRuntimeWorldFromDocument,
+      queryRuntimeWorldEntity,
+      queryRuntimeWorldComponent,
+      queryRuntimeNodeTransform,
+      formatRuntimeNodeSvgTransform,
+      clearRuntimeWorldSnapshot,
+      markRuntimeDirtyDomainsBatch,
+      resolveRuntimePendingDirtyDomains,
+      resetRuntimeDirtyState,
+      createRuntimeCommandEncoder,
+      optimizeRuntimeCommandBuffer,
+      inspectRuntimeCommandBuffer,
+      replayRuntimeCommandBuffer,
+      resolveRuntimeBackendListAvailableOutput,
+      selectRuntimeBackend,
+      resolveRuntimeBackendGetActiveOutput,
+      resolveRuntimeBackendCapabilities,
+      resolveRuntimeBackendLimits,
+      resolveRuntimeBackendGetFallbackTraceOutput,
+      probeRuntimeHeadlessBackend,
+      createRuntimeVisibilityPlan,
+      createRuntimeLodPlan,
+      createRuntimeRoiPlan,
+      createRuntimeBudgetPlan,
+      createRuntimeHitGeometryPayload,
+      resolveRuntimeHitTolerance,
+      requestRuntimePlanFrame,
+      cancelRuntimePlanFrame,
+      setRuntimePlanInteractiveInterval,
+      resolveRuntimePlanSchedulerDiagnostics,
+      registerRuntimeResource,
+      updateRuntimeResource,
+      releaseRuntimeResource,
+      pinRuntimeResource,
+      unpinRuntimeResource,
+      getRuntimeResourceResidency,
+      collectRuntimeResources,
+      startRuntimeTrace,
+      stopRuntimeTrace,
+      getRuntimeMetricsSnapshot,
+    }),
+    capability: createEngineCapabilityFacade({
+      queryRuntimeNodeTransform,
+      formatRuntimeNodeSvgTransform,
+      queryGraph,
+      createRuntimeHitGeometryPayload,
+      pickGraph,
+      raycastGraph,
+      resolveRuntimeHitTolerance,
+      resolvePublicDiagnostics,
+      createRuntimeReplayToken,
+      replayRuntimeToken,
+    }),
     /**
      * Disposes runtime resources and emits lifecycle-disposed event payload.
      */
@@ -4032,41 +2570,3 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   };
 }
 
-/**
- * Returns a monotonic timestamp in milliseconds in browser and node hosts.
- */
-function performanceNow(): number {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
-    return performance.now();
-  }
-  return Date.now();
-}
-
-/**
- * Resolves dirty domains from compiler invalidation summary.
- * @param compileOutput Incremental compiler output for one applied change-set.
- */
-function resolveDirtyDomainsFromCompileOutput(
-  compileOutput: EngineIncrementalCompileOutput,
-): readonly EngineDirtyDomain[] {
-  const domains: EngineDirtyDomain[] = [];
-  if (compileOutput.invalidation.transform) {
-    domains.push("transform");
-  }
-  if (compileOutput.invalidation.geometry) {
-    domains.push("geometry");
-  }
-  if (compileOutput.invalidation.material) {
-    domains.push("material");
-  }
-  if (compileOutput.invalidation.visibility) {
-    domains.push("visibility");
-  }
-  if (compileOutput.invalidation.picking) {
-    domains.push("picking");
-  }
-  if (compileOutput.invalidation.gpuUpload) {
-    domains.push("resource");
-  }
-  return domains;
-}

@@ -1,4 +1,4 @@
-import type {ShapeType} from '../../model/index.ts'
+import type {ShapeType} from '../../../model/index.ts'
 
 /**
  * Maps editor shape kinds to engine render shape kinds.

@@ -302,18 +302,18 @@ Acceptance:
 Tasks:
 
 - [x] Define runtime adapter contracts for frame, clock, worker, canvas, input, cursor, storage, clipboard.
-- [x] Create `packages/_vnext/runtime` as the staging package.
+- [x] Create `packages/runtime` as the staging package.
 - [x] Move platform-neutral runtime contracts out of app/engine code only after contract tests exist.
 - [x] Add browser/node platform adapter boundaries without pulling engine logic down into runtime.
 
 R1 bootstrap evidence:
 
-- Contract definitions: `packages/_vnext/runtime/src/contracts/runtimeAdapters.ts`
-- Staging package: `packages/_vnext/runtime/package.json`, `packages/_vnext/runtime/src/index.ts`
+- Contract definitions: `packages/runtime/src/contracts/runtimeAdapters.ts`
+- Staging package: `packages/runtime/package.json`, `packages/runtime/src/index.ts`
 - Change request note: `ai/operations/runtime-r1-adapter-contract-bootstrap-2026-05-21.md`
-- Platform boundaries: `packages/_vnext/runtime/src/platform/browserRuntimeAdapters.ts`, `packages/_vnext/runtime/src/platform/nodeRuntimeAdapters.ts`
-- Contract tests: `packages/_vnext/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
-- Validation: `pnpm dlx tsx --test packages/_vnext/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`（2/2 通过）
+- Platform boundaries: `packages/runtime/src/platform/browserRuntimeAdapters.ts`, `packages/runtime/src/platform/nodeRuntimeAdapters.ts`
+- Contract tests: `packages/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
+- Validation: `pnpm dlx tsx --test packages/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`（2/2 通过）
 
 Acceptance:
 
@@ -325,24 +325,24 @@ Acceptance:
 Tasks:
 
 - [x] Define backend package contract shared by canvas2d/webgl/webgpu.
-- [x] Stage `packages/_vnext/renderer-canvas2d`, `renderer-webgl`, and `renderer-webgpu` only when there is real code to move.
+- [x] Stage `packages/renderer-canvas2d`, `renderer-webgl`, and `renderer-webgpu` only when there is real code to move.
 - [ ] Move backend execution code out of engine without moving render planning or document/runtime policy.
 - [x] Preserve engine facade so apps do not choose backend implementation details directly.
 
 R2 bootstrap evidence:
 
-- Shared contract package: `packages/_vnext/renderer-shared/src/contracts/rendererBackendContract.ts`
-- Contract tests: `packages/_vnext/renderer-shared/src/tests/rendererContractConformance.test.ts`
+- Shared contract package: `packages/renderer-shared/src/contracts/rendererBackendContract.ts`
+- Contract tests: `packages/renderer-shared/src/tests/rendererContractConformance.test.ts`
 - Change request note: `ai/operations/renderer-r2-shared-backend-contract-bootstrap-2026-05-22.md`
-- Validation: `pnpm dlx tsx --test packages/_vnext/renderer-shared/src/tests/rendererContractConformance.test.ts`（2/2 通过）
+- Validation: `pnpm dlx tsx --test packages/renderer-shared/src/tests/rendererContractConformance.test.ts`（2/2 通过）
 - Renderer staging packages with real execution code:
-  - `packages/_vnext/renderer-canvas2d/src/canvas2dBackendExecution.ts`
-  - `packages/_vnext/renderer-webgl/src/webglBackendExecution.ts`
-  - `packages/_vnext/renderer-webgpu/src/webgpuBackendExecution.ts`
+  - `packages/renderer-canvas2d/src/canvas2dBackendExecution.ts`
+  - `packages/renderer-webgl/src/webglBackendExecution.ts`
+  - `packages/renderer-webgpu/src/webgpuBackendExecution.ts`
 - Staging contract tests:
-  - `packages/_vnext/renderer-canvas2d/src/tests/canvas2dBackendExecution.contract.test.ts`
-  - `packages/_vnext/renderer-webgl/src/tests/webglBackendExecution.contract.test.ts`
-  - `packages/_vnext/renderer-webgpu/src/tests/webgpuBackendExecution.contract.test.ts`
+  - `packages/renderer-canvas2d/src/tests/canvas2dBackendExecution.contract.test.ts`
+  - `packages/renderer-webgl/src/tests/webglBackendExecution.contract.test.ts`
+  - `packages/renderer-webgpu/src/tests/webgpuBackendExecution.contract.test.ts`
 - Change request note: `ai/operations/renderer-r2-backend-package-staging-2026-05-22.md`
 - Validation: three staging tests 3/3 passed + `pnpm --filter @venus/engine cr:check` + `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
 
@@ -373,11 +373,11 @@ Tasks:
 
 R3 bootstrap evidence:
 
-- Browser staging package: `packages/_vnext/platform-browser/src/browserPlatformAdapters.ts`
-- Node staging package: `packages/_vnext/platform-node/src/nodePlatformAdapters.ts`
+- Browser staging package: `packages/platform-browser/src/browserPlatformAdapters.ts`
+- Node staging package: `packages/platform-node/src/nodePlatformAdapters.ts`
 - Contract tests:
-  - `packages/_vnext/platform-browser/src/tests/browserPlatformAdapters.contract.test.ts`
-  - `packages/_vnext/platform-node/src/tests/nodePlatformAdapters.contract.test.ts`
+  - `packages/platform-browser/src/tests/browserPlatformAdapters.contract.test.ts`
+  - `packages/platform-node/src/tests/nodePlatformAdapters.contract.test.ts`
 - Change request note: `ai/operations/platform-r3-staging-bootstrap-2026-05-22.md`
 - Validation: platform tests 2/2 passed + `pnpm --filter @venus/engine cr:check` + `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
 - Browser API boundary status note: `ai/operations/platform-r3-browser-api-boundary-status-2026-05-22.md`
@@ -404,10 +404,10 @@ R4 stability evidence:
 
 R4 plugin-lifecycle evidence:
 
-- Staging contract package: `packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.ts`
-- Conformance test: `packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`
+- Staging contract package: `packages/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.ts`
+- Conformance test: `packages/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`
 - Change request note: `ai/operations/plugin-r4-lifecycle-contract-bootstrap-2026-05-22.md`
-- Validation: `pnpm dlx tsx --test packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`（3/3 通过）
+- Validation: `pnpm dlx tsx --test packages/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`（3/3 通过）
 
 R4 boundary-admission and placeholder-guard evidence:
 
@@ -424,7 +424,7 @@ Acceptance:
 Tasks:
 
 - [x] Freeze writes to old package folders.
-- [ ] Run parity test suite against old and vNext paths.
+- [x] Run parity test suite against old and vNext paths.
 - [ ] Move old folders to `archive/refactor-cutover-YYYY-MM-DD/` or another non-workspace archive.
 - [ ] Rename `packages/_vnext/<name>` to canonical `packages/<name>`.
 - [ ] Update workspace entries, package names, exports, tsconfig references, and imports.
@@ -437,6 +437,51 @@ R5 freeze-write evidence:
 - Freeze roots config: `ai/refactor-vnext/cutover-freeze-roots.json`
 - Repo command: `pnpm governance:cutover-freeze`
 - Change request note: `ai/operations/cutover-r5-freeze-write-guard-bootstrap-2026-05-22.md`
+
+R5 parity evidence:
+
+- Parity gate script: `scripts/cutover-parity-gate.mjs`
+- Repo command: `pnpm governance:cutover-parity`
+- Legacy parity test: `packages/engine-legacy/src/runtime/release/runtimeRelease.parity.test.ts`
+- Change request note: `ai/operations/cutover-r5-parity-gate-bootstrap-2026-05-22.md`
+
+R5 archive-move readiness evidence:
+
+- Archive finalize script: `scripts/cutover-archive-finalize.mjs`
+- Repo command: `pnpm governance:cutover-archive`
+- Change request note: `ai/operations/cutover-r5-archive-move-readiness-2026-05-22.md`
+- Status: dry-run validated; apply execution remains pending approved cutover window.
+
+R5 rename-back preflight evidence:
+
+- Rename preflight script: `scripts/cutover-rename-preflight.mjs`
+- Repo command: `pnpm governance:cutover-rename`
+- Change request note: `ai/operations/cutover-r5-rename-preflight-bootstrap-2026-05-22.md`
+- Status: dry-run validated; apply execution remains pending approved cutover window.
+
+R5 rename-impact precheck evidence:
+
+- Impact report script: `scripts/cutover-rename-impact-report.mjs`
+- Repo command: `pnpm governance:cutover-impact`
+- Change request note: `ai/operations/cutover-r5-rename-impact-precheck-2026-05-22.md`
+- Status: precheck validated; workspace/package/tsconfig/import rewrite execution remains pending cutover window.
+
+R5 reference-rewrite runner evidence:
+
+- Rewrite runner script: `scripts/cutover-reference-rewrite.mjs`
+- Repo command: `pnpm governance:cutover-rewrite`
+- Change request note: `ai/operations/cutover-r5-reference-rewrite-runner-2026-05-22.md`
+- Status: apply rewrite executed and validated (`pnpm governance:cutover-rewrite -- --apply`).
+
+R5 full-gate attempt evidence:
+
+- Attempt note: `ai/operations/cutover-r5-full-gate-attempt-2026-05-22.md`
+- Change request note: `ai/operations/cutover-r5-file-shape-public-types-split-2026-05-22.md`
+- Change request note: `ai/operations/cutover-r5-file-shape-createengine-facade-extraction-2026-05-22.md`
+- Change request note: `ai/operations/cutover-r5-file-shape-createengine-cache-policy-security-extraction-2026-05-22.md`
+- Change request note: `ai/operations/cutover-r5-file-shape-createengine-capability-facade-extraction-2026-05-22.md`
+- Change request note: `ai/operations/cutover-r5-file-shape-createengine-runtime-facade-extraction-2026-05-22.md`
+- Status: governance baseline blockers are remediated, `createEngine.ts` JSDoc param lint backlog is cleared, and `public-types` file-shape hard-limit is resolved via split modules; additional `createEngine` namespace extraction slices reduced `packages/engine/src/api/createEngine.ts` from `4141` to `3532`, and current R5 task-6 blocker remains `pnpm governance:file-shape` hard-limit failure in `packages/engine/src/api/createEngine.ts` only.
 
 Acceptance:
 

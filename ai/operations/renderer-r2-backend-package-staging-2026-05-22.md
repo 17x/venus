@@ -5,10 +5,10 @@
 Target:
 
 - File / Module:
-  - `packages/_vnext/renderer-canvas2d/**`
-  - `packages/_vnext/renderer-webgl/**`
-  - `packages/_vnext/renderer-webgpu/**`
-  - `packages/_vnext/renderer-shared/src/contracts/rendererBackendContract.ts`
+  - `packages/renderer-canvas2d/**`
+  - `packages/renderer-webgl/**`
+  - `packages/renderer-webgpu/**`
+  - `packages/renderer-shared/src/contracts/rendererBackendContract.ts`
   - `ai/refactor-vnext/repo-refactor-management.md`
 
 Goal:
@@ -34,8 +34,8 @@ Cleanup:
 Tests:
 
 - Tests to add/update:
-  - `pnpm dlx tsx --test packages/_vnext/renderer-canvas2d/src/tests/canvas2dBackendExecution.contract.test.ts`
-  - `pnpm dlx tsx --test packages/_vnext/renderer-webgl/src/tests/webglBackendExecution.contract.test.ts`
-  - `pnpm dlx tsx --test packages/_vnext/renderer-webgpu/src/tests/webgpuBackendExecution.contract.test.ts`
+  - `pnpm dlx tsx --test packages/renderer-canvas2d/src/tests/canvas2dBackendExecution.contract.test.ts`
+  - `pnpm dlx tsx --test packages/renderer-webgl/src/tests/webglBackendExecution.contract.test.ts`
+  - `pnpm dlx tsx --test packages/renderer-webgpu/src/tests/webgpuBackendExecution.contract.test.ts`
   - `pnpm --filter @venus/engine cr:check`
   - `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`

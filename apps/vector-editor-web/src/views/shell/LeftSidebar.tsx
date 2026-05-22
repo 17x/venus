@@ -286,7 +286,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
           </Tabs>
         </nav>
 
-        <section className={'border-t border-slate-200 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:border-slate-800 dark:bg-slate-900'}>
+        <section className={'border-slate-200 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:border-slate-800 dark:bg-slate-900'}>
           <header className={'px-3 py-2'}>
             <div className={'flex items-center justify-between gap-2'}>
               <h2 className={'truncate text-sm font-medium'}>{props.fileName ?? t('shell.variantB.fileFallback', 'Venus Editor Shell')}</h2>

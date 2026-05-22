@@ -5,16 +5,16 @@
 Target:
 
 - File / Module:
-  - `packages/_vnext/runtime/package.json`
-  - `packages/_vnext/runtime/README.md`
-  - `packages/_vnext/runtime/src/index.ts`
-  - `packages/_vnext/runtime/src/contracts/runtimeAdapters.ts`
+  - `packages/runtime/package.json`
+  - `packages/runtime/README.md`
+  - `packages/runtime/src/index.ts`
+  - `packages/runtime/src/contracts/runtimeAdapters.ts`
   - `ai/refactor-vnext/repo-refactor-management.md`
 
 Goal:
 
 - Problem being solved:
-  - 完成 R1 首轮最小接线：定义 runtime adapter contracts，并创建 `packages/_vnext/runtime` staging 包骨架。
+  - 完成 R1 首轮最小接线：定义 runtime adapter contracts，并创建 `packages/runtime` staging 包骨架。
 
 Change Type:
 

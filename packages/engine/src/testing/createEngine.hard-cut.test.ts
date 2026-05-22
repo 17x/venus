@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createEngine, createTestSurface } from "../index";
-import type { EngineDocumentSnapshot } from "../document/document-contracts";
 
 /**
  * Builds deterministic runtime adapter used by hard-cut API parity tests.
@@ -20,9 +19,23 @@ function createDeterministicRuntimeAdapter(now: number) {
  * Verifies canonical engine handle exposes hard-cut API surface and deterministic behavior.
  */
 test("createEngine hard-cut API parity", async () => {
+  let shouldInjectRenderFailure = false;
+  let failNextNow = false;
+  const runtimeAdapter = {
+    requestFrame: (_callback: (timestampMs: number) => void) => 1,
+    cancelFrame: (_handle: number) => {},
+    // Uses one-shot failure injection so frame start can emit first and failure lands inside render try/catch.
+    now: () => {
+      if (failNextNow) {
+        failNextNow = false;
+        throw new Error("hard-cut-render-failure");
+      }
+      return 128;
+    },
+  };
   const engine = createEngine({
     surface: createTestSurface(640, 480),
-    runtimeAdapter: createDeterministicRuntimeAdapter(128),
+    runtimeAdapter,
   });
 
   await engine.ready();
@@ -159,10 +172,13 @@ test("createEngine hard-cut API parity", async () => {
   assert.equal(engine.destroyHeadlessSession(headlessSession.sessionId).destroyed, true);
 
   let lifecycleReadyCount = 0;
+  let lifecycleDisposedCount = 0;
   let lifecycleBeforeMountCount = 0;
   let lifecycleMountedCount = 0;
   let lifecycleBeforeUnmountCount = 0;
   let lifecycleUnmountedCount = 0;
+  let documentGraphSetCount = 0;
+  let documentRevisionChangedCount = 0;
   let graphPatchedCount = 0;
   let viewChangedCount = 0;
   let viewportResizedCount = 0;
@@ -179,6 +195,10 @@ test("createEngine hard-cut API parity", async () => {
   let replayStartedCount = 0;
   let replayCompletedCount = 0;
   let replayFailedCount = 0;
+  let renderBackendSwitchedCount = 0;
+  let renderFrameStartedCount = 0;
+  let renderFrameFailedCount = 0;
+  let renderFrameCompletedCount = 0;
   let sampledFrameCompletedCount = 0;
   let throttledFrameCompletedCount = 0;
   let beforeCompileHookCount = 0;
@@ -187,6 +207,10 @@ test("createEngine hard-cut API parity", async () => {
   // Tracks lifecycle-ready emissions from the strengthened runtime event flow.
   const lifecycleReadyListener = () => {
     lifecycleReadyCount += 1;
+  };
+  // Tracks lifecycle-disposed emissions from terminal dispose transition.
+  const lifecycleDisposedListener = () => {
+    lifecycleDisposedCount += 1;
   };
   // Tracks lifecycle-beforeMount emissions from mount transition.
   const lifecycleBeforeMountListener = () => {
@@ -203,6 +227,14 @@ test("createEngine hard-cut API parity", async () => {
   // Tracks lifecycle-unmounted emissions from unmount transition.
   const lifecycleUnmountedListener = () => {
     lifecycleUnmountedCount += 1;
+  };
+  // Tracks document-graphSet emissions from graph replacement operations.
+  const documentGraphSetListener = () => {
+    documentGraphSetCount += 1;
+  };
+  // Tracks document-revisionChanged emissions from graph set/patch operations.
+  const documentRevisionChangedListener = () => {
+    documentRevisionChangedCount += 1;
   };
   // Tracks graph-patched emissions used to verify pause/resume gating behavior.
   const graphPatchedListener = () => {
@@ -268,6 +300,25 @@ test("createEngine hard-cut API parity", async () => {
   const replayFailedListener = () => {
     replayFailedCount += 1;
   };
+  // Tracks render-backend-switched emissions from backend preference updates.
+  const renderBackendSwitchedListener = () => {
+    renderBackendSwitchedCount += 1;
+  };
+  // Tracks frame-started emissions to ensure render start stage is explicitly observable.
+  const renderFrameStartedListener = () => {
+    renderFrameStartedCount += 1;
+    if (shouldInjectRenderFailure) {
+      failNextNow = true;
+    }
+  };
+  // Tracks frame-failed emissions to ensure render failure path is observable.
+  const renderFrameFailedListener = () => {
+    renderFrameFailedCount += 1;
+  };
+  // Tracks frame-completed emissions for explicit render completion behavior checks.
+  const renderFrameCompletedListener = () => {
+    renderFrameCompletedCount += 1;
+  };
   // Intentionally throws to verify listener exception isolation and diagnostics.error emission path.
   const crashingViewChangedListener = () => {
     throw new Error("hard-cut-listener-failure");
@@ -293,10 +344,13 @@ test("createEngine hard-cut API parity", async () => {
   engine.once("evt", listener);
 
   engine.events.on("engine.lifecycle.ready", lifecycleReadyListener, { scope: "session" });
+  engine.events.on("engine.lifecycle.disposed", lifecycleDisposedListener, { scope: "session" });
   engine.events.on("engine.lifecycle.beforeMount", lifecycleBeforeMountListener, { scope: "session" });
   engine.events.on("engine.lifecycle.mounted", lifecycleMountedListener, { scope: "session" });
   engine.events.on("engine.lifecycle.beforeUnmount", lifecycleBeforeUnmountListener, { scope: "session" });
   engine.events.on("engine.lifecycle.unmounted", lifecycleUnmountedListener, { scope: "session" });
+  engine.events.on("engine.document.graphSet", documentGraphSetListener, { scope: "session" });
+  engine.events.on("engine.document.revisionChanged", documentRevisionChangedListener, { scope: "session" });
   engine.events.on("engine.document.graphPatched", graphPatchedListener, { scope: "session" });
   engine.events.on("engine.view.changed", viewChangedListener, { scope: "session" });
   engine.events.on("engine.view.viewportResized", viewportResizedListener, { scope: "session" });
@@ -313,6 +367,10 @@ test("createEngine hard-cut API parity", async () => {
   engine.events.on("engine.replay.started", replayStartedListener, { scope: "session" });
   engine.events.on("engine.replay.completed", replayCompletedListener, { scope: "session" });
   engine.events.on("engine.replay.failed", replayFailedListener, { scope: "session" });
+  engine.events.on("engine.render.backendSwitched", renderBackendSwitchedListener, { scope: "session" });
+  engine.events.on("engine.render.frameStarted", renderFrameStartedListener, { scope: "session" });
+  engine.events.on("engine.render.frameFailed", renderFrameFailedListener, { scope: "session" });
+  engine.events.on("engine.render.frameCompleted", renderFrameCompletedListener, { scope: "session" });
   engine.events.on("engine.view.changed", crashingViewChangedListener, { scope: "trace" });
   engine.events.on("engine.render.frameCompleted", sampledFrameCompletedListener, {
     sampleRate: 0.5,
@@ -330,6 +388,14 @@ test("createEngine hard-cut API parity", async () => {
 
   await engine.ready();
   assert.equal(lifecycleReadyCount >= 1, true);
+  // Verifies lifecycle.ready obeys event pause/resume gating.
+  const lifecycleReadyBaseline = lifecycleReadyCount;
+  engine.events.pause("engine.lifecycle.ready");
+  await engine.ready();
+  assert.equal(lifecycleReadyCount, lifecycleReadyBaseline);
+  engine.events.resume("engine.lifecycle.ready");
+  await engine.ready();
+  assert.equal(lifecycleReadyCount > lifecycleReadyBaseline, true);
   engine.unmount();
   engine.mount({ id: "host-b" });
   engine.setView({ offsetX: 16, offsetY: 24, scale: 1.1 });
@@ -351,6 +417,17 @@ test("createEngine hard-cut API parity", async () => {
   assert.equal(lifecycleMountedCount >= 1, true);
   assert.equal(lifecycleBeforeUnmountCount >= 1, true);
   assert.equal(lifecycleUnmountedCount >= 1, true);
+  engine.setGraph({ nodes: [{ id: "node-doc-1", kind: "shape" }] });
+  assert.equal(documentGraphSetCount >= 1, true);
+  assert.equal(documentRevisionChangedCount >= 1, true);
+  // Verifies document.revisionChanged obeys event pause/resume gating around graph revisions.
+  const revisionChangedBaseline = documentRevisionChangedCount;
+  engine.events.pause("engine.document.revisionChanged");
+  engine.setGraph({ nodes: [{ id: "node-doc-2", kind: "shape" }] });
+  assert.equal(documentRevisionChangedCount, revisionChangedBaseline);
+  engine.events.resume("engine.document.revisionChanged");
+  engine.setGraph({ nodes: [{ id: "node-doc-3", kind: "shape" }] });
+  assert.equal(documentRevisionChangedCount > revisionChangedBaseline, true);
 
   engine.events.pause("engine.document.graphPatched");
   engine.updateGraph({ patches: [{ upsertNodes: [{ id: "node-d", kind: "shape" }] }] });
@@ -361,6 +438,36 @@ test("createEngine hard-cut API parity", async () => {
 
   await engine.render();
   await engine.render();
+  assert.equal(renderFrameStartedCount >= 2, true);
+  assert.equal(renderFrameCompletedCount >= 2, true);
+  // Verifies frameStarted obeys event pause/resume gating around render boundaries.
+  const frameStartedBaseline = renderFrameStartedCount;
+  engine.events.pause("engine.render.frameStarted");
+  await engine.render();
+  assert.equal(renderFrameStartedCount, frameStartedBaseline);
+  engine.events.resume("engine.render.frameStarted");
+  await engine.render();
+  assert.equal(renderFrameStartedCount > frameStartedBaseline, true);
+  // Verifies frameCompleted obeys event pause/resume gating around render boundaries.
+  const frameCompletedBaseline = renderFrameCompletedCount;
+  engine.events.pause("engine.render.frameCompleted");
+  await engine.render();
+  assert.equal(renderFrameCompletedCount, frameCompletedBaseline);
+  engine.events.resume("engine.render.frameCompleted");
+  await engine.render();
+  assert.equal(renderFrameCompletedCount > frameCompletedBaseline, true);
+  // Verifies frameFailed obeys event pause/resume gating around forced render failures.
+  const frameFailedBaseline = renderFrameFailedCount;
+  engine.events.pause("engine.render.frameFailed");
+  shouldInjectRenderFailure = true;
+  await assert.rejects(async () => engine.render(), /hard-cut-render-failure/);
+  shouldInjectRenderFailure = false;
+  assert.equal(renderFrameFailedCount, frameFailedBaseline);
+  engine.events.resume("engine.render.frameFailed");
+  shouldInjectRenderFailure = true;
+  await assert.rejects(async () => engine.render(), /hard-cut-render-failure/);
+  shouldInjectRenderFailure = false;
+  assert.equal(renderFrameFailedCount >= 1, true);
   assert.equal(sampledFrameCompletedCount <= 2, true);
   assert.equal(sampledFrameCompletedCount >= 1, true);
   assert.equal(throttledFrameCompletedCount, 1);
@@ -386,6 +493,14 @@ test("createEngine hard-cut API parity", async () => {
   assert.equal(replayCompletedCount >= 1, true);
   assert.equal(engine.replay("invalid-replay-token").accepted, false);
   assert.equal(replayFailedCount >= 1, true);
+  // Verifies backendSwitched obeys event pause/resume gating around preference changes.
+  const backendSwitchedBaseline = renderBackendSwitchedCount;
+  engine.events.pause("engine.render.backendSwitched");
+  engine.setBackendPreference("canvas2d");
+  assert.equal(renderBackendSwitchedCount, backendSwitchedBaseline);
+  engine.events.resume("engine.render.backendSwitched");
+  engine.setBackendPreference("webgl");
+  assert.equal(renderBackendSwitchedCount > backendSwitchedBaseline, true);
 
   assert.equal(typeof engine.events.getListenerStats().totalListeners, "number");
   engine.events.off("engine.lifecycle.ready", lifecycleReadyListener);
@@ -393,6 +508,8 @@ test("createEngine hard-cut API parity", async () => {
   engine.events.off("engine.lifecycle.mounted", lifecycleMountedListener);
   engine.events.off("engine.lifecycle.beforeUnmount", lifecycleBeforeUnmountListener);
   engine.events.off("engine.lifecycle.unmounted", lifecycleUnmountedListener);
+  engine.events.off("engine.document.graphSet", documentGraphSetListener);
+  engine.events.off("engine.document.revisionChanged", documentRevisionChangedListener);
   engine.events.off("engine.document.graphPatched", graphPatchedListener);
   engine.events.off("engine.view.changed", viewChangedListener);
   engine.events.off("engine.view.viewportResized", viewportResizedListener);
@@ -409,6 +526,10 @@ test("createEngine hard-cut API parity", async () => {
   engine.events.off("engine.replay.started", replayStartedListener);
   engine.events.off("engine.replay.completed", replayCompletedListener);
   engine.events.off("engine.replay.failed", replayFailedListener);
+  engine.events.off("engine.render.backendSwitched", renderBackendSwitchedListener);
+  engine.events.off("engine.render.frameStarted", renderFrameStartedListener);
+  engine.events.off("engine.render.frameFailed", renderFrameFailedListener);
+  engine.events.off("engine.render.frameCompleted", renderFrameCompletedListener);
   engine.events.off("engine.view.changed", crashingViewChangedListener);
   engine.events.off("engine.render.frameCompleted", sampledFrameCompletedListener);
   engine.events.off("engine.render.frameCompleted", throttledFrameCompletedListener);
@@ -449,428 +570,5 @@ test("createEngine hard-cut API parity", async () => {
   engine.clearGraph();
 
   engine.dispose();
-});
-
-/**
- * Verifies runtime foundation namespaces expose Batch-1/2/3 minimal callable API set.
- */
-test("createEngine runtime foundation namespaces are callable", () => {
-  const engine = createEngine({
-    surface: createTestSurface(640, 480),
-    runtimeAdapter: createDeterministicRuntimeAdapter(512),
-  });
-
-  const documentRevision = engine.runtime.document.getRevision();
-  const schemaVersion = engine.runtime.document.getSchemaVersion();
-  assert.equal(typeof documentRevision, "number");
-  assert.equal(typeof schemaVersion, "number");
-  const createdSnapshot = engine.runtime.document.createSnapshot({
-    revision: documentRevision,
-    nodes: {},
-  });
-  const validatedSnapshot = engine.runtime.document.validateSnapshot({
-    snapshot: createdSnapshot,
-  });
-  assert.equal(validatedSnapshot.valid, true);
-  const baseSnapshot: EngineDocumentSnapshot = {
-    revision: documentRevision,
-    nodes: {},
-  };
-  const targetSnapshot: EngineDocumentSnapshot = {
-    revision: documentRevision + 1,
-    nodes: {
-      "node-a": {
-        id: "node-a",
-        kind: "shape",
-        payload: {
-          geometryRevision: 1,
-        },
-      },
-    },
-  };
-  const documentDiff = engine.runtime.document.diffSnapshots({
-    base: baseSnapshot,
-    target: targetSnapshot,
-  });
-  assert.deepEqual(documentDiff.addedNodeIds, ["node-a"]);
-  const rebasedChangeSet = engine.runtime.document.rebaseChangeSet({
-    baseRevision: documentRevision,
-    changeSet: {
-      id: "rebase-1",
-      operations: [],
-    },
-  });
-  assert.equal(rebasedChangeSet.targetRevision, documentRevision + 1);
-  const serializedSnapshot = engine.runtime.document.serializeSnapshot({
-    snapshot: targetSnapshot,
-  });
-  assert.equal(typeof serializedSnapshot.payload, "string");
-  const deserializedSnapshot = engine.runtime.document.deserializeSnapshot({
-    payload: serializedSnapshot.payload,
-  });
-  assert.equal(deserializedSnapshot.revision, targetSnapshot.revision);
-
-  const compiledWorld = engine.runtime.world.compileFromDocument({
-    snapshot: targetSnapshot,
-  });
-  const worldSnapshot = engine.runtime.world.getWorldSnapshot();
-  const worldEntityResult = engine.runtime.world.queryEntity({ entityId: "node-a" });
-  const worldComponentResult = engine.runtime.world.queryComponent({ component: "geometry" });
-  const worldStats = engine.runtime.world.getGraphStats();
-  const clearedWorld = engine.runtime.world.clear();
-  assert.equal(compiledWorld.worldRevision >= 0, true);
-  assert.equal(worldEntityResult.found, true);
-  assert.equal(worldComponentResult.entityIds.includes("node-a"), true);
-  assert.equal(clearedWorld.clearedEntityCount >= 0, true);
-  assert.equal(typeof worldSnapshot.worldRevision, "number");
-  assert.equal(Array.isArray(worldSnapshot.entities), true);
-  assert.equal(worldStats.worldRevision, worldSnapshot.worldRevision);
-  assert.equal(worldStats.entityCount, worldSnapshot.entities.length);
-
-  const dirtyStateBefore = engine.runtime.dirty.getState();
-  const dirtyStateAfter = engine.runtime.dirty.mark({
-    domain: "geometry",
-    token: "test-mark",
-  });
-  const dirtyStateBatch = engine.runtime.dirty.markBatch({
-    domains: ["material", "visibility"],
-    token: "test-mark-batch",
-  });
-  const dirtyPendingDomains = engine.runtime.dirty.getPendingDomains();
-  const dirtyFlushResult = engine.runtime.dirty.flush({
-    domains: ["geometry"],
-  });
-  const dirtyResetResult = engine.runtime.dirty.reset();
-  assert.equal(Array.isArray(dirtyStateBefore.pendingDomains), true);
-  assert.equal(dirtyStateAfter.pendingDomains.includes("geometry"), true);
-  assert.equal(dirtyStateBatch.pendingDomains.includes("material"), true);
-  assert.equal(Array.isArray(dirtyPendingDomains), true);
-  assert.equal(dirtyFlushResult.flushedCount >= 0, true);
-  assert.equal(dirtyResetResult.reset, true);
-
-  const encoder = engine.runtime.command.createEncoder({ profile: "default" });
-  const encoded = engine.runtime.command.encode({
-    commands: [
-      { id: "cmd-2", kind: "draw", payload: {} },
-      { id: "cmd-1", kind: "set-state", payload: {} },
-    ],
-  });
-  assert.equal(typeof encoded.bufferId, "string");
-  assert.equal(encoded.commandCount, 2);
-  assert.deepEqual(
-    encoded.commands.map((command) => command.id),
-    ["cmd-1", "cmd-2"],
-  );
-
-  const validation = engine.runtime.command.validate({
-    commands: encoded.commands,
-  });
-  const optimized = engine.runtime.command.optimize({
-    commands: encoded.commands,
-    profile: "balanced",
-  });
-  const inspected = engine.runtime.command.inspect({
-    commands: optimized.commands,
-  });
-  const replayed = engine.runtime.command.replay({
-    commands: optimized.commands,
-  });
-  assert.equal(typeof encoder.encoderId, "string");
-  assert.equal(validation.valid, true);
-  assert.equal(inspected.valid, true);
-  assert.equal(replayed.replayedCount, optimized.commandCount);
-
-  const availableBackends = engine.runtime.backend.listAvailable();
-  const selectedBackend = engine.runtime.backend.select({ preference: "auto" });
-  const activeBackend = engine.runtime.backend.getActive();
-  const backendCapabilities = engine.runtime.backend.getCapabilities();
-  const backendLimits = engine.runtime.backend.getLimits();
-  const fallbackTrace = engine.runtime.backend.getFallbackTrace();
-  const headlessProbe = engine.runtime.backend.probeHeadless();
-  assert.equal(typeof selectedBackend.resolved, "string");
-  assert.equal(availableBackends.available.includes(activeBackend.active), true);
-  assert.equal(typeof backendCapabilities.compute, "boolean");
-  assert.equal(backendLimits.maxTextureSize > 0, true);
-  assert.equal(Array.isArray(fallbackTrace.fallbackTrace), true);
-  assert.equal(typeof headlessProbe.supported, "boolean");
-
-  const framePlan = engine.runtime.plan.createFramePlan({
-    nodeCount: 2,
-    viewportWidth: 640,
-    viewportHeight: 480,
-    interactionActive: false,
-  });
-  assert.equal(typeof framePlan.planId, "string");
-  assert.equal(framePlan.shortlistCandidateRatio >= 0, true);
-
-  const visibilityPlan = engine.runtime.plan.createVisibilityPlan({
-    candidateNodeIds: ["node-b", "node-a"],
-  });
-  assert.deepEqual(visibilityPlan.visibleNodeIds, ["node-a", "node-b"]);
-
-  const roiPlan = engine.runtime.plan.createRoiPlan({
-    x: 10,
-    y: 20,
-    width: 100,
-    height: 60,
-    margin: 5,
-  });
-  assert.equal(roiPlan.width, 110);
-  assert.equal(engine.runtime.plan.inspect(framePlan).valid, true);
-
-  const resource = engine.runtime.resource.register({
-    id: "resource-1",
-    kind: "texture",
-    sizeBytes: 256,
-  });
-  assert.equal(resource.id, "resource-1");
-  const pinnedResource = engine.runtime.resource.pin("resource-1");
-  assert.equal(pinnedResource.pinned, true);
-  const unpinnedResource = engine.runtime.resource.unpin("resource-1");
-  assert.equal(unpinnedResource.pinned, false);
-  const gcResult = engine.runtime.resource.collectGarbage({ budgetBytes: 1024 });
-  assert.equal(gcResult.releasedResourceIds.includes("resource-1"), true);
-
-  const traceStart = engine.runtime.observability.startTrace({ name: "hard-cut" });
-  const traceGet = engine.runtime.observability.getTrace(traceStart.traceId);
-  assert.equal(traceGet.traceId, traceStart.traceId);
-  const traceStop = engine.runtime.observability.stopTrace(traceStart.traceId);
-  assert.equal(traceStop.durationMs >= 0, true);
-  const metricsSnapshot = engine.runtime.observability.getMetricsSnapshot();
-  assert.equal(typeof metricsSnapshot.encodedCommandCount, "number");
-  const captured = engine.runtime.observability.captureFrame({ label: "hard-cut" });
-  assert.equal(captured.label, "hard-cut");
-  const replayToken = engine.runtime.observability.createReplayToken("integration");
-  const replayResult = engine.runtime.observability.replay(replayToken.token);
-  assert.equal(replayResult.accepted, true);
-
-  const directDocumentSnapshot = engine.runtime.getDocumentSnapshot();
-  assert.equal(typeof directDocumentSnapshot.revision, "number");
-  assert.equal(typeof engine.runtime.getDocumentRevision(), "number");
-  const directApplyChangeSet = engine.runtime.applyChangeSet({
-    baseRevision: directDocumentSnapshot.revision,
-    changeSet: {
-      id: "direct-change-set-1",
-      operations: [],
-    },
-  });
-  assert.equal(directApplyChangeSet.nextRevision, directDocumentSnapshot.revision + 1);
-
-  const directCompiledWorld = engine.runtime.compileWorld();
-  const directWorldSnapshot = engine.runtime.getRuntimeWorld();
-  const directWorldStats = engine.runtime.getRuntimeWorldStats();
-  assert.equal(typeof directCompiledWorld.worldRevision, "number");
-  assert.equal(typeof directWorldSnapshot.worldRevision, "number");
-  assert.equal(typeof directWorldStats.entityCount, "number");
-
-  const directDirtyState = engine.runtime.getDirtyState();
-  const directMarkDirty = engine.runtime.markDirty("geometry", "direct-mark");
-  const directFlushDirty = engine.runtime.flushDirtyState(["geometry"]);
-  assert.equal(Array.isArray(directDirtyState.pendingDomains), true);
-  assert.equal(directMarkDirty.pendingDomains.includes("geometry"), true);
-  assert.equal(directFlushDirty.flushedCount >= 0, true);
-
-  const directIncremental = engine.runtime.scheduleIncrementalCompile({
-    reason: "test-direct-incremental",
-  });
-  const directFull = engine.runtime.forceFullCompile("test-direct-full");
-  assert.equal(directIncremental.scheduled, true);
-  assert.equal(directFull.reason, "test-direct-full");
-
-  const directRenderPlan = engine.runtime.createRenderPlan({
-    nodeCount: 3,
-    viewportWidth: 640,
-    viewportHeight: 480,
-    interactionActive: false,
-  });
-  const directInspectPlan = engine.runtime.inspectRenderPlan(directRenderPlan);
-  const directEncoded = engine.runtime.encodeCommandBuffer({
-    commands: [
-      { id: "direct-encode-1", kind: "draw", payload: {} },
-      { id: "direct-encode-2", kind: "set-state", payload: {} },
-    ],
-  });
-  const directValidated = engine.runtime.validateCommandBuffer({
-    commands: directEncoded.commands,
-  });
-  assert.equal(typeof directRenderPlan.planId, "string");
-  assert.equal(directInspectPlan.valid, true);
-  assert.equal(directValidated.valid, true);
-
-  const directSubmit = engine.runtime.submit({
-    commands: [
-      { id: "direct-cmd-1", kind: "draw", payload: {} },
-      { id: "direct-cmd-2", kind: "set-state", payload: {} },
-    ],
-  });
-  const directSubmitBatch = engine.runtime.submitBatch([
-    {
-      commands: [{ id: "direct-batch-cmd-1", kind: "draw", payload: {} }],
-    },
-    {
-      commands: [{ id: "direct-batch-cmd-2", kind: "set-state", payload: {} }],
-    },
-  ]);
-  assert.equal(directSubmit.submittedCount, 2);
-  assert.equal(directSubmitBatch.submittedCount, 2);
-
-  const directResource = engine.runtime.createGpuResource({
-    id: "direct-resource-1",
-    kind: "texture",
-    sizeBytes: 512,
-  });
-  const directResourceUpdate = engine.runtime.updateGpuResource("direct-resource-1", {
-    sizeBytes: 1024,
-  });
-  const directResourceReadback = engine.runtime.readbackResource({
-    resourceId: "direct-resource-1",
-  });
-  const directResourceDestroy = engine.runtime.destroyGpuResource("direct-resource-1");
-  assert.equal(directResource.exists, true);
-  assert.equal(directResourceUpdate.exists, true);
-  assert.equal(directResourceReadback.byteLength, 1024);
-  assert.equal(directResourceDestroy.exists, true);
-
-  const directUploadBatch = engine.runtime.createUploadBatch({
-    resourceIds: ["res-a", "res-b"],
-  });
-  const directBarrierPlan = engine.runtime.createBarrierPlan({
-    resourceIds: ["res-a", "res-b"],
-  });
-  const directBarrierApply = engine.runtime.applyBarrierPlan({
-    planId: directBarrierPlan.planId,
-  });
-  assert.equal(directUploadBatch.resourceCount, 2);
-  assert.equal(directBarrierPlan.resourceCount, 2);
-  assert.equal(directBarrierApply.applied, true);
-
-  const directViewportCandidates = engine.runtime.queryViewportCandidates({
-    x: 0,
-    y: 0,
-    width: 200,
-    height: 120,
-  });
-  const directFrustumSet = engine.runtime.queryFrustumVisibleSet({
-    tag: "frustum-test",
-  });
-  const directSpatialIndex = engine.runtime.querySpatialIndex({
-    tag: "spatial-test",
-  });
-  assert.equal(Array.isArray(directViewportCandidates.nodeIds), true);
-  assert.equal(Array.isArray(directFrustumSet.nodeIds), true);
-  assert.equal(Array.isArray(directSpatialIndex.nodeIds), true);
-
-  const directBackendState = engine.runtime.getBackendState();
-  const directBackendSwitch = engine.runtime.switchBackend("webgpu", {
-    reason: "hard-cut-direct-switch",
-  });
-  const directBackendFallbackHistory = engine.runtime.getBackendFallbackHistory();
-  const directBackendDebug = engine.runtime.setBackendDebugOptions({
-    strict: true,
-  });
-  assert.equal(typeof directBackendState.resolved, "string");
-  assert.equal(typeof directBackendSwitch.resolved, "string");
-  assert.equal(Array.isArray(directBackendFallbackHistory.history), true);
-  assert.equal(directBackendDebug.accepted, true);
-
-  const directCaptureFrame = engine.runtime.captureFrame({
-    label: "direct-capture",
-  });
-  const directCommandTrace = engine.runtime.captureCommandTrace({
-    label: "direct-trace",
-  });
-  const directReplayToken = engine.runtime.createReplayToken("direct");
-  const directReplay = engine.runtime.replay(directReplayToken.token);
-  const directMetrics = engine.runtime.getMetrics();
-  const directTrace = engine.runtime.getTrace(directCommandTrace.traceId);
-  assert.equal(directCaptureFrame.label, "direct-capture");
-  assert.equal(typeof directCommandTrace.traceId, "string");
-  assert.equal(directReplay.accepted, true);
-  assert.equal(typeof directMetrics.drawCount, "number");
-  assert.equal(directTrace.traceId, directCommandTrace.traceId);
-
-  const runtimeNodeTransform = engine.runtime.world.queryNodeTransform({
-    x: 10,
-    y: 20,
-    width: 100,
-    height: 80,
-    rotation: 15,
-  });
-  const runtimeSvgTransform = engine.runtime.world.formatNodeSvgTransform(runtimeNodeTransform);
-  assert.equal(Array.isArray(runtimeNodeTransform.matrix), true);
-  assert.equal(typeof runtimeSvgTransform === "string" || typeof runtimeSvgTransform === "undefined", true);
-
-  const runtimeHitGeometry = engine.runtime.plan.createHitGeometryPayload({
-    nodes: [],
-    pointer: { x: 0, y: 0 },
-  });
-  const runtimeHitTolerance = engine.runtime.plan.resolveHitTolerance({
-    viewportScale: 2,
-    viewportWidth: 640,
-    viewportHeight: 480,
-  });
-  const runtimeFrameRequest = engine.runtime.plan.requestFrame("interactive");
-  const runtimeFrameCancel = engine.runtime.plan.cancelFrame(runtimeFrameRequest.requestId);
-  const runtimePlanInterval = engine.runtime.plan.setInteractiveInterval(5);
-  const runtimePlanSchedulerDiagnostics = engine.runtime.plan.getSchedulerDiagnostics();
-  assert.equal(Array.isArray(runtimeHitGeometry.pointHitNodeIds), true);
-  assert.equal(runtimeHitTolerance.screenPx >= 0, true);
-  assert.equal(runtimeFrameRequest.scheduled, true);
-  assert.equal(runtimeFrameCancel.cancelled, true);
-  assert.equal(runtimePlanInterval.intervalMs, 5);
-  assert.equal(typeof runtimePlanSchedulerDiagnostics.lastQueueWaitMs, "number");
-
-  const capabilitySpatialQuery = engine.capability.spatial.query({
-    x: 0,
-    y: 0,
-    width: 100,
-    height: 80,
-  });
-  const capabilityPick = engine.capability.picking.pick({ x: 10, y: 10 });
-  const capabilityRaycast = engine.capability.picking.raycast({
-    originX: 0,
-    originY: 0,
-    originZ: 1,
-    directionX: 0,
-    directionY: 0,
-    directionZ: -1,
-  });
-  const capabilityHitGeometry = engine.capability.spatial.createHitGeometryPayload({
-    nodes: [],
-    pointer: { x: 0, y: 0 },
-  });
-  const capabilityAdaptiveTolerance = engine.capability.picking.getAdaptiveTolerance({
-    viewportScale: 1.5,
-  });
-  const capabilityGeometryTransform = engine.capability.geometry.computeNodeTransform({
-    x: 0,
-    y: 0,
-    width: 40,
-    height: 30,
-    rotation: 10,
-  });
-  const capabilityGeometrySvgTransform = engine.capability.geometry.formatNodeSvgTransform(
-    capabilityGeometryTransform,
-  );
-  const capabilityDiagnostics = engine.capability.diagnostics.getSummary();
-  const capabilityReplayToken = engine.capability.replay.createToken("capability");
-  const capabilityReplayValid = engine.capability.replay.validateToken(capabilityReplayToken.token);
-  const capabilityReplayRun = engine.capability.replay.run(capabilityReplayToken.token);
-  const capabilityReplayExport = engine.capability.replay.export(capabilityReplayToken.token);
-  assert.equal(Array.isArray(capabilitySpatialQuery.nodeIds), true);
-  assert.equal(Array.isArray(capabilityPick.hits), true);
-  assert.equal(capabilityRaycast === null || typeof capabilityRaycast.id === "string", true);
-  assert.equal(Array.isArray(capabilityHitGeometry.selected), true);
-  assert.equal(capabilityAdaptiveTolerance.worldPx >= 0, true);
-  assert.equal(Array.isArray(capabilityGeometryTransform.inverseMatrix), true);
-  assert.equal(
-    typeof capabilityGeometrySvgTransform === "string" || typeof capabilityGeometrySvgTransform === "undefined",
-    true,
-  );
-  assert.equal(typeof capabilityDiagnostics.pixelRatio, "number");
-  assert.equal(capabilityReplayValid.valid, true);
-  assert.equal(capabilityReplayRun.accepted, true);
-  assert.equal(capabilityReplayExport.accepted, true);
-
-  engine.dispose();
+  assert.equal(lifecycleDisposedCount >= 1, true);
 });

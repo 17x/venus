@@ -190,6 +190,14 @@ export function EngineViewport({
     }
 
     const node = viewportRef.current
+    // Prime runtime viewport dimensions on mount so renderer does not wait for
+    // a deferred ResizeObserver delivery before opening the first frame.
+    const initialWidth = node.clientWidth
+    const initialHeight = node.clientHeight
+    if (initialWidth > 1 && initialHeight > 1) {
+      onViewportResize(initialWidth, initialHeight)
+    }
+
     const observer = new ResizeObserver(([entry]) => {
       onViewportResize(entry.contentRect.width, entry.contentRect.height)
     })
