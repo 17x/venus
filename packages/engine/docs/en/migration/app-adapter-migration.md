@@ -54,7 +54,7 @@ Move from compat-oriented integration to capability-oriented integration without
 3. Pick ordering determinism.
 4. Headless snapshot and replay parity.
 
-## Cutover Exit Criteria
+## Canonical Readiness Criteria
 
 - No compat-only imports in adapter runtime.
 - All adapter calls route through canonical APIs.

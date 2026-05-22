@@ -6,7 +6,7 @@ import path from "node:path";
 const CREATE_ENGINE_FILE = "src/api/createEngine.ts";
 
 /**
- * Intent: enforce release-safe debug defaults in canonical vNext engine create path.
+ * Intent: enforce release-safe debug defaults in canonical engine create path.
  */
 function main() {
   const absoluteFilePath = path.resolve(CREATE_ENGINE_FILE);

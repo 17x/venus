@@ -1,17 +1,17 @@
-# Engine Staging Structure Baseline (Historical)
+# Engine Structure Baseline (Historical Reference)
 
-This file records the historical staging tree that was used before canonical engine cutover.
+This file records the historical migration-era tree used before the canonical engine layout was finalized.
 
-Current post-cutover engine structure is managed by `ai/refactor-vnext/engine-headless-modular-runtime-management.md`.
+Current canonical engine structure is managed by `ai/operations/engine-canonical-governance-readiness-2026-05-20.md`.
 
 Historical status:
 
-- Directory skeleton was created under the historical staging path.
-- Canonical cutover moved active engine development back to `packages/engine`.
-- Post-cutover migration now uses single-package internal boundaries: `core`, `protocol`, `adapters`, `profiles`, `runtime`, `api`, and `testing`.
+- Directory skeleton was created under the historical migration path.
+- Canonical alignment moved active engine development back to `packages/engine`.
+- Current engine evolution uses single-package internal boundaries: `core`, `protocol`, `adapters`, `profiles`, `runtime`, `api`, and `testing`.
 
-Post-cutover rule:
+Current rule:
 
-- Do not create new historical staging structure for the active post-cutover work.
+- Do not create new historical migration structures for active engine work.
 - Do not split engine into multiple packages until internal protocol/profile boundaries are stable and tested.
 - Keep current source folders until their target contracts and tests exist.

@@ -3,6 +3,9 @@ import type {
   EngineGraphNodeInput,
   EngineGraphPatchInput,
   EngineHandle,
+  EngineEventListener,
+  EngineHookListener,
+  EngineHookStage,
   EngineInvalidateInput,
   EnginePickOptions,
   EnginePickPointInput,
@@ -443,6 +446,48 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   const runtimePlanPendingRequestIds = new Set<string>();
   let runtimePlanScheduler: EngineRenderScheduler | null = null;
   const eventListeners = new Map<string, Set<(payload: unknown) => void>>();
+  const eventListenerMetadata = new Map<string, Map<(payload: unknown) => void, {
+    scope?: "global" | "session" | "trace";
+    sampleRate?: number;
+    throttleMs?: number;
+  }>>();
+  const pausedEventTypes = new Set<string>();
+  const eventTypeDeliveryCounters = new Map<string, number>();
+  const eventListenerLastDeliveredAt = new Map<string, Map<(payload: unknown) => void, number>>();
+  const hookStages: readonly EngineHookStage[] = [
+    "beforeCompile",
+    "afterCompile",
+    "beforeRenderPlan",
+    "afterRenderPlan",
+    "beforeSubmit",
+    "afterSubmit",
+  ];
+  const hookListeners = new Map<EngineHookStage, Set<EngineHookListener>>();
+  const hookListenerMetadata = new Map<EngineHookStage, Map<EngineHookListener, {
+    scope?: "global" | "session" | "trace";
+  }>>();
+  const extensionRegistry = new Map<string, { pluginId: string; state: "registered" | "active" | "errored" | "disposed" }>();
+  const schedulerTaskRegistry = new Map<string, {
+    taskId: string;
+    queue: string;
+    priority: "low" | "normal" | "high";
+    budgetMs: number;
+    task: unknown;
+  }>();
+  let schedulerTaskCounter = 0;
+  const cacheNamespaces = new Map<string, Map<string, {
+    value: unknown;
+    tags: readonly string[];
+    policy: { ttlMs?: number; pinned?: boolean; tags?: readonly string[] } | undefined;
+  }>>();
+  const cacheNamespaceStats = new Map<string, { hitCount: number; missCount: number }>();
+  let policyRenderState: Readonly<Record<string, unknown>> = {};
+  let policyResourceState: Readonly<Record<string, unknown>> = {};
+  let policyFallbackState: Readonly<Record<string, unknown>> = {};
+  let securityTrustLevel: "low" | "standard" | "high" = "standard";
+  let securityResourceAccessPolicy: Readonly<Record<string, unknown>> = {};
+  const securityAuditLog: Array<Readonly<Record<string, unknown>>> = [];
+  let securityAuditCounter = 0;
   const assetStates = new Map<string, "loaded" | "preloaded" | "unloaded">();
   const headlessSessions = new Map<string, { createdAtMs: number }>();
   let headlessSessionCounter = 0;
@@ -492,6 +537,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     },
   ]);
   const resolveNow = options.runtimeAdapter?.now ?? (() => performanceNow());
+  const engineId = `engine-${Math.max(0, Math.floor(resolveNow()))}`;
   const { backend, backendSelection } = resolveEngineBackend(
     options,
     backendSelectorModule,
@@ -1769,11 +1815,13 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       category: "trace",
       message: "stop",
     });
-    return {
+    const output = {
       traceId,
       stoppedAtMs,
       durationMs: Math.max(0, stoppedAtMs - trace.startedAtMs),
     };
+    emitEvent("engine.diagnostics.traceReady", output);
+    return output;
   }
 
   /**
@@ -1809,10 +1857,12 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   function captureRuntimeFrame(
     options?: EngineRuntimeCaptureFrameInput,
   ): EngineRuntimeCaptureFrameOutput {
-    return {
+    const output = {
       timestampMs: resolveNow(),
       label: typeof options?.label === "string" ? options.label : null,
     };
+    emitEvent("engine.diagnostics.captureReady", output);
+    return output;
   }
 
   /**
@@ -2132,10 +2182,12 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     const trace = startRuntimeTrace({
       name: options?.label ?? "runtime-command-trace",
     });
-    return {
+    const output = {
       traceId: trace.traceId,
       commandCount: lastEncodedCommandCount,
     };
+    emitEvent("engine.diagnostics.traceReady", output);
+    return output;
   }
 
   /**
@@ -2275,15 +2327,470 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     },
   });
 
+  /**
+   * Resolves the listener set for one event type, creating it when requested.
+   * @param type Event type token used as listener registry key.
+   * @param createWhenMissing Whether to create registry records when absent.
+   */
+  function resolveEventListenerSet(
+    type: string,
+    createWhenMissing: boolean,
+  ): Set<(payload: unknown) => void> | undefined {
+    const existing = eventListeners.get(type);
+    if (existing || !createWhenMissing) {
+      return existing;
+    }
+    const created = new Set<(payload: unknown) => void>();
+    eventListeners.set(type, created);
+    return created;
+  }
+
+  /**
+   * Validates one event type token and throws canonical error on invalid input.
+   * @param type Event type input from events API calls.
+   */
+  function assertValidEventType(type: string): void {
+    if (typeof type !== "string" || type.length === 0) {
+      throw new Error("ENGINE_EVENTS_INVALID_TYPE");
+    }
+  }
+
+  /**
+   * Validates one event listener callback and throws canonical error on invalid input.
+   * @param listener Event listener callback from events API calls.
+   */
+  function assertValidEventListener(listener: EngineEventListener): void {
+    if (typeof listener !== "function") {
+      throw new Error("ENGINE_EVENTS_INVALID_LISTENER");
+    }
+  }
+
+  /**
+   * Registers one event listener with optional scope metadata.
+   * @param type Event type token used as listener registry key.
+   * @param listener Event listener callback.
+   * @param scope Optional listener scope token used by offAll operations.
+   */
+  function registerEventListener(
+    type: string,
+    listener: EngineEventListener,
+    scope?: "global" | "session" | "trace",
+    options?: { sampleRate?: number; throttleMs?: number },
+  ): void {
+    assertValidEventType(type);
+    assertValidEventListener(listener);
+    const listeners = resolveEventListenerSet(type, true);
+    listeners?.add(listener);
+    const metadataMap = eventListenerMetadata.get(type) ?? new Map<(payload: unknown) => void, {
+      scope?: "global" | "session" | "trace";
+      sampleRate?: number;
+      throttleMs?: number;
+    }>();
+    metadataMap.set(listener, {
+      scope,
+      sampleRate: options?.sampleRate,
+      throttleMs: options?.throttleMs,
+    });
+    eventListenerMetadata.set(type, metadataMap);
+  }
+
+  /**
+   * Unregisters one event listener and cleans empty registry records.
+   * @param type Event type token used as listener registry key.
+   * @param listener Event listener callback.
+   */
+  function unregisterEventListener(type: string, listener: EngineEventListener): void {
+    assertValidEventType(type);
+    assertValidEventListener(listener);
+    const listeners = eventListeners.get(type);
+    listeners?.delete(listener);
+    const metadataMap = eventListenerMetadata.get(type);
+    metadataMap?.delete(listener);
+    if (metadataMap && metadataMap.size === 0) {
+      eventListenerMetadata.delete(type);
+    }
+    const listenerDeliveryMap = eventListenerLastDeliveredAt.get(type);
+    listenerDeliveryMap?.delete(listener);
+    if (listenerDeliveryMap && listenerDeliveryMap.size === 0) {
+      eventListenerLastDeliveredAt.delete(type);
+    }
+    if (listeners && listeners.size === 0) {
+      eventListeners.delete(type);
+      eventListenerMetadata.delete(type);
+      eventTypeDeliveryCounters.delete(type);
+      eventListenerLastDeliveredAt.delete(type);
+    }
+  }
+
+  /**
+   * Removes listeners either globally or by one scope token.
+   * @param scope Optional scope token used to filter listener removals.
+   */
+  function unregisterAllEventListeners(scope?: "global" | "session" | "trace"): void {
+    if (!scope) {
+      eventListeners.clear();
+      eventListenerMetadata.clear();
+      pausedEventTypes.clear();
+      eventTypeDeliveryCounters.clear();
+      eventListenerLastDeliveredAt.clear();
+      return;
+    }
+    for (const [type, listeners] of eventListeners) {
+      const metadataMap = eventListenerMetadata.get(type);
+      if (!metadataMap) {
+        continue;
+      }
+      for (const [listener, metadata] of metadataMap) {
+        if (metadata.scope === scope) {
+          listeners.delete(listener);
+          metadataMap.delete(listener);
+          eventListenerLastDeliveredAt.get(type)?.delete(listener);
+        }
+      }
+      if (metadataMap.size === 0) {
+        eventListenerMetadata.delete(type);
+      }
+      if (listeners.size === 0) {
+        eventListeners.delete(type);
+        eventTypeDeliveryCounters.delete(type);
+        eventListenerLastDeliveredAt.delete(type);
+      }
+    }
+  }
+
+  /**
+   * Emits one event envelope to registered listeners with pause/sample/throttle controls.
+   * @param type Event type token.
+   * @param payload Event payload object.
+   */
+  function emitEvent(type: string, payload: unknown): void {
+    if (pausedEventTypes.has(type)) {
+      return;
+    }
+    const listeners = eventListeners.get(type);
+    if (!listeners || listeners.size === 0) {
+      return;
+    }
+    const deliveryCount = (eventTypeDeliveryCounters.get(type) ?? 0) + 1;
+    eventTypeDeliveryCounters.set(type, deliveryCount);
+    const metadataMap = eventListenerMetadata.get(type);
+    const lastDeliveredMap = eventListenerLastDeliveredAt.get(type) ?? new Map<(payload: unknown) => void, number>();
+    eventListenerLastDeliveredAt.set(type, lastDeliveredMap);
+    const timestamp = resolveNow();
+    const envelope = {
+      type,
+      timestamp,
+      engineId,
+      revision: String(documentSnapshot.revision),
+      payload,
+    };
+    for (const listener of [...listeners]) {
+      const metadata = metadataMap?.get(listener);
+      const sampleRate = metadata?.sampleRate;
+      if (typeof sampleRate === "number" && sampleRate > 0 && sampleRate < 1) {
+        const interval = Math.max(1, Math.floor(1 / sampleRate));
+        if (deliveryCount % interval !== 0) {
+          continue;
+        }
+      }
+      const throttleMs = metadata?.throttleMs;
+      if (typeof throttleMs === "number" && throttleMs > 0) {
+        const lastDeliveredAt = lastDeliveredMap.get(listener);
+        if (typeof lastDeliveredAt === "number" && timestamp - lastDeliveredAt < throttleMs) {
+          continue;
+        }
+      }
+      try {
+        listener(envelope);
+        lastDeliveredMap.set(listener, timestamp);
+      } catch (error) {
+        if (type !== "engine.diagnostics.error") {
+          emitEvent("engine.diagnostics.error", {
+            code: "ENGINE_EVENTS_LISTENER_FAILURE",
+            sourceType: type,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Resolves one hook-listener set and creates records when requested.
+   * @param stage Hook stage token used as listener registry key.
+   * @param createWhenMissing Whether to create registry records when absent.
+   */
+  function resolveHookListenerSet(
+    stage: EngineHookStage,
+    createWhenMissing: boolean,
+  ): Set<EngineHookListener> | undefined {
+    const existing = hookListeners.get(stage);
+    if (existing || !createWhenMissing) {
+      return existing;
+    }
+    const created = new Set<EngineHookListener>();
+    hookListeners.set(stage, created);
+    return created;
+  }
+
+  /**
+   * Validates one hook listener callback.
+   * @param listener Hook listener callback from hooks API calls.
+   */
+  function assertValidHookListener(listener: EngineHookListener): void {
+    if (typeof listener !== "function") {
+      throw new Error("ENGINE_HOOKS_INVALID_LISTENER");
+    }
+  }
+
+  /**
+   * Registers one hook listener for provided stage token.
+   * @param stage Hook stage token used as listener registry key.
+   * @param listener Hook listener callback.
+   * @param scope Optional listener scope token used by offAll operations.
+   */
+  function registerHookListener(
+    stage: EngineHookStage,
+    listener: EngineHookListener,
+    scope?: "global" | "session" | "trace",
+  ): { dispose: () => void } {
+    assertValidHookListener(listener);
+    const listeners = resolveHookListenerSet(stage, true);
+    listeners?.add(listener);
+    const metadataMap = hookListenerMetadata.get(stage) ?? new Map<EngineHookListener, {
+      scope?: "global" | "session" | "trace";
+    }>();
+    metadataMap.set(listener, {
+      scope,
+    });
+    hookListenerMetadata.set(stage, metadataMap);
+    return {
+      dispose: () => {
+        unregisterHookListener(stage, listener);
+      },
+    };
+  }
+
+  /**
+   * Unregisters one hook listener for provided stage token.
+   * @param stage Hook stage token used as listener registry key.
+   * @param listener Hook listener callback.
+   */
+  function unregisterHookListener(stage: EngineHookStage, listener: EngineHookListener): void {
+    assertValidHookListener(listener);
+    const listeners = hookListeners.get(stage);
+    listeners?.delete(listener);
+    const metadataMap = hookListenerMetadata.get(stage);
+    metadataMap?.delete(listener);
+    if (metadataMap && metadataMap.size === 0) {
+      hookListenerMetadata.delete(stage);
+    }
+    if (listeners && listeners.size === 0) {
+      hookListeners.delete(stage);
+      hookListenerMetadata.delete(stage);
+    }
+  }
+
+  /**
+   * Removes hook listeners either globally or by one scope token.
+   * @param scope Optional scope token used to filter listener removals.
+   */
+  function unregisterAllHookListeners(scope?: "global" | "session" | "trace"): void {
+    if (!scope) {
+      hookListeners.clear();
+      hookListenerMetadata.clear();
+      return;
+    }
+    for (const stage of hookStages) {
+      const listeners = hookListeners.get(stage);
+      const metadataMap = hookListenerMetadata.get(stage);
+      if (!listeners || !metadataMap) {
+        continue;
+      }
+      for (const [listener, metadata] of metadataMap) {
+        if (metadata.scope === scope) {
+          listeners.delete(listener);
+          metadataMap.delete(listener);
+        }
+      }
+      if (metadataMap.size === 0) {
+        hookListenerMetadata.delete(stage);
+      }
+      if (listeners.size === 0) {
+        hookListeners.delete(stage);
+      }
+    }
+  }
+
+  /**
+   * Emits one hook-stage envelope to registered listeners.
+   * @param stage Hook stage token.
+   * @param context Optional stage-specific context payload.
+   */
+  function emitHook(stage: EngineHookStage, context?: unknown): void {
+    const listeners = hookListeners.get(stage);
+    if (!listeners || listeners.size === 0) {
+      return;
+    }
+    const envelope = {
+      stage,
+      timestamp: resolveNow(),
+      engineId,
+      revision: String(documentSnapshot.revision),
+      context,
+    };
+    for (const listener of [...listeners]) {
+      try {
+        listener(envelope);
+      } catch (error) {
+        emitEvent("engine.diagnostics.error", {
+          code: "ENGINE_HOOKS_LISTENER_FAILURE",
+          stage,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  /**
+   * Returns deterministic hook-listener stats snapshot.
+   */
+  function resolveHookListenerStats(): {
+    totalListeners: number;
+    perStage: Readonly<Record<EngineHookStage, number>>;
+  } {
+    let totalListeners = 0;
+    const perStage = {
+      beforeCompile: 0,
+      afterCompile: 0,
+      beforeRenderPlan: 0,
+      afterRenderPlan: 0,
+      beforeSubmit: 0,
+      afterSubmit: 0,
+    } satisfies Record<EngineHookStage, number>;
+    for (const stage of hookStages) {
+      const count = hookListeners.get(stage)?.size ?? 0;
+      perStage[stage] = count;
+      totalListeners += count;
+    }
+    return {
+      totalListeners,
+      perStage,
+    };
+  }
+
+  /**
+   * Returns deterministic event-listener stats snapshot.
+   */
+  function resolveEventListenerStats(): {
+    totalListeners: number;
+    pausedTypes: readonly string[];
+    perType: Readonly<Record<string, number>>;
+  } {
+    const perTypeEntries = [...eventListeners.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([type, listeners]) => [type, listeners.size] as const);
+    let totalListeners = 0;
+    const perType: Record<string, number> = {};
+    for (const [type, count] of perTypeEntries) {
+      totalListeners += count;
+      perType[type] = count;
+    }
+    return {
+      totalListeners,
+      pausedTypes: [...pausedEventTypes].sort(),
+      perType,
+    };
+  }
+
+  /**
+   * Records one security audit entry for governance operations.
+   * @param type Audit event type token.
+   * @param payload Audit payload object.
+   */
+  function appendSecurityAuditLog(type: string, payload: Readonly<Record<string, unknown>>): void {
+    securityAuditCounter += 1;
+    securityAuditLog.push({
+      id: `audit-${securityAuditCounter}`,
+      type,
+      timestamp: resolveNow(),
+      payload,
+    });
+  }
+
+  /**
+   * Resolves one cache namespace entry map and optional stats records.
+   * @param namespace Cache namespace token.
+   * @param createWhenMissing Whether to create records when namespace is missing.
+   */
+  function resolveCacheNamespace(
+    namespace: string,
+    createWhenMissing: boolean,
+  ): {
+    entries: Map<string, { value: unknown; tags: readonly string[]; policy: { ttlMs?: number; pinned?: boolean; tags?: readonly string[] } | undefined }>;
+    stats: { hitCount: number; missCount: number };
+  } {
+    if (typeof namespace !== "string" || namespace.length === 0) {
+      throw new Error("ENGINE_CACHE_INVALID_NAMESPACE");
+    }
+    const existingEntries = cacheNamespaces.get(namespace);
+    const existingStats = cacheNamespaceStats.get(namespace);
+    if (!existingEntries || !existingStats) {
+      if (!createWhenMissing) {
+        return {
+          entries: new Map(),
+          stats: { hitCount: 0, missCount: 0 },
+        };
+      }
+      const createdEntries = new Map<string, { value: unknown; tags: readonly string[]; policy: { ttlMs?: number; pinned?: boolean; tags?: readonly string[] } | undefined }>();
+      const createdStats = { hitCount: 0, missCount: 0 };
+      cacheNamespaces.set(namespace, createdEntries);
+      cacheNamespaceStats.set(namespace, createdStats);
+      return {
+        entries: createdEntries,
+        stats: createdStats,
+      };
+    }
+    return {
+      entries: existingEntries,
+      stats: existingStats,
+    };
+  }
+
   return {
+    /**
+     * Resolves engine readiness and emits lifecycle-ready event payload.
+     */
     async ready() {
+      emitEvent("engine.lifecycle.ready", {
+        mounted: mountTarget !== null,
+      });
       return Promise.resolve();
     },
+    /**
+     * Mounts engine host target and emits lifecycle-mounted event payload.
+      * @param target Mount host descriptor consumed by runtime shell.
+     */
     mount(target) {
+      emitEvent("engine.lifecycle.beforeMount", {
+        mounted: mountTarget !== null,
+      });
       mountTarget = target;
+      emitEvent("engine.lifecycle.mounted", {
+        mounted: true,
+      });
     },
+    /**
+     * Unmounts engine host target and emits lifecycle-unmounted event payload.
+     */
     unmount() {
+      emitEvent("engine.lifecycle.beforeUnmount", {
+        mounted: mountTarget !== null,
+      });
       mountTarget = null;
+      emitEvent("engine.lifecycle.unmounted", {
+        mounted: false,
+      });
     },
     configure(config) {
       developerConfig = {
@@ -2328,17 +2835,69 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     resume() {
       runtimeShell.resume();
     },
+    /**
+     * Resizes runtime surface and emits viewport resize + view change events.
+     * @param width Next viewport width in pixels.
+     * @param height Next viewport height in pixels.
+     */
     resize(width, height) {
       lastInteractionAtMs = resolveNow();
       lastInteractionKind = "set";
       viewportFacade.resize(width, height);
-      return runtimeShell.resize(width, height);
+      const resized = runtimeShell.resize(width, height);
+      emitEvent("engine.view.viewportResized", {
+        width,
+        height,
+      });
+      emitEvent("engine.view.changed", {
+        viewport: resolveViewSnapshotFromViewportState(viewportFacade.getViewport()),
+      });
+      return resized;
     },
+    /**
+     * Applies full graph snapshot and emits deterministic document events.
+      * @param graph Complete graph snapshot used to replace document state.
+     */
     setGraph(graph) {
+      emitHook("beforeCompile", {
+        operation: "setGraph",
+        inputRevision: graph.revision,
+      });
       applyGraphSnapshot(graph);
+      emitHook("afterCompile", {
+        operation: "setGraph",
+        nodeCount: graphNodeState.size,
+      });
+      emitEvent("engine.document.graphSet", {
+        revision: documentSnapshot.revision,
+        nodeCount: graphNodeState.size,
+      });
+      emitEvent("engine.document.revisionChanged", {
+        revision: documentSnapshot.revision,
+      });
     },
+    /**
+     * Applies incremental graph patch and emits deterministic document events.
+      * @param patch Incremental patch batch merged into existing graph state.
+     */
     updateGraph(patch) {
+      emitHook("beforeCompile", {
+        operation: "updateGraph",
+        patchCount: patch.patches.length,
+      });
       applyGraphPatchBatch(patch);
+      emitHook("afterCompile", {
+        operation: "updateGraph",
+        patchCount: patch.patches.length,
+        nodeCount: graphNodeState.size,
+      });
+      emitEvent("engine.document.graphPatched", {
+        revision: documentSnapshot.revision,
+        patchCount: patch.patches.length,
+      });
+      emitEvent("engine.document.revisionChanged", {
+        revision: documentSnapshot.revision,
+      });
     },
     batchUpdateGraph(patches) {
       for (const patch of patches) {
@@ -2400,41 +2959,123 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     query(bounds) {
       return queryGraph(bounds);
     },
+    /**
+     * Resolves point picking result and emits pick completed/failed events.
+     * @param point Point payload used by picking.
+     * @param pickOptions Optional picking controls.
+     */
     pick(point, pickOptions) {
-      return pickGraph(point, pickOptions);
+      const result = pickGraph(point, pickOptions);
+      if (result.hits.length > 0) {
+        emitEvent("engine.interaction.pickCompleted", {
+          hitCount: result.hits.length,
+          point,
+        });
+      } else {
+        emitEvent("engine.interaction.pickFailed", {
+          point,
+          reason: "NO_HITS",
+        });
+      }
+      return result;
     },
+    /**
+     * Resolves raycast result and emits pick completed/failed events.
+     * @param ray Ray payload used by raycast.
+     * @param raycastOptions Optional raycast controls.
+     */
     raycast(ray, raycastOptions) {
-      return raycastGraph(ray, raycastOptions);
+      const hit = raycastGraph(ray, raycastOptions);
+      if (hit) {
+        emitEvent("engine.interaction.pickCompleted", {
+          hitCount: 1,
+          ray,
+        });
+      } else {
+        emitEvent("engine.interaction.pickFailed", {
+          ray,
+          reason: "NO_HITS",
+        });
+      }
+      return hit;
     },
+    /**
+     * Renders one frame and emits frame started/completed/failed events.
+     */
     async render(): Promise<EngineRenderResult> {
-      const stats = resolveFrameOrchestration(resolveNow());
-      return {
-        drawCount: latestExecutionSnapshot.drawCount,
-        visibleCount: latestExecutionSnapshot.visibleCandidateIds.length,
-        frameMs: Math.max(0, stats.timestampMs),
-      };
+      emitHook("beforeRenderPlan", {
+        interactionKind: lastInteractionKind,
+      });
+      emitEvent("engine.render.frameStarted", {
+        interactionKind: lastInteractionKind,
+      });
+      try {
+        const stats = resolveFrameOrchestration(resolveNow());
+        const result = {
+          drawCount: latestExecutionSnapshot.drawCount,
+          visibleCount: latestExecutionSnapshot.visibleCandidateIds.length,
+          frameMs: Math.max(0, stats.timestampMs),
+        };
+        emitHook("afterRenderPlan", result);
+        emitHook("beforeSubmit", {
+          drawCount: result.drawCount,
+        });
+        emitHook("afterSubmit", {
+          drawCount: result.drawCount,
+        });
+        emitEvent("engine.render.frameCompleted", result);
+        return result;
+      } catch (error) {
+        emitEvent("engine.render.frameFailed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
     },
     async renderNow(): Promise<EngineRenderResult> {
       return this.render();
     },
+    /**
+     * Applies view patch and emits canonical view-changed event.
+     * @param view View patch payload.
+     */
     setView(view) {
-      return applyViewPatch(view);
+      const snapshot = applyViewPatch(view);
+      emitEvent("engine.view.changed", {
+        viewport: snapshot,
+      });
+      return snapshot;
     },
     getView() {
       return resolveViewSnapshotFromViewportState(viewportFacade.getViewport());
     },
+    /**
+     * Fits viewport to bounds and emits canonical view-changed event.
+     * @param bounds World-space bounds payload.
+     */
     fitToBounds(bounds) {
-      return applyViewPatch({
+      const snapshot = applyViewPatch({
         offsetX: bounds.x,
         offsetY: bounds.y,
       });
+      emitEvent("engine.view.changed", {
+        viewport: snapshot,
+      });
+      return snapshot;
     },
+    /**
+     * Resets viewport and emits canonical view-changed event.
+     */
     resetView() {
-      return applyViewPatch({
+      const snapshot = applyViewPatch({
         offsetX: 0,
         offsetY: 0,
         scale: 1,
       });
+      emitEvent("engine.view.changed", {
+        viewport: snapshot,
+      });
+      return snapshot;
     },
     setViewportLayout(layout) {
       viewportLayout = layout;
@@ -2541,28 +3182,108 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         nodeIds: [...graphNodeState.keys()].sort(),
       };
     },
+    /**
+     * Sets interaction state and emits state-changed event.
+     * @param state Interaction state payload.
+     */
     setInteractionState(state) {
       interactionState = state;
       lastInteractionAtMs = resolveNow();
       lastInteractionKind = "set";
+      emitEvent("engine.interaction.stateChanged", {
+        active: true,
+        state,
+      });
     },
+    /**
+     * Clears interaction state and emits state-changed event.
+     */
     clearInteractionState() {
       interactionState = null;
+      emitEvent("engine.interaction.stateChanged", {
+        active: false,
+      });
     },
+    /**
+     * Loads assets and emits deterministic resource progress/failure events.
+     * @param assets Asset descriptors to load.
+     */
     loadAssets(assets) {
+      const outcomes: Array<{ assetId: string; state: "loaded" | "missing" }> = [];
+      const total = Math.max(1, assets.length);
+      let completed = 0;
       for (const asset of assets) {
+        if (typeof asset.id !== "string" || asset.id.length === 0) {
+          emitEvent("engine.resource.loadFailed", {
+            assetId: String(asset.id ?? ""),
+            reason: "INVALID_ASSET_ID",
+          });
+          outcomes.push({
+            assetId: String(asset.id ?? ""),
+            state: "missing",
+          });
+          continue;
+        }
         assetStates.set(asset.id, "loaded");
+        completed += 1;
+        emitEvent("engine.resource.loadProgress", {
+          assetId: asset.id,
+          completed,
+          total,
+        });
+        outcomes.push({
+          assetId: asset.id,
+          state: "loaded",
+        });
       }
-      return assets.map((asset) => ({ assetId: asset.id, state: "loaded" as const }));
+      return outcomes;
     },
+    /**
+     * Preloads assets and emits deterministic resource progress/failure events.
+     * @param request Asset descriptors to preload.
+     */
     preloadAssets(request) {
+      const outcomes: Array<{ assetId: string; state: "preloaded" | "missing" }> = [];
+      const total = Math.max(1, request.length);
+      let completed = 0;
       for (const asset of request) {
+        if (typeof asset.id !== "string" || asset.id.length === 0) {
+          emitEvent("engine.resource.loadFailed", {
+            assetId: String(asset.id ?? ""),
+            reason: "INVALID_ASSET_ID",
+          });
+          outcomes.push({
+            assetId: String(asset.id ?? ""),
+            state: "missing",
+          });
+          continue;
+        }
         assetStates.set(asset.id, "preloaded");
+        completed += 1;
+        emitEvent("engine.resource.loadProgress", {
+          assetId: asset.id,
+          completed,
+          total,
+        });
+        outcomes.push({
+          assetId: asset.id,
+          state: "preloaded",
+        });
       }
-      return request.map((asset) => ({ assetId: asset.id, state: "preloaded" as const }));
+      return outcomes;
     },
+    /**
+     * Unloads assets and emits deterministic resource failure events for missing ids.
+     * @param assetIds Asset ids to unload.
+     */
     unloadAssets(assetIds) {
       for (const assetId of assetIds) {
+        if (!assetStates.has(assetId)) {
+          emitEvent("engine.resource.loadFailed", {
+            assetId,
+            reason: "ASSET_NOT_FOUND",
+          });
+        }
         assetStates.set(assetId, "unloaded");
       }
       return assetIds.map((assetId) => ({ assetId, state: "unloaded" as const }));
@@ -2590,10 +3311,23 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         totalCount: assetStates.size,
       };
     },
+    /**
+     * Sets media sources used by streaming controls.
+     * @param sources Media source descriptors.
+     */
     setMediaSources(sources) {
       mediaSources = [...sources];
     },
+    /**
+     * Seeks media timeline and emits streaming backpressure when no source is available.
+     * @param time Target media timestamp in milliseconds.
+     */
     seekMedia(time) {
+      if (mediaSources.length === 0) {
+        emitEvent("engine.streaming.backpressure", {
+          reason: "NO_MEDIA_SOURCE",
+        });
+      }
       mediaTimeMs = Math.max(0, Number.isFinite(time) ? time : mediaTimeMs);
     },
     captureImage() {
@@ -2635,24 +3369,390 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         visibleCount: rendered.visibleCount,
       };
     },
+    events: {
+      /**
+       * Registers one scoped listener in deterministic insertion order.
+       */
+      on: (type, listener, options) => {
+        registerEventListener(type, listener, options?.scope, options);
+      },
+      /**
+       * Unregisters one listener for one event type.
+       */
+      off: (type, listener) => {
+        unregisterEventListener(type, listener);
+      },
+      /**
+       * Registers one one-shot listener for one event type.
+       */
+      once: (type, listener, options) => {
+        assertValidEventType(type);
+        assertValidEventListener(listener);
+        const onceListener = (payload: unknown) => {
+          listener(payload);
+          unregisterEventListener(type, onceListener);
+        };
+        registerEventListener(type, onceListener, options?.scope, options);
+      },
+      /**
+       * Registers one listener across multiple event types.
+       */
+      onMany: (types, listener, options) => {
+        if (!Array.isArray(types)) {
+          throw new Error("ENGINE_EVENTS_INVALID_TYPE");
+        }
+        for (const type of types) {
+          registerEventListener(type, listener, options?.scope, options);
+        }
+      },
+      /**
+       * Removes listeners globally or by scope token.
+       */
+      offAll: (scope) => {
+        unregisterAllEventListeners(scope);
+      },
+      /**
+       * Pauses delivery for one event type.
+       */
+      pause: (type) => {
+        assertValidEventType(type);
+        pausedEventTypes.add(type);
+      },
+      /**
+       * Resumes delivery for one event type.
+       */
+      resume: (type) => {
+        assertValidEventType(type);
+        pausedEventTypes.delete(type);
+      },
+      /**
+       * Returns deterministic listener stats snapshot.
+       */
+      getListenerStats: () => resolveEventListenerStats(),
+    },
+    hooks: {
+      /**
+       * Registers one hook listener before compile stage.
+       */
+      beforeCompile: (listener, options) => registerHookListener("beforeCompile", listener, options?.scope),
+      /**
+       * Registers one hook listener after compile stage.
+       */
+      afterCompile: (listener, options) => registerHookListener("afterCompile", listener, options?.scope),
+      /**
+       * Registers one hook listener before render-plan stage.
+       */
+      beforeRenderPlan: (listener, options) => registerHookListener("beforeRenderPlan", listener, options?.scope),
+      /**
+       * Registers one hook listener after render-plan stage.
+       */
+      afterRenderPlan: (listener, options) => registerHookListener("afterRenderPlan", listener, options?.scope),
+      /**
+       * Registers one hook listener before submit stage.
+       */
+      beforeSubmit: (listener, options) => registerHookListener("beforeSubmit", listener, options?.scope),
+      /**
+       * Registers one hook listener after submit stage.
+       */
+      afterSubmit: (listener, options) => registerHookListener("afterSubmit", listener, options?.scope),
+      /**
+       * Removes hook listeners globally or by scope token.
+       */
+      offAll: (scope) => {
+        unregisterAllHookListeners(scope);
+      },
+      /**
+       * Returns deterministic hook listener stats snapshot.
+       */
+      getStats: () => resolveHookListenerStats(),
+    },
+    extension: {
+      /**
+       * Registers one extension plugin and marks initial registry state.
+       */
+      register: (plugin) => {
+        if (!plugin || typeof plugin.id !== "string" || plugin.id.length === 0) {
+          throw new Error("ENGINE_EXTENSION_INVALID_PLUGIN");
+        }
+        if (extensionRegistry.has(plugin.id)) {
+          throw new Error("ENGINE_EXTENSION_DUPLICATE_PLUGIN");
+        }
+        extensionRegistry.set(plugin.id, {
+          pluginId: plugin.id,
+          state: "registered",
+        });
+        return {
+          pluginId: plugin.id,
+          state: "registered",
+        };
+      },
+      /**
+       * Unregisters one extension plugin by id.
+       */
+      unregister: (pluginId) => {
+        const removed = extensionRegistry.delete(pluginId);
+        return {
+          removed,
+        };
+      },
+      /**
+       * Returns deterministic extension registry list in lexical id order.
+       */
+      list: () => [...extensionRegistry.values()].sort((left, right) => left.pluginId.localeCompare(right.pluginId)),
+      /**
+       * Returns extension state for one plugin id.
+       */
+      getState: (pluginId) => {
+        const plugin = extensionRegistry.get(pluginId);
+        if (!plugin) {
+          throw new Error("ENGINE_EXTENSION_NOT_FOUND");
+        }
+        return {
+          pluginId: plugin.pluginId,
+          state: plugin.state,
+        };
+      },
+    },
+    scheduler: {
+      /**
+       * Schedules one governance task with deterministic id assignment.
+       */
+      schedule: (task, options) => {
+        if (task === undefined) {
+          throw new Error("ENGINE_SCHEDULER_INVALID_TASK");
+        }
+        const queue = typeof options?.queue === "string" && options.queue.length > 0
+          ? options.queue
+          : "default";
+        if (queue.length === 0) {
+          throw new Error("ENGINE_SCHEDULER_INVALID_QUEUE");
+        }
+        schedulerTaskCounter += 1;
+        const taskId = `scheduler-task-${schedulerTaskCounter}`;
+        schedulerTaskRegistry.set(taskId, {
+          taskId,
+          queue,
+          priority: options?.priority ?? "normal",
+          budgetMs: Number.isFinite(options?.budgetMs) ? Math.max(1, options!.budgetMs as number) : frameBudgetMs,
+          task,
+        });
+        return {
+          taskId,
+        };
+      },
+      /**
+       * Cancels one scheduled governance task.
+       */
+      cancel: (taskId) => {
+        if (!schedulerTaskRegistry.has(taskId)) {
+          return {
+            cancelled: false,
+          };
+        }
+        schedulerTaskRegistry.delete(taskId);
+        return {
+          cancelled: true,
+        };
+      },
+      /**
+       * Flushes scheduler tasks for one optional queue.
+       */
+      flush: (queue) => {
+        if (queue !== undefined && (typeof queue !== "string" || queue.length === 0)) {
+          throw new Error("ENGINE_SCHEDULER_INVALID_QUEUE");
+        }
+        let flushed = 0;
+        for (const [taskId, taskRecord] of schedulerTaskRegistry) {
+          if (queue === undefined || taskRecord.queue === queue) {
+            schedulerTaskRegistry.delete(taskId);
+            flushed += 1;
+          }
+        }
+        return {
+          flushed,
+        };
+      },
+      /**
+       * Returns current scheduler queue stats snapshot.
+       */
+      getQueueStats: () => ({
+        pending: schedulerTaskRegistry.size,
+        running: 0,
+        budgetMs: frameBudgetMs,
+      }),
+    },
+    cache: {
+      /**
+       * Returns cached value from one namespace and key pair.
+       */
+      get: (namespace, key) => {
+        if (typeof key !== "string" || key.length === 0) {
+          throw new Error("ENGINE_CACHE_INVALID_KEY");
+        }
+        const { entries, stats } = resolveCacheNamespace(namespace, false);
+        if (!entries.has(key)) {
+          stats.missCount += 1;
+          return undefined;
+        }
+        stats.hitCount += 1;
+        return entries.get(key)?.value;
+      },
+      /**
+       * Sets cached value for one namespace and key pair.
+       */
+      set: (namespace, key, value, policy) => {
+        if (typeof key !== "string" || key.length === 0) {
+          throw new Error("ENGINE_CACHE_INVALID_KEY");
+        }
+        const { entries } = resolveCacheNamespace(namespace, true);
+        entries.set(key, {
+          value,
+          tags: Array.isArray(policy?.tags) ? [...policy!.tags] : [],
+          policy,
+        });
+      },
+      /**
+       * Invalidates cache entries for one namespace with optional key.
+       */
+      invalidate: (namespace, key) => {
+        const { entries } = resolveCacheNamespace(namespace, false);
+        if (key === undefined) {
+          entries.clear();
+          return;
+        }
+        if (typeof key !== "string" || key.length === 0) {
+          throw new Error("ENGINE_CACHE_INVALID_KEY");
+        }
+        entries.delete(key);
+      },
+      /**
+       * Invalidates cache entries matching one tag token.
+       */
+      invalidateByTag: (tag) => {
+        if (typeof tag !== "string" || tag.length === 0) {
+          throw new Error("ENGINE_CACHE_INVALID_TAG");
+        }
+        for (const entries of cacheNamespaces.values()) {
+          for (const [key, entry] of entries) {
+            if (entry.tags.includes(tag)) {
+              entries.delete(key);
+            }
+          }
+        }
+      },
+      /**
+       * Returns cache stats snapshot for one namespace.
+       */
+      getStats: (namespace) => {
+        const { entries, stats } = resolveCacheNamespace(namespace, false);
+        return {
+          hitCount: stats.hitCount,
+          missCount: stats.missCount,
+          entryCount: entries.size,
+        };
+      },
+    },
+    policy: {
+      /**
+       * Sets render policy payload.
+       */
+      setRenderPolicy: (policy) => {
+        if (!policy || typeof policy !== "object") {
+          throw new Error("ENGINE_POLICY_INVALID_INPUT");
+        }
+        policyRenderState = { ...policy };
+      },
+      /**
+       * Sets resource policy payload.
+       */
+      setResourcePolicy: (policy) => {
+        if (!policy || typeof policy !== "object") {
+          throw new Error("ENGINE_POLICY_INVALID_INPUT");
+        }
+        policyResourceState = { ...policy };
+      },
+      /**
+       * Sets fallback policy payload.
+       */
+      setFallbackPolicy: (policy) => {
+        if (!policy || typeof policy !== "object") {
+          throw new Error("ENGINE_POLICY_INVALID_INPUT");
+        }
+        policyFallbackState = { ...policy };
+      },
+      /**
+       * Returns effective policy snapshot.
+       */
+      getEffectivePolicy: () => ({
+        render: policyRenderState,
+        resource: policyResourceState,
+        fallback: policyFallbackState,
+      }),
+    },
+    security: {
+      /**
+       * Sets security trust-level token.
+       */
+      setTrustLevel: (level) => {
+        if (level !== "low" && level !== "standard" && level !== "high") {
+          throw new Error("ENGINE_SECURITY_INVALID_TRUST_LEVEL");
+        }
+        securityTrustLevel = level;
+        appendSecurityAuditLog("engine.security.setTrustLevel", {
+          level,
+        });
+      },
+      /**
+       * Sets security resource-access policy.
+       */
+      setResourceAccessPolicy: (policy) => {
+        if (!policy || typeof policy !== "object") {
+          throw new Error("ENGINE_SECURITY_INVALID_POLICY");
+        }
+        const quota = (policy as { quota?: unknown }).quota;
+        if (typeof quota === "number" && quota < 0) {
+          throw new Error("ENGINE_SECURITY_QUOTA_EXCEEDED");
+        }
+        securityResourceAccessPolicy = { ...policy };
+        appendSecurityAuditLog("engine.security.setResourceAccessPolicy", {
+          trustLevel: securityTrustLevel,
+          quota,
+        });
+      },
+      /**
+       * Returns latest security audit log entries.
+       */
+      getAuditLog: (options) => {
+        const limit = typeof options?.limit === "number" && Number.isFinite(options.limit)
+          ? Math.max(0, Math.floor(options.limit))
+          : securityAuditLog.length;
+        if (limit === 0) {
+          return [];
+        }
+        const start = Math.max(0, securityAuditLog.length - limit);
+        return securityAuditLog.slice(start).map((entry) => ({
+          ...entry,
+          policy: securityResourceAccessPolicy,
+        }));
+      },
+    },
+    /**
+     * Preserves legacy event registration API by delegating to engine.events.on.
+     */
     on(event, listener) {
-      const listeners = eventListeners.get(event) ?? new Set<(payload: unknown) => void>();
-      listeners.add(listener);
-      eventListeners.set(event, listeners);
+      registerEventListener(event, listener);
     },
+    /**
+     * Preserves legacy event unregister API by delegating to engine.events.off.
+     */
     off(event, listener) {
-      const listeners = eventListeners.get(event);
-      listeners?.delete(listener);
-      if (listeners && listeners.size === 0) {
-        eventListeners.delete(event);
-      }
+      unregisterEventListener(event, listener);
     },
+    /**
+     * Preserves legacy one-shot listener API by delegating to engine.events.once.
+     */
     once(event, listener) {
-      const onceListener = (payload: unknown) => {
-        listener(payload);
-        this.off(event, onceListener);
-      };
-      this.on(event, onceListener);
+      this.events.once(event, listener);
     },
     getMetrics() {
       return {
@@ -2661,20 +3761,68 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         drawCount: latestExecutionSnapshot.drawCount,
       };
     },
+    /**
+     * Enables/disables diagnostics payload enrichment and emits warning on disable.
+     * @param enabled Whether diagnostics payload enrichment remains enabled.
+     */
     setDiagnosticsEnabled(enabled) {
       diagnosticsEnabled = enabled;
+      if (!enabled) {
+        emitEvent("engine.diagnostics.warning", {
+          code: "ENGINE_DIAGNOSTICS_DISABLED",
+        });
+      }
     },
+    /**
+     * Captures debug frame payload and emits diagnostics capture-ready event.
+     */
     captureDebugFrame() {
-      return {
+      const output = {
         mimeType: "image/png",
         dataUrl: "data:image/png;base64,",
       };
+      emitEvent("engine.diagnostics.captureReady", output);
+      return output;
     },
+    /**
+     * Creates replay token and emits replay-started event payload.
+      * @param scope Optional replay token scope object.
+     */
     createReplayToken(scope) {
-      return createRuntimeReplayToken(scope);
+      const token = createRuntimeReplayToken(scope);
+      emitEvent("engine.replay.started", {
+        scope,
+        token: token.token,
+      });
+      return token;
     },
+    /**
+     * Replays one token and emits replay completion/failure event payloads.
+      * @param token Replay token string accepted by runtime replay subsystem.
+     */
     replay(token) {
-      return replayRuntimeToken(token);
+      try {
+        const replayResult = replayRuntimeToken(token);
+        // Emits failed event for rejected tokens to keep replay outcome observability explicit.
+        if (!replayResult.accepted) {
+          emitEvent("engine.replay.failed", {
+            token,
+            error: "ENGINE_REPLAY_REJECTED_TOKEN",
+          });
+          return replayResult;
+        }
+        emitEvent("engine.replay.completed", {
+          token,
+          accepted: replayResult.accepted,
+        });
+        return replayResult;
+      } catch (error) {
+        emitEvent("engine.replay.failed", {
+          token,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
     },
     getDiagnostics() {
       const diagnostics = resolvePublicDiagnostics();
@@ -2692,8 +3840,13 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         },
       };
     },
+    /**
+     * Captures one runtime frame token and emits diagnostics capture-ready event.
+     */
     captureFrame() {
-      return runtimeShell.captureFrame();
+      const output = runtimeShell.captureFrame();
+      emitEvent("engine.diagnostics.captureReady", output);
+      return output;
     },
     getStats() {
       return {
@@ -2866,9 +4019,15 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         }),
       },
     },
+    /**
+     * Disposes runtime resources and emits lifecycle-disposed event payload.
+     */
     dispose() {
       disposeRuntimePlanScheduler();
       runtimeFacade.dispose();
+      emitEvent("engine.lifecycle.disposed", {
+        mounted: mountTarget !== null,
+      });
     },
   };
 }

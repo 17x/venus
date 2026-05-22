@@ -131,3 +131,15 @@ T18. M2 退出评审
 12. T14 阶段一验收已通过：`node --test src/product/useEditorRuntime/__tests__/elementModifyTextRunsPolicy.test.ts` + `pnpm exec tsc -p tsconfig.app.json --noEmit` + `pnpm m2:run-all`（17/17 通过）。
 13. T14 已完成阶段二：引擎文本适配层已接入段落字段透传，新增纯适配辅助函数回归并纳入 M2 全量门禁。
 14. T14 阶段二验收已通过：`node --test src/runtime/presets/engineSceneAdapter/engineSceneAdapter.text.test.ts` + `pnpm exec tsc -p tsconfig.app.json --noEmit` + `pnpm m2:run-all`（18/18 通过）。
+15. T15 已完成阶段一：Variant-B 图层树补齐 Shift 范围选择语义，并与 LayerPanel 的 replace/toggle/add 行为对齐，消除图层树与画布选择手势差异。
+16. T15 阶段一验收已通过：`pnpm exec tsc -p tsconfig.app.json --noEmit` + `pnpm m2:run-all`（18/18 通过）。
+17. T15 已完成阶段二：图层树引入选中项自动可视滚动稳定策略，图层重排/筛选/多选变化后保持选中锚点可见，降低大量图层场景下的定位跳动成本。
+18. T15 阶段二验收已通过：`pnpm exec tsc -p tsconfig.app.json --noEmit` + `pnpm m2:run-all`（18/18 通过）。
+19. T16 已完成阶段一：图层树补齐蒙版关系可视化标识（Host/Source），并由运行时 schema 与 clip 关系驱动，提升结构可读性与误操作可见性。
+20. T16 阶段一验收已通过：`pnpm exec tsc -p tsconfig.app.json --noEmit` + `pnpm m2:run-all`（18/18 通过）。
+21. T16 已完成阶段二：布尔输出路径补齐线性 `bezierPoints`，保证布尔结果可继续进入路径锚点编辑链路并维持基础拓扑一致性。
+22. T16 阶段二验收已通过：新增 `shapeCommandHelpers.booleanPathEdit` 回归并接入 `m2:run-all`，`pnpm exec tsc -p tsconfig.app.json --noEmit` + `pnpm m2:run-all`（19/19 通过）。
+23. T17 已完成：新增 M2 核心回归清单文档并建立 R1-R19 与 M2 Step ID 映射，形成可追踪回归证据索引。
+24. T17 验收已通过：`pnpm m2:run-all` 持续可重复执行（19/19 通过），并完成文档化沉淀 `m2-core-regression-checklist.md`。
+25. T18 已完成：形成 M2 退出评审报告，覆盖功能/性能/可靠性三类指标与退出判定结论。
+26. T18 验收已通过：复用 `pnpm m2:run-all` 作为统一证据入口（19/19 通过），并完成目标与执行文档状态回写。

@@ -91,7 +91,30 @@ test("api docs coverage and EN/CN parity baseline", async () => {
     {
       en: "en/api/event-api.md",
       cn: "cn/api/event-api.md",
-      markers: ["engine.events.on", "Event Envelope", "engine.render.frameCompleted"],
+      markers: [
+        "engine.events.on",
+        "Event Envelope",
+        "engine.lifecycle.beforeMount",
+        "engine.view.viewportResized",
+        "engine.streaming.backpressure",
+        "engine.diagnostics.traceReady",
+        "engine.diagnostics.captureReady",
+        "engine.diagnostics.error",
+        "engine.replay.started",
+        "engine.replay.completed",
+        "engine.replay.failed",
+        "engine.render.frameCompleted",
+      ],
+    },
+    {
+      en: "en/api/runtime-governance.md",
+      cn: "cn/api/runtime-governance.md",
+      markers: [
+        "engine.extension.register",
+        "engine.hooks.beforeCompile",
+        "engine.scheduler.schedule",
+        "engine.security.setTrustLevel",
+      ],
     },
     {
       en: "en/backends/backend-capability-matrix.md",
@@ -106,7 +129,7 @@ test("api docs coverage and EN/CN parity baseline", async () => {
     {
       en: "en/migration/app-adapter-migration.md",
       cn: "cn/migration/app-adapter-migration.md",
-      markers: ["Migration Goal", "Step-by-Step Migration", "Cutover Exit Criteria"],
+      markers: ["Migration Goal", "Step-by-Step Migration", "Canonical Readiness Criteria"],
     },
   ];
 

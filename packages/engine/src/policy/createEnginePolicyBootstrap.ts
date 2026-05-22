@@ -1,12 +1,12 @@
 import type { CreateEngineOptions } from "../api/createEngineContracts";
 
 /**
- * Supported policy profiles for canonical staging bootstrap.
+ * Supported policy profiles for canonical runtime bootstrap.
  */
 export type EnginePolicyProfile = "editor" | "game" | "animation" | "hybrid";
 
 /**
- * Supported quality preset identifiers for canonical staging bootstrap.
+ * Supported quality preset identifiers for canonical runtime bootstrap.
  */
 export type EngineQualityPreset = "low" | "balanced" | "high";
 

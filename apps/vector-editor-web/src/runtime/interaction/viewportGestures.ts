@@ -1,14 +1,18 @@
 import {
+  applyMatrixToPoint,
+} from '@venus/lib'
+import {
   accumulatePointerPanOffset as accumulateEnginePointerPanOffset,
   accumulateWheelPanOffset as accumulateEngineWheelPanOffset,
-  applyMatrixToPoint,
   createViewportPanOrigin as createEngineViewportPanOrigin,
+  type CanvasViewportScaleRange as EngineViewportScaleRange,
+  type CanvasViewportState as EngineCanvasViewportState,
+  zoomViewportState as zoomEngineViewportState,
+} from '../viewport/controller.ts'
+import {
   handleZoomWheel as handleEngineZoomWheel,
   resetZoomSession as resetEngineZoomSession,
-  zoomViewportState as zoomEngineViewportState,
-  type CanvasViewportState as EngineCanvasViewportState,
-  type ViewportScaleRange as EngineViewportScaleRange,
-} from '@venus/lib'
+} from '../zoom/index.ts'
 import type { PointerState } from '../shared-memory/index.ts'
 import { resolveRuntimeZoomGestureScale } from './zoomPresets.ts'
 

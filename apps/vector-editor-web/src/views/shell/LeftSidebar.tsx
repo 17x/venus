@@ -19,6 +19,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set())
   const [activeAssetId, setActiveAssetId] = useState('action-sheet')
   const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null)
+  const [lastClickedLayerId, setLastClickedLayerId] = useState<string | null>(null)
 
   const topMenuActions = useMemo(() => {
     return createHeaderMenuData({
@@ -169,12 +170,31 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
     props.onPatchLayers([layerId], {isVisible: nextVisible}, 'variant-b-layer-row-visible')
   }, [props])
 
-  const handleSelectLayer = useCallback((layerId: string, isToggle: boolean) => {
-    props.onSelectLayers(isToggle ? 'toggle' : 'replace', [layerId], 'variant-b-layer-row-select')
-  }, [props])
-
   const tabItems = createLeftSidebarTabItems(t)
   const treeRows = treeLayerItems as TreeLayerItem[]
+
+  // Keep tree selection semantics aligned with LayerPanel: click replace, cmd/ctrl toggle, shift range-select.
+  const handleSelectLayer = useCallback((
+    layerId: string,
+    options: {isToggle: boolean; isRange: boolean},
+  ) => {
+    const currentIndex = treeRows.findIndex((item) => item.id === layerId)
+    const anchorIndex = lastClickedLayerId
+      ? treeRows.findIndex((item) => item.id === lastClickedLayerId)
+      : -1
+
+    if (options.isRange && anchorIndex >= 0 && currentIndex >= 0) {
+      const from = Math.min(anchorIndex, currentIndex)
+      const to = Math.max(anchorIndex, currentIndex)
+      const rangeIds = treeRows.slice(from, to + 1).map((item) => item.id)
+      props.onSelectLayers(options.isToggle ? 'add' : 'replace', rangeIds, 'variant-b-layer-row-range-select')
+      setLastClickedLayerId(layerId)
+      return
+    }
+
+    props.onSelectLayers(options.isToggle ? 'toggle' : 'replace', [layerId], 'variant-b-layer-row-select')
+    setLastClickedLayerId(layerId)
+  }, [lastClickedLayerId, props, treeRows])
 
   if (props.leftPanelMinimized) {
     return (

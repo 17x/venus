@@ -1,0 +1,5 @@
+{
+  "frozenRoots": [
+    "packages/engine-legacy/"
+  ]
+}

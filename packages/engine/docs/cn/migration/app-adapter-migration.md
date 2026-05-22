@@ -54,7 +54,7 @@
 3. Picking 顺序确定性。
 4. Headless 快照与回放一致性。
 
-## 切换完成标准
+## Canonical 就绪标准
 
 - adapter runtime 不再导入 compat-only 模块。
 - adapter 调用全部通过 canonical API。

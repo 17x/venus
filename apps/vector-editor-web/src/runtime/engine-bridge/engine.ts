@@ -16,8 +16,216 @@ import type {
   EngineHandle as InternalEngine,
   CreateEngineOptions,
 } from '@venus/engine'
-import {createSingleFlightScheduler} from '@venus/lib/scheduler'
-import type {SchedulerMode} from '@venus/lib/scheduler'
+
+/**
+ * Declares scheduler mode priority classes for vector render scheduling.
+ */
+type SchedulerMode = 'interactive' | 'normal'
+
+/**
+ * Declares scheduler diagnostics used by the local single-flight implementation.
+ */
+interface SingleFlightSchedulerDiagnostics {
+  /** Stores the observed delay between request and frame flush. */
+  lastQueueWaitMs: number
+  /** Stores the active interactive throttle delay in milliseconds. */
+  lastInteractiveThrottleDelayMs: number
+  /** Stores the number of coalesced in-frame requests. */
+  coalescedRequestCount: number
+  /** Stores whether task execution is currently in flight. */
+  inFlight: boolean
+  /** Stores whether a frame callback is currently pending. */
+  pendingFrame: boolean
+}
+
+/**
+ * Declares one local single-flight scheduler lifecycle contract.
+ */
+interface SingleFlightScheduler {
+  /** Requests one queued run of the task. */
+  request(mode?: SchedulerMode): void
+  /** Returns a diagnostics snapshot for instrumentation. */
+  getDiagnostics(): SingleFlightSchedulerDiagnostics
+  /** Cancels all queued frame and timer work. */
+  cancel(): void
+  /** Cancels pending work and marks scheduler as disposed. */
+  dispose(): void
+}
+
+/**
+ * Creates a local single-flight scheduler that coalesces frame requests.
+ * @param options Scheduler behavior configuration.
+ */
+function createSingleFlightScheduler(options: {
+  /** Executes one asynchronous render unit. */
+  run: () => Promise<unknown>
+  /** Sets interactive throttle interval in milliseconds. */
+  interactiveIntervalMs?: number
+  /** Reports asynchronous task errors to the owner. */
+  onError?: (error: unknown) => void
+  /** Provides the high-resolution time source. */
+  now?: () => number
+  /** Provides the frame scheduler implementation. */
+  scheduleFrame?: (callback: () => void) => number
+  /** Provides the frame cancellation implementation. */
+  cancelFrame?: (handle: number) => void
+}): SingleFlightScheduler {
+  const now = options.now ?? (() => performance.now())
+  const scheduleFrame = options.scheduleFrame ?? ((callback) => requestAnimationFrame(callback))
+  const cancelFrame = options.cancelFrame ?? ((handle) => cancelAnimationFrame(handle))
+  const interactiveIntervalMs = Math.max(0, options.interactiveIntervalMs ?? 0)
+
+  let frameHandle: number | null = null
+  let interactiveTimerHandle: number | null = null
+  let inFlight = false
+  let queued = false
+  let queuedMode: SchedulerMode = 'normal'
+  let lastRunStartAt = 0
+  let frameScheduledAt = 0
+
+  const diagnostics: SingleFlightSchedulerDiagnostics = {
+    lastQueueWaitMs: 0,
+    lastInteractiveThrottleDelayMs: 0,
+    coalescedRequestCount: 0,
+    inFlight: false,
+    pendingFrame: false,
+  }
+
+  /**
+   * Clears any queued interactive timer to avoid delayed handle leaks.
+   */
+  const clearInteractiveTimer = (): void => {
+    if (interactiveTimerHandle === null) {
+      return
+    }
+    clearTimeout(interactiveTimerHandle)
+    interactiveTimerHandle = null
+  }
+
+  /**
+   * Resolves highest-priority mode so interactive requests are never downgraded.
+   * @param previous Previous queued mode.
+   * @param next Incoming requested mode.
+   */
+  const resolveHigherPriorityMode = (
+    previous: SchedulerMode,
+    next: SchedulerMode,
+  ): SchedulerMode => {
+    return previous === 'interactive' || next === 'interactive'
+      ? 'interactive'
+      : 'normal'
+  }
+
+  /**
+   * Flushes one queued frame callback and starts one async run if possible.
+   */
+  const flush = (): void => {
+    frameHandle = null
+    diagnostics.pendingFrame = false
+    diagnostics.lastQueueWaitMs = frameScheduledAt > 0
+      ? Math.max(0, now() - frameScheduledAt)
+      : 0
+    frameScheduledAt = 0
+
+    if (inFlight) {
+      queued = true
+      queuedMode = resolveHigherPriorityMode(queuedMode, 'normal')
+      return
+    }
+
+    inFlight = true
+    diagnostics.inFlight = true
+    lastRunStartAt = now()
+
+    void options.run()
+      .catch((error) => {
+        options.onError?.(error)
+      })
+      .finally(() => {
+        inFlight = false
+        diagnostics.inFlight = false
+        if (queued) {
+          const nextMode = queuedMode
+          queued = false
+          queuedMode = 'normal'
+          request(nextMode)
+        }
+      })
+  }
+
+  /**
+   * Requests one run and applies interactive throttling when configured.
+   * @param mode Requested scheduler mode.
+   */
+  const request = (mode: SchedulerMode = 'normal'): void => {
+    if (mode === 'interactive' && interactiveIntervalMs > 0) {
+      const elapsed = now() - lastRunStartAt
+      if (elapsed < interactiveIntervalMs) {
+        const throttleDelayMs = Math.max(0, interactiveIntervalMs - elapsed)
+        diagnostics.lastInteractiveThrottleDelayMs = throttleDelayMs
+
+        if (interactiveTimerHandle === null) {
+          interactiveTimerHandle = setTimeout(() => {
+            interactiveTimerHandle = null
+            request('interactive')
+          }, throttleDelayMs) as unknown as number
+        }
+
+        return
+      }
+    }
+
+    if (inFlight) {
+      queued = true
+      queuedMode = resolveHigherPriorityMode(queuedMode, mode)
+      return
+    }
+
+    if (frameHandle !== null) {
+      queuedMode = resolveHigherPriorityMode(queuedMode, mode)
+      diagnostics.coalescedRequestCount += 1
+      return
+    }
+
+    queuedMode = mode
+    frameScheduledAt = now()
+    diagnostics.pendingFrame = true
+    frameHandle = scheduleFrame(flush)
+  }
+
+  /**
+   * Cancels queued frame work and resets queue state.
+   */
+  const cancel = (): void => {
+    if (frameHandle !== null) {
+      cancelFrame(frameHandle)
+      frameHandle = null
+    }
+
+    frameScheduledAt = 0
+    diagnostics.pendingFrame = false
+    clearInteractiveTimer()
+    queued = false
+    queuedMode = 'normal'
+  }
+
+  /**
+   * Disposes scheduler state and leaves diagnostics in settled state.
+   */
+  const dispose = (): void => {
+    cancel()
+    inFlight = false
+    diagnostics.inFlight = false
+    lastRunStartAt = 0
+  }
+
+  return {
+    request,
+    getDiagnostics: () => ({...diagnostics}),
+    cancel,
+    dispose,
+  }
+}
 
 /**
  * Runtime-facing engine contract for vector bridge consumers.
@@ -64,19 +272,141 @@ export interface EngineRenderScheduler {
 }
 
 /**
+ * Declares one geometry outline descriptor emitted by bridge hit-geometry payloads.
+ */
+export interface EngineGeometryOutline {
+  /** Stores outline kind to distinguish polyline from bounds fallback. */
+  kind: 'polyline' | 'bounds'
+  /** Stores optional polyline points for direct world-space drawing. */
+  points?: Array<{x: number; y: number}>
+  /** Stores optional bounds fallback when polyline points are unavailable. */
+  bounds?: {
+    minX: number
+    minY: number
+    maxX: number
+    maxY: number
+  }
+  /** Stores whether outline should be treated as closed loop. */
+  closed?: boolean
+}
+
+/**
+ * Declares one hovered/selected geometry node payload used by overlay derivation.
+ */
+export interface EngineGeometryNodePayload {
+  /** Stores stable node id for overlay and selection correlation. */
+  nodeId: string
+  /** Stores node kind so overlay policy can branch by semantic type. */
+  nodeType: string
+  /** Stores normalized node bounds used by bounds-outline fallback. */
+  bounds: {
+    minX: number
+    minY: number
+    maxX: number
+    maxY: number
+  }
+  /** Stores primary outline payload used by hover/selection rings. */
+  outline: EngineGeometryOutline
+  /** Stores optional detailed outlines for text/path detail highlighting. */
+  detailOutlines: EngineGeometryOutline[]
+  /** Stores optional hover hint points emitted by geometry resolver. */
+  hints: Array<{
+    kind: string
+    label: string
+    point: {x: number; y: number}
+  }>
+}
+
+/**
  * Declares one resolved geometry payload emitted by runtime geometry adapters.
  */
-export type EngineGeometryPayload = ReturnType<InternalEngine['runtime']['plan']['createHitGeometryPayload']>
+export interface EngineGeometryPayload {
+  /** Stores pointer-hit candidate ids sorted by resolver priority. */
+  pointHitNodeIds: string[]
+  /** Stores marquee-hit candidate ids sorted by resolver priority. */
+  marqueeCandidateNodeIds: string[]
+  /** Stores resolved marquee selection ids after mode filtering. */
+  marqueeResolvedNodeIds: string[]
+  /** Stores optional hovered node payload. */
+  hovered: EngineGeometryNodePayload | null
+  /** Stores selected node payload list used by overlay rendering. */
+  selected: EngineGeometryNodePayload[]
+}
 
 /**
  * Declares geometry payload options accepted by runtime geometry adapters.
  */
-export type ResolveEngineGeometryPayloadOptions = Parameters<InternalEngine['runtime']['plan']['createHitGeometryPayload']>[0]
+export interface ResolveEngineGeometryPayloadOptions {
+  /** Stores shape node list used by geometry/hit resolver. */
+  nodes: unknown[]
+  /** Stores optional pointer world coordinate for point-hit resolution. */
+  pointer?: {x: number; y: number} | null
+  /** Stores optional marquee bounds used by marquee candidate resolution. */
+  marqueeBounds?: {minX: number; minY: number; maxX: number; maxY: number} | null
+  /** Stores optional marquee inclusion mode used by selector resolution. */
+  marqueeMode?: string
+  /** Stores optional hovered-node hint for resolver optimizations. */
+  hoveredNodeId?: string | null
+  /** Stores optional selected-node ids for selected payload expansion. */
+  selectedNodeIds?: string[]
+  /** Stores point-hit tolerance in world units. */
+  tolerance?: number
+  /** Stores clip-shape tolerance in world units. */
+  clipTolerance?: number
+  /** Stores whether frame nodes can be selected directly. */
+  allowFrameSelection?: boolean
+  /** Stores whether group ancestors should be promoted in hit results. */
+  preferGroupSelection?: boolean
+  /** Stores strict stroke-only hit behavior. */
+  strictStrokeHitTest?: boolean
+  /** Stores whether clip-bound image hosts should be excluded from hits. */
+  excludeClipBoundImage?: boolean
+  /** Stores whether hovered payload should be resolved from pointer input. */
+  resolveHoveredFromPointer?: boolean
+  /** Stores outline detail level used by overlay rendering. */
+  outlineLevel?: 'none' | 'low' | 'medium' | 'high'
+}
 
 /**
  * Declares adaptive hit-tolerance options accepted by runtime adapters.
  */
-export type ResolveEngineAdaptiveHitToleranceOptions = Parameters<InternalEngine['runtime']['plan']['resolveHitTolerance']>[0]
+export interface ResolveEngineAdaptiveHitToleranceOptions {
+  /** Stores viewport scale for world/screen conversion. */
+  viewportScale?: number
+  /** Stores viewport width in screen px. */
+  viewportWidth?: number
+  /** Stores viewport height in screen px. */
+  viewportHeight?: number
+  /** Stores optional base override in screen px. */
+  basePx?: number
+  /** Stores optional adaptive-tolerance tuning overrides. */
+  config?: {
+    minPx?: number
+    maxPx?: number
+    referenceViewportDiagonalPx?: number
+    zoomExponent?: number
+    screenExponent?: number
+  }
+}
+
+/**
+ * Declares bridge-only runtime plan contract used by helper-engine adapters.
+ */
+interface BridgeRuntimePlan {
+  /** Resolves one geometry payload from current node/query inputs. */
+  createHitGeometryPayload: (options: ResolveEngineGeometryPayloadOptions) => EngineGeometryPayload
+}
+
+/**
+ * Declares bridge-only helper engine contract with runtime plan access.
+ */
+type BridgeHelperEngine = InternalEngine & {
+  /** Stores runtime API namespace used by bridge helper adapters. */
+  runtime: {
+    /** Stores plan API namespace used by geometry wrappers. */
+    plan: BridgeRuntimePlan
+  }
+}
 
 /**
  * Declares normalized source transform fields used by vector transform adapters.
@@ -139,12 +469,12 @@ export interface ResolvedNodeTransform {
 /**
  * Stores one lazily-created bridge helper engine used for stateless runtime/capability wrappers.
  */
-let bridgeHelperEngine: InternalEngine | null = null
+let bridgeHelperEngine: BridgeHelperEngine | null = null
 
 /**
  * Resolves one lazily-created helper engine exposing formal runtime/capability APIs.
  */
-function resolveBridgeHelperEngine(): InternalEngine {
+function resolveBridgeHelperEngine(): BridgeHelperEngine {
   if (bridgeHelperEngine) {
     return bridgeHelperEngine
   }
@@ -155,7 +485,7 @@ function resolveBridgeHelperEngine(): InternalEngine {
       width: 1,
       height: 1,
     },
-  })
+  }) as BridgeHelperEngine
   return bridgeHelperEngine
 }
 

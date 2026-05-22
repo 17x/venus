@@ -1,22 +1,98 @@
 /**
- * Declares engine viewport-pan offset type through canonical interaction namespace.
+ * Defines accumulated viewport pan offsets in screen space.
  */
-export type {
-  ViewportPanOffset as EngineViewportPanOffset,
-  ViewportPanOrigin as EngineViewportPanOrigin,
-} from "@venus/lib/viewport";
+export interface EngineViewportPanOffset {
+  /** Stores x-axis pan offset. */
+  x: number;
+  /** Stores y-axis pan offset. */
+  y: number;
+}
 
 /**
- * Re-exports pointer-pan origin creation through canonical interaction namespace.
+ * Defines pointer origin state for viewport pan sessions.
  */
-export { createViewportPanOrigin as createEngineViewportPanOrigin } from "@venus/lib/viewport";
+export interface EngineViewportPanOrigin {
+  /** Stores latest pointer x coordinate. */
+  x: number;
+  /** Stores latest pointer y coordinate. */
+  y: number;
+  /** Stores active pointer id tied to this pan session. */
+  pointerId: number;
+}
 
 /**
- * Re-exports wheel-pan accumulation through canonical interaction namespace.
+ * Seeds a pointer-pan session from the pointerdown location.
+ * @param input Pointerdown coordinates and pointer id.
  */
-export { accumulateWheelPanOffset as accumulateEngineWheelPanOffset } from "@venus/lib/viewport";
+export function createEngineViewportPanOrigin(input: {
+  /** Stores initial pointer x coordinate. */
+  x: number;
+  /** Stores initial pointer y coordinate. */
+  y: number;
+  /** Stores initial pointer id. */
+  pointerId: number;
+}): EngineViewportPanOrigin {
+  return {
+    x: input.x,
+    y: input.y,
+    pointerId: input.pointerId,
+  };
+}
 
 /**
- * Re-exports pointer-pan accumulation through canonical interaction namespace.
+ * Converts wheel deltas into viewport pan offsets.
+ * @param offset Current viewport pan offset.
+ * @param input Incoming wheel delta payload.
  */
-export { accumulatePointerPanOffset as accumulateEnginePointerPanOffset } from "@venus/lib/viewport";
+export function accumulateEngineWheelPanOffset(
+  offset: EngineViewportPanOffset,
+  input: {
+    /** Stores wheel delta on x-axis. */
+    deltaX: number;
+    /** Stores wheel delta on y-axis. */
+    deltaY: number;
+  },
+): EngineViewportPanOffset {
+  return {
+    x: offset.x - input.deltaX,
+    y: offset.y - input.deltaY,
+  };
+}
+
+/**
+ * Updates pointer-pan session and returns the accumulated viewport delta.
+ * @param offset Current viewport pan offset.
+ * @param origin Active pointer origin state.
+ * @param pointer Incoming pointer payload.
+ */
+export function accumulateEnginePointerPanOffset(
+  offset: EngineViewportPanOffset,
+  origin: EngineViewportPanOrigin,
+  pointer: {
+    /** Stores current pointer x coordinate. */
+    x: number;
+    /** Stores current pointer y coordinate. */
+    y: number;
+    /** Stores current pointer id. */
+    pointerId: number;
+  },
+): {offset: EngineViewportPanOffset; origin: EngineViewportPanOrigin} {
+  if (origin.pointerId !== pointer.pointerId) {
+    return {offset, origin};
+  }
+
+  const deltaX = pointer.x - origin.x;
+  const deltaY = pointer.y - origin.y;
+
+  return {
+    offset: {
+      x: offset.x + deltaX,
+      y: offset.y + deltaY,
+    },
+    origin: {
+      x: pointer.x,
+      y: pointer.y,
+      pointerId: pointer.pointerId,
+    },
+  };
+}

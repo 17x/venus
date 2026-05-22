@@ -15,8 +15,8 @@ import {
  */
 test("runtime backend foundation descriptor set is complete", () => {
   assert.deepEqual(Object.keys(ENGINE_RUNTIME_BACKEND_FOUNDATION_API).sort(), [
-    "getCapabilities",
     "getActive",
+    "getCapabilities",
     "getFallbackTrace",
     "getLimits",
     "listAvailable",

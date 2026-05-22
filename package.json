@@ -12,6 +12,7 @@
     "dev playground": "pnpm --filter @venus/playground dev",
     "lint": "eslint . && node ./scripts/module-governance-check.mjs",
     "governance:check": "node ./scripts/module-governance-check.mjs",
+    "governance:cutover-freeze": "node ./scripts/cutover-freeze-guard.mjs",
     "governance:file-shape": "node ./scripts/file-shape-guard.mjs --changed",
     "governance:file-shape:all": "node ./scripts/file-shape-guard.mjs",
     "governance:test": "node --test ./scripts/module-governance-check.test.mjs",

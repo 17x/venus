@@ -118,6 +118,12 @@ export interface LayerItem {
   show: boolean
   isVisible?: boolean
   isLocked?: boolean
+  /** Stores mask role when this node participates in a persisted mask group. */
+  maskRole?: 'host' | 'source'
+  /** Stores mask-group id to support layer-tree mask relationship cues. */
+  maskGroupId?: string
+  /** Stores whether this row is an image host currently clipped by one mask source. */
+  isMaskHost?: boolean
   type: string
   depth: number
   isGroup: boolean

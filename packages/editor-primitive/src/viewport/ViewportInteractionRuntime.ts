@@ -1,5 +1,25 @@
 import type {Point2D} from '@venus/lib'
-import type {CanvasViewportState} from '@venus/lib/viewport'
+import type {Mat3} from '@venus/lib/math'
+
+/**
+ * Declares viewport camera state consumed by interaction runtime adapters.
+ */
+export interface CanvasViewportState {
+  /** Stores screen-to-world matrix used by hit-test projection. */
+  inverseMatrix: Mat3
+  /** Stores world-to-screen matrix used by renderer projection. */
+  matrix: Mat3
+  /** Stores x-axis viewport translation in screen space. */
+  offsetX: number
+  /** Stores y-axis viewport translation in screen space. */
+  offsetY: number
+  /** Stores viewport zoom scale. */
+  scale: number
+  /** Stores measured viewport width in pixels. */
+  viewportWidth: number
+  /** Stores measured viewport height in pixels. */
+  viewportHeight: number
+}
 
 /**
  * Stores viewport interaction runtime state layered above base viewport matrices.

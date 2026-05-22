@@ -1,0 +1,9 @@
+{
+  "name": "@venus/renderer-shared-staging",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "shared backend contract package for renderer split staging",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

@@ -158,16 +158,292 @@ test("createEngine hard-cut API parity", async () => {
   assert.equal((await engine.renderHeadless()).drawCount >= 0, true);
   assert.equal(engine.destroyHeadlessSession(headlessSession.sessionId).destroyed, true);
 
+  let lifecycleReadyCount = 0;
+  let lifecycleBeforeMountCount = 0;
+  let lifecycleMountedCount = 0;
+  let lifecycleBeforeUnmountCount = 0;
+  let lifecycleUnmountedCount = 0;
+  let graphPatchedCount = 0;
+  let viewChangedCount = 0;
+  let viewportResizedCount = 0;
+  let interactionStateChangedCount = 0;
+  let interactionPickCompletedCount = 0;
+  let interactionPickFailedCount = 0;
+  let resourceLoadProgressCount = 0;
+  let resourceLoadFailedCount = 0;
+  let streamingBackpressureCount = 0;
+  let diagnosticsWarningCount = 0;
+  let diagnosticsTraceReadyCount = 0;
+  let diagnosticsCaptureReadyCount = 0;
+  let diagnosticsErrorCount = 0;
+  let replayStartedCount = 0;
+  let replayCompletedCount = 0;
+  let replayFailedCount = 0;
+  let sampledFrameCompletedCount = 0;
+  let throttledFrameCompletedCount = 0;
+  let beforeCompileHookCount = 0;
+  let afterSubmitHookCount = 0;
   const listener = () => {};
+  // Tracks lifecycle-ready emissions from the strengthened runtime event flow.
+  const lifecycleReadyListener = () => {
+    lifecycleReadyCount += 1;
+  };
+  // Tracks lifecycle-beforeMount emissions from mount transition.
+  const lifecycleBeforeMountListener = () => {
+    lifecycleBeforeMountCount += 1;
+  };
+  // Tracks lifecycle-mounted emissions from mount transition.
+  const lifecycleMountedListener = () => {
+    lifecycleMountedCount += 1;
+  };
+  // Tracks lifecycle-beforeUnmount emissions from unmount transition.
+  const lifecycleBeforeUnmountListener = () => {
+    lifecycleBeforeUnmountCount += 1;
+  };
+  // Tracks lifecycle-unmounted emissions from unmount transition.
+  const lifecycleUnmountedListener = () => {
+    lifecycleUnmountedCount += 1;
+  };
+  // Tracks graph-patched emissions used to verify pause/resume gating behavior.
+  const graphPatchedListener = () => {
+    graphPatchedCount += 1;
+  };
+  // Tracks view-changed emissions produced by view mutation APIs.
+  const viewChangedListener = () => {
+    viewChangedCount += 1;
+  };
+  // Tracks viewport-resized emissions produced by resize API.
+  const viewportResizedListener = () => {
+    viewportResizedCount += 1;
+  };
+  // Tracks interaction-state-changed emissions produced by interaction APIs.
+  const interactionStateChangedListener = () => {
+    interactionStateChangedCount += 1;
+  };
+  // Tracks successful pick completion emissions.
+  const interactionPickCompletedListener = () => {
+    interactionPickCompletedCount += 1;
+  };
+  // Tracks failed pick emissions.
+  const interactionPickFailedListener = () => {
+    interactionPickFailedCount += 1;
+  };
+  // Tracks resource load-progress emissions from asset load/preload operations.
+  const resourceLoadProgressListener = () => {
+    resourceLoadProgressCount += 1;
+  };
+  // Tracks resource load-failed emissions from invalid/missing asset operations.
+  const resourceLoadFailedListener = () => {
+    resourceLoadFailedCount += 1;
+  };
+  // Tracks streaming backpressure emissions when seeking without active media source.
+  const streamingBackpressureListener = () => {
+    streamingBackpressureCount += 1;
+  };
+  // Tracks diagnostics warning emissions when diagnostics are explicitly disabled.
+  const diagnosticsWarningListener = () => {
+    diagnosticsWarningCount += 1;
+  };
+  // Tracks diagnostics trace-ready emissions from runtime trace boundaries.
+  const diagnosticsTraceReadyListener = () => {
+    diagnosticsTraceReadyCount += 1;
+  };
+  // Tracks diagnostics capture-ready emissions from capture APIs.
+  const diagnosticsCaptureReadyListener = () => {
+    diagnosticsCaptureReadyCount += 1;
+  };
+  // Tracks diagnostics-error emissions generated from isolated listener failures.
+  const diagnosticsErrorListener = () => {
+    diagnosticsErrorCount += 1;
+  };
+  // Tracks replay-started emissions from token creation.
+  const replayStartedListener = () => {
+    replayStartedCount += 1;
+  };
+  // Tracks replay-completed emissions for accepted replay tokens.
+  const replayCompletedListener = () => {
+    replayCompletedCount += 1;
+  };
+  // Tracks replay-failed emissions for rejected replay tokens.
+  const replayFailedListener = () => {
+    replayFailedCount += 1;
+  };
+  // Intentionally throws to verify listener exception isolation and diagnostics.error emission path.
+  const crashingViewChangedListener = () => {
+    throw new Error("hard-cut-listener-failure");
+  };
+  // Tracks sampled frame-completed emissions to ensure sampleRate filtering is active.
+  const sampledFrameCompletedListener = () => {
+    sampledFrameCompletedCount += 1;
+  };
+  // Tracks throttled frame-completed emissions to ensure throttle window suppression is active.
+  const throttledFrameCompletedListener = () => {
+    throttledFrameCompletedCount += 1;
+  };
+  // Tracks before-compile hook delivery to verify hook-stage registration path.
+  const beforeCompileHookListener = () => {
+    beforeCompileHookCount += 1;
+  };
+  // Tracks after-submit hook delivery to verify render-stage hook dispatch path.
+  const afterSubmitHookListener = () => {
+    afterSubmitHookCount += 1;
+  };
   engine.on("evt", listener);
   engine.off("evt", listener);
   engine.once("evt", listener);
 
-  assert.equal(typeof engine.getMetrics().drawCount, "number");
+  engine.events.on("engine.lifecycle.ready", lifecycleReadyListener, { scope: "session" });
+  engine.events.on("engine.lifecycle.beforeMount", lifecycleBeforeMountListener, { scope: "session" });
+  engine.events.on("engine.lifecycle.mounted", lifecycleMountedListener, { scope: "session" });
+  engine.events.on("engine.lifecycle.beforeUnmount", lifecycleBeforeUnmountListener, { scope: "session" });
+  engine.events.on("engine.lifecycle.unmounted", lifecycleUnmountedListener, { scope: "session" });
+  engine.events.on("engine.document.graphPatched", graphPatchedListener, { scope: "session" });
+  engine.events.on("engine.view.changed", viewChangedListener, { scope: "session" });
+  engine.events.on("engine.view.viewportResized", viewportResizedListener, { scope: "session" });
+  engine.events.on("engine.interaction.stateChanged", interactionStateChangedListener, { scope: "session" });
+  engine.events.on("engine.interaction.pickCompleted", interactionPickCompletedListener, { scope: "session" });
+  engine.events.on("engine.interaction.pickFailed", interactionPickFailedListener, { scope: "session" });
+  engine.events.on("engine.resource.loadProgress", resourceLoadProgressListener, { scope: "session" });
+  engine.events.on("engine.resource.loadFailed", resourceLoadFailedListener, { scope: "session" });
+  engine.events.on("engine.streaming.backpressure", streamingBackpressureListener, { scope: "session" });
+  engine.events.on("engine.diagnostics.warning", diagnosticsWarningListener, { scope: "session" });
+  engine.events.on("engine.diagnostics.traceReady", diagnosticsTraceReadyListener, { scope: "session" });
+  engine.events.on("engine.diagnostics.captureReady", diagnosticsCaptureReadyListener, { scope: "session" });
+  engine.events.on("engine.diagnostics.error", diagnosticsErrorListener, { scope: "session" });
+  engine.events.on("engine.replay.started", replayStartedListener, { scope: "session" });
+  engine.events.on("engine.replay.completed", replayCompletedListener, { scope: "session" });
+  engine.events.on("engine.replay.failed", replayFailedListener, { scope: "session" });
+  engine.events.on("engine.view.changed", crashingViewChangedListener, { scope: "trace" });
+  engine.events.on("engine.render.frameCompleted", sampledFrameCompletedListener, {
+    sampleRate: 0.5,
+    scope: "trace",
+  });
+  engine.events.on("engine.render.frameCompleted", throttledFrameCompletedListener, {
+    throttleMs: 100,
+    scope: "trace",
+  });
+  engine.events.onMany(["engine.render.frameStarted", "engine.render.frameCompleted"], listener, {
+    scope: "trace",
+  });
+  engine.hooks.beforeCompile(beforeCompileHookListener, { scope: "trace" });
+  engine.hooks.afterSubmit(afterSubmitHookListener, { scope: "trace" });
+
+  await engine.ready();
+  assert.equal(lifecycleReadyCount >= 1, true);
+  engine.unmount();
+  engine.mount({ id: "host-b" });
+  engine.setView({ offsetX: 16, offsetY: 24, scale: 1.1 });
+  engine.resize(960, 720);
+  engine.setInteractionState({ dragging: true, mode: "batch-25" });
+  engine.clearInteractionState();
+  engine.pick({ x: 20, y: 20 });
+  engine.pick({ x: -9999, y: -9999 });
+  engine.loadAssets([{ id: "asset-c" }, { id: "" }]);
+  engine.preloadAssets([{ id: "asset-d" }]);
+  engine.unloadAssets(["asset-missing"]);
+  engine.setMediaSources([]);
+  engine.seekMedia(240);
+  const traceSession = engine.runtime.observability.startTrace({ name: "hard-cut-trace" });
+  engine.runtime.observability.stopTrace(traceSession.traceId);
+  engine.runtime.captureCommandTrace({ label: "hard-cut-command-trace" });
+  engine.captureFrame();
+  assert.equal(lifecycleBeforeMountCount >= 1, true);
+  assert.equal(lifecycleMountedCount >= 1, true);
+  assert.equal(lifecycleBeforeUnmountCount >= 1, true);
+  assert.equal(lifecycleUnmountedCount >= 1, true);
+
+  engine.events.pause("engine.document.graphPatched");
+  engine.updateGraph({ patches: [{ upsertNodes: [{ id: "node-d", kind: "shape" }] }] });
+  assert.equal(graphPatchedCount, 0);
+  engine.events.resume("engine.document.graphPatched");
+  engine.updateGraph({ patches: [{ upsertNodes: [{ id: "node-e", kind: "shape" }] }] });
+  assert.equal(graphPatchedCount, 1);
+
+  await engine.render();
+  await engine.render();
+  assert.equal(sampledFrameCompletedCount <= 2, true);
+  assert.equal(sampledFrameCompletedCount >= 1, true);
+  assert.equal(throttledFrameCompletedCount, 1);
+  assert.equal(beforeCompileHookCount >= 2, true);
+  assert.equal(afterSubmitHookCount >= 1, true);
+  assert.equal(typeof engine.hooks.getStats().totalListeners, "number");
+  assert.equal(viewChangedCount >= 1, true);
+  assert.equal(viewportResizedCount >= 1, true);
+  assert.equal(interactionStateChangedCount >= 1, true);
+  assert.equal(interactionPickCompletedCount >= 1, true);
+  assert.equal(interactionPickFailedCount >= 1, true);
+  assert.equal(resourceLoadProgressCount >= 2, true);
+  assert.equal(resourceLoadFailedCount >= 1, true);
+  assert.equal(streamingBackpressureCount >= 1, true);
+  assert.equal(diagnosticsTraceReadyCount >= 1, true);
+  assert.equal(diagnosticsCaptureReadyCount >= 1, true);
+  assert.equal(diagnosticsErrorCount >= 1, true);
   engine.setDiagnosticsEnabled(false);
-  assert.equal(engine.captureDebugFrame().mimeType, "image/png");
+  assert.equal(diagnosticsWarningCount >= 1, true);
   const replayToken = engine.createReplayToken("hard-cut");
+  assert.equal(replayStartedCount >= 1, true);
   assert.equal(engine.replay(replayToken.token).accepted, true);
+  assert.equal(replayCompletedCount >= 1, true);
+  assert.equal(engine.replay("invalid-replay-token").accepted, false);
+  assert.equal(replayFailedCount >= 1, true);
+
+  assert.equal(typeof engine.events.getListenerStats().totalListeners, "number");
+  engine.events.off("engine.lifecycle.ready", lifecycleReadyListener);
+  engine.events.off("engine.lifecycle.beforeMount", lifecycleBeforeMountListener);
+  engine.events.off("engine.lifecycle.mounted", lifecycleMountedListener);
+  engine.events.off("engine.lifecycle.beforeUnmount", lifecycleBeforeUnmountListener);
+  engine.events.off("engine.lifecycle.unmounted", lifecycleUnmountedListener);
+  engine.events.off("engine.document.graphPatched", graphPatchedListener);
+  engine.events.off("engine.view.changed", viewChangedListener);
+  engine.events.off("engine.view.viewportResized", viewportResizedListener);
+  engine.events.off("engine.interaction.stateChanged", interactionStateChangedListener);
+  engine.events.off("engine.interaction.pickCompleted", interactionPickCompletedListener);
+  engine.events.off("engine.interaction.pickFailed", interactionPickFailedListener);
+  engine.events.off("engine.resource.loadProgress", resourceLoadProgressListener);
+  engine.events.off("engine.resource.loadFailed", resourceLoadFailedListener);
+  engine.events.off("engine.streaming.backpressure", streamingBackpressureListener);
+  engine.events.off("engine.diagnostics.warning", diagnosticsWarningListener);
+  engine.events.off("engine.diagnostics.traceReady", diagnosticsTraceReadyListener);
+  engine.events.off("engine.diagnostics.captureReady", diagnosticsCaptureReadyListener);
+  engine.events.off("engine.diagnostics.error", diagnosticsErrorListener);
+  engine.events.off("engine.replay.started", replayStartedListener);
+  engine.events.off("engine.replay.completed", replayCompletedListener);
+  engine.events.off("engine.replay.failed", replayFailedListener);
+  engine.events.off("engine.view.changed", crashingViewChangedListener);
+  engine.events.off("engine.render.frameCompleted", sampledFrameCompletedListener);
+  engine.events.off("engine.render.frameCompleted", throttledFrameCompletedListener);
+  engine.events.offAll("trace");
+  engine.hooks.offAll("trace");
+
+  const extensionRegistration = engine.extension.register({ id: "plugin-a", version: "1.0.0" });
+  assert.equal(extensionRegistration.pluginId, "plugin-a");
+  assert.equal(Array.isArray(engine.extension.list()), true);
+  assert.equal(engine.extension.getState("plugin-a").state, "registered");
+  assert.equal(engine.extension.unregister("plugin-a").removed, true);
+
+  const scheduledTask = engine.scheduler.schedule({ kind: "noop" }, { queue: "render", budgetMs: 4 });
+  assert.equal(typeof scheduledTask.taskId, "string");
+  assert.equal(engine.scheduler.getQueueStats().pending >= 0, true);
+  assert.equal(engine.scheduler.cancel(scheduledTask.taskId).cancelled, true);
+  assert.equal(engine.scheduler.flush("render").flushed >= 0, true);
+
+  engine.cache.set("scene", "k1", { ok: true }, { tags: ["dirty:geometry"] });
+  assert.equal(typeof engine.cache.get("scene", "k1"), "object");
+  engine.cache.invalidateByTag("dirty:geometry");
+  assert.equal(engine.cache.get("scene", "k1"), undefined);
+  assert.equal(typeof engine.cache.getStats("scene").entryCount, "number");
+
+  engine.policy.setRenderPolicy({ mode: "balanced" });
+  engine.policy.setResourcePolicy({ budgetMb: 128 });
+  engine.policy.setFallbackPolicy({ prefer: "canvas2d" });
+  assert.equal(typeof engine.policy.getEffectivePolicy().render, "object");
+
+  engine.security.setTrustLevel("high");
+  engine.security.setResourceAccessPolicy({ quota: 10 });
+  assert.equal(Array.isArray(engine.security.getAuditLog({ limit: 5 })), true);
+
+  assert.equal(typeof engine.getMetrics().drawCount, "number");
+  assert.equal(engine.captureDebugFrame().mimeType, "image/png");
   engine.unmount();
   engine.clearOverlays();
   engine.clearGraph();

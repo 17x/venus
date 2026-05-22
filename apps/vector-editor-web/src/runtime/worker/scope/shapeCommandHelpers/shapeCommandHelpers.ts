@@ -14,6 +14,16 @@ export type ShapeAlignReference = 'selection' | 'first'
 export type ShapeDistributeMode = 'hspace' | 'vspace'
 export type ShapeBooleanMode = 'union' | 'subtract' | 'intersect'
 
+/**
+ * Creates linear bezier anchors from plain polyline points for path-edit compatibility.
+ * @param points Source polyline points.
+ */
+function createLinearBezierPoints(points: Array<{x: number; y: number}>) {
+  return points.map((point) => ({
+    anchor: {x: point.x, y: point.y},
+  }))
+}
+
 
 export function convertShapeToPathShape(shape: DocumentNode): DocumentNode | null {
   if (shape.type === 'group' || shape.type === 'frame' || shape.type === 'text' || shape.type === 'image') {
@@ -31,7 +41,7 @@ export function convertShapeToPathShape(shape: DocumentNode): DocumentNode | nul
     ...shape,
     type: 'path',
     points,
-    bezierPoints: undefined,
+    bezierPoints: createLinearBezierPoints(points),
     cornerRadius: undefined,
     cornerRadii: undefined,
     ellipseStartAngle: undefined,
@@ -122,7 +132,7 @@ export function createBooleanReplacePatches(
         width: resultBounds.width,
         height: resultBounds.height,
         points: combinedPoints,
-        bezierPoints: undefined,
+        bezierPoints: createLinearBezierPoints(combinedPoints),
         cornerRadius: undefined,
         cornerRadii: undefined,
         ellipseStartAngle: undefined,

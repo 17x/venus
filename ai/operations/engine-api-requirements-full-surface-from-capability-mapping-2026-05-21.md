@@ -2038,3 +2038,698 @@ Tests:
 2. `pnpm --filter @venus/engine test`：pass
 3. `pnpm --filter @venus/engine cr:check`：pass
 4. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 44. Batch-22 初始化（事件与运行治理机制）
+
+批次状态：DONE
+批次日期：2026-05-21
+批次负责人：copilot
+
+### 44.1 Scope Definition（初始化冻结）
+
+1. 本批仅覆盖第 9 节与第 10 节中“可抽象且无行业语义”的公共机制：
+   - Event API（`engine.events.*` + 标准事件 payload contract）
+   - Extension/Hooks/Scheduler/Cache/Policy/Security 的 contract-first 定义
+2. 本批不做行业能力扩展，不新增 medical/bim/gis/cad/finance/video/game 等前缀。
+3. 本批默认以 contract、test、docs 为主，runtime 可调用实现按“最小闭环”推进。
+
+### 44.2 Boundary Definition（分界定）
+
+1. 命名空间边界：
+   - 允许：`engine.*`、`engine.runtime.*`、`engine.capability.*`
+   - 本批新增 public 入口限定：`engine.events.*`、`engine.extension.*`、`engine.scheduler.*`、`engine.cache.*`、`engine.policy.*`、`engine.security.*`
+   - 禁止新增其它 public namespace。
+2. 分层边界：
+   - L1 Developer API：`engine.events.*`、`engine.extension.*`、`engine.scheduler.*`、`engine.cache.*`、`engine.policy.*`、`engine.security.*`
+   - L2 Runtime API：仅承接执行态细节，不承接产品语义
+   - L3 Capability API：不直接承载事件总线治理语义，仍以能力包为主
+3. 依赖边界：
+   - `app -> engine/lib` 保持
+   - `engine -> lib` 保持
+   - 禁止新增逆向依赖与跨层私有 import。
+4. 交付边界：
+   - 每个新增 API 必须具备 contract + contract test + docs/en + docs/cn
+   - 未满足四件套的 API 不得进入 runtime 实现。
+
+### 44.3 Type Definition（本批最小冻结字段）
+
+1. 事件通用 payload（适用于所有 `engine.*` 事件）：
+   - `type`
+   - `timestamp`
+   - `engineId`
+   - `revision`
+2. 事件订阅控制输入：
+   - `type | types`
+   - `listener`
+   - `options`（采样/节流/once/scope）
+3. 调度任务输入：
+   - `task`
+   - `priority`
+   - `budget`
+   - `queue`
+4. 缓存输入：
+   - `namespace`
+   - `key`
+   - `policy`
+5. 安全输入：
+   - `trustLevel`
+   - `resourceAccessPolicy`
+   - `quota`
+
+### 44.4 [CHANGE REQUEST] Batch-22
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - `packages/engine/src/runtime/events/runtime-events.contract.ts`
+  - `packages/engine/src/runtime/extension/runtime-extension.contract.ts`
+  - `packages/engine/src/runtime/scheduler/runtime-scheduler.contract.ts`
+  - `packages/engine/src/runtime/cache/runtime-cache.contract.ts`
+  - `packages/engine/src/runtime/policy/runtime-policy.contract.ts`
+  - `packages/engine/src/runtime/security/runtime-security.contract.ts`
+  - `packages/engine/src/api/public-types.ts`
+  - `packages/engine/src/api/createEngine.ts`
+  - `packages/engine/src/testing/contract/runtime-events.runtime.contract.test.ts`
+  - `packages/engine/src/testing/contract/runtime-extension.runtime.contract.test.ts`
+  - `packages/engine/src/testing/contract/runtime-scheduler.runtime.contract.test.ts`
+  - `packages/engine/src/testing/contract/runtime-cache.runtime.contract.test.ts`
+  - `packages/engine/src/testing/contract/runtime-policy.runtime.contract.test.ts`
+  - `packages/engine/src/testing/contract/runtime-security.runtime.contract.test.ts`
+  - `packages/engine/docs/en/api/event-api.md`
+  - `packages/engine/docs/cn/api/event-api.md`
+  - `packages/engine/docs/en/api/runtime-governance.md`
+  - `packages/engine/docs/cn/api/runtime-governance.md`
+
+Goal:
+
+- Problem being solved:
+  - 将第 9/10 节从“需求枚举”推进到“可执行 contract 基线”，并为后续 runtime 接入提供稳定阻断门禁。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Add：events/extension/scheduler/cache/policy/security contract + test + docs
+  - Modify：`public-types.ts`、`createEngine.ts`（仅最小可调用接线）
+  - Remove：none
+
+Impact:
+
+- Affected modules:
+  - `engine.events.*`
+  - `engine.extension.*`
+  - `engine.scheduler.*`
+  - `engine.cache.*`
+  - `engine.policy.*`
+  - `engine.security.*`
+
+Cleanup:
+
+- Old logic to remove:
+  - 清理 runtime 内散落的非 contract 事件/治理入口，统一收敛到 contract 描述源。
+
+Tests:
+
+- Tests to add/update:
+  - 事件 payload 必填字段断言（`type/timestamp/engineId/revision`）
+  - 事件顺序 deterministic 断言（同输入、同 seed、同 backend）
+  - scheduler 优先级 + 饥饿保护断言
+  - cache 与 dirty domain 对齐断言
+  - policy 变更可观测与可回放断言
+  - security 输入 schema + quota 阻断断言
+
+### 44.5 Test Design（Batch-22）
+
+1. Descriptor completeness：6 个机制域 descriptor key 完整且稳定。
+2. Descriptor semantics：level/stability/errorCodes/determinism 字段齐备。
+3. Event determinism：同输入事件序列一致，listener 抛错隔离且 diagnostics 可见。
+4. Governance determinism：scheduler/cache/policy/security 在固定输入下输出稳定。
+5. Runtime integration：`createEngine` 上最小可调用入口存在且返回结构稳定。
+
+### 44.6 阻断条件（Batch-22）
+
+1. 任一机制域缺 contract：阻断。
+2. 任一新增 public API 缺 en/cn 文档：阻断。
+3. 事件 payload 缺少 4 个必填字段之一：阻断。
+4. listener 异常可中断主流程：阻断。
+5. scheduler 无预算字段或无饥饿保护断言：阻断。
+
+### 44.7 Batch-22 任务状态看板（初始化）
+
+| ID     | Item                                                    | Owner   | Status | Evidence                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ------------------------------------------------------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B22-E1 | events contract skeleton 冻结                           | copilot | DONE   | packages/engine/src/runtime/events/runtime-events.contract.ts                                                                                                                                                                                                                                                                                                                                                   |
+| B22-E2 | events determinism + isolation 合约测试                 | copilot | DONE   | packages/engine/src/testing/contract/runtime-events.runtime.contract.test.ts                                                                                                                                                                                                                                                                                                                                    |
+| B22-G1 | extension/scheduler/cache/policy/security contract 冻结 | copilot | DONE   | packages/engine/src/runtime/extension/runtime-extension.contract.ts + packages/engine/src/runtime/scheduler/runtime-scheduler.contract.ts + packages/engine/src/runtime/cache/runtime-cache.contract.ts + packages/engine/src/runtime/policy/runtime-policy.contract.ts + packages/engine/src/runtime/security/runtime-security.contract.ts                                                                     |
+| B22-G2 | governance 合约测试（budget/cache/policy/security）     | copilot | DONE   | packages/engine/src/testing/contract/runtime-extension.runtime.contract.test.ts + packages/engine/src/testing/contract/runtime-scheduler.runtime.contract.test.ts + packages/engine/src/testing/contract/runtime-cache.runtime.contract.test.ts + packages/engine/src/testing/contract/runtime-policy.runtime.contract.test.ts + packages/engine/src/testing/contract/runtime-security.runtime.contract.test.ts |
+| B22-D1 | events + governance 双语文档同构                        | copilot | DONE   | packages/engine/docs/en/api/event-api.md + packages/engine/docs/cn/api/event-api.md + packages/engine/docs/en/api/runtime-governance.md + packages/engine/docs/cn/api/runtime-governance.md                                                                                                                                                                                                                     |
+| B22-K1 | EngineHandle governance namespace 接线 + hard-cut 回归  | copilot | DONE   | packages/engine/src/api/public-types.ts + packages/engine/src/api/createEngine.ts + packages/engine/src/testing/createEngine.hard-cut.test.ts                                                                                                                                                                                                                                                                   |
+| B22-K2 | EngineHandle 事件语义强化（生命周期/文档/渲染/replay）  | copilot | DONE   | packages/engine/src/api/createEngine.ts + packages/engine/src/testing/createEngine.hard-cut.test.ts                                                                                                                                                                                                                                                                                                             |
+| B22-V1 | engine/vector 四项校验命令全绿                          | copilot | DONE   | engine tsc + engine test + engine cr:check + vector tsc passed                                                                                                                                                                                                                                                                                                                                                  |
+| B22-V2 | 全量回归收口（含 backend foundation 顺序断言修复）      | copilot | DONE   | packages/engine/src/testing/contract/backend.foundation.runtime.contract.test.ts + pnpm --filter @venus/engine exec node --import tsx --test src/testing/\*_/_.test.ts + pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit + pnpm --filter @venus/engine cr:check                                                                                                                                  |
+
+### 44.8 Validation 计划（Batch-22）
+
+1. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`
+2. `pnpm --filter @venus/engine test`
+3. `pnpm --filter @venus/engine cr:check`
+4. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
+
+## 45. Batch-22 逐文件任务卡（可直接开工）
+
+说明：本批严格遵循 `Scope Definition -> Type Definition -> CHANGE REQUEST -> Test Design -> Implementation -> Validation -> Cleanup Check`。
+
+### 45.1 Task Card F：Event Contract（L1 订阅控制 + 包络约束）
+
+1. Target Files：
+   - `packages/engine/src/runtime/events/runtime-events.contract.ts`
+   - `packages/engine/src/testing/contract/runtime-events.runtime.contract.test.ts`
+   - `packages/engine/docs/en/api/event-api.md`
+   - `packages/engine/docs/cn/api/event-api.md`
+2. Scope API：
+   - `engine.events.on(type, listener, options)`
+   - `engine.events.off(type, listener)`
+   - `engine.events.once(type, listener, options)`
+   - `engine.events.onMany(types, listener, options)`
+   - `engine.events.offAll(scope)`
+   - `engine.events.pause(type)`
+   - `engine.events.resume(type)`
+   - `engine.events.getListenerStats()`
+3. Contract 必填：
+   - Event envelope：`type`、`timestamp`、`engineId`、`revision`
+   - Ordering：同输入/同 seed/同 backend 顺序一致
+   - Isolation：listener 抛错不可中断主流程
+4. 测试门禁：
+   - envelope 字段齐备断言
+   - once/off/offAll 语义稳定断言
+   - pause/resume 生效断言
+   - listener throw 隔离断言
+
+### 45.2 Task Card G：Extension Contract（插件边界）
+
+1. Target Files：
+   - `packages/engine/src/runtime/extension/runtime-extension.contract.ts`
+   - `packages/engine/src/testing/contract/runtime-extension.runtime.contract.test.ts`
+   - `packages/engine/docs/en/api/runtime-governance.md`
+   - `packages/engine/docs/cn/api/runtime-governance.md`
+2. Scope API：
+   - `engine.extension.register(plugin)`
+   - `engine.extension.unregister(pluginId)`
+   - `engine.extension.list()`
+   - `engine.extension.getState(pluginId)`
+3. Contract 必填：
+   - 插件可见面仅限 public API
+   - 插件状态机（registered/active/errored/disposed）
+4. 测试门禁：
+   - 重复 register 冲突断言
+   - unregister 幂等断言
+   - 非法插件对象输入断言
+
+### 45.3 Task Card H：Scheduler Contract（预算与饥饿保护）
+
+1. Target Files：
+   - `packages/engine/src/runtime/scheduler/runtime-scheduler.contract.ts`
+   - `packages/engine/src/testing/contract/runtime-scheduler.runtime.contract.test.ts`
+   - `packages/engine/docs/en/api/runtime-governance.md`
+   - `packages/engine/docs/cn/api/runtime-governance.md`
+2. Scope API：
+   - `engine.scheduler.schedule(task, options)`
+   - `engine.scheduler.cancel(taskId)`
+   - `engine.scheduler.flush(queue)`
+   - `engine.scheduler.getQueueStats()`
+3. Contract 必填：
+   - `priority`、`budgetMs`、`queue`
+   - starvation guard（高优先级与低优先级公平窗口）
+4. 测试门禁：
+   - 优先级排序稳定断言
+   - 超预算任务处理断言
+   - 长时间低优先级饥饿保护断言
+
+### 45.4 Task Card I：Cache Contract（与 dirty 对齐）
+
+1. Target Files：
+   - `packages/engine/src/runtime/cache/runtime-cache.contract.ts`
+   - `packages/engine/src/testing/contract/runtime-cache.runtime.contract.test.ts`
+   - `packages/engine/docs/en/api/runtime-governance.md`
+   - `packages/engine/docs/cn/api/runtime-governance.md`
+2. Scope API：
+   - `engine.cache.get(namespace, key)`
+   - `engine.cache.set(namespace, key, value, policy)`
+   - `engine.cache.invalidate(namespace, key)`
+   - `engine.cache.invalidateByTag(tag)`
+   - `engine.cache.getStats(namespace)`
+3. Contract 必填：
+   - key/tag 命名约束
+   - policy（ttl/lru/pin）
+   - 与 dirty domain 对齐关系
+4. 测试门禁：
+   - 命中率统计稳定断言
+   - invalidate 与 dirty flush 联动断言
+   - 跨 namespace 隔离断言
+
+### 45.5 Task Card J：Policy + Security Contract（可观测与审计）
+
+1. Target Files：
+   - `packages/engine/src/runtime/policy/runtime-policy.contract.ts`
+   - `packages/engine/src/runtime/security/runtime-security.contract.ts`
+   - `packages/engine/src/testing/contract/runtime-policy.runtime.contract.test.ts`
+   - `packages/engine/src/testing/contract/runtime-security.runtime.contract.test.ts`
+   - `packages/engine/docs/en/api/runtime-governance.md`
+   - `packages/engine/docs/cn/api/runtime-governance.md`
+2. Scope API：
+   - `engine.policy.setRenderPolicy(policy)`
+   - `engine.policy.setResourcePolicy(policy)`
+   - `engine.policy.setFallbackPolicy(policy)`
+   - `engine.policy.getEffectivePolicy()`
+   - `engine.security.setTrustLevel(level)`
+   - `engine.security.setResourceAccessPolicy(policy)`
+   - `engine.security.getAuditLog(options)`
+3. Contract 必填：
+   - policy 变更事件可观测
+   - replay token 下 policy/security 重放一致性
+   - schema + quota 阻断语义
+4. 测试门禁：
+   - 非法 trust level 阻断断言
+   - quota 超限阻断断言
+   - policy 生效优先级合并断言
+
+### 45.6 Task Card K：EngineHandle 接线（最小可调用）
+
+1. Target Files：
+   - `packages/engine/src/api/public-types.ts`
+   - `packages/engine/src/api/createEngine.ts`
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. Scope：
+   - 为 `EngineHandle` 增补 `events/extension/scheduler/cache/policy/security` 命名空间
+   - 保持现有 `on/off/once` 兼容，作为 `engine.events.*` 的简化桥接层
+3. 测试门禁：
+   - namespace 可调用断言
+   - 旧 API（on/off/once）行为不回归断言
+
+## 46. Batch-22 Kickoff Checklist（开工前）
+
+### 46.1 输入物检查
+
+- [x] Task Card F/G/H/I/J/K 范围冻结（不临时加项）
+- [x] 错误码前缀统一为 `ENGINE_`
+- [x] `docs/en` 与 `docs/cn` 目标页面存在且同构
+- [x] contract test 文件命名与路径冻结
+
+### 46.2 口径检查
+
+- [x] 不新增行业语义命名空间
+- [x] 不新增 `engine.*` / `engine.runtime.*` / `engine.capability.*` 之外 public namespace
+- [x] 事件 envelope 4 字段为强制字段
+- [x] listener throw 隔离为硬约束
+
+### 46.3 校验基线
+
+- [x] `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`
+- [x] `pnpm --filter @venus/engine test`
+- [x] `pnpm --filter @venus/engine cr:check`
+- [x] `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
+
+验证记录（2026-05-21）：
+
+- `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：PASS
+- `pnpm --filter @venus/engine test`：PASS（112 passed, 0 failed）
+- `pnpm --filter @venus/engine cr:check`：PASS
+- `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：PASS
+- `pnpm --filter @venus/engine exec node --import tsx --test src/testing/contract/backend.foundation.runtime.contract.test.ts`：PASS（4 passed, 0 failed）
+
+## 47. Batch-23 执行记录（Hook 机制落地）
+
+批次状态：DONE
+批次日期：2026-05-21
+批次负责人：copilot
+
+### 47.1 Scope
+
+1. 补齐第 10.2 节 Hook 机制到 contract-first 可执行基线。
+2. 在 `EngineHandle` 暴露 `engine.hooks.*` 公共命名空间，覆盖 6 个阶段钩子：
+   - `beforeCompile`
+   - `afterCompile`
+   - `beforeRenderPlan`
+   - `afterRenderPlan`
+   - `beforeSubmit`
+   - `afterSubmit`
+3. 增补 hooks 契约测试、hard-cut 行为测试与双语治理文档同步。
+
+### 47.2 交付文件
+
+1. Hook contract + contract test：
+   - `packages/engine/src/runtime/hooks/runtime-hooks.contract.ts`
+   - `packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts`
+2. Public API 类型与实现接线：
+   - `packages/engine/src/api/public-types.ts`
+   - `packages/engine/src/api/createEngine.ts`
+3. 集成测试与文档门禁：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+4. 文档（en/cn）同步：
+   - `packages/engine/docs/en/api/runtime-governance.md`
+   - `packages/engine/docs/cn/api/runtime-governance.md`
+
+### 47.3 API 变更审计台账（Batch-23）
+
+| API                           | Contract Path                                               | Test Path                                                                   | Doc EN                                            | Doc CN                                            | Stability | Level     | Status |
+| ----------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------- | --------- | --------- | ------ |
+| engine.hooks.beforeCompile    | packages/engine/src/runtime/hooks/runtime-hooks.contract.ts | packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts | packages/engine/docs/en/api/runtime-governance.md | packages/engine/docs/cn/api/runtime-governance.md | beta      | developer | DONE   |
+| engine.hooks.afterCompile     | packages/engine/src/runtime/hooks/runtime-hooks.contract.ts | packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts | packages/engine/docs/en/api/runtime-governance.md | packages/engine/docs/cn/api/runtime-governance.md | beta      | developer | DONE   |
+| engine.hooks.beforeRenderPlan | packages/engine/src/runtime/hooks/runtime-hooks.contract.ts | packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts | packages/engine/docs/en/api/runtime-governance.md | packages/engine/docs/cn/api/runtime-governance.md | beta      | developer | DONE   |
+| engine.hooks.afterRenderPlan  | packages/engine/src/runtime/hooks/runtime-hooks.contract.ts | packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts | packages/engine/docs/en/api/runtime-governance.md | packages/engine/docs/cn/api/runtime-governance.md | beta      | developer | DONE   |
+| engine.hooks.beforeSubmit     | packages/engine/src/runtime/hooks/runtime-hooks.contract.ts | packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts | packages/engine/docs/en/api/runtime-governance.md | packages/engine/docs/cn/api/runtime-governance.md | beta      | developer | DONE   |
+| engine.hooks.afterSubmit      | packages/engine/src/runtime/hooks/runtime-hooks.contract.ts | packages/engine/src/testing/contract/runtime-hooks.runtime.contract.test.ts | packages/engine/docs/en/api/runtime-governance.md | packages/engine/docs/cn/api/runtime-governance.md | beta      | developer | DONE   |
+
+### 47.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/contract/runtime-hooks.runtime.contract.test.ts`：pass（3 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+4. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+5. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/**/*.test.ts`：pass（137 passed, 0 failed）
+6. `pnpm --filter @venus/engine cr:check`：pass
+7. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 48. Batch-24 执行记录（Lifecycle 事件域补齐）
+
+批次状态：DONE
+批次日期：2026-05-21
+批次负责人：copilot
+
+### 48.1 Scope
+
+1. 补齐 Lifecycle 事件域在运行时行为中的 mount/unmount 前后阶段事件。
+2. 保持现有 `engine.events.*` 订阅接口不扩面，仅补齐事件发射完整度。
+3. 同步 contract、hard-cut 行为断言与 event-api 双语文档。
+
+### 48.2 交付文件
+
+1. Runtime 行为实现：
+   - `packages/engine/src/api/createEngine.ts`
+2. Event contract 类型补齐：
+   - `packages/engine/src/runtime/events/runtime-events.contract.ts`
+3. 集成测试与文档门禁：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+4. 文档（en/cn）同步：
+   - `packages/engine/docs/en/api/event-api.md`
+   - `packages/engine/docs/cn/api/event-api.md`
+
+### 48.3 API 变更审计台账（Batch-24）
+
+| API                            | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------------ | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.lifecycle.beforeMount   | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.lifecycle.mounted       | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.lifecycle.beforeUnmount | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.lifecycle.unmounted     | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 48.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 52. Batch-28 CHANGE REQUEST（事件隔离与诊断错误可观测性）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+  - packages/engine/docs/en/api/event-api.md
+  - packages/engine/docs/cn/api/event-api.md
+
+Goal:
+
+- Problem being solved:
+  - 当前 hard-cut 已覆盖 diagnostics.warning/traceReady/captureReady，但对 listener throw 隔离后的 `engine.diagnostics.error` 可观测语义未形成显式行为断言。
+  - docs coverage marker 未锁定 diagnostics.error 与 replay failed 路径，存在文档回退漏检窗口。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（行为断言与文档 marker 补强）
+
+Impact:
+
+- Affected modules:
+  - engine events hard-cut 行为回归门禁
+  - event-api docs coverage marker 审计
+
+Cleanup:
+
+- Old logic to remove:
+  - 无历史逻辑删除；以最小改动补齐断言与 marker。
+
+Tests:
+
+- Tests to add/update:
+  - 更新 createEngine hard-cut：新增 diagnostics.error 行为断言（listener throw 隔离 + 主流程持续）
+  - 更新 api docs coverage：新增 diagnostics.error 与 replay.failed marker 校验
+
+## 53. Batch-28 执行记录（Listener 异常隔离诊断与文档门禁补强）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 53.1 Scope
+
+1. 在 hard-cut 中补齐 `engine.diagnostics.error` 可观测行为断言，验证 listener throw 不中断主流程。
+2. 在 docs coverage 合约测试中补齐 `engine.diagnostics.error` 与 `engine.replay.failed` marker 阻断。
+3. 保持 `engine.events.*` 订阅 API 不扩面，最小化行为增强。
+
+### 53.2 交付文件
+
+1. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+2. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 53.3 API 变更审计台账（Batch-28）
+
+| API                      | Contract Path                                                 | Test Path                                                    | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.diagnostics.error | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts    | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.replay.failed     | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/apiDocsCoverage.contract.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 53.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 tests, 0 failures）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 test, 0 failures）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 tests, 0 failures）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 54. Batch-29 CHANGE REQUEST（Replay 失败路径事件可达性）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/api/createEngine.ts
+  - packages/engine/src/testing/createEngine.hard-cut.test.ts
+  - packages/engine/src/testing/apiDocsCoverage.contract.test.ts
+
+Goal:
+
+- Problem being solved:
+  - 现有 replay 失败事件主要依赖异常分支，常规 rejected token 路径缺少 `engine.replay.failed` 事件发射，导致失败路径可观测性不足。
+  - hard-cut 对 replay started/completed/failed 三态覆盖不足，docs marker 对 started/completed 未形成阻断。
+
+Change Type:
+
+- Add / Modify / Remove
+  - Modify（最小行为增强 + 断言与 marker 补齐）
+
+Impact:
+
+- Affected modules:
+  - engine replay 事件语义（成功/失败）
+  - hard-cut 行为回归门禁
+  - api docs coverage marker 审计
+
+Cleanup:
+
+- Old logic to remove:
+  - 无旧逻辑删除，仅将 rejected token 从 completed 语义分流到 failed 语义。
+
+Tests:
+
+- Tests to add/update:
+  - hard-cut 增加 replay.started / replay.completed / replay.failed 监听与断言
+  - docs coverage 增加 replay.started / replay.completed marker
+
+## 55. Batch-29 执行记录（Replay 成败分流与门禁补强）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 55.1 Scope
+
+1. 调整 replay 行为：accepted=true 发 `engine.replay.completed`；accepted=false 发 `engine.replay.failed`。
+2. hard-cut 覆盖 replay 三态：started/completed/failed。
+3. docs coverage marker 增补 replay.started/replay.completed，降低文档回退漏检窗口。
+
+### 55.2 交付文件
+
+1. Runtime 行为实现：
+   - `packages/engine/src/api/createEngine.ts`
+2. 集成测试增强：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+3. 文档门禁增强：
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 55.3 API 变更审计台账（Batch-29）
+
+| API                     | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ----------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.replay.started   | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.replay.completed | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.replay.failed    | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 55.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 tests, 0 failures）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 test, 0 failures）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 tests, 0 failures）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 51. Batch-27 执行记录（Diagnostics/Replay 事件语义增强）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 51.1 Scope
+
+1. 补齐 Diagnostics/Replay 事件域在运行时行为中的时机语义。
+2. 保持现有 `engine.events.*` 订阅接口不扩面，仅增强事件发射时机与契约一致性。
+3. 同步 event contract、hard-cut 行为断言与 event-api 双语文档、docs 门禁 marker。
+
+### 51.2 交付文件
+
+1. Runtime 行为实现：
+   - `packages/engine/src/api/createEngine.ts`
+2. Event contract 类型补齐：
+   - `packages/engine/src/runtime/events/runtime-events.contract.ts`
+3. 集成测试与文档门禁：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+4. 文档（en/cn）同步：
+   - `packages/engine/docs/en/api/event-api.md`
+   - `packages/engine/docs/cn/api/event-api.md`
+
+### 51.3 API 变更审计台账（Batch-27）
+
+| API                             | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.diagnostics.warning      | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.diagnostics.traceReady   | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.diagnostics.captureReady | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.replay.started           | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.replay.completed         | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.replay.failed            | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 51.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 50. Batch-26 执行记录（Resource/Streaming 事件域补齐）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 50.1 Scope
+
+1. 补齐 Resource/Streaming 事件域在运行时行为中的实际发射覆盖。
+2. 保持现有 `engine.events.*` 订阅接口不扩面，仅补齐事件发射与契约一致性。
+3. 同步 hard-cut 行为断言与 docs 门禁 marker。
+
+### 50.2 交付文件
+
+1. Runtime 行为实现：
+   - `packages/engine/src/api/createEngine.ts`
+2. 集成测试与文档门禁：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+
+### 50.3 API 变更审计台账（Batch-26）
+
+| API                           | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| ----------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.resource.loadProgress  | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.resource.loadFailed    | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.streaming.backpressure | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 50.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass
+
+## 49. Batch-25 执行记录（View/Interaction 事件域补齐）
+
+批次状态：DONE
+批次日期：2026-05-22
+批次负责人：copilot
+
+### 49.1 Scope
+
+1. 补齐 View/Interaction 事件域在运行时行为中的实际发射覆盖。
+2. 保持现有 `engine.events.*` 订阅接口不扩面，仅补齐事件发射与契约一致性。
+3. 同步 event contract、hard-cut 行为断言与 event-api 双语文档、docs 门禁 marker。
+
+### 49.2 交付文件
+
+1. Runtime 行为实现：
+   - `packages/engine/src/api/createEngine.ts`
+2. Event contract 类型补齐：
+   - `packages/engine/src/runtime/events/runtime-events.contract.ts`
+3. 集成测试与文档门禁：
+   - `packages/engine/src/testing/createEngine.hard-cut.test.ts`
+   - `packages/engine/src/testing/apiDocsCoverage.contract.test.ts`
+4. 文档（en/cn）同步：
+   - `packages/engine/docs/en/api/event-api.md`
+   - `packages/engine/docs/cn/api/event-api.md`
+
+### 49.3 API 变更审计台账（Batch-25）
+
+| API                              | Contract Path                                                 | Test Path                                                 | Doc EN                                   | Doc CN                                   | Stability | Level     | Status |
+| -------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | ---------------------------------------- | --------- | --------- | ------ |
+| engine.view.changed              | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.view.viewportResized      | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.interaction.stateChanged  | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.interaction.pickCompleted | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+| engine.interaction.pickFailed    | packages/engine/src/runtime/events/runtime-events.contract.ts | packages/engine/src/testing/createEngine.hard-cut.test.ts | packages/engine/docs/en/api/event-api.md | packages/engine/docs/cn/api/event-api.md | beta      | developer | DONE   |
+
+### 49.4 Validation
+
+1. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/createEngine.hard-cut.test.ts`：pass（2 passed, 0 failed）
+2. `pnpm --filter @venus/engine exec node --import tsx --test src/testing/apiDocsCoverage.contract.test.ts`：pass（1 passed, 0 failed）
+3. `pnpm --filter @venus/engine exec tsc -p tsconfig.json --noEmit`：pass
+4. `pnpm --filter @venus/engine exec node --import tsx --test "src/testing/**/*.test.ts"`：pass（115 passed, 0 failed）
+5. `pnpm --filter @venus/engine cr:check`：pass
+6. `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`：pass

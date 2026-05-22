@@ -152,13 +152,13 @@ Decision policy applied:
 
 ### Ownership Decision (Engine vs Vector vs Lib)
 
-| Capability | Final ownership decision | Rationale |
-| --- | --- | --- |
-| Geometry payload orchestration | Vector policy layer + engine runtime primitive API | Selection/hover/marquee policy belongs to app/runtime policy; engine provides formal primitive API entry. |
-| Adaptive hit tolerance | Lib-level numeric strategy (consumed by vector policy) + engine formal API parity path | Pure viewport/scale numeric strategy is reusable and not engine-runtime-specific. |
-| Node transform resolve | Lib/editor-primitive style geometry primitive + engine formal API parity path | Matrix/bounds transform math is generic geometry capability. |
-| SVG transform formatting | Vector/lib formatter layer + engine formal API parity path | Output formatting is presentation-adjacent and not core runtime orchestration. |
-| Render scheduler | Lib scheduler core + vector bridge wrapper | Scheduling is cross-domain infrastructure; not a product/runtime helper surface. |
+| Capability                     | Final ownership decision                                                               | Rationale                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Geometry payload orchestration | Vector policy layer + engine runtime primitive API                                     | Selection/hover/marquee policy belongs to app/runtime policy; engine provides formal primitive API entry. |
+| Adaptive hit tolerance         | Lib-level numeric strategy (consumed by vector policy) + engine formal API parity path | Pure viewport/scale numeric strategy is reusable and not engine-runtime-specific.                         |
+| Node transform resolve         | Lib/editor-primitive style geometry primitive + engine formal API parity path          | Matrix/bounds transform math is generic geometry capability.                                              |
+| SVG transform formatting       | Vector/lib formatter layer + engine formal API parity path                             | Output formatting is presentation-adjacent and not core runtime orchestration.                            |
+| Render scheduler               | Lib scheduler core + vector bridge wrapper                                             | Scheduling is cross-domain infrastructure; not a product/runtime helper surface.                          |
 
 ### Migration Status (This Batch)
 
@@ -170,34 +170,36 @@ Decision policy applied:
 ### Governance Status (Engine + Lib, Playground Ignored)
 
 1. Engine top-level helper exports were removed from `packages/engine/src/index.ts`:
-  - `createEngineRenderScheduler`
-  - `resolveEngineGeometryPayload`
-  - `resolveEngineAdaptiveHitTolerance`
-  - `resolveNodeTransform`
-  - `toResolvedNodeSvgTransform`
+
+- `createEngineRenderScheduler`
+- `resolveEngineGeometryPayload`
+- `resolveEngineAdaptiveHitTolerance`
+- `resolveNodeTransform`
+- `toResolvedNodeSvgTransform`
+
 2. Engine formal surface remains runtime/capability-first (`engine.runtime.*` / `engine.capability.*`).
 3. Scheduler ownership is governed by lib (`@venus/lib/scheduler`) with vector bridge local wrapper.
 4. Playground was not touched in this governance batch by request.
 
 ### Vector Usage Audit (Direct Search + Ownership Refactor)
 
-| Item | Vector usage status | Ownership decision | Action |
-| --- | --- | --- | --- |
-| `resolveEngineGeometryPayload` | Used (`createCanvasRuntimeApi`, `selectionDragController`) | Engine primitive API + vector policy orchestration | Kept bridge API name; implemented via formal runtime API wrapper |
-| `resolveEngineAdaptiveHitTolerance` | Used (`createEditorRuntimeCommandController`, pointer down/move/release controllers) | Vector/lib numeric strategy | Replaced with vector-local implementation in bridge |
-| `resolveNodeTransform` | Used (`engineSceneAdapter`) | Vector/lib geometry primitive | Replaced with vector-local implementation in bridge |
-| `createEngineRenderScheduler` | Used (`engineRenderer`) | Lib scheduler core + vector wrapper | Kept bridge API name; implemented with `@venus/lib/scheduler` |
-| `toResolvedNodeSvgTransform` | Unused in runtime call paths (only bridge compile-time contract) | Vector/lib formatter (non-runtime-critical) | Deleted from bridge exports and compile-time contract |
+| Item                                | Vector usage status                                                                  | Ownership decision                                 | Action                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------- |
+| `resolveEngineGeometryPayload`      | Used (`createCanvasRuntimeApi`, `selectionDragController`)                           | Engine primitive API + vector policy orchestration | Kept bridge API name; implemented via formal runtime API wrapper |
+| `resolveEngineAdaptiveHitTolerance` | Used (`createEditorRuntimeCommandController`, pointer down/move/release controllers) | Vector/lib numeric strategy                        | Replaced with vector-local implementation in bridge              |
+| `resolveNodeTransform`              | Used (`engineSceneAdapter`)                                                          | Vector/lib geometry primitive                      | Replaced with vector-local implementation in bridge              |
+| `createEngineRenderScheduler`       | Used (`engineRenderer`)                                                              | Lib scheduler core + vector wrapper                | Kept bridge API name; implemented with `@venus/lib/scheduler`    |
+| `toResolvedNodeSvgTransform`        | Unused in runtime call paths (only bridge compile-time contract)                     | Vector/lib formatter (non-runtime-critical)        | Deleted from bridge exports and compile-time contract            |
 
 ### 1:1 Mapping (Old Helper -> New Formal API)
 
-| Old helper import | New runtime API | New capability API | Decision |
-| --- | --- | --- | --- |
-| `resolveEngineGeometryPayload` | `engine.runtime.plan.createHitGeometryPayload(request)` | `engine.capability.spatial.createHitGeometryPayload(request)` | Promote to formal API |
-| `resolveEngineAdaptiveHitTolerance` | `engine.runtime.plan.resolveHitTolerance(options)` | `engine.capability.picking.getAdaptiveTolerance(options)` | Promote to formal API |
-| `resolveNodeTransform` | `engine.runtime.world.queryNodeTransform(source)` | `engine.capability.geometry.computeNodeTransform(source)` | Promote to formal API |
-| `toResolvedNodeSvgTransform` | `engine.runtime.world.formatNodeSvgTransform(transform)` | `engine.capability.geometry.formatNodeSvgTransform(transform)` | Promote to formal API |
-| `createEngineRenderScheduler` | `engine.runtime.plan.requestFrame(mode)` / `engine.runtime.plan.cancelFrame(requestId)` / `engine.runtime.plan.setInteractiveInterval(intervalMs)` / `engine.runtime.plan.getSchedulerDiagnostics()` | N/A | Replace helper factory with runtime scheduler control APIs |
+| Old helper import                   | New runtime API                                                                                                                                                                                      | New capability API                                             | Decision                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `resolveEngineGeometryPayload`      | `engine.runtime.plan.createHitGeometryPayload(request)`                                                                                                                                              | `engine.capability.spatial.createHitGeometryPayload(request)`  | Promote to formal API                                      |
+| `resolveEngineAdaptiveHitTolerance` | `engine.runtime.plan.resolveHitTolerance(options)`                                                                                                                                                   | `engine.capability.picking.getAdaptiveTolerance(options)`      | Promote to formal API                                      |
+| `resolveNodeTransform`              | `engine.runtime.world.queryNodeTransform(source)`                                                                                                                                                    | `engine.capability.geometry.computeNodeTransform(source)`      | Promote to formal API                                      |
+| `toResolvedNodeSvgTransform`        | `engine.runtime.world.formatNodeSvgTransform(transform)`                                                                                                                                             | `engine.capability.geometry.formatNodeSvgTransform(transform)` | Promote to formal API                                      |
+| `createEngineRenderScheduler`       | `engine.runtime.plan.requestFrame(mode)` / `engine.runtime.plan.cancelFrame(requestId)` / `engine.runtime.plan.setInteractiveInterval(intervalMs)` / `engine.runtime.plan.getSchedulerDiagnostics()` | N/A                                                            | Replace helper factory with runtime scheduler control APIs |
 
 ### Replacement API Usage
 
@@ -209,7 +211,7 @@ const payload = engine.runtime.plan.createHitGeometryPayload({
   pointer: { x, y },
   selectedNodeIds,
   outlineLevel: "low",
-})
+});
 ```
 
 #### B. Adaptive tolerance
@@ -219,7 +221,7 @@ const tolerance = engine.runtime.plan.resolveHitTolerance({
   viewportScale,
   viewportWidth,
   viewportHeight,
-})
+});
 // tolerance.screenPx / tolerance.worldPx
 ```
 
@@ -234,19 +236,19 @@ const resolved = engine.runtime.world.queryNodeTransform({
   rotation: node.rotation,
   flipX: node.flipX,
   flipY: node.flipY,
-})
+});
 
-const svgTransform = engine.runtime.world.formatNodeSvgTransform(resolved)
+const svgTransform = engine.runtime.world.formatNodeSvgTransform(resolved);
 ```
 
 #### D. Render scheduler control
 
 ```ts
-const req = engine.runtime.plan.requestFrame("interactive")
+const req = engine.runtime.plan.requestFrame("interactive");
 // later when needed
-engine.runtime.plan.cancelFrame(req.requestId)
-engine.runtime.plan.setInteractiveInterval(4)
-const diag = engine.runtime.plan.getSchedulerDiagnostics()
+engine.runtime.plan.cancelFrame(req.requestId);
+engine.runtime.plan.setInteractiveInterval(4);
+const diag = engine.runtime.plan.getSchedulerDiagnostics();
 ```
 
 ### Deprecation Window

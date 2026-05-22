@@ -280,11 +280,16 @@ Forbidden:
 
 Tasks:
 
-- [ ] Produce package ownership inventory for current `apps/*` and `packages/*`.
-- [ ] Identify imports that would violate the future DAG.
-- [ ] Mark modules that must remain stable while vNext is built.
-- [ ] Define cutover branch policy and rollback location.
-- [ ] Add an ADR for vNext staging and rename-back cutover.
+- [x] Produce package ownership inventory for current `apps/*` and `packages/*`.
+- [x] Identify imports that would violate the future DAG.
+- [x] Mark modules that must remain stable while vNext is built.
+- [x] Define cutover branch policy and rollback location.
+- [x] Add an ADR for vNext staging and rename-back cutover.
+
+R0 evidence snapshot:
+
+- Inventory / DAG scan / stable modules / cutover+rollback policy: `ai/operations/repo-baseline-freeze-r0-2026-05-21.md`
+- ADR: `ai/refactor-vnext/adr-vnext-staging-and-cutover.md`
 
 Acceptance:
 
@@ -296,10 +301,19 @@ Acceptance:
 
 Tasks:
 
-- [ ] Define runtime adapter contracts for frame, clock, worker, canvas, input, cursor, storage, clipboard.
-- [ ] Create `packages/_vnext/runtime` as the staging package.
-- [ ] Move platform-neutral runtime contracts out of app/engine code only after contract tests exist.
-- [ ] Add browser/node platform adapter boundaries without pulling engine logic down into runtime.
+- [x] Define runtime adapter contracts for frame, clock, worker, canvas, input, cursor, storage, clipboard.
+- [x] Create `packages/_vnext/runtime` as the staging package.
+- [x] Move platform-neutral runtime contracts out of app/engine code only after contract tests exist.
+- [x] Add browser/node platform adapter boundaries without pulling engine logic down into runtime.
+
+R1 bootstrap evidence:
+
+- Contract definitions: `packages/_vnext/runtime/src/contracts/runtimeAdapters.ts`
+- Staging package: `packages/_vnext/runtime/package.json`, `packages/_vnext/runtime/src/index.ts`
+- Change request note: `ai/operations/runtime-r1-adapter-contract-bootstrap-2026-05-21.md`
+- Platform boundaries: `packages/_vnext/runtime/src/platform/browserRuntimeAdapters.ts`, `packages/_vnext/runtime/src/platform/nodeRuntimeAdapters.ts`
+- Contract tests: `packages/_vnext/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`
+- Validation: `pnpm dlx tsx --test packages/_vnext/runtime/src/platform/runtimePlatformBoundaries.contract.test.ts`（2/2 通过）
 
 Acceptance:
 
@@ -310,10 +324,38 @@ Acceptance:
 
 Tasks:
 
-- [ ] Define backend package contract shared by canvas2d/webgl/webgpu.
-- [ ] Stage `packages/_vnext/renderer-canvas2d`, `renderer-webgl`, and `renderer-webgpu` only when there is real code to move.
+- [x] Define backend package contract shared by canvas2d/webgl/webgpu.
+- [x] Stage `packages/_vnext/renderer-canvas2d`, `renderer-webgl`, and `renderer-webgpu` only when there is real code to move.
 - [ ] Move backend execution code out of engine without moving render planning or document/runtime policy.
-- [ ] Preserve engine facade so apps do not choose backend implementation details directly.
+- [x] Preserve engine facade so apps do not choose backend implementation details directly.
+
+R2 bootstrap evidence:
+
+- Shared contract package: `packages/_vnext/renderer-shared/src/contracts/rendererBackendContract.ts`
+- Contract tests: `packages/_vnext/renderer-shared/src/tests/rendererContractConformance.test.ts`
+- Change request note: `ai/operations/renderer-r2-shared-backend-contract-bootstrap-2026-05-22.md`
+- Validation: `pnpm dlx tsx --test packages/_vnext/renderer-shared/src/tests/rendererContractConformance.test.ts`（2/2 通过）
+- Renderer staging packages with real execution code:
+  - `packages/_vnext/renderer-canvas2d/src/canvas2dBackendExecution.ts`
+  - `packages/_vnext/renderer-webgl/src/webglBackendExecution.ts`
+  - `packages/_vnext/renderer-webgpu/src/webgpuBackendExecution.ts`
+- Staging contract tests:
+  - `packages/_vnext/renderer-canvas2d/src/tests/canvas2dBackendExecution.contract.test.ts`
+  - `packages/_vnext/renderer-webgl/src/tests/webglBackendExecution.contract.test.ts`
+  - `packages/_vnext/renderer-webgpu/src/tests/webgpuBackendExecution.contract.test.ts`
+- Change request note: `ai/operations/renderer-r2-backend-package-staging-2026-05-22.md`
+- Validation: three staging tests 3/3 passed + `pnpm --filter @venus/engine cr:check` + `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
+
+R2 task-3 extraction readiness note:
+
+- Extraction slice plan: `ai/operations/renderer-r2-engine-execution-extraction-slice-plan-2026-05-22.md`
+- Current blocker: direct engine-to-\_vnext source bridge violates engine tsconfig `rootDir/include` boundary (TS6059/TS6307)
+- Baseline after rollback: `webAdapter.conformance` 3/3 pass + engine/vector type gates pass
+
+R2 facade-preservation evidence:
+
+- Validation note: `ai/operations/renderer-r2-facade-preservation-validation-2026-05-22.md`
+- Static scan confirms apps consume `@venus/engine` facade imports and do not import renderer staging/backend selector internals.
 
 Acceptance:
 
@@ -324,10 +366,22 @@ Acceptance:
 
 Tasks:
 
-- [ ] Stage `platform-browser` for DOM/browser adapters.
-- [ ] Stage `platform-node` for headless and test adapters.
+- [x] Stage `platform-browser` for DOM/browser adapters.
+- [x] Stage `platform-node` for headless and test adapters.
 - [ ] Keep browser APIs outside engine package after cutover.
-- [ ] Add platform contract tests for requestFrame, now, canvas creation, worker creation, cursor, clipboard/storage optional adapters.
+- [x] Add platform contract tests for requestFrame, now, canvas creation, worker creation, cursor, clipboard/storage optional adapters.
+
+R3 bootstrap evidence:
+
+- Browser staging package: `packages/_vnext/platform-browser/src/browserPlatformAdapters.ts`
+- Node staging package: `packages/_vnext/platform-node/src/nodePlatformAdapters.ts`
+- Contract tests:
+  - `packages/_vnext/platform-browser/src/tests/browserPlatformAdapters.contract.test.ts`
+  - `packages/_vnext/platform-node/src/tests/nodePlatformAdapters.contract.test.ts`
+- Change request note: `ai/operations/platform-r3-staging-bootstrap-2026-05-22.md`
+- Validation: platform tests 2/2 passed + `pnpm --filter @venus/engine cr:check` + `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`
+- Browser API boundary status note: `ai/operations/platform-r3-browser-api-boundary-status-2026-05-22.md`
+- Blocking globals remain in engine pending extraction: frame scheduler fallbacks and webgpu `navigator` probe.
 
 Acceptance:
 
@@ -338,10 +392,27 @@ Acceptance:
 
 Tasks:
 
-- [ ] Keep current app stable while package vNext evolves.
-- [ ] Define plugin lifecycle contract before creating plugin packages.
-- [ ] Split product-specific features into app or plugin packages only when their runtime boundary is stable.
-- [ ] Avoid domain plugin placeholders.
+- [x] Keep current app stable while package vNext evolves.
+- [x] Define plugin lifecycle contract before creating plugin packages.
+- [x] Split product-specific features into app or plugin packages only when their runtime boundary is stable.
+- [x] Avoid domain plugin placeholders.
+
+R4 stability evidence:
+
+- Build gate: `pnpm --filter @venus/vector-editor-web build`（通过）
+- Type gate: `pnpm --filter @venus/vector-editor-web exec tsc -p tsconfig.app.json --noEmit`（通过）
+
+R4 plugin-lifecycle evidence:
+
+- Staging contract package: `packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.ts`
+- Conformance test: `packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`
+- Change request note: `ai/operations/plugin-r4-lifecycle-contract-bootstrap-2026-05-22.md`
+- Validation: `pnpm dlx tsx --test packages/_vnext/plugin-lifecycle/src/pluginLifecycleContract/pluginLifecycleContract.test.ts`（3/3 通过）
+
+R4 boundary-admission and placeholder-guard evidence:
+
+- Admission rules and decision table: `ai/operations/plugin-r4-boundary-admission-and-placeholder-guard-2026-05-22.md`
+- Current `_vnext` plugin package inventory: only `plugin-lifecycle`; no domain placeholder plugin packages.
 
 Acceptance:
 
@@ -352,13 +423,20 @@ Acceptance:
 
 Tasks:
 
-- [ ] Freeze writes to old package folders.
+- [x] Freeze writes to old package folders.
 - [ ] Run parity test suite against old and vNext paths.
 - [ ] Move old folders to `archive/refactor-cutover-YYYY-MM-DD/` or another non-workspace archive.
 - [ ] Rename `packages/_vnext/<name>` to canonical `packages/<name>`.
 - [ ] Update workspace entries, package names, exports, tsconfig references, and imports.
 - [ ] Run full validation gates.
 - [ ] Remove old compatibility shims after the rollback window.
+
+R5 freeze-write evidence:
+
+- Guard script: `scripts/cutover-freeze-guard.mjs`
+- Freeze roots config: `ai/refactor-vnext/cutover-freeze-roots.json`
+- Repo command: `pnpm governance:cutover-freeze`
+- Change request note: `ai/operations/cutover-r5-freeze-write-guard-bootstrap-2026-05-22.md`
 
 Acceptance:
 

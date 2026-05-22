@@ -160,6 +160,17 @@ const M2_STEPS = [
     ],
   },
   {
+    id: "M2-11B",
+    title: "Boolean path-editability regression",
+    command: "pnpm",
+    args: [
+      "dlx",
+      "tsx",
+      "--test",
+      "src/runtime/worker/scope/shapeCommandHelpers/shapeCommandHelpers.booleanPathEdit.test.ts",
+    ],
+  },
+  {
     id: "M2-12",
     title: "TypeScript gate",
     command: "pnpm",

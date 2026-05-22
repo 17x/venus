@@ -97,6 +97,11 @@ function buildLayerHierarchyIndex(nodes: DocumentNode[]) {
   }
 }
 
+/**
+ * Creates one layer-row view model, including mask metadata for tree-side relation cues.
+ * @param node Source runtime node.
+ * @param depth Flattened tree depth.
+ */
 function createLayerItem(node: DocumentNode, depth: number): LayerItem {
   const layerFlags = node as DocumentNode & {
     isVisible?: boolean
@@ -109,6 +114,9 @@ function createLayerItem(node: DocumentNode, depth: number): LayerItem {
     show: true,
     isVisible: layerFlags.isVisible !== false,
     isLocked: layerFlags.isLocked === true,
+    maskRole: node.schema?.maskRole,
+    maskGroupId: node.schema?.maskGroupId,
+    isMaskHost: node.type === 'image' && Boolean(node.clipPathId),
     type: node.type,
     depth,
     isGroup: node.type === 'group',

@@ -1,5 +1,5 @@
 import {Button, Input, Tooltip, cn} from '../../ui/index.ts'
-import {memo, useCallback, useMemo} from 'react'
+import {memo, useCallback, useEffect, useMemo, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuBox, LuChevronDown, LuChevronRight, LuCircle, LuComponent, LuEye, LuEyeOff, LuFrame, LuGroup, LuImage, LuLock, LuLockOpen, LuPentagon, LuRectangleHorizontal, LuSearch, LuSpline, LuStar, LuType} from 'react-icons/lu'
 import {lineSeg} from '../../assets/svg/icons.tsx'
@@ -24,14 +24,33 @@ interface LeftSidebarFileTabProps {
   onVisibilitySelectionToggle: VoidFunction
   onToggleLayerLocked: (layerId: string, nextLocked: boolean) => void
   onToggleLayerVisible: (layerId: string, nextVisible: boolean) => void
-  onSelectLayer: (layerId: string, isToggle: boolean) => void
+  onSelectLayer: (layerId: string, options: {isToggle: boolean; isRange: boolean}) => void
 }
 
 export const LeftSidebarFileTab = memo(function LeftSidebarFileTab(props: LeftSidebarFileTabProps) {
   const {t} = useTranslation()
   const selectedIdSet = useMemo(() => new Set(props.selectedIds), [props.selectedIds])
+  const layerListRef = useRef<HTMLDivElement | null>(null)
   const expandTooltip = t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})
   const collapseTooltip = t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})
+
+  useEffect(() => {
+    if (props.layersCollapsed) {
+      return
+    }
+
+    const selectedLayerId = props.selectedIds[0]
+    if (!selectedLayerId || !layerListRef.current) {
+      return
+    }
+
+    // Keep selected row discoverable after large-list selection/reorder updates.
+    const targetRow = layerListRef.current.querySelector<HTMLElement>(`[data-layer-id="${selectedLayerId}"]`)
+    targetRow?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    })
+  }, [props.layersCollapsed, props.selectedIds, props.treeLayerItems])
 
   return <div id={'variant-b-tabpanel-file'} role={'tabpanel'} className={'border-t border-slate-200 flex min-h-0 flex-1 flex-col'}>
     <section className={'flex min-h-0 flex-1 flex-col p-2.5'}>
@@ -101,7 +120,7 @@ export const LeftSidebarFileTab = memo(function LeftSidebarFileTab(props: LeftSi
         </div>} */}
 
       {!props.layersCollapsed &&
-        <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded p-1'}>
+        <div ref={layerListRef} className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded p-1'}>
           {props.visibleLayerItems.length === 0 &&
             <div className={'px-2 py-3 text-xs text-slate-500 dark:text-slate-400'}>
               {t('shell.variantB.layers.empty', 'No matching layers')}
@@ -128,6 +147,8 @@ export const LeftSidebarFileTab = memo(function LeftSidebarFileTab(props: LeftSi
                   onToggleLayerLocked={props.onToggleLayerLocked}
                   onToggleLayerVisible={props.onToggleLayerVisible}
                   onSelectLayer={props.onSelectLayer}
+                  maskRole={item.maskRole}
+                  isMaskHost={item.isMaskHost}
                 />
               )
             })}
@@ -181,15 +202,20 @@ interface SemanticTreeRowProps {
   collapseTooltip: string
   isLocked: boolean
   isVisible: boolean
+  /** Stores persisted mask role emitted by runtime schema projection. */
+  maskRole?: 'host' | 'source'
+  /** Stores whether this image row currently hosts one clip-mask source. */
+  isMaskHost?: boolean
   onToggleGroup: (layerId: string) => void
   onToggleLayerLocked: (layerId: string, nextLocked: boolean) => void
   onToggleLayerVisible: (layerId: string, nextVisible: boolean) => void
-  onSelectLayer: (layerId: string, isToggle: boolean) => void
+  onSelectLayer: (layerId: string, options: {isToggle: boolean; isRange: boolean}) => void
 }
 
 const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProps) {
-  const handleActivate = useCallback((isToggle: boolean) => {
-    props.onSelectLayer(props.layerId, isToggle)
+  // Route pointer/keyboard selection gestures through one normalized selection payload.
+  const handleActivate = useCallback((options: {isToggle: boolean; isRange: boolean}) => {
+    props.onSelectLayer(props.layerId, options)
   }, [props.layerId, props.onSelectLayer])
 
   const handleToggleChildren = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
@@ -212,6 +238,7 @@ const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProp
   return (
     <li role={'none'}>
       <div
+        data-layer-id={props.layerId}
         role={'treeitem'}
         aria-selected={props.active}
         aria-expanded={props.hasChildren ? props.expanded : undefined}
@@ -224,12 +251,18 @@ const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProp
         )}
         onClick={(event) => {
           const isToggle = event.metaKey || event.ctrlKey
-          handleActivate(isToggle)
+          handleActivate({
+            isToggle,
+            isRange: event.shiftKey,
+          })
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
-            handleActivate(false)
+            handleActivate({
+              isToggle: false,
+              isRange: false,
+            })
           }
         }}
       >
@@ -259,6 +292,14 @@ const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProp
           <span className={cn('truncate pr-2', props.isVisible === false && 'text-slate-500 opacity-70 dark:text-slate-400')}>
             {props.label}
           </span>
+          {(props.maskRole || props.isMaskHost) && (
+            <span
+              className={'inline-flex h-4 shrink-0 items-center rounded border border-slate-300 px-1 text-[10px] font-medium leading-none text-slate-600 dark:border-slate-700 dark:text-slate-300'}
+              title={props.maskRole === 'source' ? 'Mask source' : 'Mask host'}
+            >
+              {props.maskRole === 'source' ? 'MASK-S' : 'MASK-H'}
+            </span>
+          )}
         </span>
         <span className={'sticky right-0 ml-auto inline-flex items-center gap-1 bg-inherit pr-1 pl-2'}>
           <Tooltip
