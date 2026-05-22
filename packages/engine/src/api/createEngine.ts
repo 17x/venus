@@ -60,14 +60,11 @@ import type {
   EngineRuntimeDocumentValidateSnapshotInput,
   EngineRuntimeDocumentValidateSnapshotOutput,
   EngineRuntimeFramePlanOutput,
-  EngineRuntimeGetTraceOutput,
   EngineRuntimeLodPlanOutput,
   EngineRuntimeLodPlanRequest,
   EngineRuntimeMetricsSnapshot,
   EngineRuntimePlanFrameRequest,
   EngineRuntimePlanInspectOutput,
-  EngineRuntimeReplayOutput,
-  EngineRuntimeReplayTokenOutput,
   EngineRuntimeSubmitOutput,
   EngineRuntimeGpuResourceDescriptor,
   EngineRuntimeGpuResourceOutput,
@@ -78,16 +75,9 @@ import type {
   EngineRuntimeSpatialQueryOutput,
   EnginePublicCapabilitiesOutput,
   EnginePublicMetricsOutput,
-  EngineRuntimeResourceCollectGarbageInput,
-  EngineRuntimeResourceCollectGarbageOutput,
   EngineRuntimeResourceDescriptor,
-  EngineRuntimeResourcePatch,
-  EngineRuntimeResourceResidencyOutput,
   EngineRuntimeRoiPlanOutput,
   EngineRuntimeRoiPlanRequest,
-  EngineRuntimeStartTraceInput,
-  EngineRuntimeStartTraceOutput,
-  EngineRuntimeStopTraceOutput,
   EngineRuntimeTraceEvent,
   EngineRuntimeVisibilityPlanOutput,
   EngineRuntimeVisibilityPlanRequest,
@@ -187,6 +177,7 @@ import { createEngineDiagnosticsReplayFacade } from "./createEngine.diagnostics-
 import { createEngineLifecycleViewFacade } from "./createEngine.lifecycle-view.facade";
 import { createEngineGraphRenderFacade } from "./createEngine.graph-render.facade";
 import { createEngineEventsHooksCacheFoundation } from "./createEngine.events-hooks-cache.foundation";
+import { createRuntimeResourceObservabilityFoundation } from "./createEngine.runtime-resource-observability.foundation";
 
 const ENGINE_RUNTIME_DOCUMENT_SCHEMA_VERSION = 1;
 
@@ -1475,235 +1466,41 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     runtimePlanPendingRequestIds.clear();
   }
 
-  /**
-   * Converts one internal runtime resource record to public residency output.
-   * @param resource Internal resource registry record.
-   */
-  function resolveRuntimeResourceResidencyOutput(resource: {
-    id: string;
-    kind: EngineRuntimeResourceDescriptor["kind"];
-    sizeBytes: number;
-    pinned: boolean;
-    residencyVersion: number;
-  }): EngineRuntimeResourceResidencyOutput {
-    return {
-      id: resource.id,
-      residencyVersion: resource.residencyVersion,
-      pinned: resource.pinned,
-      sizeBytes: resource.sizeBytes,
-    };
-  }
-
-  /**
-   * Registers one runtime resource descriptor and returns residency snapshot.
-   * @param descriptor Runtime resource descriptor.
-   */
-  function registerRuntimeResource(
-    descriptor: EngineRuntimeResourceDescriptor,
-  ): EngineRuntimeResourceResidencyOutput {
-    if (!descriptor || typeof descriptor.id !== "string" || descriptor.id.length === 0) {
-      throw new Error("ENGINE_RESOURCE_INVALID_DESCRIPTOR");
-    }
-    runtimeResourceResidencyVersion += 1;
-    const nextRecord = {
-      id: descriptor.id,
-      kind: descriptor.kind,
-      sizeBytes: Math.max(0, descriptor.sizeBytes),
-      pinned: false,
-      residencyVersion: runtimeResourceResidencyVersion,
-    };
-    runtimeResourceRegistry.set(descriptor.id, nextRecord);
-    return resolveRuntimeResourceResidencyOutput(nextRecord);
-  }
-
-  /**
-   * Resolves one runtime resource record by id or throws not-found error.
-   * @param resourceId Runtime resource id.
-   */
-  function resolveRuntimeResourceById(resourceId: string): {
-    id: string;
-    kind: EngineRuntimeResourceDescriptor["kind"];
-    sizeBytes: number;
-    pinned: boolean;
-    residencyVersion: number;
-  } {
-    const resource = runtimeResourceRegistry.get(resourceId);
-    if (!resource) {
-      throw new Error("ENGINE_RESOURCE_NOT_FOUND");
-    }
-    return resource;
-  }
-
-  /**
-   * Updates one runtime resource descriptor fields and returns residency snapshot.
-   * @param resourceId Runtime resource id.
-   * @param patch Runtime resource patch payload.
-   */
-  function updateRuntimeResource(
-    resourceId: string,
-    patch: EngineRuntimeResourcePatch,
-  ): EngineRuntimeResourceResidencyOutput {
-    const resource = resolveRuntimeResourceById(resourceId);
-    // Update is intentionally patch-based so callers can evolve one field without re-registering.
-    const nextSizeBytes = typeof patch.sizeBytes === "number" ? Math.max(0, patch.sizeBytes) : resource.sizeBytes;
-    runtimeResourceResidencyVersion += 1;
-    const nextRecord = {
-      ...resource,
-      sizeBytes: nextSizeBytes,
-      residencyVersion: runtimeResourceResidencyVersion,
-    };
-    runtimeResourceRegistry.set(resourceId, nextRecord);
-    return resolveRuntimeResourceResidencyOutput(nextRecord);
-  }
-
-  /**
-   * Releases one runtime resource descriptor.
-   * @param resourceId Runtime resource id.
-   */
-  function releaseRuntimeResource(resourceId: string): { released: boolean } {
-    resolveRuntimeResourceById(resourceId);
-    runtimeResourceRegistry.delete(resourceId);
-    return { released: true };
-  }
-
-  /**
-   * Pins one runtime resource descriptor and returns residency snapshot.
-   * @param resourceId Runtime resource id.
-   */
-  function pinRuntimeResource(resourceId: string): EngineRuntimeResourceResidencyOutput {
-    const resource = resolveRuntimeResourceById(resourceId);
-    runtimeResourceResidencyVersion += 1;
-    const nextRecord = {
-      ...resource,
-      pinned: true,
-      residencyVersion: runtimeResourceResidencyVersion,
-    };
-    runtimeResourceRegistry.set(resourceId, nextRecord);
-    return resolveRuntimeResourceResidencyOutput(nextRecord);
-  }
-
-  /**
-   * Unpins one runtime resource descriptor and returns residency snapshot.
-   * @param resourceId Runtime resource id.
-   */
-  function unpinRuntimeResource(resourceId: string): EngineRuntimeResourceResidencyOutput {
-    const resource = resolveRuntimeResourceById(resourceId);
-    runtimeResourceResidencyVersion += 1;
-    const nextRecord = {
-      ...resource,
-      pinned: false,
-      residencyVersion: runtimeResourceResidencyVersion,
-    };
-    runtimeResourceRegistry.set(resourceId, nextRecord);
-    return resolveRuntimeResourceResidencyOutput(nextRecord);
-  }
-
-  /**
-   * Returns one runtime resource residency snapshot by id.
-   * @param resourceId Runtime resource id.
-   */
-  function getRuntimeResourceResidency(resourceId: string): EngineRuntimeResourceResidencyOutput {
-    return resolveRuntimeResourceResidencyOutput(resolveRuntimeResourceById(resourceId));
-  }
-
-  /**
-   * Executes one budgeted runtime resource garbage-collection cycle.
-   * @param options Runtime resource GC options.
-   */
-  function collectRuntimeResources(
-    options: EngineRuntimeResourceCollectGarbageInput,
-  ): EngineRuntimeResourceCollectGarbageOutput {
-    if (!options || !Number.isFinite(options.budgetBytes) || options.budgetBytes < 0) {
-      throw new Error("ENGINE_RESOURCE_INVALID_DESCRIPTOR");
-    }
-    const releasedResourceIds: string[] = [];
-    let releasedBytes = 0;
-    for (const [resourceId, resource] of [...runtimeResourceRegistry.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      // Skip pinned resources so caller pin/unpin state is respected by GC.
-      if (resource.pinned) {
-        continue;
-      }
-      if (releasedBytes + resource.sizeBytes > options.budgetBytes) {
-        continue;
-      }
-      releasedBytes += resource.sizeBytes;
-      releasedResourceIds.push(resourceId);
-      runtimeResourceRegistry.delete(resourceId);
-    }
-    return {
-      releasedResourceIds,
-      releasedCount: releasedResourceIds.length,
-    };
-  }
-
-  /**
-   * Starts one runtime trace session.
-   * @param options Trace start options.
-   */
-  function startRuntimeTrace(options: EngineRuntimeStartTraceInput): EngineRuntimeStartTraceOutput {
-    if (!options || typeof options.name !== "string" || options.name.length === 0) {
-      throw new Error("ENGINE_OBSERVABILITY_INVALID_INPUT");
-    }
-    runtimeTraceCounter += 1;
-    const traceId = `trace-${runtimeTraceCounter}`;
-    const startedAtMs = resolveNow();
-    runtimeTraceRegistry.set(traceId, {
-      traceId,
-      startedAtMs,
-      stoppedAtMs: null,
-      events: [
-        {
-          timestampMs: startedAtMs,
-          category: "trace",
-          message: `start:${options.name}`,
-        },
-      ],
-    });
-    return {
-      traceId,
-      startedAtMs,
-    };
-  }
-
-  /**
-   * Stops one runtime trace session.
-   * @param traceId Runtime trace id.
-   */
-  function stopRuntimeTrace(traceId: string): EngineRuntimeStopTraceOutput {
-    const trace = runtimeTraceRegistry.get(traceId);
-    if (!trace) {
-      throw new Error("ENGINE_OBSERVABILITY_TRACE_NOT_FOUND");
-    }
-    const stoppedAtMs = resolveNow();
-    trace.stoppedAtMs = stoppedAtMs;
-    trace.events.push({
-      timestampMs: stoppedAtMs,
-      category: "trace",
-      message: "stop",
-    });
-    const output = {
-      traceId,
-      stoppedAtMs,
-      durationMs: Math.max(0, stoppedAtMs - trace.startedAtMs),
-    };
-    emitEvent("engine.diagnostics.traceReady", output);
-    return output;
-  }
-
-  /**
-   * Returns one runtime trace event stream.
-   * @param traceId Runtime trace id.
-   */
-  function getRuntimeTrace(traceId: string): EngineRuntimeGetTraceOutput {
-    const trace = runtimeTraceRegistry.get(traceId);
-    if (!trace) {
-      throw new Error("ENGINE_OBSERVABILITY_TRACE_NOT_FOUND");
-    }
-    return {
-      traceId,
-      events: [...trace.events],
-    };
-  }
+  // Moves runtime resource residency + observability internals out of the top-level assembly body.
+  const {
+    registerRuntimeResource,
+    updateRuntimeResource,
+    releaseRuntimeResource,
+    pinRuntimeResource,
+    unpinRuntimeResource,
+    getRuntimeResourceResidency,
+    collectRuntimeResources,
+    startRuntimeTrace,
+    stopRuntimeTrace,
+    getRuntimeTrace,
+    createRuntimeReplayToken,
+    replayRuntimeToken,
+  } = createRuntimeResourceObservabilityFoundation({
+    runtimeResourceRegistry,
+    runtimeTraceRegistry,
+    getRuntimeResourceResidencyVersion: () => runtimeResourceResidencyVersion,
+    setRuntimeResourceResidencyVersion: (nextVersion) => {
+      runtimeResourceResidencyVersion = nextVersion;
+    },
+    getRuntimeTraceCounter: () => runtimeTraceCounter,
+    setRuntimeTraceCounter: (nextCounter) => {
+      runtimeTraceCounter = nextCounter;
+    },
+    getRuntimeReplayCounter: () => runtimeReplayCounter,
+    setRuntimeReplayCounter: (nextCounter) => {
+      runtimeReplayCounter = nextCounter;
+    },
+    resolveNow,
+    resolveRevision: () => documentSnapshot.revision,
+    emitEvent: (type, payload) => {
+      emitEvent(type, payload);
+    },
+  });
 
   /**
    * Returns one runtime metrics snapshot from current orchestration counters.
@@ -1729,30 +1526,6 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     };
     emitEvent("engine.diagnostics.captureReady", output);
     return output;
-  }
-
-  /**
-   * Creates one deterministic replay token.
-   * @param scope Caller-provided replay scope token.
-   */
-  function createRuntimeReplayToken(scope: string): EngineRuntimeReplayTokenOutput {
-    if (typeof scope !== "string" || scope.length === 0) {
-      throw new Error("ENGINE_OBSERVABILITY_INVALID_INPUT");
-    }
-    runtimeReplayCounter += 1;
-    return {
-      token: `replay-${scope}-${documentSnapshot.revision}-${runtimeReplayCounter}`,
-    };
-  }
-
-  /**
-   * Replays one deterministic replay token.
-   * @param token Replay token produced by createReplayToken.
-   */
-  function replayRuntimeToken(token: string): EngineRuntimeReplayOutput {
-    return {
-      accepted: typeof token === "string" && token.startsWith("replay-"),
-    };
   }
 
   /**
