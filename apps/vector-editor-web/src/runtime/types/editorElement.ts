@@ -201,6 +201,16 @@ export interface ElementProps {
   maskGroupId?: string
   // Stores optional mask role used by host/source pairing logic.
   maskRole?: 'host' | 'source' | string
+  // Stores optional fill style id used by style-reference model.
+  fillStyleId?: string
+  // Stores optional stroke style id used by style-reference model.
+  strokeStyleId?: string
+  // Stores optional text style id used by style-reference model.
+  textStyleId?: string
+  // Stores optional effect style id used by style-reference model.
+  effectStyleId?: string
+  // Stores optional extension namespace payload for forward-compatible element metadata.
+  extensions?: Record<string, unknown>
   // Stores optional parent id for tree-structured shape ownership.
   parentId?: string | null
   // Stores optional ordered child id list for group-like shapes.

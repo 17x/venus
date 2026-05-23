@@ -34,6 +34,7 @@ export function EngineRenderer({
   const INTERACTION_SETTLE_MS = 120
   const INTERACTION_ACTIVE_SCHEDULER_INTERVAL_MS = 4
   const OVERSCAN_PX = VECTOR_ENGINE_SCENE_PROFILE.overscanPx
+  const lastRenderChainDebugSignatureRef = React.useRef('')
 
   /**
    * Resolves whether one render phase is considered actively interacting.
@@ -338,7 +339,59 @@ export function EngineRenderer({
           return Promise.resolve(null)
         }
 
-        return engine.render()
+        return engine.render().then((renderResult) => {
+          if (!VECTOR_ENGINE_SCENE_PROFILE.render.modelCompleteComposite) {
+            // AI-TEMP: publish render-chain failure snapshots through window bridge for live field triage; remove when dedicated runtime diagnostics panel is available; ref DEX-065.
+            const diagnostics = engine.getDiagnostics()
+            const backendInfo = engine.getBackendInfo()
+            const renderChain = renderResult.renderChain ?? diagnostics.renderChain
+            const lastWarning = diagnostics.lastRenderWarning ?? null
+            const shouldPublishRenderChainDebug = Boolean(lastWarning) || Boolean(renderChain && (
+              renderChain.failedStage !== null ||
+              !renderChain.browserBridgeReachable ||
+              !renderChain.backendPresentCompleted
+            ))
+
+            if (renderChain && shouldPublishRenderChainDebug) {
+              const hostWindow = window as Window & {
+                __venusRenderChainDebug?: {
+                  at: number
+                  backendRequested: string
+                  backendResolved: string
+                  fallbackReason: string | null
+                  drawCount: number
+                  visibleCount: number
+                  renderChain: typeof renderChain
+                  lastRenderWarning: typeof lastWarning
+                }
+              }
+              const debugSignature = [
+                backendInfo.requested,
+                backendInfo.resolved,
+                renderChain.failedStage ?? 'ok',
+                String(renderChain.browserBridgeReachable),
+                String(renderChain.backendPresentCompleted),
+                lastWarning?.code ?? 'none',
+                lastWarning?.reason ?? 'none',
+              ].join('|')
+              if (lastRenderChainDebugSignatureRef.current !== debugSignature) {
+                hostWindow.__venusRenderChainDebug = {
+                  at: performance.now(),
+                  backendRequested: backendInfo.requested,
+                  backendResolved: backendInfo.resolved,
+                  fallbackReason: backendInfo.fallbackReason,
+                  drawCount: renderResult.drawCount,
+                  visibleCount: renderResult.visibleCount,
+                  renderChain,
+                  lastRenderWarning: lastWarning,
+                }
+                lastRenderChainDebugSignatureRef.current = debugSignature
+              }
+            }
+          }
+
+          return renderResult
+        })
       },
       interactiveIntervalMs: effectiveInteractiveIntervalMs,
     })

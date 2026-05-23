@@ -46,8 +46,15 @@ export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
 export {Unit, type UnitType} from './unit.ts'
 export type {
   DocumentNode,
+  DocumentNodeStyleReferences,
   DocumentSchemaMeta,
   EditorDocument,
+  EditorDocumentLifecycleDirtySource,
+  EditorDocumentLifecycleState,
+  EditorDocumentLifecycleTransitionSource,
+  EditorDocumentPage,
+  EditorDocumentSchema,
+  EditorDocumentStyleReferences,
   RectangleCornerRadii,
   ShapeFillStyle,
   ShapeGradientStop,

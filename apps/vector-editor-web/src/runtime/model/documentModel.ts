@@ -149,6 +149,98 @@ export interface DocumentSchemaMeta {
   maskRole?: 'host' | 'source'
 }
 
+/** Declares one canonical style-id reference payload on a document node. */
+export interface DocumentNodeStyleReferences {
+  /** Stores optional fill style id used by style library references. */
+  fillStyleId?: string
+  /** Stores optional stroke style id used by style library references. */
+  strokeStyleId?: string
+  /** Stores optional text style id used by style library references. */
+  textStyleId?: string
+  /** Stores optional effect style id used by style library references. */
+  effectStyleId?: string
+}
+
+/** Declares one document page contract used by multi-page editor model. */
+export interface EditorDocumentPage {
+  /** Stores stable page id. */
+  id: string
+  /** Stores page display name. */
+  name: string
+  /** Stores page width in world units. */
+  width: number
+  /** Stores page height in world units. */
+  height: number
+}
+
+/** Declares one lifecycle state snapshot for editor document state machine. */
+export interface EditorDocumentLifecycleTransitionSource {
+  /** Stores stable source category for lifecycle transition diagnostics. */
+  kind: 'system' | 'user' | 'command' | 'import'
+  /** Stores semantic source event label. */
+  event: string
+  /** Stores optional source command id when transition is command-driven. */
+  commandId?: string
+  /** Stores optional source transaction id when transition is command-driven. */
+  transactionId?: string
+  /** Stores optional source command type when transition is command-driven. */
+  commandType?: string
+  /** Stores transition timestamp in epoch milliseconds. */
+  issuedAt: number
+}
+
+/** Declares one command-derived dirty source payload for save/recovery tracing. */
+export interface EditorDocumentLifecycleDirtySource {
+  /** Stores stable command type that introduced unsaved changes. */
+  commandType: string
+  /** Stores optional command id for deterministic diagnostics mapping. */
+  commandId?: string
+  /** Stores stable transaction id for grouped command chains. */
+  transactionId: string
+  /** Stores dirty-source timestamp in epoch milliseconds. */
+  issuedAt: number
+}
+
+/** Declares one lifecycle state snapshot for editor document state machine. */
+export interface EditorDocumentLifecycleState {
+  /** Stores lifecycle phase. */
+  state: 'created' | 'opened' | 'dirty' | 'saving' | 'saved' | 'recovery' | 'closed'
+  /** Stores whether unsaved user changes currently exist. */
+  dirty: boolean
+  /** Stores optional last-save timestamp for diagnostics. */
+  lastSavedAt?: number
+  /** Stores optional recovery reason for failure diagnostics. */
+  recoveryReason?: string
+  /** Stores latest lifecycle transition source for state-machine observability. */
+  lastTransitionSource?: EditorDocumentLifecycleTransitionSource
+  /** Stores latest dirty-source chain for command/transaction traceability. */
+  lastDirtySource?: EditorDocumentLifecycleDirtySource
+}
+
+/** Declares canonical schema header used by contract migration entry points. */
+export interface EditorDocumentSchema {
+  /** Stores schema namespace identifier. */
+  name: string
+  /** Stores schema version number used by migration gates. */
+  version: number
+  /** Stores schema major version used by compatibility gates. */
+  major?: number
+  /** Stores schema minor version used by additive migration gates. */
+  minor?: number
+}
+
+/** Declares one style-library map grouped by style category id. */
+export interface EditorDocumentStyleReferences {
+  /** Stores fill style registry keyed by style id. */
+  fills: Record<string, {name?: string}>
+  /** Stores stroke style registry keyed by style id. */
+  strokes: Record<string, {name?: string}>
+  /** Stores text style registry keyed by style id. */
+  texts: Record<string, {name?: string}>
+  /** Stores effect style registry keyed by style id. */
+  effects: Record<string, {name?: string}>
+}
+
 /** Declares canonical document node payload consumed by runtime and worker layers. */
 export interface DocumentNode {
   /** Stores stable node id. */
@@ -211,6 +303,10 @@ export interface DocumentNode {
   ellipseEndAngle?: number
   /** Stores source metadata for adapters and diagnostics. */
   schema?: DocumentSchemaMeta
+  /** Stores optional style references used by page/style model evolution. */
+  styleRefs?: DocumentNodeStyleReferences
+  /** Stores optional extension namespace payload for forward-compatible metadata. */
+  extensions?: Record<string, unknown>
 }
 
 /** Declares canonical editor document payload. */
@@ -219,10 +315,26 @@ export interface EditorDocument {
   id: string
   /** Stores display document name. */
   name: string
+  /** Stores canonical schema header. */
+  schema?: EditorDocumentSchema
+  /** Stores document creation timestamp in epoch milliseconds. */
+  createdAt?: number
+  /** Stores document update timestamp in epoch milliseconds. */
+  updatedAt?: number
   /** Stores canvas width in world units. */
   width: number
   /** Stores canvas height in world units. */
   height: number
+  /** Stores page list for multi-page model evolution. */
+  pages?: EditorDocumentPage[]
+  /** Stores active page id from the page list. */
+  activePageId?: string
+  /** Stores lifecycle status used by document save/recovery workflows. */
+  lifecycle?: EditorDocumentLifecycleState
+  /** Stores style-library references grouped by style category. */
+  styleReferences?: EditorDocumentStyleReferences
+  /** Stores extension namespace payload preserved across IO boundaries. */
+  extensions?: Record<string, unknown>
   /** Stores ordered node snapshot list. */
   shapes: DocumentNode[]
 }

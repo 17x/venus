@@ -441,6 +441,47 @@ export interface RuntimeShellSnapshot {
   layerCount: number
 }
 
+/**
+ * Declares stable group consistency quick-check codes shown in runtime diagnostics snapshots.
+ */
+export type RuntimeGroupConsistencyDiagnosticCode =
+  | 'group-missing-child'
+  | 'group-child-parent-mismatch'
+  | 'node-parent-invalid'
+  | 'node-parent-missing-child'
+
+/**
+ * Defines one compact group consistency quick-check snapshot for debug surfaces.
+ */
+export interface RuntimeGroupConsistencyQuickCheckSnapshot {
+  /** Indicates whether the current document passed group consistency quick-check. */
+  valid: boolean
+  /** Stores total diagnostic entry count returned by the latest quick-check run. */
+  diagnosticCount: number
+  /** Stores unique stable diagnostic codes emitted by the latest quick-check run. */
+  codes: RuntimeGroupConsistencyDiagnosticCode[]
+}
+
+/**
+ * Defines one compact adapter snapshot governance summary used by debug surfaces.
+ */
+export interface RuntimeAdapterSnapshotGovernanceSnapshot {
+  /** Indicates whether adapter governance snapshot could be computed from current file/runtime state. */
+  available: boolean
+  /** Stores normalized file element count from readFile normalization output. */
+  normalizeElementCount: number
+  /** Stores runtime document shape count from fileDocument adapter output. */
+  fileDocumentShapeCount: number
+  /** Stores runtime scene root node count from fileFormatScene adapter output. */
+  fileFormatSceneRootCount: number
+  /** Stores round-trip element count from document -> file element projection output. */
+  roundTripElementCount: number
+  /** Indicates whether adapter counts satisfy baseline governance consistency checks. */
+  consistent: boolean
+  /** Stores stable issue labels describing failed adapter governance checks. */
+  issues: string[]
+}
+
 export interface RuntimeMigrationSnapshot {
   runtimeV2: {
     // Stores cumulative worker dual-write consistency check count.
@@ -459,6 +500,10 @@ export interface RuntimeMigrationSnapshot {
     lastFrameBoundaryIssues: string[]
     // Indicates whether worker strict mismatch mode is currently enabled.
     strictModeEnabled: boolean
+    // Stores latest normalized group consistency quick-check summary for debug triage.
+    groupConsistencyQuickCheck: RuntimeGroupConsistencyQuickCheckSnapshot
+    // Stores latest adapter snapshot governance summary for runtime-side adapter contract triage.
+    adapterSnapshotGovernance: RuntimeAdapterSnapshotGovernanceSnapshot
   }
 }
 

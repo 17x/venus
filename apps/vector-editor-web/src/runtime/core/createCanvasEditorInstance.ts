@@ -1,5 +1,5 @@
 import type {EditorDocument} from '../model/index.ts'
-import type {EditorRuntimeCommand} from '../worker/index.ts'
+import type {EditorRuntimeCommand, RuntimeCommandEnvelopeMeta} from '../worker/index.ts'
 import type {PointerState} from '../shared-memory/index.ts'
 import {createCanvasElementRegistry, type CanvasElementBehavior, type CanvasElementRegistry} from '../extensibility.ts'
 import {
@@ -33,7 +33,7 @@ export interface CanvasEditorInstance<TDocument extends EditorDocument> {
   elements: CanvasElementRegistry
   clearHover: () => void
   destroy: () => void
-  dispatchCommand: (command: EditorRuntimeCommand) => void
+  dispatchCommand: (command: EditorRuntimeCommand, commandMeta?: RuntimeCommandEnvelopeMeta) => void
   fitViewport: () => void
   getSnapshot: () => CanvasRuntimeSnapshot<TDocument>
   panViewport: (deltaX: number, deltaY: number) => void
@@ -81,9 +81,9 @@ export function createCanvasEditorInstance<TDocument extends EditorDocument>(
       moduleRunner.onDestroy()
       controller.destroy()
     },
-    dispatchCommand: (command) => {
+    dispatchCommand: (command, commandMeta) => {
       moduleRunner.beforeCommand(command)
-      controller.dispatchCommand(command)
+      controller.dispatchCommand(command, commandMeta)
       moduleRunner.afterCommand(command)
     },
     fitViewport: () => {

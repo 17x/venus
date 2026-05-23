@@ -351,6 +351,20 @@ export const EMPTY_RUNTIME_MIGRATION_SNAPSHOT: RuntimeMigrationSnapshot = {
     frameBoundaryMismatches: 0,
     lastFrameBoundaryIssues: [],
     strictModeEnabled: false,
+    groupConsistencyQuickCheck: {
+      valid: true,
+      diagnosticCount: 0,
+      codes: [],
+    },
+    adapterSnapshotGovernance: {
+      available: false,
+      normalizeElementCount: 0,
+      fileDocumentShapeCount: 0,
+      fileFormatSceneRootCount: 0,
+      roundTripElementCount: 0,
+      consistent: true,
+      issues: [],
+    },
   },
 }
 

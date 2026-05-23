@@ -9,6 +9,63 @@ import {bindEditorWorkerScope} from '../bindEditorWorkerScope.ts'
 import {resetRuntimeV2DualWriteDiagnostics} from '../operations/operations.ts'
 
 /**
+ * Creates one persisted crash-recovery replay fixture consumed by worker init.
+ */
+function createCrashRecoveryReplayFixture() {
+  return {
+    maxEntries: 20,
+    localOnly: {
+      mode: 'local-only' as const,
+      entries: [
+        {
+          id: 'local-recovery-1',
+          label: 'Move Shape',
+          source: 'local' as const,
+          forward: [
+            {shapeId: 'rect-1', previous: {x: 10}, next: {x: 20}},
+          ],
+          backward: [
+            {shapeId: 'rect-1', previous: {x: 20}, next: {x: 10}},
+          ],
+          transactionId: 'tx-local-1',
+          issuedAt: 100,
+        },
+      ],
+    },
+    merged: {
+      mode: 'merged' as const,
+      entries: [
+        {
+          id: 'local-recovery-1',
+          label: 'Move Shape',
+          source: 'local' as const,
+          forward: [
+            {shapeId: 'rect-1', previous: {x: 10}, next: {x: 20}},
+          ],
+          backward: [
+            {shapeId: 'rect-1', previous: {x: 20}, next: {x: 10}},
+          ],
+          transactionId: 'tx-local-1',
+          issuedAt: 100,
+        },
+        {
+          id: 'remote-recovery-1',
+          label: 'Remote Resize',
+          source: 'remote' as const,
+          forward: [
+            {shapeId: 'rect-2', previous: {width: 80}, next: {width: 96}},
+          ],
+          backward: [
+            {shapeId: 'rect-2', previous: {width: 96}, next: {width: 80}},
+          ],
+          issuedAt: 101,
+        },
+      ],
+    },
+  }
+}
+
+/**
  * Creates one compact document fixture with sibling shapes for structural command tests.
  */
 function createWorkerFixtureDocument(): EditorDocument {
@@ -114,6 +171,63 @@ test('bindEditorWorkerScope posts runtimeV2 diagnostics on scene-ready after ini
     lastFrameBoundaryIssues: [],
     strictModeEnabled: false,
   })
+})
+
+/**
+ * Asserts worker startup consumes crash-recovery replay entries into history stacks.
+ */
+test('bindEditorWorkerScope hydrates history from crash recovery replay on init', () => {
+  resetRuntimeV2DualWriteDiagnostics()
+
+  const workerMock = createWorkerScopeMock()
+  bindEditorWorkerScope(workerMock.scope as unknown as DedicatedWorkerGlobalScope)
+
+  workerMock.emitMessage({
+    type: 'init',
+    buffer: createSceneMemory(32),
+    capacity: 32,
+    document: createWorkerFixtureDocument(),
+    crashRecoveryReplay: createCrashRecoveryReplayFixture(),
+  })
+
+  const sceneReadyMessage = getLastPostedMessage(workerMock.postedMessages)
+  assert.ok(sceneReadyMessage)
+  assert.equal(sceneReadyMessage?.type, 'scene-ready')
+  assert.deepEqual(
+    sceneReadyMessage?.history.entries.map((entry) => entry.id),
+    ['init', 'local-recovery-1', 'remote-recovery-1'],
+  )
+  assert.equal(sceneReadyMessage?.history.entries.some((entry) => entry.id === 'scene-ready'), false)
+  assert.equal(sceneReadyMessage?.history.recoveryReplay.localOnly.entries.length >= 1, true)
+  assert.equal(sceneReadyMessage?.history.recoveryReplay.merged.entries.length >= 2, true)
+})
+
+/**
+ * Asserts startup replay mode local-only excludes remote replay entries from worker hydration.
+ */
+test('bindEditorWorkerScope hydrates local-only replay mode without remote history entries', () => {
+  resetRuntimeV2DualWriteDiagnostics()
+
+  const workerMock = createWorkerScopeMock()
+  bindEditorWorkerScope(workerMock.scope as unknown as DedicatedWorkerGlobalScope)
+
+  workerMock.emitMessage({
+    type: 'init',
+    buffer: createSceneMemory(32),
+    capacity: 32,
+    document: createWorkerFixtureDocument(),
+    crashRecoveryReplayMode: 'local-only',
+    crashRecoveryReplay: createCrashRecoveryReplayFixture(),
+  })
+
+  const sceneReadyMessage = getLastPostedMessage(workerMock.postedMessages)
+  assert.ok(sceneReadyMessage)
+  assert.equal(sceneReadyMessage?.type, 'scene-ready')
+  assert.deepEqual(
+    sceneReadyMessage?.history.entries.map((entry) => entry.id),
+    ['init', 'local-recovery-1'],
+  )
+  assert.equal(sceneReadyMessage?.history.entries.some((entry) => entry.id === 'remote-recovery-1'), false)
 })
 
 /**

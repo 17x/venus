@@ -6,6 +6,10 @@ import type {CursorIntent} from '@venus/editor-primitive'
 import {deriveEditorUIState} from '../deriveEditorUIState.ts'
 import {resolveSelectedProps} from './helpers.ts'
 import {useEditorRuntimeBridgeSync} from '../runtime/useEditorRuntimeBridgeSync.ts'
+import {createEditorDocumentFromFile, createFileElementsFromDocument} from '../../runtime/adapters/fileDocument/fileDocument.ts'
+import {createRuntimeSceneFromVisionFile} from '../../runtime/adapters/fileFormatScene.ts'
+import {normalizeFile} from '../../runtime/adapters/readFileNormalize.ts'
+import {runNormalizedGroupConsistencyQuickCheck} from '../../runtime/model/document-runtime/index.ts'
 import type {SelectedElementProps} from './types.ts'
 
 /**
@@ -100,6 +104,7 @@ export function useEditorRuntimeUiStateAndSync(input: {
   showPrint: boolean
   file: any
   setLastCommandType: (commandType: string | null) => void
+  setLastCommandMeta: (meta: import('../runtime/useEditorRuntimeInteractionBridge.ts').EditorRuntimeLastCommandMeta | null) => void
   setSelectedShapeIds: (ids: string[]) => void
   setShellSelectedCount: (count: number) => void
   setShellLayerCount: (count: number) => void
@@ -119,9 +124,75 @@ export function useEditorRuntimeUiStateAndSync(input: {
     input.file,
   ), [input.file, input.selectedNode, uiState.selectedProps])
 
+  const groupConsistencyQuickCheck = useMemo(() => {
+    // Keep quick-check summary stable so debug panel can triage group consistency without scanning full diagnostics payloads.
+    const quickCheck = runNormalizedGroupConsistencyQuickCheck(input.canvasRuntime.document)
+    const uniqueCodes = Array.from(new Set(quickCheck.diagnostics.map((diagnostic) => diagnostic.code))).sort()
+
+    return {
+      valid: quickCheck.valid,
+      diagnosticCount: quickCheck.diagnostics.length,
+      codes: uniqueCodes,
+    }
+  }, [input.canvasRuntime.document])
+
+  const adapterSnapshotGovernance = useMemo(() => {
+    if (!input.file) {
+      return {
+        available: false,
+        normalizeElementCount: 0,
+        fileDocumentShapeCount: 0,
+        fileFormatSceneRootCount: 0,
+        roundTripElementCount: 0,
+        consistent: true,
+        issues: [] as string[],
+      }
+    }
+
+    try {
+      // Re-run adapter chain on current file snapshot so debug panel can surface one compact governance view.
+      const normalizedFile = normalizeFile(input.file)
+      const runtimeDocument = createEditorDocumentFromFile(normalizedFile)
+      const runtimeScene = createRuntimeSceneFromVisionFile(normalizedFile)
+      const roundTripElements = createFileElementsFromDocument(runtimeDocument)
+
+      const issues: string[] = []
+      if (runtimeDocument.shapes.length !== normalizedFile.elements.length) {
+        issues.push('adapter:fileDocument-shape-count-mismatch')
+      }
+      if (roundTripElements.length !== runtimeDocument.shapes.length) {
+        issues.push('adapter:roundtrip-element-count-mismatch')
+      }
+      if (runtimeScene.nodes.length === 0 && runtimeDocument.shapes.length > 0) {
+        issues.push('adapter:fileFormatScene-root-nodes-empty')
+      }
+
+      return {
+        available: true,
+        normalizeElementCount: normalizedFile.elements.length,
+        fileDocumentShapeCount: runtimeDocument.shapes.length,
+        fileFormatSceneRootCount: runtimeScene.nodes.length,
+        roundTripElementCount: roundTripElements.length,
+        consistent: issues.length === 0,
+        issues,
+      }
+    } catch {
+      return {
+        available: false,
+        normalizeElementCount: 0,
+        fileDocumentShapeCount: 0,
+        fileFormatSceneRootCount: 0,
+        roundTripElementCount: 0,
+        consistent: false,
+        issues: ['adapter:governance-evaluation-failed'],
+      }
+    }
+  }, [input.file])
+
   useEditorRuntimeBridgeSync({
     fileId: input.file?.id,
     setLastCommandType: input.setLastCommandType,
+    setLastCommandMeta: input.setLastCommandMeta,
     selectedShapeIds: input.selectedShapeIds,
     layerItemCount: uiState.layerItems.length,
     setSelectedShapeIds: input.setSelectedShapeIds,
@@ -137,6 +208,8 @@ export function useEditorRuntimeUiStateAndSync(input: {
       frameBoundaryMismatches: input.canvasRuntime.runtimeV2.frameBoundaryMismatches,
       lastFrameBoundaryIssues: input.canvasRuntime.runtimeV2.lastFrameBoundaryIssues,
       strictModeEnabled: input.canvasRuntime.runtimeV2.strictModeEnabled,
+      groupConsistencyQuickCheck,
+      adapterSnapshotGovernance,
     },
   })
 

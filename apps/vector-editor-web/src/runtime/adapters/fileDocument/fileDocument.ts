@@ -1,5 +1,6 @@
 import type {BezierPoint, DocumentNode, EditorDocument, ShapeType} from '../../model/index.ts'
 import {parseRuntimeSceneToEditorDocument} from '../../model/index.ts'
+import {normalizeEditorDocumentContract} from '../../model/document-runtime/index.ts'
 import type {ElementProps} from '../../types/index.ts'
 import type {EditorFileDocument} from '../../types/index.ts'
 import {createRuntimeSceneFromVisionFile} from '../fileFormatScene.ts'
@@ -298,6 +299,15 @@ function toDocumentShape(
       maskGroupId: typeof element.maskGroupId === 'string' ? element.maskGroupId : undefined,
       maskRole: element.maskRole === 'host' || element.maskRole === 'source' ? element.maskRole : undefined,
     },
+    styleRefs: {
+      fillStyleId: typeof element.fillStyleId === 'string' ? element.fillStyleId : undefined,
+      strokeStyleId: typeof element.strokeStyleId === 'string' ? element.strokeStyleId : undefined,
+      textStyleId: typeof element.textStyleId === 'string' ? element.textStyleId : undefined,
+      effectStyleId: typeof element.effectStyleId === 'string' ? element.effectStyleId : undefined,
+    },
+    extensions: element.extensions && typeof element.extensions === 'object'
+      ? {...element.extensions}
+      : undefined,
   }
 }
 
@@ -305,13 +315,25 @@ export function createDocumentNodeFromElement(element: ElementProps): DocumentNo
   return toDocumentShape(element)
 }
 
+/**
+ * Creates canonical editor document snapshot from persisted file payload.
+ * @param file Source file document payload.
+ */
 export function createEditorDocumentFromFile(file: EditorFileDocument): EditorDocument {
   const runtimeScene = createRuntimeSceneFromVisionFile(file)
   const document = parseRuntimeSceneToEditorDocument(runtimeScene)
   const assetMap = new Map((file.assets ?? []).map((asset) => [asset.id, asset]))
 
-  return {
+  return normalizeEditorDocumentContract({
     ...document,
+    schema: file.schema,
+    createdAt: file.createdAt,
+    updatedAt: file.updatedAt,
+    pages: file.pages,
+    activePageId: file.activePageId,
+    lifecycle: file.lifecycle,
+    styleReferences: file.styleReferences,
+    extensions: file.extensions,
     shapes: document.shapes.map((shape) => {
       const nextShape = shape
       if (!nextShape.assetId) {
@@ -323,9 +345,13 @@ export function createEditorDocumentFromFile(file: EditorFileDocument): EditorDo
         assetUrl: assetMap.get(nextShape.assetId)?.objectUrl,
       }
     }),
-  }
+  })
 }
 
+/**
+ * Creates element payload list from canonical editor document snapshot.
+ * @param document Source editor document snapshot.
+ */
 export function createFileElementsFromDocument(document: EditorDocument): ElementProps[] {
   return document.shapes
     .map((shape, index) => ({
@@ -344,6 +370,11 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       clipRule: shape.clipRule,
       maskGroupId: shape.schema?.maskGroupId,
       maskRole: shape.schema?.maskRole,
+      fillStyleId: shape.styleRefs?.fillStyleId,
+      strokeStyleId: shape.styleRefs?.strokeStyleId,
+      textStyleId: shape.styleRefs?.textStyleId,
+      effectStyleId: shape.styleRefs?.effectStyleId,
+      extensions: shape.extensions ? {...shape.extensions} : undefined,
       points: shape.points?.map((point) => ({...point})),
       bezierPoints: shape.bezierPoints?.map((point) => ({
         anchor: {...point.anchor},

@@ -31,7 +31,56 @@ import {
 import {buildUseEditorRuntimeOutputs, buildUseEditorRuntimeUiState} from './outputs.ts'
 import {useEditorRuntimeCommandActions, useEditorRuntimePointerHandlers} from './interactions.ts'
 import {useEditorRuntimeCursorState, useEditorRuntimeUiStateAndSync} from './presentation.ts'
+import type {EditorDocumentLifecycleContext} from '../useEditorDocument.ts'
+import type {EditorRuntimeLastCommandMeta} from '../runtime/useEditorRuntimeInteractionBridge.ts'
 
+/**
+ * Resolves one save-lifecycle context from latest command metadata and current runtime history.
+ * @param input Save-context resolution inputs.
+ */
+function resolveSaveLifecycleContext(input: {
+  history: {
+    transactionGroups: Array<{transactionId: string; source: 'local' | 'remote'}>
+    recoveryReplay?: import('../../runtime/worker/index.ts').HistoryRecoveryReplaySnapshot
+  }
+  replayMode: import('../../runtime/types/index.ts').EditorFileHistoryRecoveryReplayMode
+  lastCommandMeta: EditorRuntimeLastCommandMeta | null
+}): EditorDocumentLifecycleContext {
+  const latestLocalGroup = [...input.history.transactionGroups]
+    .reverse()
+    .find((group) => group.source === 'local')
+
+  if (!input.lastCommandMeta || !latestLocalGroup) {
+    return {
+      transitionSource: {
+        kind: 'user',
+        event: 'file.save',
+        issuedAt: Date.now(),
+      },
+      crashRecoveryReplay: input.history.recoveryReplay,
+      crashRecoveryReplayMode: input.replayMode,
+    }
+  }
+
+  return {
+    transitionSource: {
+      kind: 'command',
+      event: 'file.save',
+      commandId: input.lastCommandMeta.commandId,
+      transactionId: input.lastCommandMeta.transactionId,
+      commandType: input.lastCommandMeta.commandType,
+      issuedAt: Date.now(),
+    },
+    dirtySource: {
+      commandType: input.lastCommandMeta.commandType,
+      commandId: input.lastCommandMeta.commandId,
+      transactionId: latestLocalGroup.transactionId,
+      issuedAt: input.lastCommandMeta.issuedAt,
+    },
+    crashRecoveryReplay: input.history.recoveryReplay,
+    crashRecoveryReplayMode: input.replayMode,
+  }
+}
 export type {
   EditorDocumentState,
   EditorFileAsset,
@@ -81,6 +130,7 @@ const useEditorRuntime = (options: {
     penDraftPoints,
     draftPrimitive,
     snapGuides,
+    lastCommandMeta,
   } = interactionBridge.state
   const {
     setActiveTransformHandle,
@@ -95,6 +145,7 @@ const useEditorRuntime = (options: {
     setDraftPrimitive,
     setSnapGuides,
     setLastCommandType,
+    setLastCommandMeta,
     setSelectedShapeIds,
     setShellSelectedCount,
     setShellLayerCount,
@@ -158,6 +209,8 @@ const useEditorRuntime = (options: {
     OverlayRenderer,
   } = useEditorRuntimeDerivedState({
     document,
+    crashRecoveryReplay: file?.config.editor?.crashRecoveryReplay,
+    crashRecoveryReplayMode: file?.config.editor?.crashRecoveryReplayMode ?? 'merged',
     editingMode,
     isolationGroupId,
     onContextMenu,
@@ -235,6 +288,7 @@ const useEditorRuntime = (options: {
       setIsolationGroupId,
       runtimeEditingModeControllerRef,
       setLastCommandType,
+      setLastCommandMeta,
       dispatchRuntimeEvent: (event) => {
         interactionBridge.bridge.dispatch(event)
       },
@@ -253,6 +307,7 @@ const useEditorRuntime = (options: {
     selectedShapeIds,
     setActiveTransformHandle,
     setDraftPrimitive,
+    setLastCommandMeta,
     setHoveredTransformHandle,
     setLastCommandType,
     setPathHandleDrag,
@@ -291,6 +346,7 @@ const useEditorRuntime = (options: {
     runtimeEditingModeControllerRef,
     runtimeToolRegistryRef,
     selectedShapeId,
+    isolationGroupId,
     setCurrentToolState,
     setDraftPrimitive,
     setPathHandleDrag,
@@ -331,6 +387,27 @@ const useEditorRuntime = (options: {
     hoveredTransformHandle,
   })
 
+  /**
+   * Persists runtime document while attaching lifecycle provenance from latest command metadata.
+   * @param nextDocument Runtime document snapshot to persist.
+   */
+  const saveFileWithLifecycleContext = useCallback((nextDocument: typeof canvasRuntime.document) => {
+    saveFile(
+      nextDocument,
+      resolveSaveLifecycleContext({
+        history: canvasRuntime.history,
+        replayMode: file?.config.editor?.crashRecoveryReplayMode ?? 'merged',
+        lastCommandMeta,
+      }),
+    )
+  }, [
+    canvasRuntime.document,
+    canvasRuntime.history,
+    file?.config.editor?.crashRecoveryReplayMode,
+    lastCommandMeta,
+    saveFile,
+  ])
+
   const executeAction = useEditorRuntimeExecuteAction({
     add,
     addAsset,
@@ -344,7 +421,7 @@ const useEditorRuntime = (options: {
     insertElementsBatch,
     pasteSerial,
     reorderSelectedShape,
-    saveFile,
+    saveFile: saveFileWithLifecycleContext,
     selectedNode,
     pathSubSelection,
     previewDocument,
@@ -372,6 +449,7 @@ const useEditorRuntime = (options: {
     showPrint,
     file,
     setLastCommandType,
+    setLastCommandMeta,
     setSelectedShapeIds,
     setShellSelectedCount,
     setShellLayerCount,
@@ -479,7 +557,7 @@ const useEditorRuntime = (options: {
     focused,
     selectedShape,
     executeAction,
-    saveFile: () => saveFile(canvasRuntime.document),
+    saveFile: () => saveFileWithLifecycleContext(canvasRuntime.document),
     createFile,
     addAsset,
     setCurrentTool,
@@ -518,5 +596,4 @@ const useEditorRuntime = (options: {
     canvas: runtimeState.canvas,
   }
 }
-
 export default useEditorRuntime

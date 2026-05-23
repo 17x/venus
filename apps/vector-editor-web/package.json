@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm vite",
+    "typecheck": "pnpm exec tsc -b ./tsconfig.app.json ./tsconfig.node.json",
     "build": "vite build --configLoader runner",
     "pnpm build": "pnpm run build",
     "lint": "eslint . && node ./scripts/ui-style-guard.mjs && node ../../scripts/module-governance-check.mjs --scope vector",
@@ -16,6 +17,7 @@
     "perf:gate": "node ./scripts/perf-gate.mjs",
     "perf:gate:template": "node ./scripts/perf-gate.mjs --report ./scripts/perf-gate.report.template.json",
     "perf:fps:playwright": "node ./scripts/playwright-fps-check.mjs",
+    "test:product-specs": "node --test ./src/testing/product-specs/**/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -76,7 +76,7 @@ export const VECTOR_ENGINE_SCENE_PROFILE: VectorEngineSceneProfile = {
     dimension: '3d',
   },
   render: {
-    backend: 'webgl',
+    backend: 'webgpu',
     modelCompleteComposite: false,
     interactionPreview: {
       enabled: true,

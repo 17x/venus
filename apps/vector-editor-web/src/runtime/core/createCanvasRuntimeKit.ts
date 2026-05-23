@@ -239,8 +239,8 @@ export function createCanvasRuntimeKit<TDocument extends EditorDocument>(
       dynamicLayers.clear()
       controller.destroy()
     },
-    dispatchCommand: (command) => {
-      controller.dispatchCommand(command)
+    dispatchCommand: (command, commandMeta) => {
+      controller.dispatchCommand(command, commandMeta)
       scheduleRender('command')
     },
     fitViewport: () => {

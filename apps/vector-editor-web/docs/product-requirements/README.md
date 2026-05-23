@@ -57,6 +57,30 @@
 
 - M2 可验收目标定义（能力、NFR、当前状态）。
 
+14. legacy-product-logic-baseline-2026-05-23.md
+
+- 旧产品逻辑基线冻结（文档模型、group、history、runtime-bridge、测试基线）。
+
+15. prd-next-ai-figma-benchmark-2026-05-23.md
+
+- 新一代 PRD（对标 Adobe Illustrator / Figma）的分类化需求矩阵。
+
+16. architecture-hardening-ai-figma-2026-05-23.md
+
+- 架构强化需求（文档模型、group、history、runtime 对接细化）。
+
+17. runtime-engine-api-requirements-2026-05-23.md
+
+- runtime 对 engine 的 API 需求、理由、目标和规范（仅需求，不改实现）。
+
+18. test-strategy-keyword-mapping-2026-05-23.md
+
+- 测试关键词映射、分类目录与执行门禁建议。
+
+19. document-model-governance.md
+
+- 文档模型治理任务与对标评估（初始化，不使用版本化命名）。
+
 ## 使用方式
 
 1. 需求评审前先阅读 prd-overview.md。

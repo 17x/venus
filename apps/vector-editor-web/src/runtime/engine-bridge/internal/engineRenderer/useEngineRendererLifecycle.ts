@@ -167,6 +167,30 @@ export function useEngineRendererLifecycle(params: {
       // AI-TEMP: keep debug wiring on boolean contract during hard-cut; remove when engine exposes typed diagnostics subscription replacing compat onStats callback; ref ai/operations/vector-engine-vnext-feasibility-2026-05-21.md
       debug: ENABLE_RUNTIME_RENDER_DIAGNOSTICS,
     })
+    // Mount runtime host so browser-bridge diagnostics reflect real app lifecycle state.
+    engine.mount({
+      id: 'vector-engine-render-surface',
+      surface: renderSurface,
+    })
+    // AI-TEMP: publish context probe snapshot to isolate persistent missing-context failures in field sessions; remove when in-app diagnostics panel is available; ref DEX-065.
+    const hostWindow = window as Window & {
+      __venusRenderSurfaceContextDebug?: {
+        at: number
+        canvasWidth: number
+        canvasHeight: number
+        has2d: boolean
+        hasWebgl: boolean
+        hasWebgl2: boolean
+      }
+    }
+    hostWindow.__venusRenderSurfaceContextDebug = {
+      at: performance.now(),
+      canvasWidth: renderSurface.width,
+      canvasHeight: renderSurface.height,
+      has2d: Boolean(renderSurface.getContext('2d')),
+      hasWebgl: Boolean(renderSurface.getContext('webgl')),
+      hasWebgl2: Boolean(renderSurface.getContext('webgl2')),
+    }
     params.engineRef.current = engine
     params.hasLoadedSceneInEngineRef.current = false
 
@@ -188,6 +212,7 @@ export function useEngineRendererLifecycle(params: {
       params.hasLoadedSceneInEngineRef.current = false
       params.pendingRenderSizeRef.current = null
       params.engineRef.current = null
+      engine.unmount()
       engine.dispose()
     }
   }, [

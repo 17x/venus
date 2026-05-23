@@ -185,12 +185,18 @@ export function createLocalHistoryEntry(
   if (command.type === 'shape.reorder') {
     const shape = findShapeById(document, command.shapeId)
     if (!shape) return createLogOnlyEntry(command.type, 'Reorder Missing Shape')
-    const forward = createMaskLinkedReorderPatches({
+    const siblingReorderPlan = createNormalizedSiblingReorderPlan({
       document,
       shapeId: shape.id,
       toIndex: command.toIndex,
+      isolationGroupId: command.isolationGroupId,
     })
-    const siblingReorderPlan = createNormalizedSiblingReorderPlan({
+    // Enforce isolation scope at command-planner boundary: out-of-scope reorder must be a full no-op.
+    if (command.isolationGroupId && !siblingReorderPlan) {
+      return createLogOnlyEntry(command.type, 'Reorder Out Of Isolation Scope')
+    }
+
+    const forward = createMaskLinkedReorderPatches({
       document,
       shapeId: shape.id,
       toIndex: command.toIndex,

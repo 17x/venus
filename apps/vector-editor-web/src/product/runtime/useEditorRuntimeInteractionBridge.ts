@@ -53,12 +53,30 @@ export interface EditorRuntimeInteractionSnapshot {
   snapGuides: SnapGuide[]
   /** Stores latest runtime command type emitted by product/runtime command channel. */
   lastCommandType: string | null
+  /** Stores latest runtime command metadata emitted by product/runtime command channel. */
+  lastCommandMeta: EditorRuntimeLastCommandMeta | null
   /** Stores selected shape id list mirrored for query-based UI bridges. */
   selectedShapeIds: string[]
   /** Stores shell-level selected count mirrored for lightweight subscribers. */
   shellSelectedCount: number
   /** Stores shell-level layer count mirrored for lightweight subscribers. */
   shellLayerCount: number
+}
+
+/**
+ * Declares one command metadata payload mirrored for lifecycle and diagnostics consumers.
+ */
+export interface EditorRuntimeLastCommandMeta {
+  /** Stores runtime command type emitted by command channel. */
+  commandType: string
+  /** Stores stable command id emitted by local command envelope. */
+  commandId: string
+  /** Stores transaction id shared by one logical command chain. */
+  transactionId: string
+  /** Stores command source class for root-vs-derived diagnostics. */
+  commandSource: 'user' | 'derived' | 'system'
+  /** Stores command issue timestamp for ordering diagnostics. */
+  issuedAt: number
 }
 
 /**
@@ -82,6 +100,14 @@ export type EditorRuntimeInteractionEvent = {
   type: 'runtime.command.dispatched'
   /** Stores runtime command type emitted by command channel. */
   commandType: string
+  /** Stores stable command id emitted by the local command envelope. */
+  commandId: string
+  /** Stores transaction id shared by one logical command chain. */
+  transactionId: string
+  /** Stores command source class for root-vs-derived diagnostics. */
+  commandSource: 'user' | 'derived' | 'system'
+  /** Stores command issue timestamp for ordering diagnostics. */
+  issuedAt: number
 } | {
   /** Stores event topic name for selection snapshot transitions. */
   type: 'runtime.selection.changed'
@@ -131,6 +157,8 @@ export interface EditorRuntimeInteractionActions {
   setSnapGuides(next: RuntimeReactiveUpdater<SnapGuide[]>): void
   /** Updates latest runtime command type mirrored to query subscribers. */
   setLastCommandType(next: RuntimeReactiveUpdater<string | null>): void
+  /** Updates latest runtime command metadata mirrored to query subscribers. */
+  setLastCommandMeta(next: RuntimeReactiveUpdater<EditorRuntimeLastCommandMeta | null>): void
   /** Updates selected shape id slice mirrored to query subscribers. */
   setSelectedShapeIds(next: RuntimeReactiveUpdater<string[]>): void
   /** Updates shell selected-count slice mirrored to query subscribers. */
@@ -152,6 +180,7 @@ const INITIAL_INTERACTION_SNAPSHOT: EditorRuntimeInteractionSnapshot = {
   draftPrimitive: null,
   snapGuides: [],
   lastCommandType: null,
+  lastCommandMeta: null,
   selectedShapeIds: [],
   shellSelectedCount: 0,
   shellLayerCount: 0,
@@ -260,6 +289,10 @@ export function useEditorRuntimeInteractionBridge() {
     bridge,
     (snapshot) => snapshot.lastCommandType,
   )
+  const lastCommandMeta = useRuntimeReactiveBridgeSlice(
+    bridge,
+    (snapshot) => snapshot.lastCommandMeta,
+  )
   const selectedShapeIds = useRuntimeReactiveBridgeSlice(
     bridge,
     (snapshot) => snapshot.selectedShapeIds,
@@ -286,6 +319,7 @@ export function useEditorRuntimeInteractionBridge() {
     setDraftPrimitive: createFieldSetter(bridge, 'draftPrimitive'),
     setSnapGuides: createFieldSetter(bridge, 'snapGuides'),
     setLastCommandType: createFieldSetter(bridge, 'lastCommandType'),
+    setLastCommandMeta: createFieldSetter(bridge, 'lastCommandMeta'),
     setSelectedShapeIds: createFieldSetter(bridge, 'selectedShapeIds'),
     setShellSelectedCount: createFieldSetter(bridge, 'shellSelectedCount'),
     setShellLayerCount: createFieldSetter(bridge, 'shellLayerCount'),
@@ -307,6 +341,7 @@ export function useEditorRuntimeInteractionBridge() {
       draftPrimitive,
       snapGuides,
       lastCommandType,
+      lastCommandMeta,
       selectedShapeIds,
       shellSelectedCount,
       shellLayerCount,

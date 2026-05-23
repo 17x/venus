@@ -1,29 +1,7 @@
 import JSZip from 'jszip'
 import type {EditorFileDocument} from '../types/index.ts'
 import {waitImageSize} from '../readImage.ts'
-
-const normalizeFile = (fileJson: any): EditorFileDocument => {
-  if (Array.isArray(fileJson.workspace)) {
-    const workspace = fileJson.workspace[0] || {}
-
-    return {
-      id: fileJson.id,
-      name: fileJson.name,
-      version: fileJson.version,
-      createdAt: fileJson.createdAt,
-      updatedAt: fileJson.updatedAt,
-      config: fileJson.config,
-      elements: workspace.elements || [],
-      assets: workspace.assets || [],
-    }
-  }
-
-  return {
-    ...fileJson,
-    elements: fileJson.elements || [],
-    assets: fileJson.assets || [],
-  }
-}
+import {normalizeFile} from './readFileNormalize.ts'
 
 const readFileHelper = (file: File): Promise<EditorFileDocument> => {
   return new Promise(async (resolve, reject) => {

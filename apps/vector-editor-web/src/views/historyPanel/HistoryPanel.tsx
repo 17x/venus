@@ -5,12 +5,26 @@ import {Button, Con, MenuItem} from '../../ui/index.ts'
 import {EDITOR_TEXT_PANEL_BODY_CLASS} from '../editorChrome/editorTypography.ts'
 import type {ShellCommandMeta} from '../../runtime/shell/commands/shellCommandRegistry.ts'
 import {TEST_IDS} from '../../testing/testIds.ts'
+import type {HistoryNodeTransactionMeta} from '../../product/useEditorRuntime/types.ts'
+import {
+  buildHistoryTransactionBadgeLabel,
+  buildHistoryTransactionTooltipSuffix,
+} from './historyPanelTransactionPresentation.ts'
 
-interface HistoryItem {
+/**
+ * Declares one lightweight row contract consumed by history panel list rendering.
+ */
+interface HistoryPanelItem {
+  /** Stores stable row id used by history jump selection. */
   id: number
+  /** Stores optional translation/type payload projected by UI state derivation. */
   data?: {
+    /** Stores history translation key fallback label/type. */
     type: string
+    /** Stores optional transaction-group metadata used by row presentation. */
+    transaction?: HistoryNodeTransactionMeta
   }
+  /** Stores optional fallback row label when translation key is missing. */
   label?: string
 }
 
@@ -20,10 +34,14 @@ interface HistoryStatus {
   hasNext: boolean
 }
 
+/**
+ * Renders history timeline rows and surfaces transaction-group cues when available.
+ * @param props History panel props and callbacks.
+ */
 export const HistoryPanel: FC<{
-  historyItems: HistoryItem[]
+  historyItems: HistoryPanelItem[]
   historyStatus: HistoryStatus
-  pickHistory: (historyNode: HistoryItem) => void
+  pickHistory: (historyNode: HistoryPanelItem) => void
   onMinimize?: VoidFunction
   onPickHistory?: (historyId: number, meta: ShellCommandMeta) => void
 }> = ({historyItems, historyStatus, pickHistory, onMinimize, onPickHistory}) => {
@@ -59,11 +77,15 @@ export const HistoryPanel: FC<{
           historyItems.map((historyNode) => {
             const isCurr = historyNode.id === historyStatus.id
             const historyType = historyNode.data?.type ?? 'unknown'
+            const transaction = historyNode.data?.transaction
             const prefixI18NKey = 'history.' + historyType
             const translated = t(prefixI18NKey, {returnObjects: true}) as I18nHistoryDataItem | string
             const fallbackLabel = historyNode.label ?? historyType
             const label = typeof translated === 'string' ? fallbackLabel : (translated.label || fallbackLabel)
-            const tooltip = typeof translated === 'string' ? fallbackLabel : (translated.tooltip || fallbackLabel)
+            const translatedTooltip = typeof translated === 'string' ? fallbackLabel : (translated.tooltip || fallbackLabel)
+            const transactionTooltip = buildHistoryTransactionTooltipSuffix(transaction)
+            const tooltip = transaction ? `${translatedTooltip} • ${transactionTooltip}` : translatedTooltip
+            const transactionBadgeLabel = buildHistoryTransactionBadgeLabel(transaction)
 
             return <MenuItem xs
               ref={isCurr ? targetRef : null}
@@ -84,7 +106,13 @@ export const HistoryPanel: FC<{
                   return
                 }
                 pickHistory(historyNode)
-              }}>{label}</MenuItem>
+              }}>
+                <span className={'min-w-0 flex-1 truncate'}>{label}</span>
+                {transactionBadgeLabel &&
+                  <span className={'ml-2 shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-100'}>
+                    {transactionBadgeLabel}
+                  </span>}
+              </MenuItem>
           })
         }
         </div>

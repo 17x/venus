@@ -228,13 +228,20 @@ export function createRemotePatches(operation: CollaborationOperation, scene: Sc
   if (operation.type === 'shape.reorder') {
     const shapeId = asStringOrNull(operation.payload?.shapeId)
     const toIndex = asNumberOrNull(operation.payload?.toIndex)
+    const isolationGroupId = asStringOrNull(operation.payload?.isolationGroupId)
     const shape = shapeId ? findShapeById(document, shapeId) : null
     if (!shape || toIndex === null) return []
     const siblingReorderPlan = createNormalizedSiblingReorderPlan({
       document,
       shapeId: shape.id,
       toIndex,
+      isolationGroupId,
     })
+    // Enforce isolation scope for collaboration replay too so remote reorder cannot escape active isolated group.
+    if (isolationGroupId && !siblingReorderPlan) {
+      return []
+    }
+
     const patches = createMaskLinkedReorderPatches({
       document,
       shapeId: shape.id,

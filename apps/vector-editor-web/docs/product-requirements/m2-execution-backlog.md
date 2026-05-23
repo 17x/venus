@@ -143,3 +143,76 @@ T18. M2 退出评审
 24. T17 验收已通过：`pnpm m2:run-all` 持续可重复执行（19/19 通过），并完成文档化沉淀 `m2-core-regression-checklist.md`。
 25. T18 已完成：形成 M2 退出评审报告，覆盖功能/性能/可靠性三类指标与退出判定结论。
 26. T18 验收已通过：复用 `pnpm m2:run-all` 作为统一证据入口（19/19 通过），并完成目标与执行文档状态回写。
+
+## G5：文档模型治理（初始化任务池）
+
+当前状态（2026-05-23）：已完成（可关单）
+
+T19. 文档契约与不变量定义
+
+- 优先级：P0
+- Owner：Model Runtime 负责人
+- 依赖：T15/T16
+- 状态：已完成
+- 输出：文档模型契约与结构不变量清单
+- 验收：
+
+1. 不变量清单可映射自动化测试
+2. 结构命令后不变量检查稳定通过
+
+T20. 生命周期状态与保存恢复语义
+
+- 优先级：P0
+- Owner：Runtime 基建负责人
+- 依赖：T19
+- 状态：已完成
+- 输出：document lifecycle contract（dirty/saving/recovery）
+- 验收：
+
+1. 生命周期状态可观测
+2. 异常恢复不破坏结构一致性
+
+T21. 页面与样式引用模型
+
+- 优先级：P1
+- Owner：Product Model 负责人
+- 依赖：T19
+- 状态：已完成
+- 输出：pages 与 style reference 最小模型
+- 验收：
+
+1. 多页面最小链路可运行
+2. 样式引用与内联样式可回放
+
+T22. 扩展元数据命名空间与导入导出约束
+
+- 优先级：P1
+- Owner：架构负责人
+- 依赖：T19/T21
+- 状态：已完成
+- 输出：extensions namespace 规范与兼容约束
+- 验收：
+
+1. 导入导出保留扩展字段
+2. 未知扩展字段不导致崩溃
+
+T23. 文档模型专项回归与压力测试
+
+- 优先级：P0
+- Owner：测试负责人
+- 依赖：T19-T22
+- 状态：已完成
+- 输出：结构/序列化/回放/大文档专项回归
+- 验收：
+
+1. 大文档结构操作稳定
+2. deterministic replay 回归通过
+
+G5 验收证据（2026-05-23）：
+
+1. 新增治理合同测试：`src/testing/product-specs/document-structure/document-governance.contract.test.ts`
+2. 覆盖 T19：契约归一化 + 结构不变量违规码检查
+3. 覆盖 T20：dirty/saving/recovery/opened 生命周期可观测转换
+4. 覆盖 T21/T22：pages/styleReferences/extensions 导入导出回放与未知字段保留
+5. 覆盖 T23：2000 节点结构压力 + 双写一致性 + deterministic reorder 计划一致性
+6. M2 并跑接线：`scripts/m2-run-all.mjs` 新增 `M2-07B`

@@ -5,6 +5,7 @@ import type {SceneMemory} from '../../../shared-memory/index.ts'
 import {setSelectedShapes} from '../../../shared-memory/index.ts'
 import {createHistoryManager} from '../../history.ts'
 import type {SceneUpdateMessage, EditorRuntimeCommand} from '../../protocol.ts'
+import type {RuntimeCommandEnvelopeMeta} from '../../protocol.ts'
 import type {WorkerSpatialIndex} from '../types.ts'
 import {applyPatchBatch} from '../patchBatch.ts'
 import {applyPatches} from '../scenePatches/scenePatches.ts'
@@ -148,6 +149,7 @@ export function handleLocalCommand(
   spatialIndex: WorkerSpatialIndex,
   history: ReturnType<typeof createHistoryManager>,
   collaboration: ReturnType<typeof createCollaborationManager>,
+  commandMeta?: RuntimeCommandEnvelopeMeta,
 ): SceneUpdateMessage['updateKind'] | null {
   const dispatched = localCommandDispatcher.dispatch(command, {
     scene,
@@ -161,7 +163,20 @@ export function handleLocalCommand(
   }
 
   const entry = createLocalHistoryEntry(command, scene, document)
-  history.pushLocalEntry(entry)
+  history.pushLocalEntry(entry, {
+    commandMeta: commandMeta
+      ? {
+          commandId: commandMeta.commandId,
+          transactionId: commandMeta.transactionId,
+          commandSource: commandMeta.commandSource,
+          issuedAt: commandMeta.issuedAt,
+          commandType: command.type,
+        }
+      : undefined,
+    merge: {
+      enabled: !!commandMeta,
+    },
+  })
   const updateKind = applyPatchBatch(entry.forward, (patches) => applyPatches(scene, document, spatialIndex, patches))
   const operation = createLocalOperation(command, collaboration.getState().actorId)
   collaboration.recordLocalOperation(operation)

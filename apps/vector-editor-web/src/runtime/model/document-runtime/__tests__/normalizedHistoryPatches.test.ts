@@ -4,6 +4,7 @@ import test from 'node:test'
 import type {EditorDocument} from '../../index.ts'
 import {
   createNormalizedGroupPatchPlan,
+  runNormalizedGroupConsistencyQuickCheck,
   createNormalizedSiblingReorderPlan,
   createNormalizedUngroupPatchPlan,
   validateNormalizedDualWriteConsistency,
@@ -293,6 +294,28 @@ test('createNormalizedSiblingReorderPlan updates group child order and emits com
   assert.equal(plan?.compatibilityReorderPatch.type, 'reorder-shape')
 })
 
+test('createNormalizedSiblingReorderPlan rejects out-of-scope reorder when isolation group is active', () => {
+  const document = createHistoryFixture()
+
+  const outOfScopePlan = createNormalizedSiblingReorderPlan({
+    document,
+    shapeId: 'rect-a',
+    toIndex: 2,
+    isolationGroupId: 'another-group',
+  })
+
+  const inScopePlan = createNormalizedSiblingReorderPlan({
+    document,
+    shapeId: 'rect-a',
+    toIndex: 2,
+    isolationGroupId: 'group-parent',
+  })
+
+  assert.equal(outOfScopePlan, null)
+  assert.ok(inScopePlan)
+  assert.equal(inScopePlan?.siblingPatch.groupId, 'group-parent')
+})
+
 test('validateNormalizedDualWriteConsistency reports parent-child mismatch issues', () => {
   const document = createHistoryFixture()
 
@@ -303,5 +326,18 @@ test('validateNormalizedDualWriteConsistency reports parent-child mismatch issue
 
   assert.equal(validation.valid, false)
   assert.equal(validation.issues.length > 0, true)
+})
+
+test('runNormalizedGroupConsistencyQuickCheck emits stable diagnostic codes', () => {
+  const document = createHistoryFixture()
+  document.shapes.find((shape) => shape.id === 'group-parent')!.childIds = ['rect-a', 'ghost-child']
+  document.shapes.find((shape) => shape.id === 'rect-b')!.parentId = 'foreign-parent'
+
+  const quickCheck = runNormalizedGroupConsistencyQuickCheck(document)
+  const codes = new Set(quickCheck.diagnostics.map((diagnostic) => diagnostic.code))
+
+  assert.equal(quickCheck.valid, false)
+  assert.equal(codes.has('group-missing-child'), true)
+  assert.equal(codes.has('group-child-parent-mismatch') || codes.has('node-parent-invalid'), true)
 })
 

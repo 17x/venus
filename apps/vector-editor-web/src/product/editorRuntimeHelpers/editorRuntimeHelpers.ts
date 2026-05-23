@@ -9,6 +9,7 @@ import {getNormalizedBoundsFromBox} from '../../runtime/engine-bridge/engine.ts'
 import type {ElementProps} from '../../runtime/types/index.ts'
 import type {HistorySummary} from '../../runtime/worker/index.ts'
 import type {HistoryNodeLike} from '../useEditorRuntime/types.ts'
+import {projectHistorySummaryToHistoryNodes} from './historyPanelProjection.ts'
 import {
   cloneElementBezierPoints,
   cloneElementPoints,
@@ -16,7 +17,6 @@ import {
   createCenteredBoxToolElement,
   createDragBoxShapeElement,
   createDragLineLikeShapeElement,
-  createHistoryNodeLikeEntry,
   createLineLikeToolElement,
   createPolygonPoints,
   createStarPoints,
@@ -249,8 +249,12 @@ export function offsetElementPosition(
   }
 }
 
+/**
+ * Projects runtime history summary entries to UI rows with transaction metadata.
+ * @param history Runtime history summary snapshot.
+ */
 export function buildHistoryArray(history: HistorySummary): HistoryNodeLike[] {
-  return history.entries.map((entry, index, array) => createHistoryNodeLikeEntry(entry.label, index, array))
+  return projectHistorySummaryToHistoryNodes(history)
 }
 
 export function isPenTool(toolName: ToolName) {

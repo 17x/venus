@@ -1,6 +1,10 @@
 import {createElement, useMemo, useRef} from 'react'
 import type {EditorDocument} from '../../../runtime/model/index.ts'
 import type {RuntimeEditingMode} from '../../../runtime/index.ts'
+import type {
+  EditorFileHistoryRecoveryReplayMode,
+  EditorFileHistoryRecoveryReplaySnapshot,
+} from '../../../runtime/types/editorFile.ts'
 import {
   createRuntimeSelectionChromeRegistry,
 } from '../../../runtime/index.ts'
@@ -36,9 +40,14 @@ import {
 } from './derivedState.shared.ts'
 import {useEditorRuntimeDerivedStateOverlays} from './derivedState.overlays.ts'
 
-// Derives renderer/overlay interaction state from runtime snapshots for editor product hooks.
+/**
+ * Derives renderer/overlay interaction state from runtime snapshots for editor product hooks.
+ * @param options Runtime/product state inputs consumed by derived-state composition.
+ */
 export function useEditorRuntimeDerivedState(options: {
   document: EditorDocument
+  crashRecoveryReplay?: EditorFileHistoryRecoveryReplaySnapshot
+  crashRecoveryReplayMode?: EditorFileHistoryRecoveryReplayMode
   editingMode: RuntimeEditingMode
   isolationGroupId: string | null
   onContextMenu?: (position: {x: number; y: number}) => void
@@ -61,6 +70,8 @@ export function useEditorRuntimeDerivedState(options: {
 }) {
   const {
     document,
+    crashRecoveryReplay,
+    crashRecoveryReplayMode,
     editingMode,
     isolationGroupId,
     onContextMenu,
@@ -81,12 +92,14 @@ export function useEditorRuntimeDerivedState(options: {
       capacity: Math.max(SCENE_CAPACITY, document.shapes.length + 8),
       createWorker,
       document,
+      crashRecoveryReplay,
+      crashRecoveryReplayMode,
       allowFrameSelection: false,
       selection: DEFAULT_SELECTION_CONFIG,
       presentation: DEFAULT_PRESENTATION_CONFIG,
       onContextMenu,
     }
-  }, [createWorker, document, onContextMenu])
+  }, [crashRecoveryReplay, crashRecoveryReplayMode, createWorker, document, onContextMenu])
 
   const {
     runtime: canvasRuntime,

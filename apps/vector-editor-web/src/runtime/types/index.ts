@@ -25,6 +25,18 @@ export type {
 
 export type {
   EditorFileAsset,
+  EditorFileEditorConfig,
   EditorFileDocument,
+  EditorFileHistoryRecoveryReplayEntry,
+  EditorFileHistoryRecoveryReplayMode,
+  EditorFileHistoryRecoveryReplayModeSnapshot,
+  EditorFileHistoryRecoveryReplaySnapshot,
+  EditorFileLifecycleDirtySource,
+  EditorFileLifecycleState,
+  EditorFileLifecycleTransitionSource,
+  EditorFileMigrationDiagnostic,
+  EditorFilePage,
   EditorFilePageSpec,
+  EditorFileSchema,
+  EditorFileStyleReferences,
 } from './editorFile.ts'

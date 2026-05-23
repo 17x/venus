@@ -34,13 +34,33 @@ export type {
 
 export type EditorExecutor = (type: EditorEventType, data?: EditorEventData) => void
 
+/**
+ * Declares one transaction-group descriptor projected onto one history UI row.
+ */
+export interface HistoryNodeTransactionMeta {
+  /** Stores stable transaction id provided by runtime history summary. */
+  transactionId: string
+  /** Stores whether this transaction group was produced locally or remotely. */
+  source: 'local' | 'remote'
+  /** Stores total row count that belongs to this transaction group. */
+  entryCount: number
+  /** Stores one-based row index inside this transaction group. */
+  indexInGroup: number
+}
+
+/**
+ * Declares one history-row payload consumed by history panel rendering.
+ */
 export interface HistoryNodeLike {
   id: number
   prev: HistoryNodeLike | null
   next: HistoryNodeLike | null
   label?: string
   data: {
+    /** Stores history translation key fallback label/type. */
     type: string
+    /** Stores optional transaction-group metadata for timeline grouping cues. */
+    transaction?: HistoryNodeTransactionMeta
   }
 }
 

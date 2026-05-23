@@ -85,7 +85,7 @@ const M2_STEPS = [
     command: "node",
     args: [
       "--test",
-      "src/runtime/presets/engineSceneAdapter/engineSceneAdapter.text.test.ts",
+      "src/runtime/presets/engineSceneAdapter/engineSceneAdapter.text/engineSceneAdapter.text.test.ts",
     ],
   },
   {
@@ -113,6 +113,15 @@ const M2_STEPS = [
     args: [
       "--test",
       "src/runtime/model/document-runtime/__tests__/normalizedHistoryPatches.test.ts",
+    ],
+  },
+  {
+    id: "M2-07B",
+    title: "Document governance product-spec regression",
+    command: "node",
+    args: [
+      "--test",
+      "src/testing/product-specs/document-structure/document-governance.contract.test.ts",
     ],
   },
   {

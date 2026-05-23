@@ -109,3 +109,31 @@ test('createRemotePatches emits canonical sibling patch first for shape.reorder'
   assert.equal(reorderPatchIndex > 0, true)
 })
 
+/**
+ * Verifies isolation-scope reorder constraints suppress out-of-scope canonical sibling patches.
+ */
+test('createRemotePatches suppresses sibling reorder when isolation scope excludes target parent', () => {
+  const document = createSiblingFixture()
+  const scene = createSceneFixture(document)
+
+  const patches = createRemotePatches(
+    {
+      id: 'op-2',
+      type: 'shape.reorder',
+      actorId: 'remote-user',
+      payload: {
+        shapeId: 'rect-a',
+        toIndex: 2,
+        isolationGroupId: 'group-out-of-scope',
+      },
+    },
+    scene,
+    document,
+  )
+
+  assert.equal(patches.some((patch) => patch.type === 'set-group-children'), false)
+  // Isolation mismatch must be a full no-op so compatibility reorder patches cannot escape isolated scope.
+  assert.equal(patches.some((patch) => patch.type === 'reorder-shape'), false)
+  assert.equal(patches.length, 0)
+})
+

@@ -7,6 +7,10 @@ import type {CanvasProtocolConfig} from '../presets/protocol.ts'
 import type {CanvasSelectionConfig} from '../presets/selection.ts'
 import type {CanvasSnapConfig} from '../presets/snapping.ts'
 import type {CanvasViewportScaleRange} from '../viewport/index.ts'
+import type {
+  EditorFileHistoryRecoveryReplayMode,
+  EditorFileHistoryRecoveryReplaySnapshot,
+} from '../types/editorFile.ts'
 
 const DEFAULT_VECTOR_VIEWPORT_SCALE_RANGE: CanvasViewportScaleRange = {
   min: 0.01,
@@ -17,6 +21,10 @@ export interface DefaultCanvasRuntimeOptions<TDocument extends EditorDocument> {
   capacity: number
   createWorker: () => Worker
   document: TDocument
+  /** Stores optional crash-recovery replay payload consumed during worker startup. */
+  crashRecoveryReplay?: EditorFileHistoryRecoveryReplaySnapshot
+  /** Stores startup replay mode used while consuming crash-recovery snapshots. */
+  crashRecoveryReplayMode?: EditorFileHistoryRecoveryReplayMode
   allowFrameSelection?: boolean
   strictStrokeHitTest?: boolean
   elements?: CanvasEditorInstanceOptions<TDocument>['elements']
@@ -66,6 +74,8 @@ export function createDefaultCanvasRuntimeInstanceOptions<TDocument extends Edit
     capacity: options.capacity,
     createWorker: options.createWorker,
     document: options.document,
+    crashRecoveryReplay: options.crashRecoveryReplay,
+    crashRecoveryReplayMode: options.crashRecoveryReplayMode,
     allowFrameSelection: options.allowFrameSelection,
     strictStrokeHitTest: options.strictStrokeHitTest,
     viewportScaleRange: options.viewportScaleRange ?? DEFAULT_VECTOR_VIEWPORT_SCALE_RANGE,

@@ -335,3 +335,174 @@ export function createNestedUngroupFixture(): EditorDocument {
   document.shapes.find((shape) => shape.id === 'group-root')!.childIds = ['group-left', 'group-temp', 'group-right']
   return document
 }
+
+/**
+ * Creates one mask-linked fixture where host/source live under the same parent for reorder and regroup parity checks.
+ */
+export function createMaskLinkedFixture(): EditorDocument {
+  return {
+    id: 'doc-mask-linked',
+    name: 'mask linked fixture',
+    width: 1200,
+    height: 800,
+    shapes: [
+      {
+        id: 'group-root',
+        type: 'group',
+        name: 'Root',
+        parentId: null,
+        childIds: ['mask-source', 'image-host', 'rect-a', 'rect-b'],
+        x: 0,
+        y: 0,
+        width: 600,
+        height: 240,
+      },
+      {
+        id: 'mask-source',
+        type: 'rectangle',
+        name: 'Mask Source',
+        parentId: 'group-root',
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 120,
+        schema: {
+          sourceNodeType: 'rectangle',
+          sourceNodeKind: 'shape',
+          sourceFeatureKinds: ['mask'],
+          maskGroupId: 'mask-group:image-host:mask-source',
+          maskRole: 'source',
+        },
+      },
+      {
+        id: 'image-host',
+        type: 'image',
+        name: 'Image Host',
+        parentId: 'group-root',
+        x: 20,
+        y: 20,
+        width: 120,
+        height: 120,
+        clipPathId: 'mask-source',
+        schema: {
+          sourceNodeType: 'image',
+          sourceNodeKind: 'shape',
+          sourceFeatureKinds: ['mask'],
+          maskGroupId: 'mask-group:image-host:mask-source',
+          maskRole: 'host',
+        },
+      },
+      {
+        id: 'rect-a',
+        type: 'rectangle',
+        name: 'Rect A',
+        parentId: 'group-root',
+        x: 180,
+        y: 10,
+        width: 80,
+        height: 80,
+      },
+      {
+        id: 'rect-b',
+        type: 'rectangle',
+        name: 'Rect B',
+        parentId: 'group-root',
+        x: 300,
+        y: 10,
+        width: 80,
+        height: 80,
+      },
+    ],
+  }
+}
+
+/**
+ * Creates one grouped mask fixture used to validate ungroup parity with mask-linked children.
+ */
+export function createMaskLinkedGroupedFixture(): EditorDocument {
+  return {
+    id: 'doc-mask-grouped',
+    name: 'mask grouped fixture',
+    width: 1200,
+    height: 800,
+    shapes: [
+      {
+        id: 'group-root',
+        type: 'group',
+        name: 'Root',
+        parentId: null,
+        childIds: ['group-mask', 'rect-b'],
+        x: 0,
+        y: 0,
+        width: 600,
+        height: 240,
+      },
+      {
+        id: 'group-mask',
+        type: 'group',
+        name: 'Mask Group',
+        parentId: 'group-root',
+        childIds: ['mask-source', 'image-host', 'rect-a'],
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 200,
+      },
+      {
+        id: 'mask-source',
+        type: 'rectangle',
+        name: 'Mask Source',
+        parentId: 'group-mask',
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 120,
+        schema: {
+          sourceNodeType: 'rectangle',
+          sourceNodeKind: 'shape',
+          sourceFeatureKinds: ['mask'],
+          maskGroupId: 'mask-group:image-host:mask-source',
+          maskRole: 'source',
+        },
+      },
+      {
+        id: 'image-host',
+        type: 'image',
+        name: 'Image Host',
+        parentId: 'group-mask',
+        x: 20,
+        y: 20,
+        width: 120,
+        height: 120,
+        clipPathId: 'mask-source',
+        schema: {
+          sourceNodeType: 'image',
+          sourceNodeKind: 'shape',
+          sourceFeatureKinds: ['mask'],
+          maskGroupId: 'mask-group:image-host:mask-source',
+          maskRole: 'host',
+        },
+      },
+      {
+        id: 'rect-a',
+        type: 'rectangle',
+        name: 'Rect A',
+        parentId: 'group-mask',
+        x: 180,
+        y: 10,
+        width: 80,
+        height: 80,
+      },
+      {
+        id: 'rect-b',
+        type: 'rectangle',
+        name: 'Rect B',
+        parentId: 'group-root',
+        x: 340,
+        y: 10,
+        width: 80,
+        height: 80,
+      },
+    ],
+  }
+}

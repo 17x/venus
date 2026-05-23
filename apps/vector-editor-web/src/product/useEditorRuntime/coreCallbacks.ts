@@ -15,6 +15,10 @@ import {
   type ShapeStyleHandleDrag,
 } from '../runtime/shapeStyleHandles.ts'
 
+/**
+ * Creates runtime core callbacks shared across keyboard actions and UI command dispatch.
+ * @param options Runtime callbacks/dependencies used by tool actions, reorder, save/open and viewport shortcuts.
+ */
 export function useEditorRuntimeCoreCallbacks(options: {
   add: (message: string, tone: 'info' | 'success' | 'warning' | 'error') => void
   canvasRuntime: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']
@@ -24,6 +28,7 @@ export function useEditorRuntimeCoreCallbacks(options: {
   runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/index.ts').createRuntimeEditingModeController>>
   runtimeToolRegistryRef: React.RefObject<ReturnType<typeof import('../../runtime/index.ts').createRuntimeToolRegistry>>
   selectedShapeId: string | null
+  isolationGroupId: string | null
   setCurrentToolState: React.Dispatch<React.SetStateAction<ToolName>>
   setDraftPrimitive: React.Dispatch<React.SetStateAction<import('../../runtime/interaction/index.ts').DraftPrimitive | null>>
   setPathHandleDrag: React.Dispatch<React.SetStateAction<{
@@ -56,6 +61,7 @@ export function useEditorRuntimeCoreCallbacks(options: {
       type: 'shape.reorder',
       shapeId: options.selectedShapeId,
       toIndex: nextIndex,
+      isolationGroupId: options.isolationGroupId,
     })
   }, [options])
 

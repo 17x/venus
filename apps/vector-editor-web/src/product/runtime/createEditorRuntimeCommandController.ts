@@ -1,4 +1,10 @@
 import type * as React from 'react'
+import {
+  createCommandEnvelope,
+  createCommandIdFactory,
+  createCommandTransactionIdFactory,
+  type CommandEnvelopeSource,
+} from '@venus/editor-primitive'
 import {resolveEngineAdaptiveHitTolerance} from '../../runtime/engine-bridge/engine.ts'
 import {resolveMaskLinkedShapeIds} from '../../runtime/interaction/maskGroup.ts'
 import type {ToolName} from '../../runtime/model/index.ts'
@@ -14,6 +20,7 @@ import type {ShapeStyleHandleDrag} from './shapeStyleHandles.ts'
 import {applyRuntimeEditingModeTransition} from './runtimeEditingModeTransitionPolicy.ts'
 import {filterRuntimeSelectionCandidateIds} from './selectionFilterPolicy.ts'
 import type {RuntimeInteractionDiagnosticEvent} from './interactionDiagnosticPolicy.ts'
+import type {EditorRuntimeLastCommandMeta} from './useEditorRuntimeInteractionBridge.ts'
 
 /**
  * Declares dependencies required by the pure runtime command controller.
@@ -67,6 +74,8 @@ export interface EditorRuntimeCommandControllerOptions {
   runtimeEditingModeControllerRef: React.RefObject<ReturnType<typeof import('../../runtime/index.ts').createRuntimeEditingModeController>>
   /** Updates last command type for runtime bridge query subscribers. */
   setLastCommandType: (next: string | null) => void
+  /** Updates last command metadata for lifecycle and diagnostics subscribers. */
+  setLastCommandMeta: (next: EditorRuntimeLastCommandMeta | null) => void
   /** Publishes command-channel events through runtime interaction bridge. */
   dispatchRuntimeEvent: (event: import('./useEditorRuntimeInteractionBridge.ts').EditorRuntimeInteractionEvent) => void
   /** Records runtime interaction diagnostics from command key paths. */
@@ -77,10 +86,67 @@ export interface EditorRuntimeCommandControllerOptions {
  * Creates a pure runtime command controller that owns side-effects and command dispatch policy.
  */
 export function createEditorRuntimeCommandController(options: EditorRuntimeCommandControllerOptions) {
+  const resolveNextCommandId = createCommandIdFactory('runtime-cmd')
+  const resolveNextTransactionId = createCommandTransactionIdFactory('runtime-txn')
+  let commandDispatchDepth = 0
+  let activeTransactionId: string | null = null
+
+  /**
+   * Dispatches one worker/runtime command and emits a traced command-envelope event.
+   * @param command Runtime command payload to dispatch.
+   * @param source Source class used for root-vs-derived command diagnostics.
+   */
+  function dispatchRuntimeCommand(
+    command: EditorRuntimeCommand,
+    source: CommandEnvelopeSource,
+  ) {
+    const commandEnvelope = createCommandEnvelope({
+      id: resolveNextCommandId(),
+      source,
+      transactionId: activeTransactionId ?? resolveNextTransactionId(),
+      issuedAt: Date.now(),
+      command,
+    })
+
+    options.canvasRuntime.dispatchCommand(commandEnvelope.command, {
+      commandId: commandEnvelope.id,
+      transactionId: commandEnvelope.transactionId,
+      commandSource: commandEnvelope.source,
+      issuedAt: commandEnvelope.issuedAt,
+    })
+    // Mirror command channel to runtime bridge so subscribers can observe command stream.
+    options.setLastCommandType(commandEnvelope.command.type)
+    options.setLastCommandMeta({
+      commandType: commandEnvelope.command.type,
+      commandId: commandEnvelope.id,
+      transactionId: commandEnvelope.transactionId,
+      commandSource: commandEnvelope.source,
+      issuedAt: commandEnvelope.issuedAt,
+    })
+    options.dispatchRuntimeEvent({
+      type: 'runtime.command.dispatched',
+      commandType: commandEnvelope.command.type,
+      commandId: commandEnvelope.id,
+      transactionId: commandEnvelope.transactionId,
+      commandSource: commandEnvelope.source,
+      issuedAt: commandEnvelope.issuedAt,
+    })
+  }
+
   /**
    * Handles one runtime command with recursive resolution for derived commands.
    */
   function handleRuntimeCommand(command: EditorRuntimeCommand): void {
+    const isRootDispatch = commandDispatchDepth === 0
+    if (isRootDispatch) {
+      activeTransactionId = resolveNextTransactionId()
+    }
+
+    commandDispatchDepth += 1
+
+    const commandSource: CommandEnvelopeSource = isRootDispatch ? 'user' : 'derived'
+
+    try {
     if (command.type === 'mask.create') {
       const resolved = resolveAutoMaskAction({
         canvasShapes: options.canvasRuntime.document.shapes,
@@ -225,13 +291,13 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
       return
     }
 
-    options.canvasRuntime.dispatchCommand(command)
-    // Mirror command channel to runtime bridge so subscribers can observe command stream.
-    options.setLastCommandType(command.type)
-    options.dispatchRuntimeEvent({
-      type: 'runtime.command.dispatched',
-      commandType: command.type,
-    })
+    dispatchRuntimeCommand(command, commandSource)
+    } finally {
+      commandDispatchDepth -= 1
+      if (commandDispatchDepth === 0) {
+        activeTransactionId = null
+      }
+    }
   }
 
   return {

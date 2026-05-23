@@ -41,6 +41,30 @@ export interface NormalizedSiblingReorderPlan {
 }
 
 /**
+ * Defines one stable diagnostic payload emitted by group consistency quick checks.
+ */
+export interface NormalizedGroupConsistencyDiagnostic {
+  /** Stores stable diagnostic code for automated assertions and log aggregation. */
+  code: 'group-missing-child' | 'group-child-parent-mismatch' | 'node-parent-invalid' | 'node-parent-missing-child'
+  /** Stores group id related to this diagnostic, when available. */
+  groupId?: string
+  /** Stores node id related to this diagnostic, when available. */
+  nodeId?: string
+  /** Stores human-readable diagnostic message for debugging. */
+  message: string
+}
+
+/**
+ * Defines one compact result returned by group consistency quick-check entry.
+ */
+export interface NormalizedGroupConsistencyQuickCheckResult {
+  /** Indicates whether no group consistency diagnostics were detected. */
+  valid: boolean
+  /** Stores stable diagnostic list for tooling and test assertions. */
+  diagnostics: NormalizedGroupConsistencyDiagnostic[]
+}
+
+/**
  * Builds group patches from normalized parent/children structure and legacy geometry fields.
  */
 export function createNormalizedGroupPatchPlan(input: {
@@ -227,15 +251,22 @@ export function createNormalizedUngroupPatchPlan(input: {
 
 /**
  * Builds sibling-order reorder patches for group children while keeping flat-buffer reorder compatibility.
+ * @param input Reorder planner payload containing document snapshot, target node, destination index, and optional isolation scope.
  */
 export function createNormalizedSiblingReorderPlan(input: {
   document: EditorDocument
   shapeId: string
   toIndex: number
+  isolationGroupId?: string | null
 }): NormalizedSiblingReorderPlan | null {
   const normalized = createNormalizedRuntimeDocument(input.document)
   const shapeNode = normalized.nodes[input.shapeId]
   if (!shapeNode || !shapeNode.parentId) {
+    return null
+  }
+
+  // Enforce isolation-scope reorder boundary so isolated editing cannot mutate sibling order outside active group scope.
+  if (input.isolationGroupId && shapeNode.parentId !== input.isolationGroupId) {
     return null
   }
 
@@ -286,6 +317,7 @@ export function createNormalizedSiblingReorderPlan(input: {
 
 /**
  * Checks whether document parent and group-child representations stay equivalent after patch apply.
+ * @param document Source editor document snapshot.
  */
 export function validateNormalizedDualWriteConsistency(document: EditorDocument): {
   valid: boolean
@@ -331,6 +363,76 @@ export function validateNormalizedDualWriteConsistency(document: EditorDocument)
   return {
     valid: issues.length === 0,
     issues,
+  }
+}
+
+/**
+ * Runs one compact group consistency check using stable diagnostic codes for quick triage entry points.
+ * @param document Source editor document snapshot.
+ */
+export function runNormalizedGroupConsistencyQuickCheck(
+  document: EditorDocument,
+): NormalizedGroupConsistencyQuickCheckResult {
+  const nodeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  const diagnostics: NormalizedGroupConsistencyDiagnostic[] = []
+
+  document.shapes.forEach((shape) => {
+    if (shape.type !== 'group') {
+      return
+    }
+
+    ;(shape.childIds ?? []).forEach((childId) => {
+      const child = nodeById.get(childId)
+      if (!child) {
+        diagnostics.push({
+          code: 'group-missing-child',
+          groupId: shape.id,
+          nodeId: childId,
+          message: `group:${shape.id} references missing child:${childId}`,
+        })
+        return
+      }
+
+      if ((child.parentId ?? null) !== shape.id) {
+        diagnostics.push({
+          code: 'group-child-parent-mismatch',
+          groupId: shape.id,
+          nodeId: child.id,
+          message: `child:${child.id} parent mismatch expected:${shape.id} actual:${child.parentId ?? 'null'}`,
+        })
+      }
+    })
+  })
+
+  document.shapes.forEach((shape) => {
+    if (!shape.parentId) {
+      return
+    }
+
+    const parent = nodeById.get(shape.parentId)
+    if (!parent || parent.type !== 'group') {
+      diagnostics.push({
+        code: 'node-parent-invalid',
+        groupId: shape.parentId,
+        nodeId: shape.id,
+        message: `node:${shape.id} has invalid parent:${shape.parentId}`,
+      })
+      return
+    }
+
+    if (!(parent.childIds ?? []).includes(shape.id)) {
+      diagnostics.push({
+        code: 'node-parent-missing-child',
+        groupId: parent.id,
+        nodeId: shape.id,
+        message: `node:${shape.id} missing from parent:${parent.id} children list`,
+      })
+    }
+  })
+
+  return {
+    valid: diagnostics.length === 0,
+    diagnostics,
   }
 }
 

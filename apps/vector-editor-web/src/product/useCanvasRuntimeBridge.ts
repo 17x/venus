@@ -35,6 +35,7 @@ export type CanvasRuntimeBridgeState<TDocument extends EditorDocument> =
 
 /**
  * App-local React glue over pure runtime TS APIs.
+ * @param options Runtime bridge options passed into default runtime API factory.
  */
 export function useCanvasRuntimeBridge<TDocument extends EditorDocument>(
   options: UseCanvasRuntimeBridgeOptions<TDocument>,
@@ -47,6 +48,8 @@ export function useCanvasRuntimeBridge<TDocument extends EditorDocument>(
     capacity,
     createWorker,
     document,
+    crashRecoveryReplay,
+    crashRecoveryReplayMode,
     allowFrameSelection,
     strictStrokeHitTest,
     elements,
@@ -66,6 +69,8 @@ export function useCanvasRuntimeBridge<TDocument extends EditorDocument>(
       capacity,
       createWorker,
       document,
+      crashRecoveryReplay,
+      crashRecoveryReplayMode,
       allowFrameSelection,
       strictStrokeHitTest,
       elements,
@@ -83,6 +88,8 @@ export function useCanvasRuntimeBridge<TDocument extends EditorDocument>(
     [
       allowFrameSelection,
       capacity,
+      crashRecoveryReplay,
+      crashRecoveryReplayMode,
       createWorker,
       document,
       elements,

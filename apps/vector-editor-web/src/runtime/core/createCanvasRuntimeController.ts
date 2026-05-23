@@ -1,16 +1,17 @@
 import { type EditorDocument } from '../model/index.ts'
-import {
-  isPointInsideRuntimeClipShape,
-  isPointInsideRuntimeShapeHitArea,
-} from '../interaction/runtimeHitTest.ts'
 import type {
   CollaborationOperation,
   CollaborationState,
   EditorRuntimeCommand,
   HistorySummary,
+  RuntimeCommandEnvelopeMeta,
   RuntimeV2DiagnosticsMessage,
   SceneUpdateMessage,
 } from '../worker/index.ts'
+import type {
+  EditorFileHistoryRecoveryReplayMode,
+  EditorFileHistoryRecoveryReplaySnapshot,
+} from '../types/editorFile.ts'
 import {
   attachSceneMemory,
   createSceneMemory,
@@ -32,7 +33,20 @@ import {
   zoomViewportState,
 } from '../viewport/controller.ts'
 import type {CanvasViewportState} from '../viewport/types.ts'
-import {withResolvedPathHints} from '../../runtime/interaction/pathHitTestHints.ts'
+import {
+  DEFAULT_RUNTIME_SYNCHRONIZATION_DIAGNOSTICS,
+  resolveWorkerInvalidationReason,
+  type CanvasRuntimeInvalidationReasonCode,
+  type CanvasRuntimeSynchronizationDiagnostics,
+} from './runtimeSynchronization.ts'
+import {resolveFallbackSelectionIndex} from './runtimeControllerFallbackHitTest.ts'
+import {resolveRuntimeWorkerMode} from './runtimeControllerWorkerMode.ts'
+
+export type {
+  CanvasRuntimeInvalidationReasonCode,
+  CanvasRuntimeRevisions,
+  CanvasRuntimeSynchronizationDiagnostics,
+} from './runtimeSynchronization.ts'
 
 /**
  * Snapshot shape consumed by app shells.
@@ -46,6 +60,8 @@ export interface CanvasRuntimeSnapshot<TDocument extends EditorDocument> {
   collaboration: CollaborationState
   document: TDocument
   history: HistorySummary
+  // Stores split revisions and standardized invalidation reason for state synchronization diagnostics.
+  synchronization: CanvasRuntimeSynchronizationDiagnostics
   // Stores worker-reported runtime-v2 migration diagnostics for debug/event consumers.
   runtimeV2: RuntimeV2DiagnosticsMessage
   ready: boolean
@@ -65,6 +81,10 @@ export interface CanvasRuntimeControllerOptions<TDocument extends EditorDocument
   capacity: number
   createWorker: () => Worker
   document: TDocument
+  /** Stores optional crash-recovery replay payload consumed during worker startup. */
+  crashRecoveryReplay?: EditorFileHistoryRecoveryReplaySnapshot
+  /** Stores startup replay mode used while consuming crash-recovery snapshots. */
+  crashRecoveryReplayMode?: EditorFileHistoryRecoveryReplayMode
   allowFrameSelection?: boolean
   strictStrokeHitTest?: boolean
   /** Stores optional viewport min/max zoom bounds for runtime-owned zoom/fit operations. */
@@ -81,7 +101,7 @@ export interface CanvasRuntimeControllerOptions<TDocument extends EditorDocument
 export interface CanvasRuntimeController<TDocument extends EditorDocument> {
   clearHover: () => void
   destroy: () => void
-  dispatchCommand: (command: EditorRuntimeCommand) => void
+  dispatchCommand: (command: EditorRuntimeCommand, commandMeta?: RuntimeCommandEnvelopeMeta) => void
   fitViewport: () => void
   getSnapshot: () => CanvasRuntimeSnapshot<TDocument>
   panViewport: (deltaX: number, deltaY: number) => void
@@ -108,9 +128,21 @@ const DEFAULT_COLLABORATION_STATE: CollaborationState = {
 
 const DEFAULT_HISTORY_STATE: HistorySummary = {
   entries: [],
+  transactionGroups: [],
   cursor: -1,
   canUndo: false,
   canRedo: false,
+  recoveryReplay: {
+    maxEntries: 20,
+    localOnly: {
+      mode: 'local-only',
+      entries: [],
+    },
+    merged: {
+      mode: 'merged',
+      entries: [],
+    },
+  },
 }
 
 const DEFAULT_RUNTIME_V2_DIAGNOSTICS: RuntimeV2DiagnosticsMessage = {
@@ -125,7 +157,6 @@ const DEFAULT_RUNTIME_V2_DIAGNOSTICS: RuntimeV2DiagnosticsMessage = {
 }
 
 const SLOW_MESSAGE_HANDLER_MS = 16
-const HIT_TEST_TOLERANCE = 6
 
 /**
  * Development-only trace helper for following the runtime bridge without
@@ -135,10 +166,16 @@ function debugRuntime(_message: string, _details?: unknown) {
   // console.debug('CANVAS-BASE', _message, _details)
 }
 
+/**
+ * Creates one canvas runtime controller and wires worker startup lifecycle.
+ * @param options Runtime boot options including document and optional replay payload.
+ */
 export function createCanvasRuntimeController<TDocument extends EditorDocument>({
   capacity,
   createWorker,
   document,
+  crashRecoveryReplay,
+  crashRecoveryReplayMode = 'merged',
   allowFrameSelection = true,
   strictStrokeHitTest = false,
   viewportScaleRange = DEFAULT_VIEWPORT_SCALE_RANGE,
@@ -159,6 +196,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     collaboration: DEFAULT_COLLABORATION_STATE,
     document,
     history: DEFAULT_HISTORY_STATE,
+    synchronization: DEFAULT_RUNTIME_SYNCHRONIZATION_DIAGNOSTICS,
     runtimeV2: DEFAULT_RUNTIME_V2_DIAGNOSTICS,
     ready: false,
     sabSupported,
@@ -181,6 +219,33 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     listeners.forEach((listener) => listener())
   }
 
+  /**
+   * Applies one runtime synchronization diagnostics patch for split revision/invalidation updates.
+   * @param updater Diagnostics updater resolving the next synchronization payload.
+   */
+  const updateSynchronizationDiagnostics = (
+    updater: (
+      diagnostics: CanvasRuntimeSynchronizationDiagnostics,
+    ) => CanvasRuntimeSynchronizationDiagnostics,
+  ) => {
+    snapshot.synchronization = updater(snapshot.synchronization)
+  }
+
+  /**
+   * Advances synchronization diagnostics for viewport-only updates.
+   * @param reason Standardized invalidation reason code for this viewport update.
+   */
+  const markViewportInvalidation = (reason: CanvasRuntimeInvalidationReasonCode) => {
+    updateSynchronizationDiagnostics((diagnostics) => ({
+      revisions: {
+        ...diagnostics.revisions,
+        viewportRevision: diagnostics.revisions.viewportRevision + 1,
+      },
+      lastInvalidationReason: reason,
+      lastWorkerUpdateKind: diagnostics.lastWorkerUpdateKind,
+    }))
+  }
+
   // Keep first-resize auto-fit enabled until runtime has a measured viewport.
   // Cold-start zoom/pan can otherwise disable auto-fit before dimensions are
   // known, leaving the scene outside the initial visible bounds.
@@ -191,14 +256,26 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
   // Viewport updates stay local to runtime and do not round-trip through
   // the worker because they only affect presentation, not document truth.
-  const updateViewport = (updater: (viewport: CanvasViewportState) => CanvasViewportState) => {
+  /**
+   * Applies one viewport state update and emits one synchronized runtime snapshot notification.
+   * @param updater Viewport updater returning next viewport state.
+   * @param reason Standardized invalidation reason for this viewport update.
+   */
+  const updateViewport = (
+    updater: (viewport: CanvasViewportState) => CanvasViewportState,
+    reason: CanvasRuntimeInvalidationReasonCode,
+  ) => {
     snapshot.viewport = updater(snapshot.viewport)
+    markViewportInvalidation(reason)
     notify()
   }
 
   const fitViewport = () => {
     shouldAutoFitOnFirstResize = false
-    updateViewport((viewport) => fitViewportToDocument(snapshot.document, viewport, viewportScaleRange))
+    updateViewport(
+      (viewport) => fitViewportToDocument(snapshot.document, viewport, viewportScaleRange),
+      'viewport.fit',
+    )
   }
 
   const panViewport = (deltaX: number, deltaY: number) => {
@@ -208,7 +285,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       return
     }
     shouldAutoFitOnFirstResize = false
-    updateViewport((viewport) => panViewportState(viewport, deltaX, deltaY))
+    updateViewport((viewport) => panViewportState(viewport, deltaX, deltaY), 'viewport.pan')
   }
 
   const resizeViewport = (width: number, height: number) => {
@@ -233,16 +310,17 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
             resizeViewportState(viewport, width, height),
             viewportScaleRange,
           ),
+          'viewport.resize',
         )
       } else {
-        updateViewport((viewport) => resizeViewportState(viewport, width, height))
+        updateViewport((viewport) => resizeViewportState(viewport, width, height), 'viewport.resize')
       }
 
       shouldAutoFitOnFirstResize = false
       return
     }
 
-    updateViewport((viewport) => resizeViewportState(viewport, width, height))
+    updateViewport((viewport) => resizeViewportState(viewport, width, height), 'viewport.resize')
   }
 
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
@@ -252,7 +330,10 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       return
     }
     shouldAutoFitOnFirstResize = false
-    updateViewport((viewport) => zoomViewportState(viewport, nextScale, anchor, viewportScaleRange))
+    updateViewport(
+      (viewport) => zoomViewportState(viewport, nextScale, anchor, viewportScaleRange),
+      'viewport.zoom',
+    )
   }
 
   const setViewport = (viewport: CanvasViewportState) => {
@@ -269,6 +350,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       shouldAutoFitOnFirstResize = false
     }
     snapshot.viewport = viewport
+    markViewportInvalidation('viewport.set')
     notify()
   }
 
@@ -290,6 +372,15 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       isSelected: index === selectedIndex,
     }))
 
+    updateSynchronizationDiagnostics((diagnostics) => ({
+      revisions: {
+        ...diagnostics.revisions,
+        selectionRevision: diagnostics.revisions.selectionRevision + 1,
+      },
+      lastInvalidationReason: 'fallback.selection.local',
+      lastWorkerUpdateKind: diagnostics.lastWorkerUpdateKind,
+    }))
+
     notify()
   }
 
@@ -307,6 +398,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
     // The worker owns scene mutation. Runtime rebuilds a render-friendly
     // snapshot from SAB + worker metadata after every update.
+    const previousStats = snapshot.stats
     const nextStats = readSceneStats(scene)
     snapshot.history = event.data.history
     snapshot.collaboration = event.data.collaboration
@@ -322,6 +414,20 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     }
 
     snapshot.stats = nextStats
+    updateSynchronizationDiagnostics((diagnostics) => ({
+      revisions: {
+        sceneRevision: diagnostics.revisions.sceneRevision + (event.data.updateKind === 'full' ? 1 : 0),
+        selectionRevision: diagnostics.revisions.selectionRevision + (
+          previousStats.selectedIndex !== nextStats.selectedIndex ||
+          previousStats.hoveredIndex !== nextStats.hoveredIndex
+            ? 1
+            : 0
+        ),
+        viewportRevision: diagnostics.revisions.viewportRevision,
+      },
+      lastInvalidationReason: resolveWorkerInvalidationReason(event.data),
+      lastWorkerUpdateKind: event.data.updateKind,
+    }))
     debugRuntime(`worker -> ${event.data.type}`, {
       shapeCount: nextStats.shapeCount,
       historyEntries: snapshot.history.entries.length,
@@ -362,6 +468,8 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       buffer,
       capacity,
       document,
+      crashRecoveryReplay,
+      crashRecoveryReplayMode,
       interaction: {
         allowFrameSelection,
         strictStrokeHitTest,
@@ -383,7 +491,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     // scene flags for pointer hover transitions.
     clearHover: () => {},
     destroy,
-    dispatchCommand: (command) => {
+    dispatchCommand: (command, commandMeta) => {
       if (command.type === 'viewport.zoomIn') {
         zoomViewport(snapshot.viewport.scale * 1.1)
       } else if (command.type === 'viewport.zoomOut') {
@@ -393,7 +501,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
       }
 
       debugRuntime('dispatch command', command)
-      worker?.postMessage({ type: 'command', command })
+      worker?.postMessage({ type: 'command', command, commandMeta })
     },
     fitViewport,
     getSnapshot: () => snapshot,
@@ -401,7 +509,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     postPointer: (type, pointer, modifiers) => {
       if (!sabSupported) {
         if (type === 'pointerdown') {
-          const selectedIndex = hitTestSnapshot(
+          const selectedIndex = resolveFallbackSelectionIndex(
             snapshot.document,
             snapshot.shapes,
             pointer,
@@ -440,59 +548,5 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     },
     zoomViewport,
   }
-}
-
-/**
- * Resolves worker mode metadata locally so runtime diagnostics preserve mode reason.
- * @param options SharedArrayBuffer capability sampled from current runtime.
- */
-function resolveRuntimeWorkerMode(options: {hasSharedArrayBuffer: boolean}) {
-  if (options.hasSharedArrayBuffer) {
-    return {
-      mode: 'worker-shared-memory',
-      reason: 'shared-array-buffer-enabled',
-    }
-  }
-
-  return {
-    mode: 'worker-message',
-    reason: 'shared-array-buffer-unavailable',
-  }
-}
-
-function hitTestSnapshot(
-  document: EditorDocument,
-  shapes: SceneShapeSnapshot[],
-  pointer: PointerState,
-  allowFrameSelection = true,
-  strictStrokeHitTest = false,
-) {
-  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
-  for (let index = shapes.length - 1; index >= 0; index -= 1) {
-    const shape = shapes[index]
-    const source = document.shapes[index] ?? shapeById.get(shape?.id ?? '')
-    if (!shape || !source) {
-      continue
-    }
-
-    if (source.type === 'image' && source.clipPathId) {
-      continue
-    }
-    if (source.clipPathId) {
-      const clipSource = shapeById.get(source.clipPathId)
-      if (clipSource && !isPointInsideRuntimeClipShape(pointer, withResolvedPathHints(clipSource))) {
-        continue
-      }
-    }
-    if (isPointInsideRuntimeShapeHitArea(pointer, withResolvedPathHints(source), {
-      allowFrameSelection,
-      tolerance: HIT_TEST_TOLERANCE,
-      strictStrokeHitTest,
-    })) {
-      return index
-    }
-  }
-
-  return -1
 }
 

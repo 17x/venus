@@ -11,6 +11,10 @@ export function createLocalOperation(command: EditorRuntimeCommand, actorId: str
   }
 }
 
+/**
+ * Resolves collaboration payload fields from one runtime command envelope.
+ * @param command Runtime command being translated into collaboration operation payload.
+ */
 function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperation['payload'] {
   if (command.type === 'tool.select') return {tool: command.tool, toolName: command.toolName}
   if (command.type === 'shape.move') return {shapeId: command.shapeId, x: command.x, y: command.y}
@@ -42,7 +46,13 @@ function getCommandPayload(command: EditorRuntimeCommand): CollaborationOperatio
     return {shapeId: command.shapeId, patch: patchPayload}
   }
   if (command.type === 'shape.set-clip') return {shapeId: command.shapeId, clipPathId: command.clipPathId, clipRule: command.clipRule}
-  if (command.type === 'shape.reorder') return {shapeId: command.shapeId, toIndex: command.toIndex}
+  if (command.type === 'shape.reorder') {
+    return {
+      shapeId: command.shapeId,
+      toIndex: command.toIndex,
+      isolationGroupId: command.isolationGroupId,
+    }
+  }
   if (command.type === 'shape.insert') return {shape: command.shape, index: command.index}
   if (command.type === 'shape.insert.batch') return {shapes: command.shapes, index: command.index}
   if (command.type === 'shape.remove') return {shapeId: command.shapeId}

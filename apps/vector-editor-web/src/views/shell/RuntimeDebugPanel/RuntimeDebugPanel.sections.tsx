@@ -43,6 +43,50 @@ export function RuntimeV2DebugSection(props: {
       <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryChecks', 'Frame-Boundary Checks')} value={String(runtimeMigrationSnapshot.runtimeV2.frameBoundaryChecks)}/>
       <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryMismatches', 'Frame-Boundary Mismatches')} value={String(runtimeMigrationSnapshot.runtimeV2.frameBoundaryMismatches)}/>
       <DebugRow label={t('shell.variantB.debug.runtimeV2FrameBoundaryMismatchRate', 'Frame-Boundary Mismatch Rate')} value={`${runtimeV2FrameBoundaryMismatchRatePercent.toFixed(1)}%`}/>
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2GroupConsistencyValid', 'Group Quick-Check Valid')}
+        value={runtimeMigrationSnapshot.runtimeV2.groupConsistencyQuickCheck.valid ? 'yes' : 'no'}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2GroupConsistencyDiagnosticCount', 'Group Quick-Check Diagnostic Count')}
+        value={String(runtimeMigrationSnapshot.runtimeV2.groupConsistencyQuickCheck.diagnosticCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2GroupConsistencyCodes', 'Group Quick-Check Codes')}
+        value={runtimeMigrationSnapshot.runtimeV2.groupConsistencyQuickCheck.codes.length > 0
+          ? runtimeMigrationSnapshot.runtimeV2.groupConsistencyQuickCheck.codes.join(', ')
+          : 'none'}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterGovernanceAvailable', 'Adapter Snapshot Governance Available')}
+        value={runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.available ? 'yes' : 'no'}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterGovernanceConsistent', 'Adapter Snapshot Governance Consistent')}
+        value={runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.consistent ? 'yes' : 'no'}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterNormalizeElementCount', 'Adapter Normalize Element Count')}
+        value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.normalizeElementCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterFileDocumentShapeCount', 'Adapter FileDocument Shape Count')}
+        value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.fileDocumentShapeCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterSceneRootCount', 'Adapter Scene Root Count')}
+        value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.fileFormatSceneRootCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterRoundTripElementCount', 'Adapter Round-Trip Element Count')}
+        value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.roundTripElementCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterGovernanceIssues', 'Adapter Snapshot Governance Issues')}
+        value={runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.issues.length > 0
+          ? runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.issues.join(', ')
+          : 'none'}
+      />
       <div className={'flex items-center justify-between rounded bg-white px-2 py-1.5 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100'}>
         <span className={'text-slate-500 dark:text-slate-400'}>{t('shell.variantB.debug.runtimeV2AlertLevel', 'Migration Alert Level')}</span>
         <span className={`font-mono ${runtimeV2AlertClassName}`}>{runtimeV2AlertLevel}</span>
