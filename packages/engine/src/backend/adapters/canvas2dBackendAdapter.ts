@@ -1,5 +1,5 @@
-import type { EngineSurface } from "../../orchestration/api/public-types";
 import type { EngineBackend } from "../../backend/backend";
+import type { EngineBackendSurface } from "../backend-contracts";
 
 /**
  * Declares one draw hook invoked by canvas2d adapter backend on each frame.
@@ -9,6 +9,18 @@ export interface Canvas2DBackendAdapterHooks {
    * Draws one frame to the provided 2d context and returns draw count.
    */
   drawFrame?: (context: CanvasRenderingContext2D, timestampMs: number) => number;
+  /**
+   * Emits when canvas2d present path is entered for one frame.
+   */
+  onPresentAttempt?: (timestampMs: number) => void;
+  /**
+   * Emits when canvas2d present path is skipped before draw due to missing prerequisites.
+   */
+  onPresentSkipped?: (reason: "missing-context", timestampMs: number) => void;
+  /**
+   * Emits when canvas2d present path completes one frame.
+   */
+  onPresentCommitted?: (timestampMs: number) => void;
 }
 
 /**
@@ -17,7 +29,7 @@ export interface Canvas2DBackendAdapterHooks {
  * @param hooks Optional draw hooks used by compatibility adapters.
  */
 export function createCanvas2DBackendAdapter(
-  surface: EngineSurface,
+  surface: EngineBackendSurface,
   hooks?: Canvas2DBackendAdapterHooks,
 ): EngineBackend {
   let currentSurface = surface;
@@ -38,7 +50,7 @@ export function createCanvas2DBackendAdapter(
    * Resolves a 2d context from one surface payload.
    * @param nextSurface Surface payload that may carry a canvas handle.
    */
-  function resolveContext(nextSurface: EngineSurface): CanvasRenderingContext2D | null {
+  function resolveContext(nextSurface: EngineBackendSurface): CanvasRenderingContext2D | null {
     const canvas = nextSurface.canvas;
     if (!canvas) {
       return null;
@@ -53,8 +65,18 @@ export function createCanvas2DBackendAdapter(
       currentSurface = nextSurface;
       currentContext = resolveContext(nextSurface);
     },
+    /**
+     * Presents one frame on canvas2d and retries context resolution for late-bound canvas hosts.
+     */
     renderFrame(timestampMs) {
+      hooks?.onPresentAttempt?.(timestampMs);
+      // Retry context resolution per frame so hosts that attach 2d context after
+      // engine bootstrap can recover from blank-canvas without requiring resize.
       if (!currentContext) {
+        currentContext = resolveContext(currentSurface);
+      }
+      if (!currentContext) {
+        hooks?.onPresentSkipped?.("missing-context", timestampMs);
         return;
       }
 
@@ -65,6 +87,7 @@ export function createCanvas2DBackendAdapter(
       currentContext.clearRect(0, 0, currentSurface.width, currentSurface.height);
       hooks?.drawFrame?.(currentContext, timestampMs);
       currentContext.restore();
+      hooks?.onPresentCommitted?.(timestampMs);
     },
     dispose() {
       currentContext = null;

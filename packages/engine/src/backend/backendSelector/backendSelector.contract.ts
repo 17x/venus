@@ -1,7 +1,7 @@
 import type {
-  BackendSelectionResult,
-  EngineCreateOptions,
-} from "../../orchestration/api/public-types";
+  EngineBackendCreateOptions,
+  EngineBackendSelectionResult,
+} from "../backend-contracts";
 import type { EngineBackendProbe } from "../backendSelector";
 
 /**
@@ -12,9 +12,9 @@ export interface EngineBackendSelectorModule {
    * Resolves backend selection from create-engine options and optional probe override.
    */
   resolveSelection: (
-    options: EngineCreateOptions,
+    options: EngineBackendCreateOptions,
     probes?: readonly EngineBackendProbe[],
-  ) => BackendSelectionResult;
+  ) => EngineBackendSelectionResult;
   /**
    * Returns default probe registry in architecture-priority order.
    */

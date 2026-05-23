@@ -2,6 +2,8 @@ import type {
   EngineGraphNodeInput,
   EngineHandle,
   EngineInvalidateInput,
+  EngineRenderChainDiagnostics,
+  EngineRenderWarningPayload,
   EngineRuntimeBackendFallbackTraceItem,
   EnginePublicCapabilitiesOutput,
   EngineRuntimeWorldSnapshotOutput,
@@ -128,6 +130,28 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     invalidation: { transform: false, geometry: false, material: false, text: false, visibility: false, picking: false, gpuUpload: false },
   };
   let latestExecutionSnapshot: EngineExecutionSnapshot = { documentRevision: 0, worldRevision: 0, compile: latestCompileOutput, visibleCandidateIds: [], pickingHitIds: [], drawCount: 0 };
+  let latestRenderChainDiagnostics: EngineRenderChainDiagnostics = {
+    planReached: false,
+    composeReached: false,
+    submitReached: false,
+    backendPresentReached: false,
+    backendPresentCompleted: false,
+    backendPresentSkippedReason: null,
+    browserBridgeReachable: false,
+    mountConnected: false,
+    backendMode: "headless",
+    failedStage: null,
+  };
+  let latestRenderWarning: EngineRenderWarningPayload | null = null;
+  let latestBackendPresentTelemetry: {
+    attempted: boolean;
+    committed: boolean;
+    skippedReason: "missing-context" | null;
+  } = {
+    attempted: false,
+    committed: false,
+    skippedReason: null,
+  };
   let latestRuntimeWorldRevision = 0, runtimeWorldSnapshotOverride: EngineRuntimeWorldSnapshotOutput | null = null;
   let latestDirtyState = dirtyPropagationModule.createEmptyState(), lastRuntimeDirtyMarkedAt = 0;
   let lastEncodedCommandCount = 0, lastReplayEventCount = 0, lastReplayFirstCommandId: string | null = null;
@@ -157,7 +181,33 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   const { boundaryValidation, publicApiSurfaceViolations } = createEngineValidationFoundation({ productAdapterBoundaryModule, publicApiSurfaceModule }, options);
   const resolveNow = options.runtimeAdapter?.now ?? (() => performanceNow());
   const engineId = `engine-${Math.max(0, Math.floor(resolveNow()))}`;
-  const { backend, backendSelection } = resolveEngineBackend(options, backendSelectorModule);
+  const { backend, backendSelection } = resolveEngineBackend(options, backendSelectorModule, {
+    canvas2d: {
+      onPresentAttempt: () => {
+        latestBackendPresentTelemetry.attempted = true;
+      },
+      onPresentSkipped: (reason) => {
+        latestBackendPresentTelemetry.attempted = true;
+        latestBackendPresentTelemetry.committed = false;
+        latestBackendPresentTelemetry.skippedReason = reason;
+      },
+      onPresentCommitted: () => {
+        latestBackendPresentTelemetry.attempted = true;
+        latestBackendPresentTelemetry.committed = true;
+        latestBackendPresentTelemetry.skippedReason = null;
+      },
+    },
+    noop: {
+      onPresentAttempt: () => {
+        latestBackendPresentTelemetry.attempted = true;
+      },
+      onPresentCommitted: () => {
+        latestBackendPresentTelemetry.attempted = true;
+        latestBackendPresentTelemetry.committed = true;
+        latestBackendPresentTelemetry.skippedReason = null;
+      },
+    },
+  });
   const runtimeProfile = resolveCreateEngineRuntimeProfile(backendSelection);
   const profileRuntime = createEngineRuntimeFromProfile(runtimeProfile);
   const {
@@ -270,6 +320,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       };
     },
     getAvailableBackendModes: () => resolveRuntimeBackendListAvailableOutput().available,
+    getSurface: () => options.surface,
     resolveDiagnosticsSnapshot: () => ({
       pixelRatio: 1,
       outputPixelRatio: 1,
@@ -289,6 +340,8 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         count: overlayNodes.length,
       },
       invalidate: lastInvalidatePayload,
+      renderChain: latestRenderChainDiagnostics,
+      lastRenderWarning: latestRenderWarning,
       capabilities: {
         schemaVersion: ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION,
         runtime: Object.values(ENGINE_RUNTIME_CAPABILITY_MAP),
@@ -525,7 +578,39 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       emitHook, emitEvent, applyGraphSnapshot, applyGraphPatchBatch,
       getGraphRevision: () => documentSnapshot.revision, getGraphNodes: () => [...graphNodeState.values()], getGraphNodeCount: () => graphNodeState.size,
       queryGraph, pickGraph, raycastGraph, resolveFrameOrchestration, resolveNow,
-      getLastInteractionKind: () => lastInteractionKind, getLatestExecutionSnapshot: () => latestExecutionSnapshot,
+      getLastInteractionKind: () => lastInteractionKind,
+      getLatestExecutionSnapshot: () => latestExecutionSnapshot,
+      getIsMounted: () => mountTarget !== null,
+      presentBackendFrame: (timestampMs) => {
+        latestBackendPresentTelemetry = {
+          attempted: false,
+          committed: false,
+          skippedReason: null,
+        };
+        backend.renderFrame(timestampMs);
+        if (!latestBackendPresentTelemetry.attempted) {
+          latestBackendPresentTelemetry = {
+            attempted: true,
+            committed: true,
+            skippedReason: null,
+          };
+        }
+        return {
+          attempted: latestBackendPresentTelemetry.attempted,
+          completed: latestBackendPresentTelemetry.committed,
+          skippedReason: latestBackendPresentTelemetry.skippedReason,
+        };
+      },
+      getResolvedBackendMode: () => {
+        const resolved = runtimeShell.getBackendInfo().resolved;
+        return resolved === "auto" ? "canvas2d" : resolved;
+      },
+      setLatestRenderChainDiagnostics: (diagnostics) => {
+        latestRenderChainDiagnostics = diagnostics;
+      },
+      setLatestRenderWarning: (warning) => {
+        latestRenderWarning = warning;
+      },
     }),
     ...createEngineMediaOverlayFacade({
       getOverlayNodes: () => overlayNodes, setOverlayNodes: (nodes) => { overlayNodes = nodes; },

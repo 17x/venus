@@ -169,3 +169,10 @@
 2. Scene Sync 与 Render Invalidation 行为可回归
 3. 高频交互性能预算无明显回退
 4. 诊断字段满足问题首轮归因
+
+## 7. 治理执行（2026-05-23）
+
+1. 已接入 runtime governance gate：`scripts/runtime-governance-check.mjs`。
+2. gate 强制 runtime 对 `@venus/engine` 的直接导入仅允许存在于 `src/runtime/engine-bridge/`。
+3. gate 强制禁止 `_test_` 命名测试文件，避免非规范命名继续扩散。
+4. gate 已并入 `lint` 与 `m2:run-all`，作为默认门禁路径的一部分。

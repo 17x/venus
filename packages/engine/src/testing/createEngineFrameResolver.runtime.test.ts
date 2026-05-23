@@ -21,7 +21,7 @@ test("resolveCreateEngineFrame includes runtime strategy and budget decision", (
       overscanBorderPx: 96,
     },
     policy: {
-      profile: "editor",
+      profile: "interaction",
       preset: "high",
       budget: {
         drawBudgetMs: 6,

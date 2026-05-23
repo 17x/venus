@@ -306,6 +306,7 @@ export function createRuntimeGpuBackendQueryFoundation(
       requested: selected.requested,
       resolved: selected.resolved,
       reason: selected.requested === selected.resolved ? null : "manual-switch-fallback",
+      compressedTextureFallback: null,
     };
     deps.setRuntimeBackendFallbackHistory([
       ...deps.getRuntimeBackendFallbackHistory(),

@@ -175,6 +175,77 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   stopRuntimeTrace: (traceId: string) => import("./public-types").EngineRuntimeStopTraceOutput;
   getRuntimeMetricsSnapshot: () => import("./public-types").EngineRuntimeMetricsSnapshot;
 }): EngineRuntimeApi {
+  /**
+   * Clamps one numeric value into [min, max] while preserving deterministic fallback behavior.
+   * @param value Source numeric value.
+   * @param min Lower bound.
+   * @param max Upper bound.
+   */
+  function clamp(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) {
+      return min;
+    }
+    return Math.min(max, Math.max(min, value));
+  }
+
+  /**
+   * Resolves deterministic fallback budget bytes from requested quality target.
+   * @param target Requested quality target.
+   */
+  function resolveVolumeBudgetBytes(target: "interaction" | "preview" | "quality"): number {
+    if (target === "interaction") {
+      return 128 * 1024 * 1024;
+    }
+    if (target === "preview") {
+      return 256 * 1024 * 1024;
+    }
+    return 512 * 1024 * 1024;
+  }
+
+  /**
+   * Normalizes one opacity-stop array into deterministic sorted/clamped output.
+   * @param stops Caller-provided opacity stops.
+   */
+  function normalizeOpacityStops(
+    stops: readonly { position: number; opacity: number }[] | undefined,
+  ): readonly { position: number; opacity: number }[] {
+    if (!stops || stops.length === 0) {
+      return [
+        { position: 0, opacity: 0 },
+        { position: 1, opacity: 1 },
+      ];
+    }
+
+    return stops
+      .map((stop) => ({
+        position: clamp(stop.position, 0, 1),
+        opacity: clamp(stop.opacity, 0, 1),
+      }))
+      .sort((left, right) => left.position - right.position);
+  }
+
+  /**
+   * Normalizes one color-stop array into deterministic sorted/clamped output.
+   * @param stops Caller-provided color stops.
+   */
+  function normalizeColorStops(
+    stops: readonly { position: number; color: string }[] | undefined,
+  ): readonly { position: number; color: string }[] {
+    if (!stops || stops.length === 0) {
+      return [
+        { position: 0, color: "#000000" },
+        { position: 1, color: "#ffffff" },
+      ];
+    }
+
+    return stops
+      .map((stop) => ({
+        position: clamp(stop.position, 0, 1),
+        color: stop.color,
+      }))
+      .sort((left, right) => left.position - right.position);
+  }
+
   return {
     getDocumentSnapshot: () => deps.resolveRuntimeDocumentSnapshot(),
     getDocumentRevision: () => deps.resolveRuntimeDocumentRevision(),
@@ -274,6 +345,91 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       setInteractiveInterval: (intervalMs) => deps.setRuntimePlanInteractiveInterval(intervalMs),
       getSchedulerDiagnostics: () => deps.resolveRuntimePlanSchedulerDiagnostics(),
       inspect: (plan) => deps.inspectRuntimePlan(plan),
+    },
+    volume: {
+      createSlicePlan: (input) => {
+        const sliceIndex = Math.max(0, Math.floor(input.sliceIndex));
+        const slabThickness = Math.max(1, Math.floor(input.slabThicknessVoxels ?? 1));
+        const slabHalfSpan = Math.floor((slabThickness - 1) / 2);
+        const slabStartIndex = Math.max(0, sliceIndex - slabHalfSpan);
+        const slabEndIndex = sliceIndex + (slabThickness - 1 - slabHalfSpan);
+        const spacing = input.spacingMm;
+        // Prefer explicit spacing and keep deterministic mm-step fallback when spacing is absent/invalid.
+        const sampleStepMm = spacing
+          ? Math.max(0.001, Math.min(spacing.x, spacing.y, spacing.z))
+          : 1;
+
+        return {
+          planId: `volume-slice:${input.volumeResourceId}:${input.axis}:${sliceIndex}:${slabStartIndex}:${slabEndIndex}`,
+          volumeResourceId: input.volumeResourceId,
+          axis: input.axis,
+          sliceIndex,
+          slabStartIndex,
+          slabEndIndex,
+          sampleStepMm,
+        };
+      },
+      resolveTransferFunction: (input) => {
+        const safeWindowWidth = Math.max(1, Math.abs(input.windowWidth));
+        const windowMin = input.windowCenter - safeWindowWidth / 2;
+        const windowMax = input.windowCenter + safeWindowWidth / 2;
+        const opacityStops = normalizeOpacityStops(input.opacityStops);
+        const colorStops = normalizeColorStops(input.colorStops);
+
+        return {
+          transferId: `volume-transfer:${windowMin}:${windowMax}:${input.invert ? "inv" : "lin"}:${opacityStops.length}:${colorStops.length}`,
+          windowMin,
+          windowMax,
+          invert: input.invert === true,
+          opacityStops,
+          colorStops,
+        };
+      },
+      resolveResidencyBudget: (input) => {
+        const budgetBytes = Number.isFinite(input.maxBytes)
+          ? Math.max(0, Math.floor(input.maxBytes as number))
+          : resolveVolumeBudgetBytes(input.target);
+        const resourceStates: {
+          resourceId: string;
+          sizeBytes: number;
+          pinned: boolean;
+          decodeStatus:
+            | "registered"
+            | "queued"
+            | "decoding"
+            | "ready"
+            | "failed";
+        }[] = [];
+        const missingResourceIds: string[] = [];
+
+        for (const resourceId of input.volumeResourceIds) {
+          try {
+            const residency = deps.getRuntimeResourceResidency(resourceId);
+            resourceStates.push({
+              resourceId,
+              sizeBytes: residency.sizeBytes,
+              pinned: residency.pinned,
+              decodeStatus: residency.decodeStatus,
+            });
+          } catch {
+            // Missing resource ids are reported instead of throwing to keep budget checks composable.
+            missingResourceIds.push(resourceId);
+          }
+        }
+
+        const estimatedResidentBytes = resourceStates.reduce(
+          (sum, state) => sum + state.sizeBytes,
+          0,
+        );
+
+        return {
+          budgetBytes,
+          estimatedResidentBytes,
+          overBudget: estimatedResidentBytes > budgetBytes,
+          missingResourceIds,
+          resourceStates,
+        };
+      },
     },
     resource: {
       register: (descriptor) => deps.registerRuntimeResource(descriptor),

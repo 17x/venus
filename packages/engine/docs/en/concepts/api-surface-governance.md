@@ -34,6 +34,12 @@ Examples:
 - Use the same primitive contracts across different scenario compositions.
 - New APIs require contract docs and capability-map alignment.
 
+Descriptor alignment policy:
+
+- Runtime foundation descriptors and publicly observable diagnostics fields must stay aligned with capability-map and concept docs.
+- Descriptor additions are required to ship with EN/CN documentation updates in the same change slice.
+- Descriptor rename/removal changes must include migration notes or explicit compatibility rationale.
+
 ## Export Policy
 
 - Top-level barrel exports must stay within canonical layer roots.
@@ -56,3 +62,4 @@ Current explicit export exceptions:
 - Does it avoid product/business semantics?
 - Is there an existing API that should be reused instead?
 - Is capability-map and docs coverage updated?
+- If descriptor fields changed, are EN/CN descriptor docs and contract tests updated together?

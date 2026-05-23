@@ -6,6 +6,7 @@ import { ENGINE_RUNTIME_BACKEND_FOUNDATION_API } from "../orchestration/runtime/
 import { ENGINE_RUNTIME_PLAN_FOUNDATION_API } from "../orchestration/runtime/plan/runtime-plan.foundation.contract";
 import { ENGINE_RUNTIME_RESOURCE_FOUNDATION_API } from "../orchestration/runtime/resource/runtime-resource.foundation.contract";
 import { ENGINE_RUNTIME_OBSERVABILITY_FOUNDATION_API } from "../orchestration/runtime/observability/runtime-observability.foundation.contract";
+import { ENGINE_RUNTIME_VOLUME_FOUNDATION_API } from "../orchestration/runtime/volume/runtime-volume.foundation.contract";
 
 /**
  * Capability entries that are intentionally outside current foundation descriptor families.
@@ -36,6 +37,7 @@ export function resolveRuntimeFoundationDescriptorNames(): readonly string[] {
     ...Object.values(ENGINE_RUNTIME_COMMAND_FOUNDATION_API),
     ...Object.values(ENGINE_RUNTIME_BACKEND_FOUNDATION_API),
     ...Object.values(ENGINE_RUNTIME_PLAN_FOUNDATION_API),
+    ...Object.values(ENGINE_RUNTIME_VOLUME_FOUNDATION_API),
     ...Object.values(ENGINE_RUNTIME_RESOURCE_FOUNDATION_API),
     ...Object.values(ENGINE_RUNTIME_OBSERVABILITY_FOUNDATION_API),
   ].map((descriptor) => descriptor.name);

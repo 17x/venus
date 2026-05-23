@@ -161,6 +161,15 @@ test("createEngine runtime foundation namespaces are callable", () => {
     true,
   );
   assert.equal(typeof backendCapabilities.textureTranscodeRequired, "boolean");
+  assert.equal(
+    ["direct", "transcode", "uncompressed"].includes(backendCapabilities.compressedTextureUploadPath),
+    true,
+  );
+  assert.equal(
+    backendCapabilities.compressedTextureFallbackReason === null
+      || typeof backendCapabilities.compressedTextureFallbackReason === "string",
+    true,
+  );
   assert.equal(backendLimits.maxTextureSize > 0, true);
   assert.equal(Array.isArray(fallbackTrace.fallbackTrace), true);
   assert.equal(
@@ -201,6 +210,49 @@ test("createEngine runtime foundation namespaces are callable", () => {
     sizeBytes: 256,
   });
   assert.equal(resource.id, "resource-1");
+  assert.equal(resource.compression, null);
+  assert.equal(resource.decodeStatus, "ready");
+  assert.equal(resource.decodePrecisionPolicy, "full");
+  assert.equal(resource.decodeCheckpointMode, "none");
+
+  const compressedResource = engine.runtime.resource.register({
+    id: "resource-2",
+    kind: "texture",
+    sizeBytes: 512,
+    compression: {
+      codec: "ktx2",
+      payloadBytes: 128,
+      decodedBytesEstimate: 768,
+      transcodeTarget: "bc7",
+      policy: {
+        payloadKind: "geometry",
+        quantizationBits: 12,
+        deltaPolicy: "keyframe",
+        chunkPolicy: "streaming",
+        checkpointMode: "revision",
+        decodeContext: {
+          interactionActive: true,
+          zoomBucket: "far",
+          lodTier: "low",
+        },
+      },
+    },
+  });
+  assert.equal(compressedResource.id, "resource-2");
+  assert.equal(compressedResource.compression?.codec, "ktx2");
+  assert.equal(compressedResource.compression?.policy?.payloadKind, "geometry");
+  assert.equal(compressedResource.decodeStatus, "queued");
+  assert.equal(compressedResource.decodePrecisionPolicy, "interaction");
+  assert.equal(compressedResource.decodeCheckpointMode, "revision");
+
+  const decompressedResource = engine.runtime.resource.update("resource-2", {
+    compression: null,
+  });
+  assert.equal(decompressedResource.compression, null);
+  assert.equal(decompressedResource.decodeStatus, "ready");
+  assert.equal(decompressedResource.decodePrecisionPolicy, "full");
+  assert.equal(decompressedResource.decodeCheckpointMode, "none");
+
   const pinnedResource = engine.runtime.resource.pin("resource-1");
   assert.equal(pinnedResource.pinned, true);
   const unpinnedResource = engine.runtime.resource.unpin("resource-1");

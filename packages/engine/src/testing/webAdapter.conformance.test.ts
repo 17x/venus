@@ -83,3 +83,55 @@ test("webgpu and webgl adapter stubs expose deterministic backend behavior", () 
     webglBackend.dispose();
   });
 });
+
+/**
+ * Verifies WebGPU/WebGL adapters execute Canvas2D compatibility draw path when 2d context is available.
+ */
+test("webgpu and webgl adapters use canvas2d compatibility present path on 2d-capable surfaces", () => {
+  let drawCount = 0;
+  const surface = {
+    width: 200,
+    height: 100,
+    canvas: {
+      width: 200,
+      height: 100,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId === "2d") {
+          return {
+            save() {},
+            restore() {},
+            setTransform() {},
+            clearRect() {},
+          } as CanvasRenderingContext2D;
+        }
+        if (contextId === "webgl2") {
+          return {} as WebGL2RenderingContext;
+        }
+        if (contextId === "webgl") {
+          return {} as WebGLRenderingContext;
+        }
+        return null;
+      },
+    },
+  };
+
+  const webgpuBackend = createWebGPUBackendAdapter(surface, undefined, {
+    drawFrame: () => {
+      drawCount += 1;
+      return 1;
+    },
+  });
+  const webglBackend = createWebGLBackendAdapter(surface, undefined, {
+    drawFrame: () => {
+      drawCount += 1;
+      return 1;
+    },
+  });
+
+  webgpuBackend.resize(surface);
+  webglBackend.resize(surface);
+  webgpuBackend.renderFrame(1);
+  webglBackend.renderFrame(2);
+
+  assert.equal(drawCount >= 2, true);
+});

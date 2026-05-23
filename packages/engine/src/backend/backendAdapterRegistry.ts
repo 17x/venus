@@ -1,9 +1,15 @@
-import type { EngineSurface, EngineBackendMode } from "../orchestration/api/public-types";
+import type {
+  EngineBackendSurface,
+  EngineResolvedBackendMode,
+} from "./backend-contracts";
 import {
   createCanvas2DBackendAdapter,
   type Canvas2DBackendAdapterHooks,
 } from "../backend/adapters/canvas2dBackendAdapter";
-import { createNoopBackendAdapter } from "../backend/adapters/noopBackendAdapter";
+import {
+  createNoopBackendAdapter,
+  type NoopBackendAdapterHooks,
+} from "../backend/adapters/noopBackendAdapter";
 import { createWebGLBackendAdapter } from "../backend/adapters/webglBackendAdapter";
 import { createWebGPUBackendAdapter } from "../backend/adapters/webgpuBackendAdapter";
 import type { EngineBackend } from "./backend";
@@ -13,9 +19,11 @@ import type { EngineBackend } from "./backend";
  */
 export interface EngineBackendAdapterContext {
   /** Render surface snapshot used by backend construction. */
-  surface: EngineSurface;
+  surface: EngineBackendSurface;
   /** Optional Canvas2D draw hook contract used by canvas adapters. */
   canvas2d?: Canvas2DBackendAdapterHooks;
+  /** Optional no-op present hook contract used by webgl/webgpu/headless stubs. */
+  noop?: NoopBackendAdapterHooks;
 }
 
 /**
@@ -23,7 +31,7 @@ export interface EngineBackendAdapterContext {
  */
 export interface EngineBackendAdapter {
   /** Backend mode this adapter can construct. */
-  mode: Exclude<EngineBackendMode, "auto">;
+  mode: EngineResolvedBackendMode;
   /** Creates one backend instance for the provided runtime context. */
   create: (context: EngineBackendAdapterContext) => EngineBackend;
 }
@@ -39,15 +47,17 @@ export function createDefaultEngineBackendAdapters(): readonly EngineBackendAdap
     },
     {
       mode: "webgpu",
-      create: () => createWebGPUBackendAdapter(),
+      create: (context) =>
+        createWebGPUBackendAdapter(context.surface, context.noop, context.canvas2d),
     },
     {
       mode: "webgl",
-      create: () => createWebGLBackendAdapter(),
+      create: (context) =>
+        createWebGLBackendAdapter(context.surface, context.noop, context.canvas2d),
     },
     {
       mode: "headless",
-      create: () => createNoopBackendAdapter("headless"),
+      create: (context) => createNoopBackendAdapter("headless", context.noop),
     },
   ];
 }
@@ -59,7 +69,7 @@ export function createDefaultEngineBackendAdapters(): readonly EngineBackendAdap
  * @param adapters Ordered backend adapter registry.
  */
 export function resolveEngineBackendFromAdapters(
-  mode: Exclude<EngineBackendMode, "auto">,
+  mode: EngineResolvedBackendMode,
   context: EngineBackendAdapterContext,
   adapters: readonly EngineBackendAdapter[] = createDefaultEngineBackendAdapters(),
 ): EngineBackend {
@@ -72,5 +82,5 @@ export function resolveEngineBackendFromAdapters(
 
   // Keep runtime deterministic even when adapter registry drifts by falling back
   // to no-op backend for the requested resolved mode.
-  return createNoopBackendAdapter(mode);
+  return createNoopBackendAdapter(mode, context.noop);
 }

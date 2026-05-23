@@ -436,6 +436,10 @@ export interface EngineRuntimeBackendCapabilitiesOutput {
   compressedTextureFormats: readonly string[];
   /** Whether active backend requires texture transcode before upload. */
   textureTranscodeRequired: boolean;
+  /** Resolved compressed-texture upload path for active backend. */
+  compressedTextureUploadPath: "direct" | "transcode" | "uncompressed";
+  /** Optional reason explaining compressed-texture fallback decision. */
+  compressedTextureFallbackReason: string | null;
 }
 
 /**

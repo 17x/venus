@@ -11,6 +11,7 @@ import {
   resolveEngineModuleRegistry,
   validateEngineRuntimeProfile,
 } from "../index";
+import { resolveCreateEngineRuntimeProfile } from "../orchestration/api/createEngine.foundation";
 import type {
   EngineCoreModule,
   EngineRuntimeProfile,
@@ -159,6 +160,73 @@ test("browser and vector profiles preserve backend architecture priority", () =>
 
   assert.deepEqual(browserPlatformRuntimeProfile.backendPriority, expectedPriority);
   assert.deepEqual(vectorEditorRuntimeProfile.backendPriority, expectedPriority);
+});
+
+/**
+ * Verifies base and headless profiles keep strict non-2D backend baseline by default.
+ */
+test("base and headless profiles keep non-2d backend baseline", () => {
+  assert.deepEqual(baseRuntimeProfile.backendPriority, ["headless"]);
+  assert.deepEqual(headlessRuntimeProfile.backendPriority, ["headless"]);
+  assert.equal(
+    (baseRuntimeProfile.optionalCapabilities ?? []).includes("backend.canvas2d"),
+    false,
+  );
+  assert.equal(
+    (headlessRuntimeProfile.optionalCapabilities ?? []).includes("backend.canvas2d"),
+    false,
+  );
+});
+
+/**
+ * Verifies browser profile keeps canvas2d as fallback and does not require 2D capability.
+ */
+test("browser profile keeps canvas2d fallback as non-required capability", () => {
+  const canvas2dIndex = browserPlatformRuntimeProfile.backendPriority.indexOf("canvas2d");
+  const webglIndex = browserPlatformRuntimeProfile.backendPriority.indexOf("webgl");
+
+  assert.equal(canvas2dIndex > webglIndex, true);
+  assert.equal(
+    browserPlatformRuntimeProfile.requiredCapabilities.includes("backend.canvas2d"),
+    false,
+  );
+});
+
+/**
+ * Verifies vector profile exposes canvas2d only as scenario-scoped optional capability.
+ */
+test("vector profile keeps canvas2d as explicit scenario optional", () => {
+  assert.equal(vectorEditorRuntimeProfile.scenario, "vector-editor");
+  assert.equal(
+    (vectorEditorRuntimeProfile.optionalCapabilities ?? []).includes("backend.canvas2d"),
+    true,
+  );
+  assert.equal(
+    vectorEditorRuntimeProfile.requiredCapabilities.includes("backend.canvas2d"),
+    false,
+  );
+});
+
+/**
+ * Verifies runtime profile selection stays backend-driven and never creates implicit 2D-only profile path.
+ */
+test("createEngine runtime profile selection keeps 2d fallback inside browser profile", () => {
+  assert.equal(
+    resolveCreateEngineRuntimeProfile({ resolved: "headless" }).id,
+    headlessRuntimeProfile.id,
+  );
+  assert.equal(
+    resolveCreateEngineRuntimeProfile({ resolved: "webgpu" }).id,
+    browserPlatformRuntimeProfile.id,
+  );
+  assert.equal(
+    resolveCreateEngineRuntimeProfile({ resolved: "webgl" }).id,
+    browserPlatformRuntimeProfile.id,
+  );
+  assert.equal(
+    resolveCreateEngineRuntimeProfile({ resolved: "canvas2d" }).id,
+    browserPlatformRuntimeProfile.id,
+  );
 });
 
 /**

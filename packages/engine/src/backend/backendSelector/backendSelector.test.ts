@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { EngineCreateOptions } from "../../orchestration/api/public-types";
+import type { EngineBackendCreateOptions } from "../backend-contracts";
 import { createEngineBackendSelectorModule } from "./backendSelector";
 
 /**
@@ -9,7 +9,7 @@ import { createEngineBackendSelectorModule } from "./backendSelector";
  */
 test("backendSelector module resolves first eligible probe", () => {
   const module = createEngineBackendSelectorModule();
-  const options: EngineCreateOptions = {
+  const options: EngineBackendCreateOptions = {
     backend: "auto",
     surface: {
       width: 1024,
@@ -32,7 +32,7 @@ test("backendSelector module resolves first eligible probe", () => {
  */
 test("backendSelector module preserves explicit backend request", () => {
   const module = createEngineBackendSelectorModule();
-  const options: EngineCreateOptions = {
+  const options: EngineBackendCreateOptions = {
     backend: "headless",
     surface: {
       width: 1920,

@@ -39,3 +39,16 @@ Define a scenario-neutral, API-first compression baseline for engine runtime evo
 - backend format probe and fallback trace
 - frame-budget aware decode scheduling
 - node/headless deterministic decode checkpoints
+
+## Current Contract Alignment (DEX-034/035/036)
+
+- Resource descriptor contracts expose compression policy payloads for geometry/animation quantization, delta mode, chunk sizing, and checkpoint strategy.
+- Runtime residency outputs expose deterministic decode precision and checkpoint mode fields.
+- Backend diagnostics expose compressed-texture support, upload-path decisions (`direct|transcode|uncompressed`), and fallback reasons.
+- WebGPU compressed-format negotiation is supported through adapter-provided probe payloads, with deterministic uncompressed fallback when probe data is absent.
+
+## Descriptor Governance Checklist
+
+- Every new compression descriptor field must be reflected in both EN/CN docs in the same slice.
+- Runtime hard-cut contract tests must cover compressed registration, update transitions, and decompression reset behavior.
+- Capability-map and API-governance docs must be updated when descriptor semantics become externally observable.

@@ -1,6 +1,9 @@
 import type {
+  EngineRenderChainDiagnostics,
+  EngineRenderWarningPayload,
   EngineDiagnosticsRuntimeCapability,
   EngineInvalidateInput,
+  EngineSurface,
   EngineRuntimeBackendCapabilitiesOutput,
   EngineRuntimeBackendFallbackTraceItem,
   EngineRuntimeBackendGetActiveOutput,
@@ -26,7 +29,11 @@ import {
   type BoxTransformSource,
   type ResolvedNodeTransform,
 } from "../../kernel/interaction/shapeTransform";
-import { resolveEngineTextureCompressionSupport } from "../../platform/protocol/backend/texture-compression";
+import {
+  resolveEngineTextureCompressionSupport,
+  resolveEngineTextureCompressionSupportFromSurface,
+  resolveEngineTextureCompressionUploadDecision,
+} from "../../platform/protocol/backend/texture-compression";
 
 /**
  * Defines dependencies required by runtime backend/diagnostics helper assembly.
@@ -40,6 +47,8 @@ type RuntimeBackendDiagnosticsFoundationDependencies = {
   };
   /** Resolves available backend modes. */
   getAvailableBackendModes: () => readonly ("auto" | "webgpu" | "webgl" | "canvas2d" | "headless")[];
+  /** Resolves current engine surface used for backend capability probing. */
+  getSurface: () => EngineSurface;
   /** Resolves diagnostics snapshot consumed by public APIs. */
   resolveDiagnosticsSnapshot: () => {
     pixelRatio: number;
@@ -58,6 +67,8 @@ type RuntimeBackendDiagnosticsFoundationDependencies = {
     };
     overlays: { count: number };
     invalidate: EngineInvalidateInput | null | undefined;
+    renderChain?: EngineRenderChainDiagnostics;
+    lastRenderWarning?: EngineRenderWarningPayload | null;
     capabilities: { schemaVersion: number; runtime: readonly EngineDiagnosticsRuntimeCapability[] };
   };
 };
@@ -85,7 +96,11 @@ export function createRuntimeBackendDiagnosticsFoundation(
    * Resolves active backend texture-compression support snapshot.
    */
   function resolveRuntimeTextureCompressionSupport() {
-    return resolveEngineTextureCompressionSupport(resolveRuntimeBackendGetActiveOutput().active);
+    const activeBackend = resolveRuntimeBackendGetActiveOutput().active;
+    if (activeBackend !== "webgl" && activeBackend !== "webgpu") {
+      return resolveEngineTextureCompressionSupport(activeBackend);
+    }
+    return resolveEngineTextureCompressionSupportFromSurface(activeBackend, deps.getSurface());
   }
 
   /**
@@ -110,12 +125,12 @@ export function createRuntimeBackendDiagnosticsFoundation(
   function resolveRuntimeBackendGetFallbackTraceOutput(): EngineRuntimeBackendGetFallbackTraceOutput {
     const backendInfo = deps.getBackendInfo();
     const compressionSupport = resolveRuntimeTextureCompressionSupport();
+    const uploadDecision = resolveEngineTextureCompressionUploadDecision(compressionSupport);
     const traceItem: EngineRuntimeBackendFallbackTraceItem = {
       requested: backendInfo.requested,
       resolved: backendInfo.resolved,
       reason: backendInfo.fallbackReason,
-      compressedTextureFallback:
-        compressionSupport.formats.length === 0 ? "NO_COMPRESSED_TEXTURE_PATH" : null,
+      compressedTextureFallback: uploadDecision.fallbackReason,
     };
     return {
       fallbackTrace: [traceItem],
@@ -143,12 +158,15 @@ export function createRuntimeBackendDiagnosticsFoundation(
    */
   function resolveRuntimeBackendCapabilities(): EngineRuntimeBackendCapabilitiesOutput {
     const active = resolveRuntimeBackendGetActiveOutput().active;
-    const compressionSupport = resolveEngineTextureCompressionSupport(active);
+    const compressionSupport = resolveRuntimeTextureCompressionSupport();
+    const uploadDecision = resolveEngineTextureCompressionUploadDecision(compressionSupport);
     return {
       compute: active !== "canvas2d",
       readback: true,
       compressedTextureFormats: compressionSupport.formats,
       textureTranscodeRequired: compressionSupport.transcodeRequired,
+      compressedTextureUploadPath: uploadDecision.path,
+      compressedTextureFallbackReason: uploadDecision.fallbackReason,
     };
   }
 

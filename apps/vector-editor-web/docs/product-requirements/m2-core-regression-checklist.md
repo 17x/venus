@@ -35,11 +35,11 @@ pnpm m2:run-all
 10. R10 Snapping policy regression（M2-05）
     - `src/product/runtime/__tests__/runtimeSnappingPolicyBehavior.test.ts`
 11. R11 Normalized document runtime regression（M2-06）
-    - `src/runtime/model/document-runtime/__tests__/normalizedDocumentRuntime.test.ts`
+    - `src/runtime/model/document-runtime/tests/normalizedDocumentRuntime.test.ts`
 12. R12 Normalized history patches regression（M2-07）
-    - `src/runtime/model/document-runtime/__tests__/normalizedHistoryPatches.test.ts`
+    - `src/runtime/model/document-runtime/tests/normalizedHistoryPatches.test.ts`
 13. R13 Worker scope binding regression（M2-08）
-    - `src/runtime/worker/scope/__tests__/bindEditorWorkerScope.test.ts`
+    - `src/runtime/worker/scope/tests/bindEditorWorkerScope.test.ts`
 14. R14 Remote normalized apply regression（M2-09）
     - `src/runtime/worker/scope/operations/operations.remoteNormalizedApply.test.ts`
 15. R15 Remote patches normalized order regression（M2-10）

@@ -145,6 +145,9 @@ export function useEditorRuntimeUiStateAndSync(input: {
         fileFormatSceneRootCount: 0,
         roundTripElementCount: 0,
         consistent: true,
+        mismatchCount: 0,
+        riskLevel: 'low' as const,
+        fieldDiffs: [],
         issues: [] as string[],
       }
     }
@@ -156,24 +159,66 @@ export function useEditorRuntimeUiStateAndSync(input: {
       const runtimeScene = createRuntimeSceneFromVisionFile(normalizedFile)
       const roundTripElements = createFileElementsFromDocument(runtimeDocument)
 
+      const normalizeElementCount = normalizedFile.elements.length
+      const fileDocumentShapeCount = runtimeDocument.shapes.length
+      const fileFormatSceneRootCount = runtimeScene.nodes.length
+      const roundTripElementCount = roundTripElements.length
+      const expectedSceneRootBaseline = fileDocumentShapeCount > 0 ? 1 : 0
+
+      // Keep diff rows stable and deterministic so runtime debug panel triage and contract tests share one source of truth.
+      const fieldDiffs = [
+        {
+          field: 'normalize:fileDocument' as const,
+          baseline: normalizeElementCount,
+          observed: fileDocumentShapeCount,
+          delta: fileDocumentShapeCount - normalizeElementCount,
+          matches: fileDocumentShapeCount === normalizeElementCount,
+        },
+        {
+          field: 'fileDocument:roundTrip' as const,
+          baseline: fileDocumentShapeCount,
+          observed: roundTripElementCount,
+          delta: roundTripElementCount - fileDocumentShapeCount,
+          matches: roundTripElementCount === fileDocumentShapeCount,
+        },
+        {
+          field: 'fileDocument:sceneRoot' as const,
+          baseline: expectedSceneRootBaseline,
+          observed: fileFormatSceneRootCount,
+          delta: fileFormatSceneRootCount - expectedSceneRootBaseline,
+          matches: fileFormatSceneRootCount >= expectedSceneRootBaseline,
+        },
+      ]
+
       const issues: string[] = []
-      if (runtimeDocument.shapes.length !== normalizedFile.elements.length) {
+      if (!fieldDiffs[0].matches) {
         issues.push('adapter:fileDocument-shape-count-mismatch')
       }
-      if (roundTripElements.length !== runtimeDocument.shapes.length) {
+      if (!fieldDiffs[1].matches) {
         issues.push('adapter:roundtrip-element-count-mismatch')
       }
-      if (runtimeScene.nodes.length === 0 && runtimeDocument.shapes.length > 0) {
+      if (!fieldDiffs[2].matches) {
         issues.push('adapter:fileFormatScene-root-nodes-empty')
       }
 
+      const mismatchCount = fieldDiffs.reduce((count, diffRow) => count + (diffRow.matches ? 0 : 1), 0)
+      // Escalate risk levels by mismatch count so debug consumers can prioritize triage without parsing raw issue strings.
+      const riskLevel: 'low' | 'medium' | 'high' = mismatchCount === 0
+        ? 'low'
+        : mismatchCount === 1
+          ? 'medium'
+          : 'high'
+
       return {
         available: true,
-        normalizeElementCount: normalizedFile.elements.length,
-        fileDocumentShapeCount: runtimeDocument.shapes.length,
-        fileFormatSceneRootCount: runtimeScene.nodes.length,
-        roundTripElementCount: roundTripElements.length,
-        consistent: issues.length === 0,
+        normalizeElementCount,
+        fileDocumentShapeCount,
+        fileFormatSceneRootCount,
+        roundTripElementCount,
+        consistent: mismatchCount === 0,
+        mismatchCount,
+        riskLevel,
+        fieldDiffs,
         issues,
       }
     } catch {
@@ -184,6 +229,9 @@ export function useEditorRuntimeUiStateAndSync(input: {
         fileFormatSceneRootCount: 0,
         roundTripElementCount: 0,
         consistent: false,
+        mismatchCount: 1,
+        riskLevel: 'high' as const,
+        fieldDiffs: [],
         issues: ['adapter:governance-evaluation-failed'],
       }
     }

@@ -1,9 +1,15 @@
-import type { CreateEngineOptions } from "../orchestration/api/createEngineContracts";
+/**
+ * Input contract used by optimization policy bootstrap resolution.
+ */
+export interface EnginePolicyBootstrapOptions {
+  /** Enables debug-oriented baseline policy tuning. */
+  debug?: boolean;
+}
 
 /**
  * Supported policy profiles for canonical runtime bootstrap.
  */
-export type EnginePolicyProfile = "editor" | "game" | "animation" | "hybrid";
+export type EnginePolicyProfile = "interaction" | "throughput" | "latency" | "balanced";
 
 /**
  * Supported quality preset identifiers for canonical runtime bootstrap.
@@ -39,9 +45,9 @@ export interface CreateEnginePolicyBootstrap {
  * @param options Engine creation options used for profile and budget normalization.
  */
 export function resolveCreateEnginePolicyBootstrap(
-  options: Pick<CreateEngineOptions, "debug">,
+  options: EnginePolicyBootstrapOptions,
 ): CreateEnginePolicyBootstrap {
-  const profile: EnginePolicyProfile = "editor";
+  const profile: EnginePolicyProfile = "interaction";
   const preset: EngineQualityPreset = options.debug ? "balanced" : "high";
 
   const budget: EngineRuntimeBudgetSettings = {

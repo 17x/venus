@@ -3,6 +3,10 @@ import test from "node:test";
 
 import { ENGINE_RUNTIME_CAPABILITY_REGISTRY } from "../orchestration/api/runtimeCapabilityMap";
 import { ENGINE_RUNTIME_BACKEND_FOUNDATION_API } from "../orchestration/runtime/backend/backend.foundation.contract";
+import {
+  resolveCreateEnginePolicyBootstrap,
+  type EnginePolicyProfile,
+} from "../optimization/createEnginePolicyBootstrap";
 
 /**
  * Resolves lowercase tokens from one identifier value.
@@ -39,6 +43,8 @@ test("runtime capability descriptors remain semantic-neutral", () => {
     "gis",
     "commerce",
     "molecular",
+    "game",
+    "editor",
     "video",
     "business",
     "workflow",
@@ -69,6 +75,8 @@ test("runtime backend foundation descriptors remain semantic-neutral", () => {
     "gis",
     "commerce",
     "molecular",
+    "game",
+    "editor",
     "video",
     "business",
     "workflow",
@@ -87,4 +95,31 @@ test("runtime backend foundation descriptors remain semantic-neutral", () => {
       );
     }
   }
+});
+
+/**
+ * Verifies optimization policy bootstrap profiles stay capability-oriented and avoid product semantics.
+ */
+test("optimization policy bootstrap profiles remain semantic-neutral", () => {
+  const forbiddenTokens = ["game", "editor", "video", "commerce", "medical", "bim", "cad", "gis"];
+  const profileCandidates: readonly EnginePolicyProfile[] = [
+    "interaction",
+    "throughput",
+    "latency",
+    "balanced",
+  ];
+  const defaultProfile = resolveCreateEnginePolicyBootstrap({ debug: false }).profile;
+
+  for (const profile of profileCandidates) {
+    const tokens = new Set(resolveIdentifierTokens(profile));
+    for (const forbiddenToken of forbiddenTokens) {
+      assert.equal(
+        tokens.has(forbiddenToken),
+        false,
+        `Optimization profile token must stay capability-neutral and avoid '${forbiddenToken}': ${profile}`,
+      );
+    }
+  }
+
+  assert.equal(defaultProfile, "interaction");
 });

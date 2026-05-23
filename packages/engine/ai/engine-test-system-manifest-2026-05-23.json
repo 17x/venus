@@ -1,0 +1,103 @@
+{
+  "version": "2026-05-23",
+  "externalEnvironmentGuards": false,
+  "baselineConfig": "ai/engine-test-baselines-2026-05-23.json",
+  "testTypes": [
+    {
+      "id": "unit",
+      "name": "Unit Test",
+      "files": [
+        "src/testing/compilerModule.contract.test.ts",
+        "src/testing/viewportModule.contract.test.ts",
+        "src/testing/documentStoreModule.contract.test.ts"
+      ]
+    },
+    {
+      "id": "regression",
+      "name": "Regression Test",
+      "files": [
+        "src/testing/parity/canonicalVnext.parity-smoke.test.mjs",
+        "src/testing/createEngine.lifecycle-parity.test.ts",
+        "src/testing/createEngineBatchD.parity.test.ts"
+      ]
+    },
+    {
+      "id": "rendering_snapshot",
+      "name": "Rendering Snapshot Test",
+      "files": [
+        "src/testing/visual/renderingSnapshot.proxy.test.ts",
+        "src/testing/replay/scenarioProfiles.replay.test.ts"
+      ]
+    },
+    {
+      "id": "performance_benchmark",
+      "name": "Performance Benchmark",
+      "files": [
+        "src/testing/performance/performanceBenchmark.smoke.test.ts",
+        "src/testing/performance/frameBudgetBroker.diagnostics.test.ts"
+      ]
+    },
+    {
+      "id": "interaction",
+      "name": "Interaction Test",
+      "files": [
+        "src/testing/createEngine.event-gating.test.ts",
+        "src/testing/createEngine.hard-cut.test.ts"
+      ]
+    },
+    {
+      "id": "stress",
+      "name": "Stress Test",
+      "files": [
+        "src/testing/stress/stressRuntime.contract.test.ts"
+      ]
+    },
+    {
+      "id": "visual_regression",
+      "name": "Visual Regression Test",
+      "files": [
+        "src/testing/visual/visualRegression.proxy.test.ts",
+        "src/testing/replay/scenarioProfiles.replay.test.ts"
+      ]
+    },
+    {
+      "id": "e2e",
+      "name": "E2E Test",
+      "files": [
+        "src/testing/createEngine.hard-cut.test.ts",
+        "src/testing/stagedExecutionChain.integration.test.ts"
+      ]
+    },
+    {
+      "id": "fuzz",
+      "name": "Fuzz Test",
+      "files": [
+        "src/testing/fuzz/fuzzRuntime.contract.test.ts"
+      ]
+    },
+    {
+      "id": "deterministic",
+      "name": "Deterministic Test",
+      "files": [
+        "src/testing/replay/scenarioProfiles.replay.test.ts",
+        "src/testing/stagedExecutionChain.integration.test.ts",
+        "src/testing/runtimeCapabilityMap.contract.test.ts"
+      ]
+    }
+  ],
+  "scenarioCoverage": {
+    "S1": ["unit", "rendering_snapshot", "performance_benchmark", "deterministic"],
+    "S2": ["unit", "interaction", "stress", "fuzz", "deterministic"],
+    "S3": ["unit", "regression", "rendering_snapshot", "stress", "visual_regression"],
+    "S4": ["unit", "regression", "performance_benchmark", "stress", "deterministic"],
+    "S5": ["unit", "rendering_snapshot", "interaction", "visual_regression", "deterministic"],
+    "S6": ["regression", "performance_benchmark", "stress", "fuzz", "deterministic"],
+    "S7": ["regression", "rendering_snapshot", "performance_benchmark", "stress", "visual_regression"],
+    "S8": ["unit", "regression", "interaction", "visual_regression", "e2e"],
+    "S9": ["unit", "rendering_snapshot", "stress", "fuzz", "deterministic"],
+    "S10": ["regression", "interaction", "e2e", "stress", "deterministic"],
+    "S11": ["unit", "regression", "performance_benchmark", "stress", "deterministic"],
+    "S12": ["unit", "interaction", "visual_regression", "e2e", "deterministic"],
+    "S13": ["unit", "regression", "rendering_snapshot", "performance_benchmark", "e2e"]
+  }
+}

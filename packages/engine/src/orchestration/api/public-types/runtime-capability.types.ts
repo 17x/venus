@@ -46,6 +46,7 @@ import type {
   EngineRuntimeReplayOutput,
   EngineRuntimeReplayTokenOutput,
   EngineRuntimeResourceApi,
+  EngineRuntimeVolumeApi,
   EngineRuntimeSpatialQueryOutput,
   EngineRuntimeSubmitOutput,
   EngineRuntimeUploadBatchOutput,
@@ -148,6 +149,8 @@ export interface EngineRuntimeApi {
   backend: EngineRuntimeBackendApi;
   /** Render-planning foundation API namespace. */
   plan: EngineRuntimePlanApi;
+  /** Volume foundation API namespace. */
+  volume: EngineRuntimeVolumeApi;
   /** Runtime resource foundation API namespace. */
   resource: EngineRuntimeResourceApi;
   /** Runtime observability foundation API namespace. */

@@ -103,7 +103,7 @@ const M2_STEPS = [
     command: "node",
     args: [
       "--test",
-      "src/runtime/model/document-runtime/__tests__/normalizedDocumentRuntime.test.ts",
+      "src/runtime/model/document-runtime/tests/normalizedDocumentRuntime.test.ts",
     ],
   },
   {
@@ -112,7 +112,7 @@ const M2_STEPS = [
     command: "node",
     args: [
       "--test",
-      "src/runtime/model/document-runtime/__tests__/normalizedHistoryPatches.test.ts",
+      "src/runtime/model/document-runtime/tests/normalizedHistoryPatches.test.ts",
     ],
   },
   {
@@ -132,7 +132,7 @@ const M2_STEPS = [
       "dlx",
       "tsx",
       "--test",
-      "src/runtime/worker/scope/__tests__/bindEditorWorkerScope.test.ts",
+      "src/runtime/worker/scope/tests/bindEditorWorkerScope.test.ts",
     ],
   },
   {
@@ -178,6 +178,12 @@ const M2_STEPS = [
       "--test",
       "src/runtime/worker/scope/shapeCommandHelpers/shapeCommandHelpers.booleanPathEdit.test.ts",
     ],
+  },
+  {
+    id: "M2-11C",
+    title: "Runtime governance gate",
+    command: "node",
+    args: ["./scripts/runtime-governance-check.mjs"],
   },
   {
     id: "M2-12",

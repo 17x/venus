@@ -1,4 +1,10 @@
-import type { EngineGraphInput, EngineHandle, EngineRenderResult } from "./public-types";
+import type {
+  EngineGraphInput,
+  EngineHandle,
+  EngineRenderChainDiagnostics,
+  EngineRenderWarningPayload,
+  EngineRenderResult,
+} from "./public-types";
 
 type EngineGraphRenderFacadeDependencies = {
   emitHook: (stage: "beforeCompile" | "afterCompile" | "beforeRenderPlan" | "afterRenderPlan" | "beforeSubmit" | "afterSubmit", context?: unknown) => void;
@@ -21,6 +27,16 @@ type EngineGraphRenderFacadeDependencies = {
   resolveNow: () => number;
   getLastInteractionKind: () => string;
   getLatestExecutionSnapshot: () => { drawCount: number; visibleCandidateIds: readonly string[] };
+  getIsMounted: () => boolean;
+  presentBackendFrame: (timestampMs: number) => {
+    attempted: boolean;
+    completed: boolean;
+    skippedReason: "missing-context" | null;
+  };
+  getResolvedBackendMode: () => "webgpu" | "webgl" | "canvas2d" | "headless";
+  setLatestRenderChainDiagnostics: (diagnostics: EngineRenderChainDiagnostics) => void;
+  /** Persists latest structured render warning for diagnostics snapshot consumers. */
+  setLatestRenderWarning: (warning: EngineRenderWarningPayload | null) => void;
 };
 
 /**
@@ -61,7 +77,44 @@ export function createEngineGraphRenderFacade(
     resolveNow,
     getLastInteractionKind,
     getLatestExecutionSnapshot,
+    getIsMounted,
+    presentBackendFrame,
+    getResolvedBackendMode,
+    setLatestRenderChainDiagnostics,
+    setLatestRenderWarning,
   } = dependencies;
+
+  /**
+   * Resolves failed stage token from stage-reached diagnostics.
+   * @param diagnostics Render-chain diagnostics gathered before failure is emitted.
+   */
+  function resolveFailedStage(diagnostics: EngineRenderChainDiagnostics): EngineRenderChainDiagnostics["failedStage"] {
+    if (!diagnostics.planReached) {
+      return "plan";
+    }
+    if (!diagnostics.composeReached) {
+      return "compose";
+    }
+    if (!diagnostics.submitReached) {
+      return "submit";
+    }
+    if (!diagnostics.backendPresentReached) {
+      return "backend-present";
+    }
+    if (!diagnostics.browserBridgeReachable) {
+      return "browser-bridge";
+    }
+    return null;
+  }
+
+  /**
+   * Emits structured render warning and synchronizes diagnostics snapshot state.
+   * @param warning Canonical warning payload emitted to event bus and diagnostics snapshot.
+   */
+  function emitRenderWarning(warning: EngineRenderWarningPayload): void {
+    setLatestRenderWarning(warning);
+    emitEvent("engine.diagnostics.warning", warning);
+  }
 
   return {
     /**
@@ -242,6 +295,21 @@ export function createEngineGraphRenderFacade(
      * Renders one frame and emits frame started/completed/failed events.
      */
     async render(): Promise<EngineRenderResult> {
+      setLatestRenderWarning(null);
+      const backendMode = getResolvedBackendMode();
+      const mountConnected = getIsMounted();
+      const renderChain: EngineRenderChainDiagnostics = {
+        planReached: false,
+        composeReached: false,
+        submitReached: false,
+        backendPresentReached: false,
+        backendPresentCompleted: false,
+        backendPresentSkippedReason: null,
+        browserBridgeReachable: false,
+        mountConnected,
+        backendMode,
+        failedStage: null,
+      };
       emitHook("beforeRenderPlan", {
         interactionKind: getLastInteractionKind(),
       });
@@ -250,11 +318,14 @@ export function createEngineGraphRenderFacade(
       });
       try {
         const stats = resolveFrameOrchestration(resolveNow());
+        renderChain.planReached = true;
         const snapshot = getLatestExecutionSnapshot();
+        renderChain.composeReached = true;
         const result = {
           drawCount: snapshot.drawCount,
           visibleCount: snapshot.visibleCandidateIds.length,
           frameMs: Math.max(0, stats.timestampMs),
+          renderChain,
         };
         emitHook("afterRenderPlan", result);
         emitHook("beforeSubmit", {
@@ -263,11 +334,48 @@ export function createEngineGraphRenderFacade(
         emitHook("afterSubmit", {
           drawCount: result.drawCount,
         });
+        renderChain.submitReached = true;
+        // Submit hooks indicate orchestration reached backend-present boundary.
+        renderChain.backendPresentReached = true;
+        const presentResult = presentBackendFrame(resolveNow());
+        renderChain.backendPresentCompleted = presentResult.completed;
+        renderChain.backendPresentSkippedReason = presentResult.skippedReason;
+        if (!presentResult.completed) {
+          renderChain.failedStage = "backend-present";
+          emitRenderWarning({
+            code: "ENGINE_RENDER_BACKEND_PRESENT_SKIPPED",
+            stage: "backend-present",
+            reason: presentResult.skippedReason ?? "unknown",
+            backendMode,
+            telemetrySource: "adapter-present",
+            skippedReason: presentResult.skippedReason,
+            remediationHint: "Provide canvas/context and ensure mount target is connected before render.",
+          });
+        }
+        renderChain.browserBridgeReachable = mountConnected || backendMode === "headless";
+        // When render can compute draws but browser bridge is disconnected, flag a soft failure for diagnostics triage.
+        if (!renderChain.browserBridgeReachable && renderChain.failedStage === null) {
+          renderChain.failedStage = "browser-bridge";
+          emitRenderWarning({
+            code: "ENGINE_RENDER_BROWSER_BRIDGE_DISCONNECTED",
+            stage: "browser-bridge",
+            reason: "mount-disconnected",
+            backendMode,
+            telemetrySource: "mount-bridge-check",
+            mountConnected,
+            drawCount: result.drawCount,
+            remediationHint: "Mount engine host before render so browser bridge can present the frame.",
+          });
+        }
+        setLatestRenderChainDiagnostics(renderChain);
         emitEvent("engine.render.frameCompleted", result);
         return result;
       } catch (error) {
+        renderChain.failedStage = resolveFailedStage(renderChain);
+        setLatestRenderChainDiagnostics(renderChain);
         emitEvent("engine.render.frameFailed", {
           error: error instanceof Error ? error.message : String(error),
+          renderChain,
         });
         throw error;
       }

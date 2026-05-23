@@ -13,6 +13,12 @@
 
 产品状态机仍应位于 engine core 之外。
 
+Camera-first 语义说明：
+
+- Engine 运行时默认保持 3D-first。
+- `pan`、`zoom` 等输入术语仅作为 UI 别名，必须在运行时边界映射为相机变换（`truck`、`orbit`、`dolly`）。
+- 交互测试应验证相机变换结果与 pick/state 的确定性，而非手势命名本身。
+
 ## Picking API
 
 ### engine.pick(point, options)

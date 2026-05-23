@@ -171,8 +171,8 @@ G5 总体状态：已完成（可关单）。
 1. 新增 product-spec：`src/testing/product-specs/document-structure/document-governance.contract.test.ts`
 2. M2 并跑接线：`scripts/m2-run-all.mjs`（新增 M2-07B）
 3. 结构与双写一致性既有回归：
-   - `src/runtime/model/document-runtime/__tests__/normalizedDocumentRuntime.test.ts`
-   - `src/runtime/model/document-runtime/__tests__/normalizedHistoryPatches.test.ts`
+   - `src/runtime/model/document-runtime/tests/normalizedDocumentRuntime.test.ts`
+   - `src/runtime/model/document-runtime/tests/normalizedHistoryPatches.test.ts`
 
 ### 7.2 关单标准（何时可以关闭任务清单）
 

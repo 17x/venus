@@ -13,6 +13,12 @@ Interaction primitives include:
 
 Product state machines remain outside engine core.
 
+Camera-first semantic note:
+
+- Engine runtime remains 3D-first by default.
+- Input terms such as `pan` and `zoom` are treated as UI aliases and must map to camera transforms (`truck`, `orbit`, `dolly`) at runtime boundaries.
+- Interaction tests should validate camera transform outcomes and pick/state determinism, not UI gesture naming itself.
+
 ## Picking APIs
 
 ### engine.pick(point, options)

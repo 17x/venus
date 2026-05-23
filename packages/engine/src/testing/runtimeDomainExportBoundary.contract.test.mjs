@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -38,6 +39,18 @@ async function readApiGovernanceDocSource() {
 }
 
 /**
+ * Resolves baseline configuration source for test-driven API surface guards.
+ */
+async function readEngineTestBaselineSource() {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const baselinePath = path.resolve(
+    currentDir,
+    "../../ai/engine-test-baselines-2026-05-23.json",
+  );
+  return fs.readFile(baselinePath, "utf8");
+}
+
+/**
  * Resolves export-from specifiers from TypeScript barrel source text.
  */
 function resolveExportSpecifiers(indexSource) {
@@ -54,6 +67,18 @@ function resolveExportSpecifiers(indexSource) {
   }
 
   return specifiers;
+}
+
+/**
+ * Creates deterministic top-level export signature from normalized export statements.
+ */
+function resolveTopLevelExportSignature(indexSource) {
+  const normalizedExportStatements = indexSource
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("export "))
+    .join("\n");
+  return createHash("sha256").update(normalizedExportStatements).digest("hex");
 }
 
 const EXPLICIT_ALLOWED_EXPORTS = new Set(["./testing/createTestSurface"]);
@@ -323,6 +348,22 @@ test("explicit top-level export exceptions are documented", async () => {
 });
 
 /**
+ * Verifies top-level export statements match the versioned API surface signature baseline.
+ */
+test("engine top-level export surface matches versioned signature baseline", async () => {
+  const indexSource = await readEngineIndexSource();
+  const baselineSource = await readEngineTestBaselineSource();
+  const baseline = JSON.parse(baselineSource);
+  const actualSignature = resolveTopLevelExportSignature(indexSource);
+
+  assert.equal(
+    actualSignature,
+    baseline.apiSurface?.topLevelIndexExportSignature,
+    "top-level export surface changed; update API governance decision and baseline intentionally",
+  );
+});
+
+/**
  * Verifies forbidden cross-layer imports cannot grow beyond acknowledged baseline debt.
  */
 test("engine layer imports do not introduce new forbidden cross-layer edges", async () => {
@@ -347,16 +388,7 @@ test("engine layer imports do not introduce new forbidden cross-layer edges", as
     "orchestration->backend",
     "orchestration->platform",
   ]);
-  const allowedDebtEdges = new Set([
-    "backend->orchestration:orchestration/api/public-types",
-    "kernel->optimization:optimization/frameBudgetBroker",
-    "kernel->orchestration:orchestration/api/public-types",
-    "kernel->orchestration:orchestration/render-runtime/strategy",
-    "optimization->orchestration:orchestration/render-runtime/strategy",
-    "optimization->orchestration:orchestration/api/createEngineContracts",
-    "platform->orchestration:orchestration/api/public-types",
-    "platform->backend:backend/backendSelector",
-  ]);
+  const allowedDebtEdges = new Set([]);
   const forbiddenEdgeIds = [];
 
   for (const sourceLayer of canonicalLayerNames) {

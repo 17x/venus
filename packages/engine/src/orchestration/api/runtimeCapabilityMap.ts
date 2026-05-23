@@ -22,7 +22,7 @@ export interface EngineRuntimeCapabilityRecord {
 /**
  * Version marker for diagnostics capability snapshot payload compatibility.
  */
-export const ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION = 4;
+export const ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION = 5;
 
 /**
  * Single-source runtime capability registry consumed by docs/tests/tooling.
@@ -335,6 +335,27 @@ export const ENGINE_RUNTIME_CAPABILITY_REGISTRY = [
     stability: "experimental",
     layer: "runtime",
     notes: "Runtime plan inspect capability.",
+  },
+  {
+    name: "runtimeVolumeCreateSlicePlan",
+    entry: "EngineHandle.runtime.volume.createSlicePlan",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime volume slice-plan capability.",
+  },
+  {
+    name: "runtimeVolumeResolveTransferFunction",
+    entry: "EngineHandle.runtime.volume.resolveTransferFunction",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime volume transfer-function capability.",
+  },
+  {
+    name: "runtimeVolumeResolveResidencyBudget",
+    entry: "EngineHandle.runtime.volume.resolveResidencyBudget",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime volume residency-budget capability.",
   },
   {
     name: "runtimeResourceRegister",

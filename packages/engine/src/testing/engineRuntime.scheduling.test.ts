@@ -141,3 +141,32 @@ test("createEngineRuntimeShell resize updates backend surface and stats", () => 
   assert.equal(shell.getStats().width, 640);
   assert.equal(shell.getStats().height, 480);
 });
+
+/**
+ * Verifies runtime resize preserves canvas metadata needed by backend present adapters.
+ */
+test("createEngineRuntimeShell resize preserves canvas metadata", () => {
+  const runtimeAdapterDouble = createRuntimeAdapterTestDouble();
+  const backendStub = createBackendStub();
+  const canvasHandle = {
+    width: 200,
+    height: 120,
+    getContext: () => null,
+  };
+
+  const shell = createEngineRuntimeShell(
+    {
+      surface: { width: 200, height: 120, canvas: canvasHandle },
+      runtimeAdapter: runtimeAdapterDouble.adapter,
+    },
+    backendStub.backend,
+    createBackendSelectionResult(),
+  );
+
+  shell.resize(640, 480);
+
+  assert.equal("canvas" in backendStub.getLastResize(), true);
+  assert.equal(backendStub.getLastResize().canvas, canvasHandle);
+  assert.equal(shell.getStats().width, 640);
+  assert.equal(shell.getStats().height, 480);
+});

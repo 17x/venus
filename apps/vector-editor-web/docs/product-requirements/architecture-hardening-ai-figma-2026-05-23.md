@@ -218,6 +218,8 @@
 
 - 已完成：runtime 侧以 facade/adapter 契约调用为主，未引入 engine 私有实现依赖改动。
 - 已完成：adapter 输出 snapshot 对比体系已补齐系统化治理聚合合同测试，并接入 runtime debug 面板只读摘要（available/consistent/counts/issues）。
+- 已完成：runtime governance gate 已接入（`scripts/runtime-governance-check.mjs`），强制 runtime 对 engine API 的调用仅允许通过 `runtime/engine-bridge` 边界。
+- 已完成：`_test_` 命名禁用规则已接入 runtime governance gate；当前仓内无 `_test_` 命名测试文件。
 
 2. 5.2 状态同步：已完成（当前范围）
 
@@ -234,27 +236,27 @@
 ## 9. 已新增证据索引（本轮）
 
 1. 文档治理核心：`src/runtime/model/document-runtime/documentGovernance.ts`
-2. 文档治理单测：`src/runtime/model/document-runtime/__tests__/documentGovernance.test.ts`
-3. 导入兼容与只读降级测试：`src/runtime/adapters/__tests__/readFileHelper.normalizeFile.test.ts`
+2. 文档治理单测：`src/runtime/model/document-runtime/tests/documentGovernance.test.ts`
+3. 导入兼容与只读降级测试：`src/runtime/adapters/tests/readFileHelper.normalizeFile.test.ts`
 4. 治理产品合同测试：`src/testing/product-specs/document-structure/document-governance.contract.test.ts`
 5. 历史 transaction UI 消费测试：
    - `src/testing/product-specs/history/history-panel-transaction-groups.contract.test.ts`
    - `src/testing/product-specs/history/history-panel-transaction-presentation.contract.test.ts`
 6. 生命周期 create/open/save/recovery 入口与来源断言测试：`src/product/__tests__/useEditorDocument.lifecycle.test.ts`
-7. 启动恢复重放 worker 合同测试：`src/runtime/worker/scope/__tests__/bindEditorWorkerScope.test.ts`
-8. 状态同步 revision/invalidation 合同测试：`src/runtime/core/__tests__/stateSynchronization.contract.test.ts`
+7. 启动恢复重放 worker 合同测试：`src/runtime/worker/scope/tests/bindEditorWorkerScope.test.ts`
+8. 状态同步 revision/invalidation 合同测试：`src/runtime/core/tests/stateSynchronization.contract.test.ts`
 9. adapter snapshot 合同测试：
 
-- `src/runtime/adapters/__tests__/fileFormatScene.contract.test.ts`
-- `src/runtime/adapters/__tests__/fileDocument.contract.test.ts`
-- `src/runtime/adapters/__tests__/readFileHelper.normalizeFile.test.ts`
+- `src/runtime/adapters/tests/fileFormatScene.contract.test.ts`
+- `src/runtime/adapters/tests/fileDocument.contract.test.ts`
+- `src/runtime/adapters/tests/readFileHelper.normalizeFile.test.ts`
 
 10. bridge 发布链 snapshot 合同测试：`src/runtime/events/index/index.test.ts`
 11. UI hook 层 bridge snapshot 合同测试：`src/testing/product-specs/integration-contract/runtime-bridge-sync.contract.test.ts`
 12. replay 双模式产品化与 worker 启动恢复合同测试：
 
-- `src/runtime/worker/scope/__tests__/bindEditorWorkerScope.test.ts`
-- `src/runtime/adapters/__tests__/readFileHelper.normalizeFile.test.ts`
+- `src/runtime/worker/scope/tests/bindEditorWorkerScope.test.ts`
+- `src/runtime/adapters/tests/readFileHelper.normalizeFile.test.ts`
 
 13. 蒙版组 × group 重排 parity 回归矩阵：
 
@@ -264,7 +266,7 @@
 
 14. adapter snapshot 治理聚合合同测试：
 
-- `src/runtime/adapters/__tests__/adapterSnapshotGovernance.contract.test.ts`
+- `src/runtime/adapters/tests/adapterSnapshotGovernance.contract.test.ts`
 
 ## 10. 回主线后的优先顺序
 
@@ -285,7 +287,7 @@ Target:
   - `src/runtime/worker/scope/operationPayload.ts`
   - `src/runtime/worker/scope/remotePatches/remotePatches.ts`
   - `src/product/useEditorRuntime/coreCallbacks.ts`
-  - `src/runtime/model/document-runtime/__tests__/normalizedHistoryPatches.test.ts`
+  - `src/runtime/model/document-runtime/tests/normalizedHistoryPatches.test.ts`
   - `src/testing/product-specs/document-structure/grouping-document-model.contract.test.ts`
 
 Goal:
@@ -318,6 +320,51 @@ Tests:
   - add normalized reorder isolation-scope contract coverage.
   - add group consistency quick-check contract coverage with stable diagnostic codes.
 
+## 13. CHANGE REQUEST（2026-05-23 / P1-Adapter-Governance-RiskGrading）
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - `src/runtime/events/index/index/index.runtimeEvents.types.ts`
+  - `src/runtime/events/index/index/index.runtimeEvents.defaults.ts`
+  - `src/product/runtime/useEditorRuntimeBridgeSync.ts`
+  - `src/product/useEditorRuntime/presentation.ts`
+  - `src/views/shell/RuntimeDebugPanel/RuntimeDebugPanel.sections.tsx`
+  - `src/runtime/events/index/index.test.ts`
+  - `src/testing/product-specs/integration-contract/runtime-bridge-sync.contract.test.ts`
+
+Goal:
+
+- Problem being solved:
+  - 现有 adapter snapshot 治理摘要仅提供计数与 issues，缺少字段级 diff 明细与统一风险分级，导致 runtime debug 面板无法快速判断治理偏差严重度。
+
+Change Type:
+
+- Add / Modify / Remove
+  - modify runtime migration snapshot adapter governance contract to include field-level diff entries and risk level.
+  - modify runtime bridge and presentation pipeline to publish computed diff/risk summary.
+  - modify runtime debug panel and snapshot contract tests to consume the upgraded governance payload.
+
+Impact:
+
+- Affected modules:
+  - runtime migration diagnostics snapshot contract
+  - product runtime bridge publish chain
+  - runtime debug panel runtime-v2 diagnostics section
+
+Cleanup:
+
+- Old logic to remove:
+  - remove count-only adapter governance interpretation in runtime debug diagnostics flow.
+
+Tests:
+
+- Tests to add/update:
+  - update runtime events migration snapshot contract test with diff/risk fields.
+  - update runtime bridge sync integration-contract test with diff/risk payload assertions.
+
 ## 12. CHANGE REQUEST（2026-05-23 / P1-Adapter-Snapshot-Governance）
 
 [CHANGE REQUEST]
@@ -325,7 +372,7 @@ Tests:
 Target:
 
 - File / Module:
-  - `src/runtime/adapters/__tests__/adapterSnapshotGovernance.contract.test.ts`
+  - `src/runtime/adapters/tests/adapterSnapshotGovernance.contract.test.ts`
   - `docs/product-requirements/architecture-hardening-ai-figma-2026-05-23.md`
 
 Goal:

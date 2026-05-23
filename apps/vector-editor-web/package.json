@@ -8,7 +8,7 @@
     "typecheck": "pnpm exec tsc -b ./tsconfig.app.json ./tsconfig.node.json",
     "build": "vite build --configLoader runner",
     "pnpm build": "pnpm run build",
-    "lint": "eslint . && node ./scripts/ui-style-guard.mjs && node ../../scripts/module-governance-check.mjs --scope vector",
+    "lint": "eslint . && node ./scripts/ui-style-guard.mjs && node ./scripts/runtime-governance-check.mjs && node ../../scripts/module-governance-check.mjs --scope vector",
     "regression:boolean-contour": "pnpm dlx tsx --tsconfig ./tsconfig.app.json ./scripts/boolean-contour-regression.ts",
     "regression:m1-core": "node ./scripts/m1-core-regression.mjs",
     "m2:run-all": "node ./scripts/m2-run-all.mjs",

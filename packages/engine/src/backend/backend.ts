@@ -1,7 +1,7 @@
 import type {
   EngineBackendMode,
-  EngineSurface,
-} from "../orchestration/api/public-types";
+  EngineBackendSurface,
+} from "./backend-contracts";
 export {
   createDefaultEngineBackendProbes,
   resolveAutoBackendMode,
@@ -20,7 +20,7 @@ export interface EngineBackend {
   /**
    * Applies resize to backend-owned resources.
    */
-  resize: (surface: EngineSurface) => void;
+  resize: (surface: EngineBackendSurface) => void;
   /**
    * Executes one backend frame step.
    */

@@ -478,8 +478,35 @@ export interface RuntimeAdapterSnapshotGovernanceSnapshot {
   roundTripElementCount: number
   /** Indicates whether adapter counts satisfy baseline governance consistency checks. */
   consistent: boolean
+  /** Stores mismatch count across adapter governance field-level comparisons. */
+  mismatchCount: number
+  /** Stores compact risk grading used by runtime debug panel triage. */
+  riskLevel: RuntimeAdapterSnapshotGovernanceRiskLevel
+  /** Stores field-level adapter governance diff rows for deterministic mismatch review. */
+  fieldDiffs: RuntimeAdapterSnapshotGovernanceFieldDiff[]
   /** Stores stable issue labels describing failed adapter governance checks. */
   issues: string[]
+}
+
+/**
+ * Declares compact risk levels emitted by adapter snapshot governance summary.
+ */
+export type RuntimeAdapterSnapshotGovernanceRiskLevel = 'low' | 'medium' | 'high'
+
+/**
+ * Defines one field-level adapter governance diff row for runtime debug review.
+ */
+export interface RuntimeAdapterSnapshotGovernanceFieldDiff {
+  /** Stores stable diff row identifier so UI and tests can assert deterministic ordering. */
+  field: 'normalize:fileDocument' | 'fileDocument:roundTrip' | 'fileDocument:sceneRoot'
+  /** Stores baseline value used as left side in adapter governance comparison. */
+  baseline: number
+  /** Stores observed value used as right side in adapter governance comparison. */
+  observed: number
+  /** Stores arithmetic difference `observed - baseline` for compact debugging. */
+  delta: number
+  /** Indicates whether this diff row passed governance consistency expectation. */
+  matches: boolean
 }
 
 export interface RuntimeMigrationSnapshot {

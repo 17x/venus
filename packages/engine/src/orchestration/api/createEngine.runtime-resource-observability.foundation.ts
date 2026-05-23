@@ -1,9 +1,14 @@
 import type {
+  EngineRuntimeDecodeCheckpointMode,
+  EngineRuntimeDecodePrecisionPolicy,
+  EngineRuntimeResourceCompressionPolicyDescriptor,
   EngineRuntimeGetTraceOutput,
   EngineRuntimeReplayOutput,
   EngineRuntimeReplayTokenOutput,
+  EngineRuntimeResourceCompressionDescriptor,
   EngineRuntimeResourceCollectGarbageInput,
   EngineRuntimeResourceCollectGarbageOutput,
+  EngineRuntimeResourceDecodeStatusOutput,
   EngineRuntimeResourceDescriptor,
   EngineRuntimeResourcePatch,
   EngineRuntimeResourceResidencyOutput,
@@ -23,6 +28,16 @@ type RuntimeResourceRecord = {
   kind: EngineRuntimeResourceDescriptor["kind"];
   /** Current resident size in bytes. */
   sizeBytes: number;
+  /** Compression descriptor metadata for this resource, or null for uncompressed assets. */
+  compression: EngineRuntimeResourceCompressionDescriptor | null;
+  /** Current decode lifecycle stage tracked for this resource. */
+  decodeStatus: EngineRuntimeResourceDecodeStatusOutput["stage"];
+  /** Current deterministic decode precision policy tracked for this resource. */
+  decodePrecisionPolicy: EngineRuntimeDecodePrecisionPolicy;
+  /** Current deterministic decode checkpoint mode tracked for this resource. */
+  decodeCheckpointMode: EngineRuntimeDecodeCheckpointMode;
+  /** Optional decode/transcode error code tracked for this resource. */
+  decodeErrorCode: string | null;
   /** Pinned flag that protects resource from GC. */
   pinned: boolean;
   /** Monotonic residency version for change tracking. */
@@ -110,6 +125,96 @@ export function createRuntimeResourceObservabilityFoundation(
       residencyVersion: resource.residencyVersion,
       pinned: resource.pinned,
       sizeBytes: resource.sizeBytes,
+      compression: resource.compression,
+      decodeStatus: resource.decodeStatus,
+      decodePrecisionPolicy: resource.decodePrecisionPolicy,
+      decodeCheckpointMode: resource.decodeCheckpointMode,
+    };
+  }
+
+  /**
+   * Normalizes runtime compression policy payload for deterministic decode planning.
+   * @param policy Raw compression policy payload.
+   */
+  function resolveRuntimeCompressionPolicyDescriptor(
+    policy: EngineRuntimeResourceCompressionDescriptor["policy"],
+  ): EngineRuntimeResourceCompressionPolicyDescriptor | undefined {
+    if (!policy || typeof policy !== "object") {
+      return undefined;
+    }
+    const quantizationBits =
+      typeof policy.quantizationBits === "number" && Number.isFinite(policy.quantizationBits)
+        ? Math.max(0, Math.floor(policy.quantizationBits))
+        : undefined;
+    return {
+      payloadKind: policy.payloadKind,
+      quantizationBits,
+      deltaPolicy: policy.deltaPolicy,
+      chunkPolicy: policy.chunkPolicy,
+      checkpointMode: policy.checkpointMode,
+      decodeContext: {
+        interactionActive: Boolean(policy.decodeContext.interactionActive),
+        zoomBucket: policy.decodeContext.zoomBucket,
+        lodTier: policy.decodeContext.lodTier,
+      },
+    };
+  }
+
+  /**
+   * Resolves deterministic decode precision policy from normalized compression descriptor.
+   * @param compression Normalized compression descriptor.
+   */
+  function resolveRuntimeDecodePrecisionPolicy(
+    compression: EngineRuntimeResourceCompressionDescriptor | null,
+  ): EngineRuntimeDecodePrecisionPolicy {
+    if (!compression?.policy) {
+      return "full";
+    }
+    const { decodeContext } = compression.policy;
+    // Interactive editing favors latency-stable decode precision regardless of payload kind.
+    if (decodeContext.interactionActive) {
+      return "interaction";
+    }
+    // Low-detail zoom/LOD contexts use balanced precision to preserve decode budget determinism.
+    if (decodeContext.zoomBucket === "far" || decodeContext.lodTier === "low") {
+      return "balanced";
+    }
+    return "full";
+  }
+
+  /**
+   * Resolves deterministic decode checkpoint mode from normalized compression descriptor.
+   * @param compression Normalized compression descriptor.
+   */
+  function resolveRuntimeDecodeCheckpointMode(
+    compression: EngineRuntimeResourceCompressionDescriptor | null,
+  ): EngineRuntimeDecodeCheckpointMode {
+    return compression?.policy?.checkpointMode ?? "none";
+  }
+
+  /**
+   * Normalizes runtime compression descriptor payload from register/update inputs.
+   * @param compression Raw compression descriptor payload.
+   */
+  function resolveRuntimeResourceCompressionDescriptor(
+    compression: EngineRuntimeResourceDescriptor["compression"] | EngineRuntimeResourcePatch["compression"],
+  ): EngineRuntimeResourceCompressionDescriptor | null {
+    if (!compression || typeof compression !== "object") {
+      return null;
+    }
+    return {
+      codec: compression.codec,
+      transcodeTarget:
+        typeof compression.transcodeTarget === "string" && compression.transcodeTarget.length > 0
+          ? compression.transcodeTarget
+          : undefined,
+      payloadBytes: Math.max(0, compression.payloadBytes),
+      decodedBytesEstimate:
+        typeof compression.decodedBytesEstimate === "number"
+        && Number.isFinite(compression.decodedBytesEstimate)
+          ? Math.max(0, compression.decodedBytesEstimate)
+          : undefined,
+      policy: resolveRuntimeCompressionPolicyDescriptor(compression.policy),
     };
   }
 
@@ -135,12 +240,18 @@ export function createRuntimeResourceObservabilityFoundation(
     if (!descriptor || typeof descriptor.id !== "string" || descriptor.id.length === 0) {
       throw new Error("ENGINE_RESOURCE_INVALID_DESCRIPTOR");
     }
+    const compression = resolveRuntimeResourceCompressionDescriptor(descriptor.compression);
     const nextVersion = deps.getRuntimeResourceResidencyVersion() + 1;
     deps.setRuntimeResourceResidencyVersion(nextVersion);
     const nextRecord: RuntimeResourceRecord = {
       id: descriptor.id,
       kind: descriptor.kind,
       sizeBytes: Math.max(0, descriptor.sizeBytes),
+      compression,
+      decodeStatus: compression ? "queued" : "ready",
+      decodePrecisionPolicy: resolveRuntimeDecodePrecisionPolicy(compression),
+      decodeCheckpointMode: resolveRuntimeDecodeCheckpointMode(compression),
+      decodeErrorCode: null,
       pinned: false,
       residencyVersion: nextVersion,
     };
@@ -159,12 +270,21 @@ export function createRuntimeResourceObservabilityFoundation(
   ): EngineRuntimeResourceResidencyOutput {
     const resource = resolveRuntimeResourceById(resourceId);
     // Update is intentionally patch-based so callers can evolve one field without re-registering.
+    const nextCompression =
+      patch.compression === undefined
+        ? resource.compression
+        : resolveRuntimeResourceCompressionDescriptor(patch.compression);
     const nextSizeBytes = typeof patch.sizeBytes === "number" ? Math.max(0, patch.sizeBytes) : resource.sizeBytes;
     const nextVersion = deps.getRuntimeResourceResidencyVersion() + 1;
     deps.setRuntimeResourceResidencyVersion(nextVersion);
     const nextRecord: RuntimeResourceRecord = {
       ...resource,
       sizeBytes: nextSizeBytes,
+      compression: nextCompression,
+      decodeStatus: nextCompression ? "queued" : "ready",
+      decodePrecisionPolicy: resolveRuntimeDecodePrecisionPolicy(nextCompression),
+      decodeCheckpointMode: resolveRuntimeDecodeCheckpointMode(nextCompression),
+      decodeErrorCode: null,
       residencyVersion: nextVersion,
     };
     deps.runtimeResourceRegistry.set(resourceId, nextRecord);

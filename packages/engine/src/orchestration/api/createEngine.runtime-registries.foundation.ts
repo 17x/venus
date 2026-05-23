@@ -1,7 +1,11 @@
 import type {
   EngineHookListener,
   EngineHookStage,
+  EngineRuntimeDecodeCheckpointMode,
+  EngineRuntimeDecodePrecisionPolicy,
   EngineRuntimeGpuResourceDescriptor,
+  EngineRuntimeResourceCompressionDescriptor,
+  EngineRuntimeResourceDecodeStatusOutput,
   EngineRuntimeResourceDescriptor,
   EngineRuntimeTraceEvent,
 } from "./public-types";
@@ -49,6 +53,11 @@ export function createEngineRuntimeRegistriesFoundation(): {
     id: string;
     kind: EngineRuntimeResourceDescriptor["kind"];
     sizeBytes: number;
+    compression: EngineRuntimeResourceCompressionDescriptor | null;
+    decodeStatus: EngineRuntimeResourceDecodeStatusOutput["stage"];
+    decodePrecisionPolicy: EngineRuntimeDecodePrecisionPolicy;
+    decodeCheckpointMode: EngineRuntimeDecodeCheckpointMode;
+    decodeErrorCode: string | null;
     pinned: boolean;
     residencyVersion: number;
   }>;
@@ -123,6 +132,11 @@ export function createEngineRuntimeRegistriesFoundation(): {
     id: string;
     kind: EngineRuntimeResourceDescriptor["kind"];
     sizeBytes: number;
+    compression: EngineRuntimeResourceCompressionDescriptor | null;
+    decodeStatus: EngineRuntimeResourceDecodeStatusOutput["stage"];
+    decodePrecisionPolicy: EngineRuntimeDecodePrecisionPolicy;
+    decodeCheckpointMode: EngineRuntimeDecodeCheckpointMode;
+    decodeErrorCode: string | null;
     pinned: boolean;
     residencyVersion: number;
   }>();

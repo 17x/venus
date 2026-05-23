@@ -5,6 +5,8 @@ import type {
 import type { EngineBackend } from "../../backend/backend";
 import { resolveBackendSelectionFromProtocol } from "../../platform/protocol/backend/backend-selection";
 import { resolveEngineBackendFromAdapters } from "../../backend/backendAdapterRegistry";
+import type { Canvas2DBackendAdapterHooks } from "../../backend/adapters/canvas2dBackendAdapter";
+import type { NoopBackendAdapterHooks } from "../../backend/adapters/noopBackendAdapter";
 import {
   type CreateEngineOptions,
 } from "./createEngineContracts";
@@ -138,10 +140,17 @@ export function resolveRayPickCandidateFromGraphNode(node: EngineGraphNodeInput)
  * Resolves backend instance for the current createEngine invocation.
  * @param options Engine creation options with requested backend and surface.
  * @param backendSelectorModule Backend selector module instance used for deterministic selection.
+ * @param diagnosticsHooks Optional adapter-level diagnostics hooks for present telemetry fan-out.
  */
 export function resolveEngineBackend(
   options: CreateEngineOptions,
   backendSelectorModule: { resolveSelection: (input: CreateEngineOptions) => ReturnType<typeof resolveBackendSelectionFromProtocol> },
+  diagnosticsHooks?: {
+    /** Optional canvas2d present telemetry hooks injected by orchestration diagnostics. */
+    canvas2d?: Pick<Canvas2DBackendAdapterHooks, "onPresentAttempt" | "onPresentSkipped" | "onPresentCommitted">;
+    /** Optional noop present telemetry hooks injected by orchestration diagnostics. */
+    noop?: Pick<NoopBackendAdapterHooks, "onPresentAttempt" | "onPresentCommitted">;
+  },
 ): {
   backend: EngineBackend;
   backendSelection: ReturnType<typeof resolveBackendSelectionFromProtocol>;
@@ -162,7 +171,16 @@ export function resolveEngineBackend(
     normalizeResolvedBackendMode(backendSelection.resolved),
     {
       surface: options.surface,
-      canvas2d: options.canvas2d,
+      canvas2d: {
+        drawFrame: options.canvas2d?.drawFrame,
+        onPresentAttempt: diagnosticsHooks?.canvas2d?.onPresentAttempt,
+        onPresentSkipped: diagnosticsHooks?.canvas2d?.onPresentSkipped,
+        onPresentCommitted: diagnosticsHooks?.canvas2d?.onPresentCommitted,
+      },
+      noop: {
+        onPresentAttempt: diagnosticsHooks?.noop?.onPresentAttempt,
+        onPresentCommitted: diagnosticsHooks?.noop?.onPresentCommitted,
+      },
     },
   );
   return {

@@ -405,6 +405,58 @@ export interface EngineRenderResult {
   visibleCount: number;
   /** Frame time in milliseconds. */
   frameMs: number;
+  /** Optional render-chain stage diagnostics for backend/browser troubleshooting. */
+  renderChain?: EngineRenderChainDiagnostics;
+}
+
+/**
+ * Render-chain stage diagnostics used to pinpoint backend/browser flow failures.
+ */
+export interface EngineRenderChainDiagnostics {
+  /** Whether frame planning stage completed for this render request. */
+  planReached: boolean;
+  /** Whether compose stage completed and render result payload was assembled. */
+  composeReached: boolean;
+  /** Whether submit stage hooks completed for this render request. */
+  submitReached: boolean;
+  /** Whether backend-present handoff stage was attempted. */
+  backendPresentReached: boolean;
+  /** Whether backend-present call completed at adapter level for this render request. */
+  backendPresentCompleted: boolean;
+  /** Adapter-level present skip reason when backend-present could not commit. */
+  backendPresentSkippedReason: "missing-context" | null;
+  /** Whether browser bridge was reachable for non-headless backends. */
+  browserBridgeReachable: boolean;
+  /** Whether render target was mounted when frame was produced. */
+  mountConnected: boolean;
+  /** Resolved backend mode used by this render request. */
+  backendMode: "webgpu" | "webgl" | "canvas2d" | "headless";
+  /** Failing stage token for hard/soft render-chain failures; null when no stage failure is observed. */
+  failedStage: "plan" | "compose" | "submit" | "backend-present" | "browser-bridge" | null;
+}
+
+/**
+ * Structured render-chain warning payload emitted for backend/browser presentation failures.
+ */
+export interface EngineRenderWarningPayload {
+  /** Stable warning code consumed by tooling and contracts. */
+  code: "ENGINE_RENDER_BACKEND_PRESENT_SKIPPED" | "ENGINE_RENDER_BROWSER_BRIDGE_DISCONNECTED";
+  /** Render stage where warning was produced. */
+  stage: "backend-present" | "browser-bridge";
+  /** Stable warning reason token for remediation routing. */
+  reason: "missing-context" | "mount-disconnected" | "unknown";
+  /** Resolved backend mode active when warning was emitted. */
+  backendMode: "webgpu" | "webgl" | "canvas2d" | "headless";
+  /** Stable telemetry source describing how warning evidence was resolved. */
+  telemetrySource: "adapter-present" | "mount-bridge-check";
+  /** Human-readable remediation hint surfaced to diagnostics tooling. */
+  remediationHint: string;
+  /** Optional backend-present skip reason when adapter could not commit. */
+  skippedReason?: "missing-context" | null;
+  /** Optional mount connectivity state used by browser-bridge warnings. */
+  mountConnected?: boolean;
+  /** Optional draw count at warning emission time for triage context. */
+  drawCount?: number;
 }
 
 /**
@@ -458,6 +510,10 @@ export interface EngineDiagnosticsSnapshot {
   };
   /** Last invalidate payload captured by invalidate calls. */
   invalidate?: EngineInvalidateInput | null;
+  /** Render-chain stage diagnostics snapshot from latest render attempt. */
+  renderChain?: EngineRenderChainDiagnostics;
+  /** Latest structured render warning snapshot for diagnostics polling workflows. */
+  lastRenderWarning?: EngineRenderWarningPayload | null;
   /** Machine-readable runtime capability snapshot for adapter/tooling checks. */
   capabilities?: {
     /** Payload schema version for capability snapshot compatibility checks. */

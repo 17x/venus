@@ -66,6 +66,128 @@ export interface EngineRuntimePlanInspectOutput {
 }
 
 /**
+ * Runtime compression codec tokens accepted by resource descriptor contracts.
+ */
+export type EngineRuntimeCompressionCodec =
+  | "none"
+  | "basisu"
+  | "ktx2"
+  | "draco"
+  | "meshopt";
+
+/**
+ * Runtime payload categories that can opt into compression policy planning.
+ */
+export type EngineRuntimeCompressionPayloadKind =
+  | "texture"
+  | "geometry"
+  | "animation";
+
+/**
+ * Runtime chunking policy used for streaming and decode-budget partitioning.
+ */
+export type EngineRuntimeCompressionChunkPolicy =
+  | "none"
+  | "fixed"
+  | "streaming";
+
+/**
+ * Runtime delta policy used for geometry/animation differential payload decoding.
+ */
+export type EngineRuntimeCompressionDeltaPolicy =
+  | "none"
+  | "frame"
+  | "keyframe";
+
+/**
+ * Runtime decode precision policy token selected from interaction/zoom/LOD context.
+ */
+export type EngineRuntimeDecodePrecisionPolicy =
+  | "full"
+  | "balanced"
+  | "interaction";
+
+/**
+ * Runtime deterministic checkpoint mode used for replay-safe decode restoration.
+ */
+export type EngineRuntimeDecodeCheckpointMode =
+  | "none"
+  | "frame"
+  | "revision";
+
+/**
+ * Runtime decode context snapshot used to pick deterministic precision policy.
+ */
+export interface EngineRuntimeResourceDecodeContext {
+  /** Whether interaction-sensitive decoding is currently active. */
+  interactionActive: boolean;
+  /** Stable zoom bucket token used by precision policy resolver. */
+  zoomBucket: "near" | "mid" | "far";
+  /** Stable LOD tier token used by precision policy resolver. */
+  lodTier: "high" | "medium" | "low";
+}
+
+/**
+ * Runtime compression policy descriptor for geometry/animation decode planning.
+ */
+export interface EngineRuntimeResourceCompressionPolicyDescriptor {
+  /** Payload category used to separate texture/geometry/animation policy defaults. */
+  payloadKind: EngineRuntimeCompressionPayloadKind;
+  /** Optional quantization bit count used for deterministic decode precision bounds. */
+  quantizationBits?: number;
+  /** Delta policy token used by compressed payload decode path. */
+  deltaPolicy: EngineRuntimeCompressionDeltaPolicy;
+  /** Chunking policy token used by streaming/decode budget planner. */
+  chunkPolicy: EngineRuntimeCompressionChunkPolicy;
+  /** Replay-safe checkpoint mode token used by decode resume pipeline. */
+  checkpointMode: EngineRuntimeDecodeCheckpointMode;
+  /** Decode context snapshot used to resolve precision policy deterministically. */
+  decodeContext: EngineRuntimeResourceDecodeContext;
+}
+
+/**
+ * Runtime decode stage tokens used by compressed-resource residency contracts.
+ */
+export type EngineRuntimeResourceDecodeStage =
+  | "registered"
+  | "queued"
+  | "decoding"
+  | "ready"
+  | "failed";
+
+/**
+ * Compression descriptor payload attached to runtime resource contracts.
+ */
+export interface EngineRuntimeResourceCompressionDescriptor {
+  /** Compression codec used by source payload. */
+  codec: EngineRuntimeCompressionCodec;
+  /** Optional runtime transcode target format token. */
+  transcodeTarget?: string;
+  /** Compressed payload size in bytes before decode/transcode. */
+  payloadBytes: number;
+  /** Optional decoded-size estimate in bytes for budget planning. */
+  decodedBytesEstimate?: number;
+  /** Optional runtime policy descriptor for geometry/animation decode planning. */
+  policy?: EngineRuntimeResourceCompressionPolicyDescriptor;
+}
+
+/**
+ * Runtime decode-status payload for compressed resource descriptors.
+ */
+export interface EngineRuntimeResourceDecodeStatusOutput {
+  /** Stable resource id associated with this decode status snapshot. */
+  resourceId: string;
+  /** Current decode lifecycle stage for this resource. */
+  stage: EngineRuntimeResourceDecodeStage;
+  /** Compression codec used by this resource. */
+  codec: EngineRuntimeCompressionCodec;
+  /** Optional runtime transcode target format token. */
+  transcodeTarget: string | null;
+  /** Optional deterministic decode/transcode error code when stage is failed. */
+  errorCode: string | null;
+}
+
+/**
  * Runtime resource descriptor used by register API.
  */
 export interface EngineRuntimeResourceDescriptor {
@@ -75,6 +197,8 @@ export interface EngineRuntimeResourceDescriptor {
   kind: "texture" | "buffer" | "mesh" | "material";
   /** Resource size in bytes. */
   sizeBytes: number;
+  /** Optional compression descriptor for compressed payload lifecycles. */
+  compression?: EngineRuntimeResourceCompressionDescriptor;
 }
 
 /**
@@ -83,6 +207,8 @@ export interface EngineRuntimeResourceDescriptor {
 export interface EngineRuntimeResourcePatch {
   /** Optional next resource size in bytes. */
   sizeBytes?: number;
+  /** Optional next compression descriptor; null clears compression metadata. */
+  compression?: EngineRuntimeResourceCompressionDescriptor | null;
 }
 
 /**
@@ -97,6 +223,14 @@ export interface EngineRuntimeResourceResidencyOutput {
   pinned: boolean;
   /** Current resource size in bytes. */
   sizeBytes: number;
+  /** Compression descriptor for this resource; null when uncompressed. */
+  compression: EngineRuntimeResourceCompressionDescriptor | null;
+  /** Current decode lifecycle stage for this resource. */
+  decodeStatus: EngineRuntimeResourceDecodeStage;
+  /** Current decode precision policy selected for this resource. */
+  decodePrecisionPolicy: EngineRuntimeDecodePrecisionPolicy;
+  /** Current deterministic decode checkpoint mode for this resource. */
+  decodeCheckpointMode: EngineRuntimeDecodeCheckpointMode;
 }
 
 /**
@@ -375,6 +509,170 @@ export interface EngineRuntimePlanApi {
   getSchedulerDiagnostics: () => import("../../renderScheduler").EngineRenderSchedulerDiagnostics;
   /** Inspects one runtime plan payload and returns summary metadata. */
   inspect: (plan: unknown) => EngineRuntimePlanInspectOutput;
+}
+
+/**
+ * Runtime volume slice-axis tokens used by canonical slice-planning contracts.
+ */
+export type EngineRuntimeVolumeSliceAxis =
+  | "axial"
+  | "coronal"
+  | "sagittal"
+  | "oblique";
+
+/**
+ * Runtime volume slice-plan request contract.
+ */
+export interface EngineRuntimeVolumeSlicePlanInput {
+  /** Runtime resource id for the source volume payload. */
+  volumeResourceId: string;
+  /** Canonical slice axis used by the runtime planner. */
+  axis: EngineRuntimeVolumeSliceAxis;
+  /** Zero-based slice index requested by caller. */
+  sliceIndex: number;
+  /** Optional slab thickness in voxel units. */
+  slabThicknessVoxels?: number;
+  /** Optional spacing in millimeters for deterministic sample-step hints. */
+  spacingMm?: {
+    /** Source payload spacing on x axis. */
+    x: number;
+    /** Source payload spacing on y axis. */
+    y: number;
+    /** Source payload spacing on z axis. */
+    z: number;
+  };
+}
+
+/**
+ * Runtime volume slice-plan output contract.
+ */
+export interface EngineRuntimeVolumeSlicePlanOutput {
+  /** Stable deterministic plan id derived from planner inputs. */
+  planId: string;
+  /** Runtime resource id for the source volume payload. */
+  volumeResourceId: string;
+  /** Canonical slice axis used by planner output. */
+  axis: EngineRuntimeVolumeSliceAxis;
+  /** Clamped non-negative slice index used by runtime. */
+  sliceIndex: number;
+  /** Inclusive slab-start slice index. */
+  slabStartIndex: number;
+  /** Inclusive slab-end slice index. */
+  slabEndIndex: number;
+  /** Deterministic sample-step hint in millimeters. */
+  sampleStepMm: number;
+}
+
+/**
+ * One transfer-function opacity stop contract used by volume mapping hooks.
+ */
+export interface EngineRuntimeTransferOpacityStop {
+  /** Normalized transfer position in [0, 1]. */
+  position: number;
+  /** Opacity value in [0, 1]. */
+  opacity: number;
+}
+
+/**
+ * One transfer-function color stop contract used by volume mapping hooks.
+ */
+export interface EngineRuntimeTransferColorStop {
+  /** Normalized transfer position in [0, 1]. */
+  position: number;
+  /** Hex-like color token accepted by renderer adapters. */
+  color: string;
+}
+
+/**
+ * Runtime transfer-function resolve request contract.
+ */
+export interface EngineRuntimeVolumeTransferFunctionInput {
+  /** Window center used by deterministic transfer-window normalization. */
+  windowCenter: number;
+  /** Window width used by deterministic transfer-window normalization. */
+  windowWidth: number;
+  /** Optional inversion flag for luminance mapping. */
+  invert?: boolean;
+  /** Optional caller-provided opacity stops. */
+  opacityStops?: readonly EngineRuntimeTransferOpacityStop[];
+  /** Optional caller-provided color stops. */
+  colorStops?: readonly EngineRuntimeTransferColorStop[];
+}
+
+/**
+ * Runtime transfer-function resolve output contract.
+ */
+export interface EngineRuntimeVolumeTransferFunctionOutput {
+  /** Stable deterministic transfer id derived from normalized input. */
+  transferId: string;
+  /** Resolved window minimum. */
+  windowMin: number;
+  /** Resolved window maximum. */
+  windowMax: number;
+  /** Resolved inversion flag after normalization. */
+  invert: boolean;
+  /** Deterministic opacity-stop sequence sorted by position. */
+  opacityStops: readonly EngineRuntimeTransferOpacityStop[];
+  /** Deterministic color-stop sequence sorted by position. */
+  colorStops: readonly EngineRuntimeTransferColorStop[];
+}
+
+/**
+ * Runtime residency-budget request contract for volume-oriented planning hooks.
+ */
+export interface EngineRuntimeVolumeResidencyBudgetInput {
+  /** Resource ids participating in residency-budget planning. */
+  volumeResourceIds: readonly string[];
+  /** Planner quality target used by deterministic budget fallback policy. */
+  target: "interaction" | "preview" | "quality";
+  /** Optional explicit budget override in bytes. */
+  maxBytes?: number;
+}
+
+/**
+ * One residency-budget resource-state output item.
+ */
+export interface EngineRuntimeVolumeResidencyBudgetResourceState {
+  /** Stable resource id. */
+  resourceId: string;
+  /** Resource size in bytes from residency snapshot. */
+  sizeBytes: number;
+  /** Pinning state from residency snapshot. */
+  pinned: boolean;
+  /** Decode lifecycle stage from residency snapshot. */
+  decodeStatus: EngineRuntimeResourceDecodeStage;
+}
+
+/**
+ * Runtime residency-budget output contract.
+ */
+export interface EngineRuntimeVolumeResidencyBudgetOutput {
+  /** Effective budget in bytes after fallback/override resolution. */
+  budgetBytes: number;
+  /** Estimated resident bytes across known resources. */
+  estimatedResidentBytes: number;
+  /** True when estimated bytes exceed effective budget. */
+  overBudget: boolean;
+  /** Resource ids missing from residency registry lookups. */
+  missingResourceIds: readonly string[];
+  /** Deterministic resource-state sequence aligned to input order. */
+  resourceStates: readonly EngineRuntimeVolumeResidencyBudgetResourceState[];
+}
+
+/**
+ * Runtime volume namespace API contract exposed under engine.runtime.volume.
+ */
+export interface EngineRuntimeVolumeApi {
+  /** Creates one deterministic slice plan from volume resource and axis inputs. */
+  createSlicePlan: (input: EngineRuntimeVolumeSlicePlanInput) => EngineRuntimeVolumeSlicePlanOutput;
+  /** Resolves one deterministic transfer-function payload from window/stops input. */
+  resolveTransferFunction: (
+    input: EngineRuntimeVolumeTransferFunctionInput,
+  ) => EngineRuntimeVolumeTransferFunctionOutput;
+  /** Resolves one deterministic residency-budget summary from resource residency snapshots. */
+  resolveResidencyBudget: (
+    input: EngineRuntimeVolumeResidencyBudgetInput,
+  ) => EngineRuntimeVolumeResidencyBudgetOutput;
 }
 
 /**

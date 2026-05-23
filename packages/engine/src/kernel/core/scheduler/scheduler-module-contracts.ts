@@ -4,7 +4,7 @@ import type {
   EngineFrameBudgetBrokerInput,
   EngineFrameBudgetPressure,
   EngineFrameBudgetPressureSignals,
-} from "../../../optimization/frameBudgetBroker";
+} from "./frame-budget-kernel";
 
 /**
  * Declares one core-owned frame-budget scheduler module contract.

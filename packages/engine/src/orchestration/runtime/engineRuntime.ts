@@ -58,10 +58,16 @@ export function createEngineRuntimeShell(
 
   let lifecycleState: EngineLifecycleState = "created";
   let frameHandle: number | null = null;
-  let surface: EngineSurface = {
-    width: options.surface.width,
-    height: options.surface.height,
-  };
+  let surface: EngineSurface = options.surface.canvas
+    ? {
+        width: options.surface.width,
+        height: options.surface.height,
+        canvas: options.surface.canvas,
+      }
+    : {
+        width: options.surface.width,
+        height: options.surface.height,
+      };
   let lastFrameTimeMs = 0;
 
   /**
@@ -119,8 +125,16 @@ export function createEngineRuntimeShell(
       lifecycleState = "running";
       scheduleNextFrame();
     },
+    /**
+     * Preserves existing surface metadata (for example canvas context hooks)
+     * so backend present paths remain connected after viewport-only resizes.
+     */
     resize(width, height) {
-      surface = { width, height };
+      surface = {
+        ...surface,
+        width,
+        height,
+      };
       backend.resize(surface);
     },
     captureFrame() {

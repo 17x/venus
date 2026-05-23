@@ -4,7 +4,7 @@ import {
   resolveFrameBudgetPressureReason,
   resolveFrameBudgetPressureSignals,
   resolvePhaseBudget,
-} from "../../../optimization/frameBudgetBroker";
+} from "./frame-budget-kernel";
 import type { EngineSchedulerModule } from "./scheduler-module-contracts";
 
 /**

@@ -67,8 +67,8 @@ function resolveCapabilityHandleMethod(engine: ReturnType<typeof createEngine>, 
  * Verifies runtime capability map keeps canonical stable capability set.
  */
 test("runtime capability map keeps canonical stable capability entries", () => {
-  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 58);
-  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 58);
+  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 61);
+  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 61);
   assert.equal("runtimePlanCreateFramePlan" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeResourceCollectGarbage" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeObservabilityReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
@@ -109,6 +109,18 @@ test("runtime capability map keeps canonical stable capability entries", () => {
   assert.equal(
     ENGINE_RUNTIME_CAPABILITY_MAP.runtimePlanCreateFramePlan.entry,
     "EngineHandle.runtime.plan.createFramePlan",
+  );
+  assert.equal(
+    ENGINE_RUNTIME_CAPABILITY_MAP.runtimeVolumeCreateSlicePlan.entry,
+    "EngineHandle.runtime.volume.createSlicePlan",
+  );
+  assert.equal(
+    ENGINE_RUNTIME_CAPABILITY_MAP.runtimeVolumeResolveTransferFunction.entry,
+    "EngineHandle.runtime.volume.resolveTransferFunction",
+  );
+  assert.equal(
+    ENGINE_RUNTIME_CAPABILITY_MAP.runtimeVolumeResolveResidencyBudget.entry,
+    "EngineHandle.runtime.volume.resolveResidencyBudget",
   );
   assert.equal(
     ENGINE_RUNTIME_CAPABILITY_MAP.runtimeResourceCollectGarbage.entry,
@@ -286,6 +298,38 @@ test("runtime capability map aligns with engine handle method contracts", () => 
     sizeBytes: 512,
   });
   assert.equal(resourceOutput.id, "capability-resource");
+
+  const slicePlanOutput = engine.runtime.volume.createSlicePlan({
+    volumeResourceId: "volume-resource",
+    axis: "axial",
+    sliceIndex: 12,
+    slabThicknessVoxels: 3,
+    spacingMm: {
+      x: 0.8,
+      y: 0.8,
+      z: 1.2,
+    },
+  });
+  assert.equal(slicePlanOutput.axis, "axial");
+  assert.equal(slicePlanOutput.sliceIndex, 12);
+
+  const transferOutput = engine.runtime.volume.resolveTransferFunction({
+    windowCenter: 40,
+    windowWidth: 400,
+    opacityStops: [
+      { position: 0, opacity: 0 },
+      { position: 1, opacity: 1 },
+    ],
+  });
+  assert.equal(transferOutput.windowMin, -160);
+  assert.equal(transferOutput.windowMax, 240);
+
+  const budgetOutput = engine.runtime.volume.resolveResidencyBudget({
+    volumeResourceIds: ["capability-resource", "missing-volume"],
+    target: "interaction",
+  });
+  assert.equal(Array.isArray(budgetOutput.missingResourceIds), true);
+  assert.equal(budgetOutput.missingResourceIds.includes("missing-volume"), true);
 
   const traceOutput = engine.runtime.observability.startTrace({
     name: "capability-map-contract",

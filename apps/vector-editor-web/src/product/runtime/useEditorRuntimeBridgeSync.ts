@@ -70,6 +70,23 @@ export interface EditorRuntimeBridgeSyncOptions {
       roundTripElementCount: number
       /** Indicates whether adapter governance baseline consistency checks passed. */
       consistent: boolean
+      /** Stores mismatch count across adapter governance field-level comparisons. */
+      mismatchCount: number
+      /** Stores compact risk grading used by runtime debug panel triage. */
+      riskLevel: 'low' | 'medium' | 'high'
+      /** Stores deterministic field-level adapter governance diff rows for mismatch review. */
+      fieldDiffs: Array<{
+        /** Stores stable diff row identifier for deterministic consumer rendering and assertions. */
+        field: 'normalize:fileDocument' | 'fileDocument:roundTrip' | 'fileDocument:sceneRoot'
+        /** Stores baseline value used as left side in adapter governance comparison. */
+        baseline: number
+        /** Stores observed value used as right side in adapter governance comparison. */
+        observed: number
+        /** Stores arithmetic difference `observed - baseline` for compact debugging. */
+        delta: number
+        /** Indicates whether this diff row passed governance consistency expectation. */
+        matches: boolean
+      }>
       /** Stores stable issue labels when governance checks fail. */
       issues: string[]
     }

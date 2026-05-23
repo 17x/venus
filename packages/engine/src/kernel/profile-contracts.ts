@@ -1,6 +1,6 @@
 import type {
-  EngineBackendMode,
-} from "../orchestration/api/public-types";
+  EngineProtocolBackendMode,
+} from "../platform/protocol/backend/backend-mode";
 import type {
   EngineCapabilityId,
   EngineCoreModule,
@@ -8,7 +8,11 @@ import type {
 } from "./module-contracts";
 import type { EngineDocumentChangeSet } from "./document/document-contracts";
 import type { EngineViewportState } from "../kernel/view/viewportFacade";
-import type { EngineInteractionMutationKind } from "../orchestration/render-runtime/strategy";
+
+/**
+ * Interaction mutation kind used by profile replay manifests.
+ */
+export type EngineProfileInteractionMutationKind = "none" | "set" | "pan" | "zoom";
 
 /**
  * Host or scenario target represented by one runtime profile.
@@ -25,7 +29,7 @@ export type EngineRuntimeProfileTarget =
 /**
  * Backend priority list used by profile metadata and backend selection policy.
  */
-export type EngineBackendPriority = readonly EngineBackendMode[];
+export type EngineBackendPriority = readonly EngineProtocolBackendMode[];
 
 /**
  * One recorded interaction event used by scenario replay manifests.
@@ -34,7 +38,7 @@ export interface EngineScenarioReplayInputEvent {
   /** Event timestamp in milliseconds relative to scenario replay start. */
   atMs: number;
   /** Interaction mutation kind to replay. */
-  kind: EngineInteractionMutationKind;
+  kind: EngineProfileInteractionMutationKind;
   /** Optional horizontal delta used by pan-like events. */
   deltaX?: number;
   /** Optional vertical delta used by pan-like events. */
@@ -62,9 +66,9 @@ export interface EngineScenarioDiagnosticsSnapshot {
   /** Deterministic module activation order expected from runtime assembly. */
   moduleActivationOrder: readonly string[];
   /** Requested backend mode for backend-selection snapshot checks. */
-  backendRequested: EngineBackendMode;
+  backendRequested: EngineProtocolBackendMode;
   /** Resolved backend mode expected from backend-selection snapshot checks. */
-  backendResolved: EngineBackendMode;
+  backendResolved: EngineProtocolBackendMode;
   /** Expected fallback reason expected from backend-selection snapshot checks. */
   backendFallbackReason: string | null;
 }

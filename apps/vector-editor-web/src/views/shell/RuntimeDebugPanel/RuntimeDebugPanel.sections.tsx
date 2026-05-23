@@ -66,6 +66,14 @@ export function RuntimeV2DebugSection(props: {
         value={runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.consistent ? 'yes' : 'no'}
       />
       <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterGovernanceMismatchCount', 'Adapter Snapshot Governance Mismatch Count')}
+        value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.mismatchCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterGovernanceRiskLevel', 'Adapter Snapshot Governance Risk Level')}
+        value={runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.riskLevel}
+      />
+      <DebugRow
         label={t('shell.variantB.debug.runtimeV2AdapterNormalizeElementCount', 'Adapter Normalize Element Count')}
         value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.normalizeElementCount)}
       />
@@ -80,6 +88,14 @@ export function RuntimeV2DebugSection(props: {
       <DebugRow
         label={t('shell.variantB.debug.runtimeV2AdapterRoundTripElementCount', 'Adapter Round-Trip Element Count')}
         value={String(runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.roundTripElementCount)}
+      />
+      <DebugRow
+        label={t('shell.variantB.debug.runtimeV2AdapterGovernanceFieldDiffs', 'Adapter Snapshot Governance Field Diffs')}
+        value={runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.fieldDiffs.length > 0
+          ? runtimeMigrationSnapshot.runtimeV2.adapterSnapshotGovernance.fieldDiffs
+            .map((diffRow) => `${diffRow.field}:${diffRow.baseline}->${diffRow.observed}(delta=${diffRow.delta},match=${diffRow.matches ? 'yes' : 'no'})`)
+            .join(' | ')
+          : 'none'}
       />
       <DebugRow
         label={t('shell.variantB.debug.runtimeV2AdapterGovernanceIssues', 'Adapter Snapshot Governance Issues')}
