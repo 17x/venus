@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
  */
 function resolvePublicTypesRoot(): string {
   const testDir = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(testDir, "../api/public-types");
+  return path.resolve(testDir, "../orchestration/api/public-types");
 }
 
 /**

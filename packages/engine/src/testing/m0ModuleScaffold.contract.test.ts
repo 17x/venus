@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createDocumentSnapshot } from "../document/document-store";
+import { createDocumentSnapshot } from "../kernel/document/document-store";
 import { createEngineBackendSelectorModule } from "../backend/backendSelector/backendSelector";
-import { createEngineCommandEncoderModule } from "../command-buffer/commandEncoder/commandEncoder";
-import { createEngineDirtyPropagationModule } from "../dirty/dirtyPropagation/dirtyPropagation";
-import { createEngineDocumentGraphModule } from "../document/documentGraph/documentGraph";
-import { createEnginePublicApiSurfaceModule } from "../api/publicApiSurface/publicApiSurface";
-import { createEngineRuntimeWorldModule } from "../scene-runtime/runtimeWorld/runtimeWorld";
+import { createEngineCommandEncoderModule } from "../kernel/command-buffer/commandEncoder/commandEncoder";
+import { createEngineDirtyPropagationModule } from "../kernel/dirty/dirtyPropagation/dirtyPropagation";
+import { createEngineDocumentGraphModule } from "../kernel/document/documentGraph/documentGraph";
+import { createEnginePublicApiSurfaceModule } from "../orchestration/api/publicApiSurface/publicApiSurface";
+import { createEngineRuntimeWorldModule } from "../kernel/scene-runtime/runtimeWorld/runtimeWorld";
 
 /**
  * Verifies newly scaffolded M0 modules can be constructed and produce deterministic baseline behavior.

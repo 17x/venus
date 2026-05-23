@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_DIRTY_FOUNDATION_API,
   resolveEngineRuntimeDirtyFoundationApiDescriptor,
-} from "../../runtime/dirty/dirty.foundation.contract";
+} from "../../orchestration/runtime/dirty/dirty.foundation.contract";
 
 /**
  * Verifies runtime dirty foundation API descriptor map keeps expected endpoint set.

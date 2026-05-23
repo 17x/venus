@@ -3,11 +3,11 @@ import test from "node:test";
 
 import {
   createEngineAnimationController as createModuleEngineAnimationController,
-} from "../animation/engineAnimationController";
+} from "../kernel/animation/engineAnimationController";
 
 import {
   createEngineAnimationController as createEngineAnimationControllerUnderTest,
-} from "../animation/engineAnimationController";
+} from "../kernel/animation/engineAnimationController";
 
 /**
  * Creates one deterministic frame payload for animation tick comparison.

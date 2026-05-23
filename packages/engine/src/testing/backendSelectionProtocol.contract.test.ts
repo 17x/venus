@@ -5,7 +5,7 @@ import {
   resolveBackendSelection,
   resolveBackendSelectionFromProtocol,
   type EngineBackendProbe,
-} from "../protocol/backend/backend-selection";
+} from "../platform/protocol/backend/backend-selection";
 
 /**
  * Verifies protocol backend-selection contract preserves canonical selector behavior.

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineRuntimeShell } from "../runtime/engineRuntime";
+import { createEngineRuntimeShell } from "../orchestration/runtime/engineRuntime";
 import { createRuntimeAdapterTestDouble } from "./runtimeAdapterTestDouble";
-import type { BackendSelectionResult } from "../api/public-types";
+import type { BackendSelectionResult } from "../orchestration/api/public-types";
 import type { EngineBackend } from "../backend/backend";
 
 /**

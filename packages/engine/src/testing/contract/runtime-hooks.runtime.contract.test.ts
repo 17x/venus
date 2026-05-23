@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_HOOKS_API,
   resolveEngineRuntimeHooksApiDescriptor,
-} from "../../runtime/hooks/runtime-hooks.contract";
+} from "../../orchestration/runtime/hooks/runtime-hooks.contract";
 
 /**
  * Verifies runtime hooks descriptor map keeps expected endpoint set.

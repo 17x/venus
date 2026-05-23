@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createEngine as createEngineExported } from "../index.ts";
-import { createEngine as createEngineUnderTest } from "../api/createEngine";
+import { createEngine as createEngineUnderTest } from "../orchestration/api/createEngine";
 
 /**
  * Verifies canonical createEngine export wiring stays callable against source implementation.

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_OBSERVABILITY_FOUNDATION_API,
   resolveEngineRuntimeObservabilityFoundationApiDescriptor,
-} from "../../runtime/observability/runtime-observability.foundation.contract";
+} from "../../orchestration/runtime/observability/runtime-observability.foundation.contract";
 
 /**
  * Verifies runtime observability foundation descriptor map keeps expected endpoint set.

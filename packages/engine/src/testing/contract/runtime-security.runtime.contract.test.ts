@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_SECURITY_API,
   resolveEngineRuntimeSecurityApiDescriptor,
-} from "../../runtime/security/runtime-security.contract";
+} from "../../orchestration/runtime/security/runtime-security.contract";
 
 /**
  * Verifies runtime security descriptor map keeps expected endpoint set.

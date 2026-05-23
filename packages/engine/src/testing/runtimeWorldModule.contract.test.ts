@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineWorldModule } from "../core/world/runtime-world-module";
-import { createRuntimeWorldFromDocument } from "../ecs/runtimeWorld";
-import { createDocumentSnapshot } from "../document/document-store";
+import { createEngineWorldModule } from "../kernel/core/world/runtime-world-module";
+import { createRuntimeWorldFromDocument } from "../kernel/ecs/runtimeWorld";
+import { createDocumentSnapshot } from "../kernel/document/document-store";
 
 /**
  * Verifies core world module keeps canonical runtime-world projection behavior deterministic.

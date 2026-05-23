@@ -1,7 +1,7 @@
 import type {
   BackendSelectionResult,
   EngineCreateOptions,
-} from "../../api/public-types";
+} from "../../orchestration/api/public-types";
 import type { EngineBackendProbe } from "../backendSelector";
 
 /**

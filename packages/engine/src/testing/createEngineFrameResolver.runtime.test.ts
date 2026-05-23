@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveCreateEngineFrame } from "../render-planning/createEngineFrameResolver";
+import { resolveCreateEngineFrame } from "../orchestration/render-planning/createEngineFrameResolver";
 
 /**
  * Verifies frame resolver returns integrated runtime strategy and budget decisions.

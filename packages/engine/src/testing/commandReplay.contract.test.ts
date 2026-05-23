@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineCommandReplayModule } from "../command-buffer/commandReplay/commandReplay";
+import { createEngineCommandReplayModule } from "../kernel/command-buffer/commandReplay/commandReplay";
 
 /**
  * Verifies command replay skeleton provides deterministic replay events for M3 baseline.

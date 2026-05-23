@@ -4,9 +4,9 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_WORLD_FOUNDATION_API,
   resolveEngineRuntimeWorldFoundationApiDescriptor,
-} from "../../runtime/world/runtime-world.foundation.contract";
-import { createDocumentSnapshot } from "../../document/document-store";
-import { createRuntimeWorldFromDocument } from "../../ecs/runtimeWorld";
+} from "../../orchestration/runtime/world/runtime-world.foundation.contract";
+import { createDocumentSnapshot } from "../../kernel/document/document-store";
+import { createRuntimeWorldFromDocument } from "../../kernel/ecs/runtimeWorld";
 
 /**
  * Verifies runtime world foundation API descriptor map keeps expected endpoint set.

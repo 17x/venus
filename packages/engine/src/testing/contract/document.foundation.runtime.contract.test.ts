@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API,
   resolveEngineRuntimeDocumentFoundationApiDescriptor,
-} from "../../runtime/document/document.foundation.contract";
+} from "../../orchestration/runtime/document/document.foundation.contract";
 
 /**
  * Verifies runtime document foundation API descriptor map keeps expected endpoint set.

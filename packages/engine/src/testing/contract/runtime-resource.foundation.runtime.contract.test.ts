@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_RESOURCE_FOUNDATION_API,
   resolveEngineRuntimeResourceFoundationApiDescriptor,
-} from "../../runtime/resource/runtime-resource.foundation.contract";
+} from "../../orchestration/runtime/resource/runtime-resource.foundation.contract";
 
 /**
  * Verifies runtime resource foundation descriptor map keeps expected endpoint set.

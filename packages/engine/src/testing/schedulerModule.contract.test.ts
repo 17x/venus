@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineSchedulerModule } from "../core/scheduler/frame-budget-module";
+import { createEngineSchedulerModule } from "../kernel/core/scheduler/frame-budget-module";
 import {
   resolveEngineFrameBudget,
   resolveFrameBudgetPressure,
   resolveFrameBudgetPressureReason,
   resolveFrameBudgetPressureSignals,
   resolvePhaseBudget,
-} from "../scheduler/frameBudgetBroker";
+} from "../optimization/frameBudgetBroker";
 
 /**
  * Verifies core scheduler module keeps canonical frame-budget broker behavior deterministic.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineSpatialQueryModule } from "../spatial/spatialQuery/spatialQuery";
+import { createEngineSpatialQueryModule } from "../kernel/spatial/spatialQuery/spatialQuery";
 
 /**
  * Verifies canonical spatial query module resolves deterministic viewport and frustum ids.

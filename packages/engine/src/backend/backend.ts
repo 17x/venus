@@ -1,7 +1,7 @@
 import type {
   EngineBackendMode,
   EngineSurface,
-} from "../api/public-types";
+} from "../orchestration/api/public-types";
 export {
   createDefaultEngineBackendProbes,
   resolveAutoBackendMode,

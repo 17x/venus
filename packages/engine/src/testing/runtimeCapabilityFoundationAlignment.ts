@@ -1,11 +1,11 @@
-import { ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API } from "../runtime/document/document.foundation.contract";
-import { ENGINE_RUNTIME_DIRTY_FOUNDATION_API } from "../runtime/dirty/dirty.foundation.contract";
-import { ENGINE_RUNTIME_WORLD_FOUNDATION_API } from "../runtime/world/runtime-world.foundation.contract";
-import { ENGINE_RUNTIME_COMMAND_FOUNDATION_API } from "../runtime/command/command-buffer.foundation.contract";
-import { ENGINE_RUNTIME_BACKEND_FOUNDATION_API } from "../runtime/backend/backend.foundation.contract";
-import { ENGINE_RUNTIME_PLAN_FOUNDATION_API } from "../runtime/plan/runtime-plan.foundation.contract";
-import { ENGINE_RUNTIME_RESOURCE_FOUNDATION_API } from "../runtime/resource/runtime-resource.foundation.contract";
-import { ENGINE_RUNTIME_OBSERVABILITY_FOUNDATION_API } from "../runtime/observability/runtime-observability.foundation.contract";
+import { ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API } from "../orchestration/runtime/document/document.foundation.contract";
+import { ENGINE_RUNTIME_DIRTY_FOUNDATION_API } from "../orchestration/runtime/dirty/dirty.foundation.contract";
+import { ENGINE_RUNTIME_WORLD_FOUNDATION_API } from "../orchestration/runtime/world/runtime-world.foundation.contract";
+import { ENGINE_RUNTIME_COMMAND_FOUNDATION_API } from "../orchestration/runtime/command/command-buffer.foundation.contract";
+import { ENGINE_RUNTIME_BACKEND_FOUNDATION_API } from "../orchestration/runtime/backend/backend.foundation.contract";
+import { ENGINE_RUNTIME_PLAN_FOUNDATION_API } from "../orchestration/runtime/plan/runtime-plan.foundation.contract";
+import { ENGINE_RUNTIME_RESOURCE_FOUNDATION_API } from "../orchestration/runtime/resource/runtime-resource.foundation.contract";
+import { ENGINE_RUNTIME_OBSERVABILITY_FOUNDATION_API } from "../orchestration/runtime/observability/runtime-observability.foundation.contract";
 
 /**
  * Capability entries that are intentionally outside current foundation descriptor families.

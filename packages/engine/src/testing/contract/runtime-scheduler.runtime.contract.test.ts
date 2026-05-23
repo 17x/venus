@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_SCHEDULER_API,
   resolveEngineRuntimeSchedulerApiDescriptor,
-} from "../../runtime/scheduler/runtime-scheduler.contract";
+} from "../../orchestration/runtime/scheduler/runtime-scheduler.contract";
 
 /**
  * Verifies runtime scheduler descriptor map keeps expected endpoint set.

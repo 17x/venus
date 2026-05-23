@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineViewModule } from "../core/view/viewport-module";
-import { createViewportFacade } from "../view/viewportFacade";
+import { createEngineViewModule } from "../kernel/core/view/viewport-module";
+import { createViewportFacade } from "../kernel/view/viewportFacade";
 
 /**
  * Verifies core view module keeps canonical viewport facade behavior deterministic.

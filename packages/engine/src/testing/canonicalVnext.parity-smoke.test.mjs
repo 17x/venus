@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveEngineFrameBudget as resolveEngineFrameBudgetCanonical } from "../scheduler/frameBudgetBroker.ts";
-import { resolveEngineRenderStrategy as resolveEngineRenderStrategyCanonical } from "../render-runtime/strategy.ts";
+import { resolveEngineFrameBudget as resolveEngineFrameBudgetCanonical } from "../optimization/frameBudgetBroker.ts";
+import { resolveEngineRenderStrategy as resolveEngineRenderStrategyCanonical } from "../orchestration/render-runtime/strategy.ts";
 
 /**
  * Returns one canonical strategy input snapshot.

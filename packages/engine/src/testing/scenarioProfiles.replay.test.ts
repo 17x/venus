@@ -12,7 +12,7 @@ import {
 import type { EngineBackendProbe } from "../backend/backendSelector";
 import {
   vectorDenseSceneScenarioProfile,
-} from "../profiles/scenario/vector-dense-scene-profile";
+} from "../kernel/profiles/scenario/vector-dense-scene-profile";
 
 /**
  * Replays one scenario profile document/viewport/input timeline and returns deterministic snapshot metadata.

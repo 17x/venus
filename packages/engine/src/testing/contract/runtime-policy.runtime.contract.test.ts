@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_POLICY_API,
   resolveEngineRuntimePolicyApiDescriptor,
-} from "../../runtime/policy/runtime-policy.contract";
+} from "../../orchestration/runtime/policy/runtime-policy.contract";
 
 /**
  * Verifies runtime policy descriptor map keeps expected endpoint set.

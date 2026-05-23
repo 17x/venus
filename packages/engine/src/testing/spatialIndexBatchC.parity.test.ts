@@ -3,11 +3,11 @@ import test from "node:test";
 
 import {
   createEngineSpatialIndex as createModuleEngineSpatialIndex,
-} from "../spatial/engineSpatialIndex";
+} from "../kernel/spatial/engineSpatialIndex";
 
 import {
   createEngineSpatialIndex as createEngineSpatialIndexUnderTest,
-} from "../spatial/engineSpatialIndex";
+} from "../kernel/spatial/engineSpatialIndex";
 
 type SpatialItem = {
   id: string;

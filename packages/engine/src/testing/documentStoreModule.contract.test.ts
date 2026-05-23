@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineDocumentStoreModule } from "../core/document/document-store-module";
-import { applyDocumentChangeSet, createDocumentSnapshot } from "../document/document-store";
+import { createEngineDocumentStoreModule } from "../kernel/core/document/document-store-module";
+import { applyDocumentChangeSet, createDocumentSnapshot } from "../kernel/document/document-store";
 
 /**
  * Verifies core document store module preserves canonical snapshot-creation behavior.

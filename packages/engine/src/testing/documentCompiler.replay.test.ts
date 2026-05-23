@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { EngineDocumentChangeSet } from "../document/document-contracts";
-import { applyDocumentChangeSet, createDocumentSnapshot } from "../document/document-store";
-import { compileDocumentChangeSet } from "../compiler/incrementalCompiler";
+import type { EngineDocumentChangeSet } from "../kernel/document/document-contracts";
+import { applyDocumentChangeSet, createDocumentSnapshot } from "../kernel/document/document-store";
+import { compileDocumentChangeSet } from "../kernel/compiler/incrementalCompiler";
 
 /**
  * Runs one deterministic replay sequence and returns final snapshot and compile outputs.

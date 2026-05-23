@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEngineCompilerModule } from "../core/compiler/incremental-compiler-module";
-import { compileDocumentChangeSet } from "../compiler/incrementalCompiler";
-import { createDocumentSnapshot } from "../document/document-store";
+import { createEngineCompilerModule } from "../kernel/core/compiler/incremental-compiler-module";
+import { compileDocumentChangeSet } from "../kernel/compiler/incrementalCompiler";
+import { createDocumentSnapshot } from "../kernel/document/document-store";
 
 /**
  * Verifies core compiler module keeps canonical compile behavior deterministic.

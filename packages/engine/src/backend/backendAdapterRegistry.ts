@@ -1,11 +1,11 @@
-import type { EngineSurface, EngineBackendMode } from "../api/public-types";
+import type { EngineSurface, EngineBackendMode } from "../orchestration/api/public-types";
 import {
   createCanvas2DBackendAdapter,
   type Canvas2DBackendAdapterHooks,
-} from "../adapters/backend/canvas2dBackendAdapter";
-import { createNoopBackendAdapter } from "../adapters/backend/noopBackendAdapter";
-import { createWebGLBackendAdapter } from "../adapters/backend/webglBackendAdapter";
-import { createWebGPUBackendAdapter } from "../adapters/backend/webgpuBackendAdapter";
+} from "../backend/adapters/canvas2dBackendAdapter";
+import { createNoopBackendAdapter } from "../backend/adapters/noopBackendAdapter";
+import { createWebGLBackendAdapter } from "../backend/adapters/webglBackendAdapter";
+import { createWebGPUBackendAdapter } from "../backend/adapters/webgpuBackendAdapter";
 import type { EngineBackend } from "./backend";
 
 /**

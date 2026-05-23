@@ -5,11 +5,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const MOVED_CORE_MODULE_FILES = [
-  "../core/document/document-store-module.ts",
-  "../core/compiler/incremental-compiler-module.ts",
-  "../core/world/runtime-world-module.ts",
-  "../core/view/viewport-module.ts",
-  "../core/scheduler/frame-budget-module.ts",
+  "../kernel/core/document/document-store-module.ts",
+  "../kernel/core/compiler/incremental-compiler-module.ts",
+  "../kernel/core/world/runtime-world-module.ts",
+  "../kernel/core/view/viewport-module.ts",
+  "../kernel/core/scheduler/frame-budget-module.ts",
 ];
 
 /**

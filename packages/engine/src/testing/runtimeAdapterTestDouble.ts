@@ -1,4 +1,4 @@
-import type { EngineFrameCallback, EngineRuntimeAdapter } from "../api/public-types";
+import type { EngineFrameCallback, EngineRuntimeAdapter } from "../orchestration/api/public-types";
 
 /**
  * Runtime adapter control surface used by deterministic scheduling tests.

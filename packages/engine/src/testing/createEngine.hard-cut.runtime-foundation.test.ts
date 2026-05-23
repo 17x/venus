@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createEngine, createTestSurface } from "../index";
-import type { EngineDocumentSnapshot } from "../document/document-contracts";
+import type { EngineDocumentSnapshot } from "../kernel/document/document-contracts";
 
 /**
  * Builds deterministic runtime adapter used by runtime-foundation namespace tests.

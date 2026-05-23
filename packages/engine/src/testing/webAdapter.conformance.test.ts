@@ -4,11 +4,11 @@ import test from "node:test";
 import {
   canUseWebGLBackendAdapter,
   createWebGLBackendAdapter,
-} from "../adapters/backend/webglBackendAdapter";
+} from "../backend/adapters/webglBackendAdapter";
 import {
   canUseWebGPUBackendAdapter,
   createWebGPUBackendAdapter,
-} from "../adapters/backend/webgpuBackendAdapter";
+} from "../backend/adapters/webgpuBackendAdapter";
 
 /**
  * Verifies WebGL adapter capability probe resolves from canvas context availability.

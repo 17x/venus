@@ -17,10 +17,10 @@ import type {
 } from "../index";
 import {
   vectorEditorRuntimeProfile,
-} from "../profiles/vector-editor/vector-editor-profile";
+} from "../kernel/profiles/vector-editor/vector-editor-profile";
 import {
   vectorDenseSceneScenarioProfile,
-} from "../profiles/scenario/vector-dense-scene-profile";
+} from "../kernel/profiles/scenario/vector-dense-scene-profile";
 
 /**
  * Verifies baseline profiles validate before runtime assembly is wired to them.

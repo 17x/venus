@@ -1,4 +1,4 @@
-import type { EngineSurface } from "../api/public-types";
+import type { EngineSurface } from "../orchestration/api/public-types";
 
 /**
  * Creates a deterministic test surface used by engine runtime tests.

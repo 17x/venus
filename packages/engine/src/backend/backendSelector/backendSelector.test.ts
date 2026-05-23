@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { EngineCreateOptions } from "../../api/public-types";
+import type { EngineCreateOptions } from "../../orchestration/api/public-types";
 import { createEngineBackendSelectorModule } from "./backendSelector";
 
 /**

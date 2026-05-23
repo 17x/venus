@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { EngineDocumentChangeSet } from "../document/document-contracts";
-import { applyDocumentChangeSet, createDocumentSnapshot } from "../document/document-store";
-import { compileDocumentChangeSet } from "../compiler/incrementalCompiler";
-import { resolveStagedExecutionSnapshot } from "../render-execution/stagedExecutionChain";
+import type { EngineDocumentChangeSet } from "../kernel/document/document-contracts";
+import { applyDocumentChangeSet, createDocumentSnapshot } from "../kernel/document/document-store";
+import { compileDocumentChangeSet } from "../kernel/compiler/incrementalCompiler";
+import { resolveStagedExecutionSnapshot } from "../orchestration/render-execution/stagedExecutionChain";
 
 /**
  * Verifies staged execution chain runs deterministically through document->compiler->ecs->spatial->picking.

@@ -4,8 +4,8 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_COMMAND_FOUNDATION_API,
   resolveEngineRuntimeCommandFoundationApiDescriptor,
-} from "../../runtime/command/command-buffer.foundation.contract";
-import { createEngineCommandEncoderModule } from "../../command-buffer/commandEncoder/commandEncoder";
+} from "../../orchestration/runtime/command/command-buffer.foundation.contract";
+import { createEngineCommandEncoderModule } from "../../kernel/command-buffer/commandEncoder/commandEncoder";
 
 /**
  * Verifies runtime command foundation API descriptor map keeps expected endpoint set.

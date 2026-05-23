@@ -5,7 +5,7 @@ import {
   resolveEngineFrameBudget,
   resolveFrameBudgetPressureReason,
   resolveFrameBudgetPressureSignals,
-} from "../scheduler/frameBudgetBroker";
+} from "../optimization/frameBudgetBroker";
 
 /**
  * Verifies pressure signals and reason labels are stable for low threshold inputs.

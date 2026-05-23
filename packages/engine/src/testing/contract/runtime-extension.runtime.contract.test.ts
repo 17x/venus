@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_EXTENSION_API,
   resolveEngineRuntimeExtensionApiDescriptor,
-} from "../../runtime/extension/runtime-extension.contract";
+} from "../../orchestration/runtime/extension/runtime-extension.contract";
 
 /**
  * Verifies runtime extension descriptor map keeps expected endpoint set.

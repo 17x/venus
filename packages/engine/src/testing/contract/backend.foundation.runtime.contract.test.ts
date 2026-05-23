@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_BACKEND_FOUNDATION_API,
   resolveEngineRuntimeBackendFoundationApiDescriptor,
-} from "../../runtime/backend/backend.foundation.contract";
+} from "../../orchestration/runtime/backend/backend.foundation.contract";
 import {
   createDefaultEngineBackendProbes,
   resolveBackendSelection,

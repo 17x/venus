@@ -3,9 +3,9 @@ import type {
   EngineBackendMode,
   EngineCreateOptions,
   EngineSurface,
-} from "../api/public-types";
-import { canUseWebGLBackendAdapter } from "../adapters/backend/webglBackendAdapter";
-import { canUseWebGPUBackendAdapter } from "../adapters/backend/webgpuBackendAdapter";
+} from "../orchestration/api/public-types";
+import { canUseWebGLBackendAdapter } from "../backend/adapters/webglBackendAdapter";
+import { canUseWebGPUBackendAdapter } from "../backend/adapters/webgpuBackendAdapter";
 
 /**
  * Declares one backend-eligibility probe consumed by auto selector registry.

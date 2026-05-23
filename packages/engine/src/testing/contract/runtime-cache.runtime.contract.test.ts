@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_CACHE_API,
   resolveEngineRuntimeCacheApiDescriptor,
-} from "../../runtime/cache/runtime-cache.contract";
+} from "../../orchestration/runtime/cache/runtime-cache.contract";
 
 /**
  * Verifies runtime cache descriptor map keeps expected endpoint set.

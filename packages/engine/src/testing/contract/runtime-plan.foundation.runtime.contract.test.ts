@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_PLAN_FOUNDATION_API,
   resolveEngineRuntimePlanFoundationApiDescriptor,
-} from "../../runtime/plan/runtime-plan.foundation.contract";
+} from "../../orchestration/runtime/plan/runtime-plan.foundation.contract";
 
 /**
  * Verifies runtime plan foundation descriptor map keeps expected endpoint set.

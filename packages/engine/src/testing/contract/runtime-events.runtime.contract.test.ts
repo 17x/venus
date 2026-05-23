@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ENGINE_RUNTIME_EVENTS_API,
   resolveEngineRuntimeEventsApiDescriptor,
-} from "../../runtime/events/runtime-events.contract";
+} from "../../orchestration/runtime/events/runtime-events.contract";
 
 /**
  * Verifies runtime events descriptor map keeps expected endpoint set.
