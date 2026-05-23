@@ -155,8 +155,20 @@ test("createEngine runtime foundation namespaces are callable", () => {
   assert.equal(typeof selectedBackend.resolved, "string");
   assert.equal(availableBackends.available.includes(activeBackend.active), true);
   assert.equal(typeof backendCapabilities.compute, "boolean");
+  assert.equal(Array.isArray(backendCapabilities.compressedTextureFormats), true);
+  assert.equal(
+    backendCapabilities.compressedTextureFormats.every((format) => typeof format === "string"),
+    true,
+  );
+  assert.equal(typeof backendCapabilities.textureTranscodeRequired, "boolean");
   assert.equal(backendLimits.maxTextureSize > 0, true);
   assert.equal(Array.isArray(fallbackTrace.fallbackTrace), true);
+  assert.equal(
+    fallbackTrace.fallbackTrace.every((item) =>
+      item.compressedTextureFallback === null || typeof item.compressedTextureFallback === "string"
+    ),
+    true,
+  );
   assert.equal(typeof headlessProbe.supported, "boolean");
 
   const framePlan = engine.runtime.plan.createFramePlan({

@@ -26,6 +26,7 @@ import {
   type BoxTransformSource,
   type ResolvedNodeTransform,
 } from "../../kernel/interaction/shapeTransform";
+import { resolveEngineTextureCompressionSupport } from "../../platform/protocol/backend/texture-compression";
 
 /**
  * Defines dependencies required by runtime backend/diagnostics helper assembly.
@@ -81,6 +82,13 @@ export function createRuntimeBackendDiagnosticsFoundation(
   formatRuntimeNodeSvgTransform: (transform: ResolvedNodeTransform) => string | undefined;
 } {
   /**
+   * Resolves active backend texture-compression support snapshot.
+   */
+  function resolveRuntimeTextureCompressionSupport() {
+    return resolveEngineTextureCompressionSupport(resolveRuntimeBackendGetActiveOutput().active);
+  }
+
+  /**
    * Resolves one public diagnostics snapshot for runtime bridge/tooling callers.
    */
   function resolvePublicDiagnostics() {
@@ -101,10 +109,13 @@ export function createRuntimeBackendDiagnosticsFoundation(
    */
   function resolveRuntimeBackendGetFallbackTraceOutput(): EngineRuntimeBackendGetFallbackTraceOutput {
     const backendInfo = deps.getBackendInfo();
+    const compressionSupport = resolveRuntimeTextureCompressionSupport();
     const traceItem: EngineRuntimeBackendFallbackTraceItem = {
       requested: backendInfo.requested,
       resolved: backendInfo.resolved,
       reason: backendInfo.fallbackReason,
+      compressedTextureFallback:
+        compressionSupport.formats.length === 0 ? "NO_COMPRESSED_TEXTURE_PATH" : null,
     };
     return {
       fallbackTrace: [traceItem],
@@ -132,9 +143,12 @@ export function createRuntimeBackendDiagnosticsFoundation(
    */
   function resolveRuntimeBackendCapabilities(): EngineRuntimeBackendCapabilitiesOutput {
     const active = resolveRuntimeBackendGetActiveOutput().active;
+    const compressionSupport = resolveEngineTextureCompressionSupport(active);
     return {
       compute: active !== "canvas2d",
       readback: true,
+      compressedTextureFormats: compressionSupport.formats,
+      textureTranscodeRequired: compressionSupport.transcodeRequired,
     };
   }
 

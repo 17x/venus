@@ -130,62 +130,98 @@ Additional scenario gates when touched:
 
 ### DEX-001 [P0] [K/R] Define scenario capability matrix
 
-- Status: TODO
+- Status: DONE
 - Outcome:
   - map 13 scenarios to runtime capability domains
   - map each domain to layer ownership (B/K/O/R/P)
 - Acceptance:
   - matrix committed in docs
   - each capability has owner and gate
+- Artifacts:
+  - packages/engine/docs/en/concepts/scenario-capability-matrix.md
+  - packages/engine/docs/cn/concepts/scenario-capability-matrix.md
 
 ### DEX-002 [P0] [K/R] Freeze layer boundary contracts
 
-- Status: TODO
+- Status: DOING
 - Outcome:
   - enforce import direction and ownership boundaries
   - deny unclassified cross-layer coupling
 - Acceptance:
   - boundary tests updated
   - no private cross-layer deep imports
+- Current progress:
+  - boundary contract baseline docs created (en/cn)
+  - top-level export path boundary contract test added and passing
+  - cross-layer import boundary contract test added and passing with explicit debt freeze list
+  - next slice will shrink forbidden baseline debt and move toward strict edge enforcement
+- Artifacts:
+  - packages/engine/docs/en/concepts/layer-boundary-contracts.md
+  - packages/engine/docs/cn/concepts/layer-boundary-contracts.md
+  - packages/engine/src/testing/runtimeDomainExportBoundary.contract.test.mjs
 
 ### DEX-003 [P0] [R/O] Create rolling execution backlog index
 
-- Status: TODO
+- Status: DOING
 - Outcome:
   - this ledger becomes single execution source for evolution work
   - each later batch appends status/touched files/validation summary
 - Acceptance:
   - all future engine direction tasks tracked in this file
+- Current progress:
+  - execution-record sequence contract test added and passing
+  - execution-record required-field contract test added and passing
+- Artifacts:
+  - packages/engine/src/testing/executionLedger.contract.test.mjs
 
 ### DEX-004 [P0] [K/R] Enforce 3D-first baseline and 2D opt-in boundary
 
-- Status: TODO
+- Status: DOING
 - Outcome:
   - freeze 3D-first default behavior in engine contracts and runtime profile
   - define explicit 2D module boundary and opt-in API entry for declared 2D scenarios only
 - Acceptance:
   - no default runtime dependency on 2D-specific modules
   - 2D module activation requires explicit API option
+- Current progress:
+  - 2D-related top-level export gate added with explicit opt-in allowlist
+  - create-engine contract gate added to ensure canvas2d integration remains optional
+- Artifacts:
+  - packages/engine/src/testing/runtimeDomainExportBoundary.contract.test.mjs
 
 ### DEX-005 [P0] [K/R] Enforce domain-semantic neutrality
 
-- Status: TODO
+- Status: DOING
 - Outcome:
   - define engine contract rule that forbids industry product semantics and business logic
   - require scenario capabilities to be assembled from generic primitives
 - Acceptance:
   - architecture docs include semantic-neutral contract checklist
   - new scenario modules pass semantic-neutral naming and contract review
+- Current progress:
+  - semantic-neutrality contract tests added for runtime capability descriptors
+  - semantic-neutrality contract tests added for backend foundation descriptors
+- Artifacts:
+  - packages/engine/src/testing/semanticNeutrality.contract.test.ts
 
 ### DEX-006 [P0] [R] Enforce API-first surface and concise naming governance
 
-- Status: TODO
+- Status: DOING
 - Outcome:
   - lock external exposure to governed API surface
   - define concise API naming rules and review checks
 - Acceptance:
   - no new bypass exports outside approved API surface
   - API contract docs include naming rules and examples
+- Current progress:
+  - API governance docs created (en/cn)
+  - naming-governance checks wired into runtime capability contract tests and passing
+  - API-surface exception-documentation gate added and passing
+  - next slice will cover automated guard for non-governed top-level export symbol additions
+- Artifacts:
+  - packages/engine/docs/en/concepts/api-surface-governance.md
+  - packages/engine/docs/cn/concepts/api-surface-governance.md
+  - packages/engine/src/testing/runtimeCapabilityMap.contract.test.ts
 
 ## Phase B: Scenario Foundation Modules
 
@@ -313,6 +349,52 @@ Additional scenario gates when touched:
   - upload and eviction dependencies
   - residency and lifetime governance
 
+### DEX-034 [P1] [K/R/O/P] Asset compression and decode pipeline baseline
+
+- Status: DOING
+- Scope:
+  - compression-aware asset descriptor contracts (geometry/texture/volume/animation)
+  - async decode/transcode scheduling with frame-budget and streaming-budget integration
+  - API-first capability exposure for compressed asset ingest and runtime decode status
+- Primary scenarios: 1, 3, 4, 5, 7, 8, 9, 10, 11
+- Current progress:
+  - compression baseline concept docs created (en/cn)
+  - next slice is contract/type surface definition under kernel/orchestration
+- Artifacts:
+  - packages/engine/docs/en/concepts/asset-compression-baseline.md
+  - packages/engine/docs/cn/concepts/asset-compression-baseline.md
+
+### DEX-035 [P1] [P/B/R] GPU compressed texture and upload path
+
+- Status: DOING
+- Scope:
+  - platform codec/transcoder adapters for compressed texture payloads
+  - backend capability negotiation for compressed texture formats and fallback
+  - orchestration upload path with residency/pressure-aware fallback policy
+- Primary scenarios: 1, 5, 7, 8, 9, 10, 11
+- Current progress:
+  - runtime backend capabilities contract extended with compressed texture format list output
+  - runtime foundation hard-cut coverage updated and passing
+  - platform texture-compression support resolver added and wired into runtime backend diagnostics
+  - fallback trace contract extended with compressed-texture fallback marker
+  - texture-compression support contract tests added and passing
+- Artifacts:
+  - packages/engine/src/orchestration/api/public-types/runtime-document-world.types.ts
+  - packages/engine/src/orchestration/api/createEngine.runtime-backend-diagnostics.foundation.ts
+  - packages/engine/src/testing/createEngine.hard-cut.runtime-foundation.test.ts
+  - packages/engine/src/platform/protocol/backend/texture-compression.ts
+  - packages/engine/src/orchestration/runtime/backend/backend.foundation.contract.ts
+  - packages/engine/src/testing/textureCompressionSupport.contract.test.ts
+
+### DEX-036 [P2] [K/O/R] Geometry and animation compression runtime policy
+
+- Status: TODO
+- Scope:
+  - quantization/delta/streaming chunk policy contracts for geometry and animation payloads
+  - decode precision policy by zoom/LOD/interaction state
+  - replay-safe deterministic decode checkpoints for node/headless runtimes
+- Primary scenarios: 2, 3, 4, 6, 7, 8, 10, 11
+
 ## Phase D: Source Mining and Migration Closure
 
 ### DEX-040 [P2] [All] Source inventory from \_vnext and engine-legacy
@@ -373,17 +455,17 @@ Additional scenario gates when touched:
 
 ## 5. Scenario-to-Task Quick Map
 
-- S1 Medical CT/MRI: DEX-010, DEX-030, DEX-032, DEX-033
+- S1 Medical CT/MRI: DEX-010, DEX-030, DEX-032, DEX-033, DEX-034, DEX-035
 - S2 Surgical planning: DEX-011, DEX-031, DEX-032
-- S3 BIM review: DEX-012, DEX-030, DEX-033
-- S4 Industrial CAD: DEX-012, DEX-031, DEX-032
-- S5 GIS 2D/3D: DEX-013, DEX-030, DEX-033
-- S6 Auto driving twin replay: DEX-014, DEX-032
-- S7 City-scale twin wall: DEX-013, DEX-014, DEX-033
-- S8 E-commerce 3D: DEX-015, DEX-030
-- S9 Molecular and volume: DEX-010, DEX-031, DEX-033
-- S10 Game editor/runtime parity: DEX-016, DEX-030, DEX-032
-- S11 Node rendering: DEX-017, DEX-033
+- S3 BIM review: DEX-012, DEX-030, DEX-033, DEX-034, DEX-036
+- S4 Industrial CAD: DEX-012, DEX-031, DEX-032, DEX-034, DEX-036
+- S5 GIS 2D/3D: DEX-013, DEX-030, DEX-033, DEX-034, DEX-035
+- S6 Auto driving twin replay: DEX-014, DEX-032, DEX-036
+- S7 City-scale twin wall: DEX-013, DEX-014, DEX-033, DEX-034, DEX-035, DEX-036
+- S8 E-commerce 3D: DEX-015, DEX-030, DEX-034, DEX-035, DEX-036
+- S9 Molecular and volume: DEX-010, DEX-031, DEX-033, DEX-034, DEX-035
+- S10 Game editor/runtime parity: DEX-016, DEX-030, DEX-032, DEX-034, DEX-035, DEX-036
+- S11 Node rendering: DEX-017, DEX-033, DEX-034, DEX-035, DEX-036
 - S12 Vector editor: DEX-018, DEX-031, DEX-032
 - S13 Video editor: DEX-019, DEX-030, DEX-032
 
@@ -402,3 +484,164 @@ Additional scenario gates when touched:
 - Build scenario capabilities only by composing generic engine primitives and runtime APIs.
 - Expose capabilities through governed API surfaces only; do not add ad hoc direct exports.
 - API names must remain concise, readable, and stable across scenarios.
+- Avoid over-abstraction: keep code directly understandable and maintainable for human contributors.
+- Do not abstract early: extract shared modules/functions only when two or more concrete call sites exist, unless a strict contract boundary requires earlier extraction.
+
+## 7. Execution Records
+
+### ER-001
+
+- Completed task: DEX-001
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/docs/en/concepts/scenario-capability-matrix.md
+  - packages/engine/docs/cn/concepts/scenario-capability-matrix.md
+- Validation commands and result:
+  - docs-only slice, compile/test validation deferred to next code slice
+- Risk notes:
+  - capability domains and owner mapping may need refinement when DEX-002 boundary tests are implemented
+- Next task ID:
+  - DEX-002
+
+### ER-002
+
+- In-progress task: DEX-002
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/docs/en/concepts/layer-boundary-contracts.md
+  - packages/engine/docs/cn/concepts/layer-boundary-contracts.md
+- Validation commands and result:
+  - docs-only kickoff slice, compile/test validation deferred to DEX-002 boundary-test slice
+- Risk notes:
+  - dependency edge rules may require adjustment after first boundary-test run against current import graph
+- Next task ID:
+  - DEX-002 (boundary test implementation)
+
+### ER-003
+
+- In-progress task: DEX-002
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/runtimeDomainExportBoundary.contract.test.mjs
+- Validation commands and result:
+  - node --import tsx --test src/testing/runtimeDomainExportBoundary.contract.test.mjs (pass)
+- Risk notes:
+  - current slice only enforces top-level export path boundaries; import-graph boundary enforcement is still pending
+- Next task ID:
+  - DEX-002 (cross-layer import boundary contract)
+
+### ER-004
+
+- In-progress task: DEX-002
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/runtimeDomainExportBoundary.contract.test.mjs
+- Validation commands and result:
+  - node --import tsx --test src/testing/runtimeDomainExportBoundary.contract.test.mjs (pass)
+- Risk notes:
+  - current import-boundary guard freezes known forbidden edges as baseline debt; follow-up slices must reduce this list incrementally
+- Next task ID:
+  - DEX-006
+
+### ER-005
+
+- In-progress task: DEX-006
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/docs/en/concepts/api-surface-governance.md
+  - packages/engine/docs/cn/concepts/api-surface-governance.md
+- Validation commands and result:
+  - docs-only governance slice, automated naming checks deferred to next DEX-006 test slice
+- Risk notes:
+  - without automated naming checks, governance currently depends on review discipline
+- Next task ID:
+  - DEX-006 (naming governance contract test)
+
+### ER-006
+
+- In-progress task: compression planning slice
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+- Validation commands and result:
+  - planning/docs-only slice, implementation validation deferred to DEX-034/DEX-035/DEX-036
+- Risk notes:
+  - codec and transcode format choices must remain platform-agnostic and API-first
+- Next task ID:
+  - DEX-034
+
+### ER-007
+
+- In-progress task: DEX-006
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/runtimeCapabilityMap.contract.test.ts
+- Validation commands and result:
+  - node --import tsx --test src/testing/runtimeCapabilityMap.contract.test.ts (pass)
+- Risk notes:
+  - naming guard currently applies to runtime capability map surface; complementary export-level gate remains pending
+- Next task ID:
+  - DEX-004
+
+### ER-008
+
+- In-progress tasks: DEX-004, DEX-006, DEX-034
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/runtimeDomainExportBoundary.contract.test.mjs
+  - packages/engine/docs/en/concepts/api-surface-governance.md
+  - packages/engine/docs/cn/concepts/api-surface-governance.md
+  - packages/engine/docs/en/concepts/asset-compression-baseline.md
+  - packages/engine/docs/cn/concepts/asset-compression-baseline.md
+- Validation commands and result:
+  - node --import tsx --test src/testing/runtimeDomainExportBoundary.contract.test.mjs (pass)
+- Risk notes:
+  - 2D guard and export-exception guard are path-level; symbol-level governance for future top-level exports is still pending
+- Next task ID:
+  - DEX-003
+
+### ER-009
+
+- In-progress tasks: DEX-003, DEX-035
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/executionLedger.contract.test.mjs
+  - packages/engine/src/orchestration/api/public-types/runtime-document-world.types.ts
+  - packages/engine/src/orchestration/api/createEngine.runtime-backend-diagnostics.foundation.ts
+  - packages/engine/src/testing/createEngine.hard-cut.runtime-foundation.test.ts
+- Validation commands and result:
+  - node --import tsx --test src/testing/runtimeDomainExportBoundary.contract.test.mjs src/testing/executionLedger.contract.test.mjs src/testing/createEngine.hard-cut.runtime-foundation.test.ts (pass)
+- Risk notes:
+  - compressed texture capabilities currently expose backend-level format families; platform-transcoder and upload fallback execution are still pending DEX-035 slices
+- Next task ID:
+  - DEX-005
+
+### ER-010
+
+- In-progress tasks: DEX-005, DEX-035
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/semanticNeutrality.contract.test.ts
+  - packages/engine/src/platform/protocol/backend/texture-compression.ts
+  - packages/engine/src/orchestration/api/public-types/runtime-document-world.types.ts
+  - packages/engine/src/orchestration/runtime/backend/backend.foundation.contract.ts
+  - packages/engine/src/orchestration/api/createEngine.runtime-backend-diagnostics.foundation.ts
+  - packages/engine/src/testing/createEngine.hard-cut.runtime-foundation.test.ts
+- Validation commands and result:
+  - node --import tsx --test src/testing/semanticNeutrality.contract.test.ts src/testing/createEngine.hard-cut.runtime-foundation.test.ts src/testing/executionLedger.contract.test.mjs src/testing/runtimeDomainExportBoundary.contract.test.mjs (pass)
+- Risk notes:
+  - compressed texture capability currently reports format-family support and transcode requirement only; concrete platform transcoder execution path is still pending
+- Next task ID:
+  - DEX-035 (upload fallback execution slice)
+
+### ER-011
+
+- In-progress task: DEX-035
+- Touched files:
+  - packages/engine/ai/engine-direction-evolution-task-ledger-2026-05-23.md
+  - packages/engine/src/testing/textureCompressionSupport.contract.test.ts
+- Validation commands and result:
+  - node --import tsx --test src/testing/textureCompressionSupport.contract.test.ts src/testing/createEngine.hard-cut.runtime-foundation.test.ts src/testing/semanticNeutrality.contract.test.ts (pass)
+- Risk notes:
+  - current compression support profile is mode-based and deterministic; capability negotiation by concrete GPU extension set remains pending
+- Next task ID:
+  - DEX-035 (backend extension negotiation slice)

@@ -378,6 +378,8 @@ export interface EngineRuntimeBackendFallbackTraceItem {
   resolved: EngineBackendMode;
   /** Optional human-readable fallback reason. */
   reason: string | null;
+  /** Optional compressed-texture fallback reason when no direct compressed path exists. */
+  compressedTextureFallback: string | null;
 }
 
 /**
@@ -430,6 +432,10 @@ export interface EngineRuntimeBackendCapabilitiesOutput {
   compute: boolean;
   /** Whether current backend supports readback workflows. */
   readback: boolean;
+  /** Supported compressed texture format identifiers for active backend. */
+  compressedTextureFormats: readonly string[];
+  /** Whether active backend requires texture transcode before upload. */
+  textureTranscodeRequired: boolean;
 }
 
 /**

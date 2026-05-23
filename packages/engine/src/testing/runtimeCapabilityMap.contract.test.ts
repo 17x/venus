@@ -16,6 +16,37 @@ import {
 } from "./runtimeCapabilityFoundationAlignment";
 
 /**
+ * Resolves whether one capability token keeps lower-camel runtime naming shape.
+ * @param value Capability map name token.
+ */
+function isLowerCamelToken(value: string): boolean {
+  return /^[a-z][A-Za-z0-9]*$/.test(value);
+}
+
+/**
+ * Resolves lowercase token segments from one capability identifier.
+ * @param value Capability identifier in lower-camel shape.
+ */
+function resolveIdentifierTokens(value: string): string[] {
+  return value
+    .split(/(?=[A-Z])|[^A-Za-z0-9]+/)
+    .map((segment) => segment.trim().toLowerCase())
+    .filter((segment) => segment.length > 0);
+}
+
+/**
+ * Resolves lowercase token segments from one free-form notes string.
+ * @param value Capability notes text.
+ */
+function resolveNotesTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+}
+
+/**
  * Resolves one callable method from engine handle by dotted capability entry path.
  * @param engine Canonical engine handle instance.
  * @param entry Dotted entry signature from capability descriptor.
@@ -309,5 +340,55 @@ test("runtime capability entries require foundation mapping or non-foundation wh
       true,
       `Non-foundation whitelist entry missing from capability map: ${entry}`,
     );
+  }
+});
+
+/**
+ * Verifies capability names and notes stay concise and scenario-neutral.
+ */
+test("runtime capability naming remains concise and scenario-neutral", () => {
+  const forbiddenScenarioTokens = [
+    "medical",
+    "surgical",
+    "bim",
+    "cad",
+    "gis",
+    "ecommerce",
+    "commerce",
+    "molecular",
+    "game",
+    "video",
+    "business",
+    "workflow",
+  ];
+
+  for (const descriptor of ENGINE_RUNTIME_CAPABILITY_REGISTRY) {
+    // Keep top-level capability identifiers concise and stable for API-first governance.
+    assert.equal(
+      descriptor.name.length <= 48,
+      true,
+      `Capability name exceeds concise-length guard: ${descriptor.name}`,
+    );
+    assert.equal(
+      isLowerCamelToken(descriptor.name),
+      true,
+      `Capability name must use lower-camel token format: ${descriptor.name}`,
+    );
+
+    const nameTokens = new Set(resolveIdentifierTokens(descriptor.name));
+    const notesTokens = new Set(resolveNotesTokens(descriptor.notes));
+
+    for (const token of forbiddenScenarioTokens) {
+      assert.equal(
+        nameTokens.has(token),
+        false,
+        `Capability name must stay scenario-neutral and avoid token '${token}': ${descriptor.name}`,
+      );
+      assert.equal(
+        notesTokens.has(token),
+        false,
+        `Capability notes must stay scenario-neutral and avoid token '${token}': ${descriptor.name}`,
+      );
+    }
   }
 });

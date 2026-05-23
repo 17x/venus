@@ -27,6 +27,8 @@ export interface EngineRuntimeBackendFallbackTraceItem {
   resolved: EngineBackendMode;
   /** Optional human-readable fallback reason. */
   reason: string | null;
+  /** Optional compressed-texture fallback reason when no direct compressed path exists. */
+  compressedTextureFallback: string | null;
 }
 
 /**
