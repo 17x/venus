@@ -23,6 +23,65 @@ import {
 const SHOW_VERBOSE_DEBUG = false
 
 /**
+ * Resolves one normalized cache/webgl diagnostics snapshot for panel sections.
+ * @param diagnostics Runtime diagnostics snapshot from store.
+ */
+function resolveRuntimeDebugPanelDataSource(diagnostics: typeof EMPTY_RUNTIME_RENDER_DIAGNOSTICS) {
+  const cacheStats = diagnostics.stats?.performance.cache
+  const webglStats = diagnostics.stats?.performance.webgl
+
+  return {
+    cacheStats: {
+      cacheHitCount: cacheStats?.cacheHitCount ?? diagnostics.cacheHitCount,
+      cacheMissCount: cacheStats?.cacheMissCount ?? diagnostics.cacheMissCount,
+      frameReuseHitCount: cacheStats?.frameReuseHitCount ?? diagnostics.frameReuseHitCount,
+      frameReuseMissCount: cacheStats?.frameReuseMissCount ?? diagnostics.frameReuseMissCount,
+      cacheFallbackReason: cacheStats?.cacheFallbackReason ?? diagnostics.cacheFallbackReason,
+    },
+    webglStats: {
+      webglRenderPath: webglStats?.webglRenderPath ?? diagnostics.webglRenderPath,
+      webgpuRenderPath: webglStats?.webgpuRenderPath ?? diagnostics.webgpuRenderPath,
+      tileCacheSize: webglStats?.tileCacheSize ?? diagnostics.tileCacheSize,
+      tileDirtyCount: webglStats?.tileDirtyCount ?? diagnostics.tileDirtyCount,
+      tileUploadCount: webglStats?.tileUploadCount ?? diagnostics.tileUploadCount,
+      tileRenderCount: webglStats?.tileRenderCount ?? diagnostics.tileRenderCount,
+      visibleTileCount: webglStats?.visibleTileCount ?? diagnostics.visibleTileCount,
+      tileSchedulerPendingCount: webglStats?.tileSchedulerPendingCount ?? diagnostics.tileSchedulerPendingCount,
+      gpuTextureBytes: webglStats?.gpuTextureBytes ?? diagnostics.gpuTextureBytes,
+      imageTextureBytes: webglStats?.imageTextureBytes ?? diagnostics.imageTextureBytes,
+      webglPreviewExecutionMode:
+        webglStats?.webglPreviewExecutionMode ?? diagnostics.webglPreviewExecutionMode,
+      webglPreviewExecutionSource:
+        webglStats?.webglPreviewExecutionSource ?? diagnostics.webglPreviewExecutionSource,
+      webglBudgetPressure: webglStats?.webglBudgetPressure ?? diagnostics.webglBudgetPressure,
+      webglBudgetPressureReason:
+        webglStats?.webglBudgetPressureReason ?? diagnostics.webglBudgetPressureReason,
+      webglBudgetPressureSource:
+        webglStats?.webglBudgetPressureSource ?? diagnostics.webglBudgetPressureSource,
+      webglPredictorConfidence: webglStats?.webglPredictorConfidence ?? diagnostics.webglPredictorConfidence,
+      webglHighZoomTextSlaViolationCount:
+        webglStats?.webglHighZoomTextSlaViolationCount ?? diagnostics.webglHighZoomTextSlaViolationCount,
+    },
+    engineConfig: {
+      snapshotFrameCount: diagnostics.frameCount,
+      snapshotUpdatedAtMs: diagnostics.diagnosticsUpdatedAtMs,
+      backendRequested: diagnostics.engineBackendRequested,
+      backendResolved: diagnostics.engineBackendResolved,
+      backendFallbackReason: diagnostics.engineBackendFallbackReason,
+      runtimeProfileId: diagnostics.engineRuntimeProfileId,
+      runtimeCapabilityCount: diagnostics.engineRuntimeCapabilityCount,
+      framePressureReason: diagnostics.engineFramePressureReason,
+      framePressure: diagnostics.engineFramePressure,
+      framePhase: diagnostics.engineFramePhase,
+      qosDegradationLevel: diagnostics.engineQosDegradationLevel,
+      qosFallbackReason: diagnostics.engineQosFallbackReason,
+      qosGuardTriggers: diagnostics.engineQosGuardTriggers,
+      qosTrace: diagnostics.engineQosTrace,
+    },
+  }
+}
+
+/**
  * Renders runtime diagnostics panel in compact mode used by the current shell variant.
  */
 export function RuntimeDebugPanel() {
@@ -74,9 +133,11 @@ export function RuntimeDebugPanel() {
       ? 'text-amber-600 dark:text-amber-400'
       : 'text-emerald-600 dark:text-emerald-400'
 
-  const cacheTotal = diagnostics.cacheHitCount + diagnostics.cacheMissCount
+  const diagnosticsDataSource = resolveRuntimeDebugPanelDataSource(diagnostics)
+  const cacheTotal =
+    diagnosticsDataSource.cacheStats.cacheHitCount + diagnosticsDataSource.cacheStats.cacheMissCount
   const cacheHitRate = cacheTotal > 0
-    ? (diagnostics.cacheHitCount / cacheTotal) * 100
+    ? (diagnosticsDataSource.cacheStats.cacheHitCount / cacheTotal) * 100
     : 0
 
   const performanceTimingStats = diagnostics.stats?.performance.timing
@@ -100,6 +161,7 @@ export function RuntimeDebugPanel() {
       <VerboseRuntimeDebugPanel
         t={t}
         diagnostics={diagnostics}
+        diagnosticsDataSource={diagnosticsDataSource}
         performanceTimingStats={performanceTimingStats}
         performanceLodStats={performanceLodStats}
         cacheHitRate={cacheHitRate}
@@ -123,6 +185,7 @@ export function RuntimeDebugPanel() {
     <CompactRuntimeDebugPanel
       t={t}
       diagnostics={diagnostics}
+      diagnosticsDataSource={diagnosticsDataSource}
       cacheHitRate={cacheHitRate}
       runtimeMigrationSnapshot={runtimeMigrationSnapshot}
       runtimeV2MismatchRatePercent={runtimeV2MismatchRatePercent}

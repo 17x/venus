@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 1800
 const SCENE_HEIGHT = 1260
@@ -7,8 +7,8 @@ const SCENE_HEIGHT = 1260
  * Build a pseudo-3D layered scene to validate spatial ordering and culling assumptions.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const build3DSpatialScene = (revision: number): EngineSceneSnapshot => {
-	const nodes: EngineSceneSnapshot['nodes'] = [
+export const build3DSpatialScene = (revision: number): PlaygroundSceneSnapshot => {
+	const nodes: PlaygroundSceneSnapshot['nodes'] = [
 		{
 			id: 'spatial-bg',
 			type: 'shape',

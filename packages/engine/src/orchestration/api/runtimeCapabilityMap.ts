@@ -92,6 +92,13 @@ export const ENGINE_RUNTIME_CAPABILITY_REGISTRY = [
     notes: "Runtime document apply capability.",
   },
   {
+    name: "runtimeDocumentPreflightApplyChangeSet",
+    entry: "EngineHandle.runtime.document.preflightApplyChangeSet",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime document preflight-apply capability.",
+  },
+  {
     name: "runtimeDocumentDiffSnapshots",
     entry: "EngineHandle.runtime.document.diffSnapshots",
     stability: "experimental",

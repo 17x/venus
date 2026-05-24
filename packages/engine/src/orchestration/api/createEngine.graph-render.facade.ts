@@ -295,6 +295,9 @@ export function createEngineGraphRenderFacade(
      * Renders one frame and emits frame started/completed/failed events.
      */
     async render(): Promise<EngineRenderResult> {
+      // Measure end-to-end frame elapsed time so diagnostics receive duration,
+      // not a monotonic timestamp token from scheduler/frame planning internals.
+      const frameStartMs = resolveNow();
       setLatestRenderWarning(null);
       const backendMode = getResolvedBackendMode();
       const mountConnected = getIsMounted();
@@ -317,14 +320,14 @@ export function createEngineGraphRenderFacade(
         interactionKind: getLastInteractionKind(),
       });
       try {
-        const stats = resolveFrameOrchestration(resolveNow());
+        resolveFrameOrchestration(resolveNow());
         renderChain.planReached = true;
         const snapshot = getLatestExecutionSnapshot();
         renderChain.composeReached = true;
         const result = {
           drawCount: snapshot.drawCount,
           visibleCount: snapshot.visibleCandidateIds.length,
-          frameMs: Math.max(0, stats.timestampMs),
+          frameMs: Math.max(0, resolveNow() - frameStartMs),
           renderChain,
         };
         emitHook("afterRenderPlan", result);
@@ -352,6 +355,8 @@ export function createEngineGraphRenderFacade(
             remediationHint: "Provide canvas/context and ensure mount target is connected before render.",
           });
         }
+        // Refresh duration after backend present so frameMs reflects full render cost.
+        result.frameMs = Math.max(0, resolveNow() - frameStartMs);
         renderChain.browserBridgeReachable = mountConnected || backendMode === "headless";
         // When render can compute draws but browser bridge is disconnected, flag a soft failure for diagnostics triage.
         if (!renderChain.browserBridgeReachable && renderChain.failedStage === null) {

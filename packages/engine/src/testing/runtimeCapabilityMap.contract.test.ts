@@ -67,12 +67,13 @@ function resolveCapabilityHandleMethod(engine: ReturnType<typeof createEngine>, 
  * Verifies runtime capability map keeps canonical stable capability set.
  */
 test("runtime capability map keeps canonical stable capability entries", () => {
-  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 61);
-  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 61);
+  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 62);
+  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 62);
   assert.equal("runtimePlanCreateFramePlan" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeResourceCollectGarbage" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeObservabilityReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeDocumentCreateSnapshot" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeDocumentPreflightApplyChangeSet" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeWorldCompileFromDocument" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeDirtyFlush" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeCommandReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);

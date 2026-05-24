@@ -19,6 +19,8 @@ import type {
   EngineRuntimeDirtyStateOutput,
   EngineRuntimeDocumentApplyChangeSetInput,
   EngineRuntimeDocumentApplyChangeSetResult,
+  EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  EngineRuntimeDocumentPreflightApplyChangeSetOutput,
   EngineRuntimeDocumentCreateSnapshotInput,
   EngineRuntimeDocumentDeserializeSnapshotInput,
   EngineRuntimeDocumentDiffSnapshotsInput,
@@ -30,6 +32,7 @@ import type {
   EngineRuntimeDocumentValidateSnapshotOutput,
   EngineRuntimeWorldClearOutput,
   EngineRuntimeWorldCompileFromDocumentInput,
+  EngineRuntimeWorldEntity,
   EngineRuntimeWorldGraphStatsOutput,
   EngineRuntimeWorldQueryComponentInput,
   EngineRuntimeWorldQueryComponentOutput,
@@ -39,6 +42,15 @@ import type {
 } from "./public-types";
 import type { EngineDocumentChangeSet, EngineDocumentSnapshot } from "../../kernel/document/document-contracts";
 import type { EngineDirtyDomain } from "../../kernel/dirty/dirtyPropagation/dirtyPropagation.contract";
+import {
+  validateDecodedFramePayloadDescriptor,
+  validateDecodedFrameTimelineAlignment,
+  validateDocumentLinearizedDeltaEnvelope,
+} from "../../kernel/document/document-store";
+import {
+  ENGINE_RUNTIME_DOCUMENT_WARNING_CODE,
+  type EngineRuntimeDocumentWarningCode,
+} from "../../kernel/document/document-warning-codes";
 
 /**
  * Defines minimal dirty-state shape required by runtime dirty helpers.
@@ -61,7 +73,17 @@ type RuntimeDocumentDirtyCommandDependencies = {
   /** Builds runtime world from document snapshot. */
   buildRuntimeWorldFromDocument: (snapshot: EngineDocumentSnapshot) => {
     revision: number;
-    entities: EngineRuntimeWorldSnapshotOutput["entities"];
+    entities: ReadonlyArray<EngineRuntimeWorldEntity & {
+      bounds3d?: { x: number; y: number; z: number; width: number; height: number; depth: number };
+      transform3d?: {
+        x: number; y: number; z: number; rotationX: number; rotationY: number; rotationZ: number; scaleX: number; scaleY: number; scaleZ: number;
+      };
+      sourceType?: string;
+      renderOrder?: number;
+      visible?: boolean;
+      lightingMode?: "inherit" | "unlit" | "lit";
+      materialId?: string;
+    }>;
   };
   /** Reads current runtime-world snapshot override. */
   getRuntimeWorldSnapshotOverride: () => EngineRuntimeWorldSnapshotOutput | null;
@@ -95,6 +117,15 @@ type RuntimeDocumentDirtyCommandDependencies = {
   replayCommands: (commands: readonly EngineRuntimeCommand[]) => { replayedCount: number };
   /** Resolves backend probe modes in selector order. */
   getBackendProbeModes: () => readonly ("auto" | "webgpu" | "webgl" | "canvas2d" | "headless")[];
+  /** Emits one diagnostics warning payload for non-fatal contract violations. */
+  reportRuntimeContractWarning: (warning: {
+    /** Machine-readable warning code token. */
+    code: EngineRuntimeDocumentWarningCode;
+    /** Human-readable warning message. */
+    message: string;
+    /** Optional warning details payload. */
+    details?: Readonly<Record<string, unknown>>;
+  }) => void;
 };
 
 /**
@@ -107,6 +138,9 @@ export function createRuntimeDocumentDirtyCommandFoundation(
   resolveRuntimeDocumentRevision: () => number;
   resolveRuntimeDocumentSchemaVersion: () => number;
   applyRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentApplyChangeSetInput) => EngineRuntimeDocumentApplyChangeSetResult;
+  preflightRuntimeDocumentChangeSetApply: (
+    input: EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  ) => EngineRuntimeDocumentPreflightApplyChangeSetOutput;
   createRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentCreateSnapshotInput) => EngineDocumentSnapshot;
   validateRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentValidateSnapshotInput) => EngineRuntimeDocumentValidateSnapshotOutput;
   diffRuntimeDocumentSnapshots: (input: EngineRuntimeDocumentDiffSnapshotsInput) => EngineRuntimeDocumentDiffSnapshotsOutput;
@@ -148,6 +182,80 @@ export function createRuntimeDocumentDirtyCommandFoundation(
   }
 
   /**
+   * Preflights one runtime document change-set payload without mutating runtime state.
+   * @param input Runtime document preflight request.
+   */
+  function preflightRuntimeDocumentChangeSetApply(
+    input: EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  ): EngineRuntimeDocumentPreflightApplyChangeSetOutput {
+    const issues: string[] = [];
+    const warningCodes = new Set<EngineRuntimeDocumentWarningCode>();
+
+    if (!input || !input.changeSet || !Array.isArray(input.changeSet.operations)) {
+      issues.push("Runtime document preflight rejected malformed change-set payload.");
+      warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.CHANGESET_INVALID);
+      return {
+        valid: false,
+        issues,
+        warningCodes: [...warningCodes],
+        predictedNextRevision: null,
+      };
+    }
+
+    const activeRevision = deps.getDocumentSnapshot().revision;
+
+    if (input.linearizedEnvelope) {
+      const envelopeValidation = validateDocumentLinearizedDeltaEnvelope(
+        input.linearizedEnvelope,
+        typeof input.baseRevision === "number" ? input.baseRevision : activeRevision,
+      );
+      if (!envelopeValidation.valid) {
+        issues.push(...envelopeValidation.issues);
+        warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.LINEARIZED_ENVELOPE_INVALID);
+      }
+      if (input.linearizedEnvelope.changeSet.id !== input.changeSet.id) {
+        issues.push("Runtime document preflight detected mismatched change-set and envelope ids.");
+        warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.LINEARIZED_CHANGESET_MISMATCH);
+      }
+    }
+
+    if (input.decodedFramePayload) {
+      const decodedFrameValidation = validateDecodedFramePayloadDescriptor(input.decodedFramePayload);
+      if (!decodedFrameValidation.valid) {
+        issues.push(...decodedFrameValidation.issues);
+        warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.DECODED_FRAME_INVALID);
+      }
+      const timelineValidation = validateDecodedFrameTimelineAlignment(
+        input.decodedFramePayload,
+        input.decodedFrameTimelineAlignment,
+      );
+      if (!timelineValidation.valid) {
+        issues.push(...timelineValidation.issues);
+        warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.TIMELINE_ALIGNMENT_INVALID);
+      }
+    }
+
+    if (typeof input.baseRevision === "number" && input.baseRevision !== activeRevision) {
+      issues.push("Runtime document preflight detected base revision mismatch.");
+      warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.REVISION_CONFLICT);
+    }
+    if (typeof input.schemaVersion === "number" && input.schemaVersion !== deps.schemaVersion) {
+      issues.push("Runtime document preflight detected schema version mismatch.");
+      warningCodes.add(ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.SCHEMA_MISMATCH);
+    }
+
+    const valid = issues.length === 0;
+    return {
+      valid,
+      issues,
+      warningCodes: [...warningCodes],
+      predictedNextRevision: valid
+        ? Math.max(activeRevision + 1, input.changeSet.targetRevision ?? activeRevision + 1)
+        : null,
+    };
+  }
+
+  /**
    * Applies one runtime document change-set with revision/schema guard checks.
    * @param input Runtime document apply request.
    */
@@ -155,12 +263,103 @@ export function createRuntimeDocumentDirtyCommandFoundation(
     input: EngineRuntimeDocumentApplyChangeSetInput,
   ): EngineRuntimeDocumentApplyChangeSetResult {
     if (!input || !input.changeSet || !Array.isArray(input.changeSet.operations)) {
+      deps.reportRuntimeContractWarning({
+        code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.CHANGESET_INVALID,
+        message: "Runtime document apply rejected malformed change-set payload.",
+      });
       throw new Error("ENGINE_DOCUMENT_INVALID_CHANGESET");
     }
-    if (typeof input.baseRevision === "number" && input.baseRevision !== deps.getDocumentSnapshot().revision) {
+
+    const activeRevision = deps.getDocumentSnapshot().revision;
+
+    // Validate optional adapter-linearized payload contract before document mutation.
+    if (input.linearizedEnvelope) {
+      const envelopeValidation = validateDocumentLinearizedDeltaEnvelope(
+        input.linearizedEnvelope,
+        typeof input.baseRevision === "number" ? input.baseRevision : activeRevision,
+      );
+      if (!envelopeValidation.valid) {
+        deps.reportRuntimeContractWarning({
+          code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.LINEARIZED_ENVELOPE_INVALID,
+          message: "Runtime document apply rejected invalid adapter-linearized envelope.",
+          details: {
+            issueCount: envelopeValidation.issues.length,
+            issues: envelopeValidation.issues,
+            envelopeId: input.linearizedEnvelope.id,
+            sourceAdapter: input.linearizedEnvelope.sourceAdapter,
+          },
+        });
+        throw new Error("ENGINE_DOCUMENT_INVALID_CHANGESET");
+      }
+      if (input.linearizedEnvelope.changeSet.id !== input.changeSet.id) {
+        deps.reportRuntimeContractWarning({
+          code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.LINEARIZED_CHANGESET_MISMATCH,
+          message: "Runtime document apply rejected mismatched change-set and linearized envelope ids.",
+          details: {
+            envelopeChangeSetId: input.linearizedEnvelope.changeSet.id,
+            changeSetId: input.changeSet.id,
+          },
+        });
+        throw new Error("ENGINE_DOCUMENT_INVALID_CHANGESET");
+      }
+    }
+
+    // Validate optional decoded-frame payload contract before timeline-bound mutation.
+    if (input.decodedFramePayload) {
+      const decodedFrameValidation = validateDecodedFramePayloadDescriptor(input.decodedFramePayload);
+      if (!decodedFrameValidation.valid) {
+        deps.reportRuntimeContractWarning({
+          code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.DECODED_FRAME_INVALID,
+          message: "Runtime document apply rejected invalid decoded-frame payload.",
+          details: {
+            issueCount: decodedFrameValidation.issues.length,
+            issues: decodedFrameValidation.issues,
+            frameId: input.decodedFramePayload.id,
+            sourceAdapter: input.decodedFramePayload.sourceAdapter,
+          },
+        });
+        throw new Error("ENGINE_DOCUMENT_INVALID_CHANGESET");
+      }
+
+      const timelineValidation = validateDecodedFrameTimelineAlignment(
+        input.decodedFramePayload,
+        input.decodedFrameTimelineAlignment,
+      );
+      if (!timelineValidation.valid) {
+        deps.reportRuntimeContractWarning({
+          code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.TIMELINE_ALIGNMENT_INVALID,
+          message: "Runtime document apply rejected decoded-frame payload with invalid timeline alignment.",
+          details: {
+            issueCount: timelineValidation.issues.length,
+            issues: timelineValidation.issues,
+            absoluteDriftMs: timelineValidation.absoluteDriftMs,
+            frameId: input.decodedFramePayload.id,
+          },
+        });
+        throw new Error("ENGINE_DOCUMENT_INVALID_CHANGESET");
+      }
+    }
+
+    if (typeof input.baseRevision === "number" && input.baseRevision !== activeRevision) {
+      deps.reportRuntimeContractWarning({
+        code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.REVISION_CONFLICT,
+        message: "Runtime document apply rejected base revision mismatch.",
+        details: {
+          expectedBaseRevision: activeRevision,
+          providedBaseRevision: input.baseRevision,
+        },
+      });
       throw new Error("ENGINE_DOCUMENT_REVISION_CONFLICT");
     }
     if (typeof input.schemaVersion === "number" && input.schemaVersion !== deps.schemaVersion) {
+      deps.reportRuntimeContractWarning({
+        code: ENGINE_RUNTIME_DOCUMENT_WARNING_CODE.SCHEMA_MISMATCH,
+        message: "Runtime document apply rejected schema version mismatch.",
+        details: {
+          expectedSchemaVersion: deps.schemaVersion,
+          providedSchemaVersion: input.schemaVersion,
+        },
+      });
       throw new Error("ENGINE_DOCUMENT_INVALID_CHANGESET");
     }
     deps.applyDocumentAndCompile(input.changeSet);
@@ -303,7 +502,7 @@ export function createRuntimeDocumentDirtyCommandFoundation(
     const runtimeWorld = deps.buildRuntimeWorldFromDocument(deps.getDocumentSnapshot());
     return {
       worldRevision: runtimeWorld.revision,
-      entities: runtimeWorld.entities,
+      entities: runtimeWorld.entities.map((entity) => resolveRuntimeWorldEntityOutput(entity)),
     };
   }
 
@@ -320,10 +519,62 @@ export function createRuntimeDocumentDirtyCommandFoundation(
     const runtimeWorld = deps.buildRuntimeWorldFromDocument(input.snapshot);
     const snapshot: EngineRuntimeWorldSnapshotOutput = {
       worldRevision: runtimeWorld.revision,
-      entities: runtimeWorld.entities,
+      entities: runtimeWorld.entities.map((entity) => resolveRuntimeWorldEntityOutput(entity)),
     };
     deps.setRuntimeWorldSnapshotOverride(snapshot);
     return snapshot;
+  }
+
+  /**
+   * Projects one internal world entity into the public runtime world entity contract.
+   * @param entity Internal runtime world entity potentially carrying extended 3D fields.
+   */
+  function resolveRuntimeWorldEntityOutput(
+    entity: RuntimeDocumentDirtyCommandDependencies["buildRuntimeWorldFromDocument"] extends (
+      snapshot: EngineDocumentSnapshot,
+    ) => { entities: ReadonlyArray<infer TEntity> }
+      ? TEntity
+      : never,
+  ): EngineRuntimeWorldEntity {
+    const semantic3d = entity.bounds3d && entity.transform3d
+      ? {
+          bounds: {
+            x: entity.bounds3d.x,
+            y: entity.bounds3d.y,
+            z: entity.bounds3d.z,
+            width: entity.bounds3d.width,
+            height: entity.bounds3d.height,
+            depth: entity.bounds3d.depth,
+          },
+          transform: {
+            x: entity.transform3d.x,
+            y: entity.transform3d.y,
+            z: entity.transform3d.z,
+            rotationX: entity.transform3d.rotationX,
+            rotationY: entity.transform3d.rotationY,
+            rotationZ: entity.transform3d.rotationZ,
+            scaleX: entity.transform3d.scaleX,
+            scaleY: entity.transform3d.scaleY,
+            scaleZ: entity.transform3d.scaleZ,
+          },
+          sourceType: entity.sourceType,
+          renderOrder: entity.renderOrder,
+          visible: entity.visible,
+          lightingMode: entity.lightingMode,
+          materialId: entity.materialId,
+        }
+      : entity.semantic3d;
+
+    return {
+      id: entity.id,
+      bounds: {
+        x: entity.bounds.x,
+        y: entity.bounds.y,
+        width: entity.bounds.width,
+        height: entity.bounds.height,
+      },
+      semantic3d,
+    };
   }
 
   /**
@@ -355,8 +606,48 @@ export function createRuntimeDocumentDirtyCommandFoundation(
       throw new Error("ENGINE_WORLD_NOT_COMPILED");
     }
     const snapshot = resolveRuntimeWorldSnapshotOutput();
+
+    /**
+     * Keeps world component queries aligned with semantic3d completeness goals.
+     * @param entity Runtime-world entity candidate from the current snapshot.
+     */
+    const matchComponent = (entity: (typeof snapshot.entities)[number]): boolean => {
+      const semantic3d = entity.semantic3d;
+      if (input.component === "transform") {
+        return Boolean(semantic3d?.transform);
+      }
+
+      if (input.component === "geometry") {
+        const hasBaseBounds = entity.bounds.width > 0 || entity.bounds.height > 0;
+        const has3dBounds = semantic3d
+          ? semantic3d.bounds.width > 0 || semantic3d.bounds.height > 0 || semantic3d.bounds.depth > 0
+          : false;
+        return hasBaseBounds || has3dBounds;
+      }
+
+      if (input.component === "material") {
+        return Boolean(semantic3d?.materialId || semantic3d?.lightingMode);
+      }
+
+      if (input.component === "visibility") {
+        return semantic3d?.visible !== false;
+      }
+
+      if (input.component === "picking") {
+        const has2dPickArea = entity.bounds.width > 0 && entity.bounds.height > 0;
+        const has3dPickVolume = semantic3d
+          ? semantic3d.bounds.width > 0 && semantic3d.bounds.height > 0 && semantic3d.bounds.depth >= 0
+          : false;
+        return has2dPickArea || has3dPickVolume;
+      }
+
+      return false;
+    };
+
     return {
-      entityIds: snapshot.entities.map((entity) => entity.id),
+      entityIds: snapshot.entities
+        .filter((entity) => matchComponent(entity))
+        .map((entity) => entity.id),
     };
   }
 
@@ -591,6 +882,7 @@ export function createRuntimeDocumentDirtyCommandFoundation(
     resolveRuntimeDocumentRevision,
     resolveRuntimeDocumentSchemaVersion,
     applyRuntimeDocumentChangeSet,
+    preflightRuntimeDocumentChangeSetApply,
     createRuntimeDocumentSnapshot,
     validateRuntimeDocumentSnapshot,
     diffRuntimeDocumentSnapshots,

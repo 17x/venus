@@ -17,6 +17,7 @@ test("runtime document foundation descriptor set is complete", () => {
     "diffSnapshots",
     "getRevision",
     "getSchemaVersion",
+    "preflightApplyChangeSet",
     "rebaseChangeSet",
     "serializeSnapshot",
     "validateSnapshot",
@@ -61,6 +62,10 @@ test("runtime document foundation descriptor resolver returns canonical entries"
   assert.deepEqual(
     resolveEngineRuntimeDocumentFoundationApiDescriptor("applyChangeSet"),
     ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API.applyChangeSet,
+  );
+  assert.deepEqual(
+    resolveEngineRuntimeDocumentFoundationApiDescriptor("preflightApplyChangeSet"),
+    ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API.preflightApplyChangeSet,
   );
   assert.deepEqual(
     resolveEngineRuntimeDocumentFoundationApiDescriptor("diffSnapshots"),

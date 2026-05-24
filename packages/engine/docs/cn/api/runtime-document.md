@@ -110,6 +110,40 @@ engine.runtime.document.applyChangeSet(input: {
 
 - 相同 `changeSet` + 相同 `baseRevision` + 相同 `schemaVersion` 必须产生一致输出。
 
+### engine.runtime.document.preflightApplyChangeSet(input)
+
+级别：`foundation`
+稳定性：`beta`
+
+```ts
+engine.runtime.document.preflightApplyChangeSet(input: {
+  changeSet: EngineDocumentChangeSet;
+  baseRevision?: number;
+  schemaVersion?: number;
+  linearizedEnvelope?: EngineDocumentLinearizedDeltaEnvelope;
+  decodedFramePayload?: EngineDecodedFramePayloadDescriptor;
+  decodedFrameTimelineAlignment?: EngineRuntimeDocumentDecodedFrameTimelineAlignmentInput;
+}): {
+  valid: boolean;
+  issues: readonly string[];
+  warningCodes: readonly string[];
+  predictedNextRevision: number | null;
+}
+```
+
+错误码：
+
+- `ENGINE_DOCUMENT_INVALID_CHANGESET`
+- `ENGINE_DOCUMENT_REVISION_CONFLICT`
+
+确定性约束：
+
+- 相同 `input` + 相同 runtime revision/schema 状态，必须产生一致 `valid`、有序 `issues`、有序 `warningCodes` 与 `predictedNextRevision`。
+
+状态变更语义：
+
+- `preflightApplyChangeSet` 不得修改 runtime document revision 或 world 状态。
+
 ### engine.runtime.document.diffSnapshots(input)
 
 级别：`foundation`
@@ -198,3 +232,12 @@ engine.runtime.document.deserializeSnapshot(input: {
 
 - `packages/engine/src/runtime/document/document.foundation.contract.ts`
 - `packages/engine/src/document/document-contracts.ts`
+
+## Warning Code 基线目录
+
+- Runtime warning code 常量来源：
+  - `packages/engine/src/kernel/document/document-warning-codes.ts`
+- Requirement 基线映射来源：
+  - `packages/engine/src/kernel/document/document-warning-codes.ts`（`ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS`）
+- Requirement 规格参考：
+  - `packages/engine/ai/playground-s1-s13-requirements-2026-05-24.md`（第 14 节）

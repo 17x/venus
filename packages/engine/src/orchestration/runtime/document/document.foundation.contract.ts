@@ -52,6 +52,7 @@ export interface EngineRuntimeDocumentFoundationApiDescriptor {
     | "engine.runtime.document.getRevision"
     | "engine.runtime.document.getSchemaVersion"
     | "engine.runtime.document.applyChangeSet"
+    | "engine.runtime.document.preflightApplyChangeSet"
     | "engine.runtime.document.diffSnapshots"
     | "engine.runtime.document.rebaseChangeSet"
     | "engine.runtime.document.serializeSnapshot"
@@ -106,6 +107,14 @@ export const ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API = {
     determinism:
       "Same changeSet + same baseRevision + same schemaVersion yields same nextRevision and appliedOps.",
   },
+  preflightApplyChangeSet: {
+    name: "engine.runtime.document.preflightApplyChangeSet",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_DOCUMENT_INVALID_CHANGESET", "ENGINE_DOCUMENT_REVISION_CONFLICT"],
+    determinism:
+      "Same preflight payload + same runtime revision/schema yields same valid flag, issue ordering, and predictedNextRevision.",
+  },
   diffSnapshots: {
     name: "engine.runtime.document.diffSnapshots",
     level: "foundation",
@@ -141,6 +150,7 @@ export const ENGINE_RUNTIME_DOCUMENT_FOUNDATION_API = {
     | "getRevision"
     | "getSchemaVersion"
     | "applyChangeSet"
+    | "preflightApplyChangeSet"
     | "diffSnapshots"
     | "rebaseChangeSet"
     | "serializeSnapshot"

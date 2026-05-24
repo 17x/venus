@@ -45,7 +45,7 @@ interface WebglStatsSnapshot {
   engineFrameQuality?: 'full' | 'interactive'
   webglRenderPath?: 'model-complete' | 'packet' | 'none'
   // Mirrors backend-selected WebGPU path to monitor hybrid fallback pressure.
-  webgpuRenderPath?: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+  webgpuRenderPath?: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete'
   // Counts native WebGPU submit attempts in the current frame.
   webgpuNativeSubmissionAttemptedCount?: number
   // Counts successful native WebGPU submit operations in the current frame.
@@ -90,13 +90,69 @@ interface WebglStatsSnapshot {
   l1CompositeMissCount?: number
   l2TileHitCount?: number
   l2TileMissCount?: number
-  cacheFallbackReason?: string
+  cacheFallbackReason?:
+    | 'none'
+    | 'l0-no-snapshot'
+    | 'l0-preview-miss'
+    | 'l0-revision-mismatch'
+    | 'l0-viewport-width-mismatch'
+    | 'l0-viewport-height-mismatch'
+    | 'l0-pixel-ratio-mismatch'
+    | 'l0-invalid-scale-ratio'
+    | 'l0-zoom-only-pan-blocked'
+    | 'l0-scale-step-exceeded'
+    | 'l0-translate-exceeded'
+    | 'l1-bypass-interactive'
+    | 'l1-disabled'
+    | 'l2-tile-seed-upload-failed'
+    | 'l2-tile-partial-region-canvas-crop'
+    | 'l2-tile-framebuffer-copy-fallback-canvas'
+    | 'l2-tile-framebuffer-copy-failed'
+    | 'l2-tile-source-build-failed'
+    | 'l2-bypass-visible-tile-pressure'
+    | 'l2-tile-fallback-to-composite'
+    | 'l3-budget-draw-submit-cap'
+    | 'l3-empty-frame-model-fallback'
   webglPreviewReuseMs?: number
   webglPlanBuildMs?: number
   webglTextureUploadMs?: number
   webglDrawSubmitMs?: number
   webglSnapshotCaptureMs?: number
   webglModelRenderMs?: number
+  webglPreviewExecutionMode?: 'affine-snapshot' | 'temporal-reprojection-required'
+  // Marks where preview execution mode was derived from.
+  webglPreviewExecutionSource?: 'backend-native' | 'engine-cache-fallback-taxonomy'
+  webglBudgetPressure?: 'low' | 'medium' | 'high'
+  // Records the threshold cause behind the selected budget pressure tier.
+  webglBudgetPressureReason?: string
+  // Marks where budget pressure diagnostics were derived from.
+  webglBudgetPressureSource?: 'backend-native' | 'engine-frame-budget'
+  webglDrawSubmitBudgetMs?: number
+  webglTextureUploadBudgetBytes?: number
+  webglTextureUploadTotalBudgetBytes?: number
+  webglImageTextureUploadBudgetCount?: number
+  webglTextTextureUploadBudgetCount?: number
+  webglTilePreloadBudgetMs?: number
+  webglTilePreloadBudgetUploads?: number
+  webglOverlayPassBudgetMs?: number
+  webglDrawSubmitBudgetExceeded?: boolean
+  webglTextureUploadBudgetExceeded?: boolean
+  webglOverlayBudgetExceeded?: boolean
+  webglPredictorDirectionX?: number
+  webglPredictorDirectionY?: number
+  webglPredictorSpeedPxPerSec?: number
+  webglPredictorConfidence?: number
+  webglPredictorPreloadRing?: number
+  webglPredictorOverscanCssPx?: number
+  webglPredictivePreloadEnqueueCount?: number
+  webglPredictivePreloadProcessedCount?: number
+  webglPredictivePreloadPrunedCount?: number
+  webglHighZoomTextSlaChecked?: boolean
+  webglHighZoomTextSlaScale?: number
+  webglHighZoomTextSlaViolationCount?: number
+  webglDeferredTextTextureCount?: number
+  panScheduleRequestCount?: number
+  tileSynchronousRebuildCount?: number
   hiddenCount?: number
   pointCount?: number
   blockCount?: number
@@ -177,8 +233,36 @@ interface RenderRequestStatsSnapshot {
   dirtyBoundsMarkLargeAreaCount: number
 }
 
+interface EngineCoreStatsSnapshot {
+  // Backend requested by runtime when creating engine instance.
+  backendRequested: 'auto' | 'webgpu' | 'webgl' | 'canvas2d' | 'headless'
+  // Backend resolved by engine backend selector after capability checks.
+  backendResolved: 'auto' | 'webgpu' | 'webgl' | 'canvas2d' | 'headless'
+  // Selector fallback reason when requested backend differs from resolved backend.
+  backendFallbackReason: string | null
+  // Active runtime profile identifier selected by engine bootstrap.
+  runtimeProfileId: string
+  // Active runtime capability count exposed by selected runtime profile.
+  runtimeCapabilityCount: number
+  // Latest frame-budget pressure reason from engine scheduler diagnostics.
+  framePressureReason: string
+  // Latest frame-budget pressure tier from engine scheduler diagnostics.
+  framePressure: 'low' | 'medium' | 'high'
+  // Latest strategy phase resolved by engine frame orchestration.
+  framePhase: 'static' | 'pan' | 'zoom' | 'camera' | 'settling'
+  // Latest QoS degradation level derived from engine diagnostics.
+  qosDegradationLevel: 'none' | 'light' | 'heavy'
+  // Latest QoS fallback reason mirrored from cache fallback taxonomy.
+  qosFallbackReason: string | null
+  // Latest QoS guard trigger tokens used for diagnostics triage.
+  qosGuardTriggers: string[]
+  // Latest QoS trace id used for frame-level correlation.
+  qosTrace: string
+}
+
 export interface BuildRuntimeDiagnosticsPayloadInput {
   frameCount: number
+  diagnosticsUpdatedAtMs: number
   renderStats: RenderStatsSnapshot
   runtimeStageTimingMs: RuntimeStageTimingSnapshot
   webglStats: WebglStatsSnapshot
@@ -186,6 +270,7 @@ export interface BuildRuntimeDiagnosticsPayloadInput {
   planDiagnostics: PlanDiagnosticsSnapshot
   renderPrepDiagnostics: RenderPrepDiagnosticsSnapshot
   renderRequestStats: RenderRequestStatsSnapshot
+  engineCoreStats: EngineCoreStatsSnapshot
   offscreenSceneDirtyForceRenderFrameThreshold: number
   dirtyBoundsSmallAreaThreshold: number
   dirtyBoundsMediumAreaThreshold: number
@@ -210,6 +295,7 @@ export function buildRuntimeDiagnosticsPayload(
   // Keep all legacy flat fields so existing debug subscribers remain stable.
   return {
     frameCount: input.frameCount,
+    diagnosticsUpdatedAtMs: input.diagnosticsUpdatedAtMs,
     drawCount: input.renderStats.drawCount,
     drawMs: input.renderStats.frameMs,
     // Keep stage timings explicit so debug panel can pinpoint hot sections quickly.
@@ -376,8 +462,82 @@ export function buildRuntimeDiagnosticsPayload(
       input.webglStats.webglSnapshotCaptureMs ?? 0,
     webglModelRenderMs:
       input.webglStats.webglModelRenderMs ?? 0,
+    webglPreviewExecutionMode:
+      input.webglStats.webglPreviewExecutionMode ?? 'affine-snapshot',
+    webglPreviewExecutionSource:
+      input.webglStats.webglPreviewExecutionSource ?? 'backend-native',
+    webglBudgetPressure:
+      input.webglStats.webglBudgetPressure ?? 'low',
+    webglBudgetPressureReason:
+      input.webglStats.webglBudgetPressureReason ?? 'within-low-thresholds',
+    webglBudgetPressureSource:
+      input.webglStats.webglBudgetPressureSource ?? 'backend-native',
+    webglDrawSubmitBudgetMs:
+      input.webglStats.webglDrawSubmitBudgetMs ?? 0,
+    webglTextureUploadBudgetBytes:
+      input.webglStats.webglTextureUploadBudgetBytes ?? 0,
+    webglTextureUploadTotalBudgetBytes:
+      input.webglStats.webglTextureUploadTotalBudgetBytes ?? 0,
+    webglImageTextureUploadBudgetCount:
+      input.webglStats.webglImageTextureUploadBudgetCount ?? 0,
+    webglTextTextureUploadBudgetCount:
+      input.webglStats.webglTextTextureUploadBudgetCount ?? 0,
+    webglTilePreloadBudgetMs:
+      input.webglStats.webglTilePreloadBudgetMs ?? 0,
+    webglTilePreloadBudgetUploads:
+      input.webglStats.webglTilePreloadBudgetUploads ?? 0,
+    webglOverlayPassBudgetMs:
+      input.webglStats.webglOverlayPassBudgetMs ?? 0,
+    webglDrawSubmitBudgetExceeded:
+      input.webglStats.webglDrawSubmitBudgetExceeded ?? false,
+    webglTextureUploadBudgetExceeded:
+      input.webglStats.webglTextureUploadBudgetExceeded ?? false,
+    webglOverlayBudgetExceeded:
+      input.webglStats.webglOverlayBudgetExceeded ?? false,
+    webglPredictorDirectionX:
+      input.webglStats.webglPredictorDirectionX ?? 0,
+    webglPredictorDirectionY:
+      input.webglStats.webglPredictorDirectionY ?? 0,
+    webglPredictorSpeedPxPerSec:
+      input.webglStats.webglPredictorSpeedPxPerSec ?? 0,
+    webglPredictorConfidence:
+      input.webglStats.webglPredictorConfidence ?? 0,
+    webglPredictorPreloadRing:
+      input.webglStats.webglPredictorPreloadRing ?? 0,
+    webglPredictorOverscanCssPx:
+      input.webglStats.webglPredictorOverscanCssPx ?? 0,
+    webglPredictivePreloadEnqueueCount:
+      input.webglStats.webglPredictivePreloadEnqueueCount ?? 0,
+    webglPredictivePreloadProcessedCount:
+      input.webglStats.webglPredictivePreloadProcessedCount ?? 0,
+    webglPredictivePreloadPrunedCount:
+      input.webglStats.webglPredictivePreloadPrunedCount ?? 0,
+    webglHighZoomTextSlaChecked:
+      input.webglStats.webglHighZoomTextSlaChecked ?? false,
+    webglHighZoomTextSlaScale:
+      input.webglStats.webglHighZoomTextSlaScale ?? 0,
+    webglHighZoomTextSlaViolationCount:
+      input.webglStats.webglHighZoomTextSlaViolationCount ?? 0,
+    webglDeferredTextTextureCount:
+      input.webglStats.webglDeferredTextTextureCount ?? 0,
+    panScheduleRequestCount:
+      input.webglStats.panScheduleRequestCount ?? 0,
+    tileSynchronousRebuildCount:
+      input.webglStats.tileSynchronousRebuildCount ?? 0,
     cacheFallbackReason:
       input.webglStats.cacheFallbackReason ?? 'none',
+    engineBackendRequested: input.engineCoreStats.backendRequested,
+    engineBackendResolved: input.engineCoreStats.backendResolved,
+    engineBackendFallbackReason: input.engineCoreStats.backendFallbackReason,
+    engineRuntimeProfileId: input.engineCoreStats.runtimeProfileId,
+    engineRuntimeCapabilityCount: input.engineCoreStats.runtimeCapabilityCount,
+    engineFramePressureReason: input.engineCoreStats.framePressureReason,
+    engineFramePressure: input.engineCoreStats.framePressure,
+    engineFramePhase: input.engineCoreStats.framePhase,
+    engineQosDegradationLevel: input.engineCoreStats.qosDegradationLevel,
+    engineQosFallbackReason: input.engineCoreStats.qosFallbackReason,
+    engineQosGuardTriggers: [...input.engineCoreStats.qosGuardTriggers],
+    engineQosTrace: input.engineCoreStats.qosTrace,
     lastRenderRequestReason: input.renderRequestStats.lastReason,
     renderPhase: input.renderRequestStats.renderPhase,
     renderPhaseTransitionCount:

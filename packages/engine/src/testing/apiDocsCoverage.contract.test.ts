@@ -84,6 +84,15 @@ test("api docs coverage and EN/CN parity baseline", async () => {
       markers: ["engine.runtime.compileWorld", "engine.runtime.submit", "Runtime API"],
     },
     {
+      en: "en/api/runtime-document.md",
+      cn: "cn/api/runtime-document.md",
+      markers: [
+        "engine.runtime.document.applyChangeSet",
+        "engine.runtime.document.preflightApplyChangeSet",
+        "ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS",
+      ],
+    },
+    {
       en: "en/api/capability-api.md",
       cn: "cn/api/capability-api.md",
       markers: ["engine.capability.geometry.setModel", "engine.capability.replay.run"],
@@ -107,6 +116,8 @@ test("api docs coverage and EN/CN parity baseline", async () => {
         "engine.interaction.stateChanged",
         "engine.interaction.pickCompleted",
         "engine.interaction.pickFailed",
+        "engine.query.executed",
+        "engine.query.empty",
         "engine.resource.loadProgress",
         "engine.resource.loadFailed",
         "engine.view.viewportResized",
@@ -122,6 +133,9 @@ test("api docs coverage and EN/CN parity baseline", async () => {
         "engine.render.frameStarted",
         "engine.render.frameFailed",
         "engine.render.frameCompleted",
+        "EngineEventPayload",
+        "ENGINE_EVENT_SCHEMA_VERSION",
+        "engine.events.getEventTypes",
       ],
     },
     {
@@ -147,7 +161,21 @@ test("api docs coverage and EN/CN parity baseline", async () => {
     {
       en: "en/migration/app-adapter-migration.md",
       cn: "cn/migration/app-adapter-migration.md",
-      markers: ["Migration Goal", "Step-by-Step Migration", "Canonical Readiness Criteria"],
+      markers: [
+        "Migration Goal",
+        "Step-by-Step Migration",
+        "engine.runtime.document.preflightApplyChangeSet",
+        "Canonical Readiness Criteria",
+      ],
+    },
+    {
+      en: "en/api/overview.md",
+      cn: "cn/api/overview.md",
+      markers: [
+        "Runtime Document Contract Baseline",
+        "engine.runtime.document.preflightApplyChangeSet",
+        "ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS",
+      ],
     },
   ];
 

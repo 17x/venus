@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 3000
 const SCENE_HEIGHT = 2200
@@ -9,8 +9,8 @@ const GRID_ROWS = 50
  * Build a large primitive grid for frame-time and culling pressure checks.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const build2DPerformanceScene = (revision: number): EngineSceneSnapshot => {
-	const nodes: EngineSceneSnapshot['nodes'] = []
+export const build2DPerformanceScene = (revision: number): PlaygroundSceneSnapshot => {
+	const nodes: PlaygroundSceneSnapshot['nodes'] = []
 
 	nodes.push({
 		id: 'perf-bg',

@@ -14,6 +14,65 @@ type RuntimeDiagnosticsLodStats = NonNullable<
   NonNullable<RuntimeRenderDiagnostics['stats']>['performance']['lod']
 >
 
+type RuntimeDiagnosticsPanelDataSource = {
+  cacheStats: {
+    cacheHitCount: number
+    cacheMissCount: number
+    frameReuseHitCount: number
+    frameReuseMissCount: number
+    cacheFallbackReason: string
+  }
+  webglStats: {
+    webglRenderPath: RuntimeRenderDiagnostics['webglRenderPath']
+    webgpuRenderPath: RuntimeRenderDiagnostics['webgpuRenderPath']
+    webglPreviewExecutionMode: RuntimeRenderDiagnostics['webglPreviewExecutionMode']
+    webglPreviewExecutionSource: RuntimeRenderDiagnostics['webglPreviewExecutionSource']
+    tileCacheSize: number
+    tileDirtyCount: number
+    tileUploadCount: number
+    tileRenderCount: number
+    visibleTileCount: number
+    tileSchedulerPendingCount: number
+    gpuTextureBytes: number
+    imageTextureBytes: number
+    webglBudgetPressure: RuntimeRenderDiagnostics['webglBudgetPressure']
+    webglBudgetPressureReason: string
+    webglBudgetPressureSource: RuntimeRenderDiagnostics['webglBudgetPressureSource']
+    webglPredictorConfidence: number
+    webglHighZoomTextSlaViolationCount: number
+  }
+  engineConfig: {
+    // Runtime diagnostics snapshot frame serial number.
+    snapshotFrameCount: number
+    // Monotonic timestamp (performance.now) when diagnostics snapshot was published.
+    snapshotUpdatedAtMs: number
+    // Backend requested by runtime when creating engine instance.
+    backendRequested: RuntimeRenderDiagnostics['engineBackendRequested']
+    // Backend resolved by engine selector after capability probing.
+    backendResolved: RuntimeRenderDiagnostics['engineBackendResolved']
+    // Selector fallback reason when requested backend differs from resolved backend.
+    backendFallbackReason: RuntimeRenderDiagnostics['engineBackendFallbackReason']
+    // Active runtime profile identifier selected during engine bootstrap.
+    runtimeProfileId: RuntimeRenderDiagnostics['engineRuntimeProfileId']
+    // Active runtime capability count exposed by selected runtime profile.
+    runtimeCapabilityCount: RuntimeRenderDiagnostics['engineRuntimeCapabilityCount']
+    // Latest frame-budget pressure reason reported by engine scheduler diagnostics.
+    framePressureReason: RuntimeRenderDiagnostics['engineFramePressureReason']
+    // Latest frame-budget pressure tier reported by engine scheduler diagnostics.
+    framePressure: RuntimeRenderDiagnostics['engineFramePressure']
+    // Latest frame strategy phase resolved by engine scheduler diagnostics.
+    framePhase: RuntimeRenderDiagnostics['engineFramePhase']
+    // Latest QoS degradation level derived from engine diagnostics.
+    qosDegradationLevel: RuntimeRenderDiagnostics['engineQosDegradationLevel']
+    // Latest QoS fallback reason mirrored from cache fallback taxonomy.
+    qosFallbackReason: RuntimeRenderDiagnostics['engineQosFallbackReason']
+    // Latest QoS guard trigger tokens used for diagnostics triage.
+    qosGuardTriggers: RuntimeRenderDiagnostics['engineQosGuardTriggers']
+    // Latest QoS trace id used for frame-level diagnostics correlation.
+    qosTrace: RuntimeRenderDiagnostics['engineQosTrace']
+  }
+}
+
 /**
  * Renders migration diagnostics rows reused by compact and verbose variants.
  * @param props Runtime migration values and style hints.
@@ -120,6 +179,7 @@ export function RuntimeV2DebugSection(props: {
 export function CompactRuntimeDebugPanel(props: {
   t: TFunction
   diagnostics: RuntimeRenderDiagnostics
+  diagnosticsDataSource: RuntimeDiagnosticsPanelDataSource
   cacheHitRate: number
   runtimeMigrationSnapshot: RuntimeMigrationSnapshot
   runtimeV2MismatchRatePercent: number
@@ -130,6 +190,7 @@ export function CompactRuntimeDebugPanel(props: {
   const {
     t,
     diagnostics,
+    diagnosticsDataSource,
     cacheHitRate,
     runtimeMigrationSnapshot,
     runtimeV2MismatchRatePercent,
@@ -148,20 +209,47 @@ export function CompactRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.fpsReached60', 'Reached 60 FPS')} value={diagnostics.fpsReached60 ? 'yes' : 'no'}/>
         <DebugRow label={t('shell.variantB.debug.fpsReached120', 'Reached 120 FPS')} value={diagnostics.fpsReached120 ? 'yes' : 'no'}/>
         <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={diagnostics.renderPhase}/>
-        <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnostics.webglRenderPath}/>
+        <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnosticsDataSource.webglStats.webglRenderPath}/>
+        <DebugRow label={t('shell.variantB.debug.webgpuRenderPath', 'WebGPU Render Path')} value={diagnosticsDataSource.webglStats.webgpuRenderPath}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionEngineConfig', 'Engine Config')}>
+        <DebugRow label={t('shell.variantB.debug.engineSnapshotFrameCount', 'Snapshot Frame')} value={String(diagnosticsDataSource.engineConfig.snapshotFrameCount)}/>
+        <DebugRow label={t('shell.variantB.debug.engineSnapshotUpdatedAtMs', 'Snapshot Updated At (ms)')} value={diagnosticsDataSource.engineConfig.snapshotUpdatedAtMs.toFixed(1)}/>
+        <DebugRow label={t('shell.variantB.debug.engineBackendRequested', 'Backend Requested')} value={diagnosticsDataSource.engineConfig.backendRequested}/>
+        <DebugRow label={t('shell.variantB.debug.engineBackendResolved', 'Backend Resolved')} value={diagnosticsDataSource.engineConfig.backendResolved}/>
+        <DebugRow label={t('shell.variantB.debug.engineBackendFallbackReason', 'Backend Fallback Reason')} value={diagnosticsDataSource.engineConfig.backendFallbackReason ?? 'none'}/>
+        <DebugRow label={t('shell.variantB.debug.engineRuntimeProfileId', 'Runtime Profile')} value={diagnosticsDataSource.engineConfig.runtimeProfileId}/>
+        <DebugRow label={t('shell.variantB.debug.engineRuntimeCapabilityCount', 'Runtime Capabilities')} value={String(diagnosticsDataSource.engineConfig.runtimeCapabilityCount)}/>
+        <DebugRow label={t('shell.variantB.debug.engineFramePhase', 'Frame Phase')} value={diagnosticsDataSource.engineConfig.framePhase}/>
+        <DebugRow label={t('shell.variantB.debug.engineFramePressure', 'Frame Pressure')} value={diagnosticsDataSource.engineConfig.framePressure}/>
+        <DebugRow label={t('shell.variantB.debug.engineFramePressureReason', 'Frame Pressure Reason')} value={diagnosticsDataSource.engineConfig.framePressureReason}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosDegradationLevel', 'QoS Degradation Level')} value={diagnosticsDataSource.engineConfig.qosDegradationLevel}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosFallbackReason', 'QoS Fallback Reason')} value={diagnosticsDataSource.engineConfig.qosFallbackReason ?? 'none'}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosGuardTriggers', 'QoS Guard Triggers')} value={diagnosticsDataSource.engineConfig.qosGuardTriggers.length > 0 ? diagnosticsDataSource.engineConfig.qosGuardTriggers.join(', ') : 'none'}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosTrace', 'QoS Trace')} value={diagnosticsDataSource.engineConfig.qosTrace}/>
       </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
         <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate')} value={`${cacheHitRate.toFixed(1)}%`}/>
-        <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnostics.tileCacheSize)}/>
-        <DebugRow label={t('shell.variantB.debug.tileDirtyCount', 'Tile Dirty Count')} value={String(diagnostics.tileDirtyCount)}/>
-        <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnostics.tileUploadCount)}/>
-        <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnostics.tileRenderCount)}/>
-        <DebugRow label={t('shell.variantB.debug.visibleTileCount', 'Visible Tile Count')} value={String(diagnostics.visibleTileCount)}/>
-        <DebugRow label={t('shell.variantB.debug.tileSchedulerPendingCount', 'Tile Scheduler Pending')} value={String(diagnostics.tileSchedulerPendingCount)}/>
-        <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnostics.gpuTextureBytes)}/>
-        <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnostics.imageTextureBytes)}/>
-        <DebugRow label={t('shell.variantB.debug.cacheFallbackReason', 'Cache Fallback Reason')} value={diagnostics.cacheFallbackReason}/>
+        <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnosticsDataSource.webglStats.tileCacheSize)}/>
+        <DebugRow label={t('shell.variantB.debug.tileDirtyCount', 'Tile Dirty Count')} value={String(diagnosticsDataSource.webglStats.tileDirtyCount)}/>
+        <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnosticsDataSource.webglStats.tileUploadCount)}/>
+        <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnosticsDataSource.webglStats.tileRenderCount)}/>
+        <DebugRow label={t('shell.variantB.debug.visibleTileCount', 'Visible Tile Count')} value={String(diagnosticsDataSource.webglStats.visibleTileCount)}/>
+        <DebugRow label={t('shell.variantB.debug.tileSchedulerPendingCount', 'Tile Scheduler Pending')} value={String(diagnosticsDataSource.webglStats.tileSchedulerPendingCount)}/>
+        <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnosticsDataSource.webglStats.gpuTextureBytes)}/>
+        <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnosticsDataSource.webglStats.imageTextureBytes)}/>
+        <DebugRow label={t('shell.variantB.debug.cacheFallbackReason', 'Cache Fallback Reason')} value={diagnosticsDataSource.cacheStats.cacheFallbackReason}/>
+        <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Frame Reuse Hit')} value={String(diagnosticsDataSource.cacheStats.frameReuseHitCount)}/>
+        <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Frame Reuse Miss')} value={String(diagnosticsDataSource.cacheStats.frameReuseMissCount)}/>
+        <DebugRow label={t('shell.variantB.debug.webglPreviewExecutionMode', 'Preview Execution Mode')} value={diagnosticsDataSource.webglStats.webglPreviewExecutionMode}/>
+        <DebugRow label={t('shell.variantB.debug.webglPreviewExecutionSource', 'Preview Source')} value={diagnosticsDataSource.webglStats.webglPreviewExecutionSource}/>
+        <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Budget Pressure')} value={diagnosticsDataSource.webglStats.webglBudgetPressure}/>
+        <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Budget Pressure Reason')} value={diagnosticsDataSource.webglStats.webglBudgetPressureReason}/>
+        <DebugRow label={t('shell.variantB.debug.webglBudgetPressureSource', 'Budget Pressure Source')} value={diagnosticsDataSource.webglStats.webglBudgetPressureSource}/>
+        <DebugRow label={t('shell.variantB.debug.hitPlanExactRatio', 'Predictor Confidence')} value={diagnosticsDataSource.webglStats.webglPredictorConfidence.toFixed(2)}/>
+        <DebugRow label={t('shell.variantB.debug.sceneDirtyRiskStatus', 'Text SLA Violations')} value={String(diagnosticsDataSource.webglStats.webglHighZoomTextSlaViolationCount)}/>
       </DebugSection>
 
       <RuntimeV2DebugSection
@@ -183,6 +271,7 @@ export function CompactRuntimeDebugPanel(props: {
 export function VerboseRuntimeDebugPanel(props: {
   t: TFunction
   diagnostics: RuntimeRenderDiagnostics
+  diagnosticsDataSource: RuntimeDiagnosticsPanelDataSource
   performanceTimingStats?: RuntimeDiagnosticsTimingStats
   performanceLodStats?: RuntimeDiagnosticsLodStats
   cacheHitRate: number
@@ -202,6 +291,7 @@ export function VerboseRuntimeDebugPanel(props: {
   const {
     t,
     diagnostics,
+    diagnosticsDataSource,
     performanceTimingStats,
     performanceLodStats,
     cacheHitRate,
@@ -230,6 +320,25 @@ export function VerboseRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.fpsInstant', 'FPS (Instant)')} value={diagnostics.fpsInstantaneous.toFixed(1)}/>
         <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={performanceLodStats?.renderPhase ?? diagnostics.renderPhase}/>
         <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Render Policy Quality')} value={performanceLodStats?.renderPolicyQuality ?? diagnostics.renderPolicyQuality}/>
+        <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnosticsDataSource.webglStats.webglRenderPath}/>
+        <DebugRow label={t('shell.variantB.debug.webgpuRenderPath', 'WebGPU Render Path')} value={diagnosticsDataSource.webglStats.webgpuRenderPath}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionEngineConfig', 'Engine Config')}>
+        <DebugRow label={t('shell.variantB.debug.engineSnapshotFrameCount', 'Snapshot Frame')} value={String(diagnosticsDataSource.engineConfig.snapshotFrameCount)}/>
+        <DebugRow label={t('shell.variantB.debug.engineSnapshotUpdatedAtMs', 'Snapshot Updated At (ms)')} value={diagnosticsDataSource.engineConfig.snapshotUpdatedAtMs.toFixed(1)}/>
+        <DebugRow label={t('shell.variantB.debug.engineBackendRequested', 'Backend Requested')} value={diagnosticsDataSource.engineConfig.backendRequested}/>
+        <DebugRow label={t('shell.variantB.debug.engineBackendResolved', 'Backend Resolved')} value={diagnosticsDataSource.engineConfig.backendResolved}/>
+        <DebugRow label={t('shell.variantB.debug.engineBackendFallbackReason', 'Backend Fallback Reason')} value={diagnosticsDataSource.engineConfig.backendFallbackReason ?? 'none'}/>
+        <DebugRow label={t('shell.variantB.debug.engineRuntimeProfileId', 'Runtime Profile')} value={diagnosticsDataSource.engineConfig.runtimeProfileId}/>
+        <DebugRow label={t('shell.variantB.debug.engineRuntimeCapabilityCount', 'Runtime Capabilities')} value={String(diagnosticsDataSource.engineConfig.runtimeCapabilityCount)}/>
+        <DebugRow label={t('shell.variantB.debug.engineFramePhase', 'Frame Phase')} value={diagnosticsDataSource.engineConfig.framePhase}/>
+        <DebugRow label={t('shell.variantB.debug.engineFramePressure', 'Frame Pressure')} value={diagnosticsDataSource.engineConfig.framePressure}/>
+        <DebugRow label={t('shell.variantB.debug.engineFramePressureReason', 'Frame Pressure Reason')} value={diagnosticsDataSource.engineConfig.framePressureReason}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosDegradationLevel', 'QoS Degradation Level')} value={diagnosticsDataSource.engineConfig.qosDegradationLevel}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosFallbackReason', 'QoS Fallback Reason')} value={diagnosticsDataSource.engineConfig.qosFallbackReason ?? 'none'}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosGuardTriggers', 'QoS Guard Triggers')} value={diagnosticsDataSource.engineConfig.qosGuardTriggers.length > 0 ? diagnosticsDataSource.engineConfig.qosGuardTriggers.join(', ') : 'none'}/>
+        <DebugRow label={t('shell.variantB.debug.engineQosTrace', 'QoS Trace')} value={diagnosticsDataSource.engineConfig.qosTrace}/>
       </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionPlanner', 'Planner / Frame / Hit')}>
@@ -258,12 +367,12 @@ export function VerboseRuntimeDebugPanel(props: {
 
       <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
         <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate')} value={`${cacheHitRate.toFixed(1)}%`}/>
-        <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnostics.tileCacheSize)}/>
-        <DebugRow label={t('shell.variantB.debug.tileDirtyCount', 'Tile Dirty Count')} value={String(diagnostics.tileDirtyCount)}/>
-        <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnostics.tileUploadCount)}/>
-        <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnostics.tileRenderCount)}/>
-        <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnostics.gpuTextureBytes)}/>
-        <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnostics.imageTextureBytes)}/>
+        <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnosticsDataSource.webglStats.tileCacheSize)}/>
+        <DebugRow label={t('shell.variantB.debug.tileDirtyCount', 'Tile Dirty Count')} value={String(diagnosticsDataSource.webglStats.tileDirtyCount)}/>
+        <DebugRow label={t('shell.variantB.debug.tileUploadCount', 'Tile Upload Count')} value={String(diagnosticsDataSource.webglStats.tileUploadCount)}/>
+        <DebugRow label={t('shell.variantB.debug.tileRenderCount', 'Tile Render Count')} value={String(diagnosticsDataSource.webglStats.tileRenderCount)}/>
+        <DebugRow label={t('shell.variantB.debug.gpuTextureBytes', 'GPU Texture Bytes')} value={formatDiagnosticBytes(diagnosticsDataSource.webglStats.gpuTextureBytes)}/>
+        <DebugRow label={t('shell.variantB.debug.imageTextureBytes', 'Image Texture Bytes')} value={formatDiagnosticBytes(diagnosticsDataSource.webglStats.imageTextureBytes)}/>
       </DebugSection>
 
       <RuntimeV2DebugSection

@@ -1,5 +1,21 @@
 import type { EngineDocumentChangeSet } from "../../../kernel/document/document-contracts";
+import type {
+  EngineDecodedFramePayloadDescriptor,
+  EngineDocumentLinearizedDeltaEnvelope,
+} from "../../../kernel/document/document-contracts";
 import type { EngineBackendMode } from "./core-foundation.types";
+
+/**
+ * Runtime document decoded-frame timeline alignment input contract.
+ */
+export interface EngineRuntimeDocumentDecodedFrameTimelineAlignmentInput {
+  /** Optional previous frame timestamp in milliseconds for monotonic-order checks. */
+  previousTimestampMs?: number;
+  /** Optional expected timeline timestamp in milliseconds for drift checks. */
+  expectedTimelineTimestampMs?: number;
+  /** Optional maximum allowed absolute drift in milliseconds for timeline checks. */
+  maxAllowedDriftMs?: number;
+}
 
 /**
  * Runtime document apply input contract exposed on engine.runtime.document API.
@@ -11,6 +27,12 @@ export interface EngineRuntimeDocumentApplyChangeSetInput {
   baseRevision?: number;
   /** Optional caller-provided schema version for compatibility checks. */
   schemaVersion?: number;
+  /** Optional adapter-linearized envelope validated before change-set apply. */
+  linearizedEnvelope?: EngineDocumentLinearizedDeltaEnvelope;
+  /** Optional decoded-frame payload validated before timeline-bound change-set apply. */
+  decodedFramePayload?: EngineDecodedFramePayloadDescriptor;
+  /** Optional decoded-frame timeline alignment checks used with decodedFramePayload. */
+  decodedFrameTimelineAlignment?: EngineRuntimeDocumentDecodedFrameTimelineAlignmentInput;
 }
 
 /**
@@ -23,6 +45,38 @@ export interface EngineRuntimeDocumentApplyChangeSetResult {
   appliedOps: number;
   /** Deterministic warning list for non-fatal conditions. */
   warnings: readonly string[];
+}
+
+/**
+ * Runtime document preflight input contract exposed on engine.runtime.document API.
+ */
+export interface EngineRuntimeDocumentPreflightApplyChangeSetInput {
+  /** Deterministic change-set payload to validate before apply. */
+  changeSet: EngineDocumentChangeSet;
+  /** Optional expected base revision before apply. */
+  baseRevision?: number;
+  /** Optional caller-provided schema version for compatibility checks. */
+  schemaVersion?: number;
+  /** Optional adapter-linearized envelope validated before apply. */
+  linearizedEnvelope?: EngineDocumentLinearizedDeltaEnvelope;
+  /** Optional decoded-frame payload validated before apply. */
+  decodedFramePayload?: EngineDecodedFramePayloadDescriptor;
+  /** Optional decoded-frame timeline alignment checks used with decodedFramePayload. */
+  decodedFrameTimelineAlignment?: EngineRuntimeDocumentDecodedFrameTimelineAlignmentInput;
+}
+
+/**
+ * Runtime document preflight output contract exposed on engine.runtime.document API.
+ */
+export interface EngineRuntimeDocumentPreflightApplyChangeSetOutput {
+  /** True when the payload can be safely applied without contract errors. */
+  valid: boolean;
+  /** Deterministic issue list for preflight validation failures. */
+  issues: readonly string[];
+  /** Deterministic warning code list associated with the issues list. */
+  warningCodes: readonly string[];
+  /** Predicted next revision when preflight passes, otherwise null. */
+  predictedNextRevision: number | null;
 }
 
 /**
@@ -125,6 +179,17 @@ export interface EngineRuntimeWorldEntity {
     width: number;
     /** Height in world space. */
     height: number;
+  };
+  /** Optional semantic 3D payload projected from document-level scene semantics. */
+  semantic3d?: {
+    /** Canonical 3D bounds projected from document semantics. */
+    bounds: { x: number; y: number; z: number; width: number; height: number; depth: number };
+    /** Canonical 3D transform projected from document semantics. */
+    transform: {
+      x: number; y: number; z: number; rotationX: number; rotationY: number; rotationZ: number; scaleX: number; scaleY: number; scaleZ: number;
+    };
+    /** Optional semantic hints for renderer/picking ordering. */
+    sourceType?: string; renderOrder?: number; visible?: boolean; lightingMode?: "inherit" | "unlit" | "lit"; materialId?: string;
   };
 }
 

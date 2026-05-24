@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 1600
 const SCENE_HEIGHT = 980
@@ -7,8 +7,8 @@ const SCENE_HEIGHT = 980
  * Build a dense 2D scene for hover and selection regression checks.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const build2DInteractiveScene = (revision: number): EngineSceneSnapshot => {
-	const nodes: EngineSceneSnapshot['nodes'] = [
+export const build2DInteractiveScene = (revision: number): PlaygroundSceneSnapshot => {
+	const nodes: PlaygroundSceneSnapshot['nodes'] = [
 		{
 			id: 'interactive-bg',
 			type: 'shape',

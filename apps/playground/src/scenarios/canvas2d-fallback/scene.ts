@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 1100
 const SCENE_HEIGHT = 760
@@ -7,7 +7,7 @@ const SCENE_HEIGHT = 760
  * Build a compact scene to verify Canvas2D fallback paths and overlays.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const buildCanvas2DFallbackScene = (revision: number): EngineSceneSnapshot => {
+export const buildCanvas2DFallbackScene = (revision: number): PlaygroundSceneSnapshot => {
 	return {
 		revision,
 		width: SCENE_WIDTH,

@@ -52,6 +52,22 @@ export function createEngineStatsHandler(params: {
         stableFrameCount?: number
       }
     }
+    getStats: () => {
+      backendSelection: {
+        requested: 'auto' | 'webgpu' | 'webgl' | 'canvas2d' | 'headless'
+        resolved: 'auto' | 'webgpu' | 'webgl' | 'canvas2d' | 'headless'
+        fallbackReason: string | null
+      }
+      runtimeProfileId?: string
+      runtimeCapabilityCount?: number
+      lastFramePressureReason?: string
+      lastFramePressure?: 'low' | 'medium' | 'high'
+      lastFramePhase?: 'static' | 'pan' | 'zoom' | 'camera' | 'settling'
+      lastQosDegradationLevel?: 'none' | 'light' | 'heavy'
+      lastQosFallbackReason?: string | null
+      lastQosGuardTriggers?: string[]
+      lastQosTrace?: string
+    }
   } | null>
   runtimeStageTimingMsRef: React.MutableRefObject<{
     scenePrepareMs: number
@@ -151,6 +167,35 @@ export function createEngineStatsHandler(params: {
   cacheMisses: number
   frameReuseHits: number
   frameReuseMisses: number
+  l0PreviewHitCount?: number
+  l0PreviewMissCount?: number
+  l1CompositeHitCount?: number
+  l1CompositeMissCount?: number
+  l2TileHitCount?: number
+  l2TileMissCount?: number
+  cacheFallbackReason?:
+    | 'none'
+    | 'l0-no-snapshot'
+    | 'l0-preview-miss'
+    | 'l0-revision-mismatch'
+    | 'l0-viewport-width-mismatch'
+    | 'l0-viewport-height-mismatch'
+    | 'l0-pixel-ratio-mismatch'
+    | 'l0-invalid-scale-ratio'
+    | 'l0-zoom-only-pan-blocked'
+    | 'l0-scale-step-exceeded'
+    | 'l0-translate-exceeded'
+    | 'l1-bypass-interactive'
+    | 'l1-disabled'
+    | 'l2-tile-seed-upload-failed'
+    | 'l2-tile-partial-region-canvas-crop'
+    | 'l2-tile-framebuffer-copy-fallback-canvas'
+    | 'l2-tile-framebuffer-copy-failed'
+    | 'l2-tile-source-build-failed'
+    | 'l2-bypass-visible-tile-pressure'
+    | 'l2-tile-fallback-to-composite'
+    | 'l3-budget-draw-submit-cap'
+    | 'l3-empty-frame-model-fallback'
   tileCacheSize: number
   tileDirtyCount: number
   tileCacheTotalBytes: number
@@ -165,15 +210,105 @@ export function createEngineStatsHandler(params: {
   dirtyRegionCount: number
   dirtyTileCount: number
   incrementalUpdateCount: number
+  engineFrameQuality?: 'full' | 'interactive'
+  webglRenderPath?: 'model-complete' | 'packet' | 'none'
+  webgpuRenderPath?: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete'
+  webgpuNativeSubmissionAttemptedCount?: number
+  webgpuNativeSubmissionSuccessCount?: number
+  webgpuNativeSubmissionFailureCount?: number
+  webgpuNativeSubmissionTotalCount?: number
+  webgpuNativeSubmissionTotalFailureCount?: number
+  webgpuNativeRectBatchEligibleCount?: number
+  webgpuNativeRectBatchRejectedReason?:
+    | 'none'
+    | 'scene-empty'
+    | 'group-node-unsupported'
+    | 'non-shape-node-unsupported'
+    | 'non-rect-shape-unsupported'
+    | 'shape-style-unsupported'
+    | 'shape-transform-unsupported'
+  webglPreviewReuseMs?: number
+  webglPlanBuildMs?: number
+  webglTextureUploadMs?: number
+  webglDrawSubmitMs?: number
+  webglSnapshotCaptureMs?: number
+  webglModelRenderMs?: number
+  webglPreviewExecutionMode?: 'affine-snapshot' | 'temporal-reprojection-required'
+  webglPreviewExecutionSource?: 'backend-native' | 'engine-cache-fallback-taxonomy'
+  webglBudgetPressure?: 'low' | 'medium' | 'high'
+  webglBudgetPressureReason?: string
+  webglBudgetPressureSource?: 'backend-native' | 'engine-frame-budget'
+  webglDrawSubmitBudgetMs?: number
+  webglTextureUploadBudgetBytes?: number
+  webglTextureUploadTotalBudgetBytes?: number
+  webglImageTextureUploadBudgetCount?: number
+  webglTextTextureUploadBudgetCount?: number
+  webglTilePreloadBudgetMs?: number
+  webglTilePreloadBudgetUploads?: number
+  webglOverlayPassBudgetMs?: number
+  webglDrawSubmitBudgetExceeded?: boolean
+  webglTextureUploadBudgetExceeded?: boolean
+  webglOverlayBudgetExceeded?: boolean
+  webglPredictorDirectionX?: number
+  webglPredictorDirectionY?: number
+  webglPredictorSpeedPxPerSec?: number
+  webglPredictorConfidence?: number
+  webglPredictorPreloadRing?: number
+  webglPredictorOverscanCssPx?: number
+  webglPredictivePreloadEnqueueCount?: number
+  webglPredictivePreloadProcessedCount?: number
+  webglPredictivePreloadPrunedCount?: number
+  webglHighZoomTextSlaChecked?: boolean
+  webglHighZoomTextSlaScale?: number
+  webglHighZoomTextSlaViolationCount?: number
+  webglDeferredTextTextureCount?: number
+  panScheduleRequestCount?: number
+  tileSynchronousRebuildCount?: number
   groupCollapseCount?: number
   groupCollapseCulledCount?: number
 }) => void {
   let consecutiveEmptyFrameRecoveryCount = 0
+  let fpsEstimate = 0
+  let fpsPeak = 0
+  let fpsEstimatePeak = 0
+  let lastFramePublishedAtMs = 0
+
+  /**
+   * Resolves one stable frame duration in milliseconds for diagnostics/fps math.
+   * @param frameMs Frame duration candidate from renderer stats payload.
+   */
+  function resolveDiagnosticsFrameMs(frameMs: number) {
+    const finiteFrameMs = Number.isFinite(frameMs) ? frameMs : 0
+    // Guard against impossible values (timestamp leaks or zero/negative) and
+    // fallback to wall-clock delta between published frames when available.
+    if (finiteFrameMs > 0 && finiteFrameMs <= 1000) {
+      return finiteFrameMs
+    }
+    if (lastFramePublishedAtMs <= 0) {
+      return 0
+    }
+    return Math.max(0, performance.now() - lastFramePublishedAtMs)
+  }
 
   return (nextStats) => {
     const webglStats = nextStats as typeof nextStats & {
       engineFrameQuality?: 'full' | 'interactive'
-      webglRenderPath?: 'model-complete' | 'packet'
+      webglRenderPath?: 'model-complete' | 'packet' | 'none'
+      webgpuRenderPath?: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete'
+      webgpuNativeSubmissionAttemptedCount?: number
+      webgpuNativeSubmissionSuccessCount?: number
+      webgpuNativeSubmissionFailureCount?: number
+      webgpuNativeSubmissionTotalCount?: number
+      webgpuNativeSubmissionTotalFailureCount?: number
+      webgpuNativeRectBatchEligibleCount?: number
+      webgpuNativeRectBatchRejectedReason?:
+        | 'none'
+        | 'scene-empty'
+        | 'group-node-unsupported'
+        | 'non-shape-node-unsupported'
+        | 'non-rect-shape-unsupported'
+        | 'shape-style-unsupported'
+        | 'shape-transform-unsupported'
       webglInteractiveTextFallbackCount?: number
       webglImageTextureUploadCount?: number
       webglImageTextureUploadBytes?: number
@@ -194,13 +329,66 @@ export function createEngineStatsHandler(params: {
       l1CompositeMissCount?: number
       l2TileHitCount?: number
       l2TileMissCount?: number
-      cacheFallbackReason?: string
+      cacheFallbackReason?:
+        | 'none'
+        | 'l0-no-snapshot'
+        | 'l0-preview-miss'
+        | 'l0-revision-mismatch'
+        | 'l0-viewport-width-mismatch'
+        | 'l0-viewport-height-mismatch'
+        | 'l0-pixel-ratio-mismatch'
+        | 'l0-invalid-scale-ratio'
+        | 'l0-zoom-only-pan-blocked'
+        | 'l0-scale-step-exceeded'
+        | 'l0-translate-exceeded'
+        | 'l1-bypass-interactive'
+        | 'l1-disabled'
+        | 'l2-tile-seed-upload-failed'
+        | 'l2-tile-partial-region-canvas-crop'
+        | 'l2-tile-framebuffer-copy-fallback-canvas'
+        | 'l2-tile-framebuffer-copy-failed'
+        | 'l2-tile-source-build-failed'
+        | 'l2-bypass-visible-tile-pressure'
+        | 'l2-tile-fallback-to-composite'
+        | 'l3-budget-draw-submit-cap'
+        | 'l3-empty-frame-model-fallback'
       webglPreviewReuseMs?: number
       webglPlanBuildMs?: number
       webglTextureUploadMs?: number
       webglDrawSubmitMs?: number
       webglSnapshotCaptureMs?: number
       webglModelRenderMs?: number
+      webglPreviewExecutionMode?: 'affine-snapshot' | 'temporal-reprojection-required'
+      webglPreviewExecutionSource?: 'backend-native' | 'engine-cache-fallback-taxonomy'
+      webglBudgetPressure?: 'low' | 'medium' | 'high'
+      webglBudgetPressureReason?: string
+      webglBudgetPressureSource?: 'backend-native' | 'engine-frame-budget'
+      webglDrawSubmitBudgetMs?: number
+      webglTextureUploadBudgetBytes?: number
+      webglTextureUploadTotalBudgetBytes?: number
+      webglImageTextureUploadBudgetCount?: number
+      webglTextTextureUploadBudgetCount?: number
+      webglTilePreloadBudgetMs?: number
+      webglTilePreloadBudgetUploads?: number
+      webglOverlayPassBudgetMs?: number
+      webglDrawSubmitBudgetExceeded?: boolean
+      webglTextureUploadBudgetExceeded?: boolean
+      webglOverlayBudgetExceeded?: boolean
+      webglPredictorDirectionX?: number
+      webglPredictorDirectionY?: number
+      webglPredictorSpeedPxPerSec?: number
+      webglPredictorConfidence?: number
+      webglPredictorPreloadRing?: number
+      webglPredictorOverscanCssPx?: number
+      webglPredictivePreloadEnqueueCount?: number
+      webglPredictivePreloadProcessedCount?: number
+      webglPredictivePreloadPrunedCount?: number
+      webglHighZoomTextSlaChecked?: boolean
+      webglHighZoomTextSlaScale?: number
+      webglHighZoomTextSlaViolationCount?: number
+      webglDeferredTextTextureCount?: number
+      panScheduleRequestCount?: number
+      tileSynchronousRebuildCount?: number
       cameraAnimationActive?: boolean
       cameraAnimationCachePreviewOnly?: boolean
       cameraAnimationPreviewHitCount?: number
@@ -208,6 +396,7 @@ export function createEngineStatsHandler(params: {
     }
     const schedulerDiagnostics = params.renderSchedulerRef.current?.getDiagnostics?.()
     const runtimeDiagnostics = params.engineRef.current?.getDiagnostics()
+    const engineStats = params.engineRef.current?.getStats()
     if (schedulerDiagnostics) {
       params.runtimeStageTimingMsRef.current.schedulerQueueWaitMs = schedulerDiagnostics.lastQueueWaitMs
       params.runtimeStageTimingMsRef.current.schedulerThrottleDelayMs = schedulerDiagnostics.lastInteractiveThrottleDelayMs
@@ -319,9 +508,11 @@ export function createEngineStatsHandler(params: {
     }
 
     params.drawSerialRef.current += 1
+    const diagnosticsUpdatedAtMs = performance.now()
     const diagnosticsPublishStart = performance.now()
     const diagnosticsPayload = buildRuntimeDiagnosticsPayload({
       frameCount: params.drawSerialRef.current,
+      diagnosticsUpdatedAtMs,
       renderStats: {
         drawCount: nextStats.drawCount,
         frameMs: nextStats.frameMs,
@@ -364,6 +555,20 @@ export function createEngineStatsHandler(params: {
         dirtyBoundsMarkArea,
       },
       renderRequestStats,
+      engineCoreStats: {
+        backendRequested: engineStats?.backendSelection.requested ?? 'auto',
+        backendResolved: engineStats?.backendSelection.resolved ?? 'headless',
+        backendFallbackReason: engineStats?.backendSelection.fallbackReason ?? null,
+        runtimeProfileId: engineStats?.runtimeProfileId ?? 'unknown',
+        runtimeCapabilityCount: engineStats?.runtimeCapabilityCount ?? 0,
+        framePressureReason: engineStats?.lastFramePressureReason ?? 'within-low-thresholds',
+        framePressure: engineStats?.lastFramePressure ?? (webglStats.webglBudgetPressure ?? 'low'),
+        framePhase: engineStats?.lastFramePhase ?? 'static',
+        qosDegradationLevel: engineStats?.lastQosDegradationLevel ?? 'none',
+        qosFallbackReason: engineStats?.lastQosFallbackReason ?? null,
+        qosGuardTriggers: [...(engineStats?.lastQosGuardTriggers ?? [])],
+        qosTrace: engineStats?.lastQosTrace ?? `qos:${params.drawSerialRef.current}:static:low`,
+      },
       offscreenSceneDirtyForceRenderFrameThreshold:
         DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames,
       dirtyBoundsSmallAreaThreshold:
@@ -400,8 +605,30 @@ export function createEngineStatsHandler(params: {
     params.runtimeStageTimingMsRef.current.diagnosticsPublishMs =
       performance.now() - diagnosticsPublishStart
 
+    const resolvedFrameMs = resolveDiagnosticsFrameMs(nextStats.frameMs)
+    const fpsInstantaneous = resolvedFrameMs > 0
+      ? Math.min(240, 1000 / resolvedFrameMs)
+      : 0
+    if (fpsEstimate <= 0) {
+      fpsEstimate = fpsInstantaneous
+    } else {
+      // Keep fps smooth with a lightweight EMA so panel values remain readable
+      // during interactive camera gestures and scheduler cadence changes.
+      fpsEstimate += (fpsInstantaneous - fpsEstimate) * 0.18
+    }
+    fpsPeak = Math.max(fpsPeak, fpsInstantaneous)
+    fpsEstimatePeak = Math.max(fpsEstimatePeak, fpsEstimate)
+    lastFramePublishedAtMs = performance.now()
+
     publishRuntimeRenderDiagnostics({
       ...diagnosticsPayload,
+      drawMs: resolvedFrameMs,
+      fpsInstantaneous,
+      fpsEstimate,
+      fpsPeak,
+      fpsEstimatePeak,
+      fpsReached60: fpsEstimate >= 60,
+      fpsReached120: fpsEstimate >= 120,
       diagnosticsPublishMs: params.runtimeStageTimingMsRef.current.diagnosticsPublishMs,
       cameraAnimationActive: webglStats.cameraAnimationActive ?? false,
       cameraAnimationCachePreviewOnly: webglStats.cameraAnimationCachePreviewOnly ?? false,

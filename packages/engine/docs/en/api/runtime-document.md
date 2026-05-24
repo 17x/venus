@@ -110,6 +110,40 @@ Determinism:
 
 - Same `changeSet` + same `baseRevision` + same `schemaVersion` must produce identical output.
 
+### engine.runtime.document.preflightApplyChangeSet(input)
+
+Level: `foundation`
+Stability: `beta`
+
+```ts
+engine.runtime.document.preflightApplyChangeSet(input: {
+  changeSet: EngineDocumentChangeSet;
+  baseRevision?: number;
+  schemaVersion?: number;
+  linearizedEnvelope?: EngineDocumentLinearizedDeltaEnvelope;
+  decodedFramePayload?: EngineDecodedFramePayloadDescriptor;
+  decodedFrameTimelineAlignment?: EngineRuntimeDocumentDecodedFrameTimelineAlignmentInput;
+}): {
+  valid: boolean;
+  issues: readonly string[];
+  warningCodes: readonly string[];
+  predictedNextRevision: number | null;
+}
+```
+
+Error Codes:
+
+- `ENGINE_DOCUMENT_INVALID_CHANGESET`
+- `ENGINE_DOCUMENT_REVISION_CONFLICT`
+
+Determinism:
+
+- Same `input` + same runtime revision/schema state must produce identical `valid`, ordered `issues`, ordered `warningCodes`, and `predictedNextRevision`.
+
+Mutation Semantics:
+
+- `preflightApplyChangeSet` must not mutate runtime document revision or world state.
+
 ### engine.runtime.document.diffSnapshots(input)
 
 Level: `foundation`
@@ -198,3 +232,12 @@ Determinism:
 
 - `packages/engine/src/runtime/document/document.foundation.contract.ts`
 - `packages/engine/src/document/document-contracts.ts`
+
+## Warning Code Catalog Baseline
+
+- Runtime warning code source:
+  - `packages/engine/src/kernel/document/document-warning-codes.ts`
+- Requirement baseline mapping source:
+  - `packages/engine/src/kernel/document/document-warning-codes.ts` (`ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS`)
+- Requirement specification reference:
+  - `packages/engine/ai/playground-s1-s13-requirements-2026-05-24.md` (Section 14)

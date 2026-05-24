@@ -34,6 +34,7 @@ import {
   resolveEngineTextureCompressionSupportFromSurface,
   resolveEngineTextureCompressionUploadDecision,
 } from "../../platform/protocol/backend/texture-compression";
+import type { EngineBackendCacheFallbackReason } from "../../backend/fallbackTaxonomy";
 
 /**
  * Defines dependencies required by runtime backend/diagnostics helper assembly.
@@ -69,6 +70,81 @@ type RuntimeBackendDiagnosticsFoundationDependencies = {
     invalidate: EngineInvalidateInput | null | undefined;
     renderChain?: EngineRenderChainDiagnostics;
     lastRenderWarning?: EngineRenderWarningPayload | null;
+    backendDiagnostics?: {
+      webglRenderPath: "model-complete" | "packet" | "none";
+      webgpuRenderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" | "native-model-complete";
+      webgpuNativeSubmissionAttemptedCount: number;
+      webgpuNativeSubmissionSuccessCount: number;
+      webgpuNativeSubmissionFailureCount: number;
+      webgpuNativeSubmissionTotalCount: number;
+      webgpuNativeSubmissionTotalFailureCount: number;
+      webgpuNativeRectBatchEligibleCount: number;
+      webgpuNativeRectBatchRejectedReason:
+        | "none"
+        | "scene-empty"
+        | "group-node-unsupported"
+        | "non-shape-node-unsupported"
+        | "non-rect-shape-unsupported"
+        | "shape-style-unsupported"
+        | "shape-transform-unsupported";
+      cacheHits: number;
+      cacheMisses: number;
+      frameReuseHits: number;
+      frameReuseMisses: number;
+      l0PreviewHitCount: number;
+      l0PreviewMissCount: number;
+      l1CompositeHitCount: number;
+      l1CompositeMissCount: number;
+      l2TileHitCount: number;
+      l2TileMissCount: number;
+      cacheFallbackReason: EngineBackendCacheFallbackReason;
+      tileCacheSize: number;
+      tileDirtyCount: number;
+      tileCacheTotalBytes: number;
+      tileUploadCount: number;
+      tileRenderCount: number;
+      visibleTileCount: number;
+      tileSchedulerPendingCount: number;
+      gpuTextureBytes: number;
+      imageTextureBytes: number;
+      webglPreviewReuseMs: number;
+      webglPlanBuildMs: number;
+      webglTextureUploadMs: number;
+      webglDrawSubmitMs: number;
+      webglSnapshotCaptureMs: number;
+      webglModelRenderMs: number;
+      webglPreviewExecutionMode: "affine-snapshot" | "temporal-reprojection-required";
+      webglPreviewExecutionSource: "backend-native" | "engine-cache-fallback-taxonomy";
+      webglBudgetPressure: "low" | "medium" | "high";
+      webglBudgetPressureReason: string;
+      webglBudgetPressureSource: "backend-native" | "engine-frame-budget";
+      webglDrawSubmitBudgetMs: number;
+      webglTextureUploadBudgetBytes: number;
+      webglTextureUploadTotalBudgetBytes: number;
+      webglImageTextureUploadBudgetCount: number;
+      webglTextTextureUploadBudgetCount: number;
+      webglTilePreloadBudgetMs: number;
+      webglTilePreloadBudgetUploads: number;
+      webglOverlayPassBudgetMs: number;
+      webglDrawSubmitBudgetExceeded: boolean;
+      webglTextureUploadBudgetExceeded: boolean;
+      webglOverlayBudgetExceeded: boolean;
+      webglPredictorDirectionX: number;
+      webglPredictorDirectionY: number;
+      webglPredictorSpeedPxPerSec: number;
+      webglPredictorConfidence: number;
+      webglPredictorPreloadRing: number;
+      webglPredictorOverscanCssPx: number;
+      webglPredictivePreloadEnqueueCount: number;
+      webglPredictivePreloadProcessedCount: number;
+      webglPredictivePreloadPrunedCount: number;
+      webglHighZoomTextSlaChecked: boolean;
+      webglHighZoomTextSlaScale: number;
+      webglHighZoomTextSlaViolationCount: number;
+      webglDeferredTextTextureCount: number;
+      panScheduleRequestCount: number;
+      tileSynchronousRebuildCount: number;
+    };
     capabilities: { schemaVersion: number; runtime: readonly EngineDiagnosticsRuntimeCapability[] };
   };
 };

@@ -38,6 +38,13 @@
 
 - 在目标后端 profile 下验证 timeline/simulation/replay 行为。
 
+7. 在可变更 apply 前增加 preflight 契约门禁
+
+- 对 adapter 提交 payload 先调用 `engine.runtime.document.preflightApplyChangeSet(input)`，再调用
+  `engine.runtime.document.applyChangeSet(input)`。
+- 将非空 `warningCodes` 路由到 adapter diagnostics 与策略处理链路。
+- 当 `valid === false` 时拒绝执行可变更 apply。
+
 ## 映射示例
 
 | 旧模式                       | 新模式                                |
@@ -46,6 +53,36 @@
 | `compat.patchScene(delta)`   | `engine.updateGraph(patch)`           |
 | `compat.hitTest(point)`      | `engine.pick(point, options)`         |
 | `compat.previewTransform(p)` | `engine.setTransformPreview(preview)` |
+
+### Runtime Document Preflight 示例
+
+```ts
+const preflight = engine.runtime.document.preflightApplyChangeSet({
+  changeSet,
+  baseRevision,
+  schemaVersion,
+  linearizedEnvelope,
+  decodedFramePayload,
+  decodedFrameTimelineAlignment,
+});
+
+if (!preflight.valid) {
+  adapterDiagnostics.report("runtime.document.preflight.failed", {
+    issues: preflight.issues,
+    warningCodes: preflight.warningCodes,
+  });
+  return;
+}
+
+engine.runtime.document.applyChangeSet({
+  changeSet,
+  baseRevision,
+  schemaVersion,
+  linearizedEnvelope,
+  decodedFramePayload,
+  decodedFrameTimelineAlignment,
+});
+```
 
 ## 必需回归覆盖
 

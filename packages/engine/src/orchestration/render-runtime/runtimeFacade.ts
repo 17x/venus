@@ -1,4 +1,5 @@
 import type { EngineFrameBudgetPressureSignals } from "../../optimization/frameBudgetBroker";
+import type { EngineFrameBudget } from "../../optimization/frameBudgetBroker";
 
 /**
  * Render-frame stats snapshot returned by staged runtime facade.
@@ -9,9 +10,11 @@ export interface EngineRenderFrameStats {
   /** Strategy phase label for diagnostics. */
   phase: string;
   /** Budget pressure tier for diagnostics. */
-  pressure: string;
+  pressure: "low" | "medium" | "high";
   /** Human-readable reason describing the pressure-tier decision. */
   pressureReason: string;
+  /** Effective frame budget selected by scheduler for current frame. */
+  budget: EngineFrameBudget;
   /** Structured threshold signals used to derive pressure tier. */
   pressureSignals: EngineFrameBudgetPressureSignals;
 }

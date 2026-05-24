@@ -251,6 +251,28 @@ function EditorFrameRuntime() {
     variantBSections,
   ])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const applyViewportPanelGuard = () => {
+      // AI-TEMP: narrow viewports can hide the canvas behind both side panels; remove when responsive panel docking lands; ref DEX-065.4.
+      if (window.innerWidth < 1100) {
+        setRightPanelMinimized(true)
+      }
+      if (window.innerWidth < 900) {
+        setLeftPanelMinimized(true)
+      }
+    }
+
+    applyViewportPanelGuard()
+    window.addEventListener('resize', applyViewportPanelGuard)
+    return () => {
+      window.removeEventListener('resize', applyViewportPanelGuard)
+    }
+  }, [])
+
   const resolveWorldPoint = useCallback((viewportPoint: {x: number; y: number}) => {
     return applyMatrixToPoint(canvas.viewport.inverseMatrix, viewportPoint)
   }, [canvas.viewport.inverseMatrix])

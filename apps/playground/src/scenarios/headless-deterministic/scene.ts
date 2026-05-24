@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 1000
 const SCENE_HEIGHT = 700
@@ -7,7 +7,7 @@ const SCENE_HEIGHT = 700
  * Build a deterministic scene that is mirrored in headless verification harnesses.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const buildHeadlessDeterministicScene = (revision: number): EngineSceneSnapshot => {
+export const buildHeadlessDeterministicScene = (revision: number): PlaygroundSceneSnapshot => {
 	return {
 		revision,
 		width: SCENE_WIDTH,

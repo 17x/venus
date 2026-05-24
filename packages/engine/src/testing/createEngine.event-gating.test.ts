@@ -45,6 +45,8 @@ test("createEngine event gating pause/resume for document view interaction resou
   let interactionStateChangedCount = 0;
   let interactionPickCompletedCount = 0;
   let interactionPickFailedCount = 0;
+  let queryExecutedCount = 0;
+  let queryEmptyCount = 0;
   let resourceLoadProgressCount = 0;
   let resourceLoadFailedCount = 0;
   let streamingBackpressureCount = 0;
@@ -70,6 +72,14 @@ test("createEngine event gating pause/resume for document view interaction resou
   const interactionPickFailedListener = () => {
     interactionPickFailedCount += 1;
   };
+  // Tracks query executed events for pause/resume gating checks.
+  const queryExecutedListener = () => {
+    queryExecutedCount += 1;
+  };
+  // Tracks query empty events for pause/resume gating checks.
+  const queryEmptyListener = () => {
+    queryEmptyCount += 1;
+  };
   // Tracks resource load progress events for pause/resume gating checks.
   const resourceLoadProgressListener = () => {
     resourceLoadProgressCount += 1;
@@ -92,6 +102,8 @@ test("createEngine event gating pause/resume for document view interaction resou
   engine.events.on("engine.interaction.stateChanged", interactionStateChangedListener, { scope: "session" });
   engine.events.on("engine.interaction.pickCompleted", interactionPickCompletedListener, { scope: "session" });
   engine.events.on("engine.interaction.pickFailed", interactionPickFailedListener, { scope: "session" });
+  engine.events.on("engine.query.executed", queryExecutedListener, { scope: "session" });
+  engine.events.on("engine.query.empty", queryEmptyListener, { scope: "session" });
   engine.events.on("engine.resource.loadProgress", resourceLoadProgressListener, { scope: "session" });
   engine.events.on("engine.resource.loadFailed", resourceLoadFailedListener, { scope: "session" });
   engine.events.on("engine.streaming.backpressure", streamingBackpressureListener, { scope: "session" });
@@ -142,6 +154,24 @@ test("createEngine event gating pause/resume for document view interaction resou
   engine.pick({ x: -9999, y: -9999 });
   assert.equal(interactionPickFailedCount > pickFailedBaseline, true);
 
+  // Verifies query.executed gating around non-empty query results.
+  const queryExecutedBaseline = queryExecutedCount;
+  engine.events.pause("engine.query.executed");
+  engine.query({ x: -10, y: -10, width: 200, height: 120 });
+  assert.equal(queryExecutedCount, queryExecutedBaseline);
+  engine.events.resume("engine.query.executed");
+  engine.query({ x: -10, y: -10, width: 200, height: 120 });
+  assert.equal(queryExecutedCount > queryExecutedBaseline, true);
+
+  // Verifies query.empty gating around empty query outcomes.
+  const queryEmptyBaseline = queryEmptyCount;
+  engine.events.pause("engine.query.empty");
+  engine.query({ x: 9999, y: 9999, width: 10, height: 10 });
+  assert.equal(queryEmptyCount, queryEmptyBaseline);
+  engine.events.resume("engine.query.empty");
+  engine.query({ x: 9999, y: 9999, width: 10, height: 10 });
+  assert.equal(queryEmptyCount > queryEmptyBaseline, true);
+
   // Verifies resource.loadProgress gating around successful resource loads.
   const loadProgressBaseline = resourceLoadProgressCount;
   engine.events.pause("engine.resource.loadProgress");
@@ -185,6 +215,8 @@ test("createEngine event gating pause/resume for document view interaction resou
   engine.events.off("engine.interaction.stateChanged", interactionStateChangedListener);
   engine.events.off("engine.interaction.pickCompleted", interactionPickCompletedListener);
   engine.events.off("engine.interaction.pickFailed", interactionPickFailedListener);
+  engine.events.off("engine.query.executed", queryExecutedListener);
+  engine.events.off("engine.query.empty", queryEmptyListener);
   engine.events.off("engine.resource.loadProgress", resourceLoadProgressListener);
   engine.events.off("engine.resource.loadFailed", resourceLoadFailedListener);
   engine.events.off("engine.streaming.backpressure", streamingBackpressureListener);

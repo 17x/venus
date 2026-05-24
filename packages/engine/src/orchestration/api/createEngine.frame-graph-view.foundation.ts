@@ -19,6 +19,7 @@ type RuntimeFrameDecision = {
   runtime: {
     strategy: { phase: EngineRenderFrameStats["phase"] };
     budget: {
+      budget: EngineRenderFrameStats["budget"];
       pressure: EngineRenderFrameStats["pressure"];
       reason: EngineRenderFrameStats["pressureReason"];
       signals: EngineRenderFrameStats["pressureSignals"];
@@ -215,6 +216,7 @@ export function createFrameGraphViewFoundation(
       phase: decision.runtime.strategy.phase,
       pressure: decision.runtime.budget.pressure,
       pressureReason: decision.runtime.budget.reason,
+      budget: decision.runtime.budget.budget,
       pressureSignals: decision.runtime.budget.signals,
     };
     deps.setLatestFrameStats(frameStats);

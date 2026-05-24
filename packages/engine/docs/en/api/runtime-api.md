@@ -18,6 +18,7 @@ Stability: `beta`
 engine.runtime.getDocumentSnapshot(): EngineDocumentSnapshot
 engine.runtime.getDocumentRevision(): number
 engine.runtime.applyChangeSet(input: EngineRuntimeDocumentApplyChangeSetInput): EngineRuntimeDocumentApplyChangeSetResult
+engine.runtime.document.preflightApplyChangeSet(input: EngineRuntimeDocumentPreflightApplyChangeSetInput): EngineRuntimeDocumentPreflightApplyChangeSetOutput
 engine.runtime.compileWorld(options?: { snapshot?: EngineDocumentSnapshot }): EngineRuntimeWorldSnapshotOutput
 engine.runtime.getRuntimeWorld(): EngineRuntimeWorldSnapshotOutput
 engine.runtime.getRuntimeWorldStats(): EngineRuntimeWorldGraphStatsOutput

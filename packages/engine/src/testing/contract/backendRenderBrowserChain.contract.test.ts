@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createEngine, createTestSurface } from "../../index";
-
 /**
  * Creates a deterministic single-node graph fixture for render/pick chain checks.
  */
@@ -190,6 +189,8 @@ test("backend render chain stays coherent for canonical backend preferences", as
     assert.equal(pickResult.hits.length > 0, true, `pick should hit at backend preference: ${backend}`);
     assert.equal(renderResult.drawCount > 0, true, `drawCount should be positive at backend preference: ${backend}`);
     assert.equal(renderResult.visibleCount > 0, true, `visibleCount should be positive at backend preference: ${backend}`);
+    assert.equal(renderResult.frameMs >= 0, true, `frameMs should be non-negative at backend preference: ${backend}`);
+    assert.equal(renderResult.frameMs < 1000, true, `frameMs should be elapsed duration (not timestamp) at backend preference: ${backend}`);
     assert.equal(beforeSubmitCount > 0, true, `beforeSubmit hook should fire at backend preference: ${backend}`);
     assert.equal(afterSubmitCount > 0, true, `afterSubmit hook should fire at backend preference: ${backend}`);
     assert.equal(frameCompletedCount > 0, true, `frameCompleted event should fire at backend preference: ${backend}`);
@@ -218,6 +219,64 @@ test("backend render chain stays coherent for canonical backend preferences", as
     assert.equal(diagnostics.renderChain?.planReached, true, `diagnostics plan stage should be true at backend preference: ${backend}`);
     assert.equal(diagnostics.renderChain?.submitReached, true, `diagnostics submit stage should be true at backend preference: ${backend}`);
     assert.equal(diagnostics.renderChain?.backendMode, backendInfo.resolved, `diagnostics backend mode should align with resolved backend for preference ${backend}`);
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.webgpuNativeSubmissionAttemptedCount,
+      "number",
+      `backend diagnostics should expose submission attempted counter for backend preference: ${backend}`,
+    );
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.l0PreviewHitCount,
+      "number",
+      `backend diagnostics should expose l0 preview hit counter for backend preference: ${backend}`,
+    );
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.tileCacheSize,
+      "number",
+      `backend diagnostics should expose tile cache size for backend preference: ${backend}`,
+    );
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.cacheFallbackReason,
+      "string",
+      `backend diagnostics should expose cache fallback reason for backend preference: ${backend}`,
+    );
+    assert.equal(
+      ["low", "medium", "high"].includes(diagnostics.backendDiagnostics?.webglBudgetPressure ?? "low"),
+      true,
+      `backend diagnostics should expose budget pressure bucket for backend preference: ${backend}`,
+    );
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.webglBudgetPressureReason,
+      "string",
+      `backend diagnostics should expose budget pressure reason for backend preference: ${backend}`,
+    );
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.webglPredictorConfidence,
+      "number",
+      `backend diagnostics should expose predictor confidence for backend preference: ${backend}`,
+    );
+    assert.equal(
+      typeof diagnostics.backendDiagnostics?.webglHighZoomTextSlaViolationCount,
+      "number",
+      `backend diagnostics should expose high-zoom text SLA violations for backend preference: ${backend}`,
+    );
+    if (backendInfo.resolved === "webgl") {
+      assert.equal(
+        diagnostics.backendDiagnostics?.webglRenderPath === "packet" ||
+          diagnostics.backendDiagnostics?.webglRenderPath === "model-complete",
+        true,
+        `webgl backend diagnostics should expose active webgl render path for backend preference: ${backend}`,
+      );
+    }
+    if (backendInfo.resolved === "webgpu") {
+      assert.equal(
+        diagnostics.backendDiagnostics?.webgpuRenderPath === "native-clear-only" ||
+          diagnostics.backendDiagnostics?.webgpuRenderPath === "native-rect-batch" ||
+          diagnostics.backendDiagnostics?.webgpuRenderPath === "native-model-complete" ||
+          diagnostics.backendDiagnostics?.webgpuRenderPath === "hybrid-webgl",
+        true,
+        `webgpu backend diagnostics should expose webgpu render path for backend preference: ${backend}`,
+      );
+    }
 
     const backendPresentWarning = diagnosticsWarnings.find(
       (warning) => warning.code === "ENGINE_RENDER_BACKEND_PRESENT_SKIPPED",

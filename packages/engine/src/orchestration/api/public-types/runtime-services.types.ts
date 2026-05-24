@@ -31,6 +31,8 @@ import type {
   EngineRuntimeDirtyStateOutput,
   EngineRuntimeDocumentApplyChangeSetInput,
   EngineRuntimeDocumentApplyChangeSetResult,
+  EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  EngineRuntimeDocumentPreflightApplyChangeSetOutput,
   EngineRuntimeDocumentCreateSnapshotInput,
   EngineRuntimeDocumentDeserializeSnapshotInput,
   EngineRuntimeDocumentDiffSnapshotsInput,
@@ -371,6 +373,10 @@ export interface EngineRuntimeDocumentApi {
   applyChangeSet: (
     input: EngineRuntimeDocumentApplyChangeSetInput,
   ) => EngineRuntimeDocumentApplyChangeSetResult;
+  /** Preflights one deterministic change-set and adapter payload contract without mutating runtime state. */
+  preflightApplyChangeSet: (
+    input: EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  ) => EngineRuntimeDocumentPreflightApplyChangeSetOutput;
   /** Diffs two document snapshots and returns deterministic node id deltas. */
   diffSnapshots: (
     input: EngineRuntimeDocumentDiffSnapshotsInput,

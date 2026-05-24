@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 2000
 const SCENE_HEIGHT = 1400
@@ -7,8 +7,8 @@ const SCENE_HEIGHT = 1400
  * Build a broad scene for WebGL packet and tile-cache behavior verification.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const buildWebglRenderScene = (revision: number): EngineSceneSnapshot => {
-	const nodes: EngineSceneSnapshot['nodes'] = [
+export const buildWebglRenderScene = (revision: number): PlaygroundSceneSnapshot => {
+	const nodes: PlaygroundSceneSnapshot['nodes'] = [
 		{
 			id: 'webgl-bg',
 			type: 'shape',

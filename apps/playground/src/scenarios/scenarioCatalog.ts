@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../types/playgroundScene'
 
 import {build3DSpatialScene} from './3d-spatial/scene'
 import {build2DBasicScene} from './2d-basic/scene'
@@ -19,7 +19,7 @@ export type PlaygroundScenario = {
 	/** Validation tags used for manual matrix audits and future automation. */
 	tags: ReadonlyArray<string>
 	/** Build the scenario snapshot used by the current engine session. */
-	buildScene: (revision: number) => EngineSceneSnapshot
+	buildScene: (revision: number) => PlaygroundSceneSnapshot
 }
 
 /**

@@ -1,3 +1,4 @@
+import type { EngineBackendCacheFallbackReason } from "../../../backend/fallbackTaxonomy";
 /**
  * Engine backend selection mode requested by API consumers.
  */
@@ -145,6 +146,30 @@ export interface EngineStatsSnapshot {
    */
   lastFramePressureReason?: string;
   /**
+   * Last pressure tier resolved by frame orchestration diagnostics.
+   */
+  lastFramePressure?: "low" | "medium" | "high";
+  /**
+   * Last strategy phase resolved by frame orchestration diagnostics.
+   */
+  lastFramePhase?: "static" | "pan" | "zoom" | "camera" | "settling";
+  /**
+   * Last QoS degradation level derived from frame pressure for diagnostics parity.
+   */
+  lastQosDegradationLevel?: "none" | "light" | "heavy";
+  /**
+   * Last QoS fallback reason derived from cache fallback taxonomy.
+   */
+  lastQosFallbackReason?: string | null;
+  /**
+   * Last QoS guard triggers derived from phase/pressure/fallback diagnostics.
+   */
+  lastQosGuardTriggers?: string[];
+  /**
+   * Last QoS trace id used for frame-level diagnostics correlation.
+   */
+  lastQosTrace?: string;
+  /**
    * Last pressure-threshold signals resolved by frame orchestration diagnostics.
    */
   lastFramePressureSignals?: {
@@ -217,6 +242,40 @@ export interface EngineGraphNodeInput {
   kind?: string;
   /** Optional parent node id for hierarchy reconstruction. */
   parentId?: string;
+  /** Optional world-space x coordinate used by 2D/3D scene ingestion. */
+  x?: number;
+  /** Optional world-space y coordinate used by 2D/3D scene ingestion. */
+  y?: number;
+  /** Optional world-space z coordinate used by 3D scene ingestion. */
+  z?: number;
+  /** Optional world-space width used by 2D/3D scene ingestion. */
+  width?: number;
+  /** Optional world-space height used by 2D/3D scene ingestion. */
+  height?: number;
+  /** Optional world-space depth used by 3D scene ingestion. */
+  depth?: number;
+  /** Optional rotation degrees around X axis used by 3D semantics. */
+  rotationX?: number;
+  /** Optional rotation degrees around Y axis used by 3D semantics. */
+  rotationY?: number;
+  /** Optional rotation degrees around Z axis used by 3D semantics. */
+  rotationZ?: number;
+  /** Optional scale factor on X axis used by 3D semantics. */
+  scaleX?: number;
+  /** Optional scale factor on Y axis used by 3D semantics. */
+  scaleY?: number;
+  /** Optional scale factor on Z axis used by 3D semantics. */
+  scaleZ?: number;
+  /** Optional render order token used by scene sorting/picking. */
+  renderOrder?: number;
+  /** Optional visibility bit used by scene filtering pipelines. */
+  visible?: boolean;
+  /** Optional lighting mode hint for backend shading decisions. */
+  lightingMode?: "inherit" | "unlit" | "lit";
+  /** Optional material id hint for backend material binding. */
+  materialId?: string;
+  /** Optional compatibility envelope for adapter-provided 3D semantics. */
+  semantic3d?: Readonly<Record<string, unknown>>;
   /** Optional payload object carrying revision counters and metadata. */
   payload?: Record<string, unknown>;
   /** Additional node fields forwarded from app adapters. */
@@ -514,6 +573,148 @@ export interface EngineDiagnosticsSnapshot {
   renderChain?: EngineRenderChainDiagnostics;
   /** Latest structured render warning snapshot for diagnostics polling workflows. */
   lastRenderWarning?: EngineRenderWarningPayload | null;
+  /** Backend-native diagnostics snapshot used to compare WebGL/WebGPU render paths. */
+  backendDiagnostics?: {
+    /** WebGL render path classification for the latest submitted frame. */
+    webglRenderPath: "model-complete" | "packet" | "none";
+    /** WebGPU render path classification for the latest submitted frame. */
+    webgpuRenderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" | "native-model-complete";
+    /** Native WebGPU submissions attempted in the latest frame. */
+    webgpuNativeSubmissionAttemptedCount: number;
+    /** Native WebGPU submissions that completed in the latest frame. */
+    webgpuNativeSubmissionSuccessCount: number;
+    /** Native WebGPU submissions that failed in the latest frame. */
+    webgpuNativeSubmissionFailureCount: number;
+    /** Cumulative native WebGPU submissions completed since engine boot. */
+    webgpuNativeSubmissionTotalCount: number;
+    /** Cumulative native WebGPU submissions failed since engine boot. */
+    webgpuNativeSubmissionTotalFailureCount: number;
+    /** Native rect-batch eligible primitive count observed in the latest frame. */
+    webgpuNativeRectBatchEligibleCount: number;
+    /** Native rect-batch rejection reason for the latest frame. */
+    webgpuNativeRectBatchRejectedReason:
+      | "none"
+      | "scene-empty"
+      | "group-node-unsupported"
+      | "non-shape-node-unsupported"
+      | "non-rect-shape-unsupported"
+      | "shape-style-unsupported"
+      | "shape-transform-unsupported";
+    /** Cache-hit count for the latest frame emitted by backend-local reuse logic. */
+    cacheHits: number;
+    /** Cache-miss count for the latest frame emitted by backend-local reuse logic. */
+    cacheMisses: number;
+    /** Frame-reuse hit count for the latest frame emitted by backend-local reuse logic. */
+    frameReuseHits: number;
+    /** Frame-reuse miss count for the latest frame emitted by backend-local reuse logic. */
+    frameReuseMisses: number;
+    /** L0 preview hit count for the latest frame. */
+    l0PreviewHitCount: number;
+    /** L0 preview miss count for the latest frame. */
+    l0PreviewMissCount: number;
+    /** L1 composite hit count for the latest frame. */
+    l1CompositeHitCount: number;
+    /** L1 composite miss count for the latest frame. */
+    l1CompositeMissCount: number;
+    /** L2 tile-cache hit count for the latest frame. */
+    l2TileHitCount: number;
+    /** L2 tile-cache miss count for the latest frame. */
+    l2TileMissCount: number;
+    /** Cache fallback reason token for the latest frame. */
+    cacheFallbackReason: EngineBackendCacheFallbackReason;
+    /** Tile-cache entry count tracked for the latest frame. */
+    tileCacheSize: number;
+    /** Dirty tile count tracked for the latest frame. */
+    tileDirtyCount: number;
+    /** Total bytes estimated for tile cache footprint. */
+    tileCacheTotalBytes: number;
+    /** Tile upload count tracked for the latest frame. */
+    tileUploadCount: number;
+    /** Tile render count tracked for the latest frame. */
+    tileRenderCount: number;
+    /** Visible tile count tracked for the latest frame. */
+    visibleTileCount: number;
+    /** Pending tile scheduler task count at frame completion. */
+    tileSchedulerPendingCount: number;
+    /** Estimated total GPU texture bytes tracked by backend. */
+    gpuTextureBytes: number;
+    /** Estimated image texture bytes tracked by backend. */
+    imageTextureBytes: number;
+    /** Preview reuse timing in milliseconds for the latest frame. */
+    webglPreviewReuseMs: number;
+    /** Plan build timing in milliseconds for the latest frame. */
+    webglPlanBuildMs: number;
+    /** Texture upload timing in milliseconds for the latest frame. */
+    webglTextureUploadMs: number;
+    /** Draw submit timing in milliseconds for the latest frame. */
+    webglDrawSubmitMs: number;
+    /** Snapshot capture timing in milliseconds for the latest frame. */
+    webglSnapshotCaptureMs: number;
+    /** Model render fallback timing in milliseconds for the latest frame. */
+    webglModelRenderMs: number;
+    /** Preview execution mode from old-engine reuse path semantics. */
+    webglPreviewExecutionMode: "affine-snapshot" | "temporal-reprojection-required";
+    /** Source marker for preview execution mode diagnostics. */
+    webglPreviewExecutionSource: "backend-native" | "engine-cache-fallback-taxonomy";
+    /** Budget pressure bucket for the latest frame. */
+    webglBudgetPressure: "low" | "medium" | "high";
+    /** Human-readable pressure reason derived from budget-threshold signals. */
+    webglBudgetPressureReason: string;
+    /** Source marker for budget pressure diagnostics. */
+    webglBudgetPressureSource: "backend-native" | "engine-frame-budget";
+    /** Draw submit budget in milliseconds. */
+    webglDrawSubmitBudgetMs: number;
+    /** Texture upload budget in bytes per frame. */
+    webglTextureUploadBudgetBytes: number;
+    /** Texture upload total budget in bytes. */
+    webglTextureUploadTotalBudgetBytes: number;
+    /** Image texture upload count budget per frame. */
+    webglImageTextureUploadBudgetCount: number;
+    /** Text texture upload count budget per frame. */
+    webglTextTextureUploadBudgetCount: number;
+    /** Tile preload budget in milliseconds per frame. */
+    webglTilePreloadBudgetMs: number;
+    /** Tile preload upload budget per frame. */
+    webglTilePreloadBudgetUploads: number;
+    /** Overlay pass budget in milliseconds per frame. */
+    webglOverlayPassBudgetMs: number;
+    /** Whether draw submit budget was exceeded. */
+    webglDrawSubmitBudgetExceeded: boolean;
+    /** Whether texture upload budget was exceeded. */
+    webglTextureUploadBudgetExceeded: boolean;
+    /** Whether overlay budget was exceeded. */
+    webglOverlayBudgetExceeded: boolean;
+    /** Predictor direction X component for current frame. */
+    webglPredictorDirectionX: number;
+    /** Predictor direction Y component for current frame. */
+    webglPredictorDirectionY: number;
+    /** Predictor speed in pixels per second. */
+    webglPredictorSpeedPxPerSec: number;
+    /** Predictor confidence in range [0, 1]. */
+    webglPredictorConfidence: number;
+    /** Predictor preload ring size for current frame. */
+    webglPredictorPreloadRing: number;
+    /** Predictor overscan in CSS pixels. */
+    webglPredictorOverscanCssPx: number;
+    /** Predictive preload enqueue count for current frame. */
+    webglPredictivePreloadEnqueueCount: number;
+    /** Predictive preload processed count for current frame. */
+    webglPredictivePreloadProcessedCount: number;
+    /** Predictive preload pruned count for current frame. */
+    webglPredictivePreloadPrunedCount: number;
+    /** Whether high-zoom text SLA check executed for current frame. */
+    webglHighZoomTextSlaChecked: boolean;
+    /** High-zoom text SLA scale threshold. */
+    webglHighZoomTextSlaScale: number;
+    /** High-zoom text SLA violation count for current frame. */
+    webglHighZoomTextSlaViolationCount: number;
+    /** Deferred text texture count for current frame. */
+    webglDeferredTextTextureCount: number;
+    /** Number of pan predictive schedule requests issued this frame. */
+    panScheduleRequestCount: number;
+    /** Number of synchronous tile rebuild operations issued this frame. */
+    tileSynchronousRebuildCount: number;
+  };
   /** Machine-readable runtime capability snapshot for adapter/tooling checks. */
   capabilities?: {
     /** Payload schema version for capability snapshot compatibility checks. */

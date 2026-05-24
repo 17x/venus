@@ -14,6 +14,7 @@ import {
   type EngineDocumentNode,
   type EngineDocumentNodeKind,
   type EngineDocumentNodePayload,
+  type EngineDocumentNodeSemantic3D,
 } from "../../kernel/document/document-contracts";
 import type { EngineIncrementalCompileOutput } from "../../kernel/compiler/incrementalCompiler";
 import type { EngineSpatialQueryNode } from "../../kernel/spatial/spatialQuery/spatialQuery.contract";
@@ -59,11 +60,154 @@ export function resolveDocumentNodePayloadFromGraphNode(node: EngineGraphNodeInp
  * @param node Graph node payload received from public setGraph/updateGraph APIs.
  */
 export function resolveDocumentNodeFromGraphNode(node: EngineGraphNodeInput): EngineDocumentNode {
+  const semantic3d = resolveDocumentNodeSemantic3DFromGraphNode(node);
   return {
     id: node.id,
     kind: resolveDocumentNodeKindFromGraphNode(node),
     parentId: typeof node.parentId === "string" ? node.parentId : undefined,
     payload: resolveDocumentNodePayloadFromGraphNode(node),
+    ...(semantic3d ? { semantic3d } : {}),
+  };
+}
+
+/**
+ * Resolves one optional 3D semantic envelope from graph-node input payload.
+ * @param node Graph node payload received from public setGraph/updateGraph APIs.
+ */
+export function resolveDocumentNodeSemantic3DFromGraphNode(
+  node: EngineGraphNodeInput,
+): EngineDocumentNodeSemantic3D | undefined {
+  const semanticInput = (
+    node.semantic3d && typeof node.semantic3d === "object"
+      ? node.semantic3d as Readonly<Record<string, unknown>>
+      : null
+  );
+
+  const boundsX = resolveFiniteNumber(
+    semanticInput?.boundsX ?? semanticInput?.x ?? node.x,
+    0,
+  );
+  const boundsY = resolveFiniteNumber(
+    semanticInput?.boundsY ?? semanticInput?.y ?? node.y,
+    0,
+  );
+  const boundsZ = resolveFiniteNumber(
+    semanticInput?.boundsZ ?? semanticInput?.z ?? node.z,
+    0,
+  );
+  const boundsWidth = Math.abs(resolveFiniteNumber(
+    semanticInput?.boundsWidth ?? semanticInput?.width ?? node.width,
+    0,
+  ));
+  const boundsHeight = Math.abs(resolveFiniteNumber(
+    semanticInput?.boundsHeight ?? semanticInput?.height ?? node.height,
+    0,
+  ));
+  const boundsDepth = Math.abs(resolveFiniteNumber(
+    semanticInput?.boundsDepth ?? semanticInput?.depth ?? node.depth,
+    0,
+  ));
+
+  const transformX = resolveFiniteNumber(
+    semanticInput?.transformX ?? semanticInput?.x ?? node.x,
+    boundsX,
+  );
+  const transformY = resolveFiniteNumber(
+    semanticInput?.transformY ?? semanticInput?.y ?? node.y,
+    boundsY,
+  );
+  const transformZ = resolveFiniteNumber(
+    semanticInput?.transformZ ?? semanticInput?.z ?? node.z,
+    boundsZ,
+  );
+  const rotationX = resolveFiniteNumber(
+    semanticInput?.rotationX ?? node.rotationX,
+    0,
+  );
+  const rotationY = resolveFiniteNumber(
+    semanticInput?.rotationY ?? node.rotationY,
+    0,
+  );
+  const rotationZ = resolveFiniteNumber(
+    semanticInput?.rotationZ ?? node.rotationZ,
+    0,
+  );
+  const scaleX = resolveFiniteNumber(
+    semanticInput?.scaleX ?? node.scaleX,
+    1,
+  );
+  const scaleY = resolveFiniteNumber(
+    semanticInput?.scaleY ?? node.scaleY,
+    1,
+  );
+  const scaleZ = resolveFiniteNumber(
+    semanticInput?.scaleZ ?? node.scaleZ,
+    1,
+  );
+  const sourceType = typeof semanticInput?.sourceType === "string"
+    ? semanticInput.sourceType
+    : typeof node.type === "string"
+      ? node.type
+      : undefined;
+  const renderOrderValue = semanticInput?.renderOrder ?? node.renderOrder ?? node.layer;
+  const renderOrder = typeof renderOrderValue === "number" && Number.isFinite(renderOrderValue)
+    ? renderOrderValue
+    : undefined;
+  const visible = typeof semanticInput?.visible === "boolean"
+    ? semanticInput.visible
+    : typeof node.visible === "boolean"
+      ? node.visible
+      : undefined;
+  const lightingMode = semanticInput?.lightingMode === "inherit" || semanticInput?.lightingMode === "unlit" || semanticInput?.lightingMode === "lit"
+    ? semanticInput.lightingMode
+    : node.lightingMode === "inherit" || node.lightingMode === "unlit" || node.lightingMode === "lit"
+      ? node.lightingMode
+      : undefined;
+  const materialId = typeof semanticInput?.materialId === "string"
+    ? semanticInput.materialId
+    : typeof node.materialId === "string"
+      ? node.materialId
+      : undefined;
+
+  const hasMeaningfulSemantic =
+    boundsWidth > 0 ||
+    boundsHeight > 0 ||
+    boundsDepth > 0 ||
+    renderOrder !== undefined ||
+    sourceType !== undefined ||
+    visible !== undefined ||
+    lightingMode !== undefined ||
+    materialId !== undefined;
+
+  if (!hasMeaningfulSemantic) {
+    return undefined;
+  }
+
+  return {
+    bounds: {
+      x: boundsX,
+      y: boundsY,
+      z: boundsZ,
+      width: boundsWidth,
+      height: boundsHeight,
+      depth: boundsDepth,
+    },
+    transform: {
+      x: transformX,
+      y: transformY,
+      z: transformZ,
+      rotationX,
+      rotationY,
+      rotationZ,
+      scaleX,
+      scaleY,
+      scaleZ,
+    },
+    sourceType,
+    renderOrder,
+    visible,
+    lightingMode,
+    materialId,
   };
 }
 
@@ -149,7 +293,7 @@ export function resolveEngineBackend(
     /** Optional canvas2d present telemetry hooks injected by orchestration diagnostics. */
     canvas2d?: Pick<Canvas2DBackendAdapterHooks, "onPresentAttempt" | "onPresentSkipped" | "onPresentCommitted">;
     /** Optional noop present telemetry hooks injected by orchestration diagnostics. */
-    noop?: Pick<NoopBackendAdapterHooks, "onPresentAttempt" | "onPresentCommitted" | "resolveNativeFramePayload">;
+    noop?: Pick<NoopBackendAdapterHooks, "onPresentAttempt" | "onPresentCommitted" | "resolveNativeFramePayload" | "onBackendDiagnostics">;
   },
 ): {
   backend: EngineBackend;
@@ -180,6 +324,7 @@ export function resolveEngineBackend(
         onPresentAttempt: diagnosticsHooks?.noop?.onPresentAttempt,
         onPresentCommitted: diagnosticsHooks?.noop?.onPresentCommitted,
         resolveNativeFramePayload: diagnosticsHooks?.noop?.resolveNativeFramePayload,
+        onBackendDiagnostics: diagnosticsHooks?.noop?.onBackendDiagnostics,
       },
     },
   );

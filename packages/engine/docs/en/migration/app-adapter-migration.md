@@ -38,6 +38,13 @@ Move from compat-oriented integration to capability-oriented integration without
 
 - Verify timeline/simulation/replay behavior under target backend profiles.
 
+7. Add preflight contract gate before mutable apply
+
+- Call `engine.runtime.document.preflightApplyChangeSet(input)` before
+  `engine.runtime.document.applyChangeSet(input)` for adapter-submitted payloads.
+- Route non-empty `warningCodes` to adapter diagnostics and policy handlers.
+- Reject mutable apply when `valid === false`.
+
 ## Mapping Examples
 
 | Legacy pattern               | Canonical replacement                 |
@@ -46,6 +53,36 @@ Move from compat-oriented integration to capability-oriented integration without
 | `compat.patchScene(delta)`   | `engine.updateGraph(patch)`           |
 | `compat.hitTest(point)`      | `engine.pick(point, options)`         |
 | `compat.previewTransform(p)` | `engine.setTransformPreview(preview)` |
+
+### Runtime Document Preflight Example
+
+```ts
+const preflight = engine.runtime.document.preflightApplyChangeSet({
+  changeSet,
+  baseRevision,
+  schemaVersion,
+  linearizedEnvelope,
+  decodedFramePayload,
+  decodedFrameTimelineAlignment,
+});
+
+if (!preflight.valid) {
+  adapterDiagnostics.report("runtime.document.preflight.failed", {
+    issues: preflight.issues,
+    warningCodes: preflight.warningCodes,
+  });
+  return;
+}
+
+engine.runtime.document.applyChangeSet({
+  changeSet,
+  baseRevision,
+  schemaVersion,
+  linearizedEnvelope,
+  decodedFramePayload,
+  decodedFrameTimelineAlignment,
+});
+```
 
 ## Required Regression Coverage
 

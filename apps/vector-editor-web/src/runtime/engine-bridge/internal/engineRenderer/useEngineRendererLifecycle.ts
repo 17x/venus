@@ -161,15 +161,12 @@ export function useEngineRendererLifecycle(params: {
           },
           getContext: (contextId) => {
             if (contextId === '2d') {
-              return renderSurface.getContext('2d')
+              return renderSurface.getContext('2d') as CanvasRenderingContext2D | null
             }
             if (contextId === 'webgl') {
-              return renderSurface.getContext('webgl')
+              return renderSurface.getContext('webgl') as WebGLRenderingContext | null
             }
-            if (contextId === 'webgpu') {
-              return renderSurface.getContext('webgpu')
-            }
-            return renderSurface.getContext('webgl2')
+            return renderSurface.getContext('webgl2') as WebGL2RenderingContext | null
           },
         },
       },

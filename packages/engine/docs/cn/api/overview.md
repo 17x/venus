@@ -23,6 +23,17 @@
 
 - 负责订阅模型与事件 payload 契约。
 
+## Runtime Document 契约基线
+
+- Adapter 预校验入口：
+  - `engine.runtime.document.preflightApplyChangeSet(input)`
+- 可变更应用入口：
+  - `engine.runtime.document.applyChangeSet(input)`
+- Warning code 基线目录：
+  - `ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS`
+- Requirement 基线来源：
+  - `packages/engine/ai/playground-s1-s13-requirements-2026-05-24.md`（第 14 节）
+
 ## 契约基线
 
 每个 API 条目必须文档化以下字段：

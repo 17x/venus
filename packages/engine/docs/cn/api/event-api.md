@@ -13,6 +13,7 @@ engine.events.offAll(scope?: EventScope): void
 engine.events.pause(type: EngineEventType): void
 engine.events.resume(type: EngineEventType): void
 engine.events.getListenerStats(): EventListenerStats
+engine.events.getEventTypes(): readonly EngineEventType[]
 ```
 
 ```ts
@@ -39,6 +40,10 @@ interface EngineEvent<TPayload = unknown> {
   revision: string;
   payload: TPayload;
 }
+
+type EngineEventPayload = EngineEvent["payload"];
+
+const ENGINE_EVENT_SCHEMA_VERSION: number;
 ```
 
 以上字段为所有事件类型的强制字段。
@@ -66,7 +71,12 @@ interface EngineEvent<TPayload = unknown> {
 - `engine.document.graphPatched`
 - `engine.document.revisionChanged`
 
-3. View/Interaction
+3. Query
+
+- `engine.query.executed`
+- `engine.query.empty`
+
+4. View/Interaction
 
 - `engine.view.changed`
 - `engine.view.viewportResized`
@@ -74,20 +84,20 @@ interface EngineEvent<TPayload = unknown> {
 - `engine.interaction.pickCompleted`
 - `engine.interaction.pickFailed`
 
-4. Render
+5. Render
 
 - `engine.render.frameStarted`
 - `engine.render.frameCompleted`
 - `engine.render.frameFailed`
 - `engine.render.backendSwitched`
 
-5. Resource/Streaming
+6. Resource/Streaming
 
 - `engine.resource.loadProgress`
 - `engine.resource.loadFailed`
 - `engine.streaming.backpressure`
 
-6. Diagnostics/Replay
+7. Diagnostics/Replay
 
 - `engine.diagnostics.warning`
 - `engine.diagnostics.traceReady`

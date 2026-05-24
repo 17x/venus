@@ -37,6 +37,35 @@ test("createEngine runtime foundation namespaces are callable", () => {
     snapshot: createdSnapshot,
   });
   assert.equal(validatedSnapshot.valid, true);
+  const revisionBeforePreflight = engine.runtime.document.getRevision();
+  const preflightValid = engine.runtime.document.preflightApplyChangeSet({
+    changeSet: {
+      id: "preflight-valid-1",
+      targetRevision: revisionBeforePreflight + 1,
+      operations: [],
+    },
+    baseRevision: revisionBeforePreflight,
+    schemaVersion,
+  });
+  assert.equal(preflightValid.valid, true);
+  assert.equal(preflightValid.predictedNextRevision, revisionBeforePreflight + 1);
+  assert.deepEqual(preflightValid.issues, []);
+  assert.deepEqual(preflightValid.warningCodes, []);
+
+  // Preflight must remain read-only: validation failures should not advance runtime revision.
+  const preflightInvalid = engine.runtime.document.preflightApplyChangeSet({
+    changeSet: {
+      id: "preflight-invalid-1",
+      targetRevision: revisionBeforePreflight + 2,
+      operations: [],
+    },
+    baseRevision: revisionBeforePreflight + 10,
+  });
+  assert.equal(preflightInvalid.valid, false);
+  assert.equal(preflightInvalid.predictedNextRevision, null);
+  assert.equal(preflightInvalid.warningCodes.includes("ENGINE_RUNTIME_DOCUMENT_REVISION_CONFLICT"), true);
+  assert.equal(engine.runtime.document.getRevision(), revisionBeforePreflight);
+
   const baseSnapshot: EngineDocumentSnapshot = {
     revision: documentRevision,
     nodes: {},
@@ -47,8 +76,41 @@ test("createEngine runtime foundation namespaces are callable", () => {
       "node-a": {
         id: "node-a",
         kind: "shape",
+        semantic3d: {
+          bounds: {
+            x: 12,
+            y: 18,
+            z: 24,
+            width: 88,
+            height: 52,
+            depth: 16,
+          },
+          transform: {
+            x: 12,
+            y: 18,
+            z: 24,
+            rotationX: 3,
+            rotationY: 4,
+            rotationZ: 8,
+            scaleX: 1,
+            scaleY: 1,
+            scaleZ: 1,
+          },
+          sourceType: "shape",
+          renderOrder: 7,
+          visible: true,
+          lightingMode: "lit",
+          materialId: "mat-a",
+        },
         payload: {
           geometryRevision: 1,
+        },
+      },
+      "node-b": {
+        id: "node-b",
+        kind: "shape",
+        payload: {
+          geometryRevision: 2,
         },
       },
     },
@@ -57,7 +119,7 @@ test("createEngine runtime foundation namespaces are callable", () => {
     base: baseSnapshot,
     target: targetSnapshot,
   });
-  assert.deepEqual(documentDiff.addedNodeIds, ["node-a"]);
+  assert.deepEqual(documentDiff.addedNodeIds, ["node-a", "node-b"]);
   const rebasedChangeSet = engine.runtime.document.rebaseChangeSet({
     baseRevision: documentRevision,
     changeSet: {
@@ -81,11 +143,21 @@ test("createEngine runtime foundation namespaces are callable", () => {
   const worldSnapshot = engine.runtime.world.getWorldSnapshot();
   const worldEntityResult = engine.runtime.world.queryEntity({ entityId: "node-a" });
   const worldComponentResult = engine.runtime.world.queryComponent({ component: "geometry" });
+  const worldTransformComponentResult = engine.runtime.world.queryComponent({ component: "transform" });
+  const worldMaterialComponentResult = engine.runtime.world.queryComponent({ component: "material" });
+  const worldVisibilityComponentResult = engine.runtime.world.queryComponent({ component: "visibility" });
   const worldStats = engine.runtime.world.getGraphStats();
   const clearedWorld = engine.runtime.world.clear();
   assert.equal(compiledWorld.worldRevision >= 0, true);
   assert.equal(worldEntityResult.found, true);
   assert.equal(worldComponentResult.entityIds.includes("node-a"), true);
+  assert.equal(worldComponentResult.entityIds.includes("node-b"), true);
+  assert.equal(worldTransformComponentResult.entityIds.includes("node-a"), true);
+  assert.equal(worldTransformComponentResult.entityIds.includes("node-b"), true);
+  assert.equal(worldMaterialComponentResult.entityIds.includes("node-a"), true);
+  assert.equal(worldMaterialComponentResult.entityIds.includes("node-b"), false);
+  assert.equal(worldVisibilityComponentResult.entityIds.includes("node-a"), true);
+  assert.equal(worldVisibilityComponentResult.entityIds.includes("node-b"), true);
   assert.equal(clearedWorld.clearedEntityCount >= 0, true);
   assert.equal(typeof worldSnapshot.worldRevision, "number");
   assert.equal(Array.isArray(worldSnapshot.entities), true);
@@ -503,3 +575,208 @@ test("createEngine runtime foundation namespaces are callable", () => {
 
   engine.dispose();
 });
+
+/**
+ * Verifies runtime document adapter-payload contract violations emit diagnostics warnings.
+ */
+test("createEngine runtime document contract violations emit diagnostics warnings", () => {
+  const engine = createEngine({
+    surface: createTestSurface(640, 480),
+    runtimeAdapter: createDeterministicRuntimeAdapter(1024),
+  });
+
+  const warningPayloads: unknown[] = [];
+  const warningListener = (payload: unknown) => {
+    warningPayloads.push(payload);
+  };
+  engine.events.on("engine.diagnostics.warning", warningListener, { scope: "session" });
+
+  assert.throws(
+    () => {
+      engine.runtime.document.applyChangeSet({
+        changeSet: {
+          id: "invalid-envelope-cs",
+          operations: [
+            {
+              type: "upsert-node",
+              node: {
+                id: "node-1",
+                kind: "shape",
+                payload: { transformRevision: 1 },
+              },
+            },
+          ],
+        },
+        linearizedEnvelope: {
+          id: "env-invalid",
+          sourceAdapter: "bim-collab-adapter",
+          baseRevision: 5,
+          targetRevision: 5,
+          sequence: 1,
+          changeSet: {
+            id: "different-id",
+            targetRevision: 5,
+            operations: [],
+          },
+        },
+      });
+    },
+    /ENGINE_DOCUMENT_INVALID_CHANGESET/,
+  );
+
+  assert.throws(
+    () => {
+      engine.runtime.document.applyChangeSet({
+        changeSet: {
+          id: "invalid-decoded-frame-cs",
+          operations: [
+            {
+              type: "upsert-node",
+              node: {
+                id: "node-2",
+                kind: "shape",
+                payload: { geometryRevision: 1 },
+              },
+            },
+          ],
+        },
+        decodedFramePayload: {
+          id: "frame-invalid",
+          sourceAdapter: "video-timeline-adapter",
+          trackId: "track-a",
+          clipId: "clip-a",
+          timestampMs: 1000,
+          durationMs: 33.33,
+          width: 1920,
+          height: 1080,
+          pixelFormat: "rgba8-unorm",
+          colorSpace: "rec709",
+          storageKind: "typed-array",
+          byteLength: 8294400,
+        },
+        decodedFrameTimelineAlignment: {
+          previousTimestampMs: 1400,
+          expectedTimelineTimestampMs: 1500,
+          maxAllowedDriftMs: 20,
+        },
+      });
+    },
+    /ENGINE_DOCUMENT_INVALID_CHANGESET/,
+  );
+
+  const warningCodes = warningPayloads
+    .filter((payload): payload is { payload?: { code?: unknown } } => typeof payload === "object" && payload !== null)
+    .map((payload) => payload.payload?.code)
+    .filter((code): code is string => typeof code === "string");
+
+  assert.equal(
+    warningCodes.includes("ENGINE_RUNTIME_DOCUMENT_LINEARIZED_ENVELOPE_INVALID")
+      || warningCodes.includes("ENGINE_RUNTIME_DOCUMENT_LINEARIZED_CHANGESET_MISMATCH"),
+    true,
+  );
+  assert.equal(
+    warningCodes.includes("ENGINE_RUNTIME_DOCUMENT_TIMELINE_ALIGNMENT_INVALID")
+      || warningCodes.includes("ENGINE_RUNTIME_DOCUMENT_DECODED_FRAME_INVALID"),
+    true,
+  );
+
+  engine.events.off("engine.diagnostics.warning", warningListener);
+  engine.dispose();
+});
+
+  /**
+   * Verifies runtime-world component filters remain deterministic across semantic3d visibility/material edges.
+   */
+  test("createEngine runtime world component queries stay deterministic across semantic3d edges", () => {
+    const engine = createEngine({
+      surface: createTestSurface(640, 480),
+      runtimeAdapter: createDeterministicRuntimeAdapter(1024),
+    });
+
+    const revision = engine.runtime.document.getRevision();
+    const snapshot: EngineDocumentSnapshot = {
+      revision: revision + 1,
+      nodes: {
+        "component-node-a": {
+          id: "component-node-a",
+          kind: "shape",
+          semantic3d: {
+            bounds: {
+              x: 10,
+              y: 20,
+              z: 2,
+              width: 80,
+              height: 40,
+              depth: 8,
+            },
+            transform: {
+              x: 10,
+              y: 20,
+              z: 2,
+              rotationX: 0,
+              rotationY: 0,
+              rotationZ: 0,
+              scaleX: 1,
+              scaleY: 1,
+              scaleZ: 1,
+            },
+            sourceType: "shape",
+            visible: true,
+            lightingMode: "lit",
+            materialId: "material-a",
+          },
+        },
+        "component-node-b": {
+          id: "component-node-b",
+          kind: "shape",
+          semantic3d: {
+            bounds: {
+              x: 120,
+              y: 64,
+              z: 6,
+              width: 70,
+              height: 50,
+              depth: 10,
+            },
+            transform: {
+              x: 120,
+              y: 64,
+              z: 6,
+              rotationX: 0,
+              rotationY: 0,
+              rotationZ: 0,
+              scaleX: 1,
+              scaleY: 1,
+              scaleZ: 1,
+            },
+            sourceType: "shape",
+            visible: false,
+          },
+        },
+        "component-node-c": {
+          id: "component-node-c",
+          kind: "shape",
+        },
+      },
+    };
+
+    engine.runtime.world.compileFromDocument({ snapshot });
+
+    const componentExpectations: ReadonlyArray<{
+      component: "transform" | "geometry" | "material" | "visibility" | "picking";
+      expectedEntityIds: string[];
+    }> = [
+      { component: "geometry", expectedEntityIds: ["component-node-a", "component-node-b", "component-node-c"] },
+      { component: "transform", expectedEntityIds: ["component-node-a", "component-node-b", "component-node-c"] },
+      { component: "material", expectedEntityIds: ["component-node-a"] },
+      { component: "visibility", expectedEntityIds: ["component-node-a", "component-node-c"] },
+      { component: "picking", expectedEntityIds: ["component-node-a", "component-node-b", "component-node-c"] },
+    ];
+
+    componentExpectations.forEach(({ component, expectedEntityIds }) => {
+      const output = engine.runtime.world.queryComponent({ component });
+      assert.deepEqual(output.entityIds, expectedEntityIds);
+    });
+
+    engine.dispose();
+  });

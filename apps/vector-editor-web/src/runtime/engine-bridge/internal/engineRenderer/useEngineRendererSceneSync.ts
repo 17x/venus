@@ -15,6 +15,7 @@ import {resolveExpandedChangedIds, resolveMergedNodeBounds} from '../scenePatch.
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {resolveSceneDirtyRenderPolicy} from '../sceneDirtyRenderPolicy/sceneDirtyRenderPolicy.ts'
 import {resolveInteractionActiveNodeIds} from './resolveInteractionActiveNodeIds.ts'
+import {projectSceneSemantic3DForEngine} from './sceneSemantic3dProjection.ts'
 
 const DIRTY_BOUNDS_SMALL_AREA_PX2 =
   DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsSmallAreaPx2
@@ -268,14 +269,14 @@ export function useEngineRendererSceneSync(params: {
         const debugRevision = isPreviewLoad
           ? `${params.statsVersion}:preview:${params.previewSceneRevisionRef.current + 1}`
           : String(params.statsVersion)
-        const nextEngineScene = createEngineSceneFromRuntimeSnapshot(
+        const nextEngineScene = projectSceneSemantic3DForEngine(createEngineSceneFromRuntimeSnapshot(
           isPreviewLoad
             ? {
                 ...params.replayScenePayload,
                 revision: `${params.statsVersion}:preview:${++params.previewSceneRevisionRef.current}`,
               }
             : params.replayScenePayload,
-        )
+        ), params.document)
         engine.setGraph(nextEngineScene)
         params.hasLoadedSceneInEngineRef.current = true
         // Track scene load mode/count so visible=0 episodes can be tied back
@@ -288,11 +289,11 @@ export function useEngineRendererSceneSync(params: {
       } else {
         const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
         incrementalChangedNodeIds = changedIds
-        const incrementalScene = createEngineSceneFromRuntimeSnapshot({
+        const incrementalScene = projectSceneSemantic3DForEngine(createEngineSceneFromRuntimeSnapshot({
           ...params.replayScenePayload,
           includeShapeIds: changedIds,
           includeDocumentBackground: false,
-        })
+        }), params.document)
         const upsertNodes = incrementalScene.nodes
 
         if (upsertNodes.length > 0) {

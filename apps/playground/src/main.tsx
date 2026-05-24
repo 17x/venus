@@ -1,10 +1,12 @@
-import {createEngine, type EngineSceneSnapshot} from '@venus/engine'
+import {createEngine} from '@venus/engine'
 import {
 	createScenarioCatalog,
 	resolveInitialScenarioId,
 	syncScenarioQuery,
 	type PlaygroundScenario,
 } from './scenarios/scenarioCatalog'
+import {tryMountRemoteScenarioPage} from './demos/remoteScenarioPage'
+import type {PlaygroundSceneSnapshot} from './types/playgroundScene'
 import './index.css'
 
 // Keep test scene dimensions compact so viewport behaviors are easy to observe.
@@ -17,6 +19,7 @@ const ZOOM_OUT_FACTOR = 10.98
 const CONTINUOUS_ZOOM_INTERVAL_MS = 1
 
 type ContinuousZoomDirection = 'in' | 'out'
+type SemanticLightingMode = 'inherit' | 'lit' | 'unlit'
 
 type SceneBounds = {
 	width: number
@@ -24,7 +27,7 @@ type SceneBounds = {
 }
 
 // Seed a deterministic baseline scene for quick runtime/manual verification.
-const createInitialScene = (revision: number): EngineSceneSnapshot => {
+const createInitialScene = (revision: number): PlaygroundSceneSnapshot => {
 	return {
 		revision,
 		width: TEST_SCENE_WIDTH,
@@ -115,7 +118,7 @@ const createInitialScene = (revision: number): EngineSceneSnapshot => {
 const createInitialScenarioSnapshot = (
 	revision: number,
 ): {
-	sceneSnapshot: EngineSceneSnapshot
+	sceneSnapshot: PlaygroundSceneSnapshot
 	initialScenarioId: string
 	initialScenarioDescription: string
 	initialSceneBounds: SceneBounds
@@ -187,39 +190,131 @@ const mountPlayground = () => {
 	}
 	let continuousZoomDirection: ContinuousZoomDirection | null = null
 	let continuousZoomTimer: number | null = null
+	let semanticDepthLayeringEnabled = false
+	let semanticVisibilityMaskEnabled = false
+	let semanticLightingMode: SemanticLightingMode = 'lit'
+	canvas.width = TEST_SCENE_WIDTH
+	canvas.height = TEST_SCENE_HEIGHT
 
 	// Keep runtime initialization explicit for easier command-path debugging.
 	const engine = createEngine({
-		canvas,
-		initialScene: initialScenario.sceneSnapshot,
-		culling: true,
-		lod: {enabled: false},
-		render: {
-			quality: 'full',
-			webglClearColor: [0.0667, 0.0941, 0.1529, 1],
-			webglAntialias: true,
+		surface: {
+			width: viewportState.viewportWidth,
+			height: viewportState.viewportHeight,
+			canvas: {
+				width: canvas.width,
+				height: canvas.height,
+				getContext: (contextId) => {
+					if (contextId === '2d') {
+						return canvas.getContext('2d')
+					}
+					if (contextId === 'webgl') {
+						return canvas.getContext('webgl')
+					}
+					return canvas.getContext('webgl2')
+				},
+			},
 		},
+		backend: 'webgl',
+	})
+	engine.setGraph({
+		revision: initialScenario.sceneSnapshot.revision,
+		nodes: initialScenario.sceneSnapshot.nodes,
 	})
 
 	// Update status from runtime diagnostics so command effects are visible.
 	const refreshStatus = () => {
 		const diagnostics = engine.getDiagnostics()
+		const stats = engine.getStats()
 		const activeScenario = scenarioCatalog.find((scenario) => scenario.id === activeScenarioId)
 		const nodeCount =
-			diagnostics.framePlan?.sceneNodeCount ?? diagnostics.composition?.activeNodeCount ?? engine.getSnapshot().nodes.length
+			diagnostics.framePlan?.sceneNodeCount ?? engine.getGraph().nodes.length
 		statusLine.textContent = [
 			`scenario ${activeScenario?.id ?? 'unknown'}`,
 			`nodes ${nodeCount}`,
 			`scale ${viewportState.scale.toFixed(3)}`,
 			`offsetX ${viewportState.offsetX.toFixed(1)}`,
 			`offsetY ${viewportState.offsetY.toFixed(1)}`,
+			`draw ${stats.lastExecutionDrawCount ?? 0}`,
+			`depth3d ${semanticDepthLayeringEnabled ? 'on' : 'off'}`,
+			`visibilityMask ${semanticVisibilityMaskEnabled ? 'on' : 'off'}`,
+			`lighting ${semanticLightingMode}`,
 			`zoomLoop ${continuousZoomDirection ?? 'off'}`,
 		].join(' | ')
 	}
 
+	// Restore semantic controls to defaults when loading/rebuilding scenario snapshots.
+	const resetSemanticControlState = (): void => {
+		semanticDepthLayeringEnabled = false
+		semanticVisibilityMaskEnabled = false
+		semanticLightingMode = 'lit'
+	}
+
+	/**
+	 * Resolve one numeric extent from graph-node fields with deterministic fallback.
+	 * @param node Mutable graph node payload projected from engine.getGraph().
+	 * @param key Extent key to resolve from node payload.
+	 */
+	const resolveNodeExtent = (node: Record<string, unknown>, key: 'width' | 'height'): number => {
+		const value = node[key]
+		return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 64
+	}
+
+	// Project semantic3d controls into graph nodes and submit as one deterministic graph snapshot.
+	const applySemantic3DProfile = async (): Promise<void> => {
+		const currentGraph = engine.getGraph()
+		const nextNodes = currentGraph.nodes.map((node, index) => {
+			const nextNode = {...(node as Record<string, unknown>)}
+			const resolvedWidth = resolveNodeExtent(nextNode, 'width')
+			const resolvedHeight = resolveNodeExtent(nextNode, 'height')
+			const semanticZ = semanticDepthLayeringEnabled ? index * 6 : 0
+			const visible = semanticVisibilityMaskEnabled ? index % 4 !== 3 : true
+			nextNode.z = semanticZ
+			nextNode.renderOrder = semanticDepthLayeringEnabled ? index : 0
+			nextNode.visible = visible
+			nextNode.lightingMode = semanticLightingMode
+			nextNode.materialId = `semantic-material-${index % 5}`
+			nextNode.semantic3d = {
+				bounds: {
+					x: typeof nextNode.x === 'number' ? nextNode.x : 0,
+					y: typeof nextNode.y === 'number' ? nextNode.y : 0,
+					z: semanticZ,
+					width: resolvedWidth,
+					height: resolvedHeight,
+					depth: semanticDepthLayeringEnabled ? 18 : 0,
+				},
+				transform: {
+					x: typeof nextNode.x === 'number' ? nextNode.x : 0,
+					y: typeof nextNode.y === 'number' ? nextNode.y : 0,
+					z: semanticZ,
+					rotationX: 0,
+					rotationY: semanticDepthLayeringEnabled ? (index % 7) * 4 : 0,
+					rotationZ: 0,
+					scaleX: 1,
+					scaleY: 1,
+					scaleZ: 1,
+				},
+				sourceType: String(nextNode.type ?? 'shape'),
+				renderOrder: semanticDepthLayeringEnabled ? index : 0,
+				visible,
+				lightingMode: semanticLightingMode,
+				materialId: `semantic-material-${index % 5}`,
+			}
+			return nextNode
+		}) as PlaygroundSceneSnapshot['nodes']
+
+		sceneRevision += 1
+		engine.setGraph({
+			revision: sceneRevision,
+			nodes: nextNodes,
+		})
+		await renderNow()
+	}
+
 	// Render once and refresh status after every command.
 	const renderNow = async () => {
-		await engine.renderFrame()
+		await engine.render()
+		viewportState = engine.getView()
 		refreshStatus()
 	}
 
@@ -236,13 +331,8 @@ const mountPlayground = () => {
 			(viewportHeight * 0.84) / sceneBounds.height,
 		)
 
-		viewportState = engine.resize({
-			viewportWidth,
-			viewportHeight,
-			outputWidth: canvas.width,
-			outputHeight: canvas.height,
-		})
-		viewportState = engine.setViewport({
+		engine.resize(viewportWidth, viewportHeight)
+		viewportState = engine.setView({
 			viewportWidth,
 			viewportHeight,
 			scale: nextScale,
@@ -259,7 +349,9 @@ const mountPlayground = () => {
 	 * @param factor Multiplicative zoom factor.
 	 */
 	const zoomByFactor = async (factor: number) => {
-		viewportState = engine.zoomTo(viewportState.scale * factor)
+		viewportState = engine.setView({
+			scale: viewportState.scale * factor,
+		})
 		await renderNow()
 	}
 
@@ -309,13 +401,17 @@ const mountPlayground = () => {
 			return
 		}
 		const nextSnapshot = activeScenario.buildScene(sceneRevision)
+		resetSemanticControlState()
 		sceneBounds = {
 			width: nextSnapshot.width,
 			height: nextSnapshot.height,
 		}
 		scenarioDescription.textContent = activeScenario.description
 		syncScenarioQuery(activeScenario.id)
-		engine.loadScene(nextSnapshot)
+		engine.setGraph({
+			revision: nextSnapshot.revision,
+			nodes: nextSnapshot.nodes,
+		})
 		await fitSceneToViewport()
 	}
 
@@ -339,6 +435,7 @@ const mountPlayground = () => {
 		}
 
 		const nextSnapshot = activeScenario.buildScene(sceneRevision)
+		resetSemanticControlState()
 		sceneBounds = {
 			width: nextSnapshot.width,
 			height: nextSnapshot.height,
@@ -346,7 +443,10 @@ const mountPlayground = () => {
 		scenarioDescription.textContent = `${activeScenario.description} (${activeScenario.tags.join(', ')})`
 		syncScenarioQuery(activeScenario.id)
 		scenarioSelect.value = activeScenario.id
-		engine.loadScene(nextSnapshot)
+		engine.setGraph({
+			revision: nextSnapshot.revision,
+			nodes: nextSnapshot.nodes,
+		})
 		await fitSceneToViewport()
 	}
 
@@ -372,14 +472,18 @@ const mountPlayground = () => {
 		{
 			label: 'Pan Left',
 			onClick: run(async () => {
-				viewportState = engine.panBy(36, 0)
+				viewportState = engine.setView({
+					offsetX: viewportState.offsetX + 36,
+				})
 				await renderNow()
 			}),
 		},
 		{
 			label: 'Pan Right',
 			onClick: run(async () => {
-				viewportState = engine.panBy(-36, 0)
+				viewportState = engine.setView({
+					offsetX: viewportState.offsetX - 36,
+				})
 				await renderNow()
 			}),
 		},
@@ -392,6 +496,31 @@ const mountPlayground = () => {
 			label: 'Continuous Zoom Out',
 			onClick: () => startContinuousZoom('out'),
 			zoomMode: 'out',
+		},
+		{
+			label: 'Toggle 3D Depth Layering',
+			onClick: run(async () => {
+				semanticDepthLayeringEnabled = !semanticDepthLayeringEnabled
+				await applySemantic3DProfile()
+			}),
+		},
+		{
+			label: 'Toggle Visibility Mask',
+			onClick: run(async () => {
+				semanticVisibilityMaskEnabled = !semanticVisibilityMaskEnabled
+				await applySemantic3DProfile()
+			}),
+		},
+		{
+			label: 'Cycle Lighting Mode',
+			onClick: run(async () => {
+				semanticLightingMode = semanticLightingMode === 'lit'
+					? 'unlit'
+					: semanticLightingMode === 'unlit'
+						? 'inherit'
+						: 'lit'
+				await applySemantic3DProfile()
+			}),
 		},
 		{label: 'Stop Zoom Loop', onClick: stopContinuousZoom},
 	]
@@ -444,4 +573,18 @@ const mountPlayground = () => {
 	void fitSceneToViewport()
 }
 
-mountPlayground()
+// Keeps the legacy local mount entry available for ad-hoc debugging while route mode stays demo-first.
+void mountPlayground
+
+/**
+ * Boots playground entrypoint and dispatches route-specific page mount behavior.
+ */
+const bootstrapPlayground = async (): Promise<void> => {
+	const mountedRemoteScenario = await tryMountRemoteScenarioPage()
+	if (mountedRemoteScenario) {
+		return
+	}
+	window.location.replace('/demo/s1-medical-volume-slice-runtime')
+}
+
+void bootstrapPlayground()

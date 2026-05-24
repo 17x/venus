@@ -15,6 +15,7 @@ import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 import {useEngineRendererLifecycle} from './useEngineRendererLifecycle.ts'
 import {useEngineRendererSceneSync} from './useEngineRendererSceneSync.ts'
 import {useEngineRendererViewport} from './useEngineRendererViewport.ts'
+import {createEngineStatsHandler} from './createEngineStatsHandler.ts'
 
 /**
  * Orchestrates runtime engine rendering by delegating lifecycle, scene sync, and viewport commits.
@@ -290,6 +291,27 @@ export function EngineRenderer({
     requestEngineRender('normal', 'idle-redraw')
   }, [requestEngineRender])
 
+  /**
+   * Publishes old-engine compatible runtime diagnostics so debug/optimization panels
+   * keep receiving render-path and cache/perf snapshots from the new engine loop.
+   */
+  const handleEngineStats = React.useMemo(() => createEngineStatsHandler({
+    drawSerialRef,
+    renderSchedulerRef,
+    engineRef,
+    runtimeStageTimingMsRef,
+    renderRequestStatsRef,
+    lastPlanDiagnosticSampleAtRef,
+    latestPlanDiagnosticsRef,
+    latestRenderPrepStatsRef,
+    lastZeroVisibilityDebugFrameRef,
+    sceneApplyDebugRef,
+    deferredVisualRecoveryPendingRef,
+    requestDeferredVisualRecovery,
+    presentLatencyRafPendingRef,
+    requestEngineRender,
+  }), [requestDeferredVisualRecovery, requestEngineRender])
+
   useEngineRendererLifecycle({
     document,
     renderSurfaceRef,
@@ -340,11 +362,157 @@ export function EngineRenderer({
         }
 
         return engine.render().then((renderResult) => {
+          const diagnostics = engine.getDiagnostics()
+          const backendInfo = engine.getBackendInfo()
+          const backendDiagnostics = diagnostics.backendDiagnostics
+          const renderChain = renderResult.renderChain ?? diagnostics.renderChain
+          const backendPresentCompleted = renderChain?.backendPresentCompleted ?? false
+          // Preserve old-engine render path semantics in the new backend loop so
+          // optimization dashboards can keep comparing packet/native paths.
+          const webglRenderPath: 'model-complete' | 'packet' | 'none' =
+            backendDiagnostics?.webglRenderPath ?? (
+              backendInfo.resolved === 'webgl'
+                ? 'packet'
+                : 'none'
+            )
+          const webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete' =
+            backendDiagnostics?.webgpuRenderPath ?? (
+              backendInfo.resolved === 'webgpu'
+                ? (renderResult.drawCount > 0 ? 'native-rect-batch' : 'native-clear-only')
+                : 'hybrid-webgl'
+            )
+
+          handleEngineStats({
+            drawCount: renderResult.drawCount,
+            frameMs: renderResult.frameMs,
+            visibleCount: renderResult.visibleCount,
+            cacheHits: backendDiagnostics?.cacheHits ?? 0,
+            cacheMisses: backendDiagnostics?.cacheMisses ?? 0,
+            frameReuseHits: backendDiagnostics?.frameReuseHits ?? 0,
+            frameReuseMisses: backendDiagnostics?.frameReuseMisses ?? 0,
+            l0PreviewHitCount: backendDiagnostics?.l0PreviewHitCount ?? 0,
+            l0PreviewMissCount: backendDiagnostics?.l0PreviewMissCount ?? 0,
+            l1CompositeHitCount: backendDiagnostics?.l1CompositeHitCount ?? 0,
+            l1CompositeMissCount: backendDiagnostics?.l1CompositeMissCount ?? 0,
+            l2TileHitCount: backendDiagnostics?.l2TileHitCount ?? 0,
+            l2TileMissCount: backendDiagnostics?.l2TileMissCount ?? 0,
+            cacheFallbackReason: backendDiagnostics?.cacheFallbackReason ?? 'none',
+            tileCacheSize: backendDiagnostics?.tileCacheSize ?? 0,
+            tileDirtyCount: backendDiagnostics?.tileDirtyCount ?? 0,
+            tileCacheTotalBytes: backendDiagnostics?.tileCacheTotalBytes ?? 0,
+            tileUploadCount: backendDiagnostics?.tileUploadCount ?? 0,
+            tileRenderCount: backendDiagnostics?.tileRenderCount ?? 0,
+            visibleTileCount: backendDiagnostics?.visibleTileCount ?? 0,
+            tileSchedulerPendingCount: backendDiagnostics?.tileSchedulerPendingCount ?? 0,
+            gpuTextureBytes: backendDiagnostics?.gpuTextureBytes ?? 0,
+            imageTextureBytes: backendDiagnostics?.imageTextureBytes ?? 0,
+            initialRenderPhase: 'complete',
+            initialRenderProgress: 1,
+            dirtyRegionCount: 0,
+            dirtyTileCount: 0,
+            incrementalUpdateCount: 0,
+            engineFrameQuality: renderRequestStatsRef.current.renderPolicyQuality,
+            webglRenderPath,
+            webgpuRenderPath,
+            webgpuNativeSubmissionAttemptedCount:
+              backendDiagnostics?.webgpuNativeSubmissionAttemptedCount ?? (backendInfo.resolved === 'webgpu' ? 1 : 0),
+            webgpuNativeSubmissionSuccessCount:
+              backendDiagnostics?.webgpuNativeSubmissionSuccessCount ?? (
+                backendInfo.resolved === 'webgpu' && backendPresentCompleted
+                  ? 1
+                  : 0
+              ),
+            webgpuNativeSubmissionFailureCount:
+              backendDiagnostics?.webgpuNativeSubmissionFailureCount ?? (
+                backendInfo.resolved === 'webgpu' && !backendPresentCompleted
+                  ? 1
+                  : 0
+              ),
+            webgpuNativeSubmissionTotalCount:
+              backendDiagnostics?.webgpuNativeSubmissionTotalCount ?? (
+                backendInfo.resolved === 'webgpu' && backendPresentCompleted
+                  ? 1
+                  : 0
+              ),
+            webgpuNativeSubmissionTotalFailureCount:
+              backendDiagnostics?.webgpuNativeSubmissionTotalFailureCount ?? (
+                backendInfo.resolved === 'webgpu' && !backendPresentCompleted
+                  ? 1
+                  : 0
+              ),
+            webgpuNativeRectBatchEligibleCount:
+              backendDiagnostics?.webgpuNativeRectBatchEligibleCount ?? (
+                backendInfo.resolved === 'webgpu' ? renderResult.visibleCount : 0
+              ),
+            webgpuNativeRectBatchRejectedReason:
+              backendDiagnostics?.webgpuNativeRectBatchRejectedReason ?? (
+                backendInfo.resolved === 'webgpu' && renderResult.visibleCount <= 0
+                  ? 'scene-empty'
+                  : 'none'
+              ),
+            webglPreviewReuseMs: backendDiagnostics?.webglPreviewReuseMs ?? 0,
+            webglPlanBuildMs: backendDiagnostics?.webglPlanBuildMs ?? 0,
+            webglTextureUploadMs: backendDiagnostics?.webglTextureUploadMs ?? 0,
+            webglDrawSubmitMs: backendDiagnostics?.webglDrawSubmitMs ?? 0,
+            webglSnapshotCaptureMs: backendDiagnostics?.webglSnapshotCaptureMs ?? 0,
+            webglModelRenderMs: backendDiagnostics?.webglModelRenderMs ?? 0,
+            webglPreviewExecutionMode:
+              backendDiagnostics?.webglPreviewExecutionMode ?? 'affine-snapshot',
+            webglPreviewExecutionSource:
+              backendDiagnostics?.webglPreviewExecutionSource ?? 'backend-native',
+            webglBudgetPressure: backendDiagnostics?.webglBudgetPressure ?? 'low',
+            webglBudgetPressureReason:
+              backendDiagnostics?.webglBudgetPressureReason
+                ?? 'within-low-thresholds',
+            webglBudgetPressureSource:
+              backendDiagnostics?.webglBudgetPressureSource ?? 'backend-native',
+            webglDrawSubmitBudgetMs: backendDiagnostics?.webglDrawSubmitBudgetMs ?? 0,
+            webglTextureUploadBudgetBytes: backendDiagnostics?.webglTextureUploadBudgetBytes ?? 0,
+            webglTextureUploadTotalBudgetBytes:
+              backendDiagnostics?.webglTextureUploadTotalBudgetBytes ?? 0,
+            webglImageTextureUploadBudgetCount:
+              backendDiagnostics?.webglImageTextureUploadBudgetCount ?? 0,
+            webglTextTextureUploadBudgetCount:
+              backendDiagnostics?.webglTextTextureUploadBudgetCount ?? 0,
+            webglTilePreloadBudgetMs: backendDiagnostics?.webglTilePreloadBudgetMs ?? 0,
+            webglTilePreloadBudgetUploads:
+              backendDiagnostics?.webglTilePreloadBudgetUploads ?? 0,
+            webglOverlayPassBudgetMs: backendDiagnostics?.webglOverlayPassBudgetMs ?? 0,
+            webglDrawSubmitBudgetExceeded:
+              backendDiagnostics?.webglDrawSubmitBudgetExceeded ?? false,
+            webglTextureUploadBudgetExceeded:
+              backendDiagnostics?.webglTextureUploadBudgetExceeded ?? false,
+            webglOverlayBudgetExceeded:
+              backendDiagnostics?.webglOverlayBudgetExceeded ?? false,
+            webglPredictorDirectionX: backendDiagnostics?.webglPredictorDirectionX ?? 0,
+            webglPredictorDirectionY: backendDiagnostics?.webglPredictorDirectionY ?? 0,
+            webglPredictorSpeedPxPerSec:
+              backendDiagnostics?.webglPredictorSpeedPxPerSec ?? 0,
+            webglPredictorConfidence: backendDiagnostics?.webglPredictorConfidence ?? 0,
+            webglPredictorPreloadRing: backendDiagnostics?.webglPredictorPreloadRing ?? 0,
+            webglPredictorOverscanCssPx:
+              backendDiagnostics?.webglPredictorOverscanCssPx ?? 0,
+            webglPredictivePreloadEnqueueCount:
+              backendDiagnostics?.webglPredictivePreloadEnqueueCount ?? 0,
+            webglPredictivePreloadProcessedCount:
+              backendDiagnostics?.webglPredictivePreloadProcessedCount ?? 0,
+            webglPredictivePreloadPrunedCount:
+              backendDiagnostics?.webglPredictivePreloadPrunedCount ?? 0,
+            webglHighZoomTextSlaChecked:
+              backendDiagnostics?.webglHighZoomTextSlaChecked ?? false,
+            webglHighZoomTextSlaScale: backendDiagnostics?.webglHighZoomTextSlaScale ?? 0,
+            webglHighZoomTextSlaViolationCount:
+              backendDiagnostics?.webglHighZoomTextSlaViolationCount ?? 0,
+            webglDeferredTextTextureCount:
+              backendDiagnostics?.webglDeferredTextTextureCount ?? 0,
+            panScheduleRequestCount:
+              backendDiagnostics?.panScheduleRequestCount ?? 0,
+            tileSynchronousRebuildCount:
+              backendDiagnostics?.tileSynchronousRebuildCount ?? 0,
+          })
+
           if (!VECTOR_ENGINE_SCENE_PROFILE.render.modelCompleteComposite) {
             // AI-TEMP: publish render-chain failure snapshots through window bridge for live field triage; remove when dedicated runtime diagnostics panel is available; ref DEX-065.
-            const diagnostics = engine.getDiagnostics()
-            const backendInfo = engine.getBackendInfo()
-            const renderChain = renderResult.renderChain ?? diagnostics.renderChain
             const lastWarning = diagnostics.lastRenderWarning ?? null
             const shouldPublishRenderChainDebug = Boolean(lastWarning) || Boolean(renderChain && (
               renderChain.failedStage !== null ||

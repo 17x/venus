@@ -33,6 +33,8 @@ import type {
   EngineRuntimeDirtyStateOutput,
   EngineRuntimeDocumentApplyChangeSetInput,
   EngineRuntimeDocumentApplyChangeSetResult,
+  EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  EngineRuntimeDocumentPreflightApplyChangeSetOutput,
   EngineRuntimeDocumentCreateSnapshotInput,
   EngineRuntimeDocumentDeserializeSnapshotInput,
   EngineRuntimeDocumentDiffSnapshotsInput,
@@ -91,6 +93,9 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   resolveRuntimeDocumentSnapshot: () => import("../../kernel/document/document-contracts").EngineDocumentSnapshot;
   resolveRuntimeDocumentRevision: () => number;
   applyRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentApplyChangeSetInput) => EngineRuntimeDocumentApplyChangeSetResult;
+  preflightRuntimeDocumentChangeSetApply: (
+    input: EngineRuntimeDocumentPreflightApplyChangeSetInput,
+  ) => EngineRuntimeDocumentPreflightApplyChangeSetOutput;
   compileRuntimeWorld: (options?: { snapshot?: import("../../kernel/document/document-contracts").EngineDocumentSnapshot }) => EngineRuntimeWorldSnapshotOutput;
   resolveRuntimeWorldSnapshotOutput: () => EngineRuntimeWorldSnapshotOutput;
   resolveRuntimeWorldGraphStatsOutput: () => EngineRuntimeWorldGraphStatsOutput;
@@ -292,6 +297,7 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       getRevision: () => deps.resolveRuntimeDocumentRevision(),
       getSchemaVersion: () => deps.resolveRuntimeDocumentSchemaVersion(),
       applyChangeSet: (input) => deps.applyRuntimeDocumentChangeSet(input),
+      preflightApplyChangeSet: (input) => deps.preflightRuntimeDocumentChangeSetApply(input),
       diffSnapshots: (input) => deps.diffRuntimeDocumentSnapshots(input),
       rebaseChangeSet: (input) => deps.rebaseRuntimeDocumentChangeSet(input),
       serializeSnapshot: (input) => deps.serializeRuntimeDocumentSnapshot(input),

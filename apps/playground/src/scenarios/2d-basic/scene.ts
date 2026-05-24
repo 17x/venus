@@ -1,4 +1,4 @@
-import type {EngineSceneSnapshot} from '@venus/engine'
+import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 1200
 const SCENE_HEIGHT = 760
@@ -7,7 +7,7 @@ const SCENE_HEIGHT = 760
  * Build a baseline 2D scene that covers rect, ellipse, line, and text payloads.
  * @param revision Monotonic scene revision for deterministic cache invalidation.
  */
-export const build2DBasicScene = (revision: number): EngineSceneSnapshot => {
+export const build2DBasicScene = (revision: number): PlaygroundSceneSnapshot => {
 	return {
 		revision,
 		width: SCENE_WIDTH,

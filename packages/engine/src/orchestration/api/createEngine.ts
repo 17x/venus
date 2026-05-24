@@ -74,7 +74,85 @@ import { createEngineRuntimeRegistriesFoundation } from "./createEngine.runtime-
 import { createEngineBootstrapRuntimeFoundation } from "./createEngine.bootstrap-runtime.foundation";
 import { createEngineValidationFoundation } from "./createEngine.validation.foundation";
 import { createEngineRuntimeCapabilityDisposeFacade } from "./createEngine.runtime-capability-dispose.facade";
+import type { EngineBackendFrameDiagnostics } from "../../backend/adapters/noopBackendAdapter";
+import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../../backend/fallbackTaxonomy";
+import type { EngineRuntimeDocumentWarningCode } from "../../kernel/document/document-warning-codes";
 const ENGINE_RUNTIME_DOCUMENT_SCHEMA_VERSION = 1;
+
+/**
+ * Creates one default backend diagnostics snapshot for engine bootstrap and reset paths.
+ */
+function createDefaultBackendDiagnostics() {
+  const diagnostics: EngineBackendFrameDiagnostics = {
+    webglRenderPath: "none" as const,
+    webgpuRenderPath: "hybrid-webgl" as const,
+    webgpuNativeSubmissionAttemptedCount: 0,
+    webgpuNativeSubmissionSuccessCount: 0,
+    webgpuNativeSubmissionFailureCount: 0,
+    webgpuNativeSubmissionTotalCount: 0,
+    webgpuNativeSubmissionTotalFailureCount: 0,
+    webgpuNativeRectBatchEligibleCount: 0,
+    webgpuNativeRectBatchRejectedReason: "none" as const,
+    cacheHits: 0,
+    cacheMisses: 0,
+    frameReuseHits: 0,
+    frameReuseMisses: 0,
+    l0PreviewHitCount: 0,
+    l0PreviewMissCount: 0,
+    l1CompositeHitCount: 0,
+    l1CompositeMissCount: 0,
+    l2TileHitCount: 0,
+    l2TileMissCount: 0,
+    cacheFallbackReason: ENGINE_BACKEND_CACHE_FALLBACK_REASON.NONE,
+    tileCacheSize: 0,
+    tileDirtyCount: 0,
+    tileCacheTotalBytes: 0,
+    tileUploadCount: 0,
+    tileRenderCount: 0,
+    visibleTileCount: 0,
+    tileSchedulerPendingCount: 0,
+    gpuTextureBytes: 0,
+    imageTextureBytes: 0,
+    webglPreviewReuseMs: 0,
+    webglPlanBuildMs: 0,
+    webglTextureUploadMs: 0,
+    webglDrawSubmitMs: 0,
+    webglSnapshotCaptureMs: 0,
+    webglModelRenderMs: 0,
+    webglPreviewExecutionMode: "affine-snapshot",
+    webglPreviewExecutionSource: "backend-native",
+    webglBudgetPressure: "low",
+    webglBudgetPressureReason: "within-low-thresholds",
+    webglBudgetPressureSource: "backend-native",
+    webglDrawSubmitBudgetMs: 0,
+    webglTextureUploadBudgetBytes: 0,
+    webglTextureUploadTotalBudgetBytes: 0,
+    webglImageTextureUploadBudgetCount: 0,
+    webglTextTextureUploadBudgetCount: 0,
+    webglTilePreloadBudgetMs: 0,
+    webglTilePreloadBudgetUploads: 0,
+    webglOverlayPassBudgetMs: 0,
+    webglDrawSubmitBudgetExceeded: false,
+    webglTextureUploadBudgetExceeded: false,
+    webglOverlayBudgetExceeded: false,
+    webglPredictorDirectionX: 0,
+    webglPredictorDirectionY: 0,
+    webglPredictorSpeedPxPerSec: 0,
+    webglPredictorConfidence: 0,
+    webglPredictorPreloadRing: 0,
+    webglPredictorOverscanCssPx: 0,
+    webglPredictivePreloadEnqueueCount: 0,
+    webglPredictivePreloadProcessedCount: 0,
+    webglPredictivePreloadPrunedCount: 0,
+    webglHighZoomTextSlaChecked: false,
+    webglHighZoomTextSlaScale: 0,
+    webglHighZoomTextSlaViolationCount: 0,
+    webglDeferredTextTextureCount: 0,
+    panScheduleRequestCount: 0,
+    tileSynchronousRebuildCount: 0,
+  };
+  return diagnostics;
+}
 /** Creates the canonical engine facade with explicit backend and lifecycle diagnostics. @param options Engine creation options for surface, backend, runtime adapter, and staged planning knobs. */
 export function createEngine(options: CreateEngineOptions): EngineHandle {
   const performance = resolveEnginePerformanceOptions(options);
@@ -112,6 +190,13 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     phase: "static",
     pressure: "low",
     pressureReason: "within-low-thresholds",
+    budget: {
+      drawSubmitBudgetMs: 0,
+      textureUploadBudgetBytes: 0,
+      tilePreloadBudgetMs: 0,
+      tilePreloadMaxUploads: 0,
+      overlayPassBudgetMs: 0,
+    },
     pressureSignals: {
       sceneNodeCountHigh: false,
       tileQueuePendingHigh: false,
@@ -152,6 +237,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     committed: false,
     skippedReason: null,
   };
+  let latestBackendDiagnostics = createDefaultBackendDiagnostics();
   let latestRuntimeWorldRevision = 0, runtimeWorldSnapshotOverride: EngineRuntimeWorldSnapshotOutput | null = null;
   let latestDirtyState = dirtyPropagationModule.createEmptyState(), lastRuntimeDirtyMarkedAt = 0;
   let lastEncodedCommandCount = 0, lastReplayEventCount = 0, lastReplayFirstCommandId: string | null = null;
@@ -175,6 +261,11 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   let policyRenderState: Readonly<Record<string, unknown>> = {}, policyResourceState: Readonly<Record<string, unknown>> = {};
   let policyFallbackState: Readonly<Record<string, unknown>> = {}, securityTrustLevel: "low" | "standard" | "high" = "standard";
   let securityResourceAccessPolicy: Readonly<Record<string, unknown>> = {};
+  let reportRuntimeContractWarning: (warning: {
+    code: EngineRuntimeDocumentWarningCode;
+    message: string;
+    details?: Readonly<Record<string, unknown>>;
+  }) => void = () => {};
   const securityAuditLog: Array<Readonly<Record<string, unknown>>> = [];
   let securityAuditCounter = 0, runtimeUploadBatchCounter = 0, runtimeBarrierPlanCounter = 0;
   let lastInvalidatePayload: EngineInvalidateInput | null = null, runtimeResourceResidencyVersion = 0, runtimeTraceCounter = 0, runtimeReplayCounter = 0;
@@ -219,6 +310,14 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       translateY: viewport.offsetY,
       scale: viewport.scale,
       rects,
+      nodes: candidateIds
+        .map((nodeId) => graphNodeState.get(nodeId))
+        .filter((node): node is EngineGraphNodeInput => Boolean(node))
+        .map((node) => ({
+          ...node,
+          id: String(node.id),
+          type: typeof node.type === "string" ? node.type : "shape",
+        })),
     };
   }
 
@@ -246,6 +345,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         latestBackendPresentTelemetry.attempted = true;
         latestBackendPresentTelemetry.committed = true;
         latestBackendPresentTelemetry.skippedReason = null;
+      },
+      onBackendDiagnostics: (diagnostics) => {
+        latestBackendDiagnostics = diagnostics;
       },
       resolveNativeFramePayload,
     },
@@ -384,6 +486,22 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       invalidate: lastInvalidatePayload,
       renderChain: latestRenderChainDiagnostics,
       lastRenderWarning: latestRenderWarning,
+      // Keep backend diagnostics pressure semantics aligned with frame-budget
+      // broker output so runtime consumers read one canonical pressure source.
+      backendDiagnostics: {
+        ...latestBackendDiagnostics,
+        webglPreviewExecutionMode:
+          latestBackendDiagnostics.cacheFallbackReason === ENGINE_BACKEND_CACHE_FALLBACK_REASON.NONE
+            ? "affine-snapshot"
+            : "temporal-reprojection-required",
+        webglPreviewExecutionSource: "engine-cache-fallback-taxonomy",
+        webglBudgetPressure:
+          latestFrameStats.pressure === "high" || latestFrameStats.pressure === "medium"
+            ? latestFrameStats.pressure
+            : "low",
+        webglBudgetPressureReason: latestFrameStats.pressureReason,
+        webglBudgetPressureSource: "engine-frame-budget",
+      },
       capabilities: {
         schemaVersion: ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION,
         runtime: Object.values(ENGINE_RUNTIME_CAPABILITY_MAP),
@@ -392,6 +510,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   });
   const {
     resolveRuntimeDocumentRevision, resolveRuntimeDocumentSchemaVersion, applyRuntimeDocumentChangeSet,
+    preflightRuntimeDocumentChangeSetApply,
     createRuntimeDocumentSnapshot, validateRuntimeDocumentSnapshot, diffRuntimeDocumentSnapshots,
     rebaseRuntimeDocumentChangeSet, serializeRuntimeDocumentSnapshot, deserializeRuntimeDocumentSnapshot,
     resolveRuntimeWorldSnapshotOutput, compileRuntimeWorldFromDocument, queryRuntimeWorldEntity,
@@ -422,6 +541,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     allocateRuntimeCommandEncoderId: (profile) => { runtimeCommandEncoderCounter += 1; return `encoder-${profile}-${runtimeCommandEncoderCounter}`; },
     replayCommands: (commands) => commandReplayModule.replay(commands),
     getBackendProbeModes: () => backendSelectorModule.getDefaultProbes().map((probe) => probe.mode),
+    reportRuntimeContractWarning: (warning) => {
+      reportRuntimeContractWarning(warning);
+    },
   });
   const { createRuntimeFramePlan, createRuntimeVisibilityPlan, createRuntimeLodPlan, createRuntimeRoiPlan, createRuntimeBudgetPlan, inspectRuntimePlan } = createRuntimePlanFoundation({
     resolveFrameDecision: (input) =>
@@ -600,6 +722,15 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     resolveRevision: () => documentSnapshot.revision,
   });
 
+  reportRuntimeContractWarning = (warning) => {
+    emitEvent("engine.diagnostics.warning", {
+      ...warning,
+      domain: "runtime.document",
+      revision: documentSnapshot.revision,
+      timestampMs: resolveNow(),
+    });
+  };
+
   return {
     ...createEngineLifecycleViewFacade({
       emitEvent, isMounted: () => mountTarget !== null, setMountTarget: (target) => { mountTarget = target; },
@@ -690,12 +821,38 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       getDiagnosticsEnabled: () => diagnosticsEnabled, getOverlayCount: () => overlayNodes.length,
       captureFrame: () => runtimeShell.captureFrame(), getRuntimeStats: () => runtimeShell.getStats(),
       runtimeProfileId: runtimeProfile.id, runtimeCapabilityCount: profileRuntime.capabilityIds.length,
-      lastFramePressureReason: latestFrameStats.pressureReason, lastFramePressureSignals: latestFrameStats.pressureSignals, lastDocumentRevision: documentSnapshot.revision,
+      lastFramePressureReason: latestFrameStats.pressureReason,
+      lastFramePressure: latestFrameStats.pressure,
+      lastFramePhase: latestFrameStats.phase,
+      lastQosDegradationLevel:
+        latestFrameStats.pressure === "high"
+          ? "heavy"
+          : latestFrameStats.pressure === "medium"
+            ? "light"
+            : "none",
+      lastQosFallbackReason:
+        latestBackendDiagnostics.cacheFallbackReason === ENGINE_BACKEND_CACHE_FALLBACK_REASON.NONE
+          ? null
+          : latestBackendDiagnostics.cacheFallbackReason,
+      lastQosGuardTriggers: [
+        latestFrameStats.phase === "camera" ? "camera-animation-priority" : null,
+        latestFrameStats.pressure === "high"
+          ? "frame-budget-pressure-high"
+          : latestFrameStats.pressure === "medium"
+            ? "frame-budget-pressure-medium"
+            : null,
+        latestBackendDiagnostics.cacheFallbackReason !== ENGINE_BACKEND_CACHE_FALLBACK_REASON.NONE
+          ? `cache-fallback:${latestBackendDiagnostics.cacheFallbackReason}`
+          : null,
+      ].filter((trigger): trigger is string => trigger !== null),
+      lastQosTrace: `qos:${latestFrameStats.timestampMs}:${latestFrameStats.phase}:${latestFrameStats.pressure}`,
+      lastFramePressureSignals: latestFrameStats.pressureSignals,
+      lastDocumentRevision: documentSnapshot.revision,
       lastCompileChangeSetId: latestCompileOutput.changeSetId, lastCompileChangedNodeCount: latestCompileOutput.changedNodeIds.length, lastExecutionDrawCount: latestExecutionSnapshot.drawCount,
       lastRuntimeWorldRevision: latestRuntimeWorldRevision, lastDirtyDomainCount: latestDirtyState.dirtyDomains.length, lastReplayFirstCommandId,
       lastBoundaryViolationCount: boundaryValidation.violations.length, lastPublicApiViolationCount: publicApiSurfaceViolations.length,
       getBackendInfo: () => runtimeShell.getBackendInfo(),
-      resolveRuntimeDocumentSnapshot, resolveRuntimeDocumentRevision, applyRuntimeDocumentChangeSet, compileRuntimeWorld,
+      resolveRuntimeDocumentSnapshot, resolveRuntimeDocumentRevision, applyRuntimeDocumentChangeSet, preflightRuntimeDocumentChangeSetApply, compileRuntimeWorld,
       resolveRuntimeWorldSnapshotOutput, resolveRuntimeWorldGraphStatsOutput, resolveRuntimeDirtyStateOutput, markRuntimeDirtyDomain,
       flushRuntimeDirtyDomains, scheduleRuntimeIncrementalCompile, forceRuntimeFullCompile, createRuntimeFramePlan,
       inspectRuntimePlan, encodeRuntimeCommandPlan, validateRuntimeCommandBuffer, submitRuntimeCommandBuffer,

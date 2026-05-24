@@ -114,7 +114,7 @@ export interface RuntimeRenderDiagnosticsStats {
     webgl: {
       webglRenderPath: 'model-complete' | 'packet' | 'none'
       // Mirrors backend-selected WebGPU path to monitor hybrid fallback pressure.
-      webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+      webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete'
       // Counts native WebGPU submit attempts in the current frame.
       webgpuNativeSubmissionAttemptedCount: number
       // Counts successful native WebGPU submit operations in the current frame.
@@ -161,6 +161,37 @@ export interface RuntimeRenderDiagnosticsStats {
       webglDrawSubmitMs: number
       webglSnapshotCaptureMs: number
       webglModelRenderMs: number
+      webglPreviewExecutionMode: 'affine-snapshot' | 'temporal-reprojection-required'
+      webglPreviewExecutionSource: 'backend-native' | 'engine-cache-fallback-taxonomy' // Source of preview mode derivation.
+      webglBudgetPressure: 'low' | 'medium' | 'high'
+      webglBudgetPressureReason: string // Human-readable threshold cause for current pressure tier.
+      webglBudgetPressureSource: 'backend-native' | 'engine-frame-budget' // Source of pressure tier derivation.
+      webglDrawSubmitBudgetMs: number
+      webglTextureUploadBudgetBytes: number
+      webglTextureUploadTotalBudgetBytes: number
+      webglImageTextureUploadBudgetCount: number
+      webglTextTextureUploadBudgetCount: number
+      webglTilePreloadBudgetMs: number
+      webglTilePreloadBudgetUploads: number
+      webglOverlayPassBudgetMs: number
+      webglDrawSubmitBudgetExceeded: boolean
+      webglTextureUploadBudgetExceeded: boolean
+      webglOverlayBudgetExceeded: boolean
+      webglPredictorDirectionX: number
+      webglPredictorDirectionY: number
+      webglPredictorSpeedPxPerSec: number
+      webglPredictorConfidence: number
+      webglPredictorPreloadRing: number
+      webglPredictorOverscanCssPx: number
+      webglPredictivePreloadEnqueueCount: number
+      webglPredictivePreloadProcessedCount: number
+      webglPredictivePreloadPrunedCount: number
+      webglHighZoomTextSlaChecked: boolean
+      webglHighZoomTextSlaScale: number
+      webglHighZoomTextSlaViolationCount: number
+      webglDeferredTextTextureCount: number
+      panScheduleRequestCount: number
+      tileSynchronousRebuildCount: number
       tileCacheSize: number
       tileDirtyCount: number
       tileCacheTotalBytes: number
@@ -249,6 +280,8 @@ export interface RuntimeRenderDiagnosticsStats {
 
 export interface RuntimeRenderDiagnostics {
   frameCount: number
+  // Monotonic timestamp (performance.now) when this diagnostics snapshot was published.
+  diagnosticsUpdatedAtMs: number
   drawCount: number
   drawMs: number
   scenePrepareMs: number
@@ -321,7 +354,7 @@ export interface RuntimeRenderDiagnostics {
   cacheMode: 'none' | 'frame'
   webglRenderPath: 'model-complete' | 'packet' | 'none'
   // Mirrors backend-selected WebGPU path to monitor hybrid fallback pressure.
-  webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch'
+  webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete'
   // Counts native WebGPU submit attempts in the current frame.
   webgpuNativeSubmissionAttemptedCount: number
   // Counts successful native WebGPU submit operations in the current frame.
@@ -372,7 +405,62 @@ export interface RuntimeRenderDiagnostics {
   webglDrawSubmitMs: number
   webglSnapshotCaptureMs: number
   webglModelRenderMs: number
+  webglPreviewExecutionMode: 'affine-snapshot' | 'temporal-reprojection-required'
+  webglPreviewExecutionSource: 'backend-native' | 'engine-cache-fallback-taxonomy' // Source of preview mode derivation.
+  webglBudgetPressure: 'low' | 'medium' | 'high'
+  webglBudgetPressureReason: string // Human-readable threshold cause for current pressure tier.
+  webglBudgetPressureSource: 'backend-native' | 'engine-frame-budget' // Source of pressure tier derivation.
+  webglDrawSubmitBudgetMs: number
+  webglTextureUploadBudgetBytes: number
+  webglTextureUploadTotalBudgetBytes: number
+  webglImageTextureUploadBudgetCount: number
+  webglTextTextureUploadBudgetCount: number
+  webglTilePreloadBudgetMs: number
+  webglTilePreloadBudgetUploads: number
+  webglOverlayPassBudgetMs: number
+  webglDrawSubmitBudgetExceeded: boolean
+  webglTextureUploadBudgetExceeded: boolean
+  webglOverlayBudgetExceeded: boolean
+  webglPredictorDirectionX: number
+  webglPredictorDirectionY: number
+  webglPredictorSpeedPxPerSec: number
+  webglPredictorConfidence: number
+  webglPredictorPreloadRing: number
+  webglPredictorOverscanCssPx: number
+  webglPredictivePreloadEnqueueCount: number
+  webglPredictivePreloadProcessedCount: number
+  webglPredictivePreloadPrunedCount: number
+  webglHighZoomTextSlaChecked: boolean
+  webglHighZoomTextSlaScale: number
+  webglHighZoomTextSlaViolationCount: number
+  webglDeferredTextTextureCount: number
+  panScheduleRequestCount: number
+  tileSynchronousRebuildCount: number
   cacheFallbackReason: string
+  // Backend requested by runtime when creating engine instance.
+  engineBackendRequested: 'auto' | 'webgpu' | 'webgl' | 'canvas2d' | 'headless'
+  // Backend resolved by engine backend selector after capability checks.
+  engineBackendResolved: 'auto' | 'webgpu' | 'webgl' | 'canvas2d' | 'headless'
+  // Selector fallback reason when requested backend differs from resolved backend.
+  engineBackendFallbackReason: string | null
+  // Active runtime profile identifier selected by engine bootstrap.
+  engineRuntimeProfileId: string
+  // Active runtime capability count exposed by selected runtime profile.
+  engineRuntimeCapabilityCount: number
+  // Latest frame-budget pressure reason from engine scheduler diagnostics.
+  engineFramePressureReason: string
+  // Latest frame-budget pressure tier from engine scheduler diagnostics.
+  engineFramePressure: 'low' | 'medium' | 'high'
+  // Latest frame strategy phase resolved by engine scheduler diagnostics.
+  engineFramePhase: 'static' | 'pan' | 'zoom' | 'camera' | 'settling'
+  // Latest QoS degradation level derived from engine diagnostics.
+  engineQosDegradationLevel: 'none' | 'light' | 'heavy'
+  // Latest QoS fallback reason mirrored from cache fallback taxonomy.
+  engineQosFallbackReason: string | null
+  // Latest QoS guard trigger tokens used for diagnostics triage.
+  engineQosGuardTriggers: string[]
+  // Latest QoS trace id used for frame-level diagnostics correlation.
+  engineQosTrace: string
   lastRenderRequestReason: string
   renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
   renderPhaseTransitionCount: number
