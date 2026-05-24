@@ -181,6 +181,47 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   const { boundaryValidation, publicApiSurfaceViolations } = createEngineValidationFoundation({ productAdapterBoundaryModule, publicApiSurfaceModule }, options);
   const resolveNow = options.runtimeAdapter?.now ?? (() => performanceNow());
   const engineId = `engine-${Math.max(0, Math.floor(resolveNow()))}`;
+
+  /**
+   * Resolves one lightweight native frame payload from latest visible graph nodes.
+   * @param _timestampMs Current frame timestamp in milliseconds.
+   */
+  function resolveNativeFramePayload(_timestampMs: number) {
+    const viewport = viewportFacade.getViewport();
+    const candidateIds = latestExecutionSnapshot.visibleCandidateIds.length > 0
+      ? latestExecutionSnapshot.visibleCandidateIds
+      : [...graphNodeState.keys()];
+    const rects = candidateIds
+      .map((nodeId) => graphNodeState.get(nodeId))
+      .filter((node): node is EngineGraphNodeInput => Boolean(node))
+      .map((node) => {
+        const x = typeof node.x === "number" && Number.isFinite(node.x) ? node.x : 0;
+        const y = typeof node.y === "number" && Number.isFinite(node.y) ? node.y : 0;
+        const widthRaw = typeof node.width === "number" && Number.isFinite(node.width) ? node.width : 0;
+        const heightRaw = typeof node.height === "number" && Number.isFinite(node.height) ? node.height : 0;
+        const fill = typeof node.fill === "string"
+          ? node.fill
+          : typeof node.stroke === "string"
+            ? node.stroke
+            : "#334155";
+        return {
+          x,
+          y,
+          width: Math.abs(widthRaw),
+          height: Math.abs(heightRaw),
+          fill,
+        };
+      })
+      .filter((rect) => rect.width > 0 && rect.height > 0);
+
+    return {
+      translateX: viewport.offsetX,
+      translateY: viewport.offsetY,
+      scale: viewport.scale,
+      rects,
+    };
+  }
+
   const { backend, backendSelection } = resolveEngineBackend(options, backendSelectorModule, {
     canvas2d: {
       onPresentAttempt: () => {
@@ -206,6 +247,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         latestBackendPresentTelemetry.committed = true;
         latestBackendPresentTelemetry.skippedReason = null;
       },
+      resolveNativeFramePayload,
     },
   });
   const runtimeProfile = resolveCreateEngineRuntimeProfile(backendSelection);

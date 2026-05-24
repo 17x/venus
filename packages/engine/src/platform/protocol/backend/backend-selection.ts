@@ -144,11 +144,26 @@ export function resolveBackendSelection(
       nativeEligible: true,
     };
   }
+
+  const requestedProbe = probes.find((probe) => probe.mode === requested);
+  const requestedSupported = requestedProbe?.canUse(options.surface) ?? false;
+  if (requestedSupported) {
+    return {
+      requested,
+      resolved: requested,
+      fallbackReason: null,
+      nativeEligible: requested !== "canvas2d",
+    };
+  }
+
+  // Skip requested mode and pick the first supported backend in canonical order.
+  const fallbackProbes = probes.filter((probe) => probe.mode !== requested);
+  const resolvedFallback = resolveAutoBackendMode(options.surface, fallbackProbes);
   return {
     requested,
-    resolved: requested,
-    fallbackReason: null,
-    nativeEligible: requested !== "canvas2d",
+    resolved: resolvedFallback,
+    fallbackReason: `requested-unsupported-${requested}-fallback-${resolvedFallback}`,
+    nativeEligible: resolvedFallback !== "canvas2d",
   };
 }
 

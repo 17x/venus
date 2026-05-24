@@ -151,14 +151,23 @@ export function useEngineRendererLifecycle(params: {
         width: Math.max(1, renderSurface.clientWidth || renderSurface.width || 1),
         height: Math.max(1, renderSurface.clientHeight || renderSurface.height || 1),
         canvas: {
-          width: renderSurface.width,
-          height: renderSurface.height,
+          // Keep bridge dimensions live so backend adapters always project
+          // against the current canvas backing-store size after runtime resizes.
+          get width() {
+            return renderSurface.width
+          },
+          get height() {
+            return renderSurface.height
+          },
           getContext: (contextId) => {
             if (contextId === '2d') {
               return renderSurface.getContext('2d')
             }
             if (contextId === 'webgl') {
               return renderSurface.getContext('webgl')
+            }
+            if (contextId === 'webgpu') {
+              return renderSurface.getContext('webgpu')
             }
             return renderSurface.getContext('webgl2')
           },

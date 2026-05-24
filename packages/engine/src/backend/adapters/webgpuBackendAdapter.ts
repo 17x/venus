@@ -1,10 +1,6 @@
 import type { EngineBackend } from "../../backend/backend";
-import { createNoopBackendAdapter, type NoopBackendAdapterHooks } from "./noopBackendAdapter";
+import type { NoopBackendAdapterHooks } from "./noopBackendAdapter";
 import type { EngineBackendSurface } from "../backend-contracts";
-import {
-  createCanvas2DBackendAdapter,
-  type Canvas2DBackendAdapterHooks,
-} from "./canvas2dBackendAdapter";
 
 /**
  * Resolves whether current host reports WebGPU availability.
@@ -18,59 +14,131 @@ export function canUseWebGPUBackendAdapter(_surface: EngineBackendSurface): bool
 }
 
 /**
- * Resolves whether the provided surface can expose a Canvas2D context.
- * @param surface Engine surface payload used by compatibility present fallback.
- */
-function canUseCanvas2DCompatibility(surface: EngineBackendSurface): boolean {
-  const canvas = surface.canvas;
-  if (!canvas || typeof canvas.getContext !== "function") {
-    return false;
-  }
-  return Boolean(canvas.getContext("2d"));
-}
-
-/**
- * Wraps one backend to preserve requested mode metadata while delegating execution.
- * @param mode Backend mode to report from wrapper.
- * @param delegate Backend implementation that executes resize/render/dispose.
- */
-function createModeWrappedBackend(
-  mode: "webgpu" | "webgl",
-  delegate: EngineBackend,
-): EngineBackend {
-  return {
-    mode,
-    resize(surface) {
-      delegate.resize(surface);
-    },
-    renderFrame(timestampMs) {
-      delegate.renderFrame(timestampMs);
-    },
-    dispose() {
-      delegate.dispose();
-    },
-  };
-}
-
-/**
- * Creates one deterministic WebGPU adapter stub backend.
- * Falls back to Canvas2D present compatibility when 2d context is available,
- * so auto-selected WebGPU does not regress to blank output before native pipeline lands.
- * @param surface Engine surface payload used to detect 2d compatibility support.
+ * Creates one native WebGPU backend adapter with lazy async device bootstrap.
+ * @param surface Engine surface payload used to acquire WebGPU canvas context.
  * @param hooks Optional no-op present telemetry hooks.
- * @param canvas2dHooks Optional canvas2d draw/present hooks used by compatibility path.
  */
 export function createWebGPUBackendAdapter(
   surface?: EngineBackendSurface,
   hooks?: NoopBackendAdapterHooks,
-  canvas2dHooks?: Canvas2DBackendAdapterHooks,
 ): EngineBackend {
-  // AI-TEMP: WebGPU adapter is currently stubbed; remove when native WebGPU present path is implemented; ref DEX-065.
-  if (surface && canUseCanvas2DCompatibility(surface)) {
-    return createModeWrappedBackend(
-      "webgpu",
-      createCanvas2DBackendAdapter(surface, canvas2dHooks),
-    );
+  let currentSurface = surface ?? { width: 1, height: 1 };
+  let disposed = false;
+  let configuredContext: unknown | null = null;
+  let device: unknown | null = null;
+  let initPromise: Promise<void> | null = null;
+
+  /**
+   * Ensures one WebGPU device/context pair is initialized and configured.
+   */
+  function ensureWebGPUInitialized(): Promise<void> {
+    if (initPromise) {
+      return initPromise;
+    }
+
+    initPromise = (async () => {
+      if (disposed) {
+        return;
+      }
+      const canvas = currentSurface.canvas;
+      if (!canvas || typeof canvas.getContext !== "function") {
+        return;
+      }
+
+      const navigatorGpu = (globalThis as { navigator?: { gpu?: unknown } }).navigator?.gpu as
+        | {
+            requestAdapter: () => Promise<unknown | null>;
+            getPreferredCanvasFormat: () => string;
+          }
+        | undefined;
+      if (!navigatorGpu) {
+        return;
+      }
+
+      const context = (canvas as unknown as { getContext: (id: string) => unknown | null }).getContext("webgpu");
+      if (!context) {
+        return;
+      }
+
+      const adapter = await navigatorGpu.requestAdapter();
+      if (!adapter || disposed) {
+        return;
+      }
+
+      const adapterWithDevice = adapter as { requestDevice: () => Promise<unknown> };
+      const nextDevice = await adapterWithDevice.requestDevice();
+      if (!nextDevice || disposed) {
+        return;
+      }
+
+      const contextWithConfigure = context as { configure: (input: { device: unknown; format: string; alphaMode: "opaque" | "premultiplied" }) => void };
+      contextWithConfigure.configure({
+        device: nextDevice,
+        format: navigatorGpu.getPreferredCanvasFormat(),
+        alphaMode: "premultiplied",
+      });
+
+      configuredContext = context;
+      device = nextDevice;
+    })();
+
+    return initPromise;
   }
-  return createNoopBackendAdapter("webgpu", hooks);
+
+  return {
+    mode: "webgpu",
+    resize(nextSurface) {
+      currentSurface = nextSurface;
+      configuredContext = null;
+      device = null;
+      initPromise = null;
+    },
+    renderFrame(timestampMs) {
+      hooks?.onPresentAttempt?.(timestampMs);
+      void ensureWebGPUInitialized();
+      if (!configuredContext || !device) {
+        return;
+      }
+
+      const context = configuredContext as {
+        getCurrentTexture: () => { createView: () => unknown };
+      };
+      const gpuDevice = device as {
+        createCommandEncoder: () => {
+          beginRenderPass: (input: {
+            colorAttachments: Array<{
+              view: unknown;
+              clearValue: { r: number; g: number; b: number; a: number };
+              loadOp: "clear" | "load";
+              storeOp: "store" | "discard";
+            }>;
+          }) => { end: () => void };
+          finish: () => unknown;
+        };
+        queue: {
+          submit: (commands: unknown[]) => void;
+        };
+      };
+      const encoder = gpuDevice.createCommandEncoder();
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: context.getCurrentTexture().createView(),
+            clearValue: { r: 1, g: 1, b: 1, a: 1 },
+            loadOp: "clear",
+            storeOp: "store",
+          },
+        ],
+      });
+      pass.end();
+      gpuDevice.queue.submit([encoder.finish()]);
+      hooks?.onPresentCommitted?.(timestampMs);
+    },
+    dispose() {
+      disposed = true;
+      configuredContext = null;
+      device = null;
+      initPromise = null;
+    },
+  };
 }

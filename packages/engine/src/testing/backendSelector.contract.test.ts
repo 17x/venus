@@ -54,9 +54,9 @@ test("backend selector resolves first eligible probe deterministically", () => {
 });
 
 /**
- * Verifies backend selection keeps explicit mode requests outside auto-probe execution.
+ * Verifies backend selection keeps explicit supported backend requests unchanged.
  */
-test("backend selector preserves explicit requested mode", () => {
+test("backend selector preserves explicit supported backend request", () => {
   const result = resolveBackendSelection({
     backend: "headless",
     surface: {
@@ -68,5 +68,30 @@ test("backend selector preserves explicit requested mode", () => {
   assert.equal(result.requested, "headless");
   assert.equal(result.resolved, "headless");
   assert.equal(result.fallbackReason, null);
+  assert.equal(result.nativeEligible, true);
+});
+
+/**
+ * Verifies explicit unsupported backend requests fall back through canonical probe order.
+ */
+test("backend selector falls back when explicit backend is unsupported", () => {
+  const probes: readonly EngineBackendProbe[] = [
+    { mode: "webgpu", canUse: () => false },
+    { mode: "webgl", canUse: () => true },
+    { mode: "canvas2d", canUse: () => true },
+    { mode: "headless", canUse: () => true },
+  ];
+
+  const result = resolveBackendSelection({
+    backend: "webgpu",
+    surface: {
+      width: 320,
+      height: 240,
+    },
+  }, probes);
+
+  assert.equal(result.requested, "webgpu");
+  assert.equal(result.resolved, "webgl");
+  assert.equal(result.fallbackReason, "requested-unsupported-webgpu-fallback-webgl");
   assert.equal(result.nativeEligible, true);
 });

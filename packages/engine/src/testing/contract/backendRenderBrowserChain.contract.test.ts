@@ -25,12 +25,13 @@ function createSingleNodeGraph(nodeId: string, x: number, y: number) {
 }
 
 /**
- * Creates a test surface whose canvas context becomes available only after the first probe.
+ * Creates a test surface whose 2d context can be toggled after engine creation.
  * @param width Surface width in CSS pixels.
  * @param height Surface height in CSS pixels.
  */
 function createLateBoundCanvasSurface(width: number, height: number) {
   let contextBound = false;
+  let contextProbeCount = 0;
   const fakeContext: Pick<CanvasRenderingContext2D, "save" | "restore" | "setTransform" | "clearRect"> = {
     save() {},
     restore() {},
@@ -48,6 +49,12 @@ function createLateBoundCanvasSurface(width: number, height: number) {
           if (contextId !== "2d") {
             return null;
           }
+          if (contextProbeCount === 0) {
+            // Keep selector-time capability probe positive so explicit canvas2d
+            // request remains canvas2d instead of falling back to headless.
+            contextProbeCount += 1;
+            return fakeContext as CanvasRenderingContext2D;
+          }
           if (!contextBound) {
             return null;
           }
@@ -58,6 +65,10 @@ function createLateBoundCanvasSurface(width: number, height: number) {
     /** Enables context availability for subsequent render attempts. */
     bindContext() {
       contextBound = true;
+    },
+    /** Disables context availability for subsequent render attempts. */
+    unbindContext() {
+      contextBound = false;
     },
   };
 }
@@ -85,10 +96,20 @@ function createCanvasBackedWebGLSurface(width: number, height: number) {
           return fake2DContext as CanvasRenderingContext2D;
         }
         if (contextId === "webgl") {
-          return {} as WebGLRenderingContext;
+          return {
+            viewport() {},
+            clearColor() {},
+            clear() {},
+            COLOR_BUFFER_BIT: 0x4000,
+          } as unknown as WebGLRenderingContext;
         }
         if (contextId === "webgl2") {
-          return {} as WebGL2RenderingContext;
+          return {
+            viewport() {},
+            clearColor() {},
+            clear() {},
+            COLOR_BUFFER_BIT: 0x4000,
+          } as unknown as WebGL2RenderingContext;
         }
         return null;
       },
@@ -179,18 +200,18 @@ test("backend render chain stays coherent for canonical backend preferences", as
     assert.equal(renderResult.renderChain?.backendPresentReached, true, `backend-present stage should be reached at backend preference: ${backend}`);
     assert.equal(
       renderResult.renderChain?.backendPresentCompleted,
-      backend === "canvas2d" ? false : true,
+      true,
       `backend-present completion should reflect adapter path for backend preference: ${backend}`,
     );
     assert.equal(
       renderResult.renderChain?.backendPresentSkippedReason,
-      backend === "canvas2d" ? "missing-context" : null,
+      null,
       `backend-present skip reason should reflect adapter path for backend preference: ${backend}`,
     );
     assert.equal(renderResult.renderChain?.browserBridgeReachable, true, `browser bridge should be reachable at backend preference: ${backend}`);
     assert.equal(
       renderResult.renderChain?.failedStage,
-      backend === "canvas2d" ? "backend-present" : null,
+      null,
       `failed stage should match present diagnostics for backend preference: ${backend}`,
     );
 
@@ -201,19 +222,8 @@ test("backend render chain stays coherent for canonical backend preferences", as
     const backendPresentWarning = diagnosticsWarnings.find(
       (warning) => warning.code === "ENGINE_RENDER_BACKEND_PRESENT_SKIPPED",
     );
-    if (backend === "canvas2d") {
-      assert.equal(Boolean(backendPresentWarning), true, "canvas2d path should emit backend-present warning");
-      assert.equal(backendPresentWarning?.stage, "backend-present");
-      assert.equal(backendPresentWarning?.reason, "missing-context");
-      assert.equal(backendPresentWarning?.backendMode, "canvas2d");
-      assert.equal(backendPresentWarning?.telemetrySource, "adapter-present");
-      assert.equal(typeof backendPresentWarning?.remediationHint, "string");
-      assert.equal(diagnostics.lastRenderWarning?.code, "ENGINE_RENDER_BACKEND_PRESENT_SKIPPED");
-      assert.equal(diagnostics.lastRenderWarning?.telemetrySource, "adapter-present");
-    } else {
-      assert.equal(Boolean(backendPresentWarning), false, `backend-present warning should not emit for backend preference: ${backend}`);
-      assert.equal(diagnostics.lastRenderWarning, null);
-    }
+    assert.equal(Boolean(backendPresentWarning), false, `backend-present warning should not emit for backend preference: ${backend}`);
+    assert.equal(diagnostics.lastRenderWarning, null);
 
     assert.equal(
       ["headless", "canvas2d", "webgl", "webgpu"].includes(backendInfo.resolved),
@@ -269,8 +279,9 @@ test("pick-hit and render draw remain coherent under aggressive viewport pressur
  * Reproduces present-path disconnect signature where pick/hit stays positive but backend present cannot commit.
  */
 test("unmounted non-headless render flags backend-present stage failure while pick remains positive", async () => {
+  const lateBoundSurface = createLateBoundCanvasSurface(640, 480);
   const engine = createEngine({
-    surface: createTestSurface(640, 480),
+    surface: lateBoundSurface.surface,
     backend: "canvas2d",
   });
 
@@ -309,6 +320,7 @@ test("unmounted non-headless render flags backend-present stage failure while pi
   engine.mount({ id: "host-browser-bridge-repro" });
   engine.unmount();
   engine.setGraph(createSingleNodeGraph("node-unmounted", 36, 24));
+  lateBoundSurface.unbindContext();
 
   const pickResult = engine.pick({ x: 40, y: 30 }, { tolerance: 0 });
   const renderResult = await engine.render();
@@ -348,7 +360,7 @@ test("unmounted non-headless render flags backend-present stage failure while pi
  */
 test("unmounted webgl render emits structured browser-bridge warning after successful backend present", async () => {
   const engine = createEngine({
-    surface: createTestSurface(640, 480),
+    surface: createCanvasBackedWebGLSurface(640, 480),
     backend: "webgl",
   });
 
@@ -421,6 +433,7 @@ test("canvas2d render recovers from missing context when host binds 2d context a
   });
 
   engine.setGraph(createSingleNodeGraph("node-canvas2d-late-context", 52, 42));
+  lateBoundSurface.unbindContext();
 
   const firstRender = await engine.render();
   const firstDiagnostics = engine.getDiagnostics();
@@ -443,9 +456,9 @@ test("canvas2d render recovers from missing context when host binds 2d context a
 });
 
 /**
- * Verifies webgl backend path commits present on canvas-backed hosts during stub stage.
+ * Verifies native webgl backend path commits present on canvas-backed hosts.
  */
-test("webgl backend commits present on canvas-backed surface via compatibility path", async () => {
+test("webgl backend commits present on canvas-backed surface", async () => {
   const engine = createEngine({
     surface: createCanvasBackedWebGLSurface(640, 480),
     backend: "webgl",

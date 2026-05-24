@@ -4,7 +4,6 @@ import type {
   EngineRuntimeAdapter,
   EngineSurface,
 } from "./public-types";
-import type { Canvas2DBackendAdapterHooks as Canvas2DBackendHooks } from "../../backend/adapters/canvas2dBackendAdapter";
 
 /**
  * Boolean-or-object toggle pattern used by staged performance options.
@@ -84,10 +83,6 @@ export interface CreateEngineOptions extends EngineCreateOptions {
   runtimeAdapter?: EngineRuntimeAdapter;
   /** Optional surface override for host migrations. */
   surface: EngineSurface;
-  /**
-   * Optional canvas2d backend hooks used by host adapter integrations.
-   */
-  canvas2d?: Canvas2DBackendHooks;
 }
 
 /**

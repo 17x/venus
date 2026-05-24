@@ -315,20 +315,15 @@ test("engine 2d-related exports remain explicit opt-in only", async () => {
 });
 
 /**
- * Verifies create-engine contract keeps 2D hooks optional and non-mandatory.
+ * Verifies create-engine contract does not expose canvas2d hook wiring.
  */
-test("create-engine contract keeps canvas2d integration optional", async () => {
+test("create-engine contract does not expose canvas2d integration hook", async () => {
   const contractSource = await readCreateEngineContractsSource();
 
   assert.equal(
     /canvas2d\?\s*:\s*Canvas2DBackendHooks/.test(contractSource),
-    true,
-    "create-engine contract must keep canvas2d option explicit and optional",
-  );
-  assert.equal(
-    /canvas2d\s*:\s*Canvas2DBackendHooks/.test(contractSource),
     false,
-    "create-engine contract must not require canvas2d option by default",
+    "create-engine contract must not expose canvas2d hook in public options",
   );
 });
 

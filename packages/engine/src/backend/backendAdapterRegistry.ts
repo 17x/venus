@@ -48,12 +48,12 @@ export function createDefaultEngineBackendAdapters(): readonly EngineBackendAdap
     {
       mode: "webgpu",
       create: (context) =>
-        createWebGPUBackendAdapter(context.surface, context.noop, context.canvas2d),
+        createWebGPUBackendAdapter(context.surface, context.noop),
     },
     {
       mode: "webgl",
       create: (context) =>
-        createWebGLBackendAdapter(context.surface, context.noop, context.canvas2d),
+        createWebGLBackendAdapter(context.surface, context.noop),
     },
     {
       mode: "headless",

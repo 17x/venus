@@ -85,10 +85,11 @@ test("webgpu and webgl adapter stubs expose deterministic backend behavior", () 
 });
 
 /**
- * Verifies WebGPU/WebGL adapters execute Canvas2D compatibility draw path when 2d context is available.
+ * Verifies WebGPU/WebGL adapters do not use Canvas2D compatibility draw hooks.
  */
-test("webgpu and webgl adapters use canvas2d compatibility present path on 2d-capable surfaces", () => {
-  let drawCount = 0;
+test("webgpu and webgl adapters ignore canvas2d compatibility path", () => {
+  let presentAttemptCount = 0;
+  let presentCommittedCount = 0;
   const surface = {
     width: 200,
     height: 100,
@@ -105,26 +106,40 @@ test("webgpu and webgl adapters use canvas2d compatibility present path on 2d-ca
           } as CanvasRenderingContext2D;
         }
         if (contextId === "webgl2") {
-          return {} as WebGL2RenderingContext;
+          return {
+            viewport() {},
+            clearColor() {},
+            clear() {},
+            COLOR_BUFFER_BIT: 0x4000,
+          } as unknown as WebGL2RenderingContext;
         }
         if (contextId === "webgl") {
-          return {} as WebGLRenderingContext;
+          return {
+            viewport() {},
+            clearColor() {},
+            clear() {},
+            COLOR_BUFFER_BIT: 0x4000,
+          } as unknown as WebGLRenderingContext;
         }
         return null;
       },
     },
   };
 
-  const webgpuBackend = createWebGPUBackendAdapter(surface, undefined, {
-    drawFrame: () => {
-      drawCount += 1;
-      return 1;
+  const webgpuBackend = createWebGPUBackendAdapter(surface, {
+    onPresentAttempt: () => {
+      presentAttemptCount += 1;
+    },
+    onPresentCommitted: () => {
+      presentCommittedCount += 1;
     },
   });
-  const webglBackend = createWebGLBackendAdapter(surface, undefined, {
-    drawFrame: () => {
-      drawCount += 1;
-      return 1;
+  const webglBackend = createWebGLBackendAdapter(surface, {
+    onPresentAttempt: () => {
+      presentAttemptCount += 1;
+    },
+    onPresentCommitted: () => {
+      presentCommittedCount += 1;
     },
   });
 
@@ -133,5 +148,6 @@ test("webgpu and webgl adapters use canvas2d compatibility present path on 2d-ca
   webgpuBackend.renderFrame(1);
   webglBackend.renderFrame(2);
 
-  assert.equal(drawCount >= 2, true);
+  assert.equal(presentAttemptCount >= 2, true);
+  assert.equal(presentCommittedCount >= 1, true);
 });

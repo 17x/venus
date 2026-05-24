@@ -28,9 +28,9 @@ test("backendSelector module resolves first eligible probe", () => {
 });
 
 /**
- * Verifies backend-selector module preserves explicit requested mode when mode is not auto.
+ * Verifies backend-selector module preserves explicit supported backend request.
  */
-test("backendSelector module preserves explicit backend request", () => {
+test("backendSelector module preserves explicit supported backend request", () => {
   const module = createEngineBackendSelectorModule();
   const options: EngineBackendCreateOptions = {
     backend: "headless",
@@ -45,4 +45,29 @@ test("backendSelector module preserves explicit backend request", () => {
   assert.equal(result.requested, "headless");
   assert.equal(result.resolved, "headless");
   assert.equal(result.fallbackReason, null);
+});
+
+/**
+ * Verifies backend-selector module falls back when explicit backend is unsupported.
+ */
+test("backendSelector module falls back for unsupported explicit backend", () => {
+  const module = createEngineBackendSelectorModule();
+  const options: EngineBackendCreateOptions = {
+    backend: "webgpu",
+    surface: {
+      width: 1920,
+      height: 1080,
+    },
+  };
+
+  const result = module.resolveSelection(options, [
+    { mode: "webgpu", canUse: () => false },
+    { mode: "webgl", canUse: () => true },
+    { mode: "canvas2d", canUse: () => true },
+    { mode: "headless", canUse: () => true },
+  ]);
+
+  assert.equal(result.requested, "webgpu");
+  assert.equal(result.resolved, "webgl");
+  assert.equal(result.fallbackReason, "requested-unsupported-webgpu-fallback-webgl");
 });

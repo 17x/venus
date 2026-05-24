@@ -149,7 +149,7 @@ export function resolveEngineBackend(
     /** Optional canvas2d present telemetry hooks injected by orchestration diagnostics. */
     canvas2d?: Pick<Canvas2DBackendAdapterHooks, "onPresentAttempt" | "onPresentSkipped" | "onPresentCommitted">;
     /** Optional noop present telemetry hooks injected by orchestration diagnostics. */
-    noop?: Pick<NoopBackendAdapterHooks, "onPresentAttempt" | "onPresentCommitted">;
+    noop?: Pick<NoopBackendAdapterHooks, "onPresentAttempt" | "onPresentCommitted" | "resolveNativeFramePayload">;
   },
 ): {
   backend: EngineBackend;
@@ -172,7 +172,6 @@ export function resolveEngineBackend(
     {
       surface: options.surface,
       canvas2d: {
-        drawFrame: options.canvas2d?.drawFrame,
         onPresentAttempt: diagnosticsHooks?.canvas2d?.onPresentAttempt,
         onPresentSkipped: diagnosticsHooks?.canvas2d?.onPresentSkipped,
         onPresentCommitted: diagnosticsHooks?.canvas2d?.onPresentCommitted,
@@ -180,6 +179,7 @@ export function resolveEngineBackend(
       noop: {
         onPresentAttempt: diagnosticsHooks?.noop?.onPresentAttempt,
         onPresentCommitted: diagnosticsHooks?.noop?.onPresentCommitted,
+        resolveNativeFramePayload: diagnosticsHooks?.noop?.resolveNativeFramePayload,
       },
     },
   );

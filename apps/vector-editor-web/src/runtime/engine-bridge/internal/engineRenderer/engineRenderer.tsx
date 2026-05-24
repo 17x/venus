@@ -395,6 +395,9 @@ export function EngineRenderer({
       },
       interactiveIntervalMs: effectiveInteractiveIntervalMs,
     })
+    // Queue one bootstrap frame after scheduler wiring so startup does not
+    // depend on viewport/scene effects winning the scheduler initialization race.
+    renderSchedulerRef.current.request('normal')
 
     return () => {
       renderSchedulerRef.current?.dispose()
