@@ -1,0 +1,64 @@
+version: 1
+status: active
+scope: cross-agent
+
+precedence:
+  - .ai/AI_NATIVE_ENGINEERING_GOVERNANCE.md
+  - .ai/REPO_GOVERNANCE_PREFERENCES_EXTRACTED.md
+  - .ai-local/AI_HIGHEST_STANDARD.md
+
+agent:
+  require_capability_tier: true
+  allowed_tiers: [A, B, C]
+  require_handoff_evidence: true
+  forbid_unverified_pass_claims: true
+
+execution:
+  require_scope_declaration: true
+  require_mutation_radius: true
+  forbid_silent_scope_expansion: true
+  require_cleanup_first: true
+
+validation:
+  minimum_gates:
+    - typecheck
+    - lint
+    - relevant_tests
+  block_on_failed_gate: true
+  allow_deferred_validation_for_tier_b: true
+
+naming:
+  discouraged_tokens:
+    - manager
+    - helper
+    - util
+    - wrapper
+    - facade
+    - common
+    - shared
+    - base
+
+temporary_logic:
+  require_ai_temp_tag: true
+  tag_format: "AI-TEMP: <why>; remove when <condition>; ref <task/doc>"
+
+exceptions:
+  allow_governance_exception: true
+  required_format: "[GOV-EXCEPTION] <rule>; <why blocked>; <risk>; <fallback>; <owner>; <expiry>"
+  require_expiry: true
+
+security:
+  redact_secrets_in_output: true
+  forbid_secret_persistence: true
+
+concurrency:
+  reread_before_patch: true
+  forbid_revert_unrelated_changes: true
+  stop_on_conflicting_target_edits: true
+
+entropy:
+  require_cleanup_first: true
+  forbid_parallel_implementation_tracks: true
+  require_retirement_plan_for_deprecated_paths: true
+  require_burndown_for_ai_temp_increase: true
+  block_on_unbounded_wrapper_depth_growth: true

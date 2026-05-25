@@ -5,7 +5,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(__dirname, "../..");
 
 const SCOPE_ARG = process.argv.includes("--scope")
   ? process.argv[process.argv.indexOf("--scope") + 1]

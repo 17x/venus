@@ -16,7 +16,7 @@ Core validation sequence:
 
 3. Module governance check
 
-- node scripts/module-governance-check.mjs
+- node scripts/module-governance-check/module-governance-check.mjs
 
 4. Targeted tests
 
@@ -48,6 +48,8 @@ Release Loop (milestone or handoff)
 
 - pnpm lint
 - pnpm governance:check
+- pnpm governance:machine-check
+- pnpm build:rules
 
 3. Broad tests
 
@@ -56,6 +58,10 @@ Release Loop (milestone or handoff)
 4. Broad file-shape guard
 
 - pnpm governance:file-shape
+
+5. Entropy dashboard refresh
+
+- pnpm governance:entropy-report
 
 One-command shortcuts (recommended)
 

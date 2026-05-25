@@ -154,3 +154,144 @@ Entropy checklist:
 
 This charter is intentionally framework-agnostic and project-type agnostic.
 Repository-specific enforcement must live in dedicated enforcement docs and must not weaken this charter.
+
+## 11. Agent Compatibility Contract
+
+This charter is binding for all AI agents that can mutate repository state, including:
+
+- IDE assistants
+- CLI coding agents
+- CI/autofix agents
+- Review/refactor agents
+- Scripted batch agents
+
+Agent-agnostic rule:
+
+- Differences in tool interfaces do not change governance obligations.
+- If an agent cannot satisfy a required step, it must stop mutation and report the blocker.
+
+## 12. Capability Tiers and Required Behavior
+
+Agents must classify themselves per task into one of three tiers:
+
+1. Tier A (Full): can read, edit, run validation commands.
+2. Tier B (Edit-only): can read/edit but cannot run commands.
+3. Tier C (Read-only): can analyze/review but cannot edit.
+
+Required behavior by tier:
+
+- Tier A: must execute full protocol and provide validation evidence.
+- Tier B: must execute all non-runtime steps, provide exact validation commands for a Tier A runner, and mark result as unverified.
+- Tier C: must provide findings and exact mutation plan only; no implementation claims.
+
+## 13. Evidence and Traceability Contract
+
+For each non-trivial change, the agent must emit evidence fields in handoff:
+
+- Scope statement
+- Mutation list (files/areas changed)
+- Validation commands run (or explicitly not runnable)
+- Validation outcome summary
+- Cleanup summary (what was removed)
+- Residual risks and follow-up actions
+
+Claims without evidence are invalid.
+
+## 14. Exception and Escalation Protocol
+
+If governance cannot be fully satisfied, use explicit exception record:
+
+`[GOV-EXCEPTION] <rule>; <why blocked>; <risk>; <fallback>; <owner>; <expiry>`
+
+Rules:
+
+- Exception must be narrow and time-bounded.
+- Exception cannot silently downgrade safety-critical validation.
+- Expired exceptions must be removed or renewed with new rationale.
+
+## 15. Context Budget and Degradation Control
+
+To prevent low-context errors across agent implementations:
+
+- Prefer scoped reads before broad scans.
+- Summarize and checkpoint key decisions before large edit batches.
+- Reconstruct task state from governance docs and task docs before resuming after interruption.
+- When context uncertainty is high, reduce mutation radius or stop and request clarification.
+
+## 16. Security and Secret Handling Baseline
+
+- Never expose secrets, tokens, credentials, or private keys in logs, patches, or summaries.
+- Never request users to paste secrets into persisted files.
+- Redact sensitive values in diagnostic output.
+- Prefer least-privilege commands and minimal filesystem mutation.
+
+## 17. Multi-Agent Concurrency Safety
+
+When multiple agents may touch the same repository:
+
+- Re-read target files immediately before patching.
+- Do not revert unrelated changes.
+- If conflicting concurrent edits are detected in target scope, stop and surface the conflict.
+- Keep changes atomic and scoped to one intent per patch batch.
+
+## 18. Definition of Done (Universal)
+
+A task is complete only if all are true:
+
+1. Governance protocol steps were followed for the agent tier.
+2. Scope stayed within declared mutation radius.
+3. Cleanup-first rule was satisfied.
+4. Validation evidence was provided (or explicitly delegated with commands).
+5. Residual risk is documented.
+6. No unresolved governance exception remains past expiry.
+
+## 19. Governance Lifecycle
+
+- Version root governance documents.
+- Every governance change must include rationale and compatibility impact.
+- Local governance may tighten rules but may not weaken this charter.
+- Task documents (.ai-tasks) are operational state, not governance authority.
+
+## 20. Machine-Readable Baseline
+
+Machine-readable governance rules are defined in:
+
+- `.ai/GOVERNANCE_MACHINE_RULES.yaml`
+
+Usage intent:
+
+- Drive automated policy checks in CI or local guard tools.
+- Keep rule semantics aligned with this charter.
+- If machine-readable and human-readable rules diverge, this charter is authoritative and the machine rules must be updated in the same change.
+
+## 21. Entropy Governance (Global)
+
+AI-driven repositories naturally accumulate entropy over time. Entropy control is mandatory.
+
+Entropy signals to monitor:
+
+- Wrapper depth growth
+- Duplicate abstractions for same responsibility
+- Naming drift and semantic inflation
+- Rising file fragmentation with low ownership clarity
+- Validation bypass frequency (`UNVERIFIED`, exceptions)
+
+Mandatory anti-entropy controls:
+
+1. Every feature/refactor change must remove replaced paths in the same batch.
+2. Repeated local patterns must be consolidated only after stability is proven.
+3. New modules/files must declare ownership boundary and why extension was insufficient.
+4. Deprecated paths must have explicit retirement condition and owner.
+5. Governance exceptions must be time-bounded and tracked to closure.
+
+Entropy budget policy:
+
+- Any change that increases abstraction/wrapper depth must include compensating simplification, or be blocked.
+- Any change that introduces parallel implementation tracks without explicit migration plan is blocked.
+- Any increase in unresolved temporary logic (`AI-TEMP`) requires an explicit burn-down plan.
+
+Maintenance cadence:
+
+- Run release-loop governance checks at milestone/handoff.
+- Run periodic repository cleanup passes to remove stale scripts/docs/rules.
+- Update governance docs whenever structural policy changes.

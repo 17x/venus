@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(__dirname, "../..");
 const SOFT_LIMIT = 500;
 const HARD_LIMIT = 600;
 const TS_FILE_PATTERN = /\.(ts|tsx|js|jsx|mts|cts)$/;
