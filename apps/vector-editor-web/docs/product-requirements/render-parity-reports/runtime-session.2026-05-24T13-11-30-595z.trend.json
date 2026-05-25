@@ -1,0 +1,109 @@
+{
+  "baseline": {
+    "generatedAt": "2026-05-24T12:59:36.729Z",
+    "sampleCount": 6
+  },
+  "comparedCount": 2,
+  "trendCounter": {
+    "improved": 0,
+    "regressed": 0,
+    "mixed": 0,
+    "unchanged": 2
+  },
+  "rows": [
+    {
+      "generatedAt": "2026-05-24T13:04:37.829Z",
+      "sampleCount": 6,
+      "diff": {
+        "baseline": {
+          "generatedAt": "2026-05-24T12:59:36.729Z",
+          "sampleCount": 6
+        },
+        "current": {
+          "generatedAt": "2026-05-24T13:04:37.829Z",
+          "sampleCount": 6
+        },
+        "reasonDiff": {
+          "webglCacheFallback": {
+            "knownRejectedDelta": 0,
+            "unknownRejectedDelta": 0,
+            "baselineDominantKnownReason": "l1-disabled",
+            "currentDominantKnownReason": "l1-disabled",
+            "dominantKnownReasonChanged": false,
+            "trend": "unchanged"
+          },
+          "webgpuRectBatchReject": {
+            "knownRejectedDelta": 0,
+            "unknownRejectedDelta": 0,
+            "baselineDominantKnownReason": "non-rect-shape-unsupported",
+            "currentDominantKnownReason": "non-rect-shape-unsupported",
+            "dominantKnownReasonChanged": false,
+            "trend": "unchanged"
+          }
+        },
+        "verdictDiff": {
+          "webgl": {
+            "passDelta": 0,
+            "degradedDelta": 0,
+            "failDelta": 0,
+            "unknownDelta": 0
+          },
+          "webgpu": {
+            "passDelta": 0,
+            "degradedDelta": 0,
+            "failDelta": 0,
+            "unknownDelta": 0
+          }
+        },
+        "overallTrend": "unchanged"
+      }
+    },
+    {
+      "generatedAt": "2026-05-24T13:11:30.595Z",
+      "sampleCount": 6,
+      "diff": {
+        "baseline": {
+          "generatedAt": "2026-05-24T12:59:36.729Z",
+          "sampleCount": 6
+        },
+        "current": {
+          "generatedAt": "2026-05-24T13:11:30.595Z",
+          "sampleCount": 6
+        },
+        "reasonDiff": {
+          "webglCacheFallback": {
+            "knownRejectedDelta": 0,
+            "unknownRejectedDelta": 0,
+            "baselineDominantKnownReason": "l1-disabled",
+            "currentDominantKnownReason": "l1-disabled",
+            "dominantKnownReasonChanged": false,
+            "trend": "unchanged"
+          },
+          "webgpuRectBatchReject": {
+            "knownRejectedDelta": 0,
+            "unknownRejectedDelta": 0,
+            "baselineDominantKnownReason": "non-rect-shape-unsupported",
+            "currentDominantKnownReason": "non-rect-shape-unsupported",
+            "dominantKnownReasonChanged": false,
+            "trend": "unchanged"
+          }
+        },
+        "verdictDiff": {
+          "webgl": {
+            "passDelta": 0,
+            "degradedDelta": 0,
+            "failDelta": 0,
+            "unknownDelta": 0
+          },
+          "webgpu": {
+            "passDelta": 0,
+            "degradedDelta": 0,
+            "failDelta": 0,
+            "unknownDelta": 0
+          }
+        },
+        "overallTrend": "unchanged"
+      }
+    }
+  ]
+}

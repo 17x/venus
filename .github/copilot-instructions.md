@@ -41,5 +41,5 @@ Apply these rules to every AI-authored code change in this repository.
 
 ## Execution Rule
 
-- Read `ai/AI_HIGHEST_STANDARD.md` and `.github/copilot-instructions.md` before architecture-sensitive edits.
+- Read `.ai-local/AI_HIGHEST_STANDARD.md` and `.github/copilot-instructions.md` before architecture-sensitive edits.
 - If local instructions conflict, follow the stricter rule and keep scope minimal.

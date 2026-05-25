@@ -46,6 +46,16 @@ type RuntimeDiagnosticsPanelDataSource = {
     snapshotFrameCount: number
     // Monotonic timestamp (performance.now) when diagnostics snapshot was published.
     snapshotUpdatedAtMs: number
+    // Stage correlation token for this diagnostics snapshot.
+    frameStageId: RuntimeRenderDiagnostics['frameStageId']
+    // Monotonic sequence id for frame-stage ordering.
+    frameStageSequence: RuntimeRenderDiagnostics['frameStageSequence']
+    // Monotonic timestamp when frame-stage token was issued.
+    frameStageIssuedAtMs: RuntimeRenderDiagnostics['frameStageIssuedAtMs']
+    // Scheduler lane used when this frame-stage token was issued.
+    frameStageSchedulerMode: RuntimeRenderDiagnostics['frameStageSchedulerMode']
+    // Scene apply path correlated with this frame-stage token.
+    frameStageSceneApplyMode: RuntimeRenderDiagnostics['frameStageSceneApplyMode']
     // Backend requested by runtime when creating engine instance.
     backendRequested: RuntimeRenderDiagnostics['engineBackendRequested']
     // Backend resolved by engine selector after capability probing.
@@ -186,6 +196,7 @@ export function CompactRuntimeDebugPanel(props: {
   runtimeV2FrameBoundaryMismatchRatePercent: number
   runtimeV2AlertClassName: string
   runtimeV2AlertLevel: 'stable' | 'watch' | 'high'
+  sceneDirtyModel: ReturnType<typeof useRuntimeDebugSceneDirtyModel>
 }) {
   const {
     t,
@@ -197,6 +208,7 @@ export function CompactRuntimeDebugPanel(props: {
     runtimeV2FrameBoundaryMismatchRatePercent,
     runtimeV2AlertClassName,
     runtimeV2AlertLevel,
+    sceneDirtyModel,
   } = props
 
   return (
@@ -211,11 +223,18 @@ export function CompactRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.renderPhase', 'Render Phase')} value={diagnostics.renderPhase}/>
         <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnosticsDataSource.webglStats.webglRenderPath}/>
         <DebugRow label={t('shell.variantB.debug.webgpuRenderPath', 'WebGPU Render Path')} value={diagnosticsDataSource.webglStats.webgpuRenderPath}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayRoutingSummary', 'Active/Overlay Routing')} value={sceneDirtyModel.activeOverlayRoutingSummary}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayRoutingAlertLevel', 'Routing Alert Level')} value={sceneDirtyModel.activeOverlayRoutingAlertLevel}/>
       </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionEngineConfig', 'Engine Config')}>
         <DebugRow label={t('shell.variantB.debug.engineSnapshotFrameCount', 'Snapshot Frame')} value={String(diagnosticsDataSource.engineConfig.snapshotFrameCount)}/>
         <DebugRow label={t('shell.variantB.debug.engineSnapshotUpdatedAtMs', 'Snapshot Updated At (ms)')} value={diagnosticsDataSource.engineConfig.snapshotUpdatedAtMs.toFixed(1)}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageId', 'Frame Stage Id')} value={diagnosticsDataSource.engineConfig.frameStageId}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageSequence', 'Frame Stage Sequence')} value={String(diagnosticsDataSource.engineConfig.frameStageSequence)}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageIssuedAtMs', 'Frame Stage Issued At (ms)')} value={diagnosticsDataSource.engineConfig.frameStageIssuedAtMs.toFixed(1)}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageSchedulerMode', 'Frame Stage Scheduler Mode')} value={diagnosticsDataSource.engineConfig.frameStageSchedulerMode}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageSceneApplyMode', 'Frame Stage Scene Apply Mode')} value={diagnosticsDataSource.engineConfig.frameStageSceneApplyMode}/>
         <DebugRow label={t('shell.variantB.debug.engineBackendRequested', 'Backend Requested')} value={diagnosticsDataSource.engineConfig.backendRequested}/>
         <DebugRow label={t('shell.variantB.debug.engineBackendResolved', 'Backend Resolved')} value={diagnosticsDataSource.engineConfig.backendResolved}/>
         <DebugRow label={t('shell.variantB.debug.engineBackendFallbackReason', 'Backend Fallback Reason')} value={diagnosticsDataSource.engineConfig.backendFallbackReason ?? 'none'}/>
@@ -327,6 +346,11 @@ export function VerboseRuntimeDebugPanel(props: {
       <DebugSection title={t('shell.variantB.debug.sectionEngineConfig', 'Engine Config')}>
         <DebugRow label={t('shell.variantB.debug.engineSnapshotFrameCount', 'Snapshot Frame')} value={String(diagnosticsDataSource.engineConfig.snapshotFrameCount)}/>
         <DebugRow label={t('shell.variantB.debug.engineSnapshotUpdatedAtMs', 'Snapshot Updated At (ms)')} value={diagnosticsDataSource.engineConfig.snapshotUpdatedAtMs.toFixed(1)}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageId', 'Frame Stage Id')} value={diagnosticsDataSource.engineConfig.frameStageId}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageSequence', 'Frame Stage Sequence')} value={String(diagnosticsDataSource.engineConfig.frameStageSequence)}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageIssuedAtMs', 'Frame Stage Issued At (ms)')} value={diagnosticsDataSource.engineConfig.frameStageIssuedAtMs.toFixed(1)}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageSchedulerMode', 'Frame Stage Scheduler Mode')} value={diagnosticsDataSource.engineConfig.frameStageSchedulerMode}/>
+        <DebugRow label={t('shell.variantB.debug.frameStageSceneApplyMode', 'Frame Stage Scene Apply Mode')} value={diagnosticsDataSource.engineConfig.frameStageSceneApplyMode}/>
         <DebugRow label={t('shell.variantB.debug.engineBackendRequested', 'Backend Requested')} value={diagnosticsDataSource.engineConfig.backendRequested}/>
         <DebugRow label={t('shell.variantB.debug.engineBackendResolved', 'Backend Resolved')} value={diagnosticsDataSource.engineConfig.backendResolved}/>
         <DebugRow label={t('shell.variantB.debug.engineBackendFallbackReason', 'Backend Fallback Reason')} value={diagnosticsDataSource.engineConfig.backendFallbackReason ?? 'none'}/>
@@ -363,6 +387,23 @@ export function VerboseRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.sceneDirtyRiskStatus', 'Scene Dirty Risk Status')} value={sceneDirtyModel.sceneDirtyRiskStatus}/>
         <DebugRow label={t('shell.variantB.debug.sceneDirtyRiskTransitionsPerMinute', 'Scene Dirty Risk Transitions / Min')} value={sceneDirtyModel.sceneDirtyRiskTransitionsPerMinute.toFixed(2)}/>
         <DebugRow label={t('shell.variantB.debug.sceneDirtyHighRiskSustained', 'Scene Dirty High Risk Sustained')} value={sceneDirtyModel.sceneDirtyHighRiskSustained ? 'yes' : 'no'}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionActiveOverlayRouting', 'Active Layer / Overlay Routing')}>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayScenePlane', 'Scene Plane')} value={sceneDirtyModel.activeOverlayScenePlane}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayOverlayPlane', 'Overlay Plane')} value={sceneDirtyModel.activeOverlayOverlayPlane}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayUsesActivePlane', 'Uses Active Plane')} value={sceneDirtyModel.activeOverlayUsesActivePlane ? 'yes' : 'no'}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayProtectedNodeCount', 'Protected Node Count')} value={String(sceneDirtyModel.activeOverlayProtectedNodeCount)}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayInteractionActiveNodeCount', 'Interaction Active Node Count')} value={String(sceneDirtyModel.activeOverlayInteractionActiveNodeCount)}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayRoutingAlertLevel', 'Routing Alert Level')} value={sceneDirtyModel.activeOverlayRoutingAlertLevel}/>
+        <DebugRow label={t('shell.variantB.debug.activeOverlayRoutingAlertReason', 'Routing Alert Reason')} value={sceneDirtyModel.activeOverlayRoutingAlertReason}/>
+        <DebugRow
+          label={t('shell.variantB.debug.activeOverlayRoutingThresholds', 'Routing Thresholds')}
+          value={
+            `active>=${sceneDirtyModel.activeOverlayMinActiveNodeCountWhenActivePlane}, ` +
+            `protected>=${sceneDirtyModel.activeOverlayMinProtectedNodeCountWhenActivePlane}`
+          }
+        />
       </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>

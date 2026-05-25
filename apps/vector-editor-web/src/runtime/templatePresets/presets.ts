@@ -179,6 +179,18 @@ export const TEMPLATE_PRESETS: TemplatePresetDefinition[] = [
     regression: true,
   },
   {
+    id: 'test-feature-matrix',
+    label: 'Feature Matrix Deep Groups',
+    description: 'High-coverage matrix for shape/style/mask/path/text and deep-group render regression.',
+    category: 'simple-demo',
+    targetElementCount: 64,
+    scale: 'small',
+    capabilities: ['render', 'selection', 'marquee', 'transform', 'text', 'image', 'group', 'mixed'],
+    interactionScenarios: ['single-select', 'multi-select', 'marquee-large', 'nested-selection', 'isolation-mode'],
+    performanceNotes: ['overlay parity', 'backend detail parity', 'group-depth traversal stability'],
+    regression: true,
+  },
+  {
     id: 'test-sparse-large',
     label: 'Sparse Large 5K',
     description: '5,000 elements spread across a very large canvas for viewport culling and pan testing.',

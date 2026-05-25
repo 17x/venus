@@ -12,6 +12,8 @@ const DEFAULT_RISK_SCORE_FORCED_RATE_SCALE = 120
 const DEFAULT_PROLONGED_HIGH_RISK_SECONDS_THRESHOLD = 8
 const DEFAULT_TRANSITION_RATE_WATCH_THRESHOLD = 5
 const TREND_HISTORY_LIMIT = 240
+const ACTIVE_OVERLAY_MIN_ACTIVE_NODE_COUNT_WHEN_ACTIVE_PLANE = 1
+const ACTIVE_OVERLAY_MIN_PROTECTED_NODE_COUNT_WHEN_ACTIVE_PLANE = 1
 
 // Require a minimum sample size so early-session noise does not trigger runtime-v2 migration alerts.
 export const RUNTIME_V2_ALERT_MIN_SAMPLE = 20
@@ -38,6 +40,12 @@ type SceneDirtyTransitionReason =
   | 'recovered'
 
 type SceneDirtyTransitionRateStatus = 'stable' | 'watch' | 'churning'
+type ActiveOverlayRoutingAlertLevel = 'stable' | 'watch' | 'high'
+type ActiveOverlayRoutingAlertReason =
+  | 'none'
+  | 'active-plane-empty-active-nodes'
+  | 'active-plane-empty-protected-nodes'
+  | 'base-plane-with-active-nodes'
 
 /**
  * Resolves one trend sample from diagnostics counters.
@@ -263,6 +271,61 @@ export function useRuntimeDebugSceneDirtyModel(diagnostics: RuntimeRenderDiagnos
         ? 'text-amber-600 dark:text-amber-400'
         : 'text-emerald-600 dark:text-emerald-400'
 
+  const activeOverlayRoutingAlert = useMemo(() => {
+    // Keep routing alert logic deterministic so active-layer regressions are
+    // triaged from one stable signal set in both compact and verbose panels.
+    const usesActivePlane = diagnostics.activeOverlayUsesActivePlane
+    const activeNodeCount = diagnostics.activeOverlayInteractionActiveNodeCount
+    const protectedNodeCount = diagnostics.activeOverlayProtectedNodeCount
+
+    if (usesActivePlane && activeNodeCount < ACTIVE_OVERLAY_MIN_ACTIVE_NODE_COUNT_WHEN_ACTIVE_PLANE) {
+      return {
+        level: 'high' as ActiveOverlayRoutingAlertLevel,
+        reason: 'active-plane-empty-active-nodes' as ActiveOverlayRoutingAlertReason,
+      }
+    }
+
+    // If base plane keeps non-zero active ids, the routing state can be stale
+    // and should be watched for phase-transition cleanup regressions.
+    if (!usesActivePlane && activeNodeCount > 0) {
+      return {
+        level: 'watch' as ActiveOverlayRoutingAlertLevel,
+        reason: 'base-plane-with-active-nodes' as ActiveOverlayRoutingAlertReason,
+      }
+    }
+
+    // Drag/precision flows usually publish at least one protected id (selection
+    // or ancestor guardrail). Empty protected set is suspicious but non-fatal.
+    if (usesActivePlane && protectedNodeCount < ACTIVE_OVERLAY_MIN_PROTECTED_NODE_COUNT_WHEN_ACTIVE_PLANE) {
+      return {
+        level: 'watch' as ActiveOverlayRoutingAlertLevel,
+        reason: 'active-plane-empty-protected-nodes' as ActiveOverlayRoutingAlertReason,
+      }
+    }
+
+    return {
+      level: 'stable' as ActiveOverlayRoutingAlertLevel,
+      reason: 'none' as ActiveOverlayRoutingAlertReason,
+    }
+  }, [
+    diagnostics.activeOverlayInteractionActiveNodeCount,
+    diagnostics.activeOverlayProtectedNodeCount,
+    diagnostics.activeOverlayUsesActivePlane,
+  ])
+
+  const activeOverlayRoutingAlertClassName = activeOverlayRoutingAlert.level === 'high'
+    ? 'text-rose-600 dark:text-rose-400'
+    : activeOverlayRoutingAlert.level === 'watch'
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-emerald-600 dark:text-emerald-400'
+
+  const activeOverlayRoutingSummary = [
+    `${diagnostics.activeOverlayScenePlane}/${diagnostics.activeOverlayOverlayPlane}`,
+    diagnostics.activeOverlayUsesActivePlane ? 'active:on' : 'active:off',
+    `protected ${diagnostics.activeOverlayProtectedNodeCount}`,
+    `active ${diagnostics.activeOverlayInteractionActiveNodeCount}`,
+  ].join(' | ')
+
   useEffect(() => {
     if (diagnostics.frameCount <= 0) {
       return
@@ -436,5 +499,18 @@ export function useRuntimeDebugSceneDirtyModel(diagnostics: RuntimeRenderDiagnos
     shortlistStabilityClassName,
     shortlistSummary,
     hitExactRatioPercent,
+    activeOverlayRoutingSummary,
+    activeOverlayRoutingAlertLevel: activeOverlayRoutingAlert.level,
+    activeOverlayRoutingAlertReason: activeOverlayRoutingAlert.reason,
+    activeOverlayRoutingAlertClassName,
+    activeOverlayScenePlane: diagnostics.activeOverlayScenePlane,
+    activeOverlayOverlayPlane: diagnostics.activeOverlayOverlayPlane,
+    activeOverlayUsesActivePlane: diagnostics.activeOverlayUsesActivePlane,
+    activeOverlayProtectedNodeCount: diagnostics.activeOverlayProtectedNodeCount,
+    activeOverlayInteractionActiveNodeCount: diagnostics.activeOverlayInteractionActiveNodeCount,
+    activeOverlayMinActiveNodeCountWhenActivePlane:
+      ACTIVE_OVERLAY_MIN_ACTIVE_NODE_COUNT_WHEN_ACTIVE_PLANE,
+    activeOverlayMinProtectedNodeCountWhenActivePlane:
+      ACTIVE_OVERLAY_MIN_PROTECTED_NODE_COUNT_WHEN_ACTIVE_PLANE,
   }
 }

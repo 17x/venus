@@ -11,6 +11,147 @@ import {
 } from "../backend/adapters/webgpuBackendAdapter";
 
 /**
+ * Declares one minimal node payload used by WebGPU rejection-reason conformance probes.
+ */
+type WebGPURejectionProbeNode = {
+  id: string;
+  type: string;
+  shape?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  text?: string;
+  /** Optional structured text-run payload emitted by rich text scene nodes. */
+  textRuns?: unknown;
+  clipPathId?: string;
+  clipId?: string;
+  shadow?: unknown;
+  transform?: {
+    matrix?: readonly [number, number, number, number, number, number] | readonly number[];
+  };
+};
+
+/**
+ * Runs one WebGPU adapter frame pair and returns the last backend diagnostics snapshot.
+ * @param nodes Rich-node payload emitted with zero rect batch eligibility.
+ */
+async function runWebGPURejectionProbe(nodes: readonly WebGPURejectionProbeNode[]) {
+  const originalNavigator = globalThis.navigator;
+  const originalSetTimeout = globalThis.setTimeout;
+  let lastDiagnostics: {
+    webgpuRenderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" | "native-model-complete";
+    webgpuNativeRectBatchRejectedReason:
+      | "none"
+      | "scene-empty"
+      | "group-node-unsupported"
+      | "non-shape-node-unsupported"
+      | "non-rect-shape-unsupported"
+      | "shape-style-unsupported"
+      | "shape-transform-unsupported";
+    webgpuFeatureCapabilityGateReason?:
+      | "none"
+      | "image-node-unsupported"
+      | "clip-node-unsupported"
+      | "text-style-unsupported"
+      | "shadow-style-unsupported"
+      | "gradient-style-unsupported";
+  } | null = null;
+
+  try {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        gpu: {
+          async requestAdapter() {
+            return {
+              async requestDevice() {
+                return {
+                  createCommandEncoder() {
+                    return {
+                      beginRenderPass() {
+                        return {
+                          end() {},
+                        };
+                      },
+                      finish() {
+                        return { token: "cmd" };
+                      },
+                    };
+                  },
+                  queue: {
+                    submit() {},
+                  },
+                };
+              },
+            };
+          },
+          getPreferredCanvasFormat() {
+            return "bgra8unorm";
+          },
+        },
+      },
+    });
+
+    const surface = {
+      width: 320,
+      height: 180,
+      canvas: {
+        width: 320,
+        height: 180,
+        getContext: (contextId: string) => {
+          if (contextId !== "webgpu") {
+            return null;
+          }
+          return {
+            configure() {},
+            getCurrentTexture() {
+              return {
+                createView() {
+                  return {};
+                },
+              };
+            },
+          };
+        },
+      },
+    };
+
+    const backend = createWebGPUBackendAdapter(surface, {
+      onBackendDiagnostics: (diagnostics) => {
+        lastDiagnostics = diagnostics;
+      },
+      resolveNativeFramePayload: () => ({
+        translateX: 0,
+        translateY: 0,
+        scale: 1,
+        rects: [],
+        nodes,
+      }),
+    });
+
+    backend.resize(surface);
+    backend.renderFrame(1);
+    await new Promise<void>((resolve) => {
+      originalSetTimeout(() => {
+        resolve();
+      }, 0);
+    });
+    backend.renderFrame(2);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: originalNavigator,
+    });
+  }
+
+  return lastDiagnostics;
+}
+
+/**
  * Verifies WebGL adapter capability probe resolves from canvas context availability.
  */
 test("webgl adapter probe resolves from canvas context availability", () => {
@@ -247,6 +388,13 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
         save() {},
         restore() {},
         setTransform() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        bezierCurveTo() {},
+        closePath() {},
+        fill() {},
+        stroke() {},
         clearRect() {},
         fillRect() {},
         translate() {},
@@ -367,12 +515,13 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
           {
             id: "shape-1",
             type: "shape",
-            shape: "rect",
+            shape: "line",
             x: 10,
             y: 12,
             width: 30,
             height: 24,
-            fill: "#ff0000",
+            stroke: "#ff0000",
+            strokeWidth: 2,
           },
         ],
       }),
@@ -577,6 +726,322 @@ test("webgpu adapter emits native submission diagnostics", async () => {
 });
 
 /**
+ * Verifies WebGPU adapter classifies non-rect rich-node payload as rect-batch rejection instead of scene-empty.
+ */
+test("webgpu adapter classifies non-rect payload rejection reason", async () => {
+  const originalNavigator = globalThis.navigator;
+  const originalSetTimeout = globalThis.setTimeout;
+  let lastDiagnostics: {
+    webgpuRenderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" | "native-model-complete";
+    webgpuNativeRectBatchRejectedReason:
+      | "none"
+      | "scene-empty"
+      | "group-node-unsupported"
+      | "non-shape-node-unsupported"
+      | "non-rect-shape-unsupported"
+      | "shape-style-unsupported"
+      | "shape-transform-unsupported";
+  } | null = null;
+
+  try {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        gpu: {
+          async requestAdapter() {
+            return {
+              async requestDevice() {
+                return {
+                  createCommandEncoder() {
+                    return {
+                      beginRenderPass() {
+                        return {
+                          end() {},
+                        };
+                      },
+                      finish() {
+                        return { token: "cmd" };
+                      },
+                    };
+                  },
+                  queue: {
+                    submit() {},
+                  },
+                };
+              },
+            };
+          },
+          getPreferredCanvasFormat() {
+            return "bgra8unorm";
+          },
+        },
+      },
+    });
+
+    const surface = {
+      width: 320,
+      height: 180,
+      canvas: {
+        width: 320,
+        height: 180,
+        getContext: (contextId: string) => {
+          if (contextId !== "webgpu") {
+            return null;
+          }
+          return {
+            configure() {},
+            getCurrentTexture() {
+              return {
+                createView() {
+                  return {};
+                },
+              };
+            },
+          };
+        },
+      },
+    };
+
+    const backend = createWebGPUBackendAdapter(surface, {
+      onBackendDiagnostics: (diagnostics) => {
+        lastDiagnostics = diagnostics;
+      },
+      resolveNativeFramePayload: () => ({
+        translateX: 0,
+        translateY: 0,
+        scale: 1,
+        rects: [],
+        nodes: [
+          {
+            id: "shape-line",
+            type: "shape",
+            shape: "line",
+            x: 16,
+            y: 18,
+            width: 42,
+            height: 21,
+            stroke: "#111111",
+            strokeWidth: 2,
+          },
+        ],
+      }),
+    });
+
+    backend.resize(surface);
+    backend.renderFrame(1);
+    await new Promise<void>((resolve) => {
+      originalSetTimeout(() => {
+        resolve();
+      }, 0);
+    });
+    backend.renderFrame(2);
+
+    assert.equal(lastDiagnostics?.webgpuRenderPath, "native-clear-only");
+    assert.equal(lastDiagnostics?.webgpuNativeRectBatchRejectedReason, "non-rect-shape-unsupported");
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: originalNavigator,
+    });
+  }
+});
+
+/**
+ * Verifies WebGPU adapter classifies group-node payload as hierarchy rejection for rect-batch path.
+ */
+test("webgpu adapter classifies group payload rejection reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "group-1",
+      type: "group",
+      x: 0,
+      y: 0,
+      width: 120,
+      height: 80,
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuRenderPath, "native-clear-only");
+  assert.equal(lastDiagnostics?.webgpuNativeRectBatchRejectedReason, "group-node-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter classifies non-shape payload as non-shape rejection for rect-batch path.
+ */
+test("webgpu adapter classifies non-shape payload rejection reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "text-1",
+      type: "text",
+      x: 8,
+      y: 12,
+      width: 80,
+      height: 20,
+      text: "hello",
+      fill: "#111111",
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuRenderPath, "native-clear-only");
+  assert.equal(lastDiagnostics?.webgpuNativeRectBatchRejectedReason, "non-shape-node-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter surfaces image capability gate reason for image-node payload.
+ */
+test("webgpu adapter classifies image capability gate reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "image-1",
+      type: "image",
+      x: 8,
+      y: 12,
+      width: 80,
+      height: 20,
+      fill: "#111111",
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuFeatureCapabilityGateReason, "image-node-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter surfaces clip capability gate reason for clip-bound payload.
+ */
+test("webgpu adapter classifies clip capability gate reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "shape-clip-1",
+      type: "shape",
+      shape: "rect",
+      x: 8,
+      y: 12,
+      width: 80,
+      height: 20,
+      fill: "#111111",
+      clipPathId: "clip-1",
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuFeatureCapabilityGateReason, "clip-node-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter surfaces text capability gate reason for rich text-run payloads.
+ */
+test("webgpu adapter classifies text capability gate reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "text-rich-1",
+      type: "text",
+      x: 8,
+      y: 12,
+      width: 160,
+      height: 24,
+      text: "hello",
+      fill: "#111111",
+      textRuns: [
+        {
+          from: 0,
+          to: 5,
+          fontWeight: 600,
+        },
+      ],
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuFeatureCapabilityGateReason, "text-style-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter surfaces shadow capability gate reason for shadow-rich payload.
+ */
+test("webgpu adapter classifies shadow capability gate reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "shape-shadow-1",
+      type: "shape",
+      shape: "rect",
+      x: 8,
+      y: 12,
+      width: 80,
+      height: 20,
+      fill: "#111111",
+      shadow: { blur: 4, color: "rgba(0,0,0,0.2)" },
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuFeatureCapabilityGateReason, "shadow-style-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter surfaces gradient capability gate reason for gradient-like paint tokens.
+ */
+test("webgpu adapter classifies gradient capability gate reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "shape-gradient-1",
+      type: "shape",
+      shape: "rect",
+      x: 8,
+      y: 12,
+      width: 80,
+      height: 20,
+      fill: "linear-gradient(90deg,#fff,#000)",
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuFeatureCapabilityGateReason, "gradient-style-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter classifies transformed rect payload as transform rejection for rect-batch path.
+ */
+test("webgpu adapter classifies transform payload rejection reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "shape-rect-transform",
+      type: "shape",
+      shape: "rect",
+      x: 12,
+      y: 14,
+      width: 40,
+      height: 28,
+      fill: "#00aa88",
+      transform: {
+        matrix: [1, 0, 0.2, 1, 0, 0],
+      },
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuRenderPath, "native-clear-only");
+  assert.equal(lastDiagnostics?.webgpuNativeRectBatchRejectedReason, "shape-transform-unsupported");
+});
+
+/**
+ * Verifies WebGPU adapter classifies styled rect payload as style rejection for rect-batch path.
+ */
+test("webgpu adapter classifies style payload rejection reason", async () => {
+  const lastDiagnostics = await runWebGPURejectionProbe([
+    {
+      id: "shape-rect-styled",
+      type: "shape",
+      shape: "rect",
+      x: 12,
+      y: 14,
+      width: 40,
+      height: 28,
+      fill: "#00aa88",
+      stroke: "#000000",
+      strokeWidth: 2,
+    },
+  ]);
+
+  assert.equal(lastDiagnostics?.webgpuRenderPath, "native-clear-only");
+  assert.equal(lastDiagnostics?.webgpuNativeRectBatchRejectedReason, "shape-style-unsupported");
+});
+
+/**
  * Verifies WebGPU adapter emits native-model-complete when rich-node composition copy succeeds.
  */
 test("webgpu adapter emits native-model-complete diagnostics from rich-node payload", async () => {
@@ -611,6 +1076,13 @@ test("webgpu adapter emits native-model-complete diagnostics from rich-node payl
         save() {},
         restore() {},
         setTransform() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        bezierCurveTo() {},
+        closePath() {},
+        fill() {},
+        stroke() {},
         clearRect() {},
         fillRect() {},
         translate() {},
@@ -700,14 +1172,27 @@ test("webgpu adapter emits native-model-complete diagnostics from rich-node payl
         rects: [],
         nodes: [
           {
-            id: "shape-1",
+            id: "shape-path-1",
             type: "shape",
-            shape: "rect",
-            x: 10,
-            y: 12,
-            width: 30,
-            height: 24,
+            shape: "path",
             fill: "#ff0000",
+            stroke: "#222222",
+            strokeWidth: 1,
+            bezierPoints: [
+              {
+                anchor: { x: 10, y: 12 },
+                cp2: { x: 24, y: 6 },
+              },
+              {
+                anchor: { x: 52, y: 28 },
+                cp1: { x: 40, y: 10 },
+                cp2: { x: 64, y: 34 },
+              },
+              {
+                anchor: { x: 22, y: 50 },
+                cp1: { x: 44, y: 52 },
+              },
+            ],
           },
         ],
       }),

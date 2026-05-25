@@ -1,0 +1,59 @@
+{
+  "baseline": {
+    "generatedAt": "2026-05-24T13:18:27.101Z",
+    "sampleCount": 6
+  },
+  "current": {
+    "generatedAt": "2026-05-25T05:45:16.068Z",
+    "sampleCount": 6
+  },
+  "reasonDiff": {
+    "webglCacheFallback": {
+      "knownRejectedDelta": 0,
+      "unknownRejectedDelta": 0,
+      "baselineDominantKnownReason": "l1-disabled",
+      "currentDominantKnownReason": "l1-disabled",
+      "dominantKnownReasonChanged": false,
+      "trend": "unchanged"
+    },
+    "webgpuRectBatchReject": {
+      "knownRejectedDelta": 0,
+      "unknownRejectedDelta": 0,
+      "baselineDominantKnownReason": "non-rect-shape-unsupported",
+      "currentDominantKnownReason": "non-rect-shape-unsupported",
+      "dominantKnownReasonChanged": false,
+      "trend": "unchanged"
+    },
+    "webglFeatureCapabilityGate": {
+      "knownRejectedDelta": 0,
+      "unknownRejectedDelta": 0,
+      "baselineDominantKnownReason": null,
+      "currentDominantKnownReason": null,
+      "dominantKnownReasonChanged": false,
+      "trend": "unchanged"
+    },
+    "webgpuFeatureCapabilityGate": {
+      "knownRejectedDelta": 0,
+      "unknownRejectedDelta": 0,
+      "baselineDominantKnownReason": null,
+      "currentDominantKnownReason": null,
+      "dominantKnownReasonChanged": false,
+      "trend": "unchanged"
+    }
+  },
+  "verdictDiff": {
+    "webgl": {
+      "passDelta": 0,
+      "degradedDelta": 0,
+      "failDelta": 0,
+      "unknownDelta": 0
+    },
+    "webgpu": {
+      "passDelta": 0,
+      "degradedDelta": 0,
+      "failDelta": 0,
+      "unknownDelta": 0
+    }
+  },
+  "overallTrend": "unchanged"
+}

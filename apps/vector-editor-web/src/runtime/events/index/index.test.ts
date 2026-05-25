@@ -2,13 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  clearRuntimeRenderDiagnosticsRecorderRecords,
   createRuntimeInputRouter,
   EMPTY_RUNTIME_MIGRATION_SNAPSHOT,
   EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
   EMPTY_RUNTIME_SHELL_SNAPSHOT,
   EMPTY_RUNTIME_VIEWPORT_SNAPSHOT,
+  exportRuntimeRenderDiagnosticsRecorderPayload,
   getRuntimeNormalizedInteractionSnapshot,
   getRuntimeMigrationSnapshot,
+  getRuntimeRenderDiagnosticsRecorderSnapshot,
   getRuntimeRenderDiagnosticsSnapshot,
   getRuntimeShellSnapshot,
   getRuntimeViewportSnapshot,
@@ -17,6 +20,8 @@ import {
   publishRuntimeShellSnapshot,
   publishRuntimeViewportSnapshot,
   resetRuntimeEventSnapshots,
+  startRuntimeRenderDiagnosticsRecorder,
+  stopRuntimeRenderDiagnosticsRecorder,
   subscribeRuntimeNormalizedInteractionSnapshot,
   subscribeRuntimeMigrationSnapshot,
   subscribeRuntimeRenderDiagnostics,
@@ -218,7 +223,18 @@ test('runtime render diagnostics publish notifies listeners and updates snapshot
 
   publishRuntimeRenderDiagnostics({
     ...EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
+    stats: undefined,
     drawMs: 8,
+    frameStageId: 'frame-stage-42',
+    frameStageSequence: 42,
+    frameStageIssuedAtMs: 1234,
+    frameStageSchedulerMode: 'interactive',
+    frameStageSceneApplyMode: 'incremental-patch',
+    activeOverlayScenePlane: 'active',
+    activeOverlayOverlayPlane: 'overlay',
+    activeOverlayUsesActivePlane: true,
+    activeOverlayProtectedNodeCount: 2,
+    activeOverlayInteractionActiveNodeCount: 7,
     schedulerQueueWaitMs: 1,
     schedulerThrottleDelayMs: 0,
     presentRafDelayMs: 0,
@@ -228,9 +244,67 @@ test('runtime render diagnostics publish notifies listeners and updates snapshot
   assert.equal(listenerCallCount, 1)
   assert.equal(typeof diagnostics.fpsEstimate, 'number')
   assert.equal(typeof diagnostics.fpsInstantaneous, 'number')
+  assert.equal(diagnostics.frameStageId, 'frame-stage-42')
+  assert.equal(diagnostics.frameStageSequence, 42)
+  assert.equal(diagnostics.frameStageIssuedAtMs, 1234)
+  assert.equal(diagnostics.frameStageSchedulerMode, 'interactive')
+  assert.equal(diagnostics.frameStageSceneApplyMode, 'incremental-patch')
   assert.ok(diagnostics.stats)
+  assert.equal(diagnostics.stats?.performance.timing.frameStageId, 'frame-stage-42')
+  assert.equal(diagnostics.stats?.performance.timing.frameStageSequence, 42)
+  assert.equal(diagnostics.stats?.performance.timing.frameStageIssuedAtMs, 1234)
+  assert.equal(diagnostics.stats?.performance.timing.frameStageSchedulerMode, 'interactive')
+  assert.equal(diagnostics.stats?.performance.timing.frameStageSceneApplyMode, 'incremental-patch')
+  assert.equal(diagnostics.stats?.overlay.activeOverlayScenePlane, 'active')
+  assert.equal(diagnostics.stats?.overlay.activeOverlayOverlayPlane, 'overlay')
+  assert.equal(diagnostics.stats?.overlay.activeOverlayUsesActivePlane, true)
+  assert.equal(diagnostics.stats?.overlay.activeOverlayProtectedNodeCount, 2)
+  assert.equal(diagnostics.stats?.overlay.activeOverlayInteractionActiveNodeCount, 7)
 
   unsubscribe()
+})
+
+/**
+ * Verifies diagnostics recorder captures bounded history and exports payload metadata.
+ */
+test('runtime render diagnostics recorder captures bounded history and exports payload', () => {
+  resetSnapshotsForTest()
+
+  startRuntimeRenderDiagnosticsRecorder({
+    maxRecords: 2,
+    clearExistingRecords: true,
+  })
+
+  publishRuntimeRenderDiagnostics({
+    ...EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
+    drawMs: 10,
+    frameCount: 1,
+  })
+  publishRuntimeRenderDiagnostics({
+    ...EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
+    drawMs: 11,
+    frameCount: 2,
+  })
+  publishRuntimeRenderDiagnostics({
+    ...EMPTY_RUNTIME_RENDER_DIAGNOSTICS,
+    drawMs: 12,
+    frameCount: 3,
+  })
+
+  const recorderSnapshot = getRuntimeRenderDiagnosticsRecorderSnapshot()
+  assert.equal(recorderSnapshot.enabled, true)
+  assert.equal(recorderSnapshot.maxRecords, 2)
+  assert.equal(recorderSnapshot.records.length, 2)
+  assert.equal(recorderSnapshot.records[0]?.frameCount, 2)
+  assert.equal(recorderSnapshot.records[1]?.frameCount, 3)
+
+  const exportedPayload = exportRuntimeRenderDiagnosticsRecorderPayload()
+  assert.equal(Array.isArray(exportedPayload.records), true)
+  assert.equal(exportedPayload.meta.sampleCount, 2)
+  assert.equal(typeof exportedPayload.meta.exportedAt, 'string')
+
+  stopRuntimeRenderDiagnosticsRecorder()
+  clearRuntimeRenderDiagnosticsRecorderRecords()
 })
 
 /**

@@ -1,0 +1,74 @@
+[
+  {
+    "webglRenderPath": "model-complete",
+    "webgpuRenderPath": "native-model-complete",
+    "cacheFallbackReason": "none",
+    "webglInteractiveTextFallbackCount": 0,
+    "webglDeferredTextTextureCount": 0,
+    "webglDeferredImageTextureCount": 0,
+    "webglImageTextureUploadCount": 3,
+    "webglBudgetPressure": "low",
+    "webgpuNativeRectBatchRejectedReason": "none",
+    "webgpuNativeSubmissionAttemptedCount": 1
+  },
+  {
+    "webglRenderPath": "model-complete",
+    "webgpuRenderPath": "native-model-complete",
+    "cacheFallbackReason": "none",
+    "webglInteractiveTextFallbackCount": 0,
+    "webglDeferredTextTextureCount": 0,
+    "webglDeferredImageTextureCount": 0,
+    "webglImageTextureUploadCount": 2,
+    "webglBudgetPressure": "low",
+    "webgpuNativeRectBatchRejectedReason": "none",
+    "webgpuNativeSubmissionAttemptedCount": 1
+  },
+  {
+    "webglRenderPath": "model-complete",
+    "webgpuRenderPath": "native-model-complete",
+    "cacheFallbackReason": "none",
+    "webglInteractiveTextFallbackCount": 0,
+    "webglDeferredTextTextureCount": 0,
+    "webglDeferredImageTextureCount": 0,
+    "webglImageTextureUploadCount": 1,
+    "webglBudgetPressure": "low",
+    "webgpuNativeRectBatchRejectedReason": "none",
+    "webgpuNativeSubmissionAttemptedCount": 1
+  },
+  {
+    "webglRenderPath": "model-complete",
+    "webgpuRenderPath": "native-model-complete",
+    "cacheFallbackReason": "none",
+    "webglInteractiveTextFallbackCount": 0,
+    "webglDeferredTextTextureCount": 0,
+    "webglDeferredImageTextureCount": 0,
+    "webglImageTextureUploadCount": 2,
+    "webglBudgetPressure": "low",
+    "webgpuNativeRectBatchRejectedReason": "none",
+    "webgpuNativeSubmissionAttemptedCount": 1
+  },
+  {
+    "webglRenderPath": "model-complete",
+    "webgpuRenderPath": "native-model-complete",
+    "cacheFallbackReason": "none",
+    "webglInteractiveTextFallbackCount": 0,
+    "webglDeferredTextTextureCount": 0,
+    "webglDeferredImageTextureCount": 0,
+    "webglImageTextureUploadCount": 2,
+    "webglBudgetPressure": "low",
+    "webgpuNativeRectBatchRejectedReason": "none",
+    "webgpuNativeSubmissionAttemptedCount": 1
+  },
+  {
+    "webglRenderPath": "model-complete",
+    "webgpuRenderPath": "native-model-complete",
+    "cacheFallbackReason": "none",
+    "webglInteractiveTextFallbackCount": 0,
+    "webglDeferredTextTextureCount": 0,
+    "webglDeferredImageTextureCount": 0,
+    "webglImageTextureUploadCount": 2,
+    "webglBudgetPressure": "low",
+    "webgpuNativeRectBatchRejectedReason": "none",
+    "webgpuNativeSubmissionAttemptedCount": 1
+  }
+]

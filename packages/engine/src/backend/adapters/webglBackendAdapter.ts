@@ -2,6 +2,11 @@ import type { EngineBackend } from "../../backend/backend";
 import type { NoopBackendAdapterHooks } from "./noopBackendAdapter";
 import type { EngineBackendSurface } from "../backend-contracts";
 import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../fallbackTaxonomy";
+import { resolveRichPathDrawPlan } from "./richPathDrawPlan";
+import {
+  resolveFeatureCapabilityGateReason,
+  type FeatureCapabilityGateReason,
+} from "./featureCapabilityGatePlan";
 
 /**
  * Parses a CSS-like hex/rgb color token into normalized RGBA channels.
@@ -69,6 +74,11 @@ type WebGLNativeSceneNode = {
   stroke?: string;
   strokeWidth?: number;
   text?: string;
+  /** Optional structured text-run payload used for rich text rendering semantics. */
+  textRuns?: unknown;
+  clipPathId?: string;
+  clipId?: string;
+  shadow?: unknown;
   transform?: {
     matrix?: readonly [number, number, number, number, number, number] | readonly number[];
   };
@@ -225,12 +235,14 @@ function drawRichNodesToCompositionContext(
 
     const points = Array.isArray(node.points) ? node.points : [];
     const bezierPoints = Array.isArray(node.bezierPoints) ? node.bezierPoints : [];
-    const hasPointPath = points.length >= 2;
-    const hasBezierPath = bezierPoints.length >= 2;
-    const canFallbackLine = shape === "line" && !hasPointPath && !hasBezierPath;
-    if (points.length >= 2 || bezierPoints.length >= 2 || shape === "line" || shape === "polygon" || shape === "path") {
+    const pathDrawPlan = resolveRichPathDrawPlan({
+      shape,
+      points,
+      bezierPoints,
+    });
+    if (pathDrawPlan.shouldEnterPathBranch) {
       context.beginPath();
-      if (hasBezierPath) {
+      if (pathDrawPlan.hasBezierPath) {
         context.moveTo(bezierPoints[0].anchor.x, bezierPoints[0].anchor.y);
         for (let index = 1; index < bezierPoints.length; index += 1) {
           const previous = bezierPoints[index - 1];
@@ -239,12 +251,12 @@ function drawRichNodesToCompositionContext(
           const cp2 = current.cp1 ?? current.anchor;
           context.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, current.anchor.x, current.anchor.y);
         }
-      } else if (hasPointPath) {
+      } else if (pathDrawPlan.hasPointPath) {
         context.moveTo(points[0].x, points[0].y);
         for (let index = 1; index < points.length; index += 1) {
           context.lineTo(points[index].x, points[index].y);
         }
-      } else if (canFallbackLine) {
+      } else if (pathDrawPlan.shouldFallbackLine) {
         // Preserve compatibility for line nodes that encode segment delta through width/height.
         context.moveTo(x, y);
         context.lineTo(x + width, y + height);
@@ -252,7 +264,7 @@ function drawRichNodesToCompositionContext(
         context.restore();
         continue;
       }
-      if (shape === "polygon" || shape === "path") {
+      if (pathDrawPlan.shouldClosePath) {
         context.closePath();
       }
       if (fill !== "transparent" && shape !== "line") {
@@ -484,11 +496,14 @@ export function createWebGLBackendAdapter(
    * Publishes one normalized WebGL diagnostics snapshot for runtime consumers.
    * @param renderPath WebGL render-path classification for current frame.
    * @param payloadSignature Stable payload signature used for lightweight reuse heuristics.
+   * @param payloadRectCount Rect count sampled from current payload for budget/caching diagnostics.
+   * @param webglFeatureCapabilityGateReason Deterministic feature capability reason emitted for this frame.
    */
   function publishWebGLDiagnostics(
     renderPath: "model-complete" | "packet" | "none",
     payloadSignature: string,
     payloadRectCount: number,
+    webglFeatureCapabilityGateReason: FeatureCapabilityGateReason,
   ) {
     const frameReuseHit = payloadSignature === lastPayloadSignature && payloadSignature !== "none";
     lastPayloadSignature = payloadSignature;
@@ -505,6 +520,8 @@ export function createWebGLBackendAdapter(
       webgpuNativeSubmissionTotalFailureCount: 0,
       webgpuNativeRectBatchEligibleCount: 0,
       webgpuNativeRectBatchRejectedReason: "none",
+      webglFeatureCapabilityGateReason,
+      webgpuFeatureCapabilityGateReason: "none",
       cacheHits: cacheHitCount,
       cacheMisses: cacheMissCount,
       frameReuseHits: cacheHitCount,
@@ -581,7 +598,7 @@ export function createWebGLBackendAdapter(
         currentContext = resolveContext(currentSurface);
       }
       if (!currentContext) {
-        publishWebGLDiagnostics("none", "none", 0);
+        publishWebGLDiagnostics("none", "none", 0, "none");
         return;
       }
 
@@ -590,7 +607,7 @@ export function createWebGLBackendAdapter(
         typeof currentContext.clearColor !== "function" ||
         typeof currentContext.clear !== "function"
       ) {
-        publishWebGLDiagnostics("none", "none", 0);
+        publishWebGLDiagnostics("none", "none", 0, "none");
         return;
       }
 
@@ -610,6 +627,7 @@ export function createWebGLBackendAdapter(
         ? `${payload.translateX}:${payload.translateY}:${payload.scale}:${payload.rects.map((rect) => `${rect.x},${rect.y},${rect.width},${rect.height},${rect.fill}`).join("|")}`
         : "none";
       const payloadRectCount = payload?.rects.length ?? 0;
+      const featureCapabilityGateReason = resolveFeatureCapabilityGateReason(payload?.nodes);
       let renderPath: "model-complete" | "packet" | "none" = "none";
       if (payload) {
         const composition = resolveOffscreenCompositionContext(deviceWidth, deviceHeight);
@@ -628,7 +646,12 @@ export function createWebGLBackendAdapter(
           );
           if (composed && presentCompositionTexture(currentContext, composition.canvas)) {
             renderPath = "model-complete";
-            publishWebGLDiagnostics(renderPath, payloadSignature, payloadRectCount);
+            publishWebGLDiagnostics(
+              renderPath,
+              payloadSignature,
+              payloadRectCount,
+              featureCapabilityGateReason,
+            );
             hooks?.onPresentCommitted?.(timestampMs);
             return;
           }
@@ -669,7 +692,12 @@ export function createWebGLBackendAdapter(
         currentContext.disable(currentContext.SCISSOR_TEST);
       }
 
-      publishWebGLDiagnostics(renderPath, payloadSignature, payloadRectCount);
+      publishWebGLDiagnostics(
+        renderPath,
+        payloadSignature,
+        payloadRectCount,
+        featureCapabilityGateReason,
+      );
       hooks?.onPresentCommitted?.(timestampMs);
     },
     dispose() {

@@ -65,6 +65,11 @@ function resolveRuntimeDebugPanelDataSource(diagnostics: typeof EMPTY_RUNTIME_RE
     engineConfig: {
       snapshotFrameCount: diagnostics.frameCount,
       snapshotUpdatedAtMs: diagnostics.diagnosticsUpdatedAtMs,
+      frameStageId: diagnostics.frameStageId,
+      frameStageSequence: diagnostics.frameStageSequence,
+      frameStageIssuedAtMs: diagnostics.frameStageIssuedAtMs,
+      frameStageSchedulerMode: diagnostics.frameStageSchedulerMode,
+      frameStageSceneApplyMode: diagnostics.frameStageSceneApplyMode,
       backendRequested: diagnostics.engineBackendRequested,
       backendResolved: diagnostics.engineBackendResolved,
       backendFallbackReason: diagnostics.engineBackendFallbackReason,
@@ -192,6 +197,7 @@ export function RuntimeDebugPanel() {
       runtimeV2FrameBoundaryMismatchRatePercent={runtimeV2FrameBoundaryMismatchRatePercent}
       runtimeV2AlertClassName={runtimeV2AlertClassName}
       runtimeV2AlertLevel={runtimeV2AlertLevel}
+      sceneDirtyModel={sceneDirtyModel}
     />
   )
 }

@@ -31,6 +31,22 @@ export interface EngineBackendFrameDiagnostics {
     | "non-rect-shape-unsupported"
     | "shape-style-unsupported"
     | "shape-transform-unsupported";
+  /** Rich-feature capability gate reason emitted by WebGL adapter for the latest frame. */
+  webglFeatureCapabilityGateReason?:
+    | "none"
+    | "image-node-unsupported"
+    | "clip-node-unsupported"
+    | "text-style-unsupported"
+    | "shadow-style-unsupported"
+    | "gradient-style-unsupported";
+  /** Rich-feature capability gate reason emitted by WebGPU adapter for the latest frame. */
+  webgpuFeatureCapabilityGateReason?:
+    | "none"
+    | "image-node-unsupported"
+    | "clip-node-unsupported"
+    | "text-style-unsupported"
+    | "shadow-style-unsupported"
+    | "gradient-style-unsupported";
   /** Cache-hit count for the latest frame emitted by backend-local reuse logic. */
   cacheHits: number;
   /** Cache-miss count for the latest frame emitted by backend-local reuse logic. */
@@ -207,6 +223,14 @@ export interface NoopBackendAdapterHooks {
       strokeWidth?: number;
       /** Optional text payload for text nodes. */
       text?: string;
+      /** Optional structured text-run payload used by rich text semantics. */
+      textRuns?: unknown;
+      /** Optional clip path identifier used by clip-hosted render payloads. */
+      clipPathId?: string;
+      /** Optional clip host identifier used by clip-hosted render payloads. */
+      clipId?: string;
+      /** Optional shadow payload used by style-rich render features. */
+      shadow?: unknown;
       /** Optional affine transform matrix payload. */
       transform?: {
         /** Optional 2D matrix tuple [a,b,c,d,e,f]. */

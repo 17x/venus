@@ -32,7 +32,7 @@ This page defines the canonical API layering and what each layer is responsible 
 - Warning-code baseline catalog:
   - `ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS`
 - Requirement baseline source:
-  - `packages/engine/ai/playground-s1-s13-requirements-2026-05-24.md` (Section 14)
+  - `.ai-tasks/engine/playground-s1-s13-requirements-2026-05-24.md` (Section 14)
 
 ## Contract Baseline
 

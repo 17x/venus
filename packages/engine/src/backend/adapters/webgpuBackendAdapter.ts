@@ -2,6 +2,12 @@ import type { EngineBackend } from "../../backend/backend";
 import type { NoopBackendAdapterHooks } from "./noopBackendAdapter";
 import type { EngineBackendSurface } from "../backend-contracts";
 import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../fallbackTaxonomy";
+import { resolveRichPathDrawPlan } from "./richPathDrawPlan";
+import { resolveNativeRectBatchRejectedReason } from "./nativeRectBatchRejectionPlan";
+import {
+  resolveFeatureCapabilityGateReason,
+  type FeatureCapabilityGateReason,
+} from "./featureCapabilityGatePlan";
 
 /**
  * Resolves one deterministic budget-pressure reason from payload cardinality.
@@ -32,6 +38,11 @@ type WebGPUNativeSceneNode = {
   stroke?: string;
   strokeWidth?: number;
   text?: string;
+  /** Optional structured text-run payload used for rich text rendering semantics. */
+  textRuns?: unknown;
+  clipPathId?: string;
+  clipId?: string;
+  shadow?: unknown;
   transform?: {
     matrix?: readonly [number, number, number, number, number, number] | readonly number[];
   };
@@ -42,6 +53,7 @@ type WebGPUNativeSceneNode = {
     cp2?: { x: number; y: number };
   }>;
 };
+
 
 /**
  * Resolves one optional 2D offscreen context used for model-complete composition.
@@ -188,9 +200,14 @@ function drawRichNodesToCompositionContext(
 
     const points = Array.isArray(node.points) ? node.points : [];
     const bezierPoints = Array.isArray(node.bezierPoints) ? node.bezierPoints : [];
-    if (points.length >= 2 || bezierPoints.length >= 2 || shape === "line" || shape === "polygon" || shape === "path") {
+    const pathDrawPlan = resolveRichPathDrawPlan({
+      shape,
+      points,
+      bezierPoints,
+    });
+    if (pathDrawPlan.shouldEnterPathBranch) {
       context.beginPath();
-      if (bezierPoints.length > 0) {
+      if (pathDrawPlan.hasBezierPath) {
         context.moveTo(bezierPoints[0].anchor.x, bezierPoints[0].anchor.y);
         for (let index = 1; index < bezierPoints.length; index += 1) {
           const previous = bezierPoints[index - 1];
@@ -199,13 +216,20 @@ function drawRichNodesToCompositionContext(
           const cp2 = current.cp1 ?? current.anchor;
           context.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, current.anchor.x, current.anchor.y);
         }
-      } else {
+      } else if (pathDrawPlan.hasPointPath) {
         context.moveTo(points[0].x, points[0].y);
         for (let index = 1; index < points.length; index += 1) {
           context.lineTo(points[index].x, points[index].y);
         }
+      } else if (pathDrawPlan.shouldFallbackLine) {
+        // Preserve compatibility with line nodes that encode segment delta through width/height.
+        context.moveTo(x, y);
+        context.lineTo(x + width, y + height);
+      } else {
+        context.restore();
+        continue;
       }
-      if (shape === "polygon" || shape === "path") {
+      if (pathDrawPlan.shouldClosePath) {
         context.closePath();
       }
       if (fill !== "transparent" && shape !== "line") {
@@ -393,6 +417,7 @@ export function createWebGPUBackendAdapter(
       | "non-rect-shape-unsupported"
       | "shape-style-unsupported"
       | "shape-transform-unsupported";
+    webgpuFeatureCapabilityGateReason: FeatureCapabilityGateReason;
     payloadSignature: string;
     payloadRectCount: number;
   }) {
@@ -417,6 +442,8 @@ export function createWebGPUBackendAdapter(
       webgpuNativeSubmissionTotalFailureCount: nativeSubmissionTotalFailureCount,
       webgpuNativeRectBatchEligibleCount: input.webgpuNativeRectBatchEligibleCount,
       webgpuNativeRectBatchRejectedReason: input.webgpuNativeRectBatchRejectedReason,
+      webglFeatureCapabilityGateReason: "none",
+      webgpuFeatureCapabilityGateReason: input.webgpuFeatureCapabilityGateReason,
       cacheHits: cacheHitCount,
       cacheMisses: cacheMissCount,
       frameReuseHits: cacheHitCount,
@@ -498,6 +525,7 @@ export function createWebGPUBackendAdapter(
           webgpuNativeSubmissionFailureCount: 0,
           webgpuNativeRectBatchEligibleCount: 0,
           webgpuNativeRectBatchRejectedReason: "none",
+          webgpuFeatureCapabilityGateReason: "none",
           payloadSignature: "none",
           payloadRectCount: 0,
         });
@@ -511,17 +539,10 @@ export function createWebGPUBackendAdapter(
       const payloadRectCount = payload?.rects.length ?? 0;
       const payloadNodeCount = payload?.nodes?.length ?? 0;
       const rectBatchEligibleCount = payload?.rects.length ?? 0;
+      const featureCapabilityGateReason = resolveFeatureCapabilityGateReason(payload?.nodes);
       const renderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" =
         rectBatchEligibleCount > 0 ? "native-rect-batch" : "native-clear-only";
-      const rejectedReason:
-        | "none"
-        | "scene-empty"
-        | "group-node-unsupported"
-        | "non-shape-node-unsupported"
-        | "non-rect-shape-unsupported"
-        | "shape-style-unsupported"
-        | "shape-transform-unsupported" =
-        rectBatchEligibleCount > 0 ? "none" : "scene-empty";
+      const rejectedReason = resolveNativeRectBatchRejectedReason(rectBatchEligibleCount, payload?.nodes);
 
       const context = configuredContext as {
         getCurrentTexture: () => { createView: () => unknown };
@@ -586,6 +607,7 @@ export function createWebGPUBackendAdapter(
               webgpuNativeSubmissionFailureCount: 0,
               webgpuNativeRectBatchEligibleCount: rectBatchEligibleCount,
               webgpuNativeRectBatchRejectedReason: "none",
+              webgpuFeatureCapabilityGateReason: featureCapabilityGateReason,
               payloadSignature,
               payloadRectCount,
             });
@@ -617,6 +639,7 @@ export function createWebGPUBackendAdapter(
           webgpuNativeSubmissionFailureCount: 0,
           webgpuNativeRectBatchEligibleCount: rectBatchEligibleCount,
           webgpuNativeRectBatchRejectedReason: rejectedReason,
+          webgpuFeatureCapabilityGateReason: featureCapabilityGateReason,
           payloadSignature,
           payloadRectCount,
         });
@@ -629,6 +652,7 @@ export function createWebGPUBackendAdapter(
           webgpuNativeSubmissionFailureCount: 1,
           webgpuNativeRectBatchEligibleCount: rectBatchEligibleCount,
           webgpuNativeRectBatchRejectedReason: rejectedReason,
+          webgpuFeatureCapabilityGateReason: featureCapabilityGateReason,
           payloadSignature,
           payloadRectCount,
         });

@@ -1,0 +1,171 @@
+{
+  "generatedAt": "2026-05-25T08:08:15.591Z",
+  "sourceDashboardPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay.batch.dashboard.json",
+  "status": "pass",
+  "reasons": [],
+  "failures": [],
+  "thresholds": {
+    "maxRegressed": 0,
+    "maxMixed": 0,
+    "maxUnknown": 0,
+    "minProcessedCount": 1,
+    "maxRollingRegressed": 0,
+    "maxRollingMixed": 0,
+    "maxRollingUnknown": 0,
+    "maxResourceDecodeUnknownRatePercent": 0,
+    "maxResourceCompressionUnknownRatePercent": 0,
+    "maxRollingResourceDecodeUnknownRatePercent": 0,
+    "maxRollingResourceCompressionUnknownRatePercent": 0
+  },
+  "latestSnapshot": {
+    "generatedAt": "2026-05-25T08:08:09.536Z",
+    "dashboardPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay.batch.dashboard.json",
+    "processedCount": 2,
+    "trendCounter": {
+      "improved": 0,
+      "regressed": 0,
+      "mixed": 0,
+      "unchanged": 2,
+      "unknown": 0
+    },
+    "featureCapabilityGateCounter": {
+      "webglKnownRejected": 0,
+      "webglUnknownRejected": 0,
+      "webgpuKnownRejected": 0,
+      "webgpuUnknownRejected": 0
+    },
+    "frameStageSchedulerModeCounter": {
+      "interactive": 4,
+      "normal": 8,
+      "unknown": 0
+    },
+    "frameStageSceneApplyModeCounter": {
+      "none": 4,
+      "fullLoad": 2,
+      "previewLoad": 2,
+      "incrementalPatch": 4,
+      "unknown": 0
+    },
+    "runtimeResourceDecodeStatusCounter": {
+      "queued": 2,
+      "decoding": 2,
+      "ready": 6,
+      "failed": 2,
+      "unknown": 0
+    },
+    "runtimeResourceCompressionCodecCounter": {
+      "none": 4,
+      "brotli": 2,
+      "gzip": 2,
+      "zstd": 2,
+      "lz4": 2,
+      "unknown": 0
+    }
+  },
+  "rollingTrendCounter": {
+    "improved": 0,
+    "regressed": 0,
+    "mixed": 0,
+    "unchanged": 2,
+    "unknown": 0
+  },
+  "rollingFeatureCapabilityGateCounter": {
+    "webglKnownRejected": 0,
+    "webglUnknownRejected": 0,
+    "webgpuKnownRejected": 0,
+    "webgpuUnknownRejected": 0
+  },
+  "rollingFrameStageSchedulerModeCounter": {
+    "interactive": 4,
+    "normal": 8,
+    "unknown": 0
+  },
+  "rollingFrameStageSceneApplyModeCounter": {
+    "none": 4,
+    "fullLoad": 2,
+    "previewLoad": 2,
+    "incrementalPatch": 4,
+    "unknown": 0
+  },
+  "rollingRuntimeResourceDecodeStatusCounter": {
+    "queued": 2,
+    "decoding": 2,
+    "ready": 6,
+    "failed": 2,
+    "unknown": 0
+  },
+  "rollingRuntimeResourceCompressionCodecCounter": {
+    "none": 4,
+    "brotli": 2,
+    "gzip": 2,
+    "zstd": 2,
+    "lz4": 2,
+    "unknown": 0
+  },
+  "stageUnknownRatePercentSummary": {
+    "latestStageSchedulerUnknownRatePercent": 0,
+    "latestStageSceneApplyUnknownRatePercent": 0,
+    "rollingStageSchedulerUnknownRatePercent": 0,
+    "rollingStageSceneApplyUnknownRatePercent": 0
+  },
+  "stageUnknownRateViolationSummary": {
+    "latestStageScheduler": {
+      "failureCode": "RP_GATE_LATEST_STAGE_SCHEDULER_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": null,
+      "exceeded": false
+    },
+    "latestStageSceneApply": {
+      "failureCode": "RP_GATE_LATEST_STAGE_SCENE_APPLY_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": null,
+      "exceeded": false
+    },
+    "rollingStageScheduler": {
+      "failureCode": "RP_GATE_ROLLING_STAGE_SCHEDULER_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": null,
+      "exceeded": false
+    },
+    "rollingStageSceneApply": {
+      "failureCode": "RP_GATE_ROLLING_STAGE_SCENE_APPLY_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": null,
+      "exceeded": false
+    },
+    "exceededCount": 0
+  },
+  "resourceUnknownRatePercentSummary": {
+    "latestResourceDecodeUnknownRatePercent": 0,
+    "latestResourceCompressionUnknownRatePercent": 0,
+    "rollingResourceDecodeUnknownRatePercent": 0,
+    "rollingResourceCompressionUnknownRatePercent": 0
+  },
+  "resourceUnknownRateViolationSummary": {
+    "latestResourceDecode": {
+      "failureCode": "RP_GATE_LATEST_RESOURCE_DECODE_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": 0,
+      "exceeded": false
+    },
+    "latestResourceCompression": {
+      "failureCode": "RP_GATE_LATEST_RESOURCE_COMPRESSION_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": 0,
+      "exceeded": false
+    },
+    "rollingResourceDecode": {
+      "failureCode": "RP_GATE_ROLLING_RESOURCE_DECODE_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": 0,
+      "exceeded": false
+    },
+    "rollingResourceCompression": {
+      "failureCode": "RP_GATE_ROLLING_RESOURCE_COMPRESSION_UNKNOWN_RATE",
+      "actualRatePercent": 0,
+      "thresholdRatePercent": 0,
+      "exceeded": false
+    },
+    "exceededCount": 0
+  }
+}

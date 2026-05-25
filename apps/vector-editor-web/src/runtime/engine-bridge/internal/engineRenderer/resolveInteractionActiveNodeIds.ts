@@ -1,4 +1,5 @@
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
+import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract.ts'
 
 /**
  * Resolves editing-scope active ids so active layer can isolate live edits.
@@ -10,22 +11,13 @@ export function resolveInteractionActiveNodeIds(input: {
   protectedNodeIds: readonly string[]
   changedNodeIds?: readonly string[]
 }): string[] {
-  if (input.interactionPhase !== 'drag' && input.interactionPhase !== 'precision') {
-    return []
-  }
+  const routing = resolveActiveOverlayRoutingDecision({
+    interactionPhase: input.interactionPhase,
+    allShapeIds: input.allShapeIds,
+    protectedNodeIds: input.protectedNodeIds,
+    changedNodeIds: input.changedNodeIds,
+    overlayNodeCount: 0,
+  })
 
-  // Route drag/precision frames entirely through active layer so transform
-  // feedback stays immediate without waiting on incremental scene diff quality.
-  if (input.allShapeIds.length > 0) {
-    return [...input.allShapeIds]
-  }
-
-  const ids = new Set<string>(input.protectedNodeIds)
-  if (input.changedNodeIds && input.changedNodeIds.length > 0) {
-    for (const changedNodeId of input.changedNodeIds) {
-      ids.add(changedNodeId)
-    }
-  }
-
-  return [...ids].sort()
+  return routing.interactionActiveNodeIds
 }

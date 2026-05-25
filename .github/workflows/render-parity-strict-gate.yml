@@ -1,0 +1,97 @@
+name: Render Parity Strict Gate
+
+on:
+  pull_request:
+    paths:
+      - apps/vector-editor-web/**
+      - .github/workflows/render-parity-strict-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-parity-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.7.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run strict replay batch gate
+        id: strict_gate
+        continue-on-error: true
+        run: pnpm --filter @venus/vector-editor-web run report:render-parity-runtime-replay-batch-gate:strict
+
+      - name: Route gate failure codes
+        if: always()
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+
+          const gatePath = path.resolve(
+            process.cwd(),
+            'apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay.batch.gate.json',
+          )
+
+          if (!fs.existsSync(gatePath)) {
+            console.log('::warning title=RenderParityGate::gate artifact missing; strict gate may have failed before artifact write')
+            process.exit(0)
+          }
+
+          const gate = JSON.parse(fs.readFileSync(gatePath, 'utf8'))
+          const failures = Array.isArray(gate.failures) ? gate.failures : []
+          const grouped = new Map()
+          for (const failure of failures) {
+            const code = typeof failure.code === 'string' ? failure.code : 'RP_GATE_UNKNOWN'
+            grouped.set(code, (grouped.get(code) ?? 0) + 1)
+          }
+
+          const summaryRows = []
+          summaryRows.push('## Render Parity Gate Routing')
+          summaryRows.push(`- status: ${gate.status ?? 'unknown'}`)
+          summaryRows.push(`- failureCount: ${failures.length}`)
+
+          if (grouped.size === 0) {
+            summaryRows.push('- codes: none')
+          } else {
+            summaryRows.push('- codes:')
+            for (const [code, count] of grouped.entries()) {
+              summaryRows.push(`  - ${code}: ${count}`)
+              console.log(`::error title=RenderParityGate::${code} count=${count}`)
+            }
+          }
+
+          if (gate.stageUnknownRateViolationSummary && gate.stageUnknownRateViolationSummary.exceededCount > 0) {
+            summaryRows.push(
+              `- stageUnknownRateExceededCount: ${gate.stageUnknownRateViolationSummary.exceededCount}`,
+            )
+          }
+
+          const summaryPath = process.env.GITHUB_STEP_SUMMARY
+          if (summaryPath) {
+            fs.appendFileSync(summaryPath, `${summaryRows.join('\n')}\n`, 'utf8')
+          }
+          NODE
+
+      - name: Fail job when strict gate fails
+        if: steps.strict_gate.outcome == 'failure'
+        run: |
+          echo "render parity strict gate failed"
+          exit 1

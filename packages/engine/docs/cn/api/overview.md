@@ -32,7 +32,7 @@
 - Warning code 基线目录：
   - `ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS`
 - Requirement 基线来源：
-  - `packages/engine/ai/playground-s1-s13-requirements-2026-05-24.md`（第 14 节）
+  - `.ai-tasks/engine/playground-s1-s13-requirements-2026-05-24.md`（第 14 节）
 
 ## 契约基线
 

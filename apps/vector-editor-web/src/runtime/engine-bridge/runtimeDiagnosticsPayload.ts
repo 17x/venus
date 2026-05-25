@@ -67,6 +67,22 @@ interface WebglStatsSnapshot {
     | 'non-rect-shape-unsupported'
     | 'shape-style-unsupported'
     | 'shape-transform-unsupported'
+  // Records WebGL feature-capability gate reason for rich semantic fallbacks.
+  webglFeatureCapabilityGateReason?:
+    | 'none'
+    | 'image-node-unsupported'
+    | 'clip-node-unsupported'
+    | 'text-style-unsupported'
+    | 'shadow-style-unsupported'
+    | 'gradient-style-unsupported'
+  // Records WebGPU feature-capability gate reason for rich semantic fallbacks.
+  webgpuFeatureCapabilityGateReason?:
+    | 'none'
+    | 'image-node-unsupported'
+    | 'clip-node-unsupported'
+    | 'text-style-unsupported'
+    | 'shadow-style-unsupported'
+    | 'gradient-style-unsupported'
   webglInteractiveTextFallbackCount?: number
   webglImageTextureUploadCount?: number
   webglImageTextureUploadBytes?: number
@@ -202,8 +218,31 @@ interface RenderPrepDiagnosticsSnapshot {
   dirtyBoundsMarkArea: number
 }
 
+/**
+ * Captures renderer-owned request and routing counters mirrored into diagnostics payloads.
+ */
 interface RenderRequestStatsSnapshot {
   lastReason: string
+  // Stores stage correlation token for the queued frame represented by this sample.
+  frameStageId: string
+  // Stores monotonic sequence number for stage timeline ordering.
+  frameStageSequence: number
+  // Stores issue timestamp for stage timeline reconstruction.
+  frameStageIssuedAtMs: number
+  // Stores scheduler lane selected for this frame-stage token.
+  frameStageSchedulerMode: 'interactive' | 'normal'
+  // Stores scene apply path associated with this frame-stage token.
+  frameStageSceneApplyMode: 'none' | 'full-load' | 'preview-load' | 'incremental-patch'
+  // Stores current scene routing plane resolved by active/overlay contract.
+  activeOverlayScenePlane: 'base' | 'active'
+  // Stores current overlay routing plane resolved by active/overlay contract.
+  activeOverlayOverlayPlane: 'base' | 'overlay'
+  // Indicates whether active plane routing is enabled for this diagnostics sample.
+  activeOverlayUsesActivePlane: boolean
+  // Stores protected-node count routed through active/overlay policy.
+  activeOverlayProtectedNodeCount: number
+  // Stores interaction-active node count routed through active/overlay policy.
+  activeOverlayInteractionActiveNodeCount: number
   renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
   renderPhaseTransitionCount: number
   lastRenderPhaseTransition: string
@@ -296,6 +335,11 @@ export function buildRuntimeDiagnosticsPayload(
   return {
     frameCount: input.frameCount,
     diagnosticsUpdatedAtMs: input.diagnosticsUpdatedAtMs,
+    frameStageId: input.renderRequestStats.frameStageId,
+    frameStageSequence: input.renderRequestStats.frameStageSequence,
+    frameStageIssuedAtMs: input.renderRequestStats.frameStageIssuedAtMs,
+    frameStageSchedulerMode: input.renderRequestStats.frameStageSchedulerMode,
+    frameStageSceneApplyMode: input.renderRequestStats.frameStageSceneApplyMode,
     drawCount: input.renderStats.drawCount,
     drawMs: input.renderStats.frameMs,
     // Keep stage timings explicit so debug panel can pinpoint hot sections quickly.
@@ -404,6 +448,10 @@ export function buildRuntimeDiagnosticsPayload(
       input.webglStats.webgpuNativeRectBatchEligibleCount ?? 0,
     webgpuNativeRectBatchRejectedReason:
       input.webglStats.webgpuNativeRectBatchRejectedReason ?? 'none',
+    webglFeatureCapabilityGateReason:
+      input.webglStats.webglFeatureCapabilityGateReason ?? 'none',
+    webgpuFeatureCapabilityGateReason:
+      input.webglStats.webgpuFeatureCapabilityGateReason ?? 'none',
     webglInteractiveTextFallbackCount:
       input.webglStats.webglInteractiveTextFallbackCount ?? 0,
     webglImageTextureUploadCount:
@@ -539,6 +587,13 @@ export function buildRuntimeDiagnosticsPayload(
     engineQosGuardTriggers: [...input.engineCoreStats.qosGuardTriggers],
     engineQosTrace: input.engineCoreStats.qosTrace,
     lastRenderRequestReason: input.renderRequestStats.lastReason,
+    activeOverlayScenePlane: input.renderRequestStats.activeOverlayScenePlane,
+    activeOverlayOverlayPlane: input.renderRequestStats.activeOverlayOverlayPlane,
+    activeOverlayUsesActivePlane: input.renderRequestStats.activeOverlayUsesActivePlane,
+    activeOverlayProtectedNodeCount:
+      input.renderRequestStats.activeOverlayProtectedNodeCount,
+    activeOverlayInteractionActiveNodeCount:
+      input.renderRequestStats.activeOverlayInteractionActiveNodeCount,
     renderPhase: input.renderRequestStats.renderPhase,
     renderPhaseTransitionCount:
       input.renderRequestStats.renderPhaseTransitionCount,

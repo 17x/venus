@@ -72,9 +72,22 @@ export interface RuntimeNormalizedInteractionSnapshot {
   normalizedEvent: NormalizedInteractionEvent
 }
 
+/**
+ * Defines one structured runtime render diagnostics snapshot grouped by concern.
+ */
 export interface RuntimeRenderDiagnosticsStats {
   performance: {
     timing: {
+      /** Stores stage correlation token for tracing one frame across scheduling and publish boundaries. */
+      frameStageId: string
+      /** Stores monotonic stage sequence for timeline ordering in diagnostics panels. */
+      frameStageSequence: number
+      /** Stores issue timestamp for the current stage token. */
+      frameStageIssuedAtMs: number
+      /** Stores scheduler lane selected for the correlated frame stage. */
+      frameStageSchedulerMode: 'interactive' | 'normal'
+      /** Stores scene apply path correlated with the current frame stage. */
+      frameStageSceneApplyMode: 'none' | 'full-load' | 'preview-load' | 'incremental-patch'
       drawMs: number
       scenePrepareMs: number
       sceneApplyMs: number
@@ -136,6 +149,22 @@ export interface RuntimeRenderDiagnosticsStats {
         | 'non-rect-shape-unsupported'
         | 'shape-style-unsupported'
         | 'shape-transform-unsupported'
+      // Records WebGL feature-capability gate reason for rich semantic fallbacks.
+      webglFeatureCapabilityGateReason:
+        | 'none'
+        | 'image-node-unsupported'
+        | 'clip-node-unsupported'
+        | 'text-style-unsupported'
+        | 'shadow-style-unsupported'
+        | 'gradient-style-unsupported'
+      // Records WebGPU feature-capability gate reason for rich semantic fallbacks.
+      webgpuFeatureCapabilityGateReason:
+        | 'none'
+        | 'image-node-unsupported'
+        | 'clip-node-unsupported'
+        | 'text-style-unsupported'
+        | 'shadow-style-unsupported'
+        | 'gradient-style-unsupported'
       webglInteractiveTextFallbackCount: number
       webglImageTextureUploadCount: number
       webglImageTextureUploadBytes: number
@@ -266,6 +295,16 @@ export interface RuntimeRenderDiagnosticsStats {
     overlayGuideDroppedCount: number
     overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
     overlayPathEditWhitelistActive: boolean
+    /** Stores current scene routing plane resolved by active/overlay contract. */
+    activeOverlayScenePlane: 'base' | 'active'
+    /** Stores current overlay routing plane resolved by active/overlay contract. */
+    activeOverlayOverlayPlane: 'base' | 'overlay'
+    /** Indicates whether active plane routing is enabled for this diagnostics sample. */
+    activeOverlayUsesActivePlane: boolean
+    /** Stores protected-node count routed through active/overlay policy. */
+    activeOverlayProtectedNodeCount: number
+    /** Stores interaction-active node count routed through active/overlay policy. */
+    activeOverlayInteractionActiveNodeCount: number
   }
   requests: {
     lastRenderRequestReason: string
@@ -278,10 +317,23 @@ export interface RuntimeRenderDiagnosticsStats {
   }
 }
 
+/**
+ * Defines one flat runtime render diagnostics snapshot published on runtime events.
+ */
 export interface RuntimeRenderDiagnostics {
   frameCount: number
   // Monotonic timestamp (performance.now) when this diagnostics snapshot was published.
   diagnosticsUpdatedAtMs: number
+  // Correlation token that binds this diagnostics row to one render-stage request.
+  frameStageId: string
+  // Monotonic sequence used to order stage tokens for replay/timeline analysis.
+  frameStageSequence: number
+  // Timestamp when the current frame-stage token was issued.
+  frameStageIssuedAtMs: number
+  // Scheduler lane selected for the current frame-stage token.
+  frameStageSchedulerMode: 'interactive' | 'normal'
+  // Scene-apply path correlated with the current frame-stage token.
+  frameStageSceneApplyMode: 'none' | 'full-load' | 'preview-load' | 'incremental-patch'
   drawCount: number
   drawMs: number
   scenePrepareMs: number
@@ -376,6 +428,22 @@ export interface RuntimeRenderDiagnostics {
     | 'non-rect-shape-unsupported'
     | 'shape-style-unsupported'
     | 'shape-transform-unsupported'
+  // Records WebGL feature-capability gate reason for rich semantic fallbacks.
+  webglFeatureCapabilityGateReason:
+    | 'none'
+    | 'image-node-unsupported'
+    | 'clip-node-unsupported'
+    | 'text-style-unsupported'
+    | 'shadow-style-unsupported'
+    | 'gradient-style-unsupported'
+  // Records WebGPU feature-capability gate reason for rich semantic fallbacks.
+  webgpuFeatureCapabilityGateReason:
+    | 'none'
+    | 'image-node-unsupported'
+    | 'clip-node-unsupported'
+    | 'text-style-unsupported'
+    | 'shadow-style-unsupported'
+    | 'gradient-style-unsupported'
   webglInteractiveTextFallbackCount: number
   webglImageTextureUploadCount: number
   webglImageTextureUploadBytes: number
@@ -462,6 +530,16 @@ export interface RuntimeRenderDiagnostics {
   // Latest QoS trace id used for frame-level diagnostics correlation.
   engineQosTrace: string
   lastRenderRequestReason: string
+  // Stores current scene routing plane resolved by active/overlay contract.
+  activeOverlayScenePlane: 'base' | 'active'
+  // Stores current overlay routing plane resolved by active/overlay contract.
+  activeOverlayOverlayPlane: 'base' | 'overlay'
+  // Indicates whether active plane routing is enabled for this diagnostics sample.
+  activeOverlayUsesActivePlane: boolean
+  // Stores protected-node count routed through active/overlay policy.
+  activeOverlayProtectedNodeCount: number
+  // Stores interaction-active node count routed through active/overlay policy.
+  activeOverlayInteractionActiveNodeCount: number
   renderPhase: 'static' | 'pan' | 'zoom' | 'drag' | 'precision' | 'settled'
   renderPhaseTransitionCount: number
   lastRenderPhaseTransition: string

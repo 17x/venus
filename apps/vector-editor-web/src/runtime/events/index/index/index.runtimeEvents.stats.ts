@@ -9,6 +9,11 @@ export function resolveRuntimeRenderDiagnosticsStats(
   return {
     performance: {
       timing: {
+        frameStageId: diagnostics.frameStageId,
+        frameStageSequence: diagnostics.frameStageSequence,
+        frameStageIssuedAtMs: diagnostics.frameStageIssuedAtMs,
+        frameStageSchedulerMode: diagnostics.frameStageSchedulerMode,
+        frameStageSceneApplyMode: diagnostics.frameStageSceneApplyMode,
         drawMs: diagnostics.drawMs,
         scenePrepareMs: diagnostics.scenePrepareMs,
         sceneApplyMs: diagnostics.sceneApplyMs,
@@ -62,6 +67,10 @@ export function resolveRuntimeRenderDiagnosticsStats(
           diagnostics.webgpuNativeRectBatchEligibleCount,
         webgpuNativeRectBatchRejectedReason:
           diagnostics.webgpuNativeRectBatchRejectedReason,
+        webglFeatureCapabilityGateReason:
+          diagnostics.webglFeatureCapabilityGateReason,
+        webgpuFeatureCapabilityGateReason:
+          diagnostics.webgpuFeatureCapabilityGateReason,
         webglInteractiveTextFallbackCount: diagnostics.webglInteractiveTextFallbackCount,
         webglImageTextureUploadCount: diagnostics.webglImageTextureUploadCount,
         webglImageTextureUploadBytes: diagnostics.webglImageTextureUploadBytes,
@@ -193,6 +202,12 @@ export function resolveRuntimeRenderDiagnosticsStats(
       overlayGuideDroppedCount: diagnostics.overlayGuideDroppedCount,
       overlayGuideSelectionStrategy: diagnostics.overlayGuideSelectionStrategy,
       overlayPathEditWhitelistActive: diagnostics.overlayPathEditWhitelistActive,
+      activeOverlayScenePlane: diagnostics.activeOverlayScenePlane,
+      activeOverlayOverlayPlane: diagnostics.activeOverlayOverlayPlane,
+      activeOverlayUsesActivePlane: diagnostics.activeOverlayUsesActivePlane,
+      activeOverlayProtectedNodeCount: diagnostics.activeOverlayProtectedNodeCount,
+      activeOverlayInteractionActiveNodeCount:
+        diagnostics.activeOverlayInteractionActiveNodeCount,
     },
     requests: {
       lastRenderRequestReason: diagnostics.lastRenderRequestReason,

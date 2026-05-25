@@ -4,6 +4,14 @@ import type {
   OverlayPrimitiveType,
 } from '@venus/editor-primitive'
 import type { RuntimePoint } from '../types/index.ts'
+export {
+  createRuntimeInteractionStateMatrixInstructions,
+  createRuntimeInteractionStateMatrixOutput,
+  type RuntimeInteractionStateMatrixBounds,
+  type RuntimeInteractionStateMatrixInput,
+  type RuntimeInteractionStateMatrixOutput,
+  type RuntimeInteractionStateMatrixState,
+} from './interactionStateMatrix.ts'
 
 export type RuntimeOverlayLayerId =
   | 'overlay.selection'

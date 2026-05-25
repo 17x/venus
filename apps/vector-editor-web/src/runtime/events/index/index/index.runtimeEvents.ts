@@ -34,6 +34,15 @@ let currentRenderDiagnostics = EMPTY_RUNTIME_RENDER_DIAGNOSTICS
 let smoothedFpsEstimate = 0
 let peakInstantaneousFps = 0
 let peakSmoothedFpsEstimate = 0
+let runtimeRenderDiagnosticsRecorder: {
+  enabled: boolean
+  maxRecords: number
+  records: RuntimeRenderDiagnostics[]
+} = {
+  enabled: false,
+  maxRecords: 240,
+  records: [],
+}
 
 const viewportSnapshotListeners = new Set<VoidFunction>()
 let currentViewportSnapshot = EMPTY_RUNTIME_VIEWPORT_SNAPSHOT
@@ -44,6 +53,16 @@ let currentRuntimeMigrationSnapshot = EMPTY_RUNTIME_MIGRATION_SNAPSHOT
 const normalizedInteractionSnapshotListeners = new Set<VoidFunction>()
 let currentNormalizedInteractionSnapshot: RuntimeNormalizedInteractionSnapshot | null = null
 let runtimeInputEventSequence = 0
+
+/**
+ * Declares recorder option overrides for runtime render diagnostics capture.
+ */
+export interface RuntimeRenderDiagnosticsRecorderOptions {
+  /** Stores max record count retained by recorder ring buffer. */
+  maxRecords?: number
+  /** Indicates whether existing records should be cleared when recorder starts. */
+  clearExistingRecords?: boolean
+}
 
 /**
  * Resolves monotonically increasing runtime input event id for normalized event tracing.
@@ -165,6 +184,8 @@ export function resetRuntimeEventSnapshots() {
   currentShellSnapshot = EMPTY_RUNTIME_SHELL_SNAPSHOT
   currentRuntimeMigrationSnapshot = EMPTY_RUNTIME_MIGRATION_SNAPSHOT
   currentNormalizedInteractionSnapshot = null
+  runtimeRenderDiagnosticsRecorder.records = []
+  runtimeRenderDiagnosticsRecorder.enabled = false
   runtimeInputEventSequence = 0
   renderDiagnosticsListeners.forEach((listener) => listener())
   viewportSnapshotListeners.forEach((listener) => listener())
@@ -174,7 +195,67 @@ export function resetRuntimeEventSnapshots() {
 }
 
 /**
+ * Starts runtime render diagnostics recorder with optional ring-buffer settings.
+ * @param options Optional recorder configuration overrides.
+ */
+export function startRuntimeRenderDiagnosticsRecorder(
+  options?: RuntimeRenderDiagnosticsRecorderOptions,
+) {
+  const nextMaxRecords =
+    typeof options?.maxRecords === 'number' && Number.isFinite(options.maxRecords)
+      ? Math.max(1, Math.floor(options.maxRecords))
+      : runtimeRenderDiagnosticsRecorder.maxRecords
+
+  runtimeRenderDiagnosticsRecorder.maxRecords = nextMaxRecords
+  if (options?.clearExistingRecords) {
+    runtimeRenderDiagnosticsRecorder.records = []
+  }
+  runtimeRenderDiagnosticsRecorder.enabled = true
+}
+
+/**
+ * Stops runtime render diagnostics recorder while preserving captured records.
+ */
+export function stopRuntimeRenderDiagnosticsRecorder() {
+  runtimeRenderDiagnosticsRecorder.enabled = false
+}
+
+/**
+ * Clears runtime render diagnostics recorder buffered records.
+ */
+export function clearRuntimeRenderDiagnosticsRecorderRecords() {
+  runtimeRenderDiagnosticsRecorder.records = []
+}
+
+/**
+ * Returns recorder status and a snapshot copy of buffered diagnostics records.
+ */
+export function getRuntimeRenderDiagnosticsRecorderSnapshot() {
+  return {
+    enabled: runtimeRenderDiagnosticsRecorder.enabled,
+    maxRecords: runtimeRenderDiagnosticsRecorder.maxRecords,
+    records: [...runtimeRenderDiagnosticsRecorder.records],
+  }
+}
+
+/**
+ * Exports recorder snapshot payload for offline parity sampled conversion pipelines.
+ */
+export function exportRuntimeRenderDiagnosticsRecorderPayload() {
+  const snapshot = getRuntimeRenderDiagnosticsRecorderSnapshot()
+  return {
+    records: snapshot.records,
+    meta: {
+      maxRecords: snapshot.maxRecords,
+      exportedAt: new Date().toISOString(),
+      sampleCount: snapshot.records.length,
+    },
+  }
+}
+
+/**
  * Publishes runtime render diagnostics for subscribers that track performance and state.
+ * @param next Next runtime diagnostics snapshot.
  */
 export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) {
   let instantaneousFps = 0
@@ -224,6 +305,17 @@ export function publishRuntimeRenderDiagnostics(next: RuntimeRenderDiagnostics) 
     ...baseDiagnostics,
     stats: baseDiagnostics.stats ?? resolveRuntimeRenderDiagnosticsStats(baseDiagnostics),
   }
+
+  if (runtimeRenderDiagnosticsRecorder.enabled) {
+    runtimeRenderDiagnosticsRecorder.records.push(currentRenderDiagnostics)
+    if (runtimeRenderDiagnosticsRecorder.records.length > runtimeRenderDiagnosticsRecorder.maxRecords) {
+      runtimeRenderDiagnosticsRecorder.records.splice(
+        0,
+        runtimeRenderDiagnosticsRecorder.records.length - runtimeRenderDiagnosticsRecorder.maxRecords,
+      )
+    }
+  }
+
   renderDiagnosticsListeners.forEach((listener) => listener())
 }
 

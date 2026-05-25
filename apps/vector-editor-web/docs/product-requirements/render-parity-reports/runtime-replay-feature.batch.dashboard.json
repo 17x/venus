@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-05-24T15:35:52.273Z",
+  "inputDir": "/Users/yahone/projects/venus/apps/vector-editor-web/scripts/runtime-diagnostics-feature-replay-inputs",
+  "outputDir": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports",
+  "processedCount": 2,
+  "trendCounter": {
+    "improved": 0,
+    "regressed": 0,
+    "mixed": 0,
+    "unchanged": 2,
+    "unknown": 0
+  },
+  "featureCapabilityGateCounter": {
+    "webglKnownRejected": 3,
+    "webglUnknownRejected": 2,
+    "webgpuKnownRejected": 2,
+    "webgpuUnknownRejected": 3
+  },
+  "rows": [
+    {
+      "inputPath": "/Users/yahone/projects/venus/apps/vector-editor-web/scripts/runtime-diagnostics-feature-replay-inputs/sample-feature-text.runtime-diagnostics.json",
+      "label": "runtime-replay-sample-feature-text.runtime-diagnostics",
+      "generatedAt": "2026-05-24T15:35:52.264Z",
+      "sampleCount": 6,
+      "summaryPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-text.runtime-diagnostics.2026-05-24T15-35-52-264z.summary.json",
+      "diffPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-text.runtime-diagnostics.2026-05-24T15-35-52-264z.diff.json",
+      "trendPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-text.runtime-diagnostics.2026-05-24T15-35-52-264z.trend.json",
+      "replayBaselinePath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-text.runtime-diagnostics.baseline.summary.json",
+      "replayBaselineBootstrapped": false,
+      "overallTrend": "unchanged",
+      "webglDominantFeatureCapabilityGate": "text-style-unsupported",
+      "webgpuDominantFeatureCapabilityGate": "text-style-unsupported",
+      "webglFeatureCapabilityKnownRejectedCount": 2,
+      "webglFeatureCapabilityUnknownRejectedCount": 0,
+      "webgpuFeatureCapabilityKnownRejectedCount": 2,
+      "webgpuFeatureCapabilityUnknownRejectedCount": 0
+    },
+    {
+      "inputPath": "/Users/yahone/projects/venus/apps/vector-editor-web/scripts/runtime-diagnostics-feature-replay-inputs/sample-feature-unknown.runtime-diagnostics.json",
+      "label": "runtime-replay-sample-feature-unknown.runtime-diagnostics",
+      "generatedAt": "2026-05-24T15:35:52.268Z",
+      "sampleCount": 6,
+      "summaryPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-unknown.runtime-diagnostics.2026-05-24T15-35-52-268z.summary.json",
+      "diffPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-unknown.runtime-diagnostics.2026-05-24T15-35-52-268z.diff.json",
+      "trendPath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-unknown.runtime-diagnostics.2026-05-24T15-35-52-268z.trend.json",
+      "replayBaselinePath": "/Users/yahone/projects/venus/apps/vector-editor-web/docs/product-requirements/render-parity-reports/runtime-replay-sample-feature-unknown.runtime-diagnostics.baseline.summary.json",
+      "replayBaselineBootstrapped": false,
+      "overallTrend": "unchanged",
+      "webglDominantFeatureCapabilityGate": "text-style-unsupported",
+      "webgpuDominantFeatureCapabilityGate": null,
+      "webglFeatureCapabilityKnownRejectedCount": 1,
+      "webglFeatureCapabilityUnknownRejectedCount": 2,
+      "webgpuFeatureCapabilityKnownRejectedCount": 0,
+      "webgpuFeatureCapabilityUnknownRejectedCount": 3
+    }
+  ]
+}

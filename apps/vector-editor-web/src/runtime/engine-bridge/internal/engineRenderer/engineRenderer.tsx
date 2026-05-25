@@ -16,6 +16,7 @@ import {useEngineRendererLifecycle} from './useEngineRendererLifecycle.ts'
 import {useEngineRendererSceneSync} from './useEngineRendererSceneSync.ts'
 import {useEngineRendererViewport} from './useEngineRendererViewport.ts'
 import {createEngineStatsHandler} from './createEngineStatsHandler.ts'
+import {resolveEngineBackendRenderPaths} from './engineRenderPathClassification.ts'
 
 /**
  * Orchestrates runtime engine rendering by delegating lifecycle, scene sync, and viewport commits.
@@ -79,6 +80,16 @@ export function EngineRenderer({
   const deferredVisualRecoveryAfterInteractionRef = React.useRef(false)
   const renderRequestStatsRef = React.useRef({
     lastReason: 'none',
+    frameStageId: 'bootstrap-stage-0',
+    frameStageSequence: 0,
+    frameStageIssuedAtMs: 0,
+    frameStageSchedulerMode: 'normal' as 'interactive' | 'normal',
+    frameStageSceneApplyMode: 'none' as 'none' | 'full-load' | 'preview-load' | 'incremental-patch',
+    activeOverlayScenePlane: 'base' as 'base' | 'active',
+    activeOverlayOverlayPlane: 'base' as 'base' | 'overlay',
+    activeOverlayUsesActivePlane: false,
+    activeOverlayProtectedNodeCount: 0,
+    activeOverlayInteractionActiveNodeCount: 0,
     renderPhase: 'settled' as RuntimeRenderPhase,
     renderPhaseTransitionCount: 0,
     lastRenderPhaseTransition: 'none',
@@ -261,6 +272,15 @@ export function EngineRenderer({
     mode: 'interactive' | 'normal' = 'normal',
     reason: 'scene-dirty' | 'deferred-image-drain' | 'idle-redraw' | 'interactive-viewport' | 'camera-animation' | 'overlay-dirty' = 'scene-dirty',
   ) => {
+    // Stamp one monotonic stage token per queued render request so diagnostics
+    // and scheduler/backend signals can be correlated across the same frame lane.
+    renderRequestStatsRef.current.frameStageSequence += 1
+    renderRequestStatsRef.current.frameStageIssuedAtMs = performance.now()
+    renderRequestStatsRef.current.frameStageId =
+      `frame-stage-${renderRequestStatsRef.current.frameStageSequence}`
+    renderRequestStatsRef.current.frameStageSchedulerMode = mode
+    renderRequestStatsRef.current.frameStageSceneApplyMode =
+      sceneApplyDebugRef.current.lastSceneApplyMode
     renderRequestStatsRef.current.lastReason = reason
     if (reason === 'scene-dirty') {
       renderRequestStatsRef.current.sceneDirtyCount += 1
@@ -367,20 +387,16 @@ export function EngineRenderer({
           const backendDiagnostics = diagnostics.backendDiagnostics
           const renderChain = renderResult.renderChain ?? diagnostics.renderChain
           const backendPresentCompleted = renderChain?.backendPresentCompleted ?? false
-          // Preserve old-engine render path semantics in the new backend loop so
-          // optimization dashboards can keep comparing packet/native paths.
-          const webglRenderPath: 'model-complete' | 'packet' | 'none' =
-            backendDiagnostics?.webglRenderPath ?? (
-              backendInfo.resolved === 'webgl'
-                ? 'packet'
-                : 'none'
-            )
-          const webgpuRenderPath: 'hybrid-webgl' | 'native-clear-only' | 'native-rect-batch' | 'native-model-complete' =
-            backendDiagnostics?.webgpuRenderPath ?? (
-              backendInfo.resolved === 'webgpu'
-                ? (renderResult.drawCount > 0 ? 'native-rect-batch' : 'native-clear-only')
-                : 'hybrid-webgl'
-            )
+          // Keep backend fallback classification deterministic so WebGL/WebGPU
+          // parity reports compare equivalent clear/fallback semantics.
+          const {webglRenderPath, webgpuRenderPath} = resolveEngineBackendRenderPaths({
+            backendResolved: backendInfo.resolved,
+            drawCount: renderResult.drawCount,
+            visibleCount: renderResult.visibleCount,
+            backendPresentCompleted,
+            backendWebglRenderPath: backendDiagnostics?.webglRenderPath,
+            backendWebgpuRenderPath: backendDiagnostics?.webgpuRenderPath,
+          })
 
           handleEngineStats({
             drawCount: renderResult.drawCount,
@@ -450,6 +466,10 @@ export function EngineRenderer({
                   ? 'scene-empty'
                   : 'none'
               ),
+            webglFeatureCapabilityGateReason:
+              backendDiagnostics?.webglFeatureCapabilityGateReason ?? 'none',
+            webgpuFeatureCapabilityGateReason:
+              backendDiagnostics?.webgpuFeatureCapabilityGateReason ?? 'none',
             webglPreviewReuseMs: backendDiagnostics?.webglPreviewReuseMs ?? 0,
             webglPlanBuildMs: backendDiagnostics?.webglPlanBuildMs ?? 0,
             webglTextureUploadMs: backendDiagnostics?.webglTextureUploadMs ?? 0,

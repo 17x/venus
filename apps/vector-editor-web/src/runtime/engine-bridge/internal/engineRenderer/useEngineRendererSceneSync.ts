@@ -14,7 +14,7 @@ import {DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY} from '../../renderPolic
 import {resolveExpandedChangedIds, resolveMergedNodeBounds} from '../scenePatch.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {resolveSceneDirtyRenderPolicy} from '../sceneDirtyRenderPolicy/sceneDirtyRenderPolicy.ts'
-import {resolveInteractionActiveNodeIds} from './resolveInteractionActiveNodeIds.ts'
+import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract.ts'
 import {projectSceneSemantic3DForEngine} from './sceneSemantic3dProjection.ts'
 
 const DIRTY_BOUNDS_SMALL_AREA_PX2 =
@@ -113,6 +113,11 @@ export function useEngineRendererSceneSync(params: {
   }>
   renderRequestStatsRef: React.MutableRefObject<{
     lastReason: string
+    activeOverlayScenePlane: 'base' | 'active'
+    activeOverlayOverlayPlane: 'base' | 'overlay'
+    activeOverlayUsesActivePlane: boolean
+    activeOverlayProtectedNodeCount: number
+    activeOverlayInteractionActiveNodeCount: number
     sceneDirtyCount: number
     deferredImageDrainCount: number
     idleRedrawCount: number
@@ -145,12 +150,25 @@ export function useEngineRendererSceneSync(params: {
         ? 'interactive'
         : 'normal'
 
-    const normalizedProtectedNodeIds = (
+    const fallbackProtectedNodeIds = (
       params.protectedNodeIds
       ? [...params.protectedNodeIds]
       : params.shapes.filter((shape) => shape.isSelected).map((shape) => shape.id)
-    ).sort()
+    )
     const allShapeIds = params.shapes.map((shape) => shape.id)
+    const baselineRouting = resolveActiveOverlayRoutingDecision({
+      interactionPhase: params.effectiveInteractionPhase,
+      allShapeIds,
+      protectedNodeIds: fallbackProtectedNodeIds,
+      overlayNodeCount: 0,
+    })
+    params.renderRequestStatsRef.current.activeOverlayScenePlane = baselineRouting.scenePlane
+    params.renderRequestStatsRef.current.activeOverlayOverlayPlane = baselineRouting.overlayPlane
+    params.renderRequestStatsRef.current.activeOverlayUsesActivePlane = baselineRouting.shouldUseActivePlane
+    params.renderRequestStatsRef.current.activeOverlayProtectedNodeCount = baselineRouting.protectedNodeIds.length
+    params.renderRequestStatsRef.current.activeOverlayInteractionActiveNodeCount =
+      baselineRouting.interactionActiveNodeIds.length
+    const normalizedProtectedNodeIds = baselineRouting.protectedNodeIds
     const engineWithLayerRouting = engine as Engine & {
       setProtectedNodeIds?: (nodeIds?: readonly string[]) => void
       setInteractionActiveNodeIds?: (nodeIds?: readonly string[]) => void
@@ -162,11 +180,7 @@ export function useEngineRendererSceneSync(params: {
       engineWithLayerRouting.setProtectedNodeIds?.(normalizedProtectedNodeIds)
       params.protectedNodeSignatureRef.current = protectedNodeSignature
     }
-    const baselineInteractionActiveNodeIds = resolveInteractionActiveNodeIds({
-      interactionPhase: params.effectiveInteractionPhase,
-      allShapeIds,
-      protectedNodeIds: normalizedProtectedNodeIds,
-    })
+    const baselineInteractionActiveNodeIds = baselineRouting.interactionActiveNodeIds
     const baselineInteractionActiveNodeSignature = baselineInteractionActiveNodeIds.join('|')
     if (params.interactionActiveNodeSignatureRef.current !== baselineInteractionActiveNodeSignature) {
       // Publish editing-scope active ids before scene prep so viewport-only
@@ -369,12 +383,22 @@ export function useEngineRendererSceneSync(params: {
         }
       }
 
-      const interactionActiveNodeIds = resolveInteractionActiveNodeIds({
+      const incrementalRouting = resolveActiveOverlayRoutingDecision({
         interactionPhase: params.effectiveInteractionPhase,
         allShapeIds,
         protectedNodeIds: normalizedProtectedNodeIds,
         changedNodeIds: incrementalChangedNodeIds,
+        overlayNodeCount: 0,
       })
+      const interactionActiveNodeIds = incrementalRouting.interactionActiveNodeIds
+      params.renderRequestStatsRef.current.activeOverlayScenePlane = incrementalRouting.scenePlane
+      params.renderRequestStatsRef.current.activeOverlayOverlayPlane = incrementalRouting.overlayPlane
+      params.renderRequestStatsRef.current.activeOverlayUsesActivePlane =
+        incrementalRouting.shouldUseActivePlane
+      params.renderRequestStatsRef.current.activeOverlayProtectedNodeCount =
+        incrementalRouting.protectedNodeIds.length
+      params.renderRequestStatsRef.current.activeOverlayInteractionActiveNodeCount =
+        incrementalRouting.interactionActiveNodeIds.length
       const interactionActiveNodeSignature = interactionActiveNodeIds.join('|')
       if (params.interactionActiveNodeSignatureRef.current !== interactionActiveNodeSignature) {
         // Include incremental dirty ids during editing so property edits and

@@ -35,7 +35,13 @@ export {
 	buildRuntimeOverlayInstructions,
 	buildRuntimePathEditInstructions,
 	isPathOverlayHitRegion,
+	createRuntimeInteractionStateMatrixInstructions,
+	createRuntimeInteractionStateMatrixOutput,
 	type RuntimeOverlayInstruction,
+	type RuntimeInteractionStateMatrixBounds,
+	type RuntimeInteractionStateMatrixInput,
+	type RuntimeInteractionStateMatrixOutput,
+	type RuntimeInteractionStateMatrixState,
 } from './overlay/index.ts'
 export {
 	type RuntimePreviewInstruction,

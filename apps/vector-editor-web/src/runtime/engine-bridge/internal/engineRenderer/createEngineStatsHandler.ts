@@ -83,6 +83,21 @@ export function createEngineStatsHandler(params: {
   }>
   renderRequestStatsRef: React.MutableRefObject<{
     lastReason: string
+    // Stores the current frame-stage correlation token emitted at render request time.
+    frameStageId: string
+    // Stores monotonically increasing frame-stage sequence for timeline ordering.
+    frameStageSequence: number
+    // Stores request timestamp for the current frame-stage token.
+    frameStageIssuedAtMs: number
+    // Stores scheduler lane selected for the current frame-stage token.
+    frameStageSchedulerMode: 'interactive' | 'normal'
+    // Stores latest scene apply path bound to the current frame-stage token.
+    frameStageSceneApplyMode: 'none' | 'full-load' | 'preview-load' | 'incremental-patch'
+    activeOverlayScenePlane: 'base' | 'active'
+    activeOverlayOverlayPlane: 'base' | 'overlay'
+    activeOverlayUsesActivePlane: boolean
+    activeOverlayProtectedNodeCount: number
+    activeOverlayInteractionActiveNodeCount: number
     renderPhase: RuntimeRenderPhase
     viewportInteractionType: 'pan' | 'zoom' | 'other'
     sideTargetDpr: number
@@ -227,6 +242,22 @@ export function createEngineStatsHandler(params: {
     | 'non-rect-shape-unsupported'
     | 'shape-style-unsupported'
     | 'shape-transform-unsupported'
+  // Records WebGL feature-capability gate reason for rich semantic fallbacks.
+  webglFeatureCapabilityGateReason?:
+    | 'none'
+    | 'image-node-unsupported'
+    | 'clip-node-unsupported'
+    | 'text-style-unsupported'
+    | 'shadow-style-unsupported'
+    | 'gradient-style-unsupported'
+  // Records WebGPU feature-capability gate reason for rich semantic fallbacks.
+  webgpuFeatureCapabilityGateReason?:
+    | 'none'
+    | 'image-node-unsupported'
+    | 'clip-node-unsupported'
+    | 'text-style-unsupported'
+    | 'shadow-style-unsupported'
+    | 'gradient-style-unsupported'
   webglPreviewReuseMs?: number
   webglPlanBuildMs?: number
   webglTextureUploadMs?: number
@@ -309,6 +340,22 @@ export function createEngineStatsHandler(params: {
         | 'non-rect-shape-unsupported'
         | 'shape-style-unsupported'
         | 'shape-transform-unsupported'
+      // Records WebGL feature-capability gate reason for rich semantic fallbacks.
+      webglFeatureCapabilityGateReason?:
+        | 'none'
+        | 'image-node-unsupported'
+        | 'clip-node-unsupported'
+        | 'text-style-unsupported'
+        | 'shadow-style-unsupported'
+        | 'gradient-style-unsupported'
+      // Records WebGPU feature-capability gate reason for rich semantic fallbacks.
+      webgpuFeatureCapabilityGateReason?:
+        | 'none'
+        | 'image-node-unsupported'
+        | 'clip-node-unsupported'
+        | 'text-style-unsupported'
+        | 'shadow-style-unsupported'
+        | 'gradient-style-unsupported'
       webglInteractiveTextFallbackCount?: number
       webglImageTextureUploadCount?: number
       webglImageTextureUploadBytes?: number

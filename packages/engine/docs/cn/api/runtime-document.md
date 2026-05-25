@@ -240,4 +240,4 @@ engine.runtime.document.deserializeSnapshot(input: {
 - Requirement 基线映射来源：
   - `packages/engine/src/kernel/document/document-warning-codes.ts`（`ENGINE_RUNTIME_DOCUMENT_WARNING_CODE_BASELINE_REQUIREMENTS`）
 - Requirement 规格参考：
-  - `packages/engine/ai/playground-s1-s13-requirements-2026-05-24.md`（第 14 节）
+  - `.ai-tasks/engine/playground-s1-s13-requirements-2026-05-24.md`（第 14 节）
