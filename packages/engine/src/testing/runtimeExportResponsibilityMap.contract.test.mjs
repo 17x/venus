@@ -21,6 +21,7 @@ const RUNTIME_EXPORT_RESPONSIBILITY_MAP = {
   panViewportState: "runtime",
   resolveViewportState: "runtime",
   zoomViewportState: "runtime",
+  createEngineCameraController: "runtime",
   resolveEngineRenderStrategy: "runtime",
   resolveRuntimeFrameController: "runtime",
   createEngineRuntimeFacade: "runtime",

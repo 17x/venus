@@ -93,6 +93,51 @@ function createDefaultBackendDiagnostics() {
     webgpuNativeSubmissionTotalFailureCount: 0,
     webgpuNativeRectBatchEligibleCount: 0,
     webgpuNativeRectBatchRejectedReason: "none" as const,
+    webglNativeMeshAttemptedCount: 0,
+    webglNativeMeshSubmittedCount: 0,
+    webglNativeMeshPipelineCompileCount: 0,
+    webglNativeMeshPipelineReuseCount: 0,
+    webglNativeMeshRejectedCount: 0,
+    webglNativeMeshRejectedInvalidPositionCount: 0,
+    webglNativeMeshRejectedInvalidIndexCount: 0,
+    webglNativeMeshRejectedInsufficientStreamCount: 0,
+    webglNativeMeshRejectedUnsupportedTopologyCount: 0,
+    webglNativeMeshSupportedTopologies: ["triangles"],
+    webglNativeMeshRejectedTopologies: [],
+    webglNativeMeshLineTopologyPlannedCount: 0,
+    webglNativeMeshLineTopologyPreflightAttemptedCount: 0,
+    webglNativeMeshLineTopologyPreflightPassedCount: 0,
+    webglNativeMeshLineTopologyPreflightRejectedCount: 0,
+    webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount: 0,
+    webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount: 0,
+    webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: 0,
+    webglNativeMeshLineTopologyDrawPlanAttemptedCount: 0,
+    webglNativeMeshLineTopologyDrawPlanCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionDeferredCount: 0,
+    webglNativeMeshLineTopologySubmissionAttemptedCount: 0,
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionSucceededCount: 0,
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: 0,
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: 0,
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionFailedCount: 0,
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionGateBlockedCount: 0,
+    webglNativeMeshLineTopologySubmissionGateState: "disabled",
+    webglNativeMeshLineTopologySubmissionOutcome: "none",
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: 0,
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: 0,
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: 0,
+    webglNativeMeshLineTopologySubmissionFailureReason: "none",
+    webglNativeMeshLineTopologySubmissionFailureSummary: {
+      failedCount: 0,
+      latestReason: "none",
+      missingLinesPrimitiveCount: 0,
+      insufficientStreamCount: 0,
+    },
+    webglNativeMeshCapabilityGateCount: 0,
     cacheHits: 0,
     cacheMisses: 0,
     frameReuseHits: 0,
@@ -282,9 +327,10 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     const candidateIds = latestExecutionSnapshot.visibleCandidateIds.length > 0
       ? latestExecutionSnapshot.visibleCandidateIds
       : [...graphNodeState.keys()];
-    const rects = candidateIds
+    const candidateNodes = candidateIds
       .map((nodeId) => graphNodeState.get(nodeId))
-      .filter((node): node is EngineGraphNodeInput => Boolean(node))
+      .filter((node): node is EngineGraphNodeInput => Boolean(node));
+    const rects = candidateNodes
       .map((node) => {
         const x = typeof node.x === "number" && Number.isFinite(node.x) ? node.x : 0;
         const y = typeof node.y === "number" && Number.isFinite(node.y) ? node.y : 0;
@@ -304,20 +350,105 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         };
       })
       .filter((rect) => rect.width > 0 && rect.height > 0);
+    const meshes: Array<{
+      id: string;
+      topology: "triangles" | "lines" | "points";
+      positions: readonly number[];
+      indices?: readonly number[];
+      color: string;
+    }> = [];
+    candidateNodes.forEach((node) => {
+      // Prefer explicit mesh contracts so runtime adapters can submit authored geometry directly.
+      const meshInput =
+        node.mesh && typeof node.mesh === "object" && Array.isArray((node.mesh as { positions?: unknown }).positions)
+          ? (node.mesh as {
+            topology?: "triangles" | "lines" | "points";
+            positions: readonly number[];
+            indices?: readonly number[];
+            color?: string;
+          })
+          : null;
+      if (meshInput) {
+        const topology = meshInput.topology ?? "triangles";
+        const minimumPositionCount = topology === "triangles"
+          ? 9
+          : topology === "lines"
+            ? 6
+            : 3;
+        if (meshInput.positions.length < minimumPositionCount) {
+          return;
+        }
+        const minimumIndexCount = topology === "triangles"
+          ? 3
+          : topology === "lines"
+            ? 2
+            : 1;
+        const normalizedIndices =
+          Array.isArray(meshInput.indices) && meshInput.indices.length >= minimumIndexCount
+            ? meshInput.indices
+                .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+                .map((value) => Math.max(0, Math.floor(value)))
+            : [];
+        const color = typeof meshInput.color === "string"
+          ? meshInput.color
+          : typeof node.fill === "string"
+            ? node.fill
+            : typeof node.stroke === "string"
+              ? node.stroke
+              : "#334155";
+        const fallbackIndices = topology === "triangles" ? [0, 1, 2] : [];
+        meshes.push({
+          id: String(node.id),
+          topology,
+          positions: [...meshInput.positions],
+          indices: normalizedIndices.length >= minimumIndexCount ? normalizedIndices : fallbackIndices,
+          color,
+        });
+        return;
+      }
+
+      // Keep rect-derived triangles as compatibility fallback while graph migration is in progress.
+      const width = typeof node.width === "number" && Number.isFinite(node.width) ? Math.abs(node.width) : 0;
+      const height = typeof node.height === "number" && Number.isFinite(node.height) ? Math.abs(node.height) : 0;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+      const x = typeof node.x === "number" && Number.isFinite(node.x) ? node.x : 0;
+      const y = typeof node.y === "number" && Number.isFinite(node.y) ? node.y : 0;
+      const z = typeof node.z === "number" && Number.isFinite(node.z) ? node.z : 0;
+      const color = typeof node.fill === "string"
+        ? node.fill
+        : typeof node.stroke === "string"
+          ? node.stroke
+          : "#334155";
+
+      // Emit one deterministic quad as two triangles for baseline mesh submission.
+      meshes.push({
+        id: String(node.id),
+        topology: "triangles",
+        positions: [
+          x, y, z,
+          x + width, y, z,
+          x, y + height, z,
+          x + width, y + height, z,
+        ],
+        indices: [0, 1, 2, 2, 1, 3],
+        color,
+      });
+    });
 
     return {
       translateX: viewport.offsetX,
       translateY: viewport.offsetY,
       scale: viewport.scale,
       rects,
-      nodes: candidateIds
-        .map((nodeId) => graphNodeState.get(nodeId))
-        .filter((node): node is EngineGraphNodeInput => Boolean(node))
+      nodes: candidateNodes
         .map((node) => ({
           ...node,
           id: String(node.id),
           type: typeof node.type === "string" ? node.type : "shape",
         })),
+      meshes,
     };
   }
 

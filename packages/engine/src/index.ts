@@ -24,6 +24,20 @@ export {
   resolveViewportState,
   zoomViewportState,
 } from "./kernel/view/viewportFacade";
+export {
+  createEngineCameraController,
+} from "./kernel/interaction/camera/engineCameraController";
+export type {
+  EngineCameraController,
+  EngineCameraControllerOptions,
+  EngineCameraControllerScheduler,
+} from "./kernel/interaction/camera/engineCameraController";
+export type {
+  EngineCameraCommand,
+  EngineCameraFrameBounds,
+  EngineCameraPreset,
+  EngineCameraState,
+} from "./kernel/interaction/camera/cameraCommandProtocol";
 export { resolveEngineRenderStrategy } from "./orchestration/render-runtime/strategy";
 export { resolveRuntimeFrameController } from "./orchestration/render-runtime/runtimeFrameController";
 export { createEngineRuntimeFacade } from "./orchestration/render-runtime/runtimeFacade";

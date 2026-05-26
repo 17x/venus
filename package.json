@@ -16,6 +16,7 @@
     "governance:file-shape:all": "node ./scripts/file-shape-guard/file-shape-guard.mjs",
     "governance:machine-check": "node ./scripts/governance-machine-check/governance-machine-check.mjs",
     "governance:entropy-report": "node ./scripts/entropy-report/entropy-report.mjs",
+    "governance:entropy:sprint1": "pnpm governance:entropy-report && node ./scripts/entropy-report/entropy-sprint-plan.mjs",
     "governance:test": "node --test ./scripts/module-governance-check/module-governance-check.test.mjs",
     "build:rules": "node ./scripts/build-rules/build-rules.mjs",
     "build:repo": "pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm governance:file-shape:all && pnpm governance:check && pnpm governance:machine-check && pnpm build:rules && pnpm governance:entropy-report",

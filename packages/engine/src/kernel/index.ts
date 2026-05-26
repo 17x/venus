@@ -7,6 +7,8 @@ export * from "./engineKernel";
 export * from "./animation/engineAnimationController";
 export * from "./ecs/runtimeWorld";
 export * from "./view/viewportFacade";
+export * from "./interaction/camera/cameraCommandProtocol";
+export * from "./interaction/camera/engineCameraController";
 export * from "./profiles/base/base-runtime-profile";
 export * from "./profiles/headless/headless-runtime-profile";
 export * from "./profiles/browser/browser-runtime-profile";

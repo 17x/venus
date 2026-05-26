@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-05-25T09:03:37.283Z",
+  "fileCount": 793,
+  "aiTempCount": 16,
+  "govExceptionCount": 0,
+  "hardLimitFiles": [
+    {
+      "relPath": "apps/vector-editor-web/src/testing/product-specs/rendering/render-parity-runtime-replay-history-gate.contract.test.ts",
+      "lineCount": 2498
+    },
+    {
+      "relPath": "packages/engine/src/testing/webAdapter.conformance.test.ts",
+      "lineCount": 1224
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/templatePresets/generators/generators.ts",
+      "lineCount": 1155
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/createEngine.runtime-document-dirty-command.foundation.ts",
+      "lineCount": 912
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/createEngine.ts",
+      "lineCount": 879
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/public-types/runtime-services.types.ts",
+      "lineCount": 849
+    },
+    {
+      "relPath": "packages/engine/src/testing/createEngine.hard-cut.runtime-foundation.test.ts",
+      "lineCount": 782
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/engine-bridge/internal/engineRenderer/engineRenderer.tsx",
+      "lineCount": 729
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/public-types/core-foundation.types.ts",
+      "lineCount": 726
+    },
+    {
+      "relPath": "packages/engine/src/backend/adapters/webglBackendAdapter.ts",
+      "lineCount": 707
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/events/index/index/index.runtimeEvents.types.ts",
+      "lineCount": 702
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/engine-bridge/internal/engineRenderer/createEngineStatsHandler.ts",
+      "lineCount": 702
+    },
+    {
+      "relPath": "packages/engine/src/backend/adapters/webgpuBackendAdapter.ts",
+      "lineCount": 670
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/engine-bridge/renderParityChecklist.ts",
+      "lineCount": 665
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/engine-bridge/runtimeDiagnosticsPayload.ts",
+      "lineCount": 661
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/public-types/runtime-document-world.types.ts",
+      "lineCount": 650
+    }
+  ],
+  "softLimitFiles": [
+    {
+      "relPath": "apps/vector-editor-web/src/product/useEditorRuntime/useEditorRuntime.ts",
+      "lineCount": 599
+    },
+    {
+      "relPath": "packages/engine/src/testing/createEngine.hard-cut.test.ts",
+      "lineCount": 574
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/interaction/transformSessionManager.ts",
+      "lineCount": 568
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/createEngine.events-hooks-cache.foundation.ts",
+      "lineCount": 561
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/core/createCanvasRuntimeController.ts",
+      "lineCount": 552
+    },
+    {
+      "relPath": "packages/lib/src/viewport/index.ts",
+      "lineCount": 551
+    },
+    {
+      "relPath": "packages/engine/src/testing/contract/backendRenderBrowserChain.contract.test.ts",
+      "lineCount": 540
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/model/document-runtime/documentGovernance.ts",
+      "lineCount": 524
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/views/shell/RuntimeDebugPanel/RuntimeDebugPanel.sceneDirtyModel.ts",
+      "lineCount": 516
+    },
+    {
+      "relPath": "packages/engine/src/orchestration/api/runtimeCapabilityMap.ts",
+      "lineCount": 516
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/presets/engineSceneAdapter/engineSceneAdapter.ts",
+      "lineCount": 515
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/events/index/index/index.runtimeEvents.ts",
+      "lineCount": 509
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/worker/scope/normalizedPatchParity/normalizedPatchParity.fixtures.ts",
+      "lineCount": 508
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/runtime/worker/scope/localHistoryEntry/localHistoryEntry.ts",
+      "lineCount": 506
+    },
+    {
+      "relPath": "apps/vector-editor-web/src/product/runtime/createEditorRuntimeActionExecutor.ts",
+      "lineCount": 502
+    }
+  ],
+  "wrapperLikeNames": [
+    "packages/engine/src/orchestration/api/createEngine.cache-policy-security.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.capability.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.diagnostics-replay.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.events-hooks.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.extension-scheduler.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.graph-render.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.lifecycle-view.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.media-overlay.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.runtime-capability-dispose.facade.ts",
+    "packages/engine/src/orchestration/api/createEngine.runtime.facade.ts"
+  ]
+}

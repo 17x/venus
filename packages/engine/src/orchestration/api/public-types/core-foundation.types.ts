@@ -233,6 +233,25 @@ export interface EngineStatsSnapshot {
 }
 
 /**
+ * Public mesh primitive topology tokens accepted by graph nodes.
+ */
+export type EngineMeshPrimitiveTopology = "triangles" | "lines" | "points";
+
+/**
+ * Public mesh primitive payload accepted by graph nodes for native mesh submission paths.
+ */
+export interface EngineMeshPrimitiveInput {
+  /** Optional primitive topology token. Defaults to triangles when omitted. */
+  topology?: EngineMeshPrimitiveTopology;
+  /** Packed xyz vertex positions in world coordinates. */
+  positions: readonly number[];
+  /** Optional packed triangle indices into positions array. */
+  indices?: readonly number[];
+  /** Optional mesh color token in CSS notation. */
+  color?: string;
+}
+
+/**
  * Public graph node payload accepted by setGraph/updateGraph APIs.
  */
 export interface EngineGraphNodeInput {
@@ -274,6 +293,8 @@ export interface EngineGraphNodeInput {
   lightingMode?: "inherit" | "unlit" | "lit";
   /** Optional material id hint for backend material binding. */
   materialId?: string;
+  /** Optional mesh primitive payload for native mesh rendering paths. */
+  mesh?: EngineMeshPrimitiveInput;
   /** Optional compatibility envelope for adapter-provided 3D semantics. */
   semantic3d?: Readonly<Record<string, unknown>>;
   /** Optional payload object carrying revision counters and metadata. */

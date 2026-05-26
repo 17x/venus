@@ -358,6 +358,1290 @@ test("webgl adapter emits packet diagnostics from native payload", () => {
 });
 
 /**
+ * Verifies WebGL adapter presents native mesh payload through triangle submissions.
+ */
+test("webgl adapter emits model-complete diagnostics from native mesh payload", () => {
+  let drawArraysCount = 0;
+  let createProgramCount = 0;
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshPipelineCompileCount: number;
+    webglNativeMeshPipelineReuseCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshRejectedInvalidPositionCount: number;
+    webglNativeMeshRejectedInvalidIndexCount: number;
+    webglNativeMeshRejectedInsufficientStreamCount: number;
+    webglNativeMeshCapabilityGateCount: number;
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            createProgramCount += 1;
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays() {
+            drawArraysCount += 1;
+          },
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-quad",
+          positions: [0, 0, 0, 40, 0, 0, 0, 30, 0, 40, 30, 0],
+          indices: [0, 1, 2, 2, 1, 3],
+          color: "#22c55e",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+  backend.renderFrame(2);
+
+  assert.equal(drawArraysCount > 0, true);
+  assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
+  assert.equal(createProgramCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshPipelineCompileCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshPipelineReuseCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInvalidPositionCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInvalidIndexCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshCapabilityGateCount, 0);
+});
+
+/**
+ * Verifies WebGL adapter classifies native mesh submission rejections by deterministic reason counters.
+ */
+test("webgl adapter classifies native mesh rejection diagnostics", () => {
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshRejectedInvalidPositionCount: number;
+    webglNativeMeshRejectedInvalidIndexCount: number;
+    webglNativeMeshRejectedInsufficientStreamCount: number;
+    webglNativeMeshRejectedUnsupportedTopologyCount: number;
+    webglNativeMeshSupportedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshRejectedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologyDrawPlanAttemptedCount: number;
+    webglNativeMeshLineTopologyDrawPlanCommandCount: number;
+    webglNativeMeshLineTopologySubmissionDeferredCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionGateBlockedCount: number;
+    webglNativeMeshLineTopologySubmissionGateState: "enabled" | "disabled";
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: number;
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+    webglNativeMeshLineTopologySubmissionFailureSummary: {
+      failedCount: number;
+      latestReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+      missingLinesPrimitiveCount: number;
+      insufficientStreamCount: number;
+    };
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays() {},
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-invalid-position",
+          positions: [0, 0, 0, 10, 0],
+          color: "#22c55e",
+        },
+        {
+          id: "mesh-invalid-index",
+          positions: [0, 0, 0, 40, 0, 0, 0, 30, 0],
+          indices: [0, 1, 4],
+          color: "#0ea5e9",
+        },
+        {
+          id: "mesh-insufficient-stream",
+          positions: [0, 0, 0, 40, 0, 0, 0, 30, 0, 40, 30, 0],
+          color: "#f97316",
+        },
+        {
+          id: "mesh-unsupported-topology",
+          topology: "lines",
+          positions: [0, 0, 0, 40, 0, 0],
+          color: "#eab308",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lastDiagnostics?.webglRenderPath, "none");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 4);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 4);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInvalidPositionCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInvalidIndexCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedUnsupportedTopologyCount, 1);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshSupportedTopologies, ["triangles"]);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshRejectedTopologies, ["lines"]);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDeferredCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateBlockedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateState, "disabled");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "deferred-gate-disabled");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureReason, "none");
+});
+
+/**
+ * Verifies WebGL adapter submits line-topology meshes when native line submission gate is enabled.
+ */
+test("webgl adapter submits native line topology when gate is enabled", () => {
+  let lineDrawArraysCount = 0;
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshSupportedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshRejectedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyDrawPlanAttemptedCount: number;
+    webglNativeMeshLineTopologyDrawPlanCommandCount: number;
+    webglNativeMeshLineTopologySubmissionDeferredCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionGateBlockedCount: number;
+    webglNativeMeshLineTopologySubmissionGateState: "enabled" | "disabled";
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: number;
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays(mode: number) {
+            if (mode === 0x0001) {
+              lineDrawArraysCount += 1;
+            }
+          },
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          LINES: 0x0001,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      lineTopologySubmissionEnabled: true,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-line-enabled",
+          topology: "lines",
+          positions: [0, 0, 0, 40, 0, 0],
+          color: "#22c55e",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lineDrawArraysCount, 1);
+  assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 0);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshSupportedTopologies, ["triangles", "lines"]);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshRejectedTopologies, []);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDeferredCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateBlockedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateState, "enabled");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "submitted");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureReason, "none");
+});
+
+/**
+ * Verifies WebGL adapter reports dedicated line-submission failure diagnostics when GL.LINES primitive is unavailable.
+ */
+test("webgl adapter classifies line submission failure when lines primitive is unavailable", () => {
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshRejectedUnsupportedTopologyCount: number;
+    webglNativeMeshSupportedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshRejectedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyDrawPlanAttemptedCount: number;
+    webglNativeMeshLineTopologyDrawPlanCommandCount: number;
+    webglNativeMeshLineTopologySubmissionDeferredCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionGateBlockedCount: number;
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: number;
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays() {},
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      lineTopologySubmissionEnabled: true,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-line-missing-lines-primitive",
+          topology: "lines",
+          positions: [0, 0, 0, 40, 0, 0],
+          color: "#f97316",
+        },
+        {
+          id: "mesh-line-missing-lines-primitive-2",
+          topology: "lines",
+          positions: [10, 10, 0, 50, 10, 0],
+          color: "#0ea5e9",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lastDiagnostics?.webglRenderPath, "none");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedUnsupportedTopologyCount, 0);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshSupportedTopologies, ["triangles", "lines"]);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshRejectedTopologies, []);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanAttemptedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDeferredCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateBlockedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "failed");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureReason, "missing-lines-primitive");
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureSummary, {
+    failedCount: 2,
+    latestReason: "missing-lines-primitive",
+    missingLinesPrimitiveCount: 2,
+    insufficientStreamCount: 0,
+  });
+});
+
+/**
+ * Verifies WebGL adapter classifies gate-enabled insufficient line stream payloads with deterministic insufficient-stream failure summary.
+ */
+test("webgl adapter classifies line submission failure when stream is insufficient", () => {
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshRejectedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: number;
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+    webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+    webglNativeMeshLineTopologySubmissionFailureSummary: {
+      failedCount: number;
+      latestReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+      missingLinesPrimitiveCount: number;
+      insufficientStreamCount: number;
+    };
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays() {},
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          LINES: 0x0001,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      lineTopologySubmissionEnabled: true,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-line-insufficient-stream",
+          topology: "lines",
+          positions: [0, 0, 0, 40, 0, 0, 20, 20, 0],
+          color: "#f59e0b",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lastDiagnostics?.webglRenderPath, "none");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "failed");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureReason, "insufficient-stream");
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureSummary, {
+    failedCount: 1,
+    latestReason: "insufficient-stream",
+    missingLinesPrimitiveCount: 0,
+    insufficientStreamCount: 1,
+  });
+});
+
+/**
+ * Verifies mixed gate-enabled line frames preserve successful submissions while normalizing outcome token to failed when any line submission fails.
+ */
+test("webgl adapter normalizes mixed line submission outcome precedence", () => {
+  let lineDrawArraysCount = 0;
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshRejectedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: number;
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+    webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+    webglNativeMeshLineTopologySubmissionFailureSummary: {
+      failedCount: number;
+      latestReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+      missingLinesPrimitiveCount: number;
+      insufficientStreamCount: number;
+    };
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays(mode: number) {
+            if (mode === 0x0001) {
+              lineDrawArraysCount += 1;
+            }
+          },
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          LINES: 0x0001,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      lineTopologySubmissionEnabled: true,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-line-success",
+          topology: "lines",
+          positions: [0, 0, 0, 40, 0, 0],
+          color: "#22c55e",
+        },
+        {
+          id: "mesh-line-failure-insufficient-stream",
+          topology: "lines",
+          positions: [10, 10, 0, 50, 10, 0, 20, 20, 0],
+          color: "#f59e0b",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lineDrawArraysCount, 1);
+  assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 0.5);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "failed");
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureReason, "insufficient-stream");
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureSummary, {
+    failedCount: 1,
+    latestReason: "insufficient-stream",
+    missingLinesPrimitiveCount: 0,
+    insufficientStreamCount: 1,
+  });
+});
+
+/**
+ * Verifies indexed gate-enabled line payloads map each index pair to one successful line command count.
+ */
+test("webgl adapter tracks indexed line submission command counts", () => {
+  let lineDrawArraysCount = 0;
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyDrawPlanAttemptedCount: number;
+    webglNativeMeshLineTopologyDrawPlanCommandCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays(mode: number) {
+            if (mode === 0x0001) {
+              lineDrawArraysCount += 1;
+            }
+          },
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f() {},
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          LINES: 0x0001,
+          bindFramebuffer() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      lineTopologySubmissionEnabled: true,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-line-indexed-commands",
+          topology: "lines",
+          positions: [0, 0, 0, 40, 0, 0, 0, 30, 0, 40, 30, 0],
+          indices: [0, 1, 2, 3],
+          color: "#38bdf8",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lineDrawArraysCount, 1);
+  assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 2);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "submitted");
+});
+
+/**
+ * Verifies WebGL adapter classifies capability-gate mesh rejection diagnostics when required APIs are unavailable.
+ */
+test("webgl adapter classifies native mesh capability-gate diagnostics", () => {
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshAttemptedCount: number;
+    webglNativeMeshSubmittedCount: number;
+    webglNativeMeshRejectedCount: number;
+    webglNativeMeshSupportedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshRejectedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+    webglNativeMeshLineTopologyPlannedCount: number;
+    webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+    webglNativeMeshLineTopologyPreflightPassedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount: number;
+    webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologyDrawPlanAttemptedCount: number;
+    webglNativeMeshLineTopologyDrawPlanCommandCount: number;
+    webglNativeMeshLineTopologySubmissionDeferredCount: number;
+    webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCount: number;
+    webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailedCount: number;
+    webglNativeMeshLineTopologySubmissionGateBlockedCount: number;
+    webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: number;
+    webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+    webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+    webglNativeMeshCapabilityGateCount: number;
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          // Intentionally omit shader/program creation APIs to trigger capability gate diagnostics.
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          bindFramebuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      rects: [],
+      meshes: [
+        {
+          id: "mesh-capability-gate",
+          positions: [0, 0, 0, 40, 0, 0, 0, 30, 0],
+          color: "#eab308",
+        },
+      ],
+    }),
+  });
+
+  backend.resize(surface);
+  backend.renderFrame(1);
+
+  assert.equal(lastDiagnostics?.webglRenderPath, "none");
+  assert.equal(lastDiagnostics?.webglNativeMeshAttemptedCount, 1);
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshRejectedCount, 1);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshSupportedTopologies, ["triangles"]);
+  assert.deepEqual(lastDiagnostics?.webglNativeMeshRejectedTopologies, []);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPlannedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightAttemptedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightPassedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanAttemptedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologyDrawPlanCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDeferredCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionAttemptedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionSucceededCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateBlockedCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount, 0);
+  assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureReason, "none");
+  assert.equal(lastDiagnostics?.webglNativeMeshCapabilityGateCount, 1);
+});
+
+/**
  * Verifies WebGL adapter reports model-complete when rich-node composition presents successfully.
  */
 test("webgl adapter emits model-complete diagnostics from rich-node payload", () => {
@@ -611,6 +1895,17 @@ test("webgpu adapter emits native submission diagnostics", async () => {
     webgpuNativeSubmissionFailureCount: number;
     webgpuNativeSubmissionTotalCount: number;
     webgpuNativeRectBatchEligibleCount: number;
+    webglNativeMeshLineTopologySubmissionGateState: "enabled" | "disabled";
+    webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+    webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+    webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+    webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+    webglNativeMeshLineTopologySubmissionFailureSummary: {
+      failedCount: number;
+      latestReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+      missingLinesPrimitiveCount: number;
+      insufficientStreamCount: number;
+    };
     webglBudgetPressureReason: string;
   } | null = null;
 
@@ -711,6 +2006,17 @@ test("webgpu adapter emits native submission diagnostics", async () => {
     assert.equal(lastDiagnostics?.webgpuNativeSubmissionFailureCount, 0);
     assert.equal(lastDiagnostics?.webgpuNativeSubmissionTotalCount, 1);
     assert.equal(lastDiagnostics?.webgpuNativeRectBatchEligibleCount, 1);
+    assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionGateState, "disabled");
+    assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionOutcome, "none");
+    assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionCommandSuccessRate, 0);
+    assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionPlanCoverageRate, 0);
+    assert.equal(lastDiagnostics?.webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount, 0);
+    assert.deepEqual(lastDiagnostics?.webglNativeMeshLineTopologySubmissionFailureSummary, {
+      failedCount: 0,
+      latestReason: "none",
+      missingLinesPrimitiveCount: 0,
+      insufficientStreamCount: 0,
+    });
     assert.equal(
       ["within-low-thresholds", "payload-rect-count-medium", "payload-rect-count-high"].includes(
         lastDiagnostics?.webglBudgetPressureReason ?? "",

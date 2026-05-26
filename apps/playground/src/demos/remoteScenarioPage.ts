@@ -1,16 +1,34 @@
 import {createEngine} from '@venus/engine'
 import {
   REMOTE_SCENARIO_DEFINITIONS,
-  resolveRemoteScenarioFromPathname,
+  resolveRemoteScenarioFromRoute,
   type RemoteScenarioDefinition,
 } from './remoteScenarioCatalog'
 import type {PlaygroundSceneSnapshot} from '../types/playgroundScene'
 
 /**
+ * Resolves current hash sub-route path used by playground route dispatching.
+ */
+function resolveHashSubRoutePath(): string {
+  const rawHash = window.location.hash.startsWith('#')
+    ? window.location.hash.slice(1)
+    : window.location.hash
+  if (!rawHash) {
+    return ''
+  }
+  const hashPath = rawHash.split('?')[0]
+  if (!hashPath) {
+    return ''
+  }
+  return hashPath.startsWith('/') ? hashPath : `/${hashPath}`
+}
+
+/**
  * Attempts to mount a remote-data scenario subpage based on current pathname.
  */
 export async function tryMountRemoteScenarioPage(): Promise<boolean> {
-  const scenario = resolveRemoteScenarioFromPathname(window.location.pathname)
+  const hashSubRoutePath = resolveHashSubRoutePath()
+  const scenario = resolveRemoteScenarioFromRoute(hashSubRoutePath || window.location.pathname)
   if (!scenario) {
     return false
   }
@@ -80,7 +98,7 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
       canvas: {
         width: canvas.width,
         height: canvas.height,
-        getContext: (contextId) => {
+        getContext: (contextId: '2d' | 'webgl' | 'webgl2') => {
           if (contextId === '2d') {
             return canvas.getContext('2d')
           }
@@ -202,7 +220,7 @@ function populateScenarioNav(
 ): void {
   const links = REMOTE_SCENARIO_DEFINITIONS.map((scenario) => {
     const isActive = scenario.id === activeScenario.id
-    return `<a class="remote-demo-link ${isActive ? 'remote-demo-link-active' : ''}" href="${scenario.path}">${scenario.tags[0]}</a>`
+    return `<a class="remote-demo-link ${isActive ? 'remote-demo-link-active' : ''}" href="#${scenario.path}">${scenario.tags[0]}</a>`
   })
   navContainer.innerHTML = links.join('')
 }

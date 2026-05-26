@@ -1,5 +1,6 @@
 import type {PlaygroundSceneSnapshot} from '../types/playgroundScene'
 
+import {build3DEditorValidationScene} from './3d-editor-validation/scene'
 import {build3DSpatialScene} from './3d-spatial/scene'
 import {build2DBasicScene} from './2d-basic/scene'
 import {build2DInteractiveScene} from './2d-interactive/scene'
@@ -77,11 +78,18 @@ export const createScenarioCatalog = (revision: number): ReadonlyArray<Playgroun
 			tags: ['3d', 'spatial-index', 'projection'],
 			buildScene: () => build3DSpatialScene(revision),
 		},
+		{
+			id: '3d-editor-validation',
+			label: '3D Editor Typical Scene',
+			description: 'Typical editor viewport layout with semantic3d depth, order, and material coverage.',
+			tags: ['3d', 'editor-runtime', 'semantic3d'],
+			buildScene: () => build3DEditorValidationScene(revision),
+		},
 	]
 }
 
 /**
- * Resolve the initial scenario from URL query with safe fallback semantics.
+ * Resolve the initial scenario using deterministic catalog fallback semantics only.
  * @param scenarios Complete scenario catalog that can satisfy user selection.
  */
 export const resolveInitialScenarioId = (scenarios: ReadonlyArray<PlaygroundScenario>): string => {
@@ -89,23 +97,13 @@ export const resolveInitialScenarioId = (scenarios: ReadonlyArray<PlaygroundScen
 	if (!fallbackId) {
 		return ''
 	}
-
-	const searchParams = new URLSearchParams(window.location.search)
-	const selected = searchParams.get('scenario')
-	if (!selected) {
-		return fallbackId
-	}
-
-	const hasSelected = scenarios.some((scenario) => scenario.id === selected)
-	return hasSelected ? selected : fallbackId
+	return fallbackId
 }
 
 /**
- * Update URL query so scenario selection is copyable and reproducible.
+ * Keep URL clean by skipping scenario query synchronization.
  * @param scenarioId Current scenario id selected in the command panel.
  */
-export const syncScenarioQuery = (scenarioId: string): void => {
-	const url = new URL(window.location.href)
-	url.searchParams.set('scenario', scenarioId)
-	window.history.replaceState({}, '', url)
+export const syncScenarioQuery = (_scenarioId: string): void => {
+	return
 }

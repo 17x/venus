@@ -15,8 +15,10 @@ export interface RemoteScenarioDefinition {
   title: string
   /** Short scenario summary shown beside status telemetry. */
   summary: string
-  /** Subpage path used to deep-link this scenario demo. */
+  /** Hash sub-route path used to deep-link this scenario demo. */
   path: string
+  /** Legacy pathname aliases kept for backward-compatible deep links. */
+  aliases?: readonly string[]
   /** Public free dataset endpoint used by this scenario demo. */
   datasetUrl: string
   /** Dataset format used by the scenario parser. */
@@ -36,9 +38,10 @@ const DEMO_HEIGHT = 980
 export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = [
   {
     id: 's1-medical-volume-slice-runtime',
-    title: 'S1 Medical Volume Slice Runtime',
+    title: 'Medical Volume Slice Runtime',
     summary: 'Uses a public scalar-field grid to emulate volumetric slice intensity projection.',
-    path: '/demo/s1-medical-volume-slice-runtime',
+    path: '/medical-volume-slice-runtime',
+    aliases: ['/demo/s1-medical-volume-slice-runtime'],
     datasetUrl: 'https://raw.githubusercontent.com/plotly/datasets/master/volcano.csv',
     datasetFormat: 'csv',
     tags: ['S1', 'medical', '3d-volume', 'public-data'],
@@ -46,9 +49,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's2-preop-path-simulation',
-    title: 'S2 Pre-op Path Simulation',
+    title: 'Pre-op Path Simulation',
     summary: 'Uses public airport waypoint coordinates to emulate surgical route planning paths.',
-    path: '/demo/s2-preop-path-simulation',
+    path: '/preop-path-simulation',
+    aliases: ['/demo/s2-preop-path-simulation'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/airports.csv',
     datasetFormat: 'csv',
     tags: ['S2', 'surgical-planning', 'pathing', 'public-data'],
@@ -56,9 +60,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's3-bim-collab-review',
-    title: 'S3 BIM Collaborative Review',
+    title: 'BIM Collaborative Review',
     summary: 'Uses public building footprint polygons for pseudo-3D block review overlays.',
-    path: '/demo/s3-bim-collab-review',
+    path: '/bim-collab-review',
+    aliases: ['/demo/s3-bim-collab-review'],
     datasetUrl: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json',
     datasetFormat: 'json',
     tags: ['S3', 'bim', 'architecture', 'public-data'],
@@ -66,9 +71,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's4-cad-assembly-validation',
-    title: 'S4 CAD Assembly Validation',
+    title: 'CAD Assembly Validation',
     summary: 'Uses public vehicle specs as pseudo mechanical part dimensions and assembly layers.',
-    path: '/demo/s4-cad-assembly-validation',
+    path: '/cad-assembly-validation',
+    aliases: ['/demo/s4-cad-assembly-validation'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/cars.json',
     datasetFormat: 'json',
     tags: ['S4', 'industrial-cad', 'assembly', 'public-data'],
@@ -76,9 +82,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's5-gis-live-map-streaming',
-    title: 'S5 GIS Live Map Streaming',
+    title: 'GIS Live Map Streaming',
     summary: 'Uses live USGS earthquake GeoJSON for 2D map and depth-layered 3D semantics.',
-    path: '/demo/s5-gis-live-map-streaming',
+    path: '/gis-live-map-streaming',
+    aliases: ['/demo/s5-gis-live-map-streaming'],
     datasetUrl: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson',
     datasetFormat: 'json',
     tags: ['S5', 'gis', '2d3d', 'public-data'],
@@ -86,9 +93,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's6-autodrive-twin-replay',
-    title: 'S6 Autonomous Driving Twin Replay',
+    title: 'Autonomous Driving Twin Replay',
     summary: 'Uses public timeline match records to emulate deterministic twin replay keyframes.',
-    path: '/demo/s6-autodrive-twin-replay',
+    path: '/autodrive-twin-replay',
+    aliases: ['/demo/s6-autodrive-twin-replay'],
     datasetUrl: 'https://raw.githubusercontent.com/fivethirtyeight/data/master/nba-elo/nbaallelo.csv',
     datasetFormat: 'csv',
     tags: ['S6', 'driving-twin', 'replay', 'public-data'],
@@ -96,9 +104,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's7-city-twin-monitor-wall',
-    title: 'S7 City Twin Monitoring Wall',
+    title: 'City Twin Monitoring Wall',
     summary: 'Uses public GDP country stats to emulate a city-scale wall with layered bars.',
-    path: '/demo/s7-city-twin-monitor-wall',
+    path: '/city-twin-monitor-wall',
+    aliases: ['/demo/s7-city-twin-monitor-wall'],
     datasetUrl: 'https://raw.githubusercontent.com/plotly/datasets/master/2014_world_gdp_with_codes.csv',
     datasetFormat: 'csv',
     tags: ['S7', 'city-twin', 'wall-dashboard', 'public-data'],
@@ -106,9 +115,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's8-commerce-product-variant-runtime',
-    title: 'S8 Commerce Product Variant Runtime',
+    title: 'Commerce Product Variant Runtime',
     summary: 'Uses free product catalog data for variant cards with layered depth semantics.',
-    path: '/demo/s8-commerce-product-variant-runtime',
+    path: '/commerce-product-variant-runtime',
+    aliases: ['/demo/s8-commerce-product-variant-runtime'],
     datasetUrl: 'https://fakestoreapi.com/products',
     datasetFormat: 'json',
     tags: ['S8', 'commerce', '3d-product', 'public-data'],
@@ -116,9 +126,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's9-molecular-volume-exploration',
-    title: 'S9 Molecular and Volume Exploration',
+    title: 'Molecular and Volume Exploration',
     summary: 'Uses public earthquake point-cloud data to emulate molecular cluster and depth fields.',
-    path: '/demo/s9-molecular-volume-exploration',
+    path: '/molecular-volume-exploration',
+    aliases: ['/demo/s9-molecular-volume-exploration'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/earthquakes.json',
     datasetFormat: 'json',
     tags: ['S9', 'molecular', 'volume', 'public-data'],
@@ -126,9 +137,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's10-game-editor-runtime-preview',
-    title: 'S10 Game Editor Runtime Preview',
+    title: 'Game Editor Runtime Preview',
     summary: 'Uses public graph topology data to emulate authoring-runtime graph parity behavior.',
-    path: '/demo/s10-game-editor-runtime-preview',
+    path: '/game-editor-runtime-preview',
+    aliases: ['/demo/s10-game-editor-runtime-preview'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/miserables.json',
     datasetFormat: 'json',
     tags: ['S10', 'game-editor', 'runtime-parity', 'public-data'],
@@ -136,9 +148,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's11-node-headless-rendering',
-    title: 'S11 Node Headless Rendering',
+    title: 'Node Headless Rendering',
     summary: 'Uses public industry unemployment time-series to emulate deterministic node frame output.',
-    path: '/demo/s11-node-headless-rendering',
+    path: '/node-headless-rendering',
+    aliases: ['/demo/s11-node-headless-rendering'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/unemployment-across-industries.json',
     datasetFormat: 'json',
     tags: ['S11', 'node-rendering', 'deterministic-frame', 'public-data'],
@@ -146,9 +159,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's12-vector-editor-optin-2d',
-    title: 'S12 Vector Editor Opt-in 2D',
+    title: 'Vector Editor Opt-in 2D',
     summary: 'Uses public weather curves to emulate 2D vector path editing and control handles.',
-    path: '/demo/s12-vector-editor-optin-2d',
+    path: '/vector-editor-optin-2d',
+    aliases: ['/demo/s12-vector-editor-optin-2d'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/seattle-weather.csv',
     datasetFormat: 'csv',
     tags: ['S12', '2d-vector', 'path-editing', 'public-data'],
@@ -156,9 +170,10 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   },
   {
     id: 's13-video-timeline-composition',
-    title: 'S13 Video Timeline Composition',
+    title: 'Video Timeline Composition',
     summary: 'Uses public stock series to emulate timeline tracks, clips, and monitor scheduling.',
-    path: '/demo/s13-video-timeline-composition',
+    path: '/video-timeline-composition',
+    aliases: ['/demo/s13-video-timeline-composition'],
     datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/stocks.csv',
     datasetFormat: 'csv',
     tags: ['S13', 'video-editor', 'timeline', 'public-data'],
@@ -167,14 +182,19 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
 ] as const
 
 /**
- * Resolves one scenario definition from pathname-based subpage routing.
- * @param pathname Browser pathname used by playground route dispatcher.
+ * Resolves one scenario definition from hash-subroute or legacy pathname routing.
+ * @param routePath Hash sub-route path or pathname used by playground route dispatcher.
  */
-export function resolveRemoteScenarioFromPathname(pathname: string): RemoteScenarioDefinition | null {
-  const normalizedPath = pathname.endsWith('/') && pathname.length > 1
-    ? pathname.slice(0, -1)
-    : pathname
-  return REMOTE_SCENARIO_DEFINITIONS.find((scenario) => scenario.path === normalizedPath) ?? null
+export function resolveRemoteScenarioFromRoute(routePath: string): RemoteScenarioDefinition | null {
+  const normalizedPath = routePath.endsWith('/') && routePath.length > 1
+    ? routePath.slice(0, -1)
+    : routePath
+  return REMOTE_SCENARIO_DEFINITIONS.find((scenario) => {
+    if (scenario.path === normalizedPath) {
+      return true
+    }
+    return (scenario.aliases ?? []).includes(normalizedPath)
+  }) ?? null
 }
 
 /**

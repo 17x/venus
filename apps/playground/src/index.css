@@ -1,11 +1,22 @@
 @import "tailwindcss";
 
-/* Define playground surface tokens for consistent shell, panel, and stage contrast. */
+/* Define vector-derived shell tokens so playground and vector editor share baseline style language. */
 :root {
-  color: #dbeafe;
-  background: radial-gradient(circle at 8% 10%, #18304f, #0b1220 52%, #070c14 100%);
+  --ve-bg: #f7f9fc;
+  --ve-fg: #17324d;
+  --ve-card: #fdfefe;
+  --ve-muted: #f2f6fb;
+  --ve-muted-fg: #6d8095;
+  --ve-border: #d9e5f1;
+  --ve-primary: #0066c0;
+  --ve-primary-soft: #3385cf;
+  --ve-stage-top: #f8fafc;
+  --ve-stage-bottom: #edf2f7;
+  color: var(--ve-fg);
+  background: linear-gradient(180deg, #f8fbff 0%, #eff5fb 100%);
   font-family:
-    "IBM Plex Sans",
+    "Geist Variable",
+    "Inter",
     "SF Pro Display",
     sans-serif;
 }
@@ -32,38 +43,182 @@ body {
   background: transparent;
 }
 
-/* Place left command rail and centered stage in a two-column shell. */
-.playground-shell {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+/* Build a dedicated home surface that lists all playground entries as cards. */
+.home-shell {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 0% 0%, rgb(255 255 255 / 0.86), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eff5fb 100%);
 }
 
-/* Keep command area dense and always reachable. */
-.command-panel {
+.home-header {
+  display: grid;
+  gap: 4px;
+}
+
+.home-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  color: #17324d;
+}
+
+.home-subtitle {
+  margin: 0;
+  color: #5b7692;
+  font-size: 13px;
+}
+
+.home-grid {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.home-card-link-wrap {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 14px;
+  outline: none;
+}
+
+.home-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  border: 1px solid #cfe0f1;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f4f8fd);
+  box-shadow: 0 12px 24px rgb(15 37 63 / 0.1);
+  padding: 12px;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.home-card-link-wrap:hover .home-card,
+.home-card-link-wrap:focus-visible .home-card {
+  transform: translateY(-3px);
+  border-color: #89b1d9;
+  box-shadow: 0 16px 28px rgb(15 37 63 / 0.16);
+}
+
+.home-card-link-wrap:hover .home-card-title,
+.home-card-link-wrap:focus-visible .home-card-title {
+  color: #0066c0;
+}
+
+.home-card-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  color: #17324d;
+}
+
+.home-card-description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #4f6d8b;
+}
+
+/* Mirror vector frame hierarchy with top bar, side panels, stage, and status bar. */
+.vector-shell {
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr) 34px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--ve-bg);
+}
+
+/* Keep top bar compact and aligned with vector chrome palette. */
+.vector-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--ve-border);
+  background: linear-gradient(180deg, #ffffff, #f5f8fc);
+}
+
+.vector-topbar-title-wrap {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vector-topbar-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 640;
+}
+
+.vector-topbar-subtitle {
+  margin: 0;
+  color: var(--ve-muted-fg);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.vector-topbar-meta {
+  color: var(--ve-muted-fg);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: right;
+}
+
+/* Maintain classic editor workbench split with fixed side rails and fluid center stage. */
+.vector-workbench {
+  display: grid;
+  grid-template-columns: 296px minmax(0, 1fr) 248px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.vector-side-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 14px;
-  border-right: 1px solid rgb(51 65 85 / 0.6);
-  background: linear-gradient(180deg, rgb(15 23 42 / 0.92), rgb(15 23 42 / 0.7));
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+  background: var(--ve-card);
 }
 
-/* Command headers identify the test bench purpose quickly. */
+.vector-side-panel-left {
+  border-right: 1px solid var(--ve-border);
+}
+
+.vector-side-panel-right {
+  border-left: 1px solid var(--ve-border);
+}
+
 .command-title {
   margin: 0;
-  font-size: 16px;
-  line-height: 1.25;
-  letter-spacing: 0.02em;
-  font-weight: 650;
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  font-weight: 620;
 }
 
 .command-subtitle {
   margin: 0;
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1.4;
+  color: var(--ve-muted-fg);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 /* Group scenario controls so capability matrix selection stays visible and stable. */
@@ -73,30 +228,30 @@ body {
 }
 
 .scenario-label {
-  color: #bfdbfe;
-  font-size: 12px;
-  letter-spacing: 0.02em;
+  color: #35587a;
+  font-size: 11px;
+  letter-spacing: 0.01em;
 }
 
 .scenario-select {
-  border: 1px solid rgb(71 85 105 / 0.9);
+  border: 1px solid var(--ve-border);
   border-radius: 10px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #ffffff;
+  color: var(--ve-fg);
   min-height: 34px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .scenario-select:focus-visible {
-  outline: 2px solid #38bdf8;
+  outline: 2px solid var(--ve-primary-soft);
   outline-offset: 1px;
 }
 
 .scenario-description {
   margin: 0;
-  color: #93c5fd;
-  font-size: 12px;
+  color: #52708e;
+  font-size: 11px;
   line-height: 1.35;
 }
 
@@ -106,25 +261,26 @@ body {
   grid-template-columns: 1fr;
   gap: 8px;
   overflow: auto;
-  padding-right: 2px;
+  padding-right: 4px;
+  min-height: 0;
 }
 
-/* Keep command buttons tactile with clear hover and active states. */
+/* Keep command buttons aligned to vector control contrast and focus semantics. */
 .command-button {
-  border: 1px solid rgb(71 85 105 / 0.9);
-  background: linear-gradient(180deg, #1e293b, #17212f);
-  color: #dbeafe;
+  border: 1px solid var(--ve-border);
+  background: linear-gradient(180deg, #ffffff, #eef4fb);
+  color: var(--ve-fg);
   border-radius: 10px;
   min-height: 36px;
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
   transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
 .command-button:hover {
-  border-color: #60a5fa;
+  border-color: var(--ve-primary-soft);
   transform: translateY(-1px);
 }
 
@@ -133,25 +289,41 @@ body {
 }
 
 .command-button-active {
-  border-color: #22c55e;
-  background: linear-gradient(180deg, #14532d, #134e2b);
+  border-color: #1f9d59;
+  background: linear-gradient(180deg, #f0fff5, #d6fbe6);
 }
 
-/* Keep the test canvas centered and moderately sized by default. */
-.canvas-stage {
+/* Reuse vector stage shell naming semantics and visual treatment. */
+.vector-stage-shell {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.vector-stage-viewport {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
-  gap: 10px;
-  padding: 16px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at top left, rgb(255 255 255 / 0.82), transparent 30%),
+    linear-gradient(180deg, var(--ve-stage-top) 0%, var(--ve-stage-bottom) 100%);
 }
 
 .canvas-frame {
-  width: min(860px, calc(100vw - 320px));
-  height: min(560px, calc(100vh - 80px));
-  border: 1px solid rgb(59 130 246 / 0.45);
+  width: min(1040px, calc(100vw - 620px));
+  height: min(680px, calc(100vh - 170px));
+  border: 1px solid #c8d9eb;
   border-radius: 14px;
-  background: linear-gradient(180deg, #07131f, #050b15);
-  box-shadow: 0 20px 36px rgb(3 7 18 / 0.45);
+  background: linear-gradient(180deg, #ffffff, #f2f7fc);
+  box-shadow: 0 16px 30px rgb(15 37 63 / 0.16);
   padding: 8px;
 }
 
@@ -161,51 +333,158 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 10px;
+  background: linear-gradient(180deg, #0f172a, #020617);
 }
 
-/* Show quick runtime telemetry beneath the canvas. */
-.status-line {
-  color: #bfdbfe;
+.panel-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 620;
+}
+
+.panel-list {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+  color: #446280;
   font-size: 12px;
+  line-height: 1.4;
+}
+
+.panel-section {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ve-border);
+}
+
+.panel-section-title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #4f6d8b;
+}
+
+.panel-kv {
+  margin: 0;
+  color: #35587a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.doc-model-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  max-height: 170px;
+  overflow: auto;
+}
+
+.doc-model-item {
+  border: 1px solid var(--ve-border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: #35587a;
+  background: #f8fbff;
+  cursor: pointer;
+}
+
+.doc-model-item:hover {
+  border-color: var(--ve-primary-soft);
+}
+
+.doc-model-item-active {
+  border-color: #f59e0b;
+  background: #fff6e8;
+}
+
+.vector-statusbar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 12px;
+  border-top: 1px solid var(--ve-border);
+  background: linear-gradient(180deg, #ffffff, #f7fafd);
+}
+
+.status-line {
+  color: #4f6d8b;
+  font-size: 11px;
   line-height: 1.35;
   letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Reduce frame size and keep command rail width sensible on narrow screens. */
+/* Collapse right side panel first while preserving command panel and stage focus. */
 @media (max-width: 980px) {
-  .playground-shell {
-    grid-template-columns: 208px minmax(0, 1fr);
+  .vector-workbench {
+    grid-template-columns: 272px minmax(0, 1fr);
+  }
+
+  .vector-side-panel-right {
+    display: none;
   }
 
   .canvas-frame {
-    width: min(700px, calc(100vw - 260px));
-    height: min(460px, calc(100vh - 78px));
+    width: min(780px, calc(100vw - 320px));
+    height: min(520px, calc(100vh - 160px));
   }
 }
 
-/* Stack command panel on top for mobile while preserving full control access. */
+/* Stack panel and stage for mobile while keeping validation controls reachable. */
 @media (max-width: 760px) {
-  .playground-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
+  .vector-shell {
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
-  .command-panel {
+  .vector-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .vector-topbar-meta {
+    text-align: left;
+  }
+
+  .vector-workbench {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(120px, 42%) minmax(140px, 1fr);
+    min-height: 0;
+  }
+
+  .vector-side-panel-left {
     border-right: 0;
     border-bottom: 1px solid rgb(51 65 85 / 0.6);
+    min-height: 0;
+    overflow: auto;
+    max-height: none;
+  }
+
+  .vector-stage-shell {
+    min-height: 140px;
+  }
+
+  .vector-stage-viewport {
+    padding: 10px;
   }
 
   .command-group {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .canvas-stage {
-    padding: 10px;
-  }
-
   .canvas-frame {
-    width: min(92vw, 560px);
-    height: min(56vh, 360px);
+    width: min(94vw, 620px);
+    height: min(58vh, 390px);
   }
 }
 

@@ -13,6 +13,7 @@ Primary documents:
 Operational automation:
 
 - scripts/entropy-report/entropy-report.mjs: generates entropy dashboard under .ai-tasks/entropy/
+- scripts/entropy-report/entropy-sprint-plan.mjs: generates first-batch entropy sprint plan under .ai-tasks/entropy/
 
 Compatibility and legacy:
 

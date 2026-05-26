@@ -7,6 +7,12 @@ import {
   resolveFeatureCapabilityGateReason,
   type FeatureCapabilityGateReason,
 } from "./featureCapabilityGatePlan";
+import {
+  createWebGLNativeMeshPipelineCache,
+  disposeWebGLNativeMeshPipelineCache,
+  presentNativeMeshPrimitives,
+  type WebGLNativeMeshSubmissionDiagnostics,
+} from "./webglNativeMeshPresenter";
 
 /**
  * Parses a CSS-like hex/rgb color token into normalized RGBA channels.
@@ -477,6 +483,7 @@ export function createWebGLBackendAdapter(
   let currentSurface = surface ?? { width: 1, height: 1 };
   let currentContext: WebGL2RenderingContext | WebGLRenderingContext | null = null;
   let lastPayloadSignature = "";
+  const nativeMeshPipelineCache = createWebGLNativeMeshPipelineCache();
 
   /**
    * Resolves WebGL rendering context from the active surface.
@@ -498,12 +505,14 @@ export function createWebGLBackendAdapter(
    * @param payloadSignature Stable payload signature used for lightweight reuse heuristics.
    * @param payloadRectCount Rect count sampled from current payload for budget/caching diagnostics.
    * @param webglFeatureCapabilityGateReason Deterministic feature capability reason emitted for this frame.
+    * @param meshSubmissionDiagnostics Optional mesh submission counters emitted by native mesh presenter.
    */
   function publishWebGLDiagnostics(
     renderPath: "model-complete" | "packet" | "none",
     payloadSignature: string,
     payloadRectCount: number,
     webglFeatureCapabilityGateReason: FeatureCapabilityGateReason,
+    meshSubmissionDiagnostics?: WebGLNativeMeshSubmissionDiagnostics,
   ) {
     const frameReuseHit = payloadSignature === lastPayloadSignature && payloadSignature !== "none";
     lastPayloadSignature = payloadSignature;
@@ -520,6 +529,52 @@ export function createWebGLBackendAdapter(
       webgpuNativeSubmissionTotalFailureCount: 0,
       webgpuNativeRectBatchEligibleCount: 0,
       webgpuNativeRectBatchRejectedReason: "none",
+      webglNativeMeshAttemptedCount: meshSubmissionDiagnostics?.attemptedMeshCount ?? 0,
+      webglNativeMeshSubmittedCount: meshSubmissionDiagnostics?.submittedMeshCount ?? 0,
+      webglNativeMeshPipelineCompileCount: meshSubmissionDiagnostics?.pipelineCompileCount ?? 0,
+      webglNativeMeshPipelineReuseCount: meshSubmissionDiagnostics?.pipelineReuseCount ?? 0,
+      webglNativeMeshRejectedCount: meshSubmissionDiagnostics?.rejectedMeshCount ?? 0,
+      webglNativeMeshRejectedInvalidPositionCount: meshSubmissionDiagnostics?.rejectedMeshInvalidPositionCount ?? 0,
+      webglNativeMeshRejectedInvalidIndexCount: meshSubmissionDiagnostics?.rejectedMeshInvalidIndexCount ?? 0,
+      webglNativeMeshRejectedInsufficientStreamCount: meshSubmissionDiagnostics?.rejectedMeshInsufficientStreamCount ?? 0,
+      webglNativeMeshRejectedUnsupportedTopologyCount: meshSubmissionDiagnostics?.rejectedMeshUnsupportedTopologyCount ?? 0,
+      webglNativeMeshSupportedTopologies: meshSubmissionDiagnostics?.supportedTopologies ?? ["triangles"],
+      webglNativeMeshRejectedTopologies: meshSubmissionDiagnostics?.rejectedTopologies ?? [],
+      webglNativeMeshLineTopologyPlannedCount: meshSubmissionDiagnostics?.lineTopologyPlannedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightAttemptedCount: meshSubmissionDiagnostics?.lineTopologyPreflightAttemptedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightPassedCount: meshSubmissionDiagnostics?.lineTopologyPreflightPassedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInvalidPositionCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInvalidIndexCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInsufficientStreamCount ?? 0,
+      webglNativeMeshLineTopologyDrawPlanAttemptedCount: meshSubmissionDiagnostics?.lineTopologyDrawPlanAttemptedCount ?? 0,
+      webglNativeMeshLineTopologyDrawPlanCommandCount: meshSubmissionDiagnostics?.lineTopologyDrawPlanCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionDeferredCount: meshSubmissionDiagnostics?.lineTopologySubmissionDeferredCount ?? 0,
+      webglNativeMeshLineTopologySubmissionAttemptedCount: meshSubmissionDiagnostics?.lineTopologySubmissionAttemptedCount ?? 0,
+      webglNativeMeshLineTopologySubmissionAttemptedCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionAttemptedCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionSucceededCount: meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCount ?? 0,
+      webglNativeMeshLineTopologySubmissionSucceededCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionCommandSuccessRate: meshSubmissionDiagnostics?.lineTopologySubmissionCommandSuccessRate ?? 0,
+      webglNativeMeshLineTopologySubmissionPlanCoverageRate: meshSubmissionDiagnostics?.lineTopologySubmissionPlanCoverageRate ?? 0,
+      webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionDrawPlanWastedCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionGateBlockedCount: meshSubmissionDiagnostics?.lineTopologySubmissionGateBlockedCount ?? 0,
+      webglNativeMeshLineTopologySubmissionGateState: meshSubmissionDiagnostics?.lineTopologySubmissionGateState ?? "disabled",
+      webglNativeMeshLineTopologySubmissionOutcome: meshSubmissionDiagnostics?.lineTopologySubmissionOutcome ?? "none",
+      webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedMissingLinesPrimitiveCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedMissingLinesPrimitiveCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedInsufficientStreamCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedInsufficientStreamCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailureReason: meshSubmissionDiagnostics?.lineTopologySubmissionFailureReason ?? "none",
+      webglNativeMeshLineTopologySubmissionFailureSummary: meshSubmissionDiagnostics?.lineTopologySubmissionFailureSummary ?? {
+        failedCount: 0,
+        latestReason: "none",
+        missingLinesPrimitiveCount: 0,
+        insufficientStreamCount: 0,
+      },
+      webglNativeMeshCapabilityGateCount: meshSubmissionDiagnostics?.submissionCapabilityGateCount ?? 0,
       webglFeatureCapabilityGateReason,
       webgpuFeatureCapabilityGateReason: "none",
       cacheHits: cacheHitCount,
@@ -629,6 +684,37 @@ export function createWebGLBackendAdapter(
       const payloadRectCount = payload?.rects.length ?? 0;
       const featureCapabilityGateReason = resolveFeatureCapabilityGateReason(payload?.nodes);
       let renderPath: "model-complete" | "packet" | "none" = "none";
+      let meshSubmissionDiagnostics: WebGLNativeMeshSubmissionDiagnostics | undefined;
+      if (payload) {
+        meshSubmissionDiagnostics = presentNativeMeshPrimitives(
+          currentContext,
+          {
+            translateX: payload.translateX,
+            translateY: payload.translateY,
+            scale: payload.scale,
+            meshes: payload.meshes,
+            lineTopologySubmissionEnabled: payload.lineTopologySubmissionEnabled,
+          },
+          deviceWidth,
+          deviceHeight,
+          dpr,
+          nativeMeshPipelineCache,
+          resolveNormalizedColor,
+          payload.lineTopologySubmissionEnabled === true,
+        );
+        if (meshSubmissionDiagnostics.submittedMeshCount > 0) {
+          renderPath = "model-complete";
+          publishWebGLDiagnostics(
+            renderPath,
+            payloadSignature,
+            payloadRectCount,
+            featureCapabilityGateReason,
+            meshSubmissionDiagnostics,
+          );
+          hooks?.onPresentCommitted?.(timestampMs);
+          return;
+        }
+      }
       if (payload) {
         const composition = resolveOffscreenCompositionContext(deviceWidth, deviceHeight);
         if (composition) {
@@ -651,6 +737,7 @@ export function createWebGLBackendAdapter(
               payloadSignature,
               payloadRectCount,
               featureCapabilityGateReason,
+              meshSubmissionDiagnostics,
             );
             hooks?.onPresentCommitted?.(timestampMs);
             return;
@@ -697,10 +784,14 @@ export function createWebGLBackendAdapter(
         payloadSignature,
         payloadRectCount,
         featureCapabilityGateReason,
+        meshSubmissionDiagnostics,
       );
       hooks?.onPresentCommitted?.(timestampMs);
     },
     dispose() {
+      if (currentContext) {
+        disposeWebGLNativeMeshPipelineCache(currentContext, nativeMeshPipelineCache);
+      }
       currentContext = null;
     },
   };

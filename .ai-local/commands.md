@@ -63,6 +63,10 @@ Release Loop (milestone or handoff)
 
 - pnpm governance:entropy-report
 
+6. Entropy sprint plan generation
+
+- pnpm governance:entropy:sprint1
+
 One-command shortcuts (recommended)
 
 1. Fast Loop shortcut

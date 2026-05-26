@@ -10,6 +10,10 @@ const outputPath = path.join(
   repoRoot,
   ".ai-tasks/entropy/entropy-dashboard.md",
 );
+const metricsOutputPath = path.join(
+  repoRoot,
+  ".ai-tasks/entropy/entropy-metrics.json",
+);
 
 const TARGET_ROOTS = [
   "apps/vector-editor-web/src",
@@ -203,8 +207,12 @@ function writeEntropyDashboard() {
   const dashboard = renderDashboard(metrics);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, dashboard, "utf8");
+  fs.writeFileSync(metricsOutputPath, JSON.stringify(metrics, null, 2), "utf8");
 
   console.log(`[entropy-report] ok -> ${path.relative(repoRoot, outputPath)}`);
+  console.log(
+    `[entropy-report] metrics -> ${path.relative(repoRoot, metricsOutputPath)}`,
+  );
   console.log(
     `[entropy-report] summary: hard=${metrics.hardLimitFiles.length}, soft=${metrics.softLimitFiles.length}, ai-temp=${metrics.aiTempCount}, exceptions=${metrics.govExceptionCount}`,
   );

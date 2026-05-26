@@ -31,6 +31,95 @@ export interface EngineBackendFrameDiagnostics {
     | "non-rect-shape-unsupported"
     | "shape-style-unsupported"
     | "shape-transform-unsupported";
+  /** Native WebGL mesh primitives observed in the latest frame payload. */
+  webglNativeMeshAttemptedCount: number;
+  /** Native WebGL mesh primitives submitted to draw calls in the latest frame. */
+  webglNativeMeshSubmittedCount: number;
+  /** Native WebGL mesh pipeline compile count for the latest frame. */
+  webglNativeMeshPipelineCompileCount: number;
+  /** Native WebGL mesh pipeline reuse count for the latest frame. */
+  webglNativeMeshPipelineReuseCount: number;
+  /** Native WebGL mesh primitives rejected in the latest frame. */
+  webglNativeMeshRejectedCount: number;
+  /** Native WebGL mesh rejections caused by invalid position streams. */
+  webglNativeMeshRejectedInvalidPositionCount: number;
+  /** Native WebGL mesh rejections caused by invalid index streams. */
+  webglNativeMeshRejectedInvalidIndexCount: number;
+  /** Native WebGL mesh rejections caused by insufficient non-indexed streams. */
+  webglNativeMeshRejectedInsufficientStreamCount: number;
+  /** Native WebGL mesh rejections caused by unsupported topology tokens. */
+  webglNativeMeshRejectedUnsupportedTopologyCount: number;
+  /** Topology tokens supported by native WebGL mesh submission path. */
+  webglNativeMeshSupportedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+  /** Topology tokens rejected by native WebGL mesh submission path. */
+  webglNativeMeshRejectedTopologies: ReadonlyArray<"triangles" | "lines" | "points">;
+  /** Number of line-topology meshes observed by planning hook while submission is disabled. */
+  webglNativeMeshLineTopologyPlannedCount: number;
+  /** Number of line-topology meshes entering preflight validation. */
+  webglNativeMeshLineTopologyPreflightAttemptedCount: number;
+  /** Number of line-topology meshes passing preflight validation. */
+  webglNativeMeshLineTopologyPreflightPassedCount: number;
+  /** Number of line-topology meshes failing preflight validation. */
+  webglNativeMeshLineTopologyPreflightRejectedCount: number;
+  /** Number of line-topology preflight rejections caused by invalid position streams. */
+  webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount: number;
+  /** Number of line-topology preflight rejections caused by invalid index streams. */
+  webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount: number;
+  /** Number of line-topology preflight rejections caused by insufficient non-indexed streams. */
+  webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: number;
+  /** Number of line-topology meshes entering diagnostics-only draw-plan synthesis. */
+  webglNativeMeshLineTopologyDrawPlanAttemptedCount: number;
+  /** Number of synthetic line draw commands produced for diagnostics-only planning. */
+  webglNativeMeshLineTopologyDrawPlanCommandCount: number;
+  /** Number of line-topology meshes deferred because line submission is still disabled. */
+  webglNativeMeshLineTopologySubmissionDeferredCount: number;
+  /** Number of line-topology meshes reaching draw submission stage. */
+  webglNativeMeshLineTopologySubmissionAttemptedCount: number;
+  /** Number of line draw commands reaching submission stage as GL.LINES segments. */
+  webglNativeMeshLineTopologySubmissionAttemptedCommandCount: number;
+  /** Number of line-topology meshes successfully submitted as GL.LINES draws. */
+  webglNativeMeshLineTopologySubmissionSucceededCount: number;
+  /** Number of line draw commands successfully submitted as GL.LINES segments. */
+  webglNativeMeshLineTopologySubmissionSucceededCommandCount: number;
+  /** Ratio of successful line commands over attempted line commands in current frame diagnostics. */
+  webglNativeMeshLineTopologySubmissionCommandSuccessRate: number;
+  /** Ratio of attempted line commands over draw-plan command count in current frame diagnostics. */
+  webglNativeMeshLineTopologySubmissionPlanCoverageRate: number;
+  /** Number of planned line commands that did not end as successful submissions. */
+  webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount: number;
+  /** Number of line-topology meshes failing GL.LINES submission after preflight. */
+  webglNativeMeshLineTopologySubmissionFailedCount: number;
+  /** Number of line draw commands that failed submission as GL.LINES segments. */
+  webglNativeMeshLineTopologySubmissionFailedCommandCount: number;
+  /** Number of line-topology meshes blocked because submission gate is disabled. */
+  webglNativeMeshLineTopologySubmissionGateBlockedCount: number;
+  /** Gate state token indicating whether line submission was enabled for current frame diagnostics. */
+  webglNativeMeshLineTopologySubmissionGateState: "enabled" | "disabled";
+  /** Compact line-topology submission outcome token for current frame diagnostics. */
+  webglNativeMeshLineTopologySubmissionOutcome: "none" | "deferred-gate-disabled" | "submitted" | "failed";
+  /** Number of line-topology submission failures caused by missing GL.LINES primitive token. */
+  webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: number;
+  /** Number of failed line commands caused by missing GL.LINES primitive token. */
+  webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: number;
+  /** Number of line-topology submission failures caused by insufficient stream data. */
+  webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: number;
+  /** Number of failed line commands caused by insufficient stream data. */
+  webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: number;
+  /** Latest line-topology submission failure reason recorded in current frame. */
+  webglNativeMeshLineTopologySubmissionFailureReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+  /** Compact line submission failure summary tuple for telemetry exporters. */
+  webglNativeMeshLineTopologySubmissionFailureSummary: {
+    /** Total line submission failures observed in current frame. */
+    failedCount: number;
+    /** Latest line submission failure reason observed in current frame. */
+    latestReason: "none" | "missing-lines-primitive" | "insufficient-stream";
+    /** Histogram bucket count for missing GL.LINES primitive failures. */
+    missingLinesPrimitiveCount: number;
+    /** Histogram bucket count for insufficient stream failures. */
+    insufficientStreamCount: number;
+  };
+  /** Native WebGL mesh rejections caused by capability-gate failures. */
+  webglNativeMeshCapabilityGateCount: number;
   /** Rich-feature capability gate reason emitted by WebGL adapter for the latest frame. */
   webglFeatureCapabilityGateReason?:
     | "none"
@@ -245,6 +334,24 @@ export interface NoopBackendAdapterHooks {
         cp2?: { x: number; y: number };
       }>;
     }>;
+    /**
+     * Ordered mesh primitives emitted for native mesh submission paths.
+     * Positions are packed xyz tuples in world coordinates.
+     */
+    meshes?: ReadonlyArray<{
+      /** Stable mesh identifier for diagnostics correlation. */
+      id: string;
+      /** Optional mesh topology token. Defaults to triangles when omitted. */
+      topology?: "triangles" | "lines" | "points";
+      /** Packed xyz vertex positions in world coordinates. */
+      positions: readonly number[];
+      /** Optional packed triangle indices into positions array. */
+      indices?: readonly number[];
+      /** Optional mesh fill color token in CSS notation. */
+      color?: string;
+    }>;
+    /** Enables native line-topology draw submission when true. */
+    lineTopologySubmissionEnabled?: boolean;
   } | null;
 }
 
