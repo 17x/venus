@@ -15,7 +15,7 @@ import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 import {useEngineRendererLifecycle} from './useEngineRendererLifecycle.ts'
 import {useEngineRendererSceneSync} from './useEngineRendererSceneSync.ts'
 import {useEngineRendererViewport} from './useEngineRendererViewport.ts'
-import {createEngineStatsHandler} from './createEngineStatsHandler.ts'
+import {createEngineStatsHandler} from './createEngineStatsHandler/createEngineStatsHandler.ts'
 import {resolveEngineBackendRenderPaths} from './engineRenderPathClassification.ts'
 
 /**
