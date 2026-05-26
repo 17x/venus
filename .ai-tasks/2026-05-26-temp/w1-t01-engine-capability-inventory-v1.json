@@ -1,0 +1,148 @@
+{
+  "taskId": "W1-T01",
+  "title": "Engine Capability Inventory v1",
+  "status": "completed",
+  "scope": {
+    "engine": "packages/engine",
+    "runtimeBridge": "apps/vector-editor-web/src/runtime/engine-bridge"
+  },
+  "evidence": [
+    "packages/engine/docs/backend-tier-policy.md",
+    "packages/engine/src/orchestration/api/public-types/engine-handle.types.ts",
+    "packages/engine/src/orchestration/api/public-types/runtime-capability.types.ts",
+    "packages/engine/src/orchestration/api/runtimeCapabilityMap.ts",
+    "packages/engine/src/orchestration/api/public-types/core-foundation.types.ts"
+  ],
+  "backendTierPolicy": {
+    "tier1": {
+      "backend": "webgl",
+      "maturity": "stable",
+      "role": "primary-production"
+    },
+    "tier2": {
+      "backend": "webgpu",
+      "maturity": "experimental",
+      "role": "secondary-compatibility-track"
+    },
+    "tier3": {
+      "backend": "canvas2d|noop|headless",
+      "maturity": "correctness-only",
+      "role": "fallback-diagnostics"
+    }
+  },
+  "runtimeCapabilityRegistry": {
+    "schemaVersion": 5,
+    "total": 62,
+    "stable": 4,
+    "experimental": 58,
+    "capabilityNames": [
+      "query",
+      "pick",
+      "raycast",
+      "getDiagnostics",
+      "runtimeDocumentCreateSnapshot",
+      "runtimeDocumentValidateSnapshot",
+      "runtimeDocumentGetRevision",
+      "runtimeDocumentGetSchemaVersion",
+      "runtimeDocumentApplyChangeSet",
+      "runtimeDocumentPreflightApplyChangeSet",
+      "runtimeDocumentDiffSnapshots",
+      "runtimeDocumentRebaseChangeSet",
+      "runtimeDocumentSerializeSnapshot",
+      "runtimeDocumentDeserializeSnapshot",
+      "runtimeWorldCompileFromDocument",
+      "runtimeWorldGetWorldSnapshot",
+      "runtimeWorldQueryEntity",
+      "runtimeWorldQueryComponent",
+      "runtimeWorldGetGraphStats",
+      "runtimeWorldClear",
+      "runtimeDirtyGetState",
+      "runtimeDirtyMark",
+      "runtimeDirtyMarkBatch",
+      "runtimeDirtyGetPendingDomains",
+      "runtimeDirtyFlush",
+      "runtimeDirtyReset",
+      "runtimeCommandEncode",
+      "runtimeCommandCreateEncoder",
+      "runtimeCommandValidate",
+      "runtimeCommandOptimize",
+      "runtimeCommandInspect",
+      "runtimeCommandReplay",
+      "runtimeBackendListAvailable",
+      "runtimeBackendSelect",
+      "runtimeBackendGetActive",
+      "runtimeBackendGetCapabilities",
+      "runtimeBackendGetLimits",
+      "runtimeBackendGetFallbackTrace",
+      "runtimeBackendProbeHeadless",
+      "runtimePlanCreateFramePlan",
+      "runtimePlanCreateVisibilityPlan",
+      "runtimePlanCreateLodPlan",
+      "runtimePlanCreateRoiPlan",
+      "runtimePlanCreateBudgetPlan",
+      "runtimePlanInspect",
+      "runtimeVolumeCreateSlicePlan",
+      "runtimeVolumeResolveTransferFunction",
+      "runtimeVolumeResolveResidencyBudget",
+      "runtimeResourceRegister",
+      "runtimeResourceUpdate",
+      "runtimeResourceRelease",
+      "runtimeResourcePin",
+      "runtimeResourceUnpin",
+      "runtimeResourceGetResidency",
+      "runtimeResourceCollectGarbage",
+      "runtimeObservabilityStartTrace",
+      "runtimeObservabilityStopTrace",
+      "runtimeObservabilityGetTrace",
+      "runtimeObservabilityGetMetricsSnapshot",
+      "runtimeObservabilityCaptureFrame",
+      "runtimeObservabilityCreateReplayToken",
+      "runtimeObservabilityReplay"
+    ]
+  },
+  "requiredCoverageCheck": [
+    {
+      "domain": "query",
+      "status": "stable",
+      "evidenceEntry": "EngineHandle.query"
+    },
+    {
+      "domain": "pick",
+      "status": "stable",
+      "evidenceEntry": "EngineHandle.pick"
+    },
+    {
+      "domain": "raycast",
+      "status": "stable",
+      "evidenceEntry": "EngineHandle.raycast"
+    },
+    {
+      "domain": "view",
+      "status": "partial",
+      "evidenceEntry": "EngineHandle.setView/getView",
+      "note": "Public API is available, but not versioned as dedicated runtime capability record."
+    },
+    {
+      "domain": "graph",
+      "status": "partial",
+      "evidenceEntry": "EngineHandle.setGraph/updateGraph/batchUpdateGraph",
+      "note": "Graph APIs exist in handle surface, but not all are in runtime capability registry."
+    },
+    {
+      "domain": "diagnostics",
+      "status": "stable",
+      "evidenceEntry": "EngineHandle.getDiagnostics"
+    },
+    {
+      "domain": "runtime",
+      "status": "experimental",
+      "evidenceEntry": "EngineHandle.runtime.* (document/world/dirty/command/backend/plan/volume/resource/observability)"
+    },
+    {
+      "domain": "capability",
+      "status": "mixed",
+      "evidenceEntry": "EngineHandle.capability.*",
+      "note": "Capability packs are public, but stability tags are currently tracked in runtime capability registry."
+    }
+  ]
+}

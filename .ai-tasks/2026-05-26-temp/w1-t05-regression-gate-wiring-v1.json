@@ -1,0 +1,259 @@
+{
+  "$schema": "../schema/w1-artifact.schema.json",
+  "artifactId": "w1-t05-regression-gate-wiring-v1",
+  "artifactVersion": "1.0.0",
+  "taskRef": "W1-T05",
+  "createdAt": "2026-05-26",
+  "description": "Maps each contract-change category to the exact M1/M2 regression items and governance scripts that must pass before the change can be merged. Derived from m1-core-regression-checklist.md, m2-core-regression-checklist.md, and the scripts/ governance suite.",
+  "regressionSources": {
+    "m1Core": {
+      "scriptCommand": "pnpm regression:m1-core",
+      "checklistDoc": "apps/vector-editor-web/docs/product-requirements/m1-core-regression-checklist.md",
+      "items": [
+        { "id": "M1-R1",  "label": "Pointer lifecycle state machine",      "testPath": "src/product/runtime/canvasInteractionController/__tests__/pointerLifecycleState.test.ts" },
+        { "id": "M1-R2",  "label": "Editing mode switch guard",            "testPath": "src/product/runtime/__tests__/runtimeEditingModeTransitionPolicy.test.ts" },
+        { "id": "M1-R3",  "label": "Hit priority policy",                 "testPath": "src/product/runtime/__tests__/runtimeHitPriorityPolicyBehavior.test.ts" },
+        { "id": "M1-R4",  "label": "Selection filter policy",             "testPath": "src/product/runtime/__tests__/runtimeSelectionFilterPolicyBehavior.test.ts" },
+        { "id": "M1-R5",  "label": "Pointer-up preview/commit consistency","testPath": "src/product/runtime/__tests__/pointerReleaseCommitPolicy.test.ts" },
+        { "id": "M1-R6",  "label": "Snapping policy stability",            "testPath": "src/product/runtime/__tests__/runtimeSnappingPolicyBehavior.test.ts" },
+        { "id": "M1-R7",  "label": "Interaction diagnostics field completeness","testPath": "src/product/runtime/__tests__/runtimeInteractionDiagnosticPolicy.test.ts" },
+        { "id": "M1-R8",  "label": "Style control drag resolver",          "testPath": "src/product/runtime/canvasInteractionController/__tests__/shapeStyleDragResolverBehavior.test.ts" },
+        { "id": "M1-R9",  "label": "Input normalisation event chain",      "testPath": "src/runtime/events/index/index.test.ts" },
+        { "id": "M1-R10", "label": "Transform rotation session behaviour", "testPath": "src/runtime/interaction/transformSessionRotation.test.ts" }
+      ]
+    },
+    "m2Core": {
+      "scriptCommand": "pnpm m2:run-all",
+      "checklistDoc": "apps/vector-editor-web/docs/product-requirements/m2-core-regression-checklist.md",
+      "items": [
+        { "id": "M2-R1",  "stepId": "M2-01", "label": "M1 baseline guard",                    "command": "pnpm regression:m1-core" },
+        { "id": "M2-R2",  "stepId": "M2-02", "label": "Path transform session",               "testPath": "src/runtime/interaction/transformSessionRotation.test.ts" },
+        { "id": "M2-R3",  "stepId": "M2-02B","label": "Path anchor edit policy",              "testPath": "src/product/runtime/pathAnchorEditPolicy/pathAnchorEditPolicy.test.ts" },
+        { "id": "M2-R4",  "stepId": "M2-02C","label": "Path topology policy",                 "testPath": "src/product/runtime/pathAnchorEditPolicy/pathAnchorEditTopologyPolicy.test.ts" },
+        { "id": "M2-R5",  "stepId": "M2-03", "label": "Path preview commit policy",           "testPath": "src/product/runtime/__tests__/pointerReleaseCommitPolicy.test.ts" },
+        { "id": "M2-R6",  "stepId": "M2-04", "label": "Style drag resolver",                  "testPath": "src/product/runtime/canvasInteractionController/__tests__/shapeStyleDragResolverBehavior.test.ts" },
+        { "id": "M2-R7",  "stepId": "M2-04B","label": "Selection mixed-style policy",         "testPath": "src/product/runtime/__tests__/selectionMixedStylePolicy.test.ts" },
+        { "id": "M2-R8",  "stepId": "M2-04C","label": "Text-runs modify policy",              "testPath": "src/product/useEditorRuntime/__tests__/elementModifyTextRunsPolicy.test.ts" },
+        { "id": "M2-R9",  "stepId": "M2-04D","label": "Engine text paragraph projection",     "testPath": "src/runtime/presets/engineSceneAdapter/engineSceneAdapter.text.test.ts" },
+        { "id": "M2-R10", "stepId": "M2-05", "label": "Snapping policy",                      "testPath": "src/product/runtime/__tests__/runtimeSnappingPolicyBehavior.test.ts" },
+        { "id": "M2-R11", "stepId": "M2-06", "label": "Normalized document runtime",          "testPath": "src/runtime/model/document-runtime/tests/normalizedDocumentRuntime.test.ts" },
+        { "id": "M2-R12", "stepId": "M2-07", "label": "Normalized history patches",           "testPath": "src/runtime/model/document-runtime/tests/normalizedHistoryPatches.test.ts" },
+        { "id": "M2-R13", "stepId": "M2-08", "label": "Worker scope binding",                 "testPath": "src/runtime/worker/scope/tests/bindEditorWorkerScope.test.ts" },
+        { "id": "M2-R14", "stepId": "M2-09", "label": "Remote normalized apply",              "testPath": "src/runtime/worker/scope/operations/operations.remoteNormalizedApply.test.ts" },
+        { "id": "M2-R15", "stepId": "M2-10", "label": "Remote patches normalized order",      "testPath": "src/runtime/worker/scope/remotePatches/remotePatches.normalizedOrder.test.ts" },
+        { "id": "M2-R16", "stepId": "M2-11", "label": "Scene patches normalized apply",       "testPath": "src/runtime/worker/scope/scenePatches/scenePatches.normalizedApply.test.ts" },
+        { "id": "M2-R17", "stepId": "M2-11B","label": "Boolean path-editability",             "testPath": "src/runtime/worker/scope/shapeCommandHelpers/shapeCommandHelpers.booleanPathEdit.test.ts" },
+        { "id": "M2-R18", "stepId": "M2-12", "label": "TypeScript gate",                      "command": "pnpm exec tsc -p tsconfig.app.json --noEmit" },
+        { "id": "M2-R19", "stepId": "M2-13", "label": "Performance baseline gate",            "command": "pnpm perf:baseline:check" }
+      ]
+    },
+    "governanceScripts": [
+      { "id": "GOV-01", "label": "Module governance (DAG + folder + file-size)",   "command": "node scripts/module-governance-check/module-governance-check.mjs", "scope": "all" },
+      { "id": "GOV-02", "label": "Governance machine rules check",                 "command": "node scripts/governance-machine-check/governance-machine-check.mjs" },
+      { "id": "GOV-03", "label": "File-shape guard (line-count)",                  "command": "node scripts/file-shape-guard/file-shape-guard.mjs --changed", "noteOnFullScan": "pass --scope all for full repo scan" },
+      { "id": "GOV-04", "label": "Build rules",                                    "command": "node scripts/build-rules/build-rules.mjs" }
+    ]
+  },
+  "changeCategories": [
+    {
+      "categoryId": "CC-01",
+      "name": "Engine public API surface",
+      "description": "Any addition or removal of methods on EngineHandle or EngineCapabilityApi; runtimeCapabilityMap entries; engine-handle.types.ts or runtime-capability.types.ts changes.",
+      "keyFiles": [
+        "packages/engine/src/orchestration/api/public-types/engine-handle.types.ts",
+        "packages/engine/src/orchestration/api/public-types/runtime-capability.types.ts",
+        "packages/engine/src/orchestration/api/runtimeCapabilityMap.ts"
+      ],
+      "requiredRegressions": ["M2-R18", "M2-R9", "M2-R1"],
+      "requiredGovernance": ["GOV-01", "GOV-03"],
+      "playgroundScenarios": ["3d-editor-validation", "2d-basic"],
+      "rationale": "Any API surface change breaks TypeScript consumers; text projection uses engine scene adapter directly; M1 baseline guard confirms no interaction regression."
+    },
+    {
+      "categoryId": "CC-02",
+      "name": "Runtime bridge facade",
+      "description": "Changes to single-entry bridge functions: resolveEngineGeometryPayload, resolveEngineAdaptiveHitTolerance, resolveNodeTransform in engine.ts.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/engine-bridge/engine.ts"
+      ],
+      "requiredRegressions": ["M1-R3", "M1-R5", "M2-R2", "M2-R9", "M2-R18"],
+      "requiredGovernance": ["GOV-01", "GOV-03"],
+      "playgroundScenarios": ["3d-editor-validation", "2d-interactive"],
+      "rationale": "Hit geometry payload directly feeds hit priority (M1-R3) and commit consistency (M1-R5); transform changes regress path transform (M2-R2) and text projection (M2-R9)."
+    },
+    {
+      "categoryId": "CC-03",
+      "name": "Render policy / DPR",
+      "description": "LOD-phase map or DPR resolution changes in renderPolicy.ts.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/engine-bridge/renderPolicy.ts"
+      ],
+      "requiredRegressions": ["M1-R8", "M2-R6", "M2-R9", "M2-R19", "M2-R18"],
+      "requiredGovernance": ["GOV-03"],
+      "playgroundScenarios": ["2d-basic", "canvas2d-fallback"],
+      "rationale": "DPR/LOD changes affect visual fidelity measured by style drag resolver and engine paragraph projection; perf gate catches frame-budget regressions."
+    },
+    {
+      "categoryId": "CC-04",
+      "name": "Hit-test adapter",
+      "description": "Changes to eligible-first sort, worldPoint passthrough, or tolerance enrichment in hitTestAdapter.ts.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/hittest/hitTestAdapter.ts"
+      ],
+      "requiredRegressions": ["M1-R3", "M1-R4", "M2-R3", "M2-R18"],
+      "requiredGovernance": ["GOV-01", "GOV-03"],
+      "playgroundScenarios": ["2d-interactive", "3d-editor-validation"],
+      "rationale": "Hit adapter output feeds selection filter and hit priority directly; path anchor edit policy depends on accurate hit result ordering."
+    },
+    {
+      "categoryId": "CC-05",
+      "name": "Shared-memory layout",
+      "description": "Changes to SharedArrayBuffer geometry layout (Float32 fields), pointer Int32 round semantics, version increment logic in shared-memory/index.ts.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/shared-memory/index.ts"
+      ],
+      "requiredRegressions": ["M2-R13", "M2-R14", "M2-R15", "M2-R16", "M2-R18"],
+      "requiredGovernance": ["GOV-01", "GOV-03"],
+      "playgroundScenarios": ["2d-basic", "2d-interactive"],
+      "rationale": "Worker reads geometry directly from the buffer; all worker scope + remote apply tests will catch read-offset shifts. TypeScript gate catches type incompatibilities."
+    },
+    {
+      "categoryId": "CC-06",
+      "name": "Document model / patch contract",
+      "description": "Changes to normalizedDocumentRuntime, history patch types, or worker operation contracts.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/model/document-runtime/",
+        "apps/vector-editor-web/src/runtime/worker/"
+      ],
+      "requiredRegressions": ["M2-R11", "M2-R12", "M2-R14", "M2-R15", "M2-R16", "M2-R18"],
+      "requiredGovernance": ["GOV-01"],
+      "playgroundScenarios": [],
+      "rationale": "Document model is the source of truth for all patch/history/remote-apply chains; changes cascade through all worker regression items."
+    },
+    {
+      "categoryId": "CC-07",
+      "name": "Pointer / interaction chain",
+      "description": "Changes to editing mode transitions, pointer lifecycle, snapping, cursor, or tools.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/editing-modes/",
+        "apps/vector-editor-web/src/runtime/tools/",
+        "apps/vector-editor-web/src/runtime/cursor/"
+      ],
+      "requiredRegressions": ["M1-R1", "M1-R2", "M1-R3", "M1-R4", "M1-R5", "M1-R6", "M2-R1"],
+      "requiredGovernance": ["GOV-01"],
+      "playgroundScenarios": ["2d-interactive"],
+      "rationale": "Full M1 interaction sweep required; pointer lifecycle + mode guard are the highest-risk paths for interaction regression."
+    },
+    {
+      "categoryId": "CC-08",
+      "name": "Style / rendering properties",
+      "description": "Changes to fill, stroke, gradient, shadow, or style serialization in product/runtime or engine scene adapter.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/presets/engineSceneAdapter/",
+        "apps/vector-editor-web/src/product/runtime/"
+      ],
+      "requiredRegressions": ["M1-R8", "M2-R6", "M2-R7", "M2-R8", "M2-R9", "M2-R18"],
+      "requiredGovernance": ["GOV-01", "GOV-03"],
+      "playgroundScenarios": ["2d-basic", "canvas2d-fallback"],
+      "rationale": "Style drag, mixed-style selection, text-runs policy, and engine paragraph projection all depend on consistent style serialization."
+    },
+    {
+      "categoryId": "CC-09",
+      "name": "Path / boolean / topology",
+      "description": "Changes to path anchor editing, topology policy, or boolean shape command helpers.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/product/runtime/pathAnchorEditPolicy/",
+        "apps/vector-editor-web/src/runtime/worker/scope/shapeCommandHelpers/"
+      ],
+      "requiredRegressions": ["M2-R2", "M2-R3", "M2-R4", "M2-R5", "M2-R17", "M2-R18"],
+      "requiredGovernance": ["GOV-01", "GOV-03"],
+      "playgroundScenarios": ["3d-editor-validation"],
+      "rationale": "Path editing is tightly coupled to transform session (M2-R2), anchor topology (M2-R3/R4), commit policy (M2-R5), and boolean editability (M2-R17)."
+    },
+    {
+      "categoryId": "CC-10",
+      "name": "Backend tier / fallback path",
+      "description": "Changes to WebGL adapter, Canvas2D adapter, WebGPU adapter, or backendSelector.",
+      "keyFiles": [
+        "packages/engine/src/backend/",
+        "packages/engine/docs/backend-tier-policy.md"
+      ],
+      "requiredRegressions": ["M2-R18", "M2-R19"],
+      "requiredGovernance": ["GOV-01", "GOV-04"],
+      "playgroundScenarios": ["canvas2d-fallback", "3d-editor-validation", "2d-basic"],
+      "rationale": "Backend changes must maintain TypeScript contracts and perf SLA; all three playground scenario types required to exercise Tier1/Tier3 paths."
+    },
+    {
+      "categoryId": "CC-11",
+      "name": "Governance / module structure",
+      "description": "Any changes to import DAG, top-level folder structure, package.json exports, or file shape that could fail governance scripts.",
+      "keyFiles": [
+        "packages/lib/package.json",
+        "packages/editor-primitive/package.json",
+        "packages/engine/src/",
+        "apps/vector-editor-web/src/"
+      ],
+      "requiredRegressions": ["M2-R18"],
+      "requiredGovernance": ["GOV-01", "GOV-02", "GOV-03", "GOV-04"],
+      "playgroundScenarios": [],
+      "rationale": "All governance scripts must pass before a structural change is considered safe; TypeScript gate validates the new import graph."
+    },
+    {
+      "categoryId": "CC-12",
+      "name": "Input event normalisation",
+      "description": "Changes to event pipeline, event index, or event dispatch in runtime/events.",
+      "keyFiles": [
+        "apps/vector-editor-web/src/runtime/events/"
+      ],
+      "requiredRegressions": ["M1-R9", "M1-R1", "M2-R1"],
+      "requiredGovernance": ["GOV-01"],
+      "playgroundScenarios": ["2d-interactive"],
+      "rationale": "Event normalisation test (M1-R9) is the primary gate; pointer lifecycle (M1-R1) and M1 baseline guard confirm no downstream breakage."
+    }
+  ],
+  "playgroundScenarioRules": {
+    "source": "2D_VECTOR_EDITOR_ENGINE_ROADMAP_2026-05-26.md section 9.2",
+    "rules": [
+      "Any capability change must list at least one affected playground scenario.",
+      "High-risk changes must 1 2D scenario 1 3D-or-fallback scenario.",AND cover 
+      "A change may not claim 'stable' unless its listed scenarios pass in playground."
+    ],
+    "scenarioCoverageMatrix": {
+      "CC-01": ["3d-editor-validation", "2d-basic"],
+      "CC-02": ["3d-editor-validation", "2d-interactive"],
+      "CC-03": ["2d-basic", "canvas2d-fallback"],
+      "CC-04": ["2d-interactive", "3d-editor-validation"],
+      "CC-05": ["2d-basic", "2d-interactive"],
+      "CC-06": [],
+      "CC-07": ["2d-interactive"],
+      "CC-08": ["2d-basic", "canvas2d-fallback"],
+      "CC-09": ["3d-editor-validation"],
+      "CC-10": ["canvas2d-fallback", "3d-editor-validation", "2d-basic"],
+      "CC-11": [],
+      "CC-12": ["2d-interactive"]
+    }
+  },
+  "quickLookupIndex": {
+    "engineHandle":          ["CC-01"],
+    "runtimeCapabilityMap":  ["CC-01"],
+    "engine.ts":             ["CC-02"],
+    "renderPolicy.ts":       ["CC-03"],
+    "hitTestAdapter.ts":     ["CC-04"],
+    "shared-memory":         ["CC-05"],
+    "document-runtime":      ["CC-06"],
+    "history":               ["CC-06"],
+    "worker":                ["CC-06", "CC-05"],
+    "editing-modes":         ["CC-07"],
+    "tools":                 ["CC-07"],
+    "pointer":               ["CC-07", "CC-12"],
+    "style":                 ["CC-08"],
+    "engineSceneAdapter":    ["CC-08"],
+    "pathAnchorEdit":        ["CC-09"],
+    "boolean":               ["CC-09"],
+    "backend":               ["CC-10"],
+    "backendSelector":       ["CC-10"],
+    "package.json":          ["CC-11"],
+    "importDAG":             ["CC-11"],
+    "events":                ["CC-12"]
+  }
+}

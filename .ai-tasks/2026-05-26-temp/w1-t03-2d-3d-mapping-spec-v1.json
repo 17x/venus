@@ -1,0 +1,118 @@
+{
+  "taskId": "W1-T03",
+  "title": "2D-to-3D Mapping Spec v1",
+  "status": "frozen",
+  "changeRequest": {
+    "target": [
+      ".ai-tasks/2026-05-26-temp/w1-t03-2d-3d-mapping-spec-v1.json",
+      ".ai-tasks/2026-05-26-temp/index.md"
+    ],
+    "goal": "Freeze one deterministic mapping contract for coordinate, matrix, and hit-tolerance semantics across runtime and engine bridge.",
+    "changeType": "add",
+    "impact": "governance and integration contract only; no runtime behavior change",
+    "cleanup": "No runtime cleanup in this task; this file becomes the single spec reference for W1 contract alignment.",
+    "tests": "JSON parse validity only for this artifact; behavior validation is covered by W1-T04 scenario baselines."
+  },
+  "evidence": {
+    "runtimeBridgeEngine": "apps/vector-editor-web/src/runtime/engine-bridge/engine.ts",
+    "runtimeRenderPolicy": "apps/vector-editor-web/src/runtime/engine-bridge/renderPolicy.ts",
+    "runtimeHitTestAdapter": "apps/vector-editor-web/src/runtime/hittest/hitTestAdapter.ts",
+    "runtimeSharedMemory": "apps/vector-editor-web/src/runtime/shared-memory/index.ts"
+  },
+  "mappingContract": {
+    "coordinateSystem": {
+      "worldSpaceAxis": {
+        "x": "positive-right",
+        "y": "positive-down"
+      },
+      "shapeGeometryStorage": {
+        "layout": "[x, y, width, height] per shape",
+        "sourceOfTruth": "shared-memory geometry Float32Array"
+      },
+      "pointerStorage": {
+        "metaSlots": [
+          "pointerX",
+          "pointerY"
+        ],
+        "storageType": "Int32",
+        "roundingRule": "Math.round before write"
+      },
+      "hitPointSemantic": {
+        "field": "worldPoint",
+        "rule": "hit-test adapter exposes world-space query point without screen-space reinterpretation"
+      }
+    },
+    "matrixAndTransform": {
+      "transformSource": "BoxTransformSource(x, y, width, height, rotation?, flipX?, flipY?)",
+      "boundsNormalization": "getNormalizedBoundsFromBox",
+      "centerDerivation": "center = ((minX+maxX)/2, (minY+maxY)/2)",
+      "matrixBuild": "createAffineMatrixAroundPoint(center, rotationDegrees, scaleX, scaleY)",
+      "flipRule": {
+        "scaleX": "flipX ? -1 : 1",
+        "scaleY": "flipY ? -1 : 1"
+      },
+      "inverseRule": "inverseMatrix = invertAffineMatrix(matrix)",
+      "serializationRule": "any downstream svg serialization must consume resolved matrix output, not recompute from raw fields"
+    },
+    "hitTolerance": {
+      "entryPoint": "resolveEngineAdaptiveHitTolerance",
+      "baseDefaults": {
+        "basePx": 6,
+        "minPx": 2,
+        "maxPx": 10,
+        "referenceViewportDiagonalPx": 1400,
+        "zoomExponent": 0.35,
+        "screenExponent": 0.2
+      },
+      "formula": {
+        "zoomFactor": "1 / pow(viewportScale, zoomExponent)",
+        "screenFactor": "pow(referenceViewportDiagonalPx / viewportDiagonal, screenExponent)",
+        "resolvedScreenPx": "clamp(minPx, maxPx, basePx * zoomFactor * screenFactor)",
+        "worldPx": "resolvedScreenPx / viewportScale"
+      },
+      "guardRails": [
+        "viewportScale lower-bounded by Number.EPSILON",
+        "viewportDiagonal lower-bounded by 1"
+      ]
+    },
+    "lodAndDprPolicy": {
+      "singlePolicyEntry": "resolveRuntimeRenderPolicy",
+      "derivedDprEntry": "resolvePolicyDpr",
+      "highZoomRule": "if viewportScale >= 2 and deviceDpr valid, enforce at least deviceDpr",
+      "phaseRule": "pan/zoom/drag/precision keep full overlay fidelity; performance strategy uses scheduling/preview rather than policy-level semantic drift"
+    }
+  },
+  "singleEntryRules": [
+    {
+      "name": "Geometry payload resolution",
+      "entry": "resolveEngineGeometryPayload -> runtime.plan.createHitGeometryPayload",
+      "rule": "Runtime code must not duplicate geometry-merge logic outside this entry."
+    },
+    {
+      "name": "Adaptive tolerance resolution",
+      "entry": "resolveEngineAdaptiveHitTolerance",
+      "rule": "Callers may pass tuning overrides, but default semantics and formula ownership remain centralized in this entry."
+    },
+    {
+      "name": "Node transform resolution",
+      "entry": "resolveNodeTransform",
+      "rule": "All matrix/inverse derivation should reuse this path to avoid rotation/flip drift."
+    },
+    {
+      "name": "Render policy resolution",
+      "entry": "resolveRuntimeRenderPolicy",
+      "rule": "Phase-specific DPR/quality decisions must be expressed through this policy function."
+    }
+  ],
+  "nonGoals": [
+    "No API rename in this task.",
+    "No engine runtime behavior patch in this task.",
+    "No backend tier policy change in this task."
+  ],
+  "acceptance": [
+    "Coordinate semantics are explicit and single-sourced.",
+    "Matrix order and inverse derivation are explicit.",
+    "Tolerance defaults and formula are explicit with guard rails.",
+    "Single-entry conversion points are documented to prevent duplicated semantic definitions."
+  ]
+}

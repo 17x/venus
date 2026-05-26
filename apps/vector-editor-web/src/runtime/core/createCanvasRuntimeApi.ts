@@ -1,9 +1,9 @@
 import type {EditorDocument} from '../model/index.ts'
 import {
-  resolveEngineGeometryPayload,
   type EngineGeometryPayload,
   type ResolveEngineGeometryPayloadOptions,
 } from '../engine-bridge/engine.ts'
+import {resolveHitGeometryV2} from '../engine-bridge/engineContractAdapters.ts'
 import {
   createDefaultCanvasInteractions,
   type DefaultCanvasInteractions,
@@ -245,13 +245,13 @@ export function createCanvasRuntimeApi<TDocument extends EditorDocument>(
       }
     },
     // Route geometry queries through engine so product layer stays policy-only.
-    requestEngineGeometry: (requestOptions) => resolveEngineGeometryPayload({
+    requestEngineGeometry: (requestOptions) => resolveHitGeometryV2({
       ...requestOptions,
       nodes: snapshot.document.shapes,
     }),
     updateHoverFromPoint: (pointer) => {
       // Route hover hit resolution through engine payload so vector no longer owns hit geometry.
-      const geometryPayload = resolveEngineGeometryPayload({
+      const geometryPayload = resolveHitGeometryV2({
         nodes: snapshot.document.shapes,
         pointer,
         tolerance: hoverResolveOptions?.tolerance ?? 6,

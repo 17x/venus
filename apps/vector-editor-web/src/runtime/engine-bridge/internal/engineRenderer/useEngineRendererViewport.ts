@@ -6,6 +6,7 @@ import type {CanvasViewportState as EngineViewportState} from '../../../index.ts
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
 import {resolveViewportSettleDirtyBounds} from './viewportSettleDirtyBounds/viewportSettleDirtyBounds.ts'
+import {commitViewportState, invalidateSceneRegions} from '../../engineContractAdapters.ts'
 
 const OVERSCAN_PX = VECTOR_ENGINE_SCENE_PROFILE.overscanPx
 const FULL_REDRAW_QUIET_WINDOW_MS = 140
@@ -120,9 +121,9 @@ export function useEngineRendererViewport(params: {
         return
       }
 
-      engine.invalidate({
+      invalidateSceneRegions(engine, {
         reason: 'viewport-settle-dirty-bounds',
-        region: dirtyBounds,
+        regions: [dirtyBounds],
       })
     }
 
@@ -292,7 +293,12 @@ export function useEngineRendererViewport(params: {
         params.interactionPhase === 'zoom' &&
         VECTOR_ENGINE_SCENE_PROFILE.cameraAnimation.interactiveZoomEnabled
       ) {
-        engine.setView(nextViewportState)
+        const viewportCommitResult = commitViewportState(engine, {
+          viewport: nextViewportState,
+          interactionPhase: params.interactionPhase,
+          source: 'interaction-zoom',
+        })
+        params.appliedViewportRef.current = viewportCommitResult.snapshot
       } else if (
         !params.interactionActive &&
         wasInteractionActive &&
@@ -300,13 +306,22 @@ export function useEngineRendererViewport(params: {
       ) {
         // Keep one short settle animation so the first post-gesture frame can
         // converge smoothly to the latest runtime viewport target.
-        engine.setView(nextViewportState)
+        const viewportCommitResult = commitViewportState(engine, {
+          viewport: nextViewportState,
+          interactionPhase: params.interactionPhase,
+          source: 'settle-animation',
+        })
+        params.appliedViewportRef.current = viewportCommitResult.snapshot
       } else {
         // Preserve immediate commit semantics for non-gesture viewport updates
         // such as first layout, explicit fit, and resize follow-up commits.
-        engine.setView(nextViewportState)
+        const viewportCommitResult = commitViewportState(engine, {
+          viewport: nextViewportState,
+          interactionPhase: params.interactionPhase,
+          source: 'runtime-commit',
+        })
+        params.appliedViewportRef.current = viewportCommitResult.snapshot
       }
-      params.appliedViewportRef.current = nextViewportState
       viewportStateUpdateMs += performance.now() - viewportStateUpdateStart
     }
 

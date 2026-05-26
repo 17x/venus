@@ -16,6 +16,7 @@ import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {resolveSceneDirtyRenderPolicy} from '../sceneDirtyRenderPolicy/sceneDirtyRenderPolicy.ts'
 import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract.ts'
 import {projectSceneSemantic3DForEngine} from './sceneSemantic3dProjection.ts'
+import {invalidateSceneRegions, syncSceneDelta} from '../../engineContractAdapters.ts'
 
 const DIRTY_BOUNDS_SMALL_AREA_PX2 =
   DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsSmallAreaPx2
@@ -291,6 +292,8 @@ export function useEngineRendererSceneSync(params: {
               }
             : params.replayScenePayload,
         ), params.document)
+        // Full snapshot load — not a delta; intentionally bypasses syncSceneDelta
+        // which is reserved for incremental patches only (sceneStructureDirty = false path).
         engine.setGraph(nextEngineScene)
         params.hasLoadedSceneInEngineRef.current = true
         // Track scene load mode/count so visible=0 episodes can be tied back
@@ -311,10 +314,13 @@ export function useEngineRendererSceneSync(params: {
         const upsertNodes = incrementalScene.nodes
 
         if (upsertNodes.length > 0) {
-          engine.updateGraph({
+          // Use the PRD bridge contract so scene-delta semantics stay centralized.
+          syncSceneDelta(engine, {
             patches: [{
-              revision: params.statsVersion,
-              upsertNodes,
+              patches: [{
+                revision: params.statsVersion,
+                upsertNodes,
+              }],
             }],
           })
           params.hasLoadedSceneInEngineRef.current = true
@@ -336,9 +342,9 @@ export function useEngineRendererSceneSync(params: {
             changedIds,
           })
           if (mergedDirtyBounds) {
-            engine.invalidate({
+            invalidateSceneRegions(engine, {
               reason: 'scene-dirty-merged-bounds',
-              region: mergedDirtyBounds,
+              regions: [mergedDirtyBounds],
             })
             dirtyBoundsMarkCount = 1
             dirtyBoundsMarkArea = Math.max(

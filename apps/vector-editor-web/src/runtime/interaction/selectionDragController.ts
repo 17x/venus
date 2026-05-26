@@ -3,8 +3,8 @@ import {
 } from '../model/index.ts'
 import {
   getNormalizedBoundsFromBox,
-  resolveEngineGeometryPayload,
 } from '../engine-bridge/engine.ts'
+import {resolveHitGeometryV2} from '../engine-bridge/engineContractAdapters.ts'
 import {hasPassedDragThreshold, resolveDragDistance} from '@venus/editor-primitive'
 import type {SceneShapeSnapshot} from '../shared-memory/index.ts'
 import {resolveMaskLinkedShapeIds} from '../../runtime/interaction/maskGroup.ts'
@@ -100,7 +100,7 @@ export function createSelectionDragController(options?: {
       if (hintedId) {
         const hintedShape = shapeSnapshotById.get(hintedId) ?? null
         const hintedHitId = hintedShape
-          ? resolveEngineGeometryPayload({
+          ? resolveHitGeometryV2({
             nodes: [hintedShape],
             pointer,
             allowFrameSelection,
@@ -118,7 +118,7 @@ export function createSelectionDragController(options?: {
         }
       }
       if (!hitShape) {
-        const hitShapeId = resolveEngineGeometryPayload({
+        const hitShapeId = resolveHitGeometryV2({
           nodes: snapshot.document.shapes,
           pointer,
           allowFrameSelection,

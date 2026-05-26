@@ -1,0 +1,218 @@
+{
+  "$schema": "../schema/w1-artifact.schema.json",
+  "artifactId": "w1-t04-playground-scenario-baselines-v1",
+  "artifactVersion": "1.0.0",
+  "taskRef": "W1-T04",
+  "createdAt": "2026-05-26",
+  "description": "Frozen static baselines for the four W1 playground scenarios. Used as regression anchors for node-count, scene dimensions, hit-primitive coverage, semantic3d coverage, and material-id sets.",
+  "scenarios": [
+    {
+      "scenarioId": "3d-editor-validation",
+      "label": "3D Editor Typical Scene",
+      "tags": ["3d", "editor-runtime", "semantic3d"],
+      "sceneBuilder": "build3DEditorValidationScene",
+      "sourcePath": "apps/playground/src/scenarios/3d-editor-validation/scene.ts",
+      "dimensions": { "width": 1920, "height": 1180 },
+      "baseline": {
+        "totalNodeCount": 92,
+        "nodeTypeBreakdown": {
+          "shape": 90,
+          "text": 2
+        },
+        "shapeTypeBreakdown": {
+          "rect": 49,
+          "ellipse": 25,
+          "line": 2
+        },
+        "nodeGroups": [
+          { "group": "static-chrome",  "nodeIds": ["editor-bg","editor-title","editor-subtitle","hierarchy-panel","inspector-panel","viewport-frame","viewport-grid-axis-x","viewport-grid-axis-y"], "count": 8 },
+          { "group": "grid-dots",      "idPattern": "grid-dot-{row*100+col}", "rows": 6, "cols": 10, "count": 60, "shape": "ellipse" },
+          { "group": "scene-objects",  "nodeIds": ["object-ground","object-main-cube","object-sphere-left","object-sphere-right"], "count": 4 },
+          { "group": "hit-primitives", "nodeIds": ["hit-face-surface","hit-line-edge","hit-point-handle"], "count": 3 },
+          { "group": "hierarchy-rows", "idPattern": "hierarchy-row-{0..10}", "count": 11, "shape": "rect" },
+          { "group": "inspector-fields","idPattern": "inspector-field-{0..5}", "count": 6, "shape": "rect" }
+        ],
+        "semantic3dCoverage": {
+          "nodeCount": 67,
+          "groups": ["grid-dots", "scene-objects", "hit-primitives"],
+          "zRange": { "min": 4, "max": 158 }
+        },
+        "hitPrimitiveCoverage": {
+          "face":  { "count": 5, "nodeIds": ["object-ground","object-main-cube","object-sphere-left","object-sphere-right","hit-face-surface"] },
+          "line":  { "count": 1, "nodeIds": ["hit-line-edge"] },
+          "point": { "count": 1, "nodeIds": ["hit-point-handle"] }
+        },
+        "lightingModeCoverage": {
+          "lit":   { "count": 7, "groups": ["scene-objects","hit-face-surface"] },
+          "unlit": { "count": 63, "groups": ["grid-dots","hit-line-edge","hit-point-handle"] }
+        },
+        "materialIds": [
+          "grid-dot-material",
+          "editor-object-material-0",
+          "editor-object-material-1",
+          "editor-object-material-2",
+          "editor-object-material-3",
+          "hit-face-material",
+          "hit-line-material",
+          "hit-point-material"
+        ],
+        "renderOrderRange": { "min": 5, "max": 186 },
+        "docEntityIds": [
+          "object-ground","object-main-cube","object-sphere-left","object-sphere-right",
+          "doc-face-quad","doc-line-edge","doc-point-handle"
+        ],
+        "keyVisualItems": [
+          "viewport-frame at (352,154)  primary 3D viewport boundary",1200960 
+          "object-main-cube at (784,544) z= primary lit 3D object (depth=64)",78 
+          "hit-point-handle at (998,442) z= highest-z hit-primitive; ellipse r=9",158 
+          "viewport-grid-axis-x/ 2D grid axis cross-hair at (432,850) and (920,336)"y 
+        ],
+        "regressionAnchors": [
+          { "anchor": "totalNodeCount",           "expectedValue": 92 },
+          { "anchor": "semantic3dNodeCount",       "expectedValue": 67 },
+          { "anchor": "hitPrimitiveFaceCount",     "expectedValue": 5 },
+          { "anchor": "hitPrimitiveLineCount",     "expectedValue": 1 },
+          { "anchor": "hitPrimitivePointCount",    "expectedValue": 1 },
+          { "anchor": "distinctMaterialIds",       "expectedValue": 8 },
+          { "anchor": "distinctDocEntityIds",      "expectedValue": 7 },
+          { "anchor": "sceneWidth",                "expectedValue": 1920 },
+          { "anchor": "sceneHeight",               "expectedValue": 1180 }
+        ]
+      }
+    },
+    {
+      "scenarioId": "2d-basic",
+      "label": "2D Basic Coverage",
+      "tags": ["2d", "baseline", "shape-text"],
+      "sceneBuilder": "build2DBasicScene",
+      "sourcePath": "apps/playground/src/scenarios/2d-basic/scene.ts",
+      "dimensions": { "width": 1200, "height": 760 },
+      "baseline": {
+        "totalNodeCount": 8,
+        "nodeTypeBreakdown": {
+          "shape": 6,
+          "text": 2
+        },
+        "shapeTypeBreakdown": {
+          "rect": 3,
+          "ellipse": 1,
+          "line": 2
+        },
+        "nodeGroups": [
+          { "group": "chrome",    "nodeIds": ["basic-bg","basic-title","basic-subtitle"], "count": 3 },
+          { "group": "shapes",    "nodeIds": ["basic-card-a","basic-card-b","basic-orb","basic-link-a","basic-link-b"], "count": 5 }
+        ],
+        "semantic3dCoverage": { "nodeCount": 0 },
+        "hitPrimitiveCoverage": {},
+        "lightingModeCoverage": {},
+        "materialIds": [],
+        "keyVisualItems": [
+          "basic-card-a at (84,190) 260180 cornerRadius=20 fill=# primary teal rect",0f766e 
+          "basic-orb at (770,182)  amber ellipse",260200 
+          "basic-link-a at (344,282) w=40 h= horizontal connector left",0 
+          "basic-link-b at (704,282) w=66 h= horizontal connector right"0 
+        ],
+        "regressionAnchors": [
+          { "anchor": "totalNodeCount",     "expectedValue": 8 },
+          { "anchor": "shapeNodeCount",     "expectedValue": 6 },
+          { "anchor": "textNodeCount",      "expectedValue": 2 },
+          { "anchor": "rectCount",          "expectedValue": 3 },
+          { "anchor": "ellipseCount",       "expectedValue": 1 },
+          { "anchor": "lineCount",          "expectedValue": 2 },
+          { "anchor": "sceneWidth",         "expectedValue": 1200 },
+          { "anchor": "sceneHeight",        "expectedValue": 760 }
+        ]
+      }
+    },
+    {
+      "scenarioId": "2d-interactive",
+      "label": "2D Hover + Selection",
+      "tags": ["2d", "interaction", "overlay"],
+      "sceneBuilder": "build2DInteractiveScene",
+      "sourcePath": "apps/playground/src/scenarios/2d-interactive/scene.ts",
+      "dimensions": { "width": 1600, "height": 980 },
+      "baseline": {
+        "totalNodeCount": 62,
+        "nodeTypeBreakdown": {
+          "shape": 61,
+          "text": 1
+        },
+        "shapeTypeBreakdown": {
+          "rect": 38,
+          "ellipse": 24
+        },
+        "nodeGroups": [
+          { "group": "chrome",       "nodeIds": ["interactive-bg","interactive-title"], "count": 2 },
+          { "group": "grid-cards",   "idPattern": "interactive-card-{0..59}", "count": 60,
+ 36 total); rows alternate fill #1d4ed8 / #0369a1" }
+        ],
+        "semantic3dCoverage": { "nodeCount": 0 },
+        "hitPrimitiveCoverage": {},
+        "lightingModeCoverage": {},
+        "materialIds": [],
+        "keyVisualItems": [
+          "interactive-card-0 at (76,170) 11286  first card (row=0,col=0)",ellipse 
+          "interactive-card-59 at (76+9*146, 170+5*120) 11286  last card (row=5,col=9)",rect 
+          "Grid spacing: 146px horizontal, 120px vertical; card size uniform 11286"
+        ],
+        "regressionAnchors": [
+          { "anchor": "totalNodeCount",    "expectedValue": 62 },
+          { "anchor": "gridCardCount",     "expectedValue": 60 },
+          { "anchor": "ellipseCardCount",  "expectedValue": 24 },
+          { "anchor": "rectCardCount",     "expectedValue": 36 },
+          { "anchor": "textNodeCount",     "expectedValue": 1 },
+          { "anchor": "sceneWidth",        "expectedValue": 1600 },
+          { "anchor": "sceneHeight",       "expectedValue": 980 }
+        ]
+      }
+    },
+    {
+      "scenarioId": "canvas2d-fallback",
+      "label": "Canvas2D Fallback Surface",
+      "tags": ["canvas2d", "fallback"],
+      "sceneBuilder": "buildCanvas2DFallbackScene",
+      "sourcePath": "apps/playground/src/scenarios/canvas2d-fallback/scene.ts",
+      "dimensions": { "width": 1100, "height": 760 },
+      "baseline": {
+        "totalNodeCount": 4,
+        "nodeTypeBreakdown": {
+          "shape": 4,
+          "text": 0
+        },
+        "shapeTypeBreakdown": {
+          "rect": 3,
+          "ellipse": 1
+        },
+        "nodeGroups": [
+          { "group": "all", "nodeIds": ["canvas-bg","canvas-card-a","canvas-card-b","canvas-card-c"], "count": 4 }
+        ],
+        "semantic3dCoverage": { "nodeCount": 0 },
+        "hitPrimitiveCoverage": {},
+        "lightingModeCoverage": {},
+        "materialIds": [],
+        "keyVisualItems": [
+          "canvas-bg at (24,24) 1052712 cornerRadius= full-scene background",18 
+          "canvas-card-a at (84,140) 280200 rect fill=# teal card",0f766e 
+          "canvas-card-b at (430,156) 220170 ellipse fill=# amber ellipse",7c2d12 
+          "canvas-card-c at (706,168) 220150 rect fill=# blue card",1e3a8a 
+          "No text  Canvas2D fallback path omits text rendering by design"nodes 
+        ],
+        "regressionAnchors": [
+          { "anchor": "totalNodeCount",  "expectedValue": 4 },
+          { "anchor": "rectCount",       "expectedValue": 3 },
+          { "anchor": "ellipseCount",    "expectedValue": 1 },
+          { "anchor": "textNodeCount",   "expectedValue": 0 },
+          { "anchor": "sceneWidth",      "expectedValue": 1100 },
+          { "anchor": "sceneHeight",     "expectedValue": 760 }
+        ]
+      }
+    }
+  ],
+  "crossScenarioNotes": [
+    "All 4 scenes share IBM Plex Sans font for any text  font load failure breaks title rendering in 2d-basic and 3d-editor-validation.",nodes 
+    "Only 3d-editor-validation uses semantic3d, z-depth, materialId, hitPrimitive,  the other three are pure-2D baseline scenes.",lightingMode 
+    "canvas2d-fallback has zero text nodes; it is the only scenario intentionally omitting text to isolate Canvas2D shape rendering.",
+    "2d-interactive has the highest hit-test node density (60 overlapping grid  critical scenario for pick/spatial-index throughput regression.",cards) 
+    "All scene revisions are passed through from the caller; no scene hard-codes revision = deterministic replay is possible for any revision value."
+  ]
+}
