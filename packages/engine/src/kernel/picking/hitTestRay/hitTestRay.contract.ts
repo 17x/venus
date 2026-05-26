@@ -17,6 +17,31 @@ export interface EngineRay3D {
 }
 
 /**
+ * Declares one triangle for ray-triangle intersection testing.
+ * Vertices are in counter-clockwise winding order.
+ */
+export interface EngineRayTriangle {
+  /** First vertex x coordinate. */
+  v0x: number;
+  /** First vertex y coordinate. */
+  v0y: number;
+  /** First vertex z coordinate. */
+  v0z: number;
+  /** Second vertex x coordinate. */
+  v1x: number;
+  /** Second vertex y coordinate. */
+  v1y: number;
+  /** Second vertex z coordinate. */
+  v1z: number;
+  /** Third vertex x coordinate. */
+  v2x: number;
+  /** Third vertex y coordinate. */
+  v2y: number;
+  /** Third vertex z coordinate. */
+  v2z: number;
+}
+
+/**
  * Axis-aligned candidate volume consumed by ray picking.
  */
 export interface EngineRayPickCandidate {
@@ -34,6 +59,9 @@ export interface EngineRayPickCandidate {
   minZ: number;
   /** Maximum z boundary. */
   maxZ: number;
+  /** Optional triangle list for per-triangle ray intersection. When provided, triangle-level
+   * intersection is used in preference to the AABB slab test for this candidate. */
+  triangles?: readonly EngineRayTriangle[];
 }
 
 /**

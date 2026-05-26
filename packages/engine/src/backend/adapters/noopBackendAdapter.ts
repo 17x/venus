@@ -118,8 +118,21 @@ export interface EngineBackendFrameDiagnostics {
     /** Histogram bucket count for insufficient stream failures. */
     insufficientStreamCount: number;
   };
+  /** Compact line-topology submission efficiency summary tuple for telemetry exporters. */
+  webglNativeMeshLineTopologySubmissionEfficiencySummary: {
+    /** Ratio of successful line commands over attempted line commands in current frame (0–1). */
+    commandSuccessRate: number;
+    /** Ratio of attempted line commands over draw-plan command count in current frame (0–1). */
+    planCoverageRate: number;
+    /** Number of planned line commands that did not end as successful submissions. */
+    drawPlanWastedCommandCount: number;
+  };
   /** Native WebGL mesh rejections caused by capability-gate failures. */
   webglNativeMeshCapabilityGateCount: number;
+  /** Active light count in the current frame scene for parity telemetry. */
+  activeLightCount: number;
+  /** Total mesh draw calls submitted across all backends in the current frame. */
+  meshDrawCallCount: number;
   /** Rich-feature capability gate reason emitted by WebGL adapter for the latest frame. */
   webglFeatureCapabilityGateReason?:
     | "none"
@@ -138,6 +151,18 @@ export interface EngineBackendFrameDiagnostics {
     | "gradient-style-unsupported";
   /** Cache-hit count for the latest frame emitted by backend-local reuse logic. */
   cacheHits: number;
+  /** Shadow map count rendered in the current frame for parity telemetry. */
+  shadowMapCount: number;
+  /** Shadow draw calls submitted in the current frame for parity telemetry. */
+  shadowDrawCallCount: number;
+  /** Shadow texture memory in bytes for parity telemetry. */
+  shadowTextureBytes: number;
+  /** Instanced draw calls attempted in the current frame. */
+  instancedDrawAttemptedCount: number;
+  /** Instanced draw calls successfully submitted in the current frame. */
+  instancedDrawSucceededCount: number;
+  /** Instanced draw calls rejected in the current frame. */
+  instancedDrawRejectedCount: number;
   /** Cache-miss count for the latest frame emitted by backend-local reuse logic. */
   cacheMisses: number;
   /** Frame-reuse hit count for the latest frame emitted by backend-local reuse logic. */

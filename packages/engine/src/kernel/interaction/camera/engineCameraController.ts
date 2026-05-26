@@ -163,6 +163,19 @@ const reduceCameraCommand = (
       orthographicHalfSize: command.orthographicHalfSize ?? previousState.orthographicHalfSize,
     };
   }
+  if (command.type === "setViewport") {
+    const aspect = command.width > 0 && command.height > 0
+      ? command.width / command.height
+      : previousState.aspect ?? 16 / 9;
+    // Adjust orthographic half-size to maintain vertical FOV consistency across aspect changes.
+    const orthographicHalfSize = previousState.orthographicHalfSize ?? 600;
+    const adjustedHalfSize = orthographicHalfSize * (aspect / (previousState.aspect ?? aspect));
+    return {
+      ...previousState,
+      aspect,
+      orthographicHalfSize: adjustedHalfSize,
+    };
+  }
   if (command.type === "orbit") {
     return {
       ...previousState,
@@ -274,6 +287,8 @@ const interpolateCameraState = (
     targetX: current.targetX + (target.targetX - current.targetX) * smoothing,
     targetY: current.targetY + (target.targetY - current.targetY) * smoothing,
     targetZ: current.targetZ + (target.targetZ - current.targetZ) * smoothing,
+    aspect: target.aspect,
+    orthographicHalfSize: target.orthographicHalfSize,
   };
 };
 
@@ -302,6 +317,10 @@ const clampCameraState = (state: EngineCameraState): EngineCameraState => {
     typeof state.orthographicHalfSize === "number" && Number.isFinite(state.orthographicHalfSize)
       ? Math.max(1, state.orthographicHalfSize)
       : DEFAULT_ORTHOGRAPHIC_HALF_SIZE;
+  const aspect =
+    typeof state.aspect === "number" && Number.isFinite(state.aspect) && state.aspect > 0
+      ? state.aspect
+      : undefined;
   return {
     ...state,
     pitch: Math.max(-75, Math.min(75, state.pitch)),
@@ -311,6 +330,7 @@ const clampCameraState = (state: EngineCameraState): EngineCameraState => {
     near,
     far,
     orthographicHalfSize,
+    aspect,
   };
 };
 

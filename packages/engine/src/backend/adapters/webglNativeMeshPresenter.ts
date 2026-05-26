@@ -125,6 +125,15 @@ export type WebGLNativeMeshSubmissionDiagnostics = {
     /** Histogram bucket count for insufficient stream failures. */
     insufficientStreamCount: number;
   };
+  /** Compact line-topology submission efficiency summary tuple so telemetry can consume a stable shape without recomputation. */
+  lineTopologySubmissionEfficiencySummary: {
+    /** Ratio of successful line commands over attempted line commands in current frame (0–1). */
+    commandSuccessRate: number;
+    /** Ratio of attempted line commands over draw-plan command count in current frame (0–1). */
+    planCoverageRate: number;
+    /** Number of planned line commands that did not end as successful submissions. */
+    drawPlanWastedCommandCount: number;
+  };
   /** Number of meshes rejected because WebGL capability gates were not satisfied. */
   submissionCapabilityGateCount: number;
   /** Number of shader pipeline compiles performed this frame. */
@@ -231,6 +240,11 @@ export function presentNativeMeshPrimitives(
       latestReason: "none",
       missingLinesPrimitiveCount: 0,
       insufficientStreamCount: 0,
+    },
+    lineTopologySubmissionEfficiencySummary: {
+      commandSuccessRate: 0,
+      planCoverageRate: 0,
+      drawPlanWastedCommandCount: 0,
     },
     submissionCapabilityGateCount: 0,
     pipelineCompileCount: 0,
@@ -577,6 +591,13 @@ export function presentNativeMeshPrimitives(
     0,
     plannedLineCommands - succeededLineCommands,
   );
+
+  // Normalize compact efficiency summary tuple so telemetry exporters can consume a stable shape without recomputation.
+  diagnostics.lineTopologySubmissionEfficiencySummary = {
+    commandSuccessRate: diagnostics.lineTopologySubmissionCommandSuccessRate,
+    planCoverageRate: diagnostics.lineTopologySubmissionPlanCoverageRate,
+    drawPlanWastedCommandCount: diagnostics.lineTopologySubmissionDrawPlanWastedCommandCount,
+  };
 
   // Normalize a single outcome token so telemetry does not need to infer terminal line submission state from counters.
   if (diagnostics.lineTopologySubmissionFailedCount > 0) {

@@ -1,3 +1,5 @@
+import type { EngineCameraFrustum } from "../../interaction/camera/cameraFrustum";
+
 /**
  * Spatial query node input containing coarse 2D bounds.
  */
@@ -12,6 +14,10 @@ export interface EngineSpatialQueryNode {
   width: number;
   /** Node height in world space. */
   height: number;
+  /** Optional node depth-min coordinate in world space for 3D frustum queries. */
+  z?: number;
+  /** Optional node depth extent in world space for 3D frustum queries. */
+  depth?: number;
 }
 
 /**
@@ -58,11 +64,13 @@ export interface EngineSpatialQueryModule {
     bounds: EngineSpatialQueryBounds,
   ) => readonly string[];
   /**
-   * Resolves frustum-visible node ids; current staged path maps frustum to axis-aligned bounds.
+   * Resolves frustum-visible node ids using true 3D frustum-AABB intersection when
+   * frustum is provided and nodes carry z/depth bounds; falls back to 2D AABB query otherwise.
    */
   queryFrustumVisibleSet: (
     nodes: readonly EngineSpatialQueryNode[],
     bounds: EngineSpatialQueryBounds,
+    frustum?: EngineCameraFrustum,
   ) => EngineSpatialQueryResult;
   /**
    * Resolves deterministic point candidates ranked by distance to query point.

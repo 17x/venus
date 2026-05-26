@@ -29,6 +29,8 @@ export type EngineCameraState = {
   far?: number;
   /** Orthographic half-size scalar used when projection mode is orthographic. */
   orthographicHalfSize?: number;
+  /** Viewport aspect ratio (width/height) for projection matrix consistency. */
+  aspect?: number;
 };
 
 /** Declares supported canonical camera presets for common editor view alignment commands. */
@@ -80,4 +82,6 @@ export type EngineCameraCommand =
       orthographicHalfSize?: number;
     }
   /** Direct set command replaces full camera state deterministically. */
-  | { type: "setState"; state: EngineCameraState };
+  | { type: "setState"; state: EngineCameraState }
+  /** Viewport command synchronizes aspect ratio and projection parameters after resize. */
+  | { type: "setViewport"; width: number; height: number };

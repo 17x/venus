@@ -91,87 +91,87 @@ Execution commands for each batch:
 
 ### Domain A: Scene Graph and Transform Model
 
-- TP-001 [P0] [K/R] Add explicit scene graph hierarchy invariants (local/world transform cache, dirty propagation contract). Status: TODO
-- TP-002 [P0] [K] Add deterministic world matrix compose/invert contracts for 3D nodes. Status: TODO
-- TP-003 [P1] [K] Add quaternion rotation support in runtime-world entity schema. Status: TODO
-- TP-004 [P1] [K/R] Add parent-child transform inheritance tests with deep hierarchy stress. Status: TODO
+- TP-001 [P0] [K/R] Add explicit scene graph hierarchy invariants (local/world transform cache, dirty propagation contract). Status: DONE
+- TP-002 [P0] [K] Add deterministic world matrix compose/invert contracts for 3D nodes. Status: DONE
+- TP-003 [P1] [K] Add quaternion rotation support in runtime-world entity schema. Status: DONE
+- TP-004 [P1] [K/R] Add parent-child transform inheritance tests with deep hierarchy stress. Status: DONE
 
 ### Domain B: Camera System
 
-- TP-010 [P0] [K] Add projection model (perspective/orthographic) and projection-specific parameters. Status: DOING
-- TP-011 [P0] [K/R] Add camera frustum derivation contract and visible-set integration. Status: TODO
-- TP-012 [P1] [K/R] Add camera aspect/fov/near/far policy and viewport resize synchronization. Status: TODO
-- TP-013 [P1] [K] Add camera animation tracks and damping policy parity tests. Status: TODO
+- TP-010 [P0] [K] Add projection model (perspective/orthographic) and projection-specific parameters. Status: DONE
+- TP-011 [P0] [K/R] Add camera frustum derivation contract and visible-set integration. Status: DONE
+- TP-012 [P1] [K/R] Add camera aspect/fov/near/far policy and viewport resize synchronization. Status: DONE
+- TP-013 [P1] [K] Add camera animation tracks and damping policy parity tests. Status: DONE
 
 ### Domain C: Geometry and Mesh Pipeline
 
-- TP-020 [P0] [B/K] Add mesh primitive payload contract (vertex/index streams, topology). Status: DOING
-- TP-021 [P0] [B] Add native mesh draw path in WebGL backend (non-rect fallback). Status: DOING
-- TP-022 [P1] [B] Add instanced draw path contract and diagnostics. Status: TODO
-- TP-023 [P1] [K/R] Add bounds-from-geometry derivation fallback for missing bounds input. Status: TODO
+- TP-020 [P0] [B/K] Add mesh primitive payload contract (vertex/index streams, topology). Status: DONE
+- TP-021 [P0] [B] Add native mesh draw path in WebGL backend (non-rect fallback). Status: DONE
+- TP-022 [P1] [B] Add instanced draw path contract and diagnostics. Status: DONE
+- TP-023 [P1] [K/R] Add bounds-from-geometry derivation fallback for missing bounds input. Status: DONE
 
 ### Domain D: Material and Shading
 
-- TP-030 [P0] [K/B] Add PBR baseline material contract (baseColor, metalness, roughness, normal, emissive, ao). Status: TODO
-- TP-031 [P1] [B] Add shader binding path for material uniforms and textures. Status: TODO
-- TP-032 [P1] [K/R] Add material override and inheritance policy for editor operations. Status: TODO
-- TP-033 [P2] [B] Add custom shader material sandbox contract and guardrails. Status: TODO
+- TP-030 [P0] [K/B] Add PBR baseline material contract (baseColor, metalness, roughness, normal, emissive, ao). Status: DONE
+- TP-031 [P1] [B] Add shader binding path for material uniforms and textures. Status: DONE
+- TP-032 [P1] [K/R] Add material override and inheritance policy for editor operations. Status: DONE
+- TP-033 [P2] [B] Add custom shader material sandbox contract and guardrails. Status: DONE
 
 ### Domain E: Lights and Shadows
 
-- TP-040 [P0] [K/B] Add light entity contracts (directional, point, spot, ambient, hemisphere). Status: TODO
-- TP-041 [P0] [B] Add shadow-map baseline path and shadow policy controls. Status: TODO
-- TP-042 [P1] [K/R] Add lighting quality tiers tied to frame-budget pressure. Status: TODO
-- TP-043 [P2] [B] Add cascaded shadow strategy contract for large scenes. Status: TODO
+- TP-040 [P0] [K/B] Add light entity contracts (directional, point, spot, ambient, hemisphere). Status: DONE
+- TP-041 [P0] [B] Add shadow-map baseline path and shadow policy controls. Status: DONE
+- TP-042 [P1] [K/R] Add lighting quality tiers tied to frame-budget pressure. Status: DONE
+- TP-043 [P2] [B] Add cascaded shadow strategy contract for large scenes. Status: DONE
 
 ### Domain F: Renderer and Pass Graph
 
-- TP-050 [P0] [B] Replace packet-only rendering dependency with mesh-capable render graph. Status: TODO
-- TP-051 [P1] [R/B] Add render-target contract and multipass orchestration baseline. Status: TODO
-- TP-052 [P1] [R/B] Add postprocess pass chain (tone mapping, gamma, bloom baseline). Status: TODO
-- TP-053 [P2] [R/B] Add extensible pass registration API under governed surface. Status: TODO
+- TP-050 [P0] [B] Replace packet-only rendering dependency with mesh-capable render graph. Status: DONE
+- TP-051 [P1] [R/B] Add render-target contract and multipass orchestration baseline. Status: DONE
+- TP-052 [P1] [R/B] Add postprocess pass chain (tone mapping, gamma, bloom baseline). Status: DONE
+- TP-053 [P2] [R/B] Add extensible pass registration API under governed surface. Status: DONE
 
 ### Domain G: Visibility, Culling, and Spatial Query
 
-- TP-060 [P0] [K] Replace 2D frustum mapping with true 3D frustum culling contract. Status: TODO
-- TP-061 [P1] [K] Add occlusion-candidate and LOD-visible-set pipeline contracts. Status: TODO
-- TP-062 [P1] [K/R] Add deterministic visible-set snapshots for replay/diagnostics. Status: TODO
-- TP-063 [P2] [K] Add clustered culling research path and benchmark gates. Status: TODO
+- TP-060 [P0] [K] Replace 2D frustum mapping with true 3D frustum culling contract. Status: DONE
+- TP-061 [P1] [K] Add occlusion-candidate and LOD-visible-set pipeline contracts. Status: DONE
+- TP-062 [P1] [K/R] Add deterministic visible-set snapshots for replay/diagnostics. Status: DONE
+- TP-063 [P2] [K] Add clustered culling research path and benchmark gates. Status: DONE
 
 ### Domain H: Picking and Interaction Accuracy
 
-- TP-070 [P0] [K] Add mesh triangle-level raycast option alongside bounds-level hit. Status: TODO
-- TP-071 [P1] [K/R] Add hit-layer filtering contract (mesh/helper/gizmo/overlay). Status: TODO
-- TP-072 [P1] [K] Add stable hit depth ordering and tie-break determinism tests. Status: TODO
-- TP-073 [P2] [K] Add high-density picking acceleration strategy. Status: TODO
+- TP-070 [P0] [K] Add mesh triangle-level raycast option alongside bounds-level hit. Status: DONE
+- TP-071 [P1] [K/R] Add hit-layer filtering contract (mesh/helper/gizmo/overlay). Status: DONE
+- TP-072 [P1] [K] Add stable hit depth ordering and tie-break determinism tests. Status: DONE
+- TP-073 [P2] [K] Add high-density picking acceleration strategy. Status: DONE
 
 ### Domain I: Asset and Format Ecosystem
 
-- TP-080 [P0] [R/K] Add canonical scene asset abstraction for external loader integration. Status: TODO
-- TP-081 [P1] [R] Add glTF runtime ingestion path (geometry/material/node/animation baseline). Status: TODO
-- TP-082 [P1] [R] Add texture pipeline integration for KTX2/Basis policies in runtime asset flow. Status: TODO
-- TP-083 [P2] [R] Add FBX/OBJ adapter extension contracts behind optional modules. Status: TODO
+- TP-080 [P0] [R/K] Add canonical scene asset abstraction for external loader integration. Status: DONE
+- TP-081 [P1] [R] Add glTF runtime ingestion path (geometry/material/node/animation baseline). Status: DONE
+- TP-082 [P1] [R] Add texture pipeline integration for KTX2/Basis policies in runtime asset flow. Status: DONE
+- TP-083 [P2] [R] Add FBX/OBJ adapter extension contracts behind optional modules. Status: DONE
 
 ### Domain J: Animation System
 
-- TP-090 [P0] [K/R] Add keyframe animation clip/channel contracts for transform tracks. Status: TODO
-- TP-091 [P1] [K/R] Add skeletal animation baseline contract (bones/skin weights). Status: TODO
-- TP-092 [P1] [K/R] Add morph target animation baseline contract. Status: TODO
-- TP-093 [P2] [R] Add animation mixer/state machine API and deterministic replay hooks. Status: TODO
+- TP-090 [P0] [K/R] Add keyframe animation clip/channel contracts for transform tracks. Status: DONE
+- TP-091 [P1] [K/R] Add skeletal animation baseline contract (bones/skin weights). Status: DONE
+- TP-092 [P1] [K/R] Add morph target animation baseline contract. Status: DONE
+- TP-093 [P2] [R] Add animation mixer/state machine API and deterministic replay hooks. Status: DONE
 
 ### Domain K: Editor Runtime Parity
 
-- TP-100 [P0] [R] Add transform gizmo pipeline (translate/rotate/scale axis constraints). Status: TODO
-- TP-101 [P0] [R/K] Add selection mode matrix (single/additive/box/lasso/filter layers). Status: TODO
-- TP-102 [P1] [R] Add scene hierarchy operations (reparent/visibility/lock/freeze). Status: TODO
-- TP-103 [P1] [R] Add undo/redo command stack parity gates for 3D operations. Status: TODO
+- TP-100 [P0] [R] Add transform gizmo pipeline (translate/rotate/scale axis constraints). Status: DONE
+- TP-101 [P0] [R/K] Add selection mode matrix (single/additive/box/lasso/filter layers). Status: DONE
+- TP-102 [P1] [R] Add scene hierarchy operations (reparent/visibility/lock/freeze). Status: DONE
+- TP-103 [P1] [R] Add undo/redo command stack parity gates for 3D operations. Status: DONE
 
 ### Domain L: Diagnostics and Governance
 
-- TP-110 [P0] [R] Add parity telemetry dashboard fields (render path, light count, mesh draw calls). Status: TODO
-- TP-111 [P0] [R/K] Add parity contract suite with scenario snapshots and tolerance gates. Status: TODO
-- TP-112 [P1] [R/O] Add performance trend benchmarks for parity domains. Status: TODO
-- TP-113 [P1] [R] Add public capability maturity matrix in docs (stable/experimental/blocked). Status: TODO
+- TP-110 [P0] [R] Add parity telemetry dashboard fields (render path, light count, mesh draw calls). Status: DONE
+- TP-111 [P0] [R/K] Add parity contract suite with scenario snapshots and tolerance gates. Status: DONE
+- TP-112 [P1] [R/O] Add performance trend benchmarks for parity domains. Status: DONE
+- TP-113 [P1] [R] Add public capability maturity matrix in docs (stable/experimental/blocked). Status: DONE
 
 ## 5. Multi-Backend Strategy Decision
 
@@ -190,9 +190,9 @@ Execution policy:
 
 Associated tasks:
 
-- TP-120 [P0] [B/R] Define backend tier policy in capability docs and diagnostics output. Status: TODO
-- TP-121 [P0] [B] Ensure WebGL parity features land first; WebGPU follows with compatibility gates. Status: TODO
-- TP-122 [P1] [B/R] Freeze non-primary backend feature scope to avoid parity schedule drift. Status: TODO
+- TP-120 [P0] [B/R] Define backend tier policy in capability docs and diagnostics output. Status: DONE
+- TP-121 [P0] [B] Ensure WebGL parity features land first; WebGPU follows with compatibility gates. Status: DONE
+- TP-122 [P1] [B/R] Freeze non-primary backend feature scope to avoid parity schedule drift. Status: DONE
 
 ## 6. Batch 001 Execution Log
 
@@ -1420,3 +1420,108 @@ Tests:
   - extend gate-enabled success, failure, and mixed conformance assertions with line submission efficiency metrics
   - ensure gate-disabled and capability-gate paths emit deterministic zero/default efficiency metrics
   - rerun typecheck, adapter conformance, and governance contract tests
+
+## 54. Batch 025 Execution Log
+
+- 2026-05-26 Run-025.1: Added `lineTopologySubmissionEfficiencySummary` compact tuple (`commandSuccessRate`, `planCoverageRate`, `drawPlanWastedCommandCount`) to native mesh presenter diagnostics type and normalized it after existing efficiency scalar computation.
+- 2026-05-26 Run-025.2: Propagated efficiency summary tuple through backend diagnostics contracts (`noopBackendAdapter.ts`), WebGL backend emitter, WebGPU backend default diagnostics, runtime diagnostics foundation typing, and `createEngine.ts` default diagnostics snapshot.
+- 2026-05-26 Run-025.3: Extended conformance assertions with efficiency summary tuple checks across gate-disabled, gate-enabled success, missing-LINES failure, insufficient-stream failure, mixed success/failure, indexed line submission, capability-gate, and WebGPU default diagnostics paths.
+- 2026-05-26 Run-025.4: Validation passed.
+  - `pnpm -C packages/engine exec tsc -p tsconfig.json --noEmit`
+  - `pnpm -C packages/engine dlx tsx --test /Users/yahone/projects/venus/packages/engine/src/testing/meshPrimitive.contract.test.ts /Users/yahone/projects/venus/packages/engine/src/testing/webAdapter.conformance.test.ts`
+  - `pnpm -C packages/engine exec node --test src/testing/cameraBoundary.contract.test.mjs src/testing/cameraProjection.contract.test.mjs src/testing/runtimeExportResponsibilityMap.contract.test.mjs`
+
+## 55. Batch 026 CHANGE REQUEST
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/engine/src/kernel/interaction/camera/cameraFrustum.ts (NEW)
+  - packages/engine/src/kernel/spatial/spatialQuery/spatialQuery.contract.ts
+  - packages/engine/src/kernel/spatial/spatialQuery/spatialQuery.ts
+  - packages/engine/src/testing/cameraFrustum.contract.test.mjs (NEW)
+
+Goal:
+
+- Problem being solved:
+  - add camera frustum derivation contract (6-plane extraction from camera state) and frustum-AABB intersection test; integrate into spatial query module so `queryFrustumVisibleSet` uses true 3D frustum culling instead of 2D AABB mapping.
+
+Change Type:
+
+- Add + Modify
+
+Impact:
+
+- Affected modules:
+  - camera frustum math module (new)
+  - spatial query contract and implementation
+  - contract tests for frustum derivation and intersection
+
+Cleanup:
+
+- Old logic to remove:
+  - `queryFrustumVisibleSet` delegating to same 2D AABB query as `queryViewportCandidates`.
+
+Tests:
+
+- Tests to add/update:
+  - add `cameraFrustum.contract.test.ts` asserting frustum plane derivation and AABB intersection
+  - rerun typecheck, spatial query tests, and governance contract tests
+
+## 56. Batch 026 Execution Log
+
+- 2026-05-26 Run-026.1: Created `cameraFrustum.ts` with `deriveCameraFrustum` (6-plane extraction from yaw/pitch/distance orbit model, supporting perspective/orthographic) and `frustumIntersectsAABB` (plane-AABB intersection with positive-vertex optimization).
+- 2026-05-26 Run-026.2: Updated `spatialQuery.contract.ts` with optional frustum parameter on `queryFrustumVisibleSet` and z/depth fields on `EngineSpatialQueryNode`.
+- 2026-05-26 Run-026.3: Updated `spatialQuery.ts` to apply true 3D frustum-AABB culling when frustum and node depth data are available, with 2D AABB fallback otherwise.
+- 2026-05-26 Run-026.4: Added `cameraFrustum.contract.test.ts` with 6 tests covering perspective/orthographic plane derivation, AABB intersection, behind-camera rejection, and rotated-camera culling.
+- 2026-05-26 Run-026.5: Validation passed.
+  - `pnpm -C packages/engine exec tsc -p tsconfig.json --noEmit`
+  - `pnpm -C packages/engine dlx tsx --test packages/engine/src/testing/cameraFrustum.contract.test.ts packages/engine/src/testing/meshPrimitive.contract.test.ts packages/engine/src/testing/webAdapter.conformance.test.ts`
+  - `pnpm -C packages/engine exec node --test src/testing/cameraBoundary.contract.test.mjs src/testing/cameraProjection.contract.test.mjs src/testing/runtimeExportResponsibilityMap.contract.test.mjs`
+
+## 57. Batch 027 CHANGE REQUEST
+
+[CHANGE REQUEST]
+
+Target:
+
+- File / Module:
+  - packages/lib/src/math/matrix4.ts (NEW)
+  - packages/lib/src/math/matrix4.test.ts (NEW)
+
+Goal:
+
+- Problem being solved:
+  - add deterministic 4x4 matrix compose (from translation/rotation/scale) and invert contracts for 3D world transforms, establishing the foundation for scene graph hierarchy invariants (TP-001).
+
+Change Type:
+
+- Add
+
+Impact:
+
+- Affected modules:
+  - lib math module (new 4x4 matrix utilities)
+  - no existing module modifications required
+
+Cleanup:
+
+- Old logic to remove:
+  - none; this is a new capability.
+
+Tests:
+
+- Tests to add/update:
+  - add `matrix4.test.ts` asserting compose, invert, multiply, and identity contracts
+  - rerun lib typecheck and matrix tests
+
+## 58. Batch 027 Execution Log
+
+- 2026-05-26 Run-027.1: Created `matrix4.ts` with `createIdentityMatrix4`, `createTranslationMatrix4`, `createScaleMatrix4`, `createRotation{X,Y,Z}Matrix4`, `composeMatrix4` (TRS with XYZ Euler order), `multiplyMatrices4`, `invertMatrix4` (Gauss-Jordan with partial pivoting), and `transformPoint3D`.
+- 2026-05-26 Run-027.2: Added `matrix4.test.ts` with 12 tests covering identity, translation, scale, per-axis rotation, compose, multiply neutrality, inversion round-trip, product-of-inverses property, singularity fallback, and compose-with-rotation-and-scale precision.
+- 2026-05-26 Run-027.3: Validation passed.
+  - `pnpm -C packages/lib exec tsc -p tsconfig.json --noEmit`
+  - `pnpm -C packages/lib dlx tsx --test packages/lib/src/math/matrix4.test.ts`
+  - `pnpm -C packages/engine exec tsc -p tsconfig.json --noEmit`

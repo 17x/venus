@@ -131,7 +131,20 @@ type RuntimeBackendDiagnosticsFoundationDependencies = {
         missingLinesPrimitiveCount: number;
         insufficientStreamCount: number;
       };
+      webglNativeMeshLineTopologySubmissionEfficiencySummary: {
+        commandSuccessRate: number;
+        planCoverageRate: number;
+        drawPlanWastedCommandCount: number;
+      };
       webglNativeMeshCapabilityGateCount: number;
+      activeLightCount: number;
+      meshDrawCallCount: number;
+      shadowMapCount: number;
+      shadowDrawCallCount: number;
+      shadowTextureBytes: number;
+      instancedDrawAttemptedCount: number;
+      instancedDrawSucceededCount: number;
+      instancedDrawRejectedCount: number;
       cacheHits: number;
       cacheMisses: number;
       frameReuseHits: number;

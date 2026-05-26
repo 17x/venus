@@ -1,4 +1,6 @@
 import { createEngineSpatialIndex } from "../engineSpatialIndex";
+import { frustumIntersectsAABB } from "../../interaction/camera/cameraFrustum";
+import type { EngineAABB3D } from "../../interaction/camera/cameraFrustum";
 import type {
   EngineSpatialQueryBounds,
   EngineSpatialQueryModule,
@@ -13,9 +15,39 @@ import type {
 export function createEngineSpatialQueryModule(): EngineSpatialQueryModule {
   return {
     queryViewportCandidates: (nodes, bounds) => resolveQueryNodeIds(nodes, bounds),
-    queryFrustumVisibleSet: (nodes, bounds) => ({
-      nodeIds: resolveQueryNodeIds(nodes, bounds),
-    }),
+    queryFrustumVisibleSet: (nodes, bounds, frustum) => {
+      const candidateIds = resolveQueryNodeIds(nodes, bounds);
+      // When frustum is provided and nodes carry z/depth bounds, apply true 3D frustum culling.
+      if (frustum) {
+        const nodesWithDepth = nodes.filter(
+          (node) => typeof node.z === "number" && typeof node.depth === "number",
+        );
+        if (nodesWithDepth.length > 0) {
+          const idSet = new Set(candidateIds);
+          const frustumFilteredIds = candidateIds.filter((id) => {
+            if (!idSet.has(id)) {
+              return false;
+            }
+            const node = nodesWithDepth.find((entry) => entry.id === id);
+            if (!node || typeof node.z !== "number" || typeof node.depth !== "number") {
+              // Nodes without 3D bounds pass through when not all nodes have depth data.
+              return true;
+            }
+            const aabb: EngineAABB3D = {
+              minX: node.x,
+              minY: node.y,
+              minZ: node.z,
+              maxX: node.x + node.width,
+              maxY: node.y + node.height,
+              maxZ: node.z + node.depth,
+            };
+            return frustumIntersectsAABB(frustum, aabb);
+          });
+          return { nodeIds: frustumFilteredIds };
+        }
+      }
+      return { nodeIds: candidateIds };
+    },
     queryPointCandidates: (nodes, point, tolerance) =>
       resolvePointCandidateIds(nodes, point, tolerance),
   };
