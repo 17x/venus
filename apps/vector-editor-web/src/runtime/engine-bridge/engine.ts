@@ -162,6 +162,13 @@ export interface ResolveEngineGeometryPayloadOptions {
 }
 
 /**
+ * Canonical defaults for adaptive hit tolerance exported to Product/Runtime layers.
+ * Do not duplicate these defaults in selection/presets modules—use resolveEngineAdaptiveHitTolerance.
+ */
+export const DEFAULT_LINE_HIT_TOLERANCE_PX = 6;
+export const DEFAULT_RESOLVED_MIN_TOLERANCE_PX = 4;
+
+/**
  * Declares adaptive hit-tolerance options accepted by runtime adapters.
  */
 export interface ResolveEngineAdaptiveHitToleranceOptions {

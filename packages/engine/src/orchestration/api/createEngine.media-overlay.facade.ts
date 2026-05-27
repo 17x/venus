@@ -1,6 +1,8 @@
 import type { EngineHandle } from "./public-types";
 import type { EnginePublicCapabilitiesOutput } from "./public-types";
 
+const PICK_TOLERANCE_MULTIPLIER = 2;
+
 /**
  * Builds media, overlay, asset, and headless-session facade methods for createEngine.
  * @param deps Mutable state bridges and event emitters consumed by this facade.
@@ -110,8 +112,8 @@ export function createEngineMediaOverlayFacade(deps: {
       const queryResult = deps.queryGraph({
         x: rect.x - tolerance,
         y: rect.y - tolerance,
-        width: rect.width + tolerance * 2,
-        height: rect.height + tolerance * 2,
+          width: rect.width + tolerance * PICK_TOLERANCE_MULTIPLIER,
+          height: rect.height + tolerance * PICK_TOLERANCE_MULTIPLIER,
       });
       return {
         hits: queryResult.nodeIds.map((id, rank) => ({ id, rank })),

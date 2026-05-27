@@ -114,7 +114,9 @@ function resolveLocalMatrix(shape: HitTestTransformNode): AffineMatrix {
  * @param matrix Transform matrix.
  */
 function resolveInvertibleMatrix(matrix: AffineMatrix): AffineMatrix | null {
-  const determinant = matrix[0] * matrix[MATRIX_DETERMINANT_M10_OFFSET] - matrix[1] * matrix[MATRIX_DETERMINANT_M01_OFFSET]
+    const determinant =
+      matrix[0] * matrix[MATRIX_DETERMINANT_M10_OFFSET] -
+      matrix[1] * matrix[MATRIX_DETERMINANT_M01_OFFSET]
   // Degenerate or non-finite transforms cannot be inverted reliably for pointer projection.
   if (!Number.isFinite(determinant) || Math.abs(determinant) < MATRIX_DETERMINANT_EPSILON) {
     return null

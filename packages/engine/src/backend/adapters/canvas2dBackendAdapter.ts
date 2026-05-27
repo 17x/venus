@@ -67,6 +67,7 @@ export function createCanvas2DBackendAdapter(
     },
     /**
      * Presents one frame on canvas2d and retries context resolution for late-bound canvas hosts.
+      * @param timestampMs Frame timestamp used for telemetry and draw hooks.
      */
     renderFrame(timestampMs) {
       hooks?.onPresentAttempt?.(timestampMs);

@@ -104,6 +104,14 @@ function normalizeSampleRow(row: unknown, index: number): RenderParityDiagnostic
     webglImageTextureUploadCount: readNumber('webglImageTextureUploadCount'),
     webglBudgetPressure: readString('webglBudgetPressure') as RenderParityDiagnosticsSample['webglBudgetPressure'],
     webgpuNativeRectBatchRejectedReason: readString('webgpuNativeRectBatchRejectedReason'),
+    webglFeatureCapabilityGateReason:
+      typeof record.webglFeatureCapabilityGateReason === 'string'
+        ? record.webglFeatureCapabilityGateReason
+        : 'none',
+    webgpuFeatureCapabilityGateReason:
+      typeof record.webgpuFeatureCapabilityGateReason === 'string'
+        ? record.webgpuFeatureCapabilityGateReason
+        : 'none',
     webgpuNativeSubmissionAttemptedCount: readNumber('webgpuNativeSubmissionAttemptedCount'),
   }
 }

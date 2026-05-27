@@ -57,7 +57,10 @@ export function isPointInsidePolygon(
     const last = points[previous]
     const intersects =
       ((current.y > pointer.y) !== (last.y > pointer.y)) &&
-      pointer.x < ((last.x - current.x) * (pointer.y - current.y)) / ((last.y - current.y) || RAYCAST_DIVISION_EPSILON) + current.x
+pointer.x <
+          ((last.x - current.x) * (pointer.y - current.y)) /
+            ((last.y - current.y) || RAYCAST_DIVISION_EPSILON) +
+          current.x
 
     if (intersects) {
       inside = !inside

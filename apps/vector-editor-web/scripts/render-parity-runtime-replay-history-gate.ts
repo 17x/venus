@@ -445,7 +445,7 @@ interface RenderParityReplayHistoryGateCliOptions {
   /** Stores resolved gate thresholds. */
   thresholds: RenderParityReplayGateThresholds
   /** Enables non-zero process exit when gate status is fail. */
-  failOnStatus: boolean
+  failOnStatus?: boolean
 }
 
 /**

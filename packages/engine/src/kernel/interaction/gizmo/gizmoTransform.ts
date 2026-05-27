@@ -28,8 +28,8 @@ export function createEngineGizmoTransformPipeline(): EngineGizmoTransformPipeli
    * @param gizmoOriginX Gizmo world origin x.
    * @param gizmoOriginY Gizmo world origin y.
    * @param gizmoOriginZ Gizmo world origin z.
-   * @param viewportWidth Viewport width in CSS pixels.
-   * @param viewportHeight Viewport height in CSS pixels.
+  * @param _viewportWidth Viewport width in CSS pixels.
+  * @param _viewportHeight Viewport height in CSS pixels.
    */
   function resolveGizmoAxis(
     pointerX: number,
@@ -79,6 +79,12 @@ export function createEngineGizmoTransformPipeline(): EngineGizmoTransformPipeli
 
   /**
    * Starts a drag operation from a pointer position.
+    * @param pointerX Pointer x in normalized screen coordinates.
+    * @param pointerY Pointer y in normalized screen coordinates.
+    * @param axis Selected gizmo axis constraint.
+    * @param originX Gizmo origin x coordinate.
+    * @param originY Gizmo origin y coordinate.
+    * @param originZ Gizmo origin z coordinate.
    */
   function startDrag(
     pointerX: number,
@@ -107,6 +113,8 @@ export function createEngineGizmoTransformPipeline(): EngineGizmoTransformPipeli
   /**
    * Updates the drag state from a new pointer position.
    * Computes deltas from the drag start position.
+    * @param pointerX Latest pointer x in normalized screen coordinates.
+    * @param pointerY Latest pointer y in normalized screen coordinates.
    */
   function updateDrag(pointerX: number, pointerY: number): EngineGizmoDragState {
     if (!dragState) {
@@ -127,8 +135,10 @@ export function createEngineGizmoTransformPipeline(): EngineGizmoTransformPipeli
     } else if (dragState.mode === "rotate") {
       dragState.deltaRotation = Math.atan2(rawDx, -rawDy);
     } else if (dragState.mode === "scale") {
-      const scaleFactor = 1 + rawDx * 2;
-      dragState.deltaScale = Math.max(0.01, scaleFactor);
+    const GIZMO_SCALE_MULTIPLIER = 2;
+    const GIZMO_MIN_SCALE = 0.01;
+    const scaleFactor = 1 + rawDx * GIZMO_SCALE_MULTIPLIER;
+        dragState.deltaScale = Math.max(GIZMO_MIN_SCALE, scaleFactor);
     }
 
     return { ...dragState };

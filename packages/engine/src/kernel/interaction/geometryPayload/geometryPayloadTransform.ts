@@ -190,7 +190,10 @@ function resolveLineSegmentPoints(
   if (Array.isArray(node.points) && node.points.length >= LINE_SEGMENT_POINT_MIN_COUNT) {
     return resolveTransformedPoints([
       {x: node.points[0].x, y: node.points[0].y},
-      {x: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].x, y: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].y},
+      {
+        x: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].x,
+        y: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].y,
+      },
     ], matrix)
   }
 

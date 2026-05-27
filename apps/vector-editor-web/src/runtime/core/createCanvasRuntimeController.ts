@@ -39,6 +39,14 @@ import {
   type CanvasRuntimeInvalidationReasonCode,
   type CanvasRuntimeSynchronizationDiagnostics,
 } from './runtimeSynchronization.ts'
+import {
+  DEFAULT_COLLABORATION_STATE,
+  DEFAULT_HISTORY_STATE,
+  DEFAULT_RUNTIME_V2_DIAGNOSTICS,
+  SLOW_MESSAGE_HANDLER_MS,
+  debugRuntime,
+} from './createCanvasRuntimeController.runtimeDefaults.ts'
+import {hasMeasuredViewport} from './createCanvasRuntimeController.viewportGuards.ts'
 import {resolveFallbackSelectionIndex} from './runtimeControllerFallbackHitTest.ts'
 import {resolveRuntimeWorkerMode} from './runtimeControllerWorkerMode.ts'
 
@@ -118,54 +126,6 @@ export interface CanvasRuntimeController<TDocument extends EditorDocument> {
   zoomViewport: (nextScale: number, anchor?: Point2D) => void
 }
 
-const DEFAULT_COLLABORATION_STATE: CollaborationState = {
-  connected: false,
-  actorId: 'local-user',
-  pendingLocalCount: 0,
-  pendingRemoteCount: 0,
-  lastOperationId: null,
-}
-
-const DEFAULT_HISTORY_STATE: HistorySummary = {
-  entries: [],
-  transactionGroups: [],
-  cursor: -1,
-  canUndo: false,
-  canRedo: false,
-  recoveryReplay: {
-    maxEntries: 20,
-    localOnly: {
-      mode: 'local-only',
-      entries: [],
-    },
-    merged: {
-      mode: 'merged',
-      entries: [],
-    },
-  },
-}
-
-const DEFAULT_RUNTIME_V2_DIAGNOSTICS: RuntimeV2DiagnosticsMessage = {
-  checks: 0,
-  mismatches: 0,
-  lastCommandType: null,
-  lastIssues: [],
-  frameBoundaryChecks: 0,
-  frameBoundaryMismatches: 0,
-  lastFrameBoundaryIssues: [],
-  strictModeEnabled: false,
-}
-
-const SLOW_MESSAGE_HANDLER_MS = 16
-
-/**
- * Development-only trace helper for following the runtime bridge without
- * sprinkling raw `console.log` calls throughout the code.
- */
-function debugRuntime(_message: string, _details?: unknown) {
-  // console.debug('CANVAS-BASE', _message, _details)
-}
-
 /**
  * Creates one canvas runtime controller and wires worker startup lifecycle.
  * @param options Runtime boot options including document and optional replay payload.
@@ -190,8 +150,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     hasSharedArrayBuffer: sabSupported,
   })
 
-  // `snapshot` is the single mutable runtime record. React hooks subscribe to
-  // controller updates and receive shallow-copied views of this object.
+  // `snapshot` is the single mutable runtime record consumed by subscribers.
   const snapshot: CanvasRuntimeSnapshot<TDocument> = {
     collaboration: DEFAULT_COLLABORATION_STATE,
     document,
@@ -246,16 +205,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     }))
   }
 
-  // Keep first-resize auto-fit enabled until runtime has a measured viewport.
-  // Cold-start zoom/pan can otherwise disable auto-fit before dimensions are
-  // known, leaving the scene outside the initial visible bounds.
-  const hasMeasuredViewport = () => (
-    snapshot.viewport.viewportWidth > 0 &&
-    snapshot.viewport.viewportHeight > 0
-  )
-
-  // Viewport updates stay local to runtime and do not round-trip through
-  // the worker because they only affect presentation, not document truth.
+  // Viewport updates stay local to runtime and do not round-trip through the worker.
   /**
    * Applies one viewport state update and emits one synchronized runtime snapshot notification.
    * @param updater Viewport updater returning next viewport state.
@@ -279,9 +229,8 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   }
 
   const panViewport = (deltaX: number, deltaY: number) => {
-    // Ignore early pan gestures until viewport dimensions are measured.
-    // Applying deltas against a 0x0 viewport can push first-fit framing off.
-    if (!hasMeasuredViewport()) {
+    // Ignore early pan gestures before viewport dimensions are measured.
+    if (!hasMeasuredViewport(snapshot.viewport)) {
       return
     }
     shouldAutoFitOnFirstResize = false
@@ -300,10 +249,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
 
     if (!hadViewport) {
       if (shouldAutoFitOnFirstResize) {
-        // First measured viewport previously triggered two notifications:
-        // 1) resize viewport
-        // 2) fit viewport
-        // Collapse both into one state transition to avoid an extra full redraw.
+        // Collapse first measured resize + fit into one transition to avoid extra redraw.
         updateViewport((viewport) =>
           fitViewportToDocument(
             snapshot.document,
@@ -326,7 +272,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
   const zoomViewport = (nextScale: number, anchor?: Point2D) => {
     // Ignore cold-start zoom before first measured viewport. Zooming a
     // zero-sized viewport can freeze an invalid transform baseline.
-    if (!hasMeasuredViewport()) {
+    if (!hasMeasuredViewport(snapshot.viewport)) {
       return
     }
     shouldAutoFitOnFirstResize = false
@@ -340,7 +286,7 @@ export function createCanvasRuntimeController<TDocument extends EditorDocument>(
     // Ignore pre-measure viewport writes when both current and incoming
     // dimensions are unresolved. Let first resize+fit establish baseline.
     if (
-      !hasMeasuredViewport() &&
+      !hasMeasuredViewport(snapshot.viewport) &&
       (viewport.viewportWidth <= 0 || viewport.viewportHeight <= 0)
     ) {
       return

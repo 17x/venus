@@ -7,6 +7,8 @@ import type {
   EngineDocumentSnapshot,
 } from "./document-contracts";
 
+const DEFAULT_MAX_ALLOWED_DRIFT_MS = 34;
+
 /**
  * Validation output for adapter-linearized delta envelopes consumed by document runtime guards.
  */
@@ -241,7 +243,7 @@ export function validateDecodedFrameTimelineAlignment(
       );
     } else {
       absoluteDriftMs = Math.abs(payload.timestampMs - options.expectedTimelineTimestampMs);
-      const maxAllowedDriftMs = options.maxAllowedDriftMs ?? 34;
+        const maxAllowedDriftMs = options.maxAllowedDriftMs ?? DEFAULT_MAX_ALLOWED_DRIFT_MS;
       if (!Number.isFinite(maxAllowedDriftMs) || maxAllowedDriftMs < 0) {
         issues.push("options.maxAllowedDriftMs must be a finite non-negative number when provided");
       } else if (absoluteDriftMs > maxAllowedDriftMs) {

@@ -295,8 +295,23 @@ export interface EngineGraphNodeInput {
   materialId?: string;
   /** Optional mesh primitive payload for native mesh rendering paths. */
   mesh?: EngineMeshPrimitiveInput;
-  /** Optional compatibility envelope for adapter-provided 3D semantics. */
-  semantic3d?: Readonly<Record<string, unknown>>;
+  /** Canonical 3D semantic envelope (bounds, transform, render hints). */
+  semantic3d?: {
+    /** Canonical 3D bounds projected from document semantics. */
+    bounds: { x: number; y: number; z: number; width: number; height: number; depth: number };
+    /** Canonical 3D transform projected from document semantics. */
+    transform: {
+      x: number; y: number; z: number;
+      rotationX: number; rotationY: number; rotationZ: number;
+      scaleX: number; scaleY: number; scaleZ: number;
+    };
+    /** Optional semantic hints for renderer/picking ordering. */
+    sourceType?: string;
+    renderOrder?: number;
+    visible?: boolean;
+    lightingMode?: "inherit" | "unlit" | "lit";
+    materialId?: string;
+  };
   /** Optional payload object carrying revision counters and metadata. */
   payload?: Record<string, unknown>;
   /** Additional node fields forwarded from app adapters. */

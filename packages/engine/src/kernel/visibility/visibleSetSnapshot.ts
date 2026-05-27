@@ -1,3 +1,5 @@
+const CAMERA_ANGLE_PRECISION = 3;
+
 /**
  * Declares one deterministic visible-set snapshot for replay and diagnostics.
  * Captures which nodes were visible in one frame so replay tooling can
@@ -32,8 +34,8 @@ export function computeCameraStateHash(
   targetX: number, targetY: number, targetZ: number,
 ): string {
   return [
-    yaw.toFixed(3),
-    pitch.toFixed(3),
+    yaw.toFixed(CAMERA_ANGLE_PRECISION),
+    pitch.toFixed(CAMERA_ANGLE_PRECISION),
     distance.toFixed(1),
     targetX.toFixed(1),
     targetY.toFixed(1),
@@ -43,6 +45,7 @@ export function computeCameraStateHash(
 
 /**
  * Creates an empty visible-set snapshot with zero values.
+ * @param frameId Frame sequence number to attach to the empty snapshot.
  */
 export function createEmptyVisibleSetSnapshot(frameId: number): EngineVisibleSetSnapshot {
   return {

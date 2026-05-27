@@ -133,7 +133,9 @@ export function isPointInsideEngineClipShape(
 	if (clipSource.type === 'rectangle' || clipSource.type === 'frame' || clipSource.type === 'group') {
 		const bounds = getNormalizedBoundsFromBox(clipSource.x, clipSource.y, clipSource.width, clipSource.height)
 		const cornerRadii = resolveRoundedRectCornerRadii(clipSource, bounds)
-		const hasRoundedCorners = cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 || cornerRadii.bottomRight > 0 || cornerRadii.bottomLeft > 0
+		const hasRoundedCorners =
+			cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 ||
+			cornerRadii.bottomRight > 0 || cornerRadii.bottomLeft > 0
 		return hasRoundedCorners
 			? isPointInsideRoundedRect(testPointer, bounds, cornerRadii)
 			: isPointInsideBounds(testPointer, bounds)
@@ -170,7 +172,8 @@ export function isPointInsideEngineClipShape(
 		}
 
 		if (clipSource.points && clipSource.points.length > MIN_PATH_FILL_POINT_COUNT) {
-			return isPointInsidePolygon(testPointer, clipSource.points) || isPointNearPolygonEdge(testPointer, clipSource.points, tolerance)
+			return isPointInsidePolygon(testPointer, clipSource.points) ||
+				isPointNearPolygonEdge(testPointer, clipSource.points, tolerance)
 		}
 	}
 
@@ -215,7 +218,9 @@ export function isPointInsideEngineShapeHitArea(
 	if (shape.type === 'rectangle' || shape.type === 'frame') {
 		const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
 		const cornerRadii = resolveRoundedRectCornerRadii(shape, bounds)
-		const hasRoundedCorners = cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 || cornerRadii.bottomRight > 0 || cornerRadii.bottomLeft > 0
+		const hasRoundedCorners =
+			cornerRadii.topLeft > 0 || cornerRadii.topRight > 0 ||
+			cornerRadii.bottomRight > 0 || cornerRadii.bottomLeft > 0
 		const hasStrokeArea = hasShapeStrokeHitArea(shape)
 		const hasFillArea = hasShapeFillHitArea(shape)
 		const fillHit = hasFillArea && (
@@ -279,7 +284,8 @@ export function isPointInsideEngineShapeHitArea(
 		if (hasStrokeArea && isPathStrokeHit(testPointer, shape, tolerance, closedShape)) {
 			return true
 		}
-		return !strokeOnly && hasShapeFillHitArea(shape, closedShape) && isPathFillHit(testPointer, shape, tolerance, closedShape)
+		return !strokeOnly && hasShapeFillHitArea(shape, closedShape) &&
+			isPathFillHit(testPointer, shape, tolerance, closedShape)
 	}
 
 	return false

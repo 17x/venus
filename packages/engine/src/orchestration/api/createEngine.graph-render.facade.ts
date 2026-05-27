@@ -249,7 +249,21 @@ export function createEngineGraphRenderFacade(
      * @param bounds Optional world-space bounds payload.
      */
     query(bounds) {
-      return queryGraph(bounds);
+      const result = queryGraph(bounds);
+      // Keep query event semantics aligned with pick/raycast by emitting
+      // explicit success/empty channels for pause/resume governance.
+      if (result.nodeIds.length > 0) {
+        emitEvent("engine.query.executed", {
+          bounds,
+          hitCount: result.nodeIds.length,
+        });
+      } else {
+        emitEvent("engine.query.empty", {
+          bounds,
+          reason: "NO_HITS",
+        });
+      }
+      return result;
     },
     /**
      * Resolves point picking result and emits pick completed/failed events.

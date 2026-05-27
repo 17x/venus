@@ -57,7 +57,8 @@ export function createEngineExtensionAndSchedulerFacade(deps: {
       /**
        * Returns deterministic extension registry list in lexical id order.
        */
-      list: () => [...deps.extensionRegistry.values()].sort((left, right) => left.pluginId.localeCompare(right.pluginId)),
+        list: () => [...deps.extensionRegistry.values()]
+          .sort((left, right) => left.pluginId.localeCompare(right.pluginId)),
       /**
        * Returns extension state for one plugin id.
        * @param pluginId Stable plugin id token.
@@ -94,7 +95,9 @@ export function createEngineExtensionAndSchedulerFacade(deps: {
           taskId,
           queue,
           priority: options?.priority ?? "normal",
-          budgetMs: Number.isFinite(options?.budgetMs) ? Math.max(1, options!.budgetMs as number) : deps.getFrameBudgetMs(),
+            budgetMs: Number.isFinite(options?.budgetMs)
+              ? Math.max(1, options!.budgetMs as number)
+              : deps.getFrameBudgetMs(),
           task,
         });
         return {

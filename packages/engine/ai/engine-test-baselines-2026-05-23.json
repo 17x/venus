@@ -1,0 +1,25 @@
+{
+  "version": "2026-05-23",
+  "performanceBenchmark": {
+    "framePlanning": {
+      "iterations": 1000,
+      "maxAverageMsPerIteration": 50
+    }
+  },
+  "renderingSnapshot": {
+    "proxy": {
+      "drawCount": 2,
+      "visibleCount": 2,
+      "imageMimeType": "image/png",
+      "imageDataUrl": "data:image/png;base64,"
+    }
+  },
+  "visualRegression": {
+    "proxy": {
+      "vectorDenseSceneSignature": "1280x720@0,0,1|1280x720@120,80,0.75::dense-load-1|dense-update-2"
+    }
+  },
+  "apiSurface": {
+    "topLevelIndexExportSignature": "aef22f1962bcb9881dfeef4a185b64434f9614dd7cbffc73670398a7913637ba"
+  }
+}

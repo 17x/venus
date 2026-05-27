@@ -43,6 +43,8 @@ export const build3DSpatialScene = (revision: number): PlaygroundSceneSnapshot =
 			const baseY = 220 + layer * 90
 			const size = 84 - Math.min(layer * 4, 20)
 			const nodeId = layer * 100 + index
+			// Provide deterministic semantic3d hints to exercise spatial ordering/materials in engine.
+			const zDepth = layer * 10 + index * 0.5
 			nodes.push({
 				id: `spatial-layer-node-${nodeId}`,
 				type: 'shape',
@@ -55,6 +57,19 @@ export const build3DSpatialScene = (revision: number): PlaygroundSceneSnapshot =
 				fill: layer % 2 === 0 ? '#1d4ed8' : '#0ea5e9',
 				stroke: '#bfdbfe',
 				strokeWidth: 2,
+				semantic3d: {
+					bounds: { x: baseX, y: baseY, z: zDepth, width: size, height: size, depth: 10 },
+					transform: {
+						x: baseX + size / 2, y: baseY + size / 2, z: zDepth,
+						rotationX: 0, rotationY: 0, rotationZ: index * 3,
+						scaleX: 1, scaleY: 1, scaleZ: 1,
+					},
+					sourceType: layer % 2 === 0 ? 'spatial-rect' : 'spatial-ellipse',
+					renderOrder: nodeId,
+					visible: true,
+					lightingMode: 'lit',
+					materialId: layer % 2 === 0 ? 'mat-blue' : 'mat-cyan',
+				},
 			})
 		}
 	}

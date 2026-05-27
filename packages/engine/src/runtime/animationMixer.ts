@@ -56,15 +56,23 @@ export interface EngineAnimationMixer {
  */
 export function createEngineAnimationMixer(): EngineAnimationMixer {
   const clips = new Map<string, EngineAnimationClipInstance>();
+const REPLAY_TOKEN_DECIMAL_PRECISION = 4;
 
+  /**
+   * Creates a deterministic token that encodes clip playback states for replay checks.
+   */
   function createReplayToken(): string {
     const parts: string[] = [];
     for (const [id, inst] of clips) {
-      parts.push(`${id}:${inst.currentTime.toFixed(4)}:${inst.state}:${inst.speed}`);
+      parts.push(`${id}:${inst.currentTime.toFixed(REPLAY_TOKEN_DECIMAL_PRECISION)}:${inst.state}:${inst.speed}`);
     }
     return parts.sort().join("|");
   }
 
+  /**
+   * Advances every active clip by one simulation delta.
+   * @param deltaSeconds Simulation delta in seconds.
+   */
   function update(deltaSeconds: number): void {
     for (const inst of clips.values()) {
       if (inst.state !== "playing") continue;

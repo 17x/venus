@@ -53,8 +53,9 @@ export interface RichPathDrawPlan {
  * @param input Shape and geometry payload used for path-branch planning.
  */
 export function resolveRichPathDrawPlan(input: RichPathDrawPlanInput): RichPathDrawPlan {
-  const hasPointPath = Array.isArray(input.points) && input.points.length >= 2;
-  const hasBezierPath = Array.isArray(input.bezierPoints) && input.bezierPoints.length >= 2;
+    const MIN_PATH_POINT_COUNT = 2;
+    const hasPointPath = Array.isArray(input.points) && input.points.length >= MIN_PATH_POINT_COUNT;
+    const hasBezierPath = Array.isArray(input.bezierPoints) && input.bezierPoints.length >= MIN_PATH_POINT_COUNT;
   const isLineLikeShape = input.shape === "line";
   const isClosedPathShape = input.shape === "polygon" || input.shape === "path";
 

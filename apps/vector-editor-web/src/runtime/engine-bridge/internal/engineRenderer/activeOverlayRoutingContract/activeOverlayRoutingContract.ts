@@ -1,4 +1,4 @@
-import {type RuntimeRenderPhase} from '../engineTypes.ts'
+import {type RuntimeRenderPhase} from '../../engineTypes.ts'
 
 /**
  * Declares one routing plane used by vector runtime composition policy.

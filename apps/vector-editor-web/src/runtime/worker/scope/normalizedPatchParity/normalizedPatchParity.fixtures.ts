@@ -1,11 +1,5 @@
 import type {EditorDocument} from '../../../model/index.ts'
-import {
-  attachSceneMemory,
-  createSceneMemory,
-  writeDocumentToScene,
-  type SceneMemory,
-} from '../../../shared-memory/index.ts'
-
+import {attachSceneMemory, createSceneMemory, writeDocumentToScene, type SceneMemory} from '../../../shared-memory/index.ts'
 /**
  * Creates a deterministic worker scene memory snapshot for patch-planning tests.
  * @param document Source document used to seed shared memory.
@@ -16,7 +10,6 @@ export function createSceneFixture(document: EditorDocument): SceneMemory {
   writeDocumentToScene(scene, document)
   return scene
 }
-
 /**
  * Creates one compact document fixture where all target nodes share one parent group.
  */
@@ -71,7 +64,6 @@ export function createFlatGroupFixture(): EditorDocument {
     ],
   }
 }
-
 /**
  * Creates one grouped fixture for ungroup parity validation.
  */
@@ -137,7 +129,6 @@ export function createGroupedFixture(): EditorDocument {
     ],
   }
 }
-
 /**
  * Creates one nested-parent fixture for reorder parity checks inside grouped subtrees.
  */
@@ -224,7 +215,6 @@ export function createNestedReorderFixture(): EditorDocument {
     ],
   }
 }
-
 /**
  * Creates one cross-parent fixture used to validate regroup parity across different source groups.
  */
@@ -311,7 +301,6 @@ export function createCrossParentFixture(): EditorDocument {
     ],
   }
 }
-
 /**
  * Creates one nested temporary-group fixture for ungroup parity checks.
  */
@@ -335,7 +324,6 @@ export function createNestedUngroupFixture(): EditorDocument {
   document.shapes.find((shape) => shape.id === 'group-root')!.childIds = ['group-left', 'group-temp', 'group-right']
   return document
 }
-
 /**
  * Creates one mask-linked fixture where host/source live under the same parent for reorder and regroup parity checks.
  */
@@ -415,7 +403,6 @@ export function createMaskLinkedFixture(): EditorDocument {
     ],
   }
 }
-
 /**
  * Creates one grouped mask fixture used to validate ungroup parity with mask-linked children.
  */

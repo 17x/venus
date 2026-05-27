@@ -52,9 +52,14 @@ export function createRuntimeTelemetrySubmitGpuFoundation(
   scheduleRuntimeIncrementalCompile: (options?: { reason?: string }) => EngineRuntimeCompileTriggerOutput;
   forceRuntimeFullCompile: (reason: string) => EngineRuntimeCompileTriggerOutput;
   submitRuntimeCommandBuffer: (commandBuffer: EngineRuntimeCommandValidateInput) => EngineRuntimeSubmitOutput;
-  submitRuntimeCommandBufferBatch: (commandBuffers: readonly EngineRuntimeCommandValidateInput[]) => EngineRuntimeSubmitOutput;
-  createRuntimeGpuResource: (descriptor: EngineRuntimeGpuResourceDescriptor) => EngineRuntimeGpuResourceOutput;
-  updateRuntimeGpuResource: (resourceId: string, patch: Readonly<Record<string, unknown>>) => EngineRuntimeGpuResourceOutput;
+    submitRuntimeCommandBufferBatch: (
+      commandBuffers: readonly EngineRuntimeCommandValidateInput[],
+    ) => EngineRuntimeSubmitOutput;
+    createRuntimeGpuResource: (descriptor: EngineRuntimeGpuResourceDescriptor) => EngineRuntimeGpuResourceOutput;
+    updateRuntimeGpuResource: (
+      resourceId: string,
+      patch: Readonly<Record<string, unknown>>,
+    ) => EngineRuntimeGpuResourceOutput;
 } {
   /**
    * Returns one runtime metrics snapshot from current orchestration counters.

@@ -1,3 +1,5 @@
+const MIN_VIEWPORT_SCALE = 0.0001;
+
 /**
  * Canonical viewport state used by engine view/runtime coordination.
  */
@@ -54,7 +56,7 @@ export function resolveViewportState(
     height: patch.height ?? current.height,
     offsetX: patch.offsetX ?? current.offsetX,
     offsetY: patch.offsetY ?? current.offsetY,
-    scale: Math.max(0.0001, patch.scale ?? current.scale),
+      scale: Math.max(MIN_VIEWPORT_SCALE, patch.scale ?? current.scale),
   };
 }
 
@@ -87,7 +89,7 @@ export function zoomViewportState(
   nextScale: number,
   anchor: EngineViewportAnchor,
 ): EngineViewportState {
-  const clampedScale = Math.max(0.0001, nextScale);
+    const clampedScale = Math.max(MIN_VIEWPORT_SCALE, nextScale);
   const anchorWorldX = current.offsetX + anchor.x / current.scale;
   const anchorWorldY = current.offsetY + anchor.y / current.scale;
 

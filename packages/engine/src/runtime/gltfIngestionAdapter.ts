@@ -2,6 +2,14 @@ import type { EngineSceneAsset, EngineSceneAssetNode, EngineSceneAssetMesh } fro
 import type { EngineMaterialEntity } from "../orchestration/api/public-types/material.types";
 import type { EngineAnimationClip } from "../orchestration/api/public-types/animation.types";
 
+const VEC3_COMPONENT_COUNT = 3;
+const QUATERNION_COMPONENT_COUNT = 4;
+const DEFAULT_ALPHA_CUTOFF = 0.5;
+const QUAT_FORMULA_SCALE = 2;
+const QUAT_HALF_PI_DIVISOR = 2;
+const QUATERNION_Z_INDEX = 2;
+const QUATERNION_W_INDEX = 3;
+
 /**
  * Declares the glTF runtime ingestion contract for converting loaded glTF data
  * into the engine's canonical scene asset format.
@@ -66,9 +74,11 @@ export function createEngineGltfIngestionAdapter(): EngineGltfIngestionContract 
           id: `node-${i}`,
           name: (gn["name"] as string) ?? `Node_${i}`,
           children: children.map((c) => `node-${c}`),
-          translation: translation.slice(0, 3) as [number, number, number],
-          rotation: quatToEuler(rotation.slice(0, 4) as [number, number, number, number]),
-          scale: scale.slice(0, 3) as [number, number, number],
+          translation: translation.slice(0, VEC3_COMPONENT_COUNT) as [number, number, number],
+          rotation: quatToEuler(
+            rotation.slice(0, QUATERNION_COMPONENT_COUNT) as [number, number, number, number],
+          ),
+          scale: scale.slice(0, VEC3_COMPONENT_COUNT) as [number, number, number],
           mesh,
           materialId: mesh?.materialId,
         });
@@ -84,16 +94,16 @@ export function createEngineGltfIngestionAdapter(): EngineGltfIngestionContract 
           id: `mat-${i}`,
           type: "pbr",
           name: (gm["name"] as string) ?? `Material_${i}`,
-          baseColor: baseColor.slice(0, 4) as [number, number, number, number],
+          baseColor: baseColor.slice(0, QUATERNION_COMPONENT_COUNT) as [number, number, number, number],
           metallic: (pbr["metallicFactor"] as number) ?? 1,
           roughness: (pbr["roughnessFactor"] as number) ?? 1,
-          emissive: ((gm["emissiveFactor"] as number[]) ?? [0, 0, 0]).slice(0, 3) as [number, number, number],
+          emissive: ((gm["emissiveFactor"] as number[]) ?? [0, 0, 0]).slice(0, VEC3_COMPONENT_COUNT) as [number, number, number],
           emissiveIntensity: 1,
           normalScale: 1,
           aoStrength: 1,
           opacity: 1,
           transparent: (gm["alphaMode"] as string) === "BLEND",
-          alphaTest: (gm["alphaCutoff"] as number) ?? 0.5,
+          alphaTest: (gm["alphaCutoff"] as number) ?? DEFAULT_ALPHA_CUTOFF,
           doubleSided: (gm["doubleSided"] as boolean) ?? false,
         });
       }
@@ -116,19 +126,22 @@ export function createEngineGltfIngestionAdapter(): EngineGltfIngestionContract 
 
 /**
  * Converts a glTF quaternion [x,y,z,w] to Euler angles [rx,ry,rz] in radians.
+ * @param q Quaternion tuple in [x,y,z,w] order.
  */
 function quatToEuler(q: readonly number[]): [number, number, number] {
-  const [x, y, z, w] = [q[0] ?? 0, q[1] ?? 0, q[2] ?? 0, q[3] ?? 1];
+  const [x, y, z, w] = [q[0] ?? 0, q[1] ?? 0, q[QUATERNION_Z_INDEX] ?? 0, q[QUATERNION_W_INDEX] ?? 1];
   // Roll (x-axis rotation).
-  const sinrCosp = 2 * (w * x + y * z);
-  const cosrCosp = 1 - 2 * (x * x + y * y);
+  const sinrCosp = QUAT_FORMULA_SCALE * (w * x + y * z);
+  const cosrCosp = 1 - QUAT_FORMULA_SCALE * (x * x + y * y);
   const rx = Math.atan2(sinrCosp, cosrCosp);
   // Pitch (y-axis rotation).
-  const sinp = 2 * (w * y - z * x);
-  const ry = Math.abs(sinp) >= 1 ? Math.sign(sinp) * Math.PI / 2 : Math.asin(sinp);
+  const sinp = QUAT_FORMULA_SCALE * (w * y - z * x);
+  const ry = Math.abs(sinp) >= 1
+    ? Math.sign(sinp) * Math.PI / QUAT_HALF_PI_DIVISOR
+    : Math.asin(sinp);
   // Yaw (z-axis rotation).
-  const sinyCosp = 2 * (w * z + x * y);
-  const cosyCosp = 1 - 2 * (y * y + z * z);
+  const sinyCosp = QUAT_FORMULA_SCALE * (w * z + x * y);
+  const cosyCosp = 1 - QUAT_FORMULA_SCALE * (y * y + z * z);
   const rz = Math.atan2(sinyCosp, cosyCosp);
   return [rx, ry, rz];
 }

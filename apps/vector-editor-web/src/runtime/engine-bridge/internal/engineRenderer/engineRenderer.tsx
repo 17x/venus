@@ -17,9 +17,26 @@ import {useEngineRendererSceneSync} from './useEngineRendererSceneSync.ts'
 import {useEngineRendererViewport} from './useEngineRendererViewport.ts'
 import {createEngineStatsHandler} from './createEngineStatsHandler/createEngineStatsHandler.ts'
 import {resolveEngineBackendRenderPaths} from './engineRenderPathClassification.ts'
-
+import {
+  createInitialPlanDiagnostics,
+  createInitialRenderPrepStats,
+  createInitialRenderRequestStats,
+  createInitialRuntimeStageTimingState,
+  createInitialSceneApplyDebugState,
+} from './engineRenderer.initialState.ts'
+import {
+  useEngineRendererDeferredRecoveryEffect,
+  useEngineRendererInteractionSettleEffect,
+  useEngineRendererOverlayDiagnosticsEffect,
+  useEngineRendererOverlaySyncEffect,
+} from './engineRenderer.effects.ts'
+import {
+  cancelDeferredFullRedrawHandle,
+  cancelDeferredResizeCommitHandle,
+  requestDeferredVisualRecoveryFrame,
+} from './engineRenderer.scheduling.ts'
+import {createEngineStatsPayload} from './engineRenderer.statsPayload.ts'
 /**
- * Orchestrates runtime engine rendering by delegating lifecycle, scene sync, and viewport commits.
  * @param props Runtime renderer inputs from app state.
  */
 export function EngineRenderer({
@@ -78,97 +95,11 @@ export function EngineRenderer({
   const renderSchedulerRef = React.useRef<EngineRenderScheduler | null>(null)
   const deferredVisualRecoveryPendingRef = React.useRef(false)
   const deferredVisualRecoveryAfterInteractionRef = React.useRef(false)
-  const renderRequestStatsRef = React.useRef({
-    lastReason: 'none',
-    frameStageId: 'bootstrap-stage-0',
-    frameStageSequence: 0,
-    frameStageIssuedAtMs: 0,
-    frameStageSchedulerMode: 'normal' as 'interactive' | 'normal',
-    frameStageSceneApplyMode: 'none' as 'none' | 'full-load' | 'preview-load' | 'incremental-patch',
-    activeOverlayScenePlane: 'base' as 'base' | 'active',
-    activeOverlayOverlayPlane: 'base' as 'base' | 'overlay',
-    activeOverlayUsesActivePlane: false,
-    activeOverlayProtectedNodeCount: 0,
-    activeOverlayInteractionActiveNodeCount: 0,
-    renderPhase: 'settled' as RuntimeRenderPhase,
-    renderPhaseTransitionCount: 0,
-    lastRenderPhaseTransition: 'none',
-    renderPolicyQuality: 'full' as 'full' | 'interactive',
-    renderPolicyDpr: 'auto' as number | 'auto',
-    viewportInteractionType: 'other' as 'pan' | 'zoom' | 'other',
-    overlayMode: 'full' as 'full' | 'degraded',
-    renderPolicyTransitionCount: 0,
-    lastRenderPolicyTransition: 'none',
-    sideTargetDpr: 1,
-    outputDpr: 1,
-    overlayDegraded: false,
-    overlayGuideInputCount: 0,
-    overlayGuideKeptCount: 0,
-    overlayGuideDroppedCount: 0,
-    overlayGuideSelectionStrategy: 'full' as 'full' | 'axis-first' | 'axis-relevance',
-    overlayPathEditWhitelistActive: false,
-    sceneDirtyCount: 0,
-    deferredImageDrainCount: 0,
-    idleRedrawCount: 0,
-    interactiveCount: 0,
-    offscreenSceneDirtySkipCount: 0,
-    forcedSceneDirtyRenderCount: 0,
-    offscreenSceneDirtySkipConsecutiveMaxCount: 0,
-    dirtyBoundsMarkSmallAreaCount: 0,
-    dirtyBoundsMarkMediumAreaCount: 0,
-    dirtyBoundsMarkLargeAreaCount: 0,
-    canvasResizeCommitCount: 0,
-    canvasResizeDeferredCommitCount: 0,
-    canvasResizeLastCommitReason: 'none',
-    canvasResizeLastOutputSize: 'none',
-  })
-  const latestRenderPrepStatsRef = React.useRef({
-    dirtyCandidateCount: 0,
-    dirtyOffscreenCount: 0,
-    offscreenSceneDirtySkipConsecutiveCount: 0,
-    dirtyBoundsMarkCount: 0,
-    dirtyBoundsMarkArea: 0,
-  })
-  const latestPlanDiagnosticsRef = React.useRef({
-    framePlanVersion: 0,
-    framePlanCandidateCount: 0,
-    framePlanSceneNodeCount: 0,
-    framePlanVisibleRatio: 0,
-    framePlanShortlistActive: false,
-    framePlanShortlistCandidateRatio: 0,
-    framePlanShortlistAppliedCandidateCount: 0,
-    framePlanShortlistPendingState: null as boolean | null,
-    framePlanShortlistPendingFrameCount: 0,
-    framePlanShortlistToggleCount: 0,
-    framePlanShortlistDebounceBlockedToggleCount: 0,
-    framePlanShortlistEnterRatioThreshold: 0,
-    framePlanShortlistLeaveRatioThreshold: 0,
-    framePlanShortlistStableFrameCount: 0,
-    hitPlanVersion: 0,
-    hitPlanCandidateCount: 0,
-    hitPlanHitCount: 0,
-    hitPlanExactCheckCount: 0,
-  })
-  const sceneApplyDebugRef = React.useRef({
-    lastSceneApplyMode: 'none' as 'none' | 'full-load' | 'preview-load' | 'incremental-patch',
-    lastSceneApplyRevision: 'none' as string,
-    lastSceneShapeCount: 0,
-    lastScenePatchUpsertCount: 0,
-    sceneLoadCount: 0,
-    scenePatchCount: 0,
-  })
-  const runtimeStageTimingMsRef = React.useRef({
-    scenePrepareMs: 0,
-    sceneApplyMs: 0,
-    viewportCommitMs: 0,
-    viewportResizeMs: 0,
-    viewportStateUpdateMs: 0,
-    diagnosticsPublishMs: 0,
-    plannerSampleMs: 0,
-    schedulerQueueWaitMs: 0,
-    schedulerThrottleDelayMs: 0,
-    presentRafDelayMs: 0,
-  })
+  const renderRequestStatsRef = React.useRef(createInitialRenderRequestStats())
+  const latestRenderPrepStatsRef = React.useRef(createInitialRenderPrepStats())
+  const latestPlanDiagnosticsRef = React.useRef(createInitialPlanDiagnostics())
+  const sceneApplyDebugRef = React.useRef(createInitialSceneApplyDebugState())
+  const runtimeStageTimingMsRef = React.useRef(createInitialRuntimeStageTimingState())
   const presentLatencyRafPendingRef = React.useRef(false)
   const lastZeroVisibilityDebugFrameRef = React.useRef(0)
   const lastPlanDiagnosticSampleAtRef = React.useRef(0)
@@ -206,14 +137,13 @@ export function EngineRenderer({
     return interactionPhase
   }, [interactionPhase, transformPreviewActive])
 
-  const interactionActive = React.useMemo(() => {
-    return isInteractionPhase(effectiveInteractionPhase)
-  }, [effectiveInteractionPhase])
+  const interactionActive = React.useMemo(
+    () => isInteractionPhase(effectiveInteractionPhase),
+    [effectiveInteractionPhase],
+  )
 
   const effectiveInteractiveIntervalMs = React.useMemo(() => {
     if (interactionActive) {
-      // Keep scheduler cadence low-but-nonzero during gestures so render
-      // pressure remains responsive without starving main-thread input.
       return INTERACTION_ACTIVE_SCHEDULER_INTERVAL_MS
     }
 
@@ -222,45 +152,16 @@ export function EngineRenderer({
 
   isInteractingRef.current = isInteracting
 
-  /**
-   * Cancels any deferred full redraw handle.
-   */
   const cancelDeferredFullRedraw = React.useCallback(() => {
-    if (deferredFullRedrawHandleRef.current === null) {
-      return
-    }
-
-    const idleApi = window as Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
-      cancelIdleCallback?: (handle: number) => void
-    }
-
-    if (idleApi.cancelIdleCallback) {
-      idleApi.cancelIdleCallback(deferredFullRedrawHandleRef.current)
-    } else {
-      window.clearTimeout(deferredFullRedrawHandleRef.current)
-    }
-
-    deferredFullRedrawHandleRef.current = null
+    cancelDeferredFullRedrawHandle(deferredFullRedrawHandleRef)
   }, [])
 
-  /**
-   * Cancels queued scheduler-driven render work.
-   */
   const cancelScheduledRender = React.useCallback(() => {
     renderSchedulerRef.current?.cancel()
   }, [])
 
-  /**
-   * Cancels deferred resize commit scheduling.
-   */
   const cancelDeferredResizeCommit = React.useCallback(() => {
-    if (deferredResizeCommitHandleRef.current === null) {
-      return
-    }
-
-    window.clearTimeout(deferredResizeCommitHandleRef.current)
-    deferredResizeCommitHandleRef.current = null
+    cancelDeferredResizeCommitHandle(deferredResizeCommitHandleRef)
   }, [])
 
   /**
@@ -272,8 +173,6 @@ export function EngineRenderer({
     mode: 'interactive' | 'normal' = 'normal',
     reason: 'scene-dirty' | 'deferred-image-drain' | 'idle-redraw' | 'interactive-viewport' | 'camera-animation' | 'overlay-dirty' = 'scene-dirty',
   ) => {
-    // Stamp one monotonic stage token per queued render request so diagnostics
-    // and scheduler/backend signals can be correlated across the same frame lane.
     renderRequestStatsRef.current.frameStageSequence += 1
     renderRequestStatsRef.current.frameStageIssuedAtMs = performance.now()
     renderRequestStatsRef.current.frameStageId =
@@ -294,27 +193,15 @@ export function EngineRenderer({
     renderSchedulerRef.current?.request(mode)
   }, [])
 
-  /**
-   * Schedules one post-interaction recovery frame for deferred visual resources.
-   */
   const requestDeferredVisualRecovery = React.useCallback(() => {
-    if (deferredVisualRecoveryPendingRef.current) {
-      return
-    }
-
-    if (isInteractingRef.current) {
-      deferredVisualRecoveryAfterInteractionRef.current = true
-      return
-    }
-
-    deferredVisualRecoveryPendingRef.current = true
-    requestEngineRender('normal', 'idle-redraw')
+    requestDeferredVisualRecoveryFrame(
+      deferredVisualRecoveryPendingRef,
+      deferredVisualRecoveryAfterInteractionRef,
+      isInteractingRef,
+      requestEngineRender,
+    )
   }, [requestEngineRender])
 
-  /**
-   * Publishes old-engine compatible runtime diagnostics so debug/optimization panels
-   * keep receiving render-path and cache/perf snapshots from the new engine loop.
-   */
   const handleEngineStats = React.useMemo(() => createEngineStatsHandler({
     drawSerialRef,
     renderSchedulerRef,
@@ -373,18 +260,32 @@ export function EngineRenderer({
     if (!engine) {
       return
     }
-
     renderSchedulerRef.current?.dispose()
     renderSchedulerRef.current = createEngineRenderScheduler({
       render: () => {
         if (!viewportReadyRef.current || !appliedViewportRef.current) {
           return Promise.resolve(null)
         }
-
         return engine.render().then((renderResult) => {
           const diagnostics = engine.getDiagnostics()
           const backendInfo = engine.getBackendInfo()
           const backendDiagnostics = diagnostics.backendDiagnostics
+          const backendFeatureGateDiagnostics = backendDiagnostics as {
+            webglFeatureCapabilityGateReason?:
+              | 'none'
+              | 'image-node-unsupported'
+              | 'clip-node-unsupported'
+              | 'text-style-unsupported'
+              | 'shadow-style-unsupported'
+              | 'gradient-style-unsupported'
+            webgpuFeatureCapabilityGateReason?:
+              | 'none'
+              | 'image-node-unsupported'
+              | 'clip-node-unsupported'
+              | 'text-style-unsupported'
+              | 'shadow-style-unsupported'
+              | 'gradient-style-unsupported'
+          }
           const renderChain = renderResult.renderChain ?? diagnostics.renderChain
           const backendPresentCompleted = renderChain?.backendPresentCompleted ?? false
           // Keep backend fallback classification deterministic so WebGL/WebGPU
@@ -398,138 +299,16 @@ export function EngineRenderer({
             backendWebgpuRenderPath: backendDiagnostics?.webgpuRenderPath,
           })
 
-          handleEngineStats({
-            drawCount: renderResult.drawCount,
-            frameMs: renderResult.frameMs,
-            visibleCount: renderResult.visibleCount,
-            cacheHits: backendDiagnostics?.cacheHits ?? 0,
-            cacheMisses: backendDiagnostics?.cacheMisses ?? 0,
-            frameReuseHits: backendDiagnostics?.frameReuseHits ?? 0,
-            frameReuseMisses: backendDiagnostics?.frameReuseMisses ?? 0,
-            l0PreviewHitCount: backendDiagnostics?.l0PreviewHitCount ?? 0,
-            l0PreviewMissCount: backendDiagnostics?.l0PreviewMissCount ?? 0,
-            l1CompositeHitCount: backendDiagnostics?.l1CompositeHitCount ?? 0,
-            l1CompositeMissCount: backendDiagnostics?.l1CompositeMissCount ?? 0,
-            l2TileHitCount: backendDiagnostics?.l2TileHitCount ?? 0,
-            l2TileMissCount: backendDiagnostics?.l2TileMissCount ?? 0,
-            cacheFallbackReason: backendDiagnostics?.cacheFallbackReason ?? 'none',
-            tileCacheSize: backendDiagnostics?.tileCacheSize ?? 0,
-            tileDirtyCount: backendDiagnostics?.tileDirtyCount ?? 0,
-            tileCacheTotalBytes: backendDiagnostics?.tileCacheTotalBytes ?? 0,
-            tileUploadCount: backendDiagnostics?.tileUploadCount ?? 0,
-            tileRenderCount: backendDiagnostics?.tileRenderCount ?? 0,
-            visibleTileCount: backendDiagnostics?.visibleTileCount ?? 0,
-            tileSchedulerPendingCount: backendDiagnostics?.tileSchedulerPendingCount ?? 0,
-            gpuTextureBytes: backendDiagnostics?.gpuTextureBytes ?? 0,
-            imageTextureBytes: backendDiagnostics?.imageTextureBytes ?? 0,
-            initialRenderPhase: 'complete',
-            initialRenderProgress: 1,
-            dirtyRegionCount: 0,
-            dirtyTileCount: 0,
-            incrementalUpdateCount: 0,
+          handleEngineStats(createEngineStatsPayload({
+            renderResult,
+            backendDiagnostics,
+            backendResolved: backendInfo.resolved,
+            backendPresentCompleted,
+            backendFeatureGateDiagnostics,
             engineFrameQuality: renderRequestStatsRef.current.renderPolicyQuality,
             webglRenderPath,
             webgpuRenderPath,
-            webgpuNativeSubmissionAttemptedCount:
-              backendDiagnostics?.webgpuNativeSubmissionAttemptedCount ?? (backendInfo.resolved === 'webgpu' ? 1 : 0),
-            webgpuNativeSubmissionSuccessCount:
-              backendDiagnostics?.webgpuNativeSubmissionSuccessCount ?? (
-                backendInfo.resolved === 'webgpu' && backendPresentCompleted
-                  ? 1
-                  : 0
-              ),
-            webgpuNativeSubmissionFailureCount:
-              backendDiagnostics?.webgpuNativeSubmissionFailureCount ?? (
-                backendInfo.resolved === 'webgpu' && !backendPresentCompleted
-                  ? 1
-                  : 0
-              ),
-            webgpuNativeSubmissionTotalCount:
-              backendDiagnostics?.webgpuNativeSubmissionTotalCount ?? (
-                backendInfo.resolved === 'webgpu' && backendPresentCompleted
-                  ? 1
-                  : 0
-              ),
-            webgpuNativeSubmissionTotalFailureCount:
-              backendDiagnostics?.webgpuNativeSubmissionTotalFailureCount ?? (
-                backendInfo.resolved === 'webgpu' && !backendPresentCompleted
-                  ? 1
-                  : 0
-              ),
-            webgpuNativeRectBatchEligibleCount:
-              backendDiagnostics?.webgpuNativeRectBatchEligibleCount ?? (
-                backendInfo.resolved === 'webgpu' ? renderResult.visibleCount : 0
-              ),
-            webgpuNativeRectBatchRejectedReason:
-              backendDiagnostics?.webgpuNativeRectBatchRejectedReason ?? (
-                backendInfo.resolved === 'webgpu' && renderResult.visibleCount <= 0
-                  ? 'scene-empty'
-                  : 'none'
-              ),
-            webglFeatureCapabilityGateReason:
-              backendDiagnostics?.webglFeatureCapabilityGateReason ?? 'none',
-            webgpuFeatureCapabilityGateReason:
-              backendDiagnostics?.webgpuFeatureCapabilityGateReason ?? 'none',
-            webglPreviewReuseMs: backendDiagnostics?.webglPreviewReuseMs ?? 0,
-            webglPlanBuildMs: backendDiagnostics?.webglPlanBuildMs ?? 0,
-            webglTextureUploadMs: backendDiagnostics?.webglTextureUploadMs ?? 0,
-            webglDrawSubmitMs: backendDiagnostics?.webglDrawSubmitMs ?? 0,
-            webglSnapshotCaptureMs: backendDiagnostics?.webglSnapshotCaptureMs ?? 0,
-            webglModelRenderMs: backendDiagnostics?.webglModelRenderMs ?? 0,
-            webglPreviewExecutionMode:
-              backendDiagnostics?.webglPreviewExecutionMode ?? 'affine-snapshot',
-            webglPreviewExecutionSource:
-              backendDiagnostics?.webglPreviewExecutionSource ?? 'backend-native',
-            webglBudgetPressure: backendDiagnostics?.webglBudgetPressure ?? 'low',
-            webglBudgetPressureReason:
-              backendDiagnostics?.webglBudgetPressureReason
-                ?? 'within-low-thresholds',
-            webglBudgetPressureSource:
-              backendDiagnostics?.webglBudgetPressureSource ?? 'backend-native',
-            webglDrawSubmitBudgetMs: backendDiagnostics?.webglDrawSubmitBudgetMs ?? 0,
-            webglTextureUploadBudgetBytes: backendDiagnostics?.webglTextureUploadBudgetBytes ?? 0,
-            webglTextureUploadTotalBudgetBytes:
-              backendDiagnostics?.webglTextureUploadTotalBudgetBytes ?? 0,
-            webglImageTextureUploadBudgetCount:
-              backendDiagnostics?.webglImageTextureUploadBudgetCount ?? 0,
-            webglTextTextureUploadBudgetCount:
-              backendDiagnostics?.webglTextTextureUploadBudgetCount ?? 0,
-            webglTilePreloadBudgetMs: backendDiagnostics?.webglTilePreloadBudgetMs ?? 0,
-            webglTilePreloadBudgetUploads:
-              backendDiagnostics?.webglTilePreloadBudgetUploads ?? 0,
-            webglOverlayPassBudgetMs: backendDiagnostics?.webglOverlayPassBudgetMs ?? 0,
-            webglDrawSubmitBudgetExceeded:
-              backendDiagnostics?.webglDrawSubmitBudgetExceeded ?? false,
-            webglTextureUploadBudgetExceeded:
-              backendDiagnostics?.webglTextureUploadBudgetExceeded ?? false,
-            webglOverlayBudgetExceeded:
-              backendDiagnostics?.webglOverlayBudgetExceeded ?? false,
-            webglPredictorDirectionX: backendDiagnostics?.webglPredictorDirectionX ?? 0,
-            webglPredictorDirectionY: backendDiagnostics?.webglPredictorDirectionY ?? 0,
-            webglPredictorSpeedPxPerSec:
-              backendDiagnostics?.webglPredictorSpeedPxPerSec ?? 0,
-            webglPredictorConfidence: backendDiagnostics?.webglPredictorConfidence ?? 0,
-            webglPredictorPreloadRing: backendDiagnostics?.webglPredictorPreloadRing ?? 0,
-            webglPredictorOverscanCssPx:
-              backendDiagnostics?.webglPredictorOverscanCssPx ?? 0,
-            webglPredictivePreloadEnqueueCount:
-              backendDiagnostics?.webglPredictivePreloadEnqueueCount ?? 0,
-            webglPredictivePreloadProcessedCount:
-              backendDiagnostics?.webglPredictivePreloadProcessedCount ?? 0,
-            webglPredictivePreloadPrunedCount:
-              backendDiagnostics?.webglPredictivePreloadPrunedCount ?? 0,
-            webglHighZoomTextSlaChecked:
-              backendDiagnostics?.webglHighZoomTextSlaChecked ?? false,
-            webglHighZoomTextSlaScale: backendDiagnostics?.webglHighZoomTextSlaScale ?? 0,
-            webglHighZoomTextSlaViolationCount:
-              backendDiagnostics?.webglHighZoomTextSlaViolationCount ?? 0,
-            webglDeferredTextTextureCount:
-              backendDiagnostics?.webglDeferredTextTextureCount ?? 0,
-            panScheduleRequestCount:
-              backendDiagnostics?.panScheduleRequestCount ?? 0,
-            tileSynchronousRebuildCount:
-              backendDiagnostics?.tileSynchronousRebuildCount ?? 0,
-          })
+          }))
 
           if (!VECTOR_ENGINE_SCENE_PROFILE.render.modelCompleteComposite) {
             // AI-TEMP: publish render-chain failure snapshots through window bridge for live field triage; remove when dedicated runtime diagnostics panel is available; ref DEX-065.
@@ -593,57 +372,32 @@ export function EngineRenderer({
     }
   }, [effectiveInteractiveIntervalMs])
 
-  React.useEffect(() => {
-    if (!isInteractionPhase(effectiveInteractionPhase)) {
-      if (interactionSettleTimerRef.current !== null) {
-        window.clearTimeout(interactionSettleTimerRef.current)
-        interactionSettleTimerRef.current = null
-      }
-      setIsInteracting(false)
-      return
-    }
+  useEngineRendererInteractionSettleEffect({
+    isInteractionPhase,
+    effectiveInteractionPhase,
+    interactionSettleMs: INTERACTION_SETTLE_MS,
+    viewportOffsetX: viewport.offsetX,
+    viewportOffsetY: viewport.offsetY,
+    viewportScale: viewport.scale,
+    interactionSettleTimerRef,
+    lastInteractionAtRef,
+    setIsInteracting,
+  })
 
-    lastInteractionAtRef.current = performance.now()
-    setIsInteracting(true)
-    if (interactionSettleTimerRef.current !== null) {
-      window.clearTimeout(interactionSettleTimerRef.current)
-    }
-    interactionSettleTimerRef.current = window.setTimeout(() => {
-      setIsInteracting(false)
-      interactionSettleTimerRef.current = null
-    }, INTERACTION_SETTLE_MS)
-  }, [INTERACTION_SETTLE_MS, effectiveInteractionPhase, viewport.offsetX, viewport.offsetY, viewport.scale])
+  useEngineRendererDeferredRecoveryEffect({
+    isInteracting,
+    deferredVisualRecoveryAfterInteractionRef,
+    deferredVisualRecoveryPendingRef,
+    requestEngineRender,
+  })
 
-  React.useEffect(() => {
-    if (isInteracting || !deferredVisualRecoveryAfterInteractionRef.current) {
-      return
-    }
-
-    deferredVisualRecoveryAfterInteractionRef.current = false
-    deferredVisualRecoveryPendingRef.current = true
-    requestEngineRender('normal', 'idle-redraw')
-  }, [isInteracting, requestEngineRender])
-
-  React.useEffect(() => {
-    const engine = engineRef.current
-    if (!engine) {
-      return
-    }
-
-    const overlayEnabledEngine = engine as Engine & {
-      setOverlayNodes?: (nodes?: readonly import('../../engine.ts').EngineOverlayDrawNode[]) => void
-    }
-    overlayEnabledEngine.setOverlayNodes?.(overlayNodes)
-    const overlayRenderMode: 'interactive' | 'normal' = (
-      interactionPhase === 'pan' ||
-      effectiveInteractionPhase === 'zoom' ||
-      effectiveInteractionPhase === 'drag' ||
-      effectiveInteractionPhase === 'precision'
-    )
-      ? 'interactive'
-      : 'normal'
-    requestEngineRender(overlayRenderMode, 'overlay-dirty')
-  }, [effectiveInteractionPhase, interactionPhase, overlayNodes, requestEngineRender])
+  useEngineRendererOverlaySyncEffect({
+    engineRef,
+    overlayNodes,
+    interactionPhase,
+    effectiveInteractionPhase,
+    requestEngineRender,
+  })
 
   useEngineRendererSceneSync({
     document,
@@ -670,16 +424,10 @@ export function EngineRenderer({
     requestEngineRender,
   })
 
-  React.useEffect(() => {
-    renderRequestStatsRef.current.overlayDegraded = overlayDiagnostics?.degraded ?? false
-    renderRequestStatsRef.current.overlayGuideInputCount = overlayDiagnostics?.guideInputCount ?? 0
-    renderRequestStatsRef.current.overlayGuideKeptCount = overlayDiagnostics?.guideKeptCount ?? 0
-    renderRequestStatsRef.current.overlayGuideDroppedCount = overlayDiagnostics?.guideDroppedCount ?? 0
-    renderRequestStatsRef.current.overlayGuideSelectionStrategy =
-      overlayDiagnostics?.guideSelectionStrategy ?? 'full'
-    renderRequestStatsRef.current.overlayPathEditWhitelistActive =
-      overlayDiagnostics?.pathEditWhitelistActive ?? false
-  }, [overlayDiagnostics])
+  useEngineRendererOverlayDiagnosticsEffect({
+    overlayDiagnostics,
+    renderRequestStatsRef,
+  })
 
   useEngineRendererViewport({
     viewport,
@@ -727,3 +475,4 @@ export function EngineRenderer({
     />
   )
 }
+

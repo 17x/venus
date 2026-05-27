@@ -1,3 +1,8 @@
+const HIGH_QUALITY_DRAW_BUDGET_MS = 6;
+const DEFAULT_DRAW_BUDGET_MS = 4;
+const HIGH_QUALITY_UPLOAD_BUDGET_BYTES = 3_000_000;
+const DEFAULT_UPLOAD_BUDGET_BYTES = 2_000_000;
+
 /**
  * Input contract used by optimization policy bootstrap resolution.
  */
@@ -51,8 +56,8 @@ export function resolveCreateEnginePolicyBootstrap(
   const preset: EngineQualityPreset = options.debug ? "balanced" : "high";
 
   const budget: EngineRuntimeBudgetSettings = {
-    drawBudgetMs: preset === "high" ? 6 : 4,
-    uploadBudgetBytes: preset === "high" ? 3_000_000 : 2_000_000,
+      drawBudgetMs: preset === "high" ? HIGH_QUALITY_DRAW_BUDGET_MS : DEFAULT_DRAW_BUDGET_MS,
+      uploadBudgetBytes: preset === "high" ? HIGH_QUALITY_UPLOAD_BUDGET_BYTES : DEFAULT_UPLOAD_BUDGET_BYTES,
     frameBudgetMs: 16,
   };
 

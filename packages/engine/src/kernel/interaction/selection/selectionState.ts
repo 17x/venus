@@ -42,9 +42,10 @@ export function createEngineSelectionState(): EngineSelectionState {
   }
 
   /**
-   * Applies one set of hit ids to the selection using the given mode.
-   * @param hitIds Filtered hit node ids ordered by hit priority (nearest first).
+    * Applies one set of hit ids to the selection using the given mode.
+    * @param hits Raw hit list ordered by hit priority (nearest first).
    * @param mode Selection interaction mode.
+    * @param filter Layer and visibility filter to apply before mode transition.
    */
   function applySelection(
     hits: readonly EngineSelectionHit[],

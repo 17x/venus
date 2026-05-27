@@ -1,3 +1,13 @@
+import {createBaselineRenderParityChecklistRows} from './renderParityChecklist.rows.ts'
+import {
+  DEFAULT_RENDER_PARITY_EVALUATION_THRESHOLDS,
+  createFeatureCapabilityGateSummary,
+  createWebgpuRectBatchRejectionSummary,
+  type RenderParityEvaluationThresholds,
+} from './renderParityChecklist.reasonSummary.ts'
+
+export type {RenderParityEvaluationThresholds} from './renderParityChecklist.reasonSummary.ts'
+
 /**
  * Declares stable parity status labels used by render feature checklist rows.
  */
@@ -90,20 +100,6 @@ export interface RenderParityDiagnosticsSample {
 }
 
 /**
- * Declares one threshold bundle for diagnostics-sampled parity evaluation.
- */
-export interface RenderParityEvaluationThresholds {
-  /** Stores minimum sample count before automatic verdicts can leave unknown state. */
-  minSampleCountForAutomaticVerdict: number
-  /** Stores maximum allowed aggregated text fallback count before degradation. */
-  maxAllowedTextFallbackCount: number
-  /** Stores maximum allowed deferred image texture count before degradation. */
-  maxAllowedDeferredImageTextureCount: number
-  /** Stores maximum allowed deferred text texture count before degradation. */
-  maxAllowedDeferredTextTextureCount: number
-}
-
-/**
  * Declares one diagnostics-driven evaluation input payload.
  */
 export interface CreateRenderParityChecklistFromDiagnosticsInput {
@@ -113,252 +109,11 @@ export interface CreateRenderParityChecklistFromDiagnosticsInput {
   thresholds?: Partial<RenderParityEvaluationThresholds>
 }
 
-const DEFAULT_RENDER_PARITY_EVALUATION_THRESHOLDS: RenderParityEvaluationThresholds = {
-  minSampleCountForAutomaticVerdict: 6,
-  maxAllowedTextFallbackCount: 0,
-  maxAllowedDeferredImageTextureCount: 0,
-  maxAllowedDeferredTextTextureCount: 0,
-}
-
-const KNOWN_WEBGPU_RECT_BATCH_REJECTION_REASONS = [
-  'none',
-  'scene-empty',
-  'group-node-unsupported',
-  'non-shape-node-unsupported',
-  'non-rect-shape-unsupported',
-  'shape-style-unsupported',
-  'shape-transform-unsupported',
-] as const
-
-const KNOWN_FEATURE_CAPABILITY_GATE_REASONS = [
-  'none',
-  'image-node-unsupported',
-  'clip-node-unsupported',
-  'text-style-unsupported',
-  'shadow-style-unsupported',
-  'gradient-style-unsupported',
-] as const
-
-type KnownWebgpuRectBatchRejectionReason =
-  (typeof KNOWN_WEBGPU_RECT_BATCH_REJECTION_REASONS)[number]
-
-type KnownFeatureCapabilityGateReason =
-  (typeof KNOWN_FEATURE_CAPABILITY_GATE_REASONS)[number]
-
-/**
- * Declares one structured summary of sampled WebGPU rect-batch rejection reasons.
- */
-interface WebgpuRectBatchRejectionSummary {
-  /** Stores total sampled frames with non-`none` known rejection reasons. */
-  knownRejectedCount: number
-  /** Stores total sampled frames with unknown/non-empty rejection reasons. */
-  unknownRejectedCount: number
-  /** Stores dominant known rejection reason excluding `none`, if available. */
-  dominantKnownReason: Exclude<KnownWebgpuRectBatchRejectionReason, 'none'> | null
-}
-
-/**
- * Declares one structured summary of sampled feature capability gate reasons.
- */
-interface FeatureCapabilityGateSummary {
-  /** Stores total sampled frames with non-`none` known capability-gate reasons. */
-  knownRejectedCount: number
-  /** Stores total sampled frames with unknown/non-empty capability-gate reasons. */
-  unknownRejectedCount: number
-  /** Stores dominant known capability-gate reason excluding `none`, if available. */
-  dominantKnownReason: Exclude<KnownFeatureCapabilityGateReason, 'none'> | null
-}
-
-/**
- * Resolves structured rejection summary from sampled WebGPU diagnostics tokens.
- * @param samples Diagnostics samples captured from replay/runtime export.
- */
-function createWebgpuRectBatchRejectionSummary(
-  samples: readonly RenderParityDiagnosticsSample[],
-): WebgpuRectBatchRejectionSummary {
-  const knownCounts = new Map<Exclude<KnownWebgpuRectBatchRejectionReason, 'none'>, number>()
-  let knownRejectedCount = 0
-  let unknownRejectedCount = 0
-
-  for (const sample of samples) {
-    const reasonToken = sample.webgpuNativeRectBatchRejectedReason.trim()
-    if (reasonToken.length <= 0 || reasonToken === 'none') {
-      continue
-    }
-
-    if (
-      KNOWN_WEBGPU_RECT_BATCH_REJECTION_REASONS.includes(
-        reasonToken as KnownWebgpuRectBatchRejectionReason,
-      )
-    ) {
-      knownRejectedCount += 1
-      const knownReason = reasonToken as Exclude<KnownWebgpuRectBatchRejectionReason, 'none'>
-      knownCounts.set(knownReason, (knownCounts.get(knownReason) ?? 0) + 1)
-      continue
-    }
-
-    unknownRejectedCount += 1
-  }
-
-  let dominantKnownReason: Exclude<KnownWebgpuRectBatchRejectionReason, 'none'> | null = null
-  let dominantKnownCount = 0
-  for (const [reason, count] of knownCounts) {
-    if (count > dominantKnownCount) {
-      dominantKnownReason = reason
-      dominantKnownCount = count
-    }
-  }
-
-  return {
-    knownRejectedCount,
-    unknownRejectedCount,
-    dominantKnownReason,
-  }
-}
-
-/**
- * Resolves structured capability-gate summary from sampled backend feature reason tokens.
- * @param tokens Feature capability gate reason tokens sampled from one backend lane.
- */
-function createFeatureCapabilityGateSummary(
-  tokens: readonly string[],
-): FeatureCapabilityGateSummary {
-  const knownCounts = new Map<Exclude<KnownFeatureCapabilityGateReason, 'none'>, number>()
-  let knownRejectedCount = 0
-  let unknownRejectedCount = 0
-
-  for (const token of tokens) {
-    const reasonToken = typeof token === 'string' ? token.trim() : ''
-    if (reasonToken.length <= 0 || reasonToken === 'none') {
-      continue
-    }
-
-    if (
-      KNOWN_FEATURE_CAPABILITY_GATE_REASONS.includes(
-        reasonToken as KnownFeatureCapabilityGateReason,
-      )
-    ) {
-      knownRejectedCount += 1
-      const knownReason = reasonToken as Exclude<KnownFeatureCapabilityGateReason, 'none'>
-      knownCounts.set(knownReason, (knownCounts.get(knownReason) ?? 0) + 1)
-      continue
-    }
-
-    unknownRejectedCount += 1
-  }
-
-  let dominantKnownReason: Exclude<KnownFeatureCapabilityGateReason, 'none'> | null = null
-  let dominantKnownCount = 0
-  for (const [reason, count] of knownCounts) {
-    if (count > dominantKnownCount) {
-      dominantKnownReason = reason
-      dominantKnownCount = count
-    }
-  }
-
-  return {
-    knownRejectedCount,
-    unknownRejectedCount,
-    dominantKnownReason,
-  }
-}
-
 /**
  * Builds one deterministic render parity checklist baseline report.
  */
 export function createRenderParityChecklistReport(): RenderParityChecklistReport {
-  const rows: RenderParityChecklistRow[] = [
-    {
-      id: 'line-path-polygon-bezier-parity',
-      feature: 'Line/Path/Polygon/Bezier parity',
-      category: 'geometry',
-      webgl: {
-        status: 'degraded',
-        reason: 'WebGL packet fallback path can bypass model-complete geometry fidelity in interactive frames.',
-        evidenceSignals: ['webglRenderPath', 'cacheFallbackReason'],
-      },
-      webgpu: {
-        status: 'degraded',
-        reason: 'Current native WebGPU path is rect-batch oriented and falls back for non-rect/vector geometry.',
-        evidenceSignals: ['webgpuRenderPath', 'webgpuNativeRectBatchRejectedReason'],
-      },
-    },
-    {
-      id: 'text-run-rich-typography-parity',
-      feature: 'Text run and rich typography parity',
-      category: 'text-image',
-      webgl: {
-        status: 'degraded',
-        reason: 'Interactive text fallback/deferred uploads indicate non-uniform text path quality under pressure.',
-        evidenceSignals: ['webglInteractiveTextFallbackCount', 'webglDeferredTextTextureCount'],
-      },
-      webgpu: {
-        status: 'degraded',
-        reason: 'WebGPU native path still leans on hybrid fallback for full text semantics.',
-        evidenceSignals: ['webgpuRenderPath', 'webgpuNativeRectBatchRejectedReason', 'webgpuFeatureCapabilityGateReason'],
-      },
-    },
-    {
-      id: 'gradient-shadow-filter-parity',
-      feature: 'Gradient/Shadow/Filter parity',
-      category: 'paint-effect',
-      webgl: {
-        status: 'degraded',
-        reason: 'Model-complete features can be lost when packet fallback is selected during pressure.',
-        evidenceSignals: ['webglRenderPath', 'webglBudgetPressure', 'cacheFallbackReason', 'webglFeatureCapabilityGateReason'],
-      },
-      webgpu: {
-        status: 'degraded',
-        reason: 'Native rect-batch path rejects style-heavy shapes and relies on fallback pipelines.',
-        evidenceSignals: ['webgpuRenderPath', 'webgpuNativeRectBatchRejectedReason', 'webgpuFeatureCapabilityGateReason'],
-      },
-    },
-    {
-      id: 'image-clip-mask-parity',
-      feature: 'Image clip and mask parity',
-      category: 'text-image',
-      webgl: {
-        status: 'degraded',
-        reason: 'Image upload budgeting and deferred texture counters indicate quality trade-offs under load.',
-        evidenceSignals: ['webglImageTextureUploadCount', 'webglDeferredImageTextureCount', 'webglFeatureCapabilityGateReason'],
-      },
-      webgpu: {
-        status: 'degraded',
-        reason: 'WebGPU route often resolves to hybrid-webgl for non-rect compositing requirements.',
-        evidenceSignals: ['webgpuRenderPath', 'webgpuFeatureCapabilityGateReason'],
-      },
-    },
-    {
-      id: 'model-complete-failure-fallback-classification',
-      feature: 'Model-complete failure fallback classification',
-      category: 'fallback-classification',
-      webgl: {
-        status: 'pass',
-        reason: 'Fallback is explicitly classified via webglRenderPath and cacheFallbackReason taxonomy.',
-        evidenceSignals: ['webglRenderPath', 'cacheFallbackReason'],
-      },
-      webgpu: {
-        status: 'pass',
-        reason: 'Fallback outcome is explicitly classified via webgpuRenderPath and rect-batch reject reason.',
-        evidenceSignals: ['webgpuRenderPath', 'webgpuNativeRectBatchRejectedReason'],
-      },
-    },
-    {
-      id: 'cross-backend-parity-diagnostics-coverage',
-      feature: 'Cross-backend parity diagnostics coverage',
-      category: 'diagnostics',
-      webgl: {
-        status: 'pass',
-        reason: 'Runtime diagnostics already publish backend path, pressure, and fallback taxonomy signals.',
-        evidenceSignals: ['webglRenderPath', 'webglBudgetPressure', 'cacheFallbackReason'],
-      },
-      webgpu: {
-        status: 'pass',
-        reason: 'Runtime diagnostics already publish native submission and render-path classification signals.',
-        evidenceSignals: ['webgpuRenderPath', 'webgpuNativeSubmissionAttemptedCount'],
-      },
-    },
-  ]
+  const rows = createBaselineRenderParityChecklistRows()
 
   const summary = createRenderParitySummary(rows)
 
@@ -425,7 +180,6 @@ export function createRenderParityChecklistReportFromDiagnostics(
   const hasWebglNoneOnly = input.samples.every((sample) => sample.webglRenderPath === 'none')
   const hasWebglHighPressure = input.samples.some((sample) => sample.webglBudgetPressure === 'high')
   const hasWebgpuNativeModelComplete = input.samples.some((sample) => sample.webgpuRenderPath === 'native-model-complete')
-  const hasWebgpuHybridFallback = input.samples.some((sample) => sample.webgpuRenderPath === 'hybrid-webgl')
   const hasWebgpuNativePath = input.samples.some((sample) => (
     sample.webgpuRenderPath === 'native-model-complete' ||
     sample.webgpuRenderPath === 'native-rect-batch' ||

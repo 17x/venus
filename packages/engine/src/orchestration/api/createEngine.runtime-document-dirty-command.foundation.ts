@@ -71,18 +71,28 @@ export function createRuntimeDocumentDirtyCommandFoundation(
 ): {
   resolveRuntimeDocumentRevision: () => number;
   resolveRuntimeDocumentSchemaVersion: () => number;
-  applyRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentApplyChangeSetInput) => EngineRuntimeDocumentApplyChangeSetResult;
+    applyRuntimeDocumentChangeSet: (
+      input: EngineRuntimeDocumentApplyChangeSetInput,
+    ) => EngineRuntimeDocumentApplyChangeSetResult;
   preflightRuntimeDocumentChangeSetApply: (
     input: EngineRuntimeDocumentPreflightApplyChangeSetInput,
   ) => EngineRuntimeDocumentPreflightApplyChangeSetOutput;
   createRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentCreateSnapshotInput) => EngineDocumentSnapshot;
-  validateRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentValidateSnapshotInput) => EngineRuntimeDocumentValidateSnapshotOutput;
-  diffRuntimeDocumentSnapshots: (input: EngineRuntimeDocumentDiffSnapshotsInput) => EngineRuntimeDocumentDiffSnapshotsOutput;
-  rebaseRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentRebaseChangeSetInput) => EngineDocumentChangeSet;
-  serializeRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentSerializeSnapshotInput) => EngineRuntimeDocumentSerializeSnapshotOutput;
+    validateRuntimeDocumentSnapshot: (
+      input: EngineRuntimeDocumentValidateSnapshotInput,
+    ) => EngineRuntimeDocumentValidateSnapshotOutput;
+    diffRuntimeDocumentSnapshots: (
+      input: EngineRuntimeDocumentDiffSnapshotsInput,
+    ) => EngineRuntimeDocumentDiffSnapshotsOutput;
+    rebaseRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentRebaseChangeSetInput) => EngineDocumentChangeSet;
+    serializeRuntimeDocumentSnapshot: (
+      input: EngineRuntimeDocumentSerializeSnapshotInput,
+    ) => EngineRuntimeDocumentSerializeSnapshotOutput;
   deserializeRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentDeserializeSnapshotInput) => EngineDocumentSnapshot;
   resolveRuntimeWorldSnapshotOutput: () => EngineRuntimeWorldSnapshotOutput;
-  compileRuntimeWorldFromDocument: (input: EngineRuntimeWorldCompileFromDocumentInput) => EngineRuntimeWorldSnapshotOutput;
+    compileRuntimeWorldFromDocument: (
+      input: EngineRuntimeWorldCompileFromDocumentInput,
+    ) => EngineRuntimeWorldSnapshotOutput;
   queryRuntimeWorldEntity: (input: EngineRuntimeWorldQueryEntityInput) => EngineRuntimeWorldQueryEntityOutput;
   queryRuntimeWorldComponent: (input: EngineRuntimeWorldQueryComponentInput) => EngineRuntimeWorldQueryComponentOutput;
   clearRuntimeWorldSnapshot: (_unused?: void) => EngineRuntimeWorldClearOutput;
@@ -94,7 +104,9 @@ export function createRuntimeDocumentDirtyCommandFoundation(
   flushRuntimeDirtyDomains: (input: EngineRuntimeDirtyFlushInput) => EngineRuntimeDirtyFlushOutput;
   resetRuntimeDirtyState: () => EngineRuntimeDirtyResetOutput;
   encodeRuntimeCommandPlan: (plan: EngineRuntimeCommandEncodeInput) => EngineRuntimeCommandEncodeOutput;
-  createRuntimeCommandEncoder: (input: EngineRuntimeCommandCreateEncoderInput) => EngineRuntimeCommandCreateEncoderOutput;
+    createRuntimeCommandEncoder: (
+      input: EngineRuntimeCommandCreateEncoderInput,
+    ) => EngineRuntimeCommandCreateEncoderOutput;
   validateRuntimeCommandBuffer: (buffer: EngineRuntimeCommandValidateInput) => EngineRuntimeCommandValidateOutput;
   optimizeRuntimeCommandBuffer: (input: EngineRuntimeCommandOptimizeInput) => EngineRuntimeCommandOptimizeOutput;
   inspectRuntimeCommandBuffer: (buffer: EngineRuntimeCommandValidateInput) => EngineRuntimeCommandInspectOutput;

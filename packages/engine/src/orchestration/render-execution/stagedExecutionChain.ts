@@ -9,6 +9,7 @@ import type { EngineDocumentSnapshot } from "../../kernel/document/document-cont
 import type { EnginePlanningViewport } from "../render-planning/createEngineFrameResolver";
 
 const worldModule = createEngineWorldModule();
+const PICKING_CENTER_DIVISOR = 2;
 
 /**
  * Staged software execution snapshot proving document->runtime->render flow.
@@ -51,8 +52,8 @@ export function resolveStagedExecutionSnapshot(options: {
 
   const picking = resolvePickingHitStack({
     spatialIndex,
-    x: options.viewport.offsetX + options.viewport.width / 2,
-    y: options.viewport.offsetY + options.viewport.height / 2,
+      x: options.viewport.offsetX + options.viewport.width / PICKING_CENTER_DIVISOR,
+      y: options.viewport.offsetY + options.viewport.height / PICKING_CENTER_DIVISOR,
   });
 
   return {

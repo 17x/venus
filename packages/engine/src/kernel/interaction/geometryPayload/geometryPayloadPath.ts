@@ -64,7 +64,9 @@ export function isPathClosed(node: EngineEditorHitTestNode): boolean {
  * Adds closed-path hint for path hit-testing without mutating source nodes.
  * @param shape Shape candidate that may represent a path.
  */
-export function withResolvedPathHints<TShape extends EngineEditorHitTestNode>(shape: TShape): TShape & {closed?: boolean} {
+export function withResolvedPathHints<TShape extends EngineEditorHitTestNode>(
+  shape: TShape,
+): TShape & {closed?: boolean} {
   if (shape.type !== 'path') {
     return shape
   }

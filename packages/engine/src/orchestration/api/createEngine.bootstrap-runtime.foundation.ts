@@ -4,6 +4,9 @@ import type { CreateEngineOptions } from "./createEngineContracts";
 import type { EngineRenderFrameStats } from "../../orchestration/render-runtime/runtimeFacade";
 import type { EngineDocumentChangeSet } from "../../kernel/document/document-contracts";
 
+// eslint-disable-next-line no-magic-numbers -- Type-level literal for parameter index
+type BackendSelectionParamIndex = 2;
+
 /**
  * Defines dependencies required to seed bootstrap document state and wire runtime shell/facade.
  */
@@ -13,7 +16,7 @@ type BootstrapRuntimeFoundationDependencies = {
   /** Resolved backend instance selected for this engine handle. */
   backend: Parameters<typeof createEngineRuntimeShell>[1];
   /** Backend selection metadata produced by backend resolver. */
-  backendSelection: Parameters<typeof createEngineRuntimeShell>[2];
+  backendSelection: Parameters<typeof createEngineRuntimeShell>[BackendSelectionParamIndex];
   /** Applies one document change set and compiles runtime projections. */
   applyDocumentAndCompile: (changeSet: EngineDocumentChangeSet) => void;
   /** Resolves one orchestrated frame at the provided timestamp. */

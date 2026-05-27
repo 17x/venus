@@ -100,9 +100,10 @@ export function resolveEngineZoomPerformanceConfig(
         ? (strategyInput?.localHybridMaxZoom as number)
         : DEFAULT_ENGINE_ZOOM_PERFORMANCE_CONFIG.strategy.localHybridMaxZoom,
     localRenderElementThreshold:
-      Number.isFinite(strategyInput?.localRenderElementThreshold) && (strategyInput?.localRenderElementThreshold ?? -1) >= 0
-        ? Math.floor(strategyInput?.localRenderElementThreshold as number)
-        : DEFAULT_ENGINE_ZOOM_PERFORMANCE_CONFIG.strategy.localRenderElementThreshold,
+        Number.isFinite(strategyInput?.localRenderElementThreshold) &&
+          (strategyInput?.localRenderElementThreshold ?? -1) >= 0
+            ? Math.floor(strategyInput?.localRenderElementThreshold as number)
+            : DEFAULT_ENGINE_ZOOM_PERFORMANCE_CONFIG.strategy.localRenderElementThreshold,
   }
 
   return {

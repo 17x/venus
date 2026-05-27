@@ -142,6 +142,16 @@ export type WebGLNativeMeshSubmissionDiagnostics = {
   pipelineReuseCount: number;
 };
 
+const POSITION_COMPONENT_STRIDE = 3;
+const INDEX_PAIR_STRIDE = 2;
+const TRIANGLE_INDEX_STRIDE = 3;
+const MIN_LINE_POSITION_COMPONENTS = 6;
+const MIN_TRIANGLE_POSITION_COMPONENTS = 9;
+const MIN_LINE_VERTEX_COUNT = 2;
+const MIN_LINE_CLIP_COMPONENTS = 4;
+const MIN_TRIANGLE_CLIP_COMPONENTS = 6;
+const VERTEX_COORD_COMPONENTS = 2;
+
 /**
  * Creates one empty pipeline cache used by the native mesh presenter.
  */
@@ -368,7 +378,14 @@ export function presentNativeMeshPrimitives(
   context.useProgram(cache.program);
   context.bindBuffer(context.ARRAY_BUFFER, cache.vertexBuffer);
   context.enableVertexAttribArray(cache.positionLocation);
-  context.vertexAttribPointer(cache.positionLocation, 2, context.FLOAT, false, 0, 0);
+  context.vertexAttribPointer(
+    cache.positionLocation,
+    VERTEX_COORD_COMPONENTS,
+    context.FLOAT,
+    false,
+    0,
+    0,
+  );
 
   for (const mesh of payload.meshes) {
     const topology = mesh.topology ?? "triangles";
@@ -378,13 +395,17 @@ export function presentNativeMeshPrimitives(
       diagnostics.lineTopologyPreflightAttemptedCount += 1;
       let linePreflightPassed = false;
       let lineCommandCount = 0;
-      if (!Array.isArray(mesh.positions) || mesh.positions.length < 6 || mesh.positions.length % 3 !== 0) {
+      if (
+        !Array.isArray(mesh.positions)
+        || mesh.positions.length < MIN_LINE_POSITION_COMPONENTS
+        || mesh.positions.length % POSITION_COMPONENT_STRIDE !== 0
+      ) {
         diagnostics.lineTopologyPreflightRejectedCount += 1;
         diagnostics.lineTopologyPreflightRejectedInvalidPositionCount += 1;
       } else {
-        const vertexCount = Math.floor(mesh.positions.length / 3);
+        const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
         if (Array.isArray(mesh.indices) && mesh.indices.length > 0) {
-          const indicesAreLineCompatible = mesh.indices.length % 2 === 0;
+          const indicesAreLineCompatible = mesh.indices.length % INDEX_PAIR_STRIDE === 0;
           const indicesAreWithinBounds = mesh.indices.every((rawIndex) => {
             if (typeof rawIndex !== "number" || !Number.isFinite(rawIndex)) {
               return false;
@@ -398,9 +419,9 @@ export function presentNativeMeshPrimitives(
           } else {
             diagnostics.lineTopologyPreflightPassedCount += 1;
             linePreflightPassed = true;
-            lineCommandCount = Math.floor(mesh.indices.length / 2);
+            lineCommandCount = Math.floor(mesh.indices.length / INDEX_PAIR_STRIDE);
           }
-        } else if (vertexCount < 2 || vertexCount % 2 !== 0) {
+        } else if (vertexCount < MIN_LINE_VERTEX_COUNT || vertexCount % INDEX_PAIR_STRIDE !== 0) {
           diagnostics.lineTopologyPreflightRejectedCount += 1;
           diagnostics.lineTopologyPreflightRejectedInsufficientStreamCount += 1;
           // Keep mesh-level rejection histogram aligned with line preflight insufficient-stream classification.
@@ -414,7 +435,7 @@ export function presentNativeMeshPrimitives(
         } else {
           diagnostics.lineTopologyPreflightPassedCount += 1;
           linePreflightPassed = true;
-          lineCommandCount = Math.floor(vertexCount / 2);
+          lineCommandCount = Math.floor(vertexCount / INDEX_PAIR_STRIDE);
         }
       }
 
@@ -433,16 +454,16 @@ export function presentNativeMeshPrimitives(
         const color = typeof mesh.color === "string" ? mesh.color : "#334155";
         const [r, g, b, a] = resolveNormalizedColor(color);
         const lineVertices: number[] = [];
-        const vertexCount = Math.floor(mesh.positions.length / 3);
+        const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
 
         const appendLineVertexByIndex = (vertexIndex: number): void => {
-          const base = vertexIndex * 3;
+          const base = vertexIndex * POSITION_COMPONENT_STRIDE;
           const worldX = mesh.positions[base] ?? 0;
           const worldY = mesh.positions[base + 1] ?? 0;
           const screenX = (worldX * payload.scale + payload.translateX) * dpr;
           const screenY = (worldY * payload.scale + payload.translateY) * dpr;
-          const clipX = (screenX / deviceWidth) * 2 - 1;
-          const clipY = 1 - (screenY / deviceHeight) * 2;
+          const clipX = (screenX / deviceWidth) * INDEX_PAIR_STRIDE - 1;
+          const clipY = 1 - (screenY / deviceHeight) * INDEX_PAIR_STRIDE;
           lineVertices.push(clipX, clipY);
         };
 
@@ -466,7 +487,7 @@ export function presentNativeMeshPrimitives(
           diagnostics.rejectedMeshCount += 1;
           continue;
         }
-        if (lineVertices.length < 4) {
+        if (lineVertices.length < MIN_LINE_CLIP_COMPONENTS) {
           diagnostics.lineTopologySubmissionFailedCount += 1;
           diagnostics.lineTopologySubmissionFailedCommandCount += lineCommandCount;
           diagnostics.lineTopologySubmissionFailedInsufficientStreamCount += 1;
@@ -479,7 +500,7 @@ export function presentNativeMeshPrimitives(
 
         context.bufferData(context.ARRAY_BUFFER, new Float32Array(lineVertices), context.STREAM_DRAW);
         context.uniform4f(cache.colorLocation, r, g, b, a);
-        context.drawArrays(linesPrimitiveToken, 0, lineVertices.length / 2);
+        context.drawArrays(linesPrimitiveToken, 0, lineVertices.length / VERTEX_COORD_COMPONENTS);
         diagnostics.lineTopologySubmissionSucceededCount += 1;
         diagnostics.lineTopologySubmissionSucceededCommandCount += lineCommandCount;
         diagnostics.submittedMeshCount += 1;
@@ -507,7 +528,11 @@ export function presentNativeMeshPrimitives(
       diagnostics.rejectedMeshUnsupportedTopologyCount += 1;
       continue;
     }
-    if (!Array.isArray(mesh.positions) || mesh.positions.length < 9 || mesh.positions.length % 3 !== 0) {
+    if (
+      !Array.isArray(mesh.positions)
+      || mesh.positions.length < MIN_TRIANGLE_POSITION_COMPONENTS
+      || mesh.positions.length % POSITION_COMPONENT_STRIDE !== 0
+    ) {
       diagnostics.rejectedMeshCount += 1;
       diagnostics.rejectedMeshInvalidPositionCount += 1;
       continue;
@@ -515,21 +540,21 @@ export function presentNativeMeshPrimitives(
     const color = typeof mesh.color === "string" ? mesh.color : "#334155";
     const [r, g, b, a] = resolveNormalizedColor(color);
     const vertices: number[] = [];
-    const vertexCount = Math.floor(mesh.positions.length / 3);
+    const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
 
     const appendVertexByIndex = (vertexIndex: number): void => {
-      const base = vertexIndex * 3;
+      const base = vertexIndex * POSITION_COMPONENT_STRIDE;
       const worldX = mesh.positions[base] ?? 0;
       const worldY = mesh.positions[base + 1] ?? 0;
       const screenX = (worldX * payload.scale + payload.translateX) * dpr;
       const screenY = (worldY * payload.scale + payload.translateY) * dpr;
-      const clipX = (screenX / deviceWidth) * 2 - 1;
-      const clipY = 1 - (screenY / deviceHeight) * 2;
+      const clipX = (screenX / deviceWidth) * INDEX_PAIR_STRIDE - 1;
+      const clipY = 1 - (screenY / deviceHeight) * INDEX_PAIR_STRIDE;
       vertices.push(clipX, clipY);
     };
 
-    if (Array.isArray(mesh.indices) && mesh.indices.length >= 3) {
-      const indicesAreTriangleCompatible = mesh.indices.length % 3 === 0;
+    if (Array.isArray(mesh.indices) && mesh.indices.length >= TRIANGLE_INDEX_STRIDE) {
+      const indicesAreTriangleCompatible = mesh.indices.length % TRIANGLE_INDEX_STRIDE === 0;
       const indicesAreWithinBounds = mesh.indices.every((rawIndex) => {
         if (typeof rawIndex !== "number" || !Number.isFinite(rawIndex)) {
           return false;
@@ -546,17 +571,21 @@ export function presentNativeMeshPrimitives(
         appendVertexByIndex(Math.floor(rawIndex));
       }
     } else {
-      if (mesh.positions.length % 9 !== 0) {
+      if (mesh.positions.length % MIN_TRIANGLE_POSITION_COMPONENTS !== 0) {
         diagnostics.rejectedMeshCount += 1;
         diagnostics.rejectedMeshInsufficientStreamCount += 1;
         continue;
       }
-      for (let index = 0; index + 2 < mesh.positions.length; index += 3) {
-        appendVertexByIndex(index / 3);
+      for (
+        let index = 0;
+        index + TRIANGLE_INDEX_STRIDE - 1 < mesh.positions.length;
+        index += POSITION_COMPONENT_STRIDE
+      ) {
+        appendVertexByIndex(index / POSITION_COMPONENT_STRIDE);
       }
     }
 
-    if (vertices.length < 6) {
+    if (vertices.length < MIN_TRIANGLE_CLIP_COMPONENTS) {
       diagnostics.rejectedMeshCount += 1;
       diagnostics.rejectedMeshInsufficientStreamCount += 1;
       continue;
@@ -564,7 +593,7 @@ export function presentNativeMeshPrimitives(
 
     context.bufferData(context.ARRAY_BUFFER, new Float32Array(vertices), context.STREAM_DRAW);
     context.uniform4f(cache.colorLocation, r, g, b, a);
-    context.drawArrays(context.TRIANGLES, 0, vertices.length / 2);
+    context.drawArrays(context.TRIANGLES, 0, vertices.length / VERTEX_COORD_COMPONENTS);
     diagnostics.submittedMeshCount += 1;
   }
 

@@ -42,8 +42,20 @@ export interface SceneSemantic3DProjectionNode {
   lightingMode?: 'inherit' | 'unlit' | 'lit'
   /** Optional material id hint. */
   materialId?: string
-  /** Optional semantic3d envelope from upstream adapter. */
-  semantic3d?: Readonly<Record<string, unknown>>
+  /** Optional semantic3d envelope from upstream adapter (matches engine canonical shape). */
+  semantic3d?: {
+    bounds: { x: number; y: number; z: number; width: number; height: number; depth: number }
+    transform: {
+      x: number; y: number; z: number
+      rotationX: number; rotationY: number; rotationZ: number
+      scaleX: number; scaleY: number; scaleZ: number
+    }
+    sourceType?: string
+    renderOrder?: number
+    visible?: boolean
+    lightingMode?: 'inherit' | 'unlit' | 'lit'
+    materialId?: string
+  }
   /** Additional adapter-defined fields. */
   [key: string]: unknown
 }

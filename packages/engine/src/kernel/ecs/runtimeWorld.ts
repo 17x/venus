@@ -1,5 +1,7 @@
 import type { EngineDocumentSnapshot } from "../document/document-contracts";
 
+const LEGACY_FALLBACK_GRID_STEP = 24;
+
 /**
  * Runtime 3D transform contract projected from document semantic payloads.
  */
@@ -112,8 +114,8 @@ export function createRuntimeWorldFromDocument(
       : {
           // Keep deterministic fallback geometry for nodes that have not
           // migrated to semantic3d payloads yet.
-          x: index * 24,
-          y: index * 24,
+          x: index * LEGACY_FALLBACK_GRID_STEP,
+          y: index * LEGACY_FALLBACK_GRID_STEP,
           z: 0,
           width: 64,
           height: 64,
@@ -150,8 +152,8 @@ export function createRuntimeWorldFromDocument(
       bounds: {
         // Keep legacy coarse bounds behavior to preserve visibility/picking
         // compatibility while semantic3d gradually rolls out through runtime stages.
-        x: index * 24,
-        y: index * 24,
+        x: index * LEGACY_FALLBACK_GRID_STEP,
+        y: index * LEGACY_FALLBACK_GRID_STEP,
         width: 64,
         height: 64,
       },

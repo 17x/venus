@@ -84,16 +84,21 @@ export function resolveCreateEngineFrame(options: {
   /** Dirty region count for budget broker. */
   dirtyRegionCount?: number;
 }): EngineFramePlanningDecision {
+  const SHORTLIST_DENOMINATOR_OFFSET = 1200;
+  const PRESSURE_HIGH_DIVISOR = 1000;
+  const PRESSURE_MEDIUM_DIVISOR = 2000;
+  const DEFAULT_SETTLE_DELAY_MS = 120;
+
   const phase = options.interactionActive ? "interactive" : "static";
   const shortlistCandidateRatio = Math.min(
     1,
-    Math.max(0, options.scene.nodeCount / Math.max(1, options.scene.nodeCount + 1200)),
+    Math.max(0, options.scene.nodeCount / Math.max(1, options.scene.nodeCount + SHORTLIST_DENOMINATOR_OFFSET)),
   );
 
   const pressure: EngineBudgetPressure =
-    options.scene.nodeCount > options.policy.budget.uploadBudgetBytes / 1000
+    options.scene.nodeCount > options.policy.budget.uploadBudgetBytes / PRESSURE_HIGH_DIVISOR
       ? "high"
-      : options.scene.nodeCount > options.policy.budget.uploadBudgetBytes / 2000
+      : options.scene.nodeCount > options.policy.budget.uploadBudgetBytes / PRESSURE_MEDIUM_DIVISOR
         ? "medium"
         : "low";
 
@@ -106,7 +111,7 @@ export function resolveCreateEngineFrame(options: {
     cameraCachePreviewOnly: options.cameraCachePreviewOnly ?? true,
     lastInteractionAtMs: options.lastInteractionAtMs ?? 0,
     lastInteractionKind: options.lastInteractionKind ?? "none",
-    settleDelayMs: options.settleDelayMs ?? 120,
+    settleDelayMs: options.settleDelayMs ?? DEFAULT_SETTLE_DELAY_MS,
     tileQueuePendingCount: options.tileQueuePendingCount ?? 0,
     dirtyRegionCount: options.dirtyRegionCount ?? 0,
   });

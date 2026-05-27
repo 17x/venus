@@ -3,6 +3,7 @@ import {
 } from '../model/index.ts'
 import {
   getNormalizedBoundsFromBox,
+  DEFAULT_LINE_HIT_TOLERANCE_PX,
 } from '../engine-bridge/engine.ts'
 import {resolveHitGeometryV2} from '../engine-bridge/engineContractAdapters.ts'
 import {hasPassedDragThreshold, resolveDragDistance} from '@venus/editor-primitive'
@@ -69,7 +70,7 @@ export function createSelectionDragController(options?: {
   allowFrameSelection?: boolean
 }): SelectionDragController {
   const dragThresholdPx = options?.dragThresholdPx ?? 3
-  const lineHitTolerance = options?.lineHitTolerance ?? 6
+    const lineHitTolerance = options?.lineHitTolerance ?? DEFAULT_LINE_HIT_TOLERANCE_PX
   const allowFrameSelection = options?.allowFrameSelection ?? true
 
   let pending: {start: {x: number; y: number}; shapeId: string} | null = null
@@ -91,7 +92,8 @@ export function createSelectionDragController(options?: {
         modifiers?.altKey
       )
       // Keep pointer-down tolerance aligned with hover/click when caller provides adaptive override.
-      const resolvedHitTolerance = Math.max(0.5, pointerDownOptions?.hitTolerance ?? lineHitTolerance)
+const SELECTION_MIN_HIT_TOLERANCE_PX = 4;
+        const resolvedHitTolerance = Math.max(SELECTION_MIN_HIT_TOLERANCE_PX, pointerDownOptions?.hitTolerance ?? lineHitTolerance)
 
       let hitShape = null as SceneShapeSnapshot | null
       const hintedId = pointerDownOptions?.hitShapeId ?? null

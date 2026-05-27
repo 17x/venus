@@ -14,6 +14,62 @@ import {
   type WebGLNativeMeshSubmissionDiagnostics,
 } from "./webglNativeMeshPresenter";
 
+const HEX_SHORT_LENGTH = 3;
+const HEX_LONG_LENGTH = 6;
+const HEX_RADIX = 16;
+const BYTE_CHANNEL_MAX = 255;
+const DEFAULT_ALPHA = 1;
+const DEFAULT_FALLBACK_RED = 0.1;
+const DEFAULT_FALLBACK_GREEN = 0.16;
+const DEFAULT_FALLBACK_BLUE = 0.25;
+const DEFAULT_FALLBACK_RGBA: [number, number, number, number] = [
+  DEFAULT_FALLBACK_RED,
+  DEFAULT_FALLBACK_GREEN,
+  DEFAULT_FALLBACK_BLUE,
+  DEFAULT_ALPHA,
+];
+const PAYLOAD_RECT_COUNT_HIGH_THRESHOLD = 256;
+const PAYLOAD_RECT_COUNT_MEDIUM_THRESHOLD = 64;
+const MATRIX_COMPONENT_MIN = 6;
+const MATRIX_INDEX_A = 0;
+const MATRIX_INDEX_B = 1;
+const MATRIX_INDEX_E_LEGACY = 2;
+const MATRIX_INDEX_C = 3;
+const MATRIX_INDEX_D = 4;
+const MATRIX_INDEX_F = 5;
+const MATRIX_LEGACY_EPSILON = 0.0001;
+const MATRIX_LEGACY_MIN_DELTA = 0.5;
+const FULL_CIRCLE_MULTIPLIER = 2;
+const FULL_CIRCLE_RADIANS = Math.PI * FULL_CIRCLE_MULTIPLIER;
+const RGB_CHANNEL_MIN = 3;
+const RGB_NON_ALPHA_LAST_INDEX = 2;
+const RGB_ALPHA_CHANNEL_INDEX = 3;
+const HEX_PAIR_LENGTH = 2;
+const HEX_GREEN_PAIR_START = 2;
+const HEX_BLUE_PAIR_START = 4;
+const HALF_DIVISOR = 2;
+const QUAD_VERTEX_STRIDE_COMPONENT_COUNT = 4;
+const ATTRIBUTE_COMPONENT_COUNT = 2;
+const TRIANGLE_STRIP_VERTEX_COUNT = 4;
+const GL_TILE_BYTES_PER_RECT = 64;
+const GL_IMAGE_BYTES_PER_RECT = 32;
+const GL_PREVIEW_REUSE_MS = 0.1;
+const GL_PLAN_BUILD_MS_PER_RECT = 0.05;
+const GL_TEXTURE_UPLOAD_MS_PER_RECT = 0.08;
+const GL_DRAW_SUBMIT_MS_PER_RECT = 0.04;
+const GL_MODEL_RENDER_MS = 0.2;
+const GL_TEXTURE_UPLOAD_BUDGET_BYTES = 32768;
+const GL_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES = 131072;
+const GL_IMAGE_TEXTURE_UPLOAD_BUDGET_COUNT = 32;
+const GL_TEXT_TEXTURE_UPLOAD_BUDGET_COUNT = 24;
+const GL_PRELOAD_BUDGET_UPLOADS = 8;
+const GL_PREDICTOR_CONFIDENCE_HIT = 0.8;
+const GL_PREDICTOR_CONFIDENCE_MISS = 0.2;
+const GL_PREDICTOR_PRELOAD_RING_HIGH = 2;
+const GL_PREDICTOR_PRELOAD_RING_LOW = 1;
+const GL_PREDICTOR_OVERSCAN_HIGH = 48;
+const GL_PREDICTOR_OVERSCAN_LOW = 24;
+
 /**
  * Parses a CSS-like hex/rgb color token into normalized RGBA channels.
  * @param color Raw color token from frame payload.
@@ -22,33 +78,47 @@ function resolveNormalizedColor(color: string): [number, number, number, number]
   const normalized = color.trim().toLowerCase();
   if (normalized.startsWith("#")) {
     const hex = normalized.slice(1);
-    if (hex.length === 3) {
-      const r = Number.parseInt(hex[0] + hex[0], 16);
-      const g = Number.parseInt(hex[1] + hex[1], 16);
-      const b = Number.parseInt(hex[2] + hex[2], 16);
-      return [r / 255, g / 255, b / 255, 1];
+    if (hex.length === HEX_SHORT_LENGTH) {
+      const r = Number.parseInt(hex[0] + hex[0], HEX_RADIX);
+      const g = Number.parseInt(hex[1] + hex[1], HEX_RADIX);
+        const b = Number.parseInt(
+          hex[MATRIX_INDEX_E_LEGACY] + hex[MATRIX_INDEX_E_LEGACY],
+          HEX_RADIX,
+        );
+      return [r / BYTE_CHANNEL_MAX, g / BYTE_CHANNEL_MAX, b / BYTE_CHANNEL_MAX, DEFAULT_ALPHA];
     }
-    if (hex.length === 6) {
-      const r = Number.parseInt(hex.slice(0, 2), 16);
-      const g = Number.parseInt(hex.slice(2, 4), 16);
-      const b = Number.parseInt(hex.slice(4, 6), 16);
-      return [r / 255, g / 255, b / 255, 1];
+    if (hex.length === HEX_LONG_LENGTH) {
+      const r = Number.parseInt(hex.slice(0, HEX_PAIR_LENGTH), HEX_RADIX);
+      const g = Number.parseInt(
+        hex.slice(HEX_GREEN_PAIR_START, HEX_BLUE_PAIR_START),
+        HEX_RADIX,
+      );
+      const b = Number.parseInt(
+        hex.slice(HEX_BLUE_PAIR_START, MATRIX_INDEX_F),
+        HEX_RADIX,
+      );
+      return [r / BYTE_CHANNEL_MAX, g / BYTE_CHANNEL_MAX, b / BYTE_CHANNEL_MAX, DEFAULT_ALPHA];
     }
   }
   const rgbMatch = normalized.match(/rgba?\(([^)]+)\)/);
   if (rgbMatch) {
     const channels = rgbMatch[1].split(",").map((entry) => Number.parseFloat(entry.trim()));
-    if (channels.length >= 3 && channels.every((entry, index) => index > 2 || Number.isFinite(entry))) {
-      const alpha = Number.isFinite(channels[3]) ? Math.max(0, Math.min(1, channels[3])) : 1;
+    if (
+      channels.length >= RGB_CHANNEL_MIN
+      && channels.every((entry, index) => index > RGB_NON_ALPHA_LAST_INDEX || Number.isFinite(entry))
+    ) {
+      const alpha = Number.isFinite(channels[RGB_ALPHA_CHANNEL_INDEX])
+        ? Math.max(0, Math.min(DEFAULT_ALPHA, channels[RGB_ALPHA_CHANNEL_INDEX]))
+        : DEFAULT_ALPHA;
       return [
-        Math.max(0, Math.min(255, channels[0])) / 255,
-        Math.max(0, Math.min(255, channels[1])) / 255,
-        Math.max(0, Math.min(255, channels[2])) / 255,
+        Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[0])) / BYTE_CHANNEL_MAX,
+        Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[1])) / BYTE_CHANNEL_MAX,
+          Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[MATRIX_INDEX_E_LEGACY])) / BYTE_CHANNEL_MAX,
         alpha,
       ];
     }
   }
-  return [0.1, 0.16, 0.25, 1];
+  return DEFAULT_FALLBACK_RGBA;
 }
 
 /**
@@ -56,10 +126,10 @@ function resolveNormalizedColor(color: string): [number, number, number, number]
  * @param payloadRectCount Rect count sampled from current native payload.
  */
 function resolveBudgetPressureReason(payloadRectCount: number): string {
-  if (payloadRectCount > 256) {
+  if (payloadRectCount > PAYLOAD_RECT_COUNT_HIGH_THRESHOLD) {
     return "payload-rect-count-high";
   }
-  if (payloadRectCount > 64) {
+  if (payloadRectCount > PAYLOAD_RECT_COUNT_MEDIUM_THRESHOLD) {
     return "payload-rect-count-medium";
   }
   return "within-low-thresholds";
@@ -85,6 +155,16 @@ type WebGLNativeSceneNode = {
   clipPathId?: string;
   clipId?: string;
   shadow?: unknown;
+  /** Uniform corner radius for rounded rectangles. */
+  cornerRadius?: number;
+  /** Independent corner radii for rounded rectangles. */
+  cornerRadii?: { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number };
+  /** Ellipse arc start angle in degrees. */
+  ellipseStartAngle?: number;
+  /** Ellipse arc end angle in degrees. */
+  ellipseEndAngle?: number;
+  /** Whether a path/polygon shape should be closed. */
+  closed?: boolean;
   transform?: {
     matrix?: readonly [number, number, number, number, number, number] | readonly number[];
   };
@@ -94,6 +174,34 @@ type WebGLNativeSceneNode = {
     cp1?: { x: number; y: number };
     cp2?: { x: number; y: number };
   }>;
+};
+
+/**
+ * Declares one overlay draw instruction for marquee/hover/selection/handler rendering.
+ */
+type WebGLOverlayInstruction = {
+  /** Stable overlay id. */
+  id: string;
+  /** Primitive kind: polyline, rect, ellipse, line. */
+  primitive: string;
+  /** World-space point geometry. */
+  points?: ReadonlyArray<{ x: number; y: number }>;
+  /** World-space bounds for rect/ellipse. */
+  bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+  /** Stroke style. */
+  strokeColor?: string;
+  /** Stroke width in world units. */
+  strokeWidth?: number;
+  /** Stroke dash array. */
+  strokeDash?: number[];
+  /** Fill color. */
+  fillColor?: string;
+  /** Fill opacity. */
+  fillOpacity?: number;
+  /** Whether stroke should not scale with zoom. */
+  nonScalingStroke?: boolean;
+  /** Layer z-index for ordering. */
+  zIndex?: number;
 };
 
 /**
@@ -141,6 +249,10 @@ function drawRichNodesToCompositionContext(
     translateY: number;
     scale: number;
     nodes?: ReadonlyArray<WebGLNativeSceneNode>;
+    /** Optional image registry for image node rendering. */
+    images?: ReadonlyMap<string, HTMLImageElement>;
+    /** Optional overlay instructions for marquee/hover/selection/handler rendering. */
+    overlays?: ReadonlyArray<WebGLOverlayInstruction>;
   },
   deviceWidth: number,
   deviceHeight: number,
@@ -151,20 +263,20 @@ function drawRichNodesToCompositionContext(
    * @param matrix Node matrix payload emitted by scene adapter.
    */
   const resolveCanvasTransform = (matrix: readonly number[]) => {
-    if (matrix.length < 6) {
+    if (matrix.length < MATRIX_COMPONENT_MIN) {
       return null;
     }
-    const a = matrix[0] ?? 1;
-    const b = matrix[1] ?? 0;
-    const cLegacy = matrix[3] ?? 0;
-    const dLegacy = matrix[4] ?? 1;
-    const eLegacy = matrix[2] ?? 0;
-    const fLegacy = matrix[5] ?? 0;
-    const cCanvas = matrix[2] ?? 0;
-    const dCanvas = matrix[3] ?? 1;
-    const eCanvas = matrix[4] ?? 0;
-    const fCanvas = matrix[5] ?? 0;
-    const legacyLikely = Math.abs(dCanvas) < 0.0001 && Math.abs(dLegacy) >= 0.5;
+    const a = matrix[MATRIX_INDEX_A] ?? 1;
+    const b = matrix[MATRIX_INDEX_B] ?? 0;
+    const cLegacy = matrix[MATRIX_INDEX_C] ?? 0;
+    const dLegacy = matrix[MATRIX_INDEX_D] ?? 1;
+    const eLegacy = matrix[MATRIX_INDEX_E_LEGACY] ?? 0;
+    const fLegacy = matrix[MATRIX_INDEX_F] ?? 0;
+    const cCanvas = matrix[MATRIX_INDEX_E_LEGACY] ?? 0;
+    const dCanvas = matrix[MATRIX_INDEX_C] ?? 1;
+    const eCanvas = matrix[MATRIX_INDEX_D] ?? 0;
+    const fCanvas = matrix[MATRIX_INDEX_F] ?? 0;
+    const legacyLikely = Math.abs(dCanvas) < MATRIX_LEGACY_EPSILON && Math.abs(dLegacy) >= MATRIX_LEGACY_MIN_DELTA;
     return legacyLikely
       ? { a, b, c: cLegacy, d: dLegacy, e: eLegacy, f: fLegacy }
       : { a, b, c: cCanvas, d: dCanvas, e: eCanvas, f: fCanvas };
@@ -172,6 +284,9 @@ function drawRichNodesToCompositionContext(
   if (!payload.nodes || payload.nodes.length === 0) {
     return false;
   }
+
+  // Capture image registry from payload for image node rendering.
+  const payloadImages = payload.images ?? null;
 
   context.save();
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -189,7 +304,7 @@ function drawRichNodesToCompositionContext(
     }
     context.save();
     const matrix = node.transform?.matrix;
-    if (Array.isArray(matrix) && matrix.length >= 6) {
+    if (Array.isArray(matrix) && matrix.length >= MATRIX_COMPONENT_MIN) {
       const resolvedMatrix = resolveCanvasTransform(matrix);
       if (resolvedMatrix) {
         context.transform(
@@ -212,18 +327,109 @@ function drawRichNodesToCompositionContext(
     const shape = typeof node.shape === "string" ? node.shape : "rect";
 
     if (node.type === "text") {
-      context.fillStyle = fill !== "transparent" ? fill : "#0f172a";
-      context.textBaseline = "top";
-      context.font = "16px sans-serif";
-      context.fillText(typeof node.text === "string" ? node.text : "Text", x, y, width > 0 ? width : undefined);
-      drawnPrimitiveCount += 1;
+      // Render text with optional multi-run style support.
+      const textContent = typeof node.text === "string" ? node.text : "Text";
+      const runs = Array.isArray((node as Record<string, unknown>).runs)
+        ? (node as Record<string, unknown>).runs as Array<{
+            text: string;
+            style?: {
+              fill?: string;
+              fontFamily?: string;
+              fontSize?: number;
+              fontWeight?: number;
+              fontStyle?: string;
+              lineHeight?: number;
+              letterSpacing?: number;
+              align?: string;
+              verticalAlign?: string;
+              textDecoration?: string;
+              shadow?: unknown;
+            };
+          }>
+        : null;
+
+      if (runs && runs.length > 0) {
+        // Multi-run rendering: apply per-run style, accumulate x offset.
+        let cursorX = x;
+        const defaultFontSize = 16;
+        const defaultFontFamily = "sans-serif";
+        for (const run of runs) {
+          const runFill = run.style?.fill ?? fill;
+          const runFontSize = run.style?.fontSize ?? defaultFontSize;
+          const runFontFamily = run.style?.fontFamily ?? defaultFontFamily;
+          const runFontWeight = run.style?.fontWeight ?? 400;
+          const runFontStyle = run.style?.fontStyle ?? "normal";
+          context.fillStyle = runFill !== "transparent" ? runFill : "#0f172a";
+          context.font = `${runFontStyle} ${runFontWeight} ${runFontSize}px ${runFontFamily}`;
+          context.textBaseline = "top";
+          context.fillText(run.text, cursorX, y);
+          cursorX += context.measureText(run.text).width;
+          drawnPrimitiveCount += 1;
+        }
+      } else {
+        // Single-style fallback rendering.
+        context.fillStyle = fill !== "transparent" ? fill : "#0f172a";
+        context.textBaseline = "top";
+        context.font = "16px sans-serif";
+        context.fillText(textContent, x, y, width > 0 ? width : undefined);
+        drawnPrimitiveCount += 1;
+      }
+      context.restore();
+      continue;
+    }
+
+    if (node.type === "image") {
+      // Draw image node when an image registry is available in the payload.
+      const images = payloadImages ?? null;
+      const assetId = typeof (node as Record<string, unknown>).assetId === "string"
+        ? (node as Record<string, unknown>).assetId as string
+        : null;
+      if (assetId && images && images.has(assetId)) {
+        const img = images.get(assetId);
+        if (img && img.complete && img.naturalWidth > 0) {
+          context.drawImage(img, x, y, width, height);
+          drawnPrimitiveCount += 1;
+        }
+      } else if (fill !== "transparent" && width > 0 && height > 0) {
+        // Draw placeholder rect when image is not yet loaded.
+        context.fillStyle = fill;
+        context.fillRect(x, y, width, height);
+        drawnPrimitiveCount += 1;
+      }
       context.restore();
       continue;
     }
 
     if (shape === "ellipse") {
+      const cx = x + width / HALF_DIVISOR;
+      const cy = y + height / HALF_DIVISOR;
+      const rx = Math.max(0, width / HALF_DIVISOR);
+      const ry = Math.max(0, height / HALF_DIVISOR);
+      // Resolve arc start/end angles from node payload (in degrees, converted to radians).
+      const startAngleDeg = typeof (node as Record<string, unknown>).ellipseStartAngle === "number"
+        ? (node as Record<string, unknown>).ellipseStartAngle as number
+        : 0;
+      const endAngleDeg = typeof (node as Record<string, unknown>).ellipseEndAngle === "number"
+        ? (node as Record<string, unknown>).ellipseEndAngle as number
+        : 360;
+      const startAngleRad = (startAngleDeg * Math.PI) / 180;
+      const endAngleRad = (endAngleDeg * Math.PI) / 180;
+      const sweepRad = endAngleRad - startAngleRad;
+      const isFullCircle = Math.abs(Math.abs(sweepRad) - FULL_CIRCLE_RADIANS) < 0.001;
+
       context.beginPath();
-      context.ellipse(x + width / 2, y + height / 2, Math.max(0, width / 2), Math.max(0, height / 2), 0, 0, Math.PI * 2);
+      if (isFullCircle) {
+        context.ellipse(cx, cy, rx, ry, 0, 0, FULL_CIRCLE_RADIANS);
+      } else {
+        // Draw arc with line-to-center for pie/wedge appearance when filled.
+        if (fill !== "transparent") {
+          context.moveTo(cx, cy);
+          context.ellipse(cx, cy, rx, ry, 0, startAngleRad, endAngleRad, sweepRad < 0);
+          context.closePath();
+        } else {
+          context.ellipse(cx, cy, rx, ry, 0, startAngleRad, endAngleRad, sweepRad < 0);
+        }
+      }
       if (fill !== "transparent") {
         context.fillStyle = fill;
         context.fill();
@@ -232,6 +438,11 @@ function drawRichNodesToCompositionContext(
       if (stroke !== "transparent" && strokeWidth > 0) {
         context.strokeStyle = stroke;
         context.lineWidth = strokeWidth;
+        // For non-full arcs, redraw the arc outline without the center line.
+        if (!isFullCircle) {
+          context.beginPath();
+          context.ellipse(cx, cy, rx, ry, 0, startAngleRad, endAngleRad, sweepRad < 0);
+        }
         context.stroke();
         drawnPrimitiveCount += 1;
       }
@@ -270,7 +481,12 @@ function drawRichNodesToCompositionContext(
         context.restore();
         continue;
       }
-      if (pathDrawPlan.shouldClosePath) {
+      // Respect explicit closed property from the node payload, falling back
+      // to the path-draw-plan's geometry-based closed detection.
+      const nodeClosed = typeof (node as Record<string, unknown>).closed === "boolean"
+        ? (node as Record<string, unknown>).closed as boolean
+        : pathDrawPlan.shouldClosePath;
+      if (nodeClosed) {
         context.closePath();
       }
       if (fill !== "transparent" && shape !== "line") {
@@ -288,18 +504,140 @@ function drawRichNodesToCompositionContext(
       continue;
     }
 
-    if (fill !== "transparent" && width > 0 && height > 0) {
-      context.fillStyle = fill;
-      context.fillRect(x, y, width, height);
-      drawnPrimitiveCount += 1;
-    }
-    if (stroke !== "transparent" && strokeWidth > 0 && width > 0 && height > 0) {
-      context.strokeStyle = stroke;
-      context.lineWidth = strokeWidth;
-      context.strokeRect(x, y, width, height);
-      drawnPrimitiveCount += 1;
+    // Default rect rendering with optional rounded corners.
+    if (width > 0 && height > 0) {
+      const cr = typeof (node as Record<string, unknown>).cornerRadius === "number"
+        ? (node as Record<string, unknown>).cornerRadius as number
+        : 0;
+      const radii = (node as Record<string, unknown>).cornerRadii as
+        | { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number }
+        | undefined;
+      const hasRoundedCorners = cr > 0 || (radii && (
+        (radii.topLeft ?? 0) > 0 || (radii.topRight ?? 0) > 0 ||
+        (radii.bottomRight ?? 0) > 0 || (radii.bottomLeft ?? 0) > 0
+      ));
+
+      if (hasRoundedCorners) {
+        // Use per-corner radii when available, falling back to uniform radius.
+        const tl = radii?.topLeft ?? cr;
+        const tr = radii?.topRight ?? cr;
+        const br = radii?.bottomRight ?? cr;
+        const bl = radii?.bottomLeft ?? cr;
+        context.beginPath();
+        context.moveTo(x + tl, y);
+        context.lineTo(x + width - tr, y);
+        context.arcTo(x + width, y, x + width, y + tr, Math.max(0, tr));
+        context.lineTo(x + width, y + height - br);
+        context.arcTo(x + width, y + height, x + width - br, y + height, Math.max(0, br));
+        context.lineTo(x + bl, y + height);
+        context.arcTo(x, y + height, x, y + height - bl, Math.max(0, bl));
+        context.lineTo(x, y + tl);
+        context.arcTo(x, y, x + tl, y, Math.max(0, tl));
+        context.closePath();
+        if (fill !== "transparent") {
+          context.fillStyle = fill;
+          context.fill();
+          drawnPrimitiveCount += 1;
+        }
+        if (stroke !== "transparent" && strokeWidth > 0) {
+          context.strokeStyle = stroke;
+          context.lineWidth = strokeWidth;
+          context.stroke();
+          drawnPrimitiveCount += 1;
+        }
+      } else {
+        if (fill !== "transparent") {
+          context.fillStyle = fill;
+          context.fillRect(x, y, width, height);
+          drawnPrimitiveCount += 1;
+        }
+        if (stroke !== "transparent" && strokeWidth > 0) {
+          context.strokeStyle = stroke;
+          context.lineWidth = strokeWidth;
+          context.strokeRect(x, y, width, height);
+          drawnPrimitiveCount += 1;
+        }
+      }
     }
     context.restore();
+  }
+
+  // Draw overlay instructions on top of scene nodes.
+  if (payload.overlays && payload.overlays.length > 0) {
+    const sorted = [...payload.overlays].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+    for (const overlay of sorted) {
+      context.save();
+      const strokeColor = overlay.strokeColor ?? "transparent";
+      const strokeW = overlay.strokeWidth ?? 1;
+      const fillColor = overlay.fillColor ?? "transparent";
+      const fillAlpha = overlay.fillOpacity ?? 1;
+      const dash = overlay.strokeDash;
+
+      if (overlay.primitive === "polyline" && overlay.points && overlay.points.length >= 2) {
+        context.beginPath();
+        context.moveTo(overlay.points[0].x, overlay.points[0].y);
+        for (let i = 1; i < overlay.points.length; i++) {
+          context.lineTo(overlay.points[i].x, overlay.points[i].y);
+        }
+        if (fillColor !== "transparent") {
+          context.globalAlpha = fillAlpha;
+          context.fillStyle = fillColor;
+          context.fill();
+          context.globalAlpha = 1;
+          drawnPrimitiveCount += 1;
+        }
+        if (strokeColor !== "transparent" && strokeW > 0) {
+          context.strokeStyle = strokeColor;
+          context.lineWidth = strokeW;
+          if (dash && dash.length > 0) {
+            context.setLineDash(dash);
+          }
+          context.stroke();
+          if (dash) {
+            context.setLineDash([]);
+          }
+          drawnPrimitiveCount += 1;
+        }
+      } else if (overlay.primitive === "rect" && overlay.bounds) {
+        const b = overlay.bounds;
+        if (fillColor !== "transparent") {
+          context.globalAlpha = fillAlpha;
+          context.fillStyle = fillColor;
+          context.fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+          context.globalAlpha = 1;
+          drawnPrimitiveCount += 1;
+        }
+        if (strokeColor !== "transparent" && strokeW > 0) {
+          context.strokeStyle = strokeColor;
+          context.lineWidth = strokeW;
+          if (dash && dash.length > 0) {
+            context.setLineDash(dash);
+          }
+          context.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+          if (dash) {
+            context.setLineDash([]);
+          }
+          drawnPrimitiveCount += 1;
+        }
+      } else if (overlay.primitive === "line" && overlay.points && overlay.points.length === 2) {
+        context.beginPath();
+        context.moveTo(overlay.points[0].x, overlay.points[0].y);
+        context.lineTo(overlay.points[1].x, overlay.points[1].y);
+        if (strokeColor !== "transparent" && strokeW > 0) {
+          context.strokeStyle = strokeColor;
+          context.lineWidth = strokeW;
+          if (dash && dash.length > 0) {
+            context.setLineDash(dash);
+          }
+          context.stroke();
+          if (dash) {
+            context.setLineDash([]);
+          }
+          drawnPrimitiveCount += 1;
+        }
+      }
+      context.restore();
+    }
   }
 
   context.restore();
@@ -426,16 +764,30 @@ function presentCompositionTexture(
   }
   context.bindBuffer(context.ARRAY_BUFFER, buffer);
   context.bufferData(context.ARRAY_BUFFER, vertices, context.STATIC_DRAW);
-  const stride = 4 * Float32Array.BYTES_PER_ELEMENT;
+  const stride = QUAD_VERTEX_STRIDE_COMPONENT_COUNT * Float32Array.BYTES_PER_ELEMENT;
   const positionLocation = context.getAttribLocation(program, "aPosition");
   const uvLocation = context.getAttribLocation(program, "aUv");
   if (positionLocation >= 0) {
     context.enableVertexAttribArray(positionLocation);
-    context.vertexAttribPointer(positionLocation, 2, context.FLOAT, false, stride, 0);
+    context.vertexAttribPointer(
+      positionLocation,
+      ATTRIBUTE_COMPONENT_COUNT,
+      context.FLOAT,
+      false,
+      stride,
+      0,
+    );
   }
   if (uvLocation >= 0) {
     context.enableVertexAttribArray(uvLocation);
-    context.vertexAttribPointer(uvLocation, 2, context.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
+    context.vertexAttribPointer(
+      uvLocation,
+      ATTRIBUTE_COMPONENT_COUNT,
+      context.FLOAT,
+      false,
+      stride,
+      ATTRIBUTE_COMPONENT_COUNT * Float32Array.BYTES_PER_ELEMENT,
+    );
   }
 
   const texture = context.createTexture();
@@ -454,7 +806,7 @@ function presentCompositionTexture(
   if (textureUniform) {
     context.uniform1i(textureUniform, 0);
   }
-  context.drawArrays(context.TRIANGLE_STRIP, 0, 4);
+  context.drawArrays(context.TRIANGLE_STRIP, 0, TRIANGLE_STRIP_VERTEX_COUNT);
   return true;
 }
 
@@ -487,6 +839,7 @@ export function createWebGLBackendAdapter(
 
   /**
    * Resolves WebGL rendering context from the active surface.
+    * @param nextSurface Surface payload that may contain a WebGL-capable canvas.
    */
   function resolveContext(nextSurface: EngineBackendSurface) {
     const canvas = nextSurface.canvas;
@@ -505,7 +858,7 @@ export function createWebGLBackendAdapter(
    * @param payloadSignature Stable payload signature used for lightweight reuse heuristics.
    * @param payloadRectCount Rect count sampled from current payload for budget/caching diagnostics.
    * @param webglFeatureCapabilityGateReason Deterministic feature capability reason emitted for this frame.
-    * @param meshSubmissionDiagnostics Optional mesh submission counters emitted by native mesh presenter.
+  * @param meshSubmissionDiagnostics Optional mesh submission counters emitted by native mesh presenter.
    */
   function publishWebGLDiagnostics(
     renderPath: "model-complete" | "packet" | "none",
@@ -518,7 +871,11 @@ export function createWebGLBackendAdapter(
     lastPayloadSignature = payloadSignature;
     const cacheHitCount = frameReuseHit ? 1 : 0;
     const cacheMissCount = frameReuseHit ? 0 : 1;
-    const budgetPressure = payloadRectCount > 256 ? "high" : payloadRectCount > 64 ? "medium" : "low";
+    const budgetPressure = payloadRectCount > PAYLOAD_RECT_COUNT_HIGH_THRESHOLD
+      ? "high"
+      : payloadRectCount > PAYLOAD_RECT_COUNT_MEDIUM_THRESHOLD
+        ? "medium"
+        : "low";
     hooks?.onBackendDiagnostics?.({
       webglRenderPath: renderPath,
       webgpuRenderPath: "hybrid-webgl",
@@ -534,54 +891,84 @@ export function createWebGLBackendAdapter(
       webglNativeMeshPipelineCompileCount: meshSubmissionDiagnostics?.pipelineCompileCount ?? 0,
       webglNativeMeshPipelineReuseCount: meshSubmissionDiagnostics?.pipelineReuseCount ?? 0,
       webglNativeMeshRejectedCount: meshSubmissionDiagnostics?.rejectedMeshCount ?? 0,
-      webglNativeMeshRejectedInvalidPositionCount: meshSubmissionDiagnostics?.rejectedMeshInvalidPositionCount ?? 0,
-      webglNativeMeshRejectedInvalidIndexCount: meshSubmissionDiagnostics?.rejectedMeshInvalidIndexCount ?? 0,
-      webglNativeMeshRejectedInsufficientStreamCount: meshSubmissionDiagnostics?.rejectedMeshInsufficientStreamCount ?? 0,
-      webglNativeMeshRejectedUnsupportedTopologyCount: meshSubmissionDiagnostics?.rejectedMeshUnsupportedTopologyCount ?? 0,
+      webglNativeMeshRejectedInvalidPositionCount:
+        meshSubmissionDiagnostics?.rejectedMeshInvalidPositionCount ?? 0,
+      webglNativeMeshRejectedInvalidIndexCount:
+        meshSubmissionDiagnostics?.rejectedMeshInvalidIndexCount ?? 0,
+      webglNativeMeshRejectedInsufficientStreamCount:
+        meshSubmissionDiagnostics?.rejectedMeshInsufficientStreamCount ?? 0,
+      webglNativeMeshRejectedUnsupportedTopologyCount:
+        meshSubmissionDiagnostics?.rejectedMeshUnsupportedTopologyCount ?? 0,
       webglNativeMeshSupportedTopologies: meshSubmissionDiagnostics?.supportedTopologies ?? ["triangles"],
       webglNativeMeshRejectedTopologies: meshSubmissionDiagnostics?.rejectedTopologies ?? [],
       webglNativeMeshLineTopologyPlannedCount: meshSubmissionDiagnostics?.lineTopologyPlannedCount ?? 0,
-      webglNativeMeshLineTopologyPreflightAttemptedCount: meshSubmissionDiagnostics?.lineTopologyPreflightAttemptedCount ?? 0,
-      webglNativeMeshLineTopologyPreflightPassedCount: meshSubmissionDiagnostics?.lineTopologyPreflightPassedCount ?? 0,
-      webglNativeMeshLineTopologyPreflightRejectedCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedCount ?? 0,
-      webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInvalidPositionCount ?? 0,
-      webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInvalidIndexCount ?? 0,
-      webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount: meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInsufficientStreamCount ?? 0,
-      webglNativeMeshLineTopologyDrawPlanAttemptedCount: meshSubmissionDiagnostics?.lineTopologyDrawPlanAttemptedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightAttemptedCount:
+        meshSubmissionDiagnostics?.lineTopologyPreflightAttemptedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightPassedCount:
+        meshSubmissionDiagnostics?.lineTopologyPreflightPassedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedCount:
+        meshSubmissionDiagnostics?.lineTopologyPreflightRejectedCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedInvalidPositionCount:
+        meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInvalidPositionCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedInvalidIndexCount:
+        meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInvalidIndexCount ?? 0,
+      webglNativeMeshLineTopologyPreflightRejectedInsufficientStreamCount:
+        meshSubmissionDiagnostics?.lineTopologyPreflightRejectedInsufficientStreamCount ?? 0,
+      webglNativeMeshLineTopologyDrawPlanAttemptedCount:
+        meshSubmissionDiagnostics?.lineTopologyDrawPlanAttemptedCount ?? 0,
       webglNativeMeshLineTopologyDrawPlanCommandCount: meshSubmissionDiagnostics?.lineTopologyDrawPlanCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionDeferredCount: meshSubmissionDiagnostics?.lineTopologySubmissionDeferredCount ?? 0,
-      webglNativeMeshLineTopologySubmissionAttemptedCount: meshSubmissionDiagnostics?.lineTopologySubmissionAttemptedCount ?? 0,
-      webglNativeMeshLineTopologySubmissionAttemptedCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionAttemptedCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionSucceededCount: meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCount ?? 0,
-      webglNativeMeshLineTopologySubmissionSucceededCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionCommandSuccessRate: meshSubmissionDiagnostics?.lineTopologySubmissionCommandSuccessRate ?? 0,
-      webglNativeMeshLineTopologySubmissionPlanCoverageRate: meshSubmissionDiagnostics?.lineTopologySubmissionPlanCoverageRate ?? 0,
+      webglNativeMeshLineTopologySubmissionDeferredCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionDeferredCount ?? 0,
+      webglNativeMeshLineTopologySubmissionAttemptedCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionAttemptedCount ?? 0,
+      webglNativeMeshLineTopologySubmissionAttemptedCommandCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionAttemptedCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionSucceededCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCount ?? 0,
+      webglNativeMeshLineTopologySubmissionSucceededCommandCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionCommandSuccessRate:
+        meshSubmissionDiagnostics?.lineTopologySubmissionCommandSuccessRate ?? 0,
+      webglNativeMeshLineTopologySubmissionPlanCoverageRate:
+        meshSubmissionDiagnostics?.lineTopologySubmissionPlanCoverageRate ?? 0,
       webglNativeMeshLineTopologySubmissionDrawPlanWastedCommandCount:
         meshSubmissionDiagnostics?.lineTopologySubmissionDrawPlanWastedCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionFailedCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedCount ?? 0,
-      webglNativeMeshLineTopologySubmissionFailedCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionGateBlockedCount: meshSubmissionDiagnostics?.lineTopologySubmissionGateBlockedCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailedCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedCommandCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailedCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionGateBlockedCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionGateBlockedCount ?? 0,
       webglNativeMeshLineTopologySubmissionGateState: meshSubmissionDiagnostics?.lineTopologySubmissionGateState ?? "disabled",
       webglNativeMeshLineTopologySubmissionOutcome: meshSubmissionDiagnostics?.lineTopologySubmissionOutcome ?? "none",
-      webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedMissingLinesPrimitiveCount ?? 0,
-      webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedMissingLinesPrimitiveCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedInsufficientStreamCount ?? 0,
-      webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount: meshSubmissionDiagnostics?.lineTopologySubmissionFailedInsufficientStreamCommandCount ?? 0,
-      webglNativeMeshLineTopologySubmissionFailureReason: meshSubmissionDiagnostics?.lineTopologySubmissionFailureReason ?? "none",
-      webglNativeMeshLineTopologySubmissionFailureSummary: meshSubmissionDiagnostics?.lineTopologySubmissionFailureSummary ?? {
-        failedCount: 0,
-        latestReason: "none",
-        missingLinesPrimitiveCount: 0,
-        insufficientStreamCount: 0,
-      },
-      webglNativeMeshLineTopologySubmissionEfficiencySummary: meshSubmissionDiagnostics?.lineTopologySubmissionEfficiencySummary ?? {
-        commandSuccessRate: 0,
-        planCoverageRate: 0,
-        drawPlanWastedCommandCount: 0,
-      },
+      webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailedMissingLinesPrimitiveCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedMissingLinesPrimitiveCommandCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailedMissingLinesPrimitiveCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailedInsufficientStreamCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailedInsufficientStreamCommandCount:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailedInsufficientStreamCommandCount ?? 0,
+      webglNativeMeshLineTopologySubmissionFailureReason:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailureReason ?? "none",
+      webglNativeMeshLineTopologySubmissionFailureSummary:
+        meshSubmissionDiagnostics?.lineTopologySubmissionFailureSummary ?? {
+          failedCount: 0,
+          latestReason: "none",
+          missingLinesPrimitiveCount: 0,
+          insufficientStreamCount: 0,
+        },
+      webglNativeMeshLineTopologySubmissionEfficiencySummary:
+        meshSubmissionDiagnostics?.lineTopologySubmissionEfficiencySummary ?? {
+          commandSuccessRate: 0,
+          planCoverageRate: 0,
+          drawPlanWastedCommandCount: 0,
+        },
       webglNativeMeshCapabilityGateCount: meshSubmissionDiagnostics?.submissionCapabilityGateCount ?? 0,
       activeLightCount: 0,
-      meshDrawCallCount: (meshSubmissionDiagnostics?.submittedMeshCount ?? 0) + (meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCount ?? 0),
+      meshDrawCallCount:
+        (meshSubmissionDiagnostics?.submittedMeshCount ?? 0)
+        + (meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCount ?? 0),
       shadowMapCount: 0,
       shadowDrawCallCount: 0,
       shadowTextureBytes: 0,
@@ -607,41 +994,45 @@ export function createWebGLBackendAdapter(
         : ENGINE_BACKEND_CACHE_FALLBACK_REASON.NONE,
       tileCacheSize: payloadRectCount,
       tileDirtyCount: cacheMissCount > 0 ? payloadRectCount : 0,
-      tileCacheTotalBytes: payloadRectCount * 64,
+      tileCacheTotalBytes: payloadRectCount * GL_TILE_BYTES_PER_RECT,
       tileUploadCount: cacheMissCount > 0 ? payloadRectCount : 0,
       tileRenderCount: payloadRectCount,
       visibleTileCount: payloadRectCount,
       tileSchedulerPendingCount: 0,
-      gpuTextureBytes: payloadRectCount * 64,
-      imageTextureBytes: payloadRectCount * 32,
-      webglPreviewReuseMs: frameReuseHit ? 0.1 : 0,
-      webglPlanBuildMs: 0.05 * payloadRectCount,
-      webglTextureUploadMs: cacheMissCount > 0 ? 0.08 * payloadRectCount : 0,
-      webglDrawSubmitMs: 0.04 * payloadRectCount,
+      gpuTextureBytes: payloadRectCount * GL_TILE_BYTES_PER_RECT,
+      imageTextureBytes: payloadRectCount * GL_IMAGE_BYTES_PER_RECT,
+      webglPreviewReuseMs: frameReuseHit ? GL_PREVIEW_REUSE_MS : 0,
+      webglPlanBuildMs: GL_PLAN_BUILD_MS_PER_RECT * payloadRectCount,
+      webglTextureUploadMs: cacheMissCount > 0 ? GL_TEXTURE_UPLOAD_MS_PER_RECT * payloadRectCount : 0,
+      webglDrawSubmitMs: GL_DRAW_SUBMIT_MS_PER_RECT * payloadRectCount,
       webglSnapshotCaptureMs: 0,
-      webglModelRenderMs: renderPath === "model-complete" ? 0.2 : 0,
+      webglModelRenderMs: renderPath === "model-complete" ? GL_MODEL_RENDER_MS : 0,
       webglPreviewExecutionMode: frameReuseHit ? "affine-snapshot" : "temporal-reprojection-required",
       webglPreviewExecutionSource: "backend-native",
       webglBudgetPressure: budgetPressure,
       webglBudgetPressureReason: resolveBudgetPressureReason(payloadRectCount),
       webglBudgetPressureSource: "backend-native",
       webglDrawSubmitBudgetMs: 4,
-      webglTextureUploadBudgetBytes: 32768,
-      webglTextureUploadTotalBudgetBytes: 131072,
-      webglImageTextureUploadBudgetCount: 32,
-      webglTextTextureUploadBudgetCount: 24,
+      webglTextureUploadBudgetBytes: GL_TEXTURE_UPLOAD_BUDGET_BYTES,
+      webglTextureUploadTotalBudgetBytes: GL_TEXTURE_UPLOAD_TOTAL_BUDGET_BYTES,
+      webglImageTextureUploadBudgetCount: GL_IMAGE_TEXTURE_UPLOAD_BUDGET_COUNT,
+      webglTextTextureUploadBudgetCount: GL_TEXT_TEXTURE_UPLOAD_BUDGET_COUNT,
       webglTilePreloadBudgetMs: 1,
-      webglTilePreloadBudgetUploads: 8,
+      webglTilePreloadBudgetUploads: GL_PRELOAD_BUDGET_UPLOADS,
       webglOverlayPassBudgetMs: 1,
-      webglDrawSubmitBudgetExceeded: payloadRectCount > 256,
-      webglTextureUploadBudgetExceeded: payloadRectCount * 64 > 32768,
+      webglDrawSubmitBudgetExceeded: payloadRectCount > PAYLOAD_RECT_COUNT_HIGH_THRESHOLD,
+      webglTextureUploadBudgetExceeded: payloadRectCount * GL_TILE_BYTES_PER_RECT > GL_TEXTURE_UPLOAD_BUDGET_BYTES,
       webglOverlayBudgetExceeded: false,
       webglPredictorDirectionX: 0,
       webglPredictorDirectionY: 0,
       webglPredictorSpeedPxPerSec: 0,
-      webglPredictorConfidence: frameReuseHit ? 0.8 : 0.2,
-      webglPredictorPreloadRing: payloadRectCount > 64 ? 2 : 1,
-      webglPredictorOverscanCssPx: payloadRectCount > 64 ? 48 : 24,
+      webglPredictorConfidence: frameReuseHit ? GL_PREDICTOR_CONFIDENCE_HIT : GL_PREDICTOR_CONFIDENCE_MISS,
+      webglPredictorPreloadRing: payloadRectCount > PAYLOAD_RECT_COUNT_MEDIUM_THRESHOLD
+        ? GL_PREDICTOR_PRELOAD_RING_HIGH
+        : GL_PREDICTOR_PRELOAD_RING_LOW,
+      webglPredictorOverscanCssPx: payloadRectCount > PAYLOAD_RECT_COUNT_MEDIUM_THRESHOLD
+        ? GL_PREDICTOR_OVERSCAN_HIGH
+        : GL_PREDICTOR_OVERSCAN_LOW,
       webglPredictivePreloadEnqueueCount: payloadRectCount,
       webglPredictivePreloadProcessedCount: payloadRectCount,
       webglPredictivePreloadPrunedCount: 0,
@@ -698,6 +1089,46 @@ export function createWebGLBackendAdapter(
       const featureCapabilityGateReason = resolveFeatureCapabilityGateReason(payload?.nodes);
       let renderPath: "model-complete" | "packet" | "none" = "none";
       let meshSubmissionDiagnostics: WebGLNativeMeshSubmissionDiagnostics | undefined;
+
+      // Model-complete path takes priority for style-rich nodes (stroke, shadow,
+      // gradient, non-rect shapes, clips). This mirrors the WebGPU backend order
+      // and ensures correct rendering of vector2D document styles.
+      if (payload && payload.needsComposition !== false) {
+        const composition = resolveOffscreenCompositionContext(deviceWidth, deviceHeight);
+        if (composition) {
+          const composed = drawRichNodesToCompositionContext(
+            composition.context,
+            {
+              translateX: payload.translateX,
+              translateY: payload.translateY,
+              scale: payload.scale,
+              nodes: payload.nodes,
+              images: payload.images,
+              overlays: payload.overlays,
+            },
+            deviceWidth,
+            deviceHeight,
+            dpr,
+          );
+          if (composed && presentCompositionTexture(currentContext, composition.canvas)) {
+            renderPath = "model-complete";
+            publishWebGLDiagnostics(
+              renderPath,
+              payloadSignature,
+              payloadRectCount,
+              featureCapabilityGateReason,
+              meshSubmissionDiagnostics,
+            );
+            hooks?.onPresentCommitted?.(timestampMs);
+            return;
+          }
+          // AI-TEMP: model-complete can resolve without visible primitives on some scenes; remove when node payload contract guarantees drawable visibility; ref DEX-065.4.
+        }
+      }
+
+      // Mesh submission path serves as the fast path for simple filled rects
+      // (needsComposition === false) and as fallback when model-complete is
+      // unavailable (no OffscreenCanvas / composition context).
       if (payload) {
         meshSubmissionDiagnostics = presentNativeMeshPrimitives(
           currentContext,
@@ -726,36 +1157,6 @@ export function createWebGLBackendAdapter(
           );
           hooks?.onPresentCommitted?.(timestampMs);
           return;
-        }
-      }
-      if (payload) {
-        const composition = resolveOffscreenCompositionContext(deviceWidth, deviceHeight);
-        if (composition) {
-          const composed = drawRichNodesToCompositionContext(
-            composition.context,
-            {
-              translateX: payload.translateX,
-              translateY: payload.translateY,
-              scale: payload.scale,
-              nodes: payload.nodes,
-            },
-            deviceWidth,
-            deviceHeight,
-            dpr,
-          );
-          if (composed && presentCompositionTexture(currentContext, composition.canvas)) {
-            renderPath = "model-complete";
-            publishWebGLDiagnostics(
-              renderPath,
-              payloadSignature,
-              payloadRectCount,
-              featureCapabilityGateReason,
-              meshSubmissionDiagnostics,
-            );
-            hooks?.onPresentCommitted?.(timestampMs);
-            return;
-          }
-          // AI-TEMP: model-complete can resolve without visible primitives on some scenes; remove when node payload contract guarantees drawable visibility; ref DEX-065.4.
         }
       }
       if (

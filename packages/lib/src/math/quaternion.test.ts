@@ -7,7 +7,7 @@ import {
   normalizeQuat,
   quatFromEuler,
   slerpQuats,
-} from "./quaternion";
+} from "./quaternion.ts";
 
 /** Verifies identity quaternion has w=1. */
 test("identity quaternion has w equals 1", () => {

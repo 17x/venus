@@ -34,7 +34,7 @@
     "report:render-parity-runtime-replay-batch-gate:strict:resource-rate": "pnpm run report:render-parity-runtime-replay-batch && pnpm run report:render-parity-runtime-replay-history-gate:strict:resource-rate",
     "report:render-parity-summary-diff": "pnpm dlx tsx ./scripts/render-parity-summary-diff-report.ts",
     "report:render-parity-summary-trend": "pnpm dlx tsx ./scripts/render-parity-summary-trend-report.ts",
-    "test:product-specs": "node --test ./src/testing/product-specs/**/*.test.ts",
+    "test:product-specs": "pnpm dlx tsx --test ./src/testing/product-specs/**/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -128,6 +128,8 @@ export function createEngineRuntimeShell(
     /**
      * Preserves existing surface metadata (for example canvas context hooks)
      * so backend present paths remain connected after viewport-only resizes.
+      * @param width Next surface width in CSS pixels.
+      * @param height Next surface height in CSS pixels.
      */
     resize(width, height) {
       surface = {

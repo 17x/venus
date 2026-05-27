@@ -12,7 +12,7 @@ import {
   invertMatrix4,
   multiplyMatrices4,
   transformPoint3D,
-} from "./matrix4";
+} from "./matrix4.ts";
 
 /** Verifies identity matrix leaves a point unchanged. */
 test("identity matrix transforms point to itself", () => {

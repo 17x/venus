@@ -9,6 +9,9 @@ import type {
   EngineSpatialQueryResult,
 } from "./spatialQuery.contract";
 
+const SPATIAL_MARGIN_MULTIPLIER = 2;
+const CENTER_HALF_DIVISOR = 2;
+
 /**
  * Creates spatial-query module backed by canonical spatial index adapter.
  */
@@ -106,8 +109,8 @@ function resolvePointCandidateIds(
   const bounds: EngineSpatialQueryBounds = {
     x: point.x - clampedTolerance,
     y: point.y - clampedTolerance,
-    width: clampedTolerance * 2,
-    height: clampedTolerance * 2,
+    width: clampedTolerance * SPATIAL_MARGIN_MULTIPLIER,
+    height: clampedTolerance * SPATIAL_MARGIN_MULTIPLIER,
   };
   const candidateIds = resolveQueryNodeIds(nodes, bounds);
   return candidateIds
@@ -116,8 +119,8 @@ function resolvePointCandidateIds(
       if (!node) {
         return null;
       }
-      const centerX = node.x + node.width / 2;
-      const centerY = node.y + node.height / 2;
+        const centerX = node.x + node.width / CENTER_HALF_DIVISOR;
+        const centerY = node.y + node.height / CENTER_HALF_DIVISOR;
       const dx = centerX - point.x;
       const dy = centerY - point.y;
       return {

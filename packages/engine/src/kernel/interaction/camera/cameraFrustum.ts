@@ -1,5 +1,14 @@
 import type { EngineCameraState } from "./cameraCommandProtocol";
 
+const DEFAULT_PERSPECTIVE_FOV_Y = 50;
+const DEFAULT_PROJECTION_NEAR = 0.1;
+const DEFAULT_PROJECTION_FAR = 5000;
+const DEGREES_PER_HALF_CIRCLE = 180;
+const FOV_HALF_DIVISOR = 0.5;
+const DEFAULT_ORTHOGRAPHIC_HALF_SIZE = 600;
+const PLANE_NORMAL_LENGTH_EPSILON = 1e-12;
+const Z_IDX = 2;
+
 /**
  * Declares one frustum plane in Hessian normal form: normal · point + offset = 0.
  * Points where dot(normal, point) + offset > 0 lie inside the frustum half-space.
@@ -64,13 +73,13 @@ export function deriveCameraFrustum(
   aspect: number,
 ): EngineCameraFrustum {
   const projectionMode = state.projectionMode ?? "perspective";
-  const fovY = state.perspectiveFovY ?? 50;
-  const near = state.near ?? 0.1;
-  const far = state.far ?? 5000;
+  const fovY = state.perspectiveFovY ?? DEFAULT_PERSPECTIVE_FOV_Y;
+  const near = state.near ?? DEFAULT_PROJECTION_NEAR;
+  const far = state.far ?? DEFAULT_PROJECTION_FAR;
 
   // Compute camera world-space basis vectors from yaw/pitch orbit model.
-  const yawRad = (state.yaw * Math.PI) / 180;
-  const pitchRad = (state.pitch * Math.PI) / 180;
+  const yawRad = (state.yaw * Math.PI) / DEGREES_PER_HALF_CIRCLE;
+  const pitchRad = (state.pitch * Math.PI) / DEGREES_PER_HALF_CIRCLE;
 
   const cosYaw = Math.cos(yawRad);
   const sinYaw = Math.sin(yawRad);
@@ -111,11 +120,11 @@ export function deriveCameraFrustum(
   let nearHalfV: number;
 
   if (projectionMode === "perspective") {
-    const fovYRad = (fovY * Math.PI) / 180;
-    nearHalfV = near * Math.tan(fovYRad * 0.5);
+    const fovYRad = (fovY * Math.PI) / DEGREES_PER_HALF_CIRCLE;
+    nearHalfV = near * Math.tan(fovYRad * FOV_HALF_DIVISOR);
     nearHalfH = nearHalfV * aspect;
   } else {
-    const halfSize = state.orthographicHalfSize ?? 600;
+    const halfSize = state.orthographicHalfSize ?? DEFAULT_ORTHOGRAPHIC_HALF_SIZE;
     nearHalfV = halfSize;
     nearHalfH = halfSize * aspect;
   }
@@ -145,29 +154,29 @@ export function deriveCameraFrustum(
 
   const left = planeFromPoints(
     cameraX, cameraY, cameraZ,
-    planeTopLeft[0], planeTopLeft[1], planeTopLeft[2],
-    planeBottomLeft[0], planeBottomLeft[1], planeBottomLeft[2],
+    planeTopLeft[0], planeTopLeft[1], planeTopLeft[Z_IDX],
+    planeBottomLeft[0], planeBottomLeft[1], planeBottomLeft[Z_IDX],
     rightX, rightY, rightZ,
   );
 
   const rightPlane = planeFromPoints(
     cameraX, cameraY, cameraZ,
-    planeBottomRight[0], planeBottomRight[1], planeBottomRight[2],
-    planeTopRight[0], planeTopRight[1], planeTopRight[2],
+    planeBottomRight[0], planeBottomRight[1], planeBottomRight[Z_IDX],
+    planeTopRight[0], planeTopRight[1], planeTopRight[Z_IDX],
     -rightX, -rightY, -rightZ,
   );
 
   const bottom = planeFromPoints(
     cameraX, cameraY, cameraZ,
-    planeBottomRight[0], planeBottomRight[1], planeBottomRight[2],
-    planeBottomLeft[0], planeBottomLeft[1], planeBottomLeft[2],
+    planeBottomRight[0], planeBottomRight[1], planeBottomRight[Z_IDX],
+    planeBottomLeft[0], planeBottomLeft[1], planeBottomLeft[Z_IDX],
     upX, upY, upZ,
   );
 
   const top = planeFromPoints(
     cameraX, cameraY, cameraZ,
-    planeTopLeft[0], planeTopLeft[1], planeTopLeft[2],
-    planeTopRight[0], planeTopRight[1], planeTopRight[2],
+    planeTopLeft[0], planeTopLeft[1], planeTopLeft[Z_IDX],
+    planeTopRight[0], planeTopRight[1], planeTopRight[Z_IDX],
     -upX, -upY, -upZ,
   );
 
@@ -234,7 +243,7 @@ function planeFromPoints(
   const cy = e1z * e2x - e1x * e2z;
   const cz = e1x * e2y - e1y * e2x;
   const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
-  if (len < 1e-12) {
+  if (len < PLANE_NORMAL_LENGTH_EPSILON) {
     return { normalX: 0, normalY: 0, normalZ: 1, offset: 0 };
   }
   // Flip cross-product result if it points opposite to the desired inward direction.

@@ -5,6 +5,8 @@ import type {
   EngineSurface,
 } from "./public-types";
 
+const DEFAULT_OVERSCAN_BORDER_PX = 96;
+
 /**
  * Boolean-or-object toggle pattern used by staged performance options.
  */
@@ -102,7 +104,7 @@ export function resolveEnginePerformanceOptions(
   if (typeof performance === "boolean") {
     return {
       culling: performance,
-      overscanBorderPx: performance ? 96 : 0,
+        overscanBorderPx: performance ? DEFAULT_OVERSCAN_BORDER_PX : 0,
     };
   }
 
@@ -115,9 +117,9 @@ export function resolveEnginePerformanceOptions(
       : (cullingToggle?.enabled ?? true);
   const overscanBorderPx =
     typeof overscanToggle === "boolean"
-      ? (overscanToggle ? 96 : 0)
-      : (overscanToggle?.enabled ?? true)
-        ? Math.max(0, overscanToggle?.borderPx ?? 96)
+        ? (overscanToggle ? DEFAULT_OVERSCAN_BORDER_PX : 0)
+        : (overscanToggle?.enabled ?? true)
+          ? Math.max(0, overscanToggle?.borderPx ?? DEFAULT_OVERSCAN_BORDER_PX)
         : 0;
 
   return {

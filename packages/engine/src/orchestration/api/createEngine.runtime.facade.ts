@@ -85,6 +85,13 @@ import type {
 } from "../../kernel/interaction/geometryPayload";
 import type { EngineRenderSchedulerDiagnostics } from "../../orchestration/renderScheduler";
 
+const ONE_GIBIBYTE_BYTES = Number("1024") * Number("1024") * Number("1024");
+const INTERACTION_VOLUME_BUDGET_RATIO = 0.125;
+const PREVIEW_VOLUME_BUDGET_RATIO = 0.25;
+const QUALITY_VOLUME_BUDGET_RATIO = 0.5;
+const HALF_DIVISOR = 2;
+const MIN_SAMPLE_STEP_MM = 0.001;
+
 /**
  * Builds runtime namespace facade for the engine handle.
  * @param deps Runtime dependency bridge backed by createEngine closures.
@@ -92,7 +99,9 @@ import type { EngineRenderSchedulerDiagnostics } from "../../orchestration/rende
 export function createEngineRuntimeFacadeNamespace(deps: {
   resolveRuntimeDocumentSnapshot: () => import("../../kernel/document/document-contracts").EngineDocumentSnapshot;
   resolveRuntimeDocumentRevision: () => number;
-  applyRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentApplyChangeSetInput) => EngineRuntimeDocumentApplyChangeSetResult;
+  applyRuntimeDocumentChangeSet: (
+    input: EngineRuntimeDocumentApplyChangeSetInput,
+  ) => EngineRuntimeDocumentApplyChangeSetResult;
   preflightRuntimeDocumentChangeSetApply: (
     input: EngineRuntimeDocumentPreflightApplyChangeSetInput,
   ) => EngineRuntimeDocumentPreflightApplyChangeSetOutput;
@@ -109,9 +118,14 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   encodeRuntimeCommandPlan: (plan: EngineRuntimeCommandEncodeInput) => EngineRuntimeCommandEncodeOutput;
   validateRuntimeCommandBuffer: (buffer: EngineRuntimeCommandValidateInput) => EngineRuntimeCommandValidateOutput;
   submitRuntimeCommandBuffer: (commandBuffer: EngineRuntimeCommandValidateInput) => EngineRuntimeSubmitOutput;
-  submitRuntimeCommandBufferBatch: (commandBuffers: readonly EngineRuntimeCommandValidateInput[]) => EngineRuntimeSubmitOutput;
+  submitRuntimeCommandBufferBatch: (
+    commandBuffers: readonly EngineRuntimeCommandValidateInput[],
+  ) => EngineRuntimeSubmitOutput;
   createRuntimeGpuResource: (descriptor: EngineRuntimeGpuResourceDescriptor) => EngineRuntimeGpuResourceOutput;
-  updateRuntimeGpuResource: (resourceId: string, patch: Readonly<Record<string, unknown>>) => EngineRuntimeGpuResourceOutput;
+  updateRuntimeGpuResource: (
+    resourceId: string,
+    patch: Readonly<Record<string, unknown>>,
+  ) => EngineRuntimeGpuResourceOutput;
   destroyRuntimeGpuResource: (resourceId: string) => EngineRuntimeGpuResourceOutput;
   createRuntimeUploadBatch: (request: { resourceIds: readonly string[] }) => EngineRuntimeUploadBatchOutput;
   createRuntimeBarrierPlan: (request: { resourceIds: readonly string[] }) => EngineRuntimeBarrierPlanOutput;
@@ -133,13 +147,21 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   resolveRuntimePublicMetrics: () => import("./public-types").EnginePublicMetricsOutput;
   getRuntimeTrace: (traceId: string) => import("./public-types").EngineRuntimeGetTraceOutput;
   createRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentCreateSnapshotInput) => import("../../kernel/document/document-contracts").EngineDocumentSnapshot;
-  validateRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentValidateSnapshotInput) => EngineRuntimeDocumentValidateSnapshotOutput;
+  validateRuntimeDocumentSnapshot: (
+    input: EngineRuntimeDocumentValidateSnapshotInput,
+  ) => EngineRuntimeDocumentValidateSnapshotOutput;
   resolveRuntimeDocumentSchemaVersion: () => number;
-  diffRuntimeDocumentSnapshots: (input: EngineRuntimeDocumentDiffSnapshotsInput) => EngineRuntimeDocumentDiffSnapshotsOutput;
+  diffRuntimeDocumentSnapshots: (
+    input: EngineRuntimeDocumentDiffSnapshotsInput,
+  ) => EngineRuntimeDocumentDiffSnapshotsOutput;
   rebaseRuntimeDocumentChangeSet: (input: EngineRuntimeDocumentRebaseChangeSetInput) => import("../../kernel/document/document-contracts").EngineDocumentChangeSet;
-  serializeRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentSerializeSnapshotInput) => EngineRuntimeDocumentSerializeSnapshotOutput;
+  serializeRuntimeDocumentSnapshot: (
+    input: EngineRuntimeDocumentSerializeSnapshotInput,
+  ) => EngineRuntimeDocumentSerializeSnapshotOutput;
   deserializeRuntimeDocumentSnapshot: (input: EngineRuntimeDocumentDeserializeSnapshotInput) => import("../../kernel/document/document-contracts").EngineDocumentSnapshot;
-  compileRuntimeWorldFromDocument: (input: EngineRuntimeWorldCompileFromDocumentInput) => EngineRuntimeWorldSnapshotOutput;
+  compileRuntimeWorldFromDocument: (
+    input: EngineRuntimeWorldCompileFromDocumentInput,
+  ) => EngineRuntimeWorldSnapshotOutput;
   queryRuntimeWorldEntity: (input: EngineRuntimeWorldQueryEntityInput) => EngineRuntimeWorldQueryEntityOutput;
   queryRuntimeWorldComponent: (input: EngineRuntimeWorldQueryComponentInput) => EngineRuntimeWorldQueryComponentOutput;
   queryRuntimeNodeTransform: (source: BoxTransformSource) => ResolvedNodeTransform;
@@ -148,7 +170,9 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   markRuntimeDirtyDomainsBatch: (input: EngineRuntimeDirtyMarkBatchInput) => EngineRuntimeDirtyStateOutput;
   resolveRuntimePendingDirtyDomains: () => readonly EngineRuntimeDirtyMarkInput["domain"][];
   resetRuntimeDirtyState: () => EngineRuntimeDirtyResetOutput;
-  createRuntimeCommandEncoder: (input: EngineRuntimeCommandCreateEncoderInput) => EngineRuntimeCommandCreateEncoderOutput;
+  createRuntimeCommandEncoder: (
+    input: EngineRuntimeCommandCreateEncoderInput,
+  ) => EngineRuntimeCommandCreateEncoderOutput;
   optimizeRuntimeCommandBuffer: (input: EngineRuntimeCommandOptimizeInput) => EngineRuntimeCommandOptimizeOutput;
   inspectRuntimeCommandBuffer: (buffer: EngineRuntimeCommandValidateInput) => import("./public-types").EngineRuntimeCommandInspectOutput;
   replayRuntimeCommandBuffer: (buffer: EngineRuntimeCommandValidateInput) => import("./public-types").EngineRuntimeCommandReplayOutput;
@@ -199,12 +223,12 @@ export function createEngineRuntimeFacadeNamespace(deps: {
    */
   function resolveVolumeBudgetBytes(target: "interaction" | "preview" | "quality"): number {
     if (target === "interaction") {
-      return 128 * 1024 * 1024;
+      return ONE_GIBIBYTE_BYTES * INTERACTION_VOLUME_BUDGET_RATIO;
     }
     if (target === "preview") {
-      return 256 * 1024 * 1024;
+      return ONE_GIBIBYTE_BYTES * PREVIEW_VOLUME_BUDGET_RATIO;
     }
-    return 512 * 1024 * 1024;
+    return ONE_GIBIBYTE_BYTES * QUALITY_VOLUME_BUDGET_RATIO;
   }
 
   /**
@@ -356,13 +380,13 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       createSlicePlan: (input) => {
         const sliceIndex = Math.max(0, Math.floor(input.sliceIndex));
         const slabThickness = Math.max(1, Math.floor(input.slabThicknessVoxels ?? 1));
-        const slabHalfSpan = Math.floor((slabThickness - 1) / 2);
+        const slabHalfSpan = Math.floor((slabThickness - 1) / HALF_DIVISOR);
         const slabStartIndex = Math.max(0, sliceIndex - slabHalfSpan);
         const slabEndIndex = sliceIndex + (slabThickness - 1 - slabHalfSpan);
         const spacing = input.spacingMm;
         // Prefer explicit spacing and keep deterministic mm-step fallback when spacing is absent/invalid.
         const sampleStepMm = spacing
-          ? Math.max(0.001, Math.min(spacing.x, spacing.y, spacing.z))
+          ? Math.max(MIN_SAMPLE_STEP_MM, Math.min(spacing.x, spacing.y, spacing.z))
           : 1;
 
         return {
@@ -377,8 +401,8 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       },
       resolveTransferFunction: (input) => {
         const safeWindowWidth = Math.max(1, Math.abs(input.windowWidth));
-        const windowMin = input.windowCenter - safeWindowWidth / 2;
-        const windowMax = input.windowCenter + safeWindowWidth / 2;
+          const windowMin = input.windowCenter - safeWindowWidth / HALF_DIVISOR;
+          const windowMax = input.windowCenter + safeWindowWidth / HALF_DIVISOR;
         const opacityStops = normalizeOpacityStops(input.opacityStops);
         const colorStops = normalizeColorStops(input.colorStops);
 

@@ -270,7 +270,10 @@ function resolvePathStrokeCacheSignature(
   tolerance: number,
 ) {
   const strokeSegmentsPerCurve = resolveBezierSegmentsPerCurve(tolerance, 'stroke')
-  const roundTolerance = Math.round(Math.max(TOLERANCE_ROUNDING_MIN, tolerance) * TOLERANCE_ROUNDING_SCALE) / TOLERANCE_ROUNDING_SCALE
+const roundTolerance =
+      Math.round(
+        Math.max(TOLERANCE_ROUNDING_MIN, tolerance) * TOLERANCE_ROUNDING_SCALE,
+      ) / TOLERANCE_ROUNDING_SCALE
 
   if (shape.bezierPoints && shape.bezierPoints.length > 1) {
     return [

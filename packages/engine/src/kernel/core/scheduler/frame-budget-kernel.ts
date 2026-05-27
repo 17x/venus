@@ -72,12 +72,56 @@ export interface EngineFrameBudgetPressureSignals {
   dirtyRegionCountMedium: boolean;
 }
 
+const KB = 1024;
+const MB = KB * KB;
+const BASE_DRAW_SUBMIT_BUDGET_MS = 24;
+const BASE_TEXTURE_UPLOAD_MULTIPLIER = 8;
+const BASE_TEXTURE_UPLOAD_BUDGET_BYTES = BASE_TEXTURE_UPLOAD_MULTIPLIER * MB;
+const BASE_TILE_PRELOAD_BUDGET_MS = 6;
+const BASE_TILE_PRELOAD_MAX_UPLOADS = 6;
+const BASE_OVERLAY_PASS_BUDGET_MS = 2;
+
+const HIGH_SCENE_NODE_THRESHOLD = 18_000;
+const HIGH_TILE_QUEUE_THRESHOLD = 256;
+const HIGH_DIRTY_REGION_THRESHOLD = 24;
+const MEDIUM_SCENE_NODE_THRESHOLD = 8_000;
+const MEDIUM_TILE_QUEUE_THRESHOLD = 96;
+const MEDIUM_DIRTY_REGION_THRESHOLD = 8;
+
+const INTERACTION_DRAW_BUDGET_MS = 10;
+const INTERACTION_TEXTURE_UPLOAD_MULTIPLIER = 2;
+const INTERACTION_TEXTURE_UPLOAD_BUDGET_BYTES = INTERACTION_TEXTURE_UPLOAD_MULTIPLIER * MB;
+const INTERACTION_TILE_PRELOAD_BUDGET_MS = 2;
+const INTERACTION_TILE_PRELOAD_MAX_UPLOADS = 3;
+const INTERACTION_OVERLAY_PASS_BUDGET_MS = 1;
+
+const CAMERA_DRAW_BUDGET_MS = 12;
+const CAMERA_TEXTURE_UPLOAD_MULTIPLIER = 4;
+const CAMERA_TEXTURE_UPLOAD_BUDGET_BYTES = CAMERA_TEXTURE_UPLOAD_MULTIPLIER * MB;
+const CAMERA_TILE_PRELOAD_BUDGET_MS = 3;
+const CAMERA_TILE_PRELOAD_MAX_UPLOADS = 4;
+
+const MIN_DRAW_BUDGET_MS = 8;
+const MIN_TEXTURE_UPLOAD_MULTIPLIER = 512;
+const MIN_TEXTURE_UPLOAD_BUDGET_BYTES = MIN_TEXTURE_UPLOAD_MULTIPLIER * KB;
+const MIN_TILE_PRELOAD_BUDGET_MS = 1;
+const MIN_TILE_PRELOAD_MAX_UPLOADS = 1;
+const MIN_OVERLAY_PASS_BUDGET_MS = 1;
+const HIGH_OVERLAY_PASS_BUDGET_MS = 0;
+const MEDIUM_TEXTURE_CONTRACTION_RATIO = 0.75;
+const HIGH_TEXTURE_CONTRACTION_RATIO = 0.5;
+const MEDIUM_DRAW_BUDGET_DECREMENT_MS = 2;
+const HIGH_DRAW_BUDGET_DECREMENT_MS = 4;
+const MEDIUM_TILE_PRELOAD_DECREMENT = 1;
+const MEDIUM_MAX_UPLOADS_DECREMENT = 1;
+const MEDIUM_OVERLAY_PASS_DECREMENT = 1;
+
 const BASE_BUDGET: EngineFrameBudget = {
-  drawSubmitBudgetMs: 24,
-  textureUploadBudgetBytes: 8 * 1024 * 1024,
-  tilePreloadBudgetMs: 6,
-  tilePreloadMaxUploads: 6,
-  overlayPassBudgetMs: 2,
+  drawSubmitBudgetMs: BASE_DRAW_SUBMIT_BUDGET_MS,
+  textureUploadBudgetBytes: BASE_TEXTURE_UPLOAD_BUDGET_BYTES,
+  tilePreloadBudgetMs: BASE_TILE_PRELOAD_BUDGET_MS,
+  tilePreloadMaxUploads: BASE_TILE_PRELOAD_MAX_UPLOADS,
+  overlayPassBudgetMs: BASE_OVERLAY_PASS_BUDGET_MS,
 };
 
 /**
@@ -88,12 +132,12 @@ export function resolveFrameBudgetPressureSignals(
   input: EngineFrameBudgetBrokerInput,
 ): EngineFrameBudgetPressureSignals {
   return {
-    sceneNodeCountHigh: input.sceneNodeCount >= 18_000,
-    tileQueuePendingHigh: input.tileQueuePendingCount >= 256,
-    dirtyRegionCountHigh: input.dirtyRegionCount >= 24,
-    sceneNodeCountMedium: input.sceneNodeCount >= 8_000,
-    tileQueuePendingMedium: input.tileQueuePendingCount >= 96,
-    dirtyRegionCountMedium: input.dirtyRegionCount >= 8,
+    sceneNodeCountHigh: input.sceneNodeCount >= HIGH_SCENE_NODE_THRESHOLD,
+    tileQueuePendingHigh: input.tileQueuePendingCount >= HIGH_TILE_QUEUE_THRESHOLD,
+    dirtyRegionCountHigh: input.dirtyRegionCount >= HIGH_DIRTY_REGION_THRESHOLD,
+    sceneNodeCountMedium: input.sceneNodeCount >= MEDIUM_SCENE_NODE_THRESHOLD,
+    tileQueuePendingMedium: input.tileQueuePendingCount >= MEDIUM_TILE_QUEUE_THRESHOLD,
+    dirtyRegionCountMedium: input.dirtyRegionCount >= MEDIUM_DIRTY_REGION_THRESHOLD,
   };
 }
 
@@ -167,30 +211,30 @@ export function resolvePhaseBudget(
 
   if (input.phase === "zoom") {
     return {
-      drawSubmitBudgetMs: 10,
-      textureUploadBudgetBytes: 2 * 1024 * 1024,
-      tilePreloadBudgetMs: 2,
-      tilePreloadMaxUploads: 3,
-      overlayPassBudgetMs: 1,
+      drawSubmitBudgetMs: INTERACTION_DRAW_BUDGET_MS,
+      textureUploadBudgetBytes: INTERACTION_TEXTURE_UPLOAD_BUDGET_BYTES,
+      tilePreloadBudgetMs: INTERACTION_TILE_PRELOAD_BUDGET_MS,
+      tilePreloadMaxUploads: INTERACTION_TILE_PRELOAD_MAX_UPLOADS,
+      overlayPassBudgetMs: INTERACTION_OVERLAY_PASS_BUDGET_MS,
     };
   }
 
   if (input.phase === "camera") {
     return {
-      drawSubmitBudgetMs: 12,
-      textureUploadBudgetBytes: 4 * 1024 * 1024,
-      tilePreloadBudgetMs: 3,
-      tilePreloadMaxUploads: 4,
-      overlayPassBudgetMs: 1,
+      drawSubmitBudgetMs: CAMERA_DRAW_BUDGET_MS,
+      textureUploadBudgetBytes: CAMERA_TEXTURE_UPLOAD_BUDGET_BYTES,
+      tilePreloadBudgetMs: CAMERA_TILE_PRELOAD_BUDGET_MS,
+      tilePreloadMaxUploads: CAMERA_TILE_PRELOAD_MAX_UPLOADS,
+      overlayPassBudgetMs: INTERACTION_OVERLAY_PASS_BUDGET_MS,
     };
   }
 
   return {
-    drawSubmitBudgetMs: 10,
-    textureUploadBudgetBytes: 2 * 1024 * 1024,
-    tilePreloadBudgetMs: 2,
-    tilePreloadMaxUploads: 3,
-    overlayPassBudgetMs: 1,
+    drawSubmitBudgetMs: INTERACTION_DRAW_BUDGET_MS,
+    textureUploadBudgetBytes: INTERACTION_TEXTURE_UPLOAD_BUDGET_BYTES,
+    tilePreloadBudgetMs: INTERACTION_TILE_PRELOAD_BUDGET_MS,
+    tilePreloadMaxUploads: INTERACTION_TILE_PRELOAD_MAX_UPLOADS,
+    overlayPassBudgetMs: INTERACTION_OVERLAY_PASS_BUDGET_MS,
   };
 }
 
@@ -209,20 +253,41 @@ export function applyPressureContraction(
 
   if (pressure === "medium") {
     return {
-      drawSubmitBudgetMs: Math.max(8, budget.drawSubmitBudgetMs - 2),
-      textureUploadBudgetBytes: Math.max(512 * 1024, Math.floor(budget.textureUploadBudgetBytes * 0.75)),
-      tilePreloadBudgetMs: Math.max(1, budget.tilePreloadBudgetMs - 1),
-      tilePreloadMaxUploads: Math.max(1, budget.tilePreloadMaxUploads - 1),
-      overlayPassBudgetMs: Math.max(1, budget.overlayPassBudgetMs - 1),
+      drawSubmitBudgetMs: Math.max(
+        MIN_DRAW_BUDGET_MS,
+        budget.drawSubmitBudgetMs - MEDIUM_DRAW_BUDGET_DECREMENT_MS,
+      ),
+      textureUploadBudgetBytes: Math.max(
+        MIN_TEXTURE_UPLOAD_BUDGET_BYTES,
+        Math.floor(budget.textureUploadBudgetBytes * MEDIUM_TEXTURE_CONTRACTION_RATIO),
+      ),
+      tilePreloadBudgetMs: Math.max(
+        MIN_TILE_PRELOAD_BUDGET_MS,
+        budget.tilePreloadBudgetMs - MEDIUM_TILE_PRELOAD_DECREMENT,
+      ),
+      tilePreloadMaxUploads: Math.max(
+        MIN_TILE_PRELOAD_MAX_UPLOADS,
+        budget.tilePreloadMaxUploads - MEDIUM_MAX_UPLOADS_DECREMENT,
+      ),
+      overlayPassBudgetMs: Math.max(
+        MIN_OVERLAY_PASS_BUDGET_MS,
+        budget.overlayPassBudgetMs - MEDIUM_OVERLAY_PASS_DECREMENT,
+      ),
     };
   }
 
   return {
-    drawSubmitBudgetMs: Math.max(8, budget.drawSubmitBudgetMs - 4),
-    textureUploadBudgetBytes: Math.max(512 * 1024, Math.floor(budget.textureUploadBudgetBytes * 0.5)),
-    tilePreloadBudgetMs: 1,
-    tilePreloadMaxUploads: 1,
-    overlayPassBudgetMs: 0,
+    drawSubmitBudgetMs: Math.max(
+      MIN_DRAW_BUDGET_MS,
+      budget.drawSubmitBudgetMs - HIGH_DRAW_BUDGET_DECREMENT_MS,
+    ),
+    textureUploadBudgetBytes: Math.max(
+      MIN_TEXTURE_UPLOAD_BUDGET_BYTES,
+      Math.floor(budget.textureUploadBudgetBytes * HIGH_TEXTURE_CONTRACTION_RATIO),
+    ),
+    tilePreloadBudgetMs: MIN_TILE_PRELOAD_BUDGET_MS,
+    tilePreloadMaxUploads: MIN_TILE_PRELOAD_MAX_UPLOADS,
+    overlayPassBudgetMs: HIGH_OVERLAY_PASS_BUDGET_MS,
   };
 }
 

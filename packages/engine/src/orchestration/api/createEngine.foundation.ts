@@ -288,7 +288,10 @@ export function resolveRayPickCandidateFromGraphNode(node: EngineGraphNodeInput)
  */
 export function resolveEngineBackend(
   options: CreateEngineOptions,
-  backendSelectorModule: { resolveSelection: (input: CreateEngineOptions) => ReturnType<typeof resolveBackendSelectionFromProtocol> },
+    backendSelectorModule: {
+      resolveSelection: (input: CreateEngineOptions) =>
+        ReturnType<typeof resolveBackendSelectionFromProtocol>,
+    },
   diagnosticsHooks?: {
     /** Optional canvas2d present telemetry hooks injected by orchestration diagnostics. */
     canvas2d?: Pick<Canvas2DBackendAdapterHooks, "onPresentAttempt" | "onPresentSkipped" | "onPresentCommitted">;

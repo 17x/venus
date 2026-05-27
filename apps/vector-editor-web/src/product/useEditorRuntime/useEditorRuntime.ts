@@ -26,61 +26,16 @@ import {createEditorRuntimeCommandController} from '../runtime/createEditorRunti
 import {resolveRuntimeSnappingEnablement} from '../runtime/snappingPolicy.ts'
 import {
   createRuntimeInteractionDiagnosticLogger,
-  type RuntimeInteractionDiagnosticEvent,
 } from '../runtime/interactionDiagnosticPolicy.ts'
 import {buildUseEditorRuntimeOutputs, buildUseEditorRuntimeUiState} from './outputs.ts'
 import {useEditorRuntimeCommandActions, useEditorRuntimePointerHandlers} from './interactions.ts'
 import {useEditorRuntimeCursorState, useEditorRuntimeUiStateAndSync} from './presentation.ts'
-import type {EditorDocumentLifecycleContext} from '../useEditorDocument.ts'
-import type {EditorRuntimeLastCommandMeta} from '../runtime/useEditorRuntimeInteractionBridge.ts'
-
-/**
- * Resolves one save-lifecycle context from latest command metadata and current runtime history.
- * @param input Save-context resolution inputs.
- */
-function resolveSaveLifecycleContext(input: {
-  history: {
-    transactionGroups: Array<{transactionId: string; source: 'local' | 'remote'}>
-    recoveryReplay?: import('../../runtime/worker/index.ts').HistoryRecoveryReplaySnapshot
-  }
-  replayMode: import('../../runtime/types/index.ts').EditorFileHistoryRecoveryReplayMode
-  lastCommandMeta: EditorRuntimeLastCommandMeta | null
-}): EditorDocumentLifecycleContext {
-  const latestLocalGroup = [...input.history.transactionGroups]
-    .reverse()
-    .find((group) => group.source === 'local')
-
-  if (!input.lastCommandMeta || !latestLocalGroup) {
-    return {
-      transitionSource: {
-        kind: 'user',
-        event: 'file.save',
-        issuedAt: Date.now(),
-      },
-      crashRecoveryReplay: input.history.recoveryReplay,
-      crashRecoveryReplayMode: input.replayMode,
-    }
-  }
-
-  return {
-    transitionSource: {
-      kind: 'command',
-      event: 'file.save',
-      commandId: input.lastCommandMeta.commandId,
-      transactionId: input.lastCommandMeta.transactionId,
-      commandType: input.lastCommandMeta.commandType,
-      issuedAt: Date.now(),
-    },
-    dirtySource: {
-      commandType: input.lastCommandMeta.commandType,
-      commandId: input.lastCommandMeta.commandId,
-      transactionId: latestLocalGroup.transactionId,
-      issuedAt: input.lastCommandMeta.issuedAt,
-    },
-    crashRecoveryReplay: input.history.recoveryReplay,
-    crashRecoveryReplayMode: input.replayMode,
-  }
-}
+import {
+  useRuntimeInteractionDiagnosticRecorder,
+  useRuntimeMaskActions,
+  useRuntimeToolSelectionAction,
+  useSaveFileWithLifecycleContext,
+} from './useEditorRuntime.helpers.ts'
 export type {
   EditorDocumentState,
   EditorFileAsset,
@@ -93,7 +48,6 @@ export type {
   EditorUIState,
   HistoryNodeLike,
 } from './types.ts'
-
 // Owns vector editor runtime orchestration and composes runtime/interaction adapters for UI consumers.
 const useEditorRuntime = (options: {
   onContextMenu?: (position: {x: number; y: number}) => void
@@ -165,21 +119,11 @@ const useEditorRuntime = (options: {
     () => options.createWorker(),
     [options],
   )
-
   // Keep one stable diagnostics recorder so key-path logs share one coverage/rollback session.
-  const recordInteractionDiagnostic = useCallback((event: RuntimeInteractionDiagnosticEvent) => {
-    const snapshot = interactionDiagnosticLoggerRef.current.record(event)
-    if (!snapshot.latestEntry) {
-      return
-    }
-
-    interactionBridge.bridge.dispatch({
-      type: 'runtime.interaction.diagnostic',
-      entry: snapshot.latestEntry,
-      coverage: snapshot.coverage,
-    })
-  }, [interactionBridge.bridge])
-
+  const recordInteractionDiagnostic = useRuntimeInteractionDiagnosticRecorder(
+    interactionDiagnosticLoggerRef,
+    interactionBridge.bridge,
+  )
   const {
     canvasRuntime,
     defaultCanvasInteractions,
@@ -226,30 +170,25 @@ const useEditorRuntime = (options: {
     selectorOverlayItems,
     createWorker,
   })
-
   useEffect(() => {
     registerDefaultRuntimeToolHandlers(
       runtimeToolRegistryRef.current,
       runtimeEditingModeControllerRef.current,
     )
-
     const dispose = runtimeEditingModeControllerRef.current.onTransition({
       onTransition(payload) {
         setEditingMode(payload.to)
       },
     })
-
     return () => {
       dispose()
     }
   }, [])
-
   useEffect(() => {
     runtimeToolRegistryRef.current.activate(currentTool, {
       editingMode: runtimeEditingModeControllerRef.current.getCurrentMode(),
     })
   }, [currentTool])
-
   const {add: notify} = useNotification()
   const add = useCallback((message: string, tone: 'info' | 'success' | 'warning' | 'error') => {
     notify(
@@ -262,7 +201,6 @@ const useEditorRuntime = (options: {
     )
   }, [notify])
   const {t} = useTranslation()
-
   // Compose pure runtime command controller so hook only wires dependencies and consumes one dispatch function.
   const commandController = useMemo(() => {
     return createEditorRuntimeCommandController({
@@ -315,11 +253,9 @@ const useEditorRuntime = (options: {
     setSelectorOverlayItems,
     setSnapGuides,
   ])
-
   const {handleCommand, insertElement, insertElementsBatch} = useEditorRuntimeCommandActions({
     commandController,
   })
-
   const penTool = usePenTool({
     currentTool,
     insertElement,
@@ -327,7 +263,6 @@ const useEditorRuntime = (options: {
       setPenDraftPoints(points)
     },
   })
-
   const {
     reorderSelectedShape,
     handleZoom,
@@ -356,24 +291,12 @@ const useEditorRuntime = (options: {
     setPenDraftPoints,
     t,
   })
-
   // Mirror runtime tool selection through the interaction bridge event stream.
-  const setCurrentTool = useCallback((toolName: ToolName) => {
-    setCurrentToolInternal(toolName)
-    interactionBridge.bridge.dispatch({
-      type: 'runtime.tool.selected',
-      tool: toolName,
-    })
-  }, [interactionBridge.bridge, setCurrentToolInternal])
-
-  const applyAutoMask = useCallback(() => {
-    handleCommand({type: 'mask.create'})
-  }, [handleCommand])
-
-  const clearMask = useCallback(() => {
-    handleCommand({type: 'mask.release'})
-  }, [handleCommand])
-
+  const setCurrentTool = useRuntimeToolSelectionAction(
+    setCurrentToolInternal,
+    interactionBridge.bridge,
+  )
+  const {applyAutoMask, clearMask} = useRuntimeMaskActions(handleCommand)
   const cursorState = useEditorRuntimeCursorState({
     runtimeToolRegistryRef,
     currentTool,
@@ -386,28 +309,12 @@ const useEditorRuntime = (options: {
     activeTransformHandle,
     hoveredTransformHandle,
   })
-
-  /**
-   * Persists runtime document while attaching lifecycle provenance from latest command metadata.
-   * @param nextDocument Runtime document snapshot to persist.
-   */
-  const saveFileWithLifecycleContext = useCallback((nextDocument: typeof canvasRuntime.document) => {
-    saveFile(
-      nextDocument,
-      resolveSaveLifecycleContext({
-        history: canvasRuntime.history,
-        replayMode: file?.config.editor?.crashRecoveryReplayMode ?? 'merged',
-        lastCommandMeta,
-      }),
-    )
-  }, [
-    canvasRuntime.document,
-    canvasRuntime.history,
-    file?.config.editor?.crashRecoveryReplayMode,
+  const saveFileWithLifecycleContext = useSaveFileWithLifecycleContext({
+    history: canvasRuntime.history,
+    replayMode: file?.config.editor?.crashRecoveryReplayMode ?? 'merged',
     lastCommandMeta,
     saveFile,
-  ])
-
+  })
   const executeAction = useEditorRuntimeExecuteAction({
     add,
     addAsset,
@@ -431,7 +338,6 @@ const useEditorRuntime = (options: {
     setPasteSerial,
     setShowPrint,
   })
-
   useFocus(contextRootRef, focused, (nextFocused) => {
     setFocused(nextFocused)
   })
@@ -440,7 +346,6 @@ const useEditorRuntime = (options: {
     focused,
     setCurrentTool,
   })
-
   const {uiState, selectedProps} = useEditorRuntimeUiStateAndSync({
     canvasRuntime,
     clipboard,
@@ -457,12 +362,10 @@ const useEditorRuntime = (options: {
       interactionBridge.bridge.dispatch(event)
     },
   })
-
   const effectiveSnappingEnabled = resolveRuntimeSnappingEnablement({
     userEnabled: snappingEnabled,
     interactionShapeCount: interactionDocument.shapes.length,
   }).enabled
-
   const canvasInteractions = useEditorRuntimeCanvasInteractions({
     interactionBridge: interactionBridge.bridge,
     recordInteractionDiagnostic,
@@ -509,20 +412,17 @@ const useEditorRuntime = (options: {
     transformManagerRef,
     transformPreview,
   })
-
   const runtimeInputRouter = useMemo(() => createRuntimeInputRouter({
     onInput: () => {
       // Runtime input stream is currently used for event normalization.
     },
   }), [])
-
   const {onPointerMove, onPointerDown, onPointerUp, onPointerLeave} = useEditorRuntimePointerHandlers({
     runtimeInputRouter,
     canvasInteractions,
     lastCanvasPointRef,
     worldPointRef,
   })
-
   const {documentState, runtimeState, commands, refs} = buildUseEditorRuntimeOutputs({
     canvasRuntime,
     file,
@@ -569,7 +469,6 @@ const useEditorRuntime = (options: {
     worldPointRef,
     editorRef,
   })
-
   return {
     documentState,
     runtimeState,

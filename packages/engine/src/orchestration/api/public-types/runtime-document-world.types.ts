@@ -186,7 +186,15 @@ export interface EngineRuntimeWorldEntity {
     bounds: { x: number; y: number; z: number; width: number; height: number; depth: number };
     /** Canonical 3D transform projected from document semantics. */
     transform: {
-      x: number; y: number; z: number; rotationX: number; rotationY: number; rotationZ: number; scaleX: number; scaleY: number; scaleZ: number;
+      x: number;
+      y: number;
+      z: number;
+      rotationX: number;
+      rotationY: number;
+      rotationZ: number;
+      scaleX: number;
+      scaleY: number;
+      scaleZ: number;
     };
     /** Optional semantic hints for renderer/picking ordering. */
     sourceType?: string; renderOrder?: number; visible?: boolean; lightingMode?: "inherit" | "unlit" | "lit"; materialId?: string;

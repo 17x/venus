@@ -192,6 +192,14 @@ export interface EngineHandle {
   preloadAssets: (request: readonly { id: string }[]) => readonly EngineAssetStateOutput[];
   /** Unloads assets from current engine session. */
   unloadAssets: (assetIds: readonly string[]) => readonly EngineAssetStateOutput[];
+  /**
+   * Registers loaded image elements for model-complete image node rendering.
+   * Host apps should call this after creating the engine to provide the image
+   * element lookup table keyed by asset id. The engine reads this registry
+   * once per frame during native payload resolution.
+   * @param images Map of asset id to loaded HTMLImageElement.
+   */
+  setImageRegistry: (images: ReadonlyMap<string, HTMLImageElement>) => void;
   /** Returns state for one asset id. */
   getAssetState: (assetId: string) => EngineAssetStateOutput;
   /** Returns aggregate asset stats. */

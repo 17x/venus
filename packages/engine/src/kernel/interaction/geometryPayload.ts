@@ -162,8 +162,14 @@ function buildNodeGeometryPayload(options: {
 	outlineLevel: 'low' | 'medium' | 'high'
 }): EngineGeometryNodePayload {
 	const bounds = resolveNodeBounds(options.node, options.nodeById, options.worldMatrixCache)
-	const outline = resolveOutlineForNode(options.node, bounds, options.outlineLevel, options.nodeById, options.worldMatrixCache)
-	const detailOutlines = resolveDetailOutlinesForNode(options.node, options.outlineLevel, options.nodeById, options.worldMatrixCache)
+const outline = resolveOutlineForNode(
+            options.node, bounds, options.outlineLevel,
+            options.nodeById, options.worldMatrixCache,
+          )
+          const detailOutlines = resolveDetailOutlinesForNode(
+            options.node, options.outlineLevel,
+            options.nodeById, options.worldMatrixCache,
+          )
 
 	// Hint generation only runs when pointer exists to avoid unnecessary segment scans.
 	const hints = options.pointer

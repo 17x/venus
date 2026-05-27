@@ -11,6 +11,8 @@ import type { EngineRenderFrameStats } from "../../orchestration/render-runtime/
 import type { EngineDirtyDomain } from "../../kernel/dirty/dirtyPropagation/dirtyPropagation.contract";
 import type { EngineIncrementalCompileOutput } from "../../kernel/compiler/incrementalCompiler";
 
+const INTERACTION_TIMEOUT_MS = 120;
+
 /**
  * Defines minimal frame decision payload needed by orchestration helper.
  */
@@ -36,7 +38,10 @@ type FrameGraphViewFoundationDependencies = {
   /** Writes current document snapshot. */
   setDocumentSnapshot: (snapshot: EngineDocumentSnapshot) => void;
   /** Applies document change-set. */
-  applyDocumentChangeSet: (snapshot: EngineDocumentSnapshot, changeSet: EngineDocumentChangeSet) => EngineDocumentSnapshot;
+    applyDocumentChangeSet: (
+      snapshot: EngineDocumentSnapshot,
+      changeSet: EngineDocumentChangeSet,
+    ) => EngineDocumentSnapshot;
   /** Compiles scene from document change-set context. */
   compileSceneChangeSet: (input: {
     previousSnapshot: EngineDocumentSnapshot;
@@ -125,7 +130,15 @@ type FrameGraphViewFoundationDependencies = {
     scale?: number;
   }) => { width: number; height: number; offsetX: number; offsetY: number; scale: number };
   /** Resolves public view snapshot from viewport state. */
-  resolveViewSnapshot: (viewport: { width: number; height: number; offsetX: number; offsetY: number; scale: number }) => EngineViewSnapshot;
+    resolveViewSnapshot: (
+      viewport: {
+        width: number;
+        height: number;
+        offsetX: number;
+        offsetY: number;
+        scale: number;
+      },
+    ) => EngineViewSnapshot;
   /** Resolves monotonic timestamp in milliseconds. */
   resolveNow: () => number;
   /** Writes interaction timestamp. */
@@ -179,7 +192,7 @@ export function createFrameGraphViewFoundation(
    */
   function resolveFrameOrchestration(timestampMs: number): EngineRenderFrameStats {
     deps.assertSchedulerCapability();
-    const interactionActive = timestampMs - deps.getLastInteractionAtMs() <= 120;
+      const interactionActive = timestampMs - deps.getLastInteractionAtMs() <= INTERACTION_TIMEOUT_MS;
     const viewport = deps.getViewport();
     const executionSnapshot = deps.resolveExecutionSnapshot({
       document: deps.getDocumentSnapshot(),

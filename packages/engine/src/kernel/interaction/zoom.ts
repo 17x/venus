@@ -4,6 +4,21 @@ const DOM_DELTA_PIXEL = 0;
 const DOM_DELTA_LINE = 1;
 const DOM_DELTA_PAGE = 2;
 const ZOOM_SOURCE_LOCK_MS = 140;
+const TRACKPAD_HORIZONTAL_BURST_THRESHOLD = 16;
+const TRACKPAD_VERTICAL_BURST_THRESHOLD = 4;
+const WHEEL_DELTA_CLAMP = 160;
+const TRACKPAD_SETTLE_DELAY_MS = 120;
+const MOUSE_SETTLE_DELAY_MS = 72;
+const MOUSE_PAGE_DELTA_SCALE = 0.008;
+const MOUSE_LINE_DELTA_SCALE = 0.004;
+const MOUSE_PIXEL_DELTA_SCALE = 0.0015;
+const TRACKPAD_PAGE_DELTA_SCALE = 0.05;
+const TRACKPAD_LINE_DELTA_SCALE = 0.022;
+const TRACKPAD_PIXEL_DELTA_SCALE = 0.012;
+const MOUSE_ZOOM_DOWN_FACTOR = 0.992;
+const MOUSE_ZOOM_UP_FACTOR = 1.008;
+const TRACKPAD_DELTA_CLAMP = 0.18;
+const TRACKPAD_SOFTENING_FACTOR = 0.8;
 
 /**
  * Defines raw wheel input shape consumed by zoom normalization logic.
@@ -107,11 +122,11 @@ export function detectEngineZoomInputSource(
     return "trackpad";
   }
 
-  if (absX > 0 && absY < 16) {
+  if (absX > 0 && absY < TRACKPAD_HORIZONTAL_BURST_THRESHOLD) {
     return "trackpad";
   }
 
-  if (absY > 0 && absY <= 4) {
+  if (absY > 0 && absY <= TRACKPAD_VERTICAL_BURST_THRESHOLD) {
     return "trackpad";
   }
 
@@ -124,7 +139,7 @@ export function detectEngineZoomInputSource(
  */
 export function normalizeEngineZoomDelta(input: EngineZoomWheelInput): EngineNormalizedZoomDelta {
   const source = detectEngineZoomInputSource(input);
-  const normalizedDelta = Math.max(-160, Math.min(160, input.deltaY));
+  const normalizedDelta = Math.max(-WHEEL_DELTA_CLAMP, Math.min(WHEEL_DELTA_CLAMP, input.deltaY));
   const deltaScale = resolveZoomDeltaScale(input.deltaMode, source);
 
   return {
@@ -175,7 +190,7 @@ export function accumulateEngineZoomSession(
  * @param source Current zoom source.
  */
 export function getEngineZoomSettleDelay(source: EngineZoomInputSource | null): number {
-  return source === "trackpad" ? 120 : 72;
+  return source === "trackpad" ? TRACKPAD_SETTLE_DELAY_MS : MOUSE_SETTLE_DELAY_MS;
 }
 
 /**
@@ -222,7 +237,7 @@ function normalizeEngineZoomDeltaWithSource(
   input: EngineZoomWheelInput,
   source: EngineZoomInputSource,
 ): EngineNormalizedZoomDelta {
-  const normalizedDelta = Math.max(-160, Math.min(160, input.deltaY));
+  const normalizedDelta = Math.max(-WHEEL_DELTA_CLAMP, Math.min(WHEEL_DELTA_CLAMP, input.deltaY));
   const deltaScale = resolveZoomDeltaScale(input.deltaMode, source);
 
   return {
@@ -267,25 +282,25 @@ function resolveZoomSource(
 function resolveZoomDeltaScale(deltaMode: number, source: EngineZoomInputSource): number {
   if (source === "mouse") {
     if (deltaMode === DOM_DELTA_PAGE) {
-      return 0.008;
+      return MOUSE_PAGE_DELTA_SCALE;
     }
 
     if (deltaMode === DOM_DELTA_LINE) {
-      return 0.004;
+      return MOUSE_LINE_DELTA_SCALE;
     }
 
-    return 0.0015;
+    return MOUSE_PIXEL_DELTA_SCALE;
   }
 
   if (deltaMode === DOM_DELTA_PAGE) {
-    return 0.05;
+    return TRACKPAD_PAGE_DELTA_SCALE;
   }
 
   if (deltaMode === DOM_DELTA_LINE) {
-    return 0.022;
+    return TRACKPAD_LINE_DELTA_SCALE;
   }
 
-  return 0.012;
+  return TRACKPAD_PIXEL_DELTA_SCALE;
 }
 
 /**
@@ -295,18 +310,18 @@ function resolveZoomDeltaScale(deltaMode: number, source: EngineZoomInputSource)
 function resolveZoomFactor(normalized: EngineNormalizedZoomDelta): number {
   if (normalized.source === "mouse") {
     if (normalized.delta > 0) {
-      return 0.992;
+      return MOUSE_ZOOM_DOWN_FACTOR;
     }
 
     if (normalized.delta < 0) {
-      return 1.008;
+      return MOUSE_ZOOM_UP_FACTOR;
     }
 
     return 1;
   }
 
-  const clampedDelta = Math.max(-0.18, Math.min(0.18, normalized.delta));
-  const softenedDelta = clampedDelta * 0.8;
+  const clampedDelta = Math.max(-TRACKPAD_DELTA_CLAMP, Math.min(TRACKPAD_DELTA_CLAMP, normalized.delta));
+  const softenedDelta = clampedDelta * TRACKPAD_SOFTENING_FACTOR;
 
   return Math.exp(-softenedDelta);
 }

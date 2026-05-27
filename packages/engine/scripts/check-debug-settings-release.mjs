@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const CREATE_ENGINE_FILE = "src/api/createEngine.ts";
+const CREATE_ENGINE_FILE = "src/orchestration/api/createEngine.ts";
 
 /**
  * Intent: enforce release-safe debug defaults in canonical engine create path.

@@ -1,5 +1,5 @@
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
-import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract.ts'
+import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract/activeOverlayRoutingContract.ts'
 
 /**
  * Resolves editing-scope active ids so active layer can isolate live edits.

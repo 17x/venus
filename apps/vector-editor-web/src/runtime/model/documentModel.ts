@@ -16,8 +16,60 @@ export type ShapeType =
 /** Declares arrowhead style values for stroked open paths. */
 export type StrokeArrowhead = 'none' | 'triangle' | 'diamond' | 'circle' | 'bar'
 
+/** Declares stroke dash pattern values. */
+export type StrokeDashPattern = 'solid' | 'dashed' | 'dotted' | 'custom'
+
+/** Declares stroke cap style for open path endpoints. */
+export type StrokeCap = 'none' | 'round' | 'square'
+
+/** Declares stroke join style for path corners. */
+export type StrokeJoin = 'miter' | 'round' | 'bevel'
+
+/** Declares stroke alignment relative to the path. */
+export type StrokeAlign = 'center' | 'inside' | 'outside'
+
 /** Declares gradient algorithm families. */
-export type ShapeGradientType = 'linear' | 'radial'
+export type ShapeGradientType = 'linear' | 'radial' | 'angular' | 'diamond'
+
+/** Declares blend mode compositing operators. */
+export type ShapeBlendMode =
+  | 'normal'
+  | 'darken'
+  | 'multiply'
+  | 'color-burn'
+  | 'lighten'
+  | 'screen'
+  | 'color-dodge'
+  | 'overlay'
+  | 'soft-light'
+  | 'hard-light'
+  | 'difference'
+  | 'exclusion'
+  | 'hue'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+
+/** Declares shadow effect kind. */
+export type ShadowKind = 'drop' | 'inner'
+
+/** Declares blur effect kind. */
+export type BlurKind = 'layer' | 'background'
+
+/** Declares image fill scale mode. */
+export type ImageScaleMode = 'fill' | 'fit' | 'crop' | 'tile'
+
+/** Declares boolean operation kinds for vector shape composition. */
+export type BooleanOperation = 'union' | 'subtract' | 'intersect' | 'exclude' | 'none'
+
+/** Declares text auto-height mode. */
+export type TextAutoHeight = 'auto' | 'fixed'
+
+/** Declares text truncation mode. */
+export type TextTruncation = 'none' | 'ending' | 'middle'
+
+/** Declares text decoration style. */
+export type TextDecoration = 'none' | 'underline' | 'strikethrough'
 
 /** Declares one gradient stop in normalized offset space. */
 export interface ShapeGradientStop {
@@ -35,50 +87,104 @@ export interface ShapeGradientStyle {
   type: ShapeGradientType
   /** Stores ordered gradient stop list. */
   stops: ShapeGradientStop[]
-  /** Stores optional linear gradient angle in degrees. */
+  /** Stores optional linear/angular gradient angle in degrees. */
   angle?: number
-  /** Stores optional radial center x in normalized coordinates. */
+  /** Stores optional radial/diamond/angular center x in normalized coordinates. */
   centerX?: number
-  /** Stores optional radial center y in normalized coordinates. */
+  /** Stores optional radial/diamond/angular center y in normalized coordinates. */
   centerY?: number
-  /** Stores optional radial radius in normalized coordinates. */
+  /** Stores optional radial/diamond radius in normalized coordinates. */
   radius?: number
+  /** Stores optional angular gradient start angle offset in degrees. */
+  startAngle?: number
+  /** Stores optional angular gradient sweep angle in degrees. */
+  sweepAngle?: number
+}
+
+/** Declares image fill payload for pattern/image-backed fills. */
+export interface ShapeImageFill {
+  /** Stores asset id referencing the image source. */
+  assetId: string
+  /** Stores image scale mode controlling sizing behavior. */
+  scaleMode?: ImageScaleMode
+  /** Stores optional rotation in degrees for the fill image. */
+  rotation?: number
+  /** Stores optional opacity multiplier [0-1] for the image fill layer. */
+  opacity?: number
+  /** Stores optional blend mode for this image fill layer. */
+  blendMode?: ShapeBlendMode
 }
 
 /** Declares fill channel style for one shape. */
 export interface ShapeFillStyle {
   /** Enables or disables fill rendering. */
   enabled?: boolean
-  /** Stores fallback solid fill color. */
+  /** Stores fallback solid fill color in CSS notation. */
   color?: string
   /** Stores optional gradient fill style. */
   gradient?: ShapeGradientStyle
+  /** Stores optional image/pattern fill style. */
+  image?: ShapeImageFill
+  /** Stores per-fill opacity multiplier [0-1]. */
+  opacity?: number
+  /** Stores optional blend mode for this fill layer. */
+  blendMode?: ShapeBlendMode
 }
 
 /** Declares stroke channel style for one shape. */
 export interface ShapeStrokeStyle {
   /** Enables or disables stroke rendering. */
   enabled?: boolean
-  /** Stores fallback solid stroke color. */
+  /** Stores fallback solid stroke color in CSS notation. */
   color?: string
   /** Stores stroke width in world units. */
   weight?: number
   /** Stores optional gradient stroke style. */
   gradient?: ShapeGradientStyle
+  /** Stores stroke dash pattern. Defaults to solid when omitted. */
+  dashPattern?: StrokeDashPattern
+  /** Stores custom dash array (e.g. [4, 2, 1, 2]) used when dashPattern is 'custom'. */
+  customDash?: number[]
+  /** Stores stroke alignment relative to the shape boundary. Defaults to center. */
+  align?: StrokeAlign
+  /** Stores stroke cap style for open path endpoints. Defaults to none. */
+  cap?: StrokeCap
+  /** Stores stroke join style for path corners. Defaults to miter. */
+  join?: StrokeJoin
+  /** Stores per-stroke opacity multiplier [0-1]. */
+  opacity?: number
+  /** Stores optional blend mode for this stroke layer. */
+  blendMode?: ShapeBlendMode
 }
 
 /** Declares shadow channel style for one shape. */
 export interface ShapeShadowStyle {
   /** Enables or disables shadow rendering. */
   enabled?: boolean
-  /** Stores shadow color. */
+  /** Stores shadow effect kind. Defaults to drop when omitted. */
+  kind?: ShadowKind
+  /** Stores shadow color in CSS notation. */
   color?: string
-  /** Stores shadow offset on the x axis. */
+  /** Stores shadow offset on the x axis in world units. */
   offsetX?: number
-  /** Stores shadow offset on the y axis. */
+  /** Stores shadow offset on the y axis in world units. */
   offsetY?: number
-  /** Stores shadow blur radius. */
+  /** Stores shadow blur radius in world units. */
   blur?: number
+  /** Stores shadow spread radius in world units. */
+  spread?: number
+  /** Stores optional blend mode for this shadow layer. */
+  blendMode?: ShapeBlendMode
+}
+
+/** Declares blur effect style for one shape. */
+export interface ShapeBlurStyle {
+  /** Enables or disables blur rendering. */
+  enabled?: boolean
+  /** Stores blur effect kind. */
+  kind: BlurKind
+  /** Stores blur radius in world units. */
+  radius: number
 }
 
 /** Declares per-corner radii for rectangle-like shapes. */
@@ -103,6 +209,8 @@ export interface TextStyle {
   fontSize?: number
   /** Stores font weight. */
   fontWeight?: number
+  /** Stores font style (normal, italic). */
+  fontStyle?: 'normal' | 'italic'
   /** Stores letter spacing in px. */
   letterSpacing?: number
   /** Stores line-height multiplier. */
@@ -111,6 +219,8 @@ export interface TextStyle {
   textAlign?: 'left' | 'center' | 'right'
   /** Stores vertical text alignment inside its box. */
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  /** Stores text decoration style. */
+  textDecoration?: TextDecoration
   /** Stores optional text-level shadow style. */
   shadow?: ShapeShadowStyle
   /** Stores paragraph left indent in px. */
@@ -267,10 +377,24 @@ export interface DocumentNode {
   flipX?: boolean
   /** Stores vertical flip state. */
   flipY?: boolean
+  /** Stores layer opacity [0-1] applied to the entire node. */
+  opacity?: number
+  /** Stores layer blend mode for compositing this node. */
+  blendMode?: ShapeBlendMode
+  /** Stores whether this node is locked against selection/editing. */
+  locked?: boolean
+  /** Stores whether this node is visible. Defaults to true. */
+  visible?: boolean
   /** Stores plain text payload for text-like nodes. */
   text?: string
   /** Stores rich text segments aligned to text. */
   textRuns?: TextRun[]
+  /** Stores text auto-height mode. Defaults to fixed. */
+  textAutoHeight?: TextAutoHeight
+  /** Stores text truncation mode when text overflows the bounding box. */
+  textTruncation?: TextTruncation
+  /** Stores max lines before truncation applies (when textTruncation is set). */
+  textMaxLines?: number
   /** Stores asset id for image-backed nodes. */
   assetId?: string
   /** Stores resolved browser URL for image-backed nodes. */
@@ -287,12 +411,18 @@ export interface DocumentNode {
   strokeStartArrowhead?: StrokeArrowhead
   /** Stores stroke end arrowhead style. */
   strokeEndArrowhead?: StrokeArrowhead
-  /** Stores fill style channel. */
+  /** Stores ordered fill style layers (Figma-compatible multi-fill). */
+  fills?: ShapeFillStyle[]
+  /** @deprecated Use fills[0] instead. Kept for backward compatibility. */
   fill?: ShapeFillStyle
-  /** Stores stroke style channel. */
+  /** Stores ordered stroke style layers (Figma-compatible multi-stroke). */
+  strokes?: ShapeStrokeStyle[]
+  /** @deprecated Use strokes[0] instead. Kept for backward compatibility. */
   stroke?: ShapeStrokeStyle
   /** Stores shadow style channel. */
   shadow?: ShapeShadowStyle
+  /** Stores layer blur effect. */
+  blur?: ShapeBlurStyle
   /** Stores uniform rectangle corner radius. */
   cornerRadius?: number
   /** Stores independent rectangle corner radii. */
@@ -301,6 +431,12 @@ export interface DocumentNode {
   ellipseStartAngle?: number
   /** Stores ellipse arc end angle in degrees. */
   ellipseEndAngle?: number
+  /** Stores boolean operation applied to this node relative to siblings. */
+  booleanOperation?: BooleanOperation
+  /** Stores optional component id when this node is a component instance. */
+  componentId?: string
+  /** Stores optional component variant properties for variant-based overrides. */
+  componentProperties?: Record<string, unknown>
   /** Stores source metadata for adapters and diagnostics. */
   schema?: DocumentSchemaMeta
   /** Stores optional style references used by page/style model evolution. */

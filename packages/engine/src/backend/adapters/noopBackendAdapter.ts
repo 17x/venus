@@ -377,6 +377,34 @@ export interface NoopBackendAdapterHooks {
     }>;
     /** Enables native line-topology draw submission when true. */
     lineTopologySubmissionEnabled?: boolean;
+    /**
+     * Optional image registry for model-complete image node rendering.
+     * Keys are asset ids emitted by scene adapters; values are loaded image elements.
+     */
+    images?: ReadonlyMap<string, HTMLImageElement>;
+    /**
+     * Optional overlay draw instructions for marquee/hover/selection/handler
+     * rendering. Each instruction carries primitive type, geometry, and style.
+     */
+    overlays?: ReadonlyArray<{
+      id: string;
+      primitive: string;
+      points?: ReadonlyArray<{ x: number; y: number }>;
+      bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+      strokeColor?: string;
+      strokeWidth?: number;
+      strokeDash?: number[];
+      fillColor?: string;
+      fillOpacity?: number;
+      zIndex?: number;
+    }>;
+    /**
+     * When true, one or more nodes carry style-rich features (stroke, shadow,
+     * gradient, non-rect shape, clip, points/bezier) that require model-complete
+     * composition. Backends SHOULD prefer model-complete over mesh submission
+     * when this flag is true.
+     */
+    needsComposition?: boolean;
   } | null;
 }
 

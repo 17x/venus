@@ -73,11 +73,11 @@ export const VECTOR_ENGINE_SCENE_PROFILE: VectorEngineSceneProfile = {
     preset: 'balanced' as const,
   },
   spatial: {
-    dimension: '3d',
+    dimension: '2d',
   },
   render: {
     backend: 'webgl',
-    modelCompleteComposite: false,
+    modelCompleteComposite: true,
     interactionPreview: {
       enabled: true,
       mode: 'zoom-only' as const,
@@ -87,7 +87,7 @@ export const VECTOR_ENGINE_SCENE_PROFILE: VectorEngineSceneProfile = {
     },
   },
   sceneAdapter: {
-    dimensionMode: 'hybrid-2d3d',
+    dimensionMode: '2d',
     defaultLightingMode: 'inherit',
   },
   cameraAnimation: {

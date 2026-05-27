@@ -115,6 +115,8 @@ export function resolveNodeWorldMatrix(
 /**
  * Recursively resolves the world matrix of a node's parent chain.
  * Returns identity for root nodes (null parentId).
+ * @param node Node whose parent world transform should be resolved.
+ * @param nodesById Map of all nodes keyed by id.
  */
 function resolveParentWorldMatrix(
   node: EngineSceneGraphNode,

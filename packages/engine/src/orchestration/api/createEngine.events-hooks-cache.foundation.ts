@@ -172,7 +172,8 @@ export function createEngineEventsHooksCacheFoundation(deps: EngineEventsHooksCa
     assertValidEventListener(listener);
     const listeners = resolveEventListenerSet(type, true);
     listeners?.add(listener);
-    const metadataMap = deps.eventListenerMetadata.get(type) ?? new Map<(payload: unknown) => void, EngineEventListenerMetadata>();
+      const metadataMap: Map<(payload: unknown) => void, EngineEventListenerMetadata> =
+        deps.eventListenerMetadata.get(type) ?? new Map();
     metadataMap.set(listener, {
       scope,
       sampleRate: options?.sampleRate,
@@ -261,7 +262,8 @@ export function createEngineEventsHooksCacheFoundation(deps: EngineEventsHooksCa
     const deliveryCount = (deps.eventTypeDeliveryCounters.get(type) ?? 0) + 1;
     deps.eventTypeDeliveryCounters.set(type, deliveryCount);
     const metadataMap = deps.eventListenerMetadata.get(type);
-    const lastDeliveredMap = deps.eventListenerLastDeliveredAt.get(type) ?? new Map<(payload: unknown) => void, number>();
+      const lastDeliveredMap: Map<(payload: unknown) => void, number> =
+        deps.eventListenerLastDeliveredAt.get(type) ?? new Map();
     deps.eventListenerLastDeliveredAt.set(type, lastDeliveredMap);
     const timestamp = deps.resolveNow();
     const envelope = {

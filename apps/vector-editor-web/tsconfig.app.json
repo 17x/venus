@@ -18,11 +18,14 @@
     { "path": "../../packages/engine/tsconfig.json" }
   ],
   "include": [
+    "scripts/render-parity-runtime-auto-report.ts",
+    "scripts/render-parity-runtime-replay-batch-frame-stage-counters.ts",
+    "scripts/render-parity-runtime-replay-batch-resource-counters.ts",
+    "scripts/render-parity-runtime-replay-batch.ts",
+    "scripts/render-parity-runtime-replay-history-gate.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.d.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

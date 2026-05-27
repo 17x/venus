@@ -355,7 +355,9 @@ export function createRuntimeResourceObservabilityFoundation(
     }
     const releasedResourceIds: string[] = [];
     let releasedBytes = 0;
-    for (const [resourceId, resource] of [...deps.runtimeResourceRegistry.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const sortedResourceEntries = [...deps.runtimeResourceRegistry.entries()]
+        .sort(([a], [b]) => a.localeCompare(b));
+      for (const [resourceId, resource] of sortedResourceEntries) {
       // Skip pinned resources so caller pin/unpin state is respected by GC.
       if (resource.pinned) {
         continue;

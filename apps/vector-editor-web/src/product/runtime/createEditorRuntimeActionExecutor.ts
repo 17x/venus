@@ -33,9 +33,7 @@ import type {
   EditorExecutor,
 } from '../useEditorRuntime/types.ts'
 import type {EditorFileAsset} from '../../runtime/types/index.ts'
-
 const IMAGE_INSERT_VIEWPORT_RATIO = 0.82
-
 /**
  * Defines dependencies consumed by the pure editor action executor.
  */

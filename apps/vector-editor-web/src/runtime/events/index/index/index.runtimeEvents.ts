@@ -1,4 +1,4 @@
-import type { RuntimeModifiers, RuntimePoint } from '../../../types/index.ts'
+import type {RuntimeModifiers} from '../../../types/index.ts'
 import type {
   NormalizedInteractionEvent,
 } from '@venus/editor-primitive'
@@ -28,6 +28,10 @@ export {
   EMPTY_RUNTIME_SHELL_SNAPSHOT,
   EMPTY_RUNTIME_VIEWPORT_SNAPSHOT,
 } from './index.runtimeEvents.defaults.ts'
+export {
+  createRuntimeCanvasInputBridge,
+  type RuntimeCanvasInputHandlers,
+} from './index.runtimeEvents.inputBridge.ts'
 
 const renderDiagnosticsListeners = new Set<VoidFunction>()
 let currentRenderDiagnostics = EMPTY_RUNTIME_RENDER_DIAGNOSTICS
@@ -448,62 +452,6 @@ export function createRuntimeInputRouter(sink: RuntimeInputSink) {
         })
       }
       sink.onInput(event)
-    },
-  }
-}
-
-export interface RuntimeCanvasInputHandlers {
-  onPointerMove(point: RuntimePoint): void
-  onPointerDown(
-    point: RuntimePoint,
-    modifiers?: {
-      shiftKey: boolean
-      metaKey: boolean
-      ctrlKey: boolean
-      altKey: boolean
-    },
-  ): void
-  onPointerUp(): void
-  onPointerLeave(): void
-}
-
-/**
- * Creates a canvas-facing adapter that always routes input through
- * RuntimeInputEvent before invoking pointer lifecycle handlers.
- */
-export function createRuntimeCanvasInputBridge(
-  router: ReturnType<typeof createRuntimeInputRouter>,
-  handlers: RuntimeCanvasInputHandlers,
-): RuntimeCanvasInputHandlers {
-  return {
-    onPointerMove(point) {
-      router.dispatch({
-        type: 'pointermove',
-        point,
-      })
-      handlers.onPointerMove(point)
-    },
-    onPointerDown(point, modifiers) {
-      router.dispatch({
-        type: 'pointerdown',
-        point,
-        modifiers,
-      })
-      handlers.onPointerDown(point, modifiers)
-    },
-    onPointerUp() {
-      router.dispatch({
-        type: 'pointerup',
-        point: {x: 0, y: 0},
-      })
-      handlers.onPointerUp()
-    },
-    onPointerLeave() {
-      router.dispatch({
-        type: 'pointerleave',
-        point: {x: 0, y: 0},
-      })
-      handlers.onPointerLeave()
     },
   }
 }

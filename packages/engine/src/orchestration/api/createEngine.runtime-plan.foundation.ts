@@ -114,11 +114,13 @@ export function createRuntimePlanFoundation(
       throw new Error("ENGINE_PLAN_INVALID_REQUEST");
     }
     const threshold = typeof request.baseThreshold === "number" ? request.baseThreshold : 1;
-    const lodLevel: EngineRuntimeLodPlanOutput["lodLevel"] = request.scale >= threshold * 1.5
-      ? "fine"
-      : request.scale >= threshold
-        ? "balanced"
-        : "coarse";
+    const LOD_FINE_THRESHOLD_MULTIPLIER = 1.5;
+    const lodLevel: EngineRuntimeLodPlanOutput["lodLevel"] =
+      request.scale >= threshold * LOD_FINE_THRESHOLD_MULTIPLIER
+        ? "fine"
+        : request.scale >= threshold
+          ? "balanced"
+          : "coarse";
     return {
       lodLevel,
       threshold,
@@ -134,11 +136,12 @@ export function createRuntimePlanFoundation(
       throw new Error("ENGINE_PLAN_INVALID_REQUEST");
     }
     const margin = typeof request.margin === "number" ? Math.max(0, request.margin) : 0;
+    const ROI_MARGIN_MULTIPLIER = 2;
     return {
       x: request.x - margin,
       y: request.y - margin,
-      width: Math.max(0, request.width) + margin * 2,
-      height: Math.max(0, request.height) + margin * 2,
+      width: Math.max(0, request.width) + margin * ROI_MARGIN_MULTIPLIER,
+      height: Math.max(0, request.height) + margin * ROI_MARGIN_MULTIPLIER,
     };
   }
 

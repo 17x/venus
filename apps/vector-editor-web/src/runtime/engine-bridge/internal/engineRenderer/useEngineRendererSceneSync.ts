@@ -14,7 +14,7 @@ import {DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY} from '../../renderPolic
 import {resolveExpandedChangedIds, resolveMergedNodeBounds} from '../scenePatch.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {resolveSceneDirtyRenderPolicy} from '../sceneDirtyRenderPolicy/sceneDirtyRenderPolicy.ts'
-import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract.ts'
+import {resolveActiveOverlayRoutingDecision} from './activeOverlayRoutingContract/activeOverlayRoutingContract.ts'
 import {projectSceneSemantic3DForEngine} from './sceneSemantic3dProjection.ts'
 import {invalidateSceneRegions, syncSceneDelta} from '../../engineContractAdapters.ts'
 
@@ -163,8 +163,10 @@ export function useEngineRendererSceneSync(params: {
       protectedNodeIds: fallbackProtectedNodeIds,
       overlayNodeCount: 0,
     })
-    params.renderRequestStatsRef.current.activeOverlayScenePlane = baselineRouting.scenePlane
-    params.renderRequestStatsRef.current.activeOverlayOverlayPlane = baselineRouting.overlayPlane
+    params.renderRequestStatsRef.current.activeOverlayScenePlane =
+      baselineRouting.scenePlane === 'active' ? 'active' : 'base'
+    params.renderRequestStatsRef.current.activeOverlayOverlayPlane =
+      baselineRouting.overlayPlane === 'overlay' ? 'overlay' : 'base'
     params.renderRequestStatsRef.current.activeOverlayUsesActivePlane = baselineRouting.shouldUseActivePlane
     params.renderRequestStatsRef.current.activeOverlayProtectedNodeCount = baselineRouting.protectedNodeIds.length
     params.renderRequestStatsRef.current.activeOverlayInteractionActiveNodeCount =
@@ -397,8 +399,10 @@ export function useEngineRendererSceneSync(params: {
         overlayNodeCount: 0,
       })
       const interactionActiveNodeIds = incrementalRouting.interactionActiveNodeIds
-      params.renderRequestStatsRef.current.activeOverlayScenePlane = incrementalRouting.scenePlane
-      params.renderRequestStatsRef.current.activeOverlayOverlayPlane = incrementalRouting.overlayPlane
+      params.renderRequestStatsRef.current.activeOverlayScenePlane =
+        incrementalRouting.scenePlane === 'active' ? 'active' : 'base'
+      params.renderRequestStatsRef.current.activeOverlayOverlayPlane =
+        incrementalRouting.overlayPlane === 'overlay' ? 'overlay' : 'base'
       params.renderRequestStatsRef.current.activeOverlayUsesActivePlane =
         incrementalRouting.shouldUseActivePlane
       params.renderRequestStatsRef.current.activeOverlayProtectedNodeCount =

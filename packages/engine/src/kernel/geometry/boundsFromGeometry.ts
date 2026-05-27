@@ -1,5 +1,9 @@
 import type { EngineAABB3D } from "../interaction/camera/cameraFrustum";
 
+const POSITION_DIMENSIONS = 3;
+const POSITION_Z_OFFSET = 2;
+const DEFAULT_BOUNDS_HALF_EXTENT = 0.5;
+
 /**
  * Derives a 3D axis-aligned bounding box from a flat position array.
  * Falls back to a unit bounding box around origin when input is invalid.
@@ -10,8 +14,15 @@ export function deriveBoundsFromPositions(
   positions: readonly number[],
   padding = 0,
 ): EngineAABB3D {
-  if (!Array.isArray(positions) || positions.length < 3) {
-    return { minX: -0.5, minY: -0.5, minZ: -0.5, maxX: 0.5, maxY: 0.5, maxZ: 0.5 };
+  if (!Array.isArray(positions) || positions.length < POSITION_DIMENSIONS) {
+    return {
+      minX: -DEFAULT_BOUNDS_HALF_EXTENT,
+      minY: -DEFAULT_BOUNDS_HALF_EXTENT,
+      minZ: -DEFAULT_BOUNDS_HALF_EXTENT,
+      maxX: DEFAULT_BOUNDS_HALF_EXTENT,
+      maxY: DEFAULT_BOUNDS_HALF_EXTENT,
+      maxZ: DEFAULT_BOUNDS_HALF_EXTENT,
+    };
   }
 
   let minX = Number.POSITIVE_INFINITY;
@@ -21,10 +32,10 @@ export function deriveBoundsFromPositions(
   let maxY = Number.NEGATIVE_INFINITY;
   let maxZ = Number.NEGATIVE_INFINITY;
 
-  for (let i = 0; i + 2 < positions.length; i += 3) {
+  for (let i = 0; i + POSITION_Z_OFFSET < positions.length; i += POSITION_DIMENSIONS) {
     const x = positions[i] ?? 0;
     const y = positions[i + 1] ?? 0;
-    const z = positions[i + 2] ?? 0;
+    const z = positions[i + POSITION_Z_OFFSET] ?? 0;
 
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
       continue;
@@ -40,7 +51,14 @@ export function deriveBoundsFromPositions(
 
   // Fallback when all values were non-finite.
   if (!Number.isFinite(minX)) {
-    return { minX: -0.5, minY: -0.5, minZ: -0.5, maxX: 0.5, maxY: 0.5, maxZ: 0.5 };
+    return {
+      minX: -DEFAULT_BOUNDS_HALF_EXTENT,
+      minY: -DEFAULT_BOUNDS_HALF_EXTENT,
+      minZ: -DEFAULT_BOUNDS_HALF_EXTENT,
+      maxX: DEFAULT_BOUNDS_HALF_EXTENT,
+      maxY: DEFAULT_BOUNDS_HALF_EXTENT,
+      maxZ: DEFAULT_BOUNDS_HALF_EXTENT,
+    };
   }
 
   return {

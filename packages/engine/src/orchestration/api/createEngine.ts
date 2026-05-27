@@ -78,6 +78,31 @@ import type { EngineBackendFrameDiagnostics } from "../../backend/adapters/noopB
 import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../../backend/fallbackTaxonomy";
 import type { EngineRuntimeDocumentWarningCode } from "../../kernel/document/document-warning-codes";
 const ENGINE_RUNTIME_DOCUMENT_SCHEMA_VERSION = 1;
+const TOPOLOGY_TRIANGLE_MIN_POSITION_COUNT = 9;
+const TOPOLOGY_LINE_MIN_POSITION_COUNT = 6;
+const TOPOLOGY_POINT_MIN_POSITION_COUNT = 3;
+const TOPOLOGY_TRIANGLE_MIN_INDEX_COUNT = 3;
+const TOPOLOGY_LINE_MIN_INDEX_COUNT = 2;
+const TOPOLOGY_POINT_MIN_INDEX_COUNT = 1;
+const TRIANGLE_INDEX_ZERO = 0;
+const TRIANGLE_INDEX_ONE = 1;
+const TRIANGLE_INDEX_TWO = 2;
+const QUAD_INDEX_THREE = 3;
+const DEFAULT_RUNTIME_PLAN_INTERVAL_MS = 8;
+const DEFAULT_FRAME_BUDGET_MS = 16;
+const TRIANGLE_FALLBACK_INDICES: readonly number[] = [
+  TRIANGLE_INDEX_ZERO,
+  TRIANGLE_INDEX_ONE,
+  TRIANGLE_INDEX_TWO,
+];
+const QUAD_FALLBACK_INDICES: readonly number[] = [
+  TRIANGLE_INDEX_ZERO,
+  TRIANGLE_INDEX_ONE,
+  TRIANGLE_INDEX_TWO,
+  TRIANGLE_INDEX_TWO,
+  TRIANGLE_INDEX_ONE,
+  QUAD_INDEX_THREE,
+];
 
 /**
  * Creates one default backend diagnostics snapshot for engine bootstrap and reset paths.
@@ -211,7 +236,10 @@ function createDefaultBackendDiagnostics() {
   };
   return diagnostics;
 }
-/** Creates the canonical engine facade with explicit backend and lifecycle diagnostics. @param options Engine creation options for surface, backend, runtime adapter, and staged planning knobs. */
+/**
+ * Creates the canonical engine facade with explicit backend and lifecycle diagnostics.
+ * @param options Engine creation options for surface, backend, runtime adapter, and staged planning knobs.
+ */
 export function createEngine(options: CreateEngineOptions): EngineHandle {
   const performance = resolveEnginePerformanceOptions(options);
   const policy = resolveCreateEnginePolicyBootstrap(options);
@@ -270,9 +298,24 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     previousRevision: 0,
     currentRevision: 0,
     changedNodeIds: [],
-    invalidation: { transform: false, geometry: false, material: false, text: false, visibility: false, picking: false, gpuUpload: false },
+    invalidation: {
+      transform: false,
+      geometry: false,
+      material: false,
+      text: false,
+      visibility: false,
+      picking: false,
+      gpuUpload: false,
+    },
   };
-  let latestExecutionSnapshot: EngineExecutionSnapshot = { documentRevision: 0, worldRevision: 0, compile: latestCompileOutput, visibleCandidateIds: [], pickingHitIds: [], drawCount: 0 };
+  let latestExecutionSnapshot: EngineExecutionSnapshot = {
+    documentRevision: 0,
+    worldRevision: 0,
+    compile: latestCompileOutput,
+    visibleCandidateIds: [],
+    pickingHitIds: [],
+    drawCount: 0,
+  };
   let latestRenderChainDiagnostics: EngineRenderChainDiagnostics = {
     planReached: false,
     composeReached: false,
@@ -296,18 +339,27 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     skippedReason: null,
   };
   let latestBackendDiagnostics = createDefaultBackendDiagnostics();
-  let latestRuntimeWorldRevision = 0, runtimeWorldSnapshotOverride: EngineRuntimeWorldSnapshotOutput | null = null;
-  let latestDirtyState = dirtyPropagationModule.createEmptyState(), lastRuntimeDirtyMarkedAt = 0;
-  let lastEncodedCommandCount = 0, lastReplayEventCount = 0, lastReplayFirstCommandId: string | null = null;
-  let runtimeCommandEncoderCounter = 0, overlayNodes: readonly unknown[] = [], mountTarget: unknown = null;
+  let latestRuntimeWorldRevision = 0,
+    runtimeWorldSnapshotOverride: EngineRuntimeWorldSnapshotOutput | null = null;
+  let latestDirtyState = dirtyPropagationModule.createEmptyState(),
+    lastRuntimeDirtyMarkedAt = 0;
+  let lastEncodedCommandCount = 0,
+    lastReplayEventCount = 0,
+    lastReplayFirstCommandId: string | null = null;
+  let runtimeCommandEncoderCounter = 0,
+    overlayNodes: readonly unknown[] = [],
+    mountTarget: unknown = null;
   let developerConfig: Readonly<Record<string, unknown>> = { debug: Boolean(options.debug) };
-  let viewportLayout: unknown = null, qualityProfile = "balanced", frameBudgetMs = 16;
+  let viewportLayout: unknown = null, qualityProfile = "balanced", frameBudgetMs = DEFAULT_FRAME_BUDGET_MS;
   let interactionState: Readonly<Record<string, unknown>> | null = null, transformPreview: unknown = null;
-  let annotations: readonly unknown[] = [], mediaSources: readonly unknown[] = [], mediaTimeMs = 0, diagnosticsEnabled = true;
+  let annotations: readonly unknown[] = [],
+    mediaSources: readonly unknown[] = [],
+    mediaTimeMs = 0,
+    diagnosticsEnabled = true;
   let backendPreference: "auto" | "webgpu" | "webgl" | "canvas2d" | "headless" = options.backend ?? "auto";
   let runtimeBackendFallbackHistory: EngineRuntimeBackendFallbackTraceItem[] = [];
   let runtimeBackendDebugOptions: Readonly<Record<string, unknown>> = {};
-  let runtimePlanInteractiveIntervalMs = 8, runtimePlanRequestCounter = 0;
+  let runtimePlanInteractiveIntervalMs = DEFAULT_RUNTIME_PLAN_INTERVAL_MS, runtimePlanRequestCounter = 0;
   const runtimePlanPendingRequestIds = new Set<string>();
   let runtimePlanScheduler: EngineRenderScheduler | null = null;
   const {
@@ -316,8 +368,10 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     cacheNamespaces, cacheNamespaceStats, assetStates, headlessSessions, createHeadlessSessionId,
     runtimeGpuResources, runtimeUploadBatches, runtimeBarrierPlans, runtimeResourceRegistry, runtimeTraceRegistry,
   } = createEngineRuntimeRegistriesFoundation();
-  let policyRenderState: Readonly<Record<string, unknown>> = {}, policyResourceState: Readonly<Record<string, unknown>> = {};
-  let policyFallbackState: Readonly<Record<string, unknown>> = {}, securityTrustLevel: "low" | "standard" | "high" = "standard";
+  let policyRenderState: Readonly<Record<string, unknown>> = {};
+  let policyResourceState: Readonly<Record<string, unknown>> = {};
+  let policyFallbackState: Readonly<Record<string, unknown>> = {};
+  let securityTrustLevel: "low" | "standard" | "high" = "standard";
   let securityResourceAccessPolicy: Readonly<Record<string, unknown>> = {};
   let reportRuntimeContractWarning: (warning: {
     code: EngineRuntimeDocumentWarningCode;
@@ -325,11 +379,130 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     details?: Readonly<Record<string, unknown>>;
   }) => void = () => {};
   const securityAuditLog: Array<Readonly<Record<string, unknown>>> = [];
-  let securityAuditCounter = 0, runtimeUploadBatchCounter = 0, runtimeBarrierPlanCounter = 0;
-  let lastInvalidatePayload: EngineInvalidateInput | null = null, runtimeResourceResidencyVersion = 0, runtimeTraceCounter = 0, runtimeReplayCounter = 0;
-  const { boundaryValidation, publicApiSurfaceViolations } = createEngineValidationFoundation({ productAdapterBoundaryModule, publicApiSurfaceModule }, options);
+  let securityAuditCounter = 0,
+    runtimeUploadBatchCounter = 0,
+    runtimeBarrierPlanCounter = 0;
+  let lastInvalidatePayload: EngineInvalidateInput | null = null,
+    runtimeResourceResidencyVersion = 0,
+    runtimeTraceCounter = 0,
+    runtimeReplayCounter = 0;
+  const { boundaryValidation, publicApiSurfaceViolations } = createEngineValidationFoundation(
+    { productAdapterBoundaryModule, publicApiSurfaceModule },
+    options,
+  );
   const resolveNow = options.runtimeAdapter?.now ?? (() => performanceNow());
   const engineId = `engine-${Math.max(0, Math.floor(resolveNow()))}`;
+
+  /**
+   * Determines whether one graph node is eligible for native mesh submission.
+   *
+   * Mesh-eligible nodes are simple filled rects without any style-rich features
+   * that would require canvas2d model-complete composition for correct rendering.
+   *
+   * @param node Graph node payload from current frame.
+   * @returns True when the node can be safely rendered via GPU mesh path alone.
+   */
+  function isMeshEligible(node: EngineGraphNodeInput): boolean {
+    // Explicit mesh contracts are always mesh-eligible — the adapter authored
+    // the geometry explicitly for GPU submission.
+    if (node.mesh && typeof node.mesh === "object") {
+      return true;
+    }
+
+    // Text, image, and group nodes carry semantic rendering requirements that
+    // the mesh path cannot satisfy (glyph layout, texture sampling, hierarchy).
+    const nodeType = typeof node.type === "string" ? node.type : "shape";
+    if (nodeType === "text" || nodeType === "image" || nodeType === "group") {
+      return false;
+    }
+
+    // Visible stroke requires model-complete for line-width / stroke-style rendering.
+    // Only block mesh eligibility when stroke is explicitly visible and carries
+    // non-trivial weight. The default stroke (#1f2937, weight 1) is always present
+    // on vector editor shapes but the mesh path's fill-only rendering is an
+    // acceptable baseline fallback for simple rects.
+    const stroke = typeof node.stroke === "string" ? node.stroke.trim() : "";
+    const strokeWidth = typeof node.strokeWidth === "number" && Number.isFinite(node.strokeWidth)
+      ? node.strokeWidth
+      : 0;
+    const hasVisibleStroke =
+      stroke.length > 0 &&
+      stroke !== "transparent" &&
+      stroke !== "none" &&
+      strokeWidth > 1;  // Default weight 1 is trivial; mesh fallback is acceptable.
+    // Also block when stroke carries advanced properties (dash, align, cap, join).
+    const hasAdvancedStroke =
+      hasVisibleStroke &&
+      (
+        typeof (node as Record<string, unknown>).dashPattern === "string" ||
+        typeof (node as Record<string, unknown>).customDash !== "undefined" ||
+        typeof (node as Record<string, unknown>).strokeAlign === "string" ||
+        typeof (node as Record<string, unknown>).strokeCap === "string" ||
+        typeof (node as Record<string, unknown>).strokeJoin === "string"
+      );
+    if (hasAdvancedStroke) {
+      return false;
+    }
+
+    // Non-rect shapes (ellipse, polygon, star, line, path) require model-complete
+    // for their geometry-specific canvas2d path construction.
+    const shape = typeof node.shape === "string" ? node.shape : "rect";
+    if (shape !== "rect") {
+      return false;
+    }
+
+    // Shadow effect requires model-complete for blur / offset compositing.
+    if (node.shadow != null && typeof node.shadow === "object") {
+      // Guard against empty shadow payloads that carry no visible properties.
+      const shadowObj = node.shadow as Record<string, unknown>;
+      const hasVisibleShadow =
+        (typeof shadowObj.color === "string" && shadowObj.color.length > 0) ||
+        (typeof shadowObj.offsetX === "number" && shadowObj.offsetX !== 0) ||
+        (typeof shadowObj.offsetY === "number" && shadowObj.offsetY !== 0) ||
+        (typeof shadowObj.blur === "number" && (shadowObj.blur as number) > 0);
+      if (hasVisibleShadow) {
+        return false;
+      }
+    }
+
+    // Gradient fill/stroke requires model-complete for gradient interpolation.
+    const fill = typeof node.fill === "string" ? node.fill.trim().toLowerCase() : "";
+    if (fill.includes("gradient(")) {
+      return false;
+    }
+
+    // Corner radius requires model-complete for rounded-rect path construction.
+    if (typeof node.cornerRadius === "number" && node.cornerRadius > 0) {
+      return false;
+    }
+    if (
+      node.cornerRadii &&
+      typeof node.cornerRadii === "object" &&
+      (
+        (typeof (node.cornerRadii as Record<string, unknown>).topLeft === "number" && ((node.cornerRadii as Record<string, unknown>).topLeft as number) > 0) ||
+        (typeof (node.cornerRadii as Record<string, unknown>).topRight === "number" && ((node.cornerRadii as Record<string, unknown>).topRight as number) > 0) ||
+        (typeof (node.cornerRadii as Record<string, unknown>).bottomRight === "number" && ((node.cornerRadii as Record<string, unknown>).bottomRight as number) > 0) ||
+        (typeof (node.cornerRadii as Record<string, unknown>).bottomLeft === "number" && ((node.cornerRadii as Record<string, unknown>).bottomLeft as number) > 0)
+      )
+    ) {
+      return false;
+    }
+
+    // Point/bezier geometry requires model-complete for path-based rendering.
+    if (Array.isArray(node.points) && node.points.length > 0) {
+      return false;
+    }
+    if (Array.isArray(node.bezierPoints) && node.bezierPoints.length > 0) {
+      return false;
+    }
+
+    // Clip/mask requires model-complete for save/restore + clip() composition.
+    if (typeof node.clipPathId === "string" || typeof node.clipId === "string") {
+      return false;
+    }
+
+    return true;
+  }
 
   /**
    * Resolves one lightweight native frame payload from latest visible graph nodes.
@@ -370,6 +543,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       indices?: readonly number[];
       color: string;
     }> = [];
+    let needsComposition = false;
     candidateNodes.forEach((node) => {
       // Prefer explicit mesh contracts so runtime adapters can submit authored geometry directly.
       const meshInput =
@@ -384,18 +558,18 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       if (meshInput) {
         const topology = meshInput.topology ?? "triangles";
         const minimumPositionCount = topology === "triangles"
-          ? 9
+          ? TOPOLOGY_TRIANGLE_MIN_POSITION_COUNT
           : topology === "lines"
-            ? 6
-            : 3;
+            ? TOPOLOGY_LINE_MIN_POSITION_COUNT
+            : TOPOLOGY_POINT_MIN_POSITION_COUNT;
         if (meshInput.positions.length < minimumPositionCount) {
           return;
         }
         const minimumIndexCount = topology === "triangles"
-          ? 3
+          ? TOPOLOGY_TRIANGLE_MIN_INDEX_COUNT
           : topology === "lines"
-            ? 2
-            : 1;
+            ? TOPOLOGY_LINE_MIN_INDEX_COUNT
+            : TOPOLOGY_POINT_MIN_INDEX_COUNT;
         const normalizedIndices =
           Array.isArray(meshInput.indices) && meshInput.indices.length >= minimumIndexCount
             ? meshInput.indices
@@ -409,7 +583,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
             : typeof node.stroke === "string"
               ? node.stroke
               : "#334155";
-        const fallbackIndices = topology === "triangles" ? [0, 1, 2] : [];
+        const fallbackIndices = topology === "triangles" ? TRIANGLE_FALLBACK_INDICES : [];
         meshes.push({
           id: String(node.id),
           topology,
@@ -417,6 +591,13 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
           indices: normalizedIndices.length >= minimumIndexCount ? normalizedIndices : fallbackIndices,
           color,
         });
+        return;
+      }
+
+      // Track whether any node needs composition so backends can decide
+      // between model-complete and mesh-only render paths.
+      if (!isMeshEligible(node)) {
+        needsComposition = true;
         return;
       }
 
@@ -445,7 +626,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
           x, y + height, z,
           x + width, y + height, z,
         ],
-        indices: [0, 1, 2, 2, 1, 3],
+        indices: QUAD_FALLBACK_INDICES,
         color,
       });
     });
@@ -462,8 +643,25 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
           type: typeof node.type === "string" ? node.type : "shape",
         })),
       meshes,
+      needsComposition,
+      images: imageRegistry.size > 0 ? imageRegistry : undefined,
+      overlays: overlayNodes.length > 0 ? overlayNodes as ReadonlyArray<{
+        id: string;
+        primitive: string;
+        points?: ReadonlyArray<{ x: number; y: number }>;
+        bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+        strokeColor?: string;
+        strokeWidth?: number;
+        strokeDash?: number[];
+        fillColor?: string;
+        fillOpacity?: number;
+        zIndex?: number;
+      }> : undefined,
     };
   }
+
+  // Image registry populated by the host app for model-complete image node rendering.
+  const imageRegistry = new Map<string, HTMLImageElement>();
 
   const { backend, backendSelection } = resolveEngineBackend(options, backendSelectorModule, {
     canvas2d: {
@@ -682,14 +880,24 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     resolveNow,
     encodeCommands: (commands) => commandEncoderModule.encode(commands),
     getLatestCompileChangeSetId: () => latestCompileOutput.changeSetId,
-    allocateRuntimeCommandEncoderId: (profile) => { runtimeCommandEncoderCounter += 1; return `encoder-${profile}-${runtimeCommandEncoderCounter}`; },
+    allocateRuntimeCommandEncoderId: (profile) => {
+      runtimeCommandEncoderCounter += 1;
+      return `encoder-${profile}-${runtimeCommandEncoderCounter}`;
+    },
     replayCommands: (commands) => commandReplayModule.replay(commands),
     getBackendProbeModes: () => backendSelectorModule.getDefaultProbes().map((probe) => probe.mode),
     reportRuntimeContractWarning: (warning) => {
       reportRuntimeContractWarning(warning);
     },
   });
-  const { createRuntimeFramePlan, createRuntimeVisibilityPlan, createRuntimeLodPlan, createRuntimeRoiPlan, createRuntimeBudgetPlan, inspectRuntimePlan } = createRuntimePlanFoundation({
+  const {
+    createRuntimeFramePlan,
+    createRuntimeVisibilityPlan,
+    createRuntimeLodPlan,
+    createRuntimeRoiPlan,
+    createRuntimeBudgetPlan,
+    inspectRuntimePlan,
+  } = createRuntimePlanFoundation({
     resolveFrameDecision: (input) =>
       resolveCreateEngineFrame({
         scene: { nodeCount: Math.max(0, input.nodeCount) },
@@ -715,7 +923,13 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     getViewportScale: () => viewportFacade.getViewport().scale,
     getDocumentRevision: () => documentSnapshot.revision,
   });
-  const { requestRuntimePlanFrame, cancelRuntimePlanFrame, setRuntimePlanInteractiveInterval, resolveRuntimePlanSchedulerDiagnostics, disposeRuntimePlanScheduler } = createRuntimeSchedulerFoundation({
+  const {
+    requestRuntimePlanFrame,
+    cancelRuntimePlanFrame,
+    setRuntimePlanInteractiveInterval,
+    resolveRuntimePlanSchedulerDiagnostics,
+    disposeRuntimePlanScheduler,
+  } = createRuntimeSchedulerFoundation({
     renderFrame: async () => {
       const stats = resolveFrameOrchestration(resolveNow());
       return {
@@ -876,24 +1090,63 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   };
 
   return {
-    ...createEngineLifecycleViewFacade({
-      emitEvent, isMounted: () => mountTarget !== null, setMountTarget: (target) => { mountTarget = target; },
-      getDeveloperConfig: () => developerConfig, setDeveloperConfig: (config) => { developerConfig = config; },
-      getViewportLayout: () => viewportLayout, setViewportLayout: (layout) => { viewportLayout = layout; },
-      getInteractionState: () => interactionState, getTransformPreview: () => transformPreview,
-      getAnnotationCount: () => annotations.length, getMediaSourceCount: () => mediaSources.length, getMediaTimeMs: () => mediaTimeMs,
-      getBackendPreference: () => backendPreference, getRuntimeBackendDebugOptions: () => runtimeBackendDebugOptions,
-      runtimeStart: () => runtimeFacade.start(), runtimeStop: () => runtimeFacade.stop(), runtimePause: () => runtimeShell.pause(), runtimeResume: () => runtimeShell.resume(),
-      markInteractionSet: () => { lastInteractionAtMs = resolveNow(); lastInteractionKind = "set"; },
-      resizeRuntime: (width, height) => runtimeShell.resize(width, height), resizeViewport: (width, height) => { viewportFacade.resize(width, height); },
-      resolveViewportSnapshot: () => resolveViewSnapshotFromViewportState(viewportFacade.getViewport()), applyViewPatch, getViewportState: () => viewportFacade.getViewport(),
-      getQuality: () => qualityProfile, setQuality: (profile) => { qualityProfile = profile; }, getFrameBudget: () => frameBudgetMs,
-      setFrameBudget: (budget) => { frameBudgetMs = Number.isFinite(budget) ? Math.max(1, budget) : frameBudgetMs; },
+      ...createEngineLifecycleViewFacade({
+        emitEvent,
+        isMounted: () => mountTarget !== null,
+        setMountTarget: (target) => {
+          mountTarget = target;
+        },
+        getDeveloperConfig: () => developerConfig,
+        setDeveloperConfig: (config) => {
+          developerConfig = config;
+        },
+        getViewportLayout: () => viewportLayout,
+        setViewportLayout: (layout) => {
+          viewportLayout = layout;
+        },
+        getInteractionState: () => interactionState,
+        getTransformPreview: () => transformPreview,
+        getAnnotationCount: () => annotations.length,
+        getMediaSourceCount: () => mediaSources.length,
+        getMediaTimeMs: () => mediaTimeMs,
+        getBackendPreference: () => backendPreference,
+        getRuntimeBackendDebugOptions: () => runtimeBackendDebugOptions,
+        runtimeStart: () => runtimeFacade.start(),
+        runtimeStop: () => runtimeFacade.stop(),
+        runtimePause: () => runtimeShell.pause(),
+        runtimeResume: () => runtimeShell.resume(),
+        markInteractionSet: () => {
+          lastInteractionAtMs = resolveNow();
+          lastInteractionKind = "set";
+        },
+        resizeRuntime: (width, height) => runtimeShell.resize(width, height),
+        resizeViewport: (width, height) => {
+          viewportFacade.resize(width, height);
+        },
+        resolveViewportSnapshot: () =>
+          resolveViewSnapshotFromViewportState(viewportFacade.getViewport()),
+        applyViewPatch,
+        getViewportState: () => viewportFacade.getViewport(),
+        getQuality: () => qualityProfile,
+        setQuality: (profile) => {
+          qualityProfile = profile;
+        },
+        getFrameBudget: () => frameBudgetMs,
+        setFrameBudget: (budget) => {
+          frameBudgetMs = Number.isFinite(budget)
+            ? Math.max(1, budget)
+            : frameBudgetMs;
+        },
       defaultDebugEnabled: Boolean(options.debug),
     }),
-    ...createEngineGraphRenderFacade({
-      emitHook, emitEvent, applyGraphSnapshot, applyGraphPatchBatch,
-      getGraphRevision: () => documentSnapshot.revision, getGraphNodes: () => [...graphNodeState.values()], getGraphNodeCount: () => graphNodeState.size,
+      ...createEngineGraphRenderFacade({
+        emitHook,
+        emitEvent,
+        applyGraphSnapshot,
+        applyGraphPatchBatch,
+        getGraphRevision: () => documentSnapshot.revision,
+        getGraphNodes: () => [...graphNodeState.values()],
+        getGraphNodeCount: () => graphNodeState.size,
       queryGraph, pickGraph, raycastGraph, resolveFrameOrchestration, resolveNow,
       getLastInteractionKind: () => lastInteractionKind,
       getLatestExecutionSnapshot: () => latestExecutionSnapshot,
@@ -929,38 +1182,103 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         latestRenderWarning = warning;
       },
     }),
-    ...createEngineMediaOverlayFacade({
-      getOverlayNodes: () => overlayNodes, setOverlayNodes: (nodes) => { overlayNodes = nodes; },
-      setTransformPreview: (preview) => { transformPreview = preview; }, getTransformPreview: () => transformPreview,
-      setAnnotations: (nextAnnotations) => { annotations = nextAnnotations; }, getAnnotations: () => annotations,
-      setInvalidatePayload: (payload) => { lastInvalidatePayload = payload as EngineInvalidateInput; },
-      queryGraph, getGraphNodeIds: () => [...graphNodeState.keys()], setInteractionState: (state) => { interactionState = state; },
-      markInteractionSet: () => { lastInteractionAtMs = resolveNow(); lastInteractionKind = "set"; },
-      emitEvent, assetStates, setMediaSources: (sources) => { mediaSources = sources; }, getMediaSources: () => mediaSources,
-      setMediaTimeMs: (timeMs) => { mediaTimeMs = timeMs; }, getMediaTimeMs: () => mediaTimeMs,
-      resolveNow, getBackendPreference: () => backendPreference, setBackendPreference: (preference) => { backendPreference = preference; },
-      getRuntimeCapabilitySnapshot: (): EnginePublicCapabilitiesOutput => ({ schemaVersion: ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION, runtime: Object.values(ENGINE_RUNTIME_CAPABILITY_MAP) }),
-      createHeadlessSessionId, headlessSessions,
+      ...createEngineMediaOverlayFacade({
+        getOverlayNodes: () => overlayNodes,
+        setOverlayNodes: (nodes) => {
+          overlayNodes = nodes;
+        },
+        setTransformPreview: (preview) => {
+          transformPreview = preview;
+        },
+        getTransformPreview: () => transformPreview,
+        setAnnotations: (nextAnnotations) => {
+          annotations = nextAnnotations;
+        },
+        getAnnotations: () => annotations,
+        setInvalidatePayload: (payload) => {
+          lastInvalidatePayload = payload as EngineInvalidateInput;
+        },
+        queryGraph,
+        getGraphNodeIds: () => [...graphNodeState.keys()],
+        setInteractionState: (state) => {
+          interactionState = state;
+        },
+        markInteractionSet: () => {
+          lastInteractionAtMs = resolveNow();
+          lastInteractionKind = "set";
+        },
+        emitEvent,
+        assetStates,
+        setMediaSources: (sources) => {
+          mediaSources = sources;
+        },
+        getMediaSources: () => mediaSources,
+        setMediaTimeMs: (timeMs) => {
+          mediaTimeMs = timeMs;
+        },
+        getMediaTimeMs: () => mediaTimeMs,
+        resolveNow,
+        getBackendPreference: () => backendPreference,
+        setBackendPreference: (preference) => {
+          backendPreference = preference;
+        },
+      getRuntimeCapabilitySnapshot: (): EnginePublicCapabilitiesOutput => ({
+        schemaVersion: ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION,
+        runtime: Object.values(ENGINE_RUNTIME_CAPABILITY_MAP),
+      }),
+        createHeadlessSessionId,
+        headlessSessions,
     }),
-    ...createEngineEventsAndHooksFacade({
-      registerEventListener, unregisterEventListener, unregisterAllEventListeners,
-      assertValidEventType, assertValidEventListener, pausedEventTypes,
-      resolveEventListenerStats, registerHookListener, unregisterAllHookListeners, resolveHookListenerStats,
-    }),
-    ...createEngineExtensionAndSchedulerFacade({ extensionRegistry, schedulerTaskRegistry, getFrameBudgetMs: () => frameBudgetMs, createSchedulerTaskId }),
+      ...createEngineEventsAndHooksFacade({
+        registerEventListener,
+        unregisterEventListener,
+        unregisterAllEventListeners,
+        assertValidEventType,
+        assertValidEventListener,
+        pausedEventTypes,
+        resolveEventListenerStats,
+        registerHookListener,
+        unregisterAllHookListeners,
+        resolveHookListenerStats,
+      }),
+      ...createEngineExtensionAndSchedulerFacade({
+        extensionRegistry,
+        schedulerTaskRegistry,
+        getFrameBudgetMs: () => frameBudgetMs,
+        createSchedulerTaskId,
+      }),
     ...createEngineCachePolicySecurityFacade({
-      cacheNamespaces, resolveCacheNamespace,
-      getPolicyRenderState: () => policyRenderState, setPolicyRenderState: (state) => { policyRenderState = state; },
-      getPolicyResourceState: () => policyResourceState, setPolicyResourceState: (state) => { policyResourceState = state; },
-      getPolicyFallbackState: () => policyFallbackState, setPolicyFallbackState: (state) => { policyFallbackState = state; },
-      getSecurityTrustLevel: () => securityTrustLevel, setSecurityTrustLevel: (level) => { securityTrustLevel = level; },
-      getSecurityResourceAccessPolicy: () => securityResourceAccessPolicy, setSecurityResourceAccessPolicy: (policy) => { securityResourceAccessPolicy = policy; },
-      getSecurityAuditLog: () => securityAuditLog, appendSecurityAuditLog,
+        cacheNamespaces,
+        resolveCacheNamespace,
+        getPolicyRenderState: () => policyRenderState,
+        setPolicyRenderState: (state) => {
+          policyRenderState = state;
+        },
+        getPolicyResourceState: () => policyResourceState,
+        setPolicyResourceState: (state) => {
+          policyResourceState = state;
+        },
+        getPolicyFallbackState: () => policyFallbackState,
+        setPolicyFallbackState: (state) => {
+          policyFallbackState = state;
+        },
+        getSecurityTrustLevel: () => securityTrustLevel,
+        setSecurityTrustLevel: (level) => {
+          securityTrustLevel = level;
+        },
+        getSecurityResourceAccessPolicy: () => securityResourceAccessPolicy,
+        setSecurityResourceAccessPolicy: (policy) => {
+          securityResourceAccessPolicy = policy;
+        },
+        getSecurityAuditLog: () => securityAuditLog,
+        appendSecurityAuditLog,
     }),
     ...createEngineRuntimeCapabilityDisposeFacade({
       runtimeFacade, registerEventListener, unregisterEventListener, emitEvent,
       lastEncodedCommandCount, lastReplayEventCount, latestExecutionSnapshot,
-      setDiagnosticsEnabled: (enabled: boolean) => { diagnosticsEnabled = enabled; },
+      setDiagnosticsEnabled: (enabled: boolean) => {
+        diagnosticsEnabled = enabled;
+      },
       createRuntimeReplayToken, replayRuntimeToken, resolvePublicDiagnostics,
       getDiagnosticsEnabled: () => diagnosticsEnabled, getOverlayCount: () => overlayNodes.length,
       captureFrame: () => runtimeShell.captureFrame(), getRuntimeStats: () => runtimeShell.getStats(),
@@ -992,12 +1310,24 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       lastQosTrace: `qos:${latestFrameStats.timestampMs}:${latestFrameStats.phase}:${latestFrameStats.pressure}`,
       lastFramePressureSignals: latestFrameStats.pressureSignals,
       lastDocumentRevision: documentSnapshot.revision,
-      lastCompileChangeSetId: latestCompileOutput.changeSetId, lastCompileChangedNodeCount: latestCompileOutput.changedNodeIds.length, lastExecutionDrawCount: latestExecutionSnapshot.drawCount,
-      lastRuntimeWorldRevision: latestRuntimeWorldRevision, lastDirtyDomainCount: latestDirtyState.dirtyDomains.length, lastReplayFirstCommandId,
-      lastBoundaryViolationCount: boundaryValidation.violations.length, lastPublicApiViolationCount: publicApiSurfaceViolations.length,
+      lastCompileChangeSetId: latestCompileOutput.changeSetId,
+      lastCompileChangedNodeCount: latestCompileOutput.changedNodeIds.length,
+      lastExecutionDrawCount: latestExecutionSnapshot.drawCount,
+      lastRuntimeWorldRevision: latestRuntimeWorldRevision,
+      lastDirtyDomainCount: latestDirtyState.dirtyDomains.length,
+      lastReplayFirstCommandId,
+      lastBoundaryViolationCount: boundaryValidation.violations.length,
+      lastPublicApiViolationCount: publicApiSurfaceViolations.length,
       getBackendInfo: () => runtimeShell.getBackendInfo(),
-      resolveRuntimeDocumentSnapshot, resolveRuntimeDocumentRevision, applyRuntimeDocumentChangeSet, preflightRuntimeDocumentChangeSetApply, compileRuntimeWorld,
-      resolveRuntimeWorldSnapshotOutput, resolveRuntimeWorldGraphStatsOutput, resolveRuntimeDirtyStateOutput, markRuntimeDirtyDomain,
+      resolveRuntimeDocumentSnapshot,
+      resolveRuntimeDocumentRevision,
+      applyRuntimeDocumentChangeSet,
+      preflightRuntimeDocumentChangeSetApply,
+      compileRuntimeWorld,
+      resolveRuntimeWorldSnapshotOutput,
+      resolveRuntimeWorldGraphStatsOutput,
+      resolveRuntimeDirtyStateOutput,
+      markRuntimeDirtyDomain,
       flushRuntimeDirtyDomains, scheduleRuntimeIncrementalCompile, forceRuntimeFullCompile, createRuntimeFramePlan,
       inspectRuntimePlan, encodeRuntimeCommandPlan, validateRuntimeCommandBuffer, submitRuntimeCommandBuffer,
       submitRuntimeCommandBufferBatch, createRuntimeGpuResource, updateRuntimeGpuResource, destroyRuntimeGpuResource,
@@ -1005,19 +1335,54 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       queryRuntimeViewportCandidates, queryRuntimeFrustumVisibleSet, pickGraph, raycastGraph, queryRuntimeSpatialIndex,
       switchRuntimeBackend, resolveRuntimeBackendFallbackHistory, setRuntimeBackendDebugOptions, captureRuntimeFrame,
       captureRuntimeCommandTrace, resolveRuntimePublicMetrics, getRuntimeTrace, createRuntimeDocumentSnapshot,
-      validateRuntimeDocumentSnapshot, resolveRuntimeDocumentSchemaVersion, diffRuntimeDocumentSnapshots, rebaseRuntimeDocumentChangeSet, serializeRuntimeDocumentSnapshot, deserializeRuntimeDocumentSnapshot,
+      validateRuntimeDocumentSnapshot,
+      resolveRuntimeDocumentSchemaVersion,
+      diffRuntimeDocumentSnapshots,
+      rebaseRuntimeDocumentChangeSet,
+      serializeRuntimeDocumentSnapshot,
+      deserializeRuntimeDocumentSnapshot,
       compileRuntimeWorldFromDocument, queryRuntimeWorldEntity, queryRuntimeWorldComponent, queryRuntimeNodeTransform,
-      formatRuntimeNodeSvgTransform, clearRuntimeWorldSnapshot, markRuntimeDirtyDomainsBatch, resolveRuntimePendingDirtyDomains,
-      resetRuntimeDirtyState, createRuntimeCommandEncoder, optimizeRuntimeCommandBuffer, inspectRuntimeCommandBuffer,
-      replayRuntimeCommandBuffer, resolveRuntimeBackendListAvailableOutput, selectRuntimeBackend, resolveRuntimeBackendGetActiveOutput,
-      resolveRuntimeBackendCapabilities, resolveRuntimeBackendLimits, resolveRuntimeBackendGetFallbackTraceOutput, probeRuntimeHeadlessBackend,
+      formatRuntimeNodeSvgTransform,
+      clearRuntimeWorldSnapshot,
+      markRuntimeDirtyDomainsBatch,
+      resolveRuntimePendingDirtyDomains,
+      resetRuntimeDirtyState,
+      createRuntimeCommandEncoder,
+      optimizeRuntimeCommandBuffer,
+      inspectRuntimeCommandBuffer,
+      replayRuntimeCommandBuffer,
+      resolveRuntimeBackendListAvailableOutput,
+      selectRuntimeBackend,
+      resolveRuntimeBackendGetActiveOutput,
+      resolveRuntimeBackendCapabilities,
+      resolveRuntimeBackendLimits,
+      resolveRuntimeBackendGetFallbackTraceOutput,
+      probeRuntimeHeadlessBackend,
       createRuntimeVisibilityPlan, createRuntimeLodPlan, createRuntimeRoiPlan, createRuntimeBudgetPlan,
       createRuntimeHitGeometryPayload, resolveRuntimeHitTolerance, requestRuntimePlanFrame, cancelRuntimePlanFrame,
-      setRuntimePlanInteractiveInterval, resolveRuntimePlanSchedulerDiagnostics, registerRuntimeResource, updateRuntimeResource, releaseRuntimeResource, pinRuntimeResource, unpinRuntimeResource, getRuntimeResourceResidency,
+      setRuntimePlanInteractiveInterval,
+      resolveRuntimePlanSchedulerDiagnostics,
+      registerRuntimeResource,
+      updateRuntimeResource,
+      releaseRuntimeResource,
+      pinRuntimeResource,
+      unpinRuntimeResource,
+      getRuntimeResourceResidency,
       collectRuntimeResources, startRuntimeTrace, stopRuntimeTrace, getRuntimeMetricsSnapshot,
       queryGraph, resolvePublicDiagnosticsForCapability: resolvePublicDiagnostics,
       disposeRuntimePlanScheduler, isMounted: () => mountTarget !== null,
     }),
+    /**
+     * Registers loaded images for model-complete image node rendering.
+     * Host apps call this to provide image element references keyed by asset id.
+     * @param images Map of asset id to loaded HTMLImageElement.
+     */
+    setImageRegistry(images: ReadonlyMap<string, HTMLImageElement>) {
+      imageRegistry.clear();
+      for (const [assetId, image] of images) {
+        imageRegistry.set(assetId, image);
+      }
+    },
   };
 }
 

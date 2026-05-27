@@ -1,5 +1,7 @@
 import type { EngineHandle } from "./public-types";
 
+const MIN_VIEWPORT_SCALE_EPSILON = 0.0001;
+
 type EngineLifecycleViewFacadeDependencies = {
   emitEvent: (type: string, payload: unknown) => void;
   isMounted: () => boolean;
@@ -280,8 +282,8 @@ export function createEngineLifecycleViewFacade(
     screenToWorld(point) {
       const viewport = getViewportState();
       return {
-        x: point.x / Math.max(viewport.scale, 0.0001) + viewport.offsetX,
-        y: point.y / Math.max(viewport.scale, 0.0001) + viewport.offsetY,
+          x: point.x / Math.max(viewport.scale, MIN_VIEWPORT_SCALE_EPSILON) + viewport.offsetX,
+          y: point.y / Math.max(viewport.scale, MIN_VIEWPORT_SCALE_EPSILON) + viewport.offsetY,
       };
     },
     /**

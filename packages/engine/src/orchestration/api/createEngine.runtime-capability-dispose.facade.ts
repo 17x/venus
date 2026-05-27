@@ -6,6 +6,7 @@ import { createEngineCapabilityFacade } from "./createEngine.capability.facade";
  * Builds runtime/capability/dispose tail facade slices for createEngine return assembly.
  * @param deps Runtime and diagnostics dependencies from createEngine closure.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Dynamic facade dispatch requiring broad dependency bag
 export function createEngineRuntimeCapabilityDisposeFacade(deps: any) {
   const {
     runtimeFacade,
@@ -134,25 +135,43 @@ export function createEngineRuntimeCapabilityDisposeFacade(deps: any) {
   } = deps;
 
   return {
-    /** Keeps headless render parity by reusing the primary render path output counters. */
-    async renderHeadless(this: any) {
+      /** Keeps headless render parity by reusing the primary render path output counters. */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Headless delegate forwarding to dynamic render
+      async renderHeadless(this: any) {
       const rendered = await this.render();
       return { drawCount: rendered.drawCount, visibleCount: rendered.visibleCount };
     },
-    /** Preserves legacy event registration API by delegating to engine.events.on. @param event Event type token. @param listener Event listener callback. */
+    /**
+     * Preserves legacy event registration API by delegating to engine.events.on.
+     * @param event Event type token.
+     * @param listener Event listener callback.
+     */
     on(event: string, listener: (payload: unknown) => void) {
       registerEventListener(event, listener);
     },
-    /** Preserves legacy event unregister API by delegating to engine.events.off. @param event Event type token. @param listener Event listener callback. */
+    /**
+     * Preserves legacy event unregister API by delegating to engine.events.off.
+     * @param event Event type token.
+     * @param listener Event listener callback.
+     */
     off(event: string, listener: (payload: unknown) => void) {
       unregisterEventListener(event, listener);
     },
-    /** Preserves legacy one-shot listener API by delegating to engine.events.once. @param event Event type token. @param listener Event listener callback. */
-    once(this: any, event: string, listener: (payload: unknown) => void) {
+    /**
+     * Preserves legacy one-shot listener API by delegating to engine.events.once.
+     * @param event Event type token.
+     * @param listener Event listener callback.
+       */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Legacy once API forwarding to dynamic this.events
+      once(this: any, event: string, listener: (payload: unknown) => void) {
       this.events.once(event, listener);
     },
     ...createEngineDiagnosticsReplayFacade({
-      resolveMetrics: () => ({ encodedCommandCount: lastEncodedCommandCount, replayedCommandCount: lastReplayEventCount, drawCount: latestExecutionSnapshot.drawCount }),
+        resolveMetrics: () => ({
+          encodedCommandCount: lastEncodedCommandCount,
+          replayedCommandCount: lastReplayEventCount,
+          drawCount: latestExecutionSnapshot.drawCount,
+        }),
       setDiagnosticsEnabledFlag: (enabled: boolean) => { setDiagnosticsEnabled(enabled); },
       emitEvent,
       captureDebugFrameOutput: () => ({ mimeType: "image/png", dataUrl: "data:image/png;base64," }),
@@ -189,13 +208,36 @@ export function createEngineRuntimeCapabilityDisposeFacade(deps: any) {
       getBackendInfo,
     }),
     runtime: createEngineRuntimeFacadeNamespace({
-      resolveRuntimeDocumentSnapshot, resolveRuntimeDocumentRevision, applyRuntimeDocumentChangeSet, preflightRuntimeDocumentChangeSetApply, compileRuntimeWorld,
-      resolveRuntimeWorldSnapshotOutput, resolveRuntimeWorldGraphStatsOutput, resolveRuntimeDirtyStateOutput, markRuntimeDirtyDomain,
-      flushRuntimeDirtyDomains, scheduleRuntimeIncrementalCompile, forceRuntimeFullCompile, createRuntimeFramePlan,
-      inspectRuntimePlan, encodeRuntimeCommandPlan, validateRuntimeCommandBuffer, submitRuntimeCommandBuffer,
-      submitRuntimeCommandBufferBatch, createRuntimeGpuResource, updateRuntimeGpuResource, destroyRuntimeGpuResource,
-      createRuntimeUploadBatch, createRuntimeBarrierPlan, applyRuntimeBarrierPlan, readbackRuntimeResource,
-      queryRuntimeViewportCandidates, queryRuntimeFrustumVisibleSet, pickGraph, raycastGraph, queryRuntimeSpatialIndex,
+        resolveRuntimeDocumentSnapshot,
+        resolveRuntimeDocumentRevision,
+        applyRuntimeDocumentChangeSet,
+        preflightRuntimeDocumentChangeSetApply,
+        compileRuntimeWorld,
+        resolveRuntimeWorldSnapshotOutput,
+        resolveRuntimeWorldGraphStatsOutput,
+        resolveRuntimeDirtyStateOutput,
+        markRuntimeDirtyDomain,
+        flushRuntimeDirtyDomains,
+        scheduleRuntimeIncrementalCompile,
+        forceRuntimeFullCompile,
+        createRuntimeFramePlan,
+        inspectRuntimePlan,
+        encodeRuntimeCommandPlan,
+        validateRuntimeCommandBuffer,
+        submitRuntimeCommandBuffer,
+        submitRuntimeCommandBufferBatch,
+        createRuntimeGpuResource,
+        updateRuntimeGpuResource,
+        destroyRuntimeGpuResource,
+        createRuntimeUploadBatch,
+        createRuntimeBarrierPlan,
+        applyRuntimeBarrierPlan,
+        readbackRuntimeResource,
+        queryRuntimeViewportCandidates,
+        queryRuntimeFrustumVisibleSet,
+        pickGraph,
+        raycastGraph,
+        queryRuntimeSpatialIndex,
       resolveRuntimeBackendState: () => {
         const backendInfo = getBackendInfo();
         return {
@@ -204,24 +246,72 @@ export function createEngineRuntimeCapabilityDisposeFacade(deps: any) {
           fallbackReason: backendInfo.fallbackReason,
         };
       },
-      switchRuntimeBackend, resolveRuntimeBackendFallbackHistory, setRuntimeBackendDebugOptions, captureRuntimeFrame,
-      captureRuntimeCommandTrace, createRuntimeReplayToken, replayRuntimeToken, resolveRuntimePublicMetrics,
-      getRuntimeTrace, createRuntimeDocumentSnapshot, validateRuntimeDocumentSnapshot, resolveRuntimeDocumentSchemaVersion,
-      diffRuntimeDocumentSnapshots, rebaseRuntimeDocumentChangeSet, serializeRuntimeDocumentSnapshot, deserializeRuntimeDocumentSnapshot,
-      compileRuntimeWorldFromDocument, queryRuntimeWorldEntity, queryRuntimeWorldComponent, queryRuntimeNodeTransform,
-      formatRuntimeNodeSvgTransform, clearRuntimeWorldSnapshot, markRuntimeDirtyDomainsBatch, resolveRuntimePendingDirtyDomains,
-      resetRuntimeDirtyState, createRuntimeCommandEncoder, optimizeRuntimeCommandBuffer, inspectRuntimeCommandBuffer,
-      replayRuntimeCommandBuffer, resolveRuntimeBackendListAvailableOutput, selectRuntimeBackend, resolveRuntimeBackendGetActiveOutput,
-      resolveRuntimeBackendCapabilities, resolveRuntimeBackendLimits, resolveRuntimeBackendGetFallbackTraceOutput, probeRuntimeHeadlessBackend,
-      createRuntimeVisibilityPlan, createRuntimeLodPlan, createRuntimeRoiPlan, createRuntimeBudgetPlan,
-      createRuntimeHitGeometryPayload, resolveRuntimeHitTolerance, requestRuntimePlanFrame, cancelRuntimePlanFrame,
-      setRuntimePlanInteractiveInterval, resolveRuntimePlanSchedulerDiagnostics, registerRuntimeResource, updateRuntimeResource,
-      releaseRuntimeResource, pinRuntimeResource, unpinRuntimeResource, getRuntimeResourceResidency,
-      collectRuntimeResources, startRuntimeTrace, stopRuntimeTrace, getRuntimeMetricsSnapshot,
+        switchRuntimeBackend,
+        resolveRuntimeBackendFallbackHistory,
+        setRuntimeBackendDebugOptions,
+        captureRuntimeFrame,
+        captureRuntimeCommandTrace,
+        createRuntimeReplayToken,
+        replayRuntimeToken,
+        resolveRuntimePublicMetrics,
+        getRuntimeTrace,
+        createRuntimeDocumentSnapshot,
+        validateRuntimeDocumentSnapshot,
+        resolveRuntimeDocumentSchemaVersion,
+        diffRuntimeDocumentSnapshots,
+        rebaseRuntimeDocumentChangeSet,
+        serializeRuntimeDocumentSnapshot,
+        deserializeRuntimeDocumentSnapshot,
+        compileRuntimeWorldFromDocument,
+        queryRuntimeWorldEntity,
+        queryRuntimeWorldComponent,
+        queryRuntimeNodeTransform,
+        formatRuntimeNodeSvgTransform,
+        clearRuntimeWorldSnapshot,
+        markRuntimeDirtyDomainsBatch,
+        resolveRuntimePendingDirtyDomains,
+        resetRuntimeDirtyState,
+        createRuntimeCommandEncoder,
+        optimizeRuntimeCommandBuffer,
+        inspectRuntimeCommandBuffer,
+        replayRuntimeCommandBuffer,
+        resolveRuntimeBackendListAvailableOutput,
+        selectRuntimeBackend,
+        resolveRuntimeBackendGetActiveOutput,
+        resolveRuntimeBackendCapabilities,
+        resolveRuntimeBackendLimits,
+        resolveRuntimeBackendGetFallbackTraceOutput,
+        probeRuntimeHeadlessBackend,
+        createRuntimeVisibilityPlan,
+        createRuntimeLodPlan,
+        createRuntimeRoiPlan,
+        createRuntimeBudgetPlan,
+        createRuntimeHitGeometryPayload,
+        resolveRuntimeHitTolerance,
+        requestRuntimePlanFrame,
+        cancelRuntimePlanFrame,
+        setRuntimePlanInteractiveInterval,
+        resolveRuntimePlanSchedulerDiagnostics,
+        registerRuntimeResource,
+        updateRuntimeResource,
+        releaseRuntimeResource,
+        pinRuntimeResource,
+        unpinRuntimeResource,
+        getRuntimeResourceResidency,
+        collectRuntimeResources,
+        startRuntimeTrace,
+        stopRuntimeTrace,
+        getRuntimeMetricsSnapshot,
     }),
     capability: createEngineCapabilityFacade({
-      queryRuntimeNodeTransform, formatRuntimeNodeSvgTransform, queryGraph, createRuntimeHitGeometryPayload,
-      pickGraph, raycastGraph, resolveRuntimeHitTolerance, resolvePublicDiagnostics: resolvePublicDiagnosticsForCapability,
+        queryRuntimeNodeTransform,
+        formatRuntimeNodeSvgTransform,
+        queryGraph,
+        createRuntimeHitGeometryPayload,
+        pickGraph,
+        raycastGraph,
+        resolveRuntimeHitTolerance,
+        resolvePublicDiagnostics: resolvePublicDiagnosticsForCapability,
       createRuntimeReplayToken, replayRuntimeToken,
     }),
     /** Disposes runtime resources and emits lifecycle-disposed event payload. */
