@@ -1,7 +1,7 @@
 # Venus AI Highest-Level Enforcement Standard
 
 Status: Active, mandatory, blocking
-Version: 1.2.3
+Version: 1.3.0
 Owner: Repository governance
 
 ## 0. System Position
@@ -14,9 +14,8 @@ Priority order:
 1. .ai/AI_NATIVE_ENGINEERING_GOVERNANCE.md
 2. .ai/REPO_GOVERNANCE_PREFERENCES_EXTRACTED.md
 3. This document
-4. Repository hard instruction files
-5. Package/app local conventions
-6. General best practices
+4. Package/app local conventions
+5. General best practices
 
 Conflict rule:
 
@@ -343,3 +342,40 @@ To avoid avoidable latency inflation:
 - AI should avoid rerunning unchanged broad suites multiple times in one small edit cycle.
 - AI must prefer scoped validation first, then escalate only when risk or boundary spread increases.
 - AI must include in handoff which loop was last executed.
+
+## 13. Mandatory Comment Coverage
+
+- Add a leading intent comment for every new or modified function.
+- Prefer clarity-first coverage: comments should explain intent, decisions, invariants, and data-flow boundaries.
+- Line-by-line comments are optional and should only be used where dense logic genuinely needs it.
+- Add comments for non-trivial branches, fallbacks, cache/state transitions, thresholds, and compatibility edges.
+- Comment-only placeholders are forbidden; comments must explain intent, decision, invariant, or data-flow meaning.
+- Add comments inside functions at every non-obvious branch, fallback, cache/state transition, threshold, or compatibility edge whenever the behavior is not trivial from syntax alone.
+- Add comment coverage when splitting files too; extracted modules are not exempt.
+
+## 14. Temporary Change Tag
+
+- Every temporary workaround, guard, compatibility branch, fallback, or diagnostic-only patch must include an `AI-TEMP:` comment.
+- Use this format: `AI-TEMP: <why>; remove when <condition>; ref <task/doc>`.
+- Do not leave plain `TODO`, `FIXME`, `HACK`, or `temporary` markers without the `AI-TEMP:` tag.
+
+## 15. File Shape Rule
+
+- When a touched file approaches 500 lines and holds more than one responsibility, split it.
+- When a touched file crosses 600 lines, split is required unless the file is generated.
+- File splits must preserve ownership boundaries; do not move product policy into runtime or engine.
+
+## 16. Same-Name File Family Folder Rule
+
+- When files share the same stem (for example: `a.ts`, `a.d.ts`, `a.test.ts`), they must be colocated inside a folder named after the stem (for example: `a/a.ts`, `a/a.d.ts`, `a/a.test.ts`).
+- New additions must follow this structure directly; avoid creating new flat same-stem siblings in the parent directory.
+- During refactors, migrate existing same-stem file families to the folder structure in the same change when safe.
+
+## 17. Mandatory Test Coverage
+
+- Every new or modified module with non-trivial logic MUST include a corresponding test file (`*.test.ts`) in the nearest `testing/` or `__tests__/` directory.
+- Test files must exercise: happy path, edge cases (empty/null/boundary), and at least one error/negative case per exported function.
+- When a bug is found during implementation, add a regression test that reproduces the bug before fixing it.
+- Tests must pass before the change is considered complete. Run the test suite for the affected package and confirm zero failures.
+- For engine changes, run `node --import tsx --test src/testing/*.test.ts src/testing/**/*.test.ts` from the engine package directory.
+- When adding a new module, write the test file BEFORE or alongside the implementation — not after.

@@ -161,6 +161,23 @@ export interface EngineHandle {
   removeOverlay: (overlayId: string) => void;
   /** Clears overlays for one optional scope token. */
   clearOverlays: (scope?: string) => void;
+  /**
+   * Registers backend-compatible overlay draw instructions for the current frame.
+   * Each instruction carries primitive type, world-space geometry, and visual style.
+   * @param instructions Backend-compatible overlay draw instructions.
+   */
+  setOverlayInstructions: (instructions: ReadonlyArray<{
+    id: string;
+    primitive: string;
+    points?: ReadonlyArray<{ x: number; y: number }>;
+    bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+    strokeColor?: string;
+    strokeWidth?: number;
+    strokeDash?: number[];
+    fillColor?: string;
+    fillOpacity?: number;
+    zIndex?: number;
+  }>) => void;
   /** Sets transform preview payload consumed by interaction tooling. */
   setTransformPreview: (preview: unknown) => void;
   /** Clears transform preview payload. */

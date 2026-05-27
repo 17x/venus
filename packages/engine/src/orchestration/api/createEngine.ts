@@ -430,9 +430,17 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       stroke !== "transparent" &&
       stroke !== "none" &&
       strokeWidth > 1;  // Default weight 1 is trivial; mesh fallback is acceptable.
-    // Also block when stroke carries advanced properties (dash, align, cap, join).
+    // Any visible stroke (weight > 1) requires model-complete for proper
+    // line-width rendering. Advanced stroke properties (dash, align, cap, join)
+    // are a subset that also require model-complete.
+    if (hasVisibleStroke) {
+      return false;
+    }
+    // Also block when stroke carries advanced properties even at weight 1.
     const hasAdvancedStroke =
-      hasVisibleStroke &&
+      stroke.length > 0 &&
+      stroke !== "transparent" &&
+      stroke !== "none" &&
       (
         typeof (node as Record<string, unknown>).dashPattern === "string" ||
         typeof (node as Record<string, unknown>).customDash !== "undefined" ||
@@ -510,8 +518,15 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
    */
   function resolveNativeFramePayload(_timestampMs: number) {
     const viewport = viewportFacade.getViewport();
-    const candidateIds = latestExecutionSnapshot.visibleCandidateIds.length > 0
+    // AI-TEMP: visibleCandidateIds come from ECS world entity IDs which may
+    // drift from graph node IDs during document updates; always validate at
+    // least one candidate resolves to a graph node before trusting the list.
+    // Remove when entity→graph ID mapping is guaranteed stable; ref DEX-112.
+    const rawCandidateIds = latestExecutionSnapshot.visibleCandidateIds.length > 0
       ? latestExecutionSnapshot.visibleCandidateIds
+      : [...graphNodeState.keys()];
+    const candidateIds = rawCandidateIds.some((id) => graphNodeState.has(id))
+      ? rawCandidateIds
       : [...graphNodeState.keys()];
     const candidateNodes = candidateIds
       .map((nodeId) => graphNodeState.get(nodeId))
@@ -645,23 +660,26 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       meshes,
       needsComposition,
       images: imageRegistry.size > 0 ? imageRegistry : undefined,
-      overlays: overlayNodes.length > 0 ? overlayNodes as ReadonlyArray<{
-        id: string;
-        primitive: string;
-        points?: ReadonlyArray<{ x: number; y: number }>;
-        bounds?: { minX: number; minY: number; maxX: number; maxY: number };
-        strokeColor?: string;
-        strokeWidth?: number;
-        strokeDash?: number[];
-        fillColor?: string;
-        fillOpacity?: number;
-        zIndex?: number;
-      }> : undefined,
+      overlays: overlayInstructions.length > 0 ? overlayInstructions : undefined,
     };
   }
 
   // Image registry populated by the host app for model-complete image node rendering.
   const imageRegistry = new Map<string, HTMLImageElement>();
+
+  // Overlay instructions populated by the host app for marquee/hover/selection rendering.
+  let overlayInstructions: ReadonlyArray<{
+    id: string;
+    primitive: string;
+    points?: ReadonlyArray<{ x: number; y: number }>;
+    bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+    strokeColor?: string;
+    strokeWidth?: number;
+    strokeDash?: number[];
+    fillColor?: string;
+    fillOpacity?: number;
+    zIndex?: number;
+  }> = [];
 
   const { backend, backendSelection } = resolveEngineBackend(options, backendSelectorModule, {
     canvas2d: {
@@ -1151,13 +1169,13 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       getLastInteractionKind: () => lastInteractionKind,
       getLatestExecutionSnapshot: () => latestExecutionSnapshot,
       getIsMounted: () => mountTarget !== null,
-      presentBackendFrame: (timestampMs) => {
+      presentBackendFrame: async (timestampMs) => {
         latestBackendPresentTelemetry = {
           attempted: false,
           committed: false,
           skippedReason: null,
         };
-        backend.renderFrame(timestampMs);
+        await backend.renderFrame(timestampMs);
         if (!latestBackendPresentTelemetry.attempted) {
           latestBackendPresentTelemetry = {
             attempted: true,
@@ -1382,6 +1400,26 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       for (const [assetId, image] of images) {
         imageRegistry.set(assetId, image);
       }
+    },
+    /**
+     * Registers overlay draw instructions for the current frame.
+     * Host apps call this to provide marquee/hover/selection/handler overlays
+     * in a backend-compatible format (primitive + geometry + style).
+     * @param instructions Backend-compatible overlay draw instructions.
+     */
+    setOverlayInstructions(instructions: ReadonlyArray<{
+      id: string;
+      primitive: string;
+      points?: ReadonlyArray<{ x: number; y: number }>;
+      bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+      strokeColor?: string;
+      strokeWidth?: number;
+      strokeDash?: number[];
+      fillColor?: string;
+      fillOpacity?: number;
+      zIndex?: number;
+    }>) {
+      overlayInstructions = instructions;
     },
   };
 }

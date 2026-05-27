@@ -28,11 +28,11 @@ type EngineGraphRenderFacadeDependencies = {
   getLastInteractionKind: () => string;
   getLatestExecutionSnapshot: () => { drawCount: number; visibleCandidateIds: readonly string[] };
   getIsMounted: () => boolean;
-  presentBackendFrame: (timestampMs: number) => {
+  presentBackendFrame: (timestampMs: number) => Promise<{
     attempted: boolean;
     completed: boolean;
     skippedReason: "missing-context" | null;
-  };
+  }>;
   getResolvedBackendMode: () => "webgpu" | "webgl" | "canvas2d" | "headless";
   setLatestRenderChainDiagnostics: (diagnostics: EngineRenderChainDiagnostics) => void;
   /** Persists latest structured render warning for diagnostics snapshot consumers. */
@@ -354,7 +354,7 @@ export function createEngineGraphRenderFacade(
         renderChain.submitReached = true;
         // Submit hooks indicate orchestration reached backend-present boundary.
         renderChain.backendPresentReached = true;
-        const presentResult = presentBackendFrame(resolveNow());
+        const presentResult = await presentBackendFrame(resolveNow());
         renderChain.backendPresentCompleted = presentResult.completed;
         renderChain.backendPresentSkippedReason = presentResult.skippedReason;
         if (!presentResult.completed) {

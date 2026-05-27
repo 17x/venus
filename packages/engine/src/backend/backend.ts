@@ -22,9 +22,11 @@ export interface EngineBackend {
    */
   resize: (surface: EngineBackendSurface) => void;
   /**
-   * Executes one backend frame step.
+   * Executes one backend frame step asynchronously.
+   * AI-TEMP: made async for WebGPU device initialization support.
+   * Remove async when all backends support sync init; ref DEX-113.
    */
-  renderFrame: (timestampMs: number) => void;
+  renderFrame: (timestampMs: number) => Promise<void>;
   /**
    * Releases backend-owned resources.
    */

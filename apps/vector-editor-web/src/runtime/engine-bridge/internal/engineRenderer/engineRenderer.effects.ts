@@ -4,6 +4,66 @@ import type {RuntimeEngine as Engine} from '../../engine.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 
 /**
+ * Declares one backend-compatible overlay draw instruction.
+ *
+ * Mirrors the WebGLOverlayInstruction / WebGPUOverlayInstruction shape defined
+ * in the engine backend adapters so drawRichNodesToCompositionContext can render
+ * overlays without knowing about vector-editor-specific types.
+ */
+interface BackendOverlayInstruction {
+  id: string;
+  primitive: string;
+  points?: ReadonlyArray<{ x: number; y: number }>;
+  bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+  strokeColor?: string;
+  strokeWidth?: number;
+  strokeDash?: number[];
+  fillColor?: string;
+  fillOpacity?: number;
+  zIndex?: number;
+}
+
+/**
+ * Converts engine overlay draw nodes into backend-compatible overlay draw
+ * instructions. EngineOverlayDrawNode already carries primitive type, geometry,
+ * and style — this function normalises the shape to match the backend's
+ * expected WebGLOverlayInstruction / WebGPUOverlayInstruction contract.
+ *
+ * @param nodes Engine overlay draw nodes from the selector overlay adapter.
+ */
+function convertOverlayNodesToInstructions(
+  nodes: readonly import('../../engine.ts').EngineOverlayDrawNode[] | undefined,
+): BackendOverlayInstruction[] {
+  if (!nodes || nodes.length === 0) {
+    return [];
+  }
+
+  const instructions: BackendOverlayInstruction[] = [];
+
+  for (const node of nodes) {
+    // EngineOverlayDrawNode stores geometry and style as opaque extra keys.
+    const primitive = typeof node.type === "string" ? node.type : "polyline";
+    const rawPoints = node.points as ReadonlyArray<{ x: number; y: number }> | undefined;
+    const rawStyle = node.style as Record<string, unknown> | undefined;
+    const points = Array.isArray(rawPoints) ? rawPoints : undefined;
+
+    instructions.push({
+      id: typeof node.id === "string" ? node.id : `overlay-${instructions.length}`,
+      primitive,
+      points,
+      strokeColor: typeof rawStyle?.strokeColor === "string" ? rawStyle.strokeColor as string : undefined,
+      strokeWidth: typeof rawStyle?.strokeWidth === "number" ? rawStyle.strokeWidth as number : 1,
+      strokeDash: Array.isArray(rawStyle?.strokeDash) ? rawStyle.strokeDash as number[] : undefined,
+      fillColor: typeof rawStyle?.fillColor === "string" ? rawStyle.fillColor as string : undefined,
+      fillOpacity: typeof rawStyle?.fillOpacity === "number" ? rawStyle.fillOpacity as number : undefined,
+      zIndex: typeof rawStyle?.zIndex === "number" ? rawStyle.zIndex as number : undefined,
+    });
+  }
+
+  return instructions;
+}
+
+/**
  * Runs interaction settle transitions for renderer interaction diagnostics state.
  * @param interactionSettledInput Input bundle for interaction settle effect.
  */
@@ -96,10 +156,15 @@ export function useEngineRendererOverlaySyncEffect(overlaySyncInput: {
       return
     }
 
+    // Convert engine overlay draw nodes to backend-compatible instructions.
+    // EngineOverlayDrawNode already carries primitive + geometry + style from
+    // the selector overlay adapter (createEngineOverlayNodesFromSelectorItems).
+    const instructions = convertOverlayNodesToInstructions(overlayNodes);
+
     const overlayEnabledEngine = engine as Engine & {
-      setOverlayNodes?: (nodes?: readonly import('../../engine.ts').EngineOverlayDrawNode[]) => void
-    }
-    overlayEnabledEngine.setOverlayNodes?.(overlayNodes)
+      setOverlayInstructions?: (instructions?: readonly BackendOverlayInstruction[]) => void
+    };
+    overlayEnabledEngine.setOverlayInstructions?.(instructions);
     const overlayRenderMode: 'interactive' | 'normal' = (
       interactionPhase === 'pan' ||
       effectiveInteractionPhase === 'zoom' ||

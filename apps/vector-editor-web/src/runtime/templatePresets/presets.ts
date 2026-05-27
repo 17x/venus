@@ -2,6 +2,17 @@ import type {TemplatePresetDefinition} from './types.ts'
 
 export const TEMPLATE_PRESETS: TemplatePresetDefinition[] = [
   {
+    id: 'demo-model-coverage',
+    label: 'Model Coverage Demo',
+    description: 'Comprehensive template exercising every DocumentNode property: multi-fill/stroke, gradients, shadows, blurs, dash, rounded corners, ellipse arcs, multi-line textRuns, clip masks, boolean ops, locked/visible, component stubs.',
+    category: 'simple-demo',
+    targetElementCount: 30,
+    scale: 'tiny',
+    capabilities: ['render', 'selection', 'text', 'clip', 'styles', 'layers'],
+    interactionScenarios: ['single-select', 'text-editing', 'style-editing'],
+    regression: true,
+  },
+  {
     id: 'demo-basic-shapes',
     label: 'Basic Shapes Demo',
     description: 'Small user-friendly layout with rectangles, ellipse, path, text, and group.',

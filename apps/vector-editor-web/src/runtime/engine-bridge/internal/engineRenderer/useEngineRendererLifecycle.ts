@@ -200,6 +200,14 @@ export function useEngineRendererLifecycle(params: {
     params.engineRef.current = engine
     params.hasLoadedSceneInEngineRef.current = false
 
+    // Register loaded images so model-complete image nodes can render.
+    const engineWithRegistry = engine as import('../../engine.ts').RuntimeEngine & {
+      setImageRegistry?: (images: ReadonlyMap<string, HTMLImageElement>) => void
+    };
+    if (params.imageCacheRef.current.size > 0) {
+      engineWithRegistry.setImageRegistry?.(params.imageCacheRef.current);
+    }
+
     return () => {
       params.cancelDeferredFullRedraw()
       params.cancelDeferredResizeCommit()

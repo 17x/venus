@@ -425,7 +425,7 @@ export function createNoopBackendAdapter(
       // Keep the latest surface snapshot so tests can verify resize calls.
       currentSurface = surface;
     },
-    renderFrame(_timestampMs) {
+    async renderFrame(_timestampMs) {
       hooks?.onPresentAttempt?.(_timestampMs);
       // Intentionally no-op while adapter contracts stabilize.
       void currentSurface;

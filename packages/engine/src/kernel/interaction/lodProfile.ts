@@ -66,7 +66,10 @@ export function resolveEngineCanvasLodProfile(
   }
 
   const interactionVelocity = Math.max(0, options.interactionVelocity ?? 0);
-  const isInteracting = options.isInteracting ?? interactionVelocity > 0;
+  // Use explicit interaction flag when provided; fall back to velocity-based
+  // heuristic so callers that don't track explicit interaction state still
+  // benefit from velocity-driven LOD promotion.
+  const isInteracting = options.isInteracting ?? (interactionVelocity > 100);
 
   let lodLevel: EngineLodLevel =
     options.shapeCount >= SHAPE_COUNT_HEAVY_THRESHOLD ||

@@ -3,8 +3,8 @@ import { createEngineWorldModule } from "../../kernel/core/world/runtime-world-m
 import { resolvePickingHitStack } from "../../kernel/picking/pickingPipeline";
 import {
   createSpatialIndexFromWorld,
-  querySpatialCandidates,
 } from "../../kernel/spatial/spatialIndex";
+import { createEngineSpatialIndex } from "../../kernel/spatial/engineSpatialIndex";
 import type { EngineDocumentSnapshot } from "../../kernel/document/document-contracts";
 import type { EnginePlanningViewport } from "../render-planning/createEngineFrameResolver";
 
@@ -31,6 +31,11 @@ export interface EngineExecutionSnapshot {
 
 /**
  * Resolves one staged execution snapshot from document/compiler outputs.
+ *
+ * Uses an R-tree spatial index for O(log n) viewport culling instead of the
+ * legacy O(n) linear scan. The R-tree (RBush3D) is the canonical spatial index
+ * for 2D/3D range queries in this engine.
+ *
  * @param options Document snapshot, compile output, and viewport inputs.
  */
 export function resolveStagedExecutionSnapshot(options: {
@@ -42,16 +47,42 @@ export function resolveStagedExecutionSnapshot(options: {
   viewport: EnginePlanningViewport;
 }): EngineExecutionSnapshot {
   const world = worldModule.createWorldFromDocument(options.document);
-  const spatialIndex = createSpatialIndexFromWorld(world);
-  const visibleCandidateIds = querySpatialCandidates(spatialIndex, {
-    x: options.viewport.offsetX,
-    y: options.viewport.offsetY,
-    width: options.viewport.width,
-    height: options.viewport.height,
-  });
 
+  // Build an R-tree spatial index for O(log n) viewport-candidate queries.
+  // This replaces the legacy O(n) linear scan in querySpatialCandidates
+  // for scenes with large node counts.
+  const spatialIndex = createEngineSpatialIndex<{ nodeId: string }>({ dimension: "2d" });
+  const spatialItems = world.entities.map((entity) => ({
+    id: entity.id,
+    minX: entity.bounds.x,
+    minY: entity.bounds.y,
+    maxX: entity.bounds.x + entity.bounds.width,
+    maxY: entity.bounds.y + entity.bounds.height,
+    meta: { nodeId: entity.id },
+  }));
+  spatialIndex.load(spatialItems);
+
+  // Convert viewport CSS-pixel dimensions to world-space coordinates for
+  // correct spatial query alignment. width/height are in CSS pixels while
+  // offsetX/offsetY and entity bounds are in world space.
+  const worldViewportWidth = options.viewport.width / Math.max(options.viewport.scale, 0.001);
+  const worldViewportHeight = options.viewport.height / Math.max(options.viewport.scale, 0.001);
+  const viewportBounds = {
+    minX: options.viewport.offsetX,
+    minY: options.viewport.offsetY,
+    maxX: options.viewport.offsetX + worldViewportWidth,
+    maxY: options.viewport.offsetY + worldViewportHeight,
+  };
+  const visibleCandidateIds = spatialIndex
+    .search(viewportBounds)
+    .map((item) => item.id)
+    .sort();
+
+  // Build a legacy snapshot index for the picking pipeline which still
+  // expects the linear-scan spatial index shape.
+  const legacyIndex = createSpatialIndexFromWorld(world);
   const picking = resolvePickingHitStack({
-    spatialIndex,
+    spatialIndex: legacyIndex,
       x: options.viewport.offsetX + options.viewport.width / PICKING_CENTER_DIVISOR,
       y: options.viewport.offsetY + options.viewport.height / PICKING_CENTER_DIVISOR,
   });

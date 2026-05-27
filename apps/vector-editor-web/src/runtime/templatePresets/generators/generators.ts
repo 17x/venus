@@ -12,7 +12,7 @@
 import type {EditorFileDocument} from '../../types/index.ts'
 import {getTemplatePresetById} from '../presets.ts'
 import type {TemplateFileGenerator, TemplateGeneratorContext} from '../types.ts'
-import {createBasicShapesDemo, createWelcomeBoardDemo} from './generators.demos.ts'
+import {createBasicShapesDemo, createWelcomeBoardDemo, createModelCoverageDemo} from './generators.demos.ts'
 import {createFeatureMatrixTemplate} from './generators.matrix.ts'
 import {
   createImageHeavyTemplate,
@@ -25,6 +25,7 @@ import {createWireframeDemo} from './generators.wireframe.ts'
 const PRESET_GENERATORS: Record<string, TemplateFileGenerator> = {
   'demo-basic-shapes': createBasicShapesDemo,
   'demo-welcome-board': createWelcomeBoardDemo,
+  'demo-model-coverage': createModelCoverageDemo,
   'demo-wireframe': createWireframeDemo,
   'test-feature-matrix': createFeatureMatrixTemplate,
   'test-text-dense': createTextDenseTemplate,

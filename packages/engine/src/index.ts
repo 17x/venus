@@ -57,6 +57,17 @@ export {
   createSpatialIndexFromWorld,
   querySpatialCandidates,
 } from "./kernel/spatial/spatialIndex";
+export { createEngineSpatialIndex } from "./kernel/spatial/engineSpatialIndex";
+export type {
+  EngineSpatialItem,
+  EngineSpatialIndex,
+} from "./kernel/spatial/engineSpatialIndex";
+export { createEngineBvh } from "./kernel/spatial/bvh";
+export type {
+  BvhAABB,
+  BvhPrimitive,
+  EngineBvh,
+} from "./kernel/spatial/bvh";
 export { createEngineSpatialQueryModule, resolveSpatialQueryResult } from "./kernel/spatial/spatialQuery/spatialQuery";
 export {
   createDefaultEngineBackendProbes,

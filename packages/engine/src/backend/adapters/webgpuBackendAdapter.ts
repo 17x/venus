@@ -236,7 +236,7 @@ function drawRichNodesToCompositionContext(
     const shape = typeof node.shape === "string" ? node.shape : "rect";
 
     if (node.type === "text") {
-      // Render text with optional multi-run style support.
+      // Render text with optional multi-run style and multi-line support.
       const textContent = typeof node.text === "string" ? node.text : "Text";
       const runs = Array.isArray((node as Record<string, unknown>).runs)
         ? (node as Record<string, unknown>).runs as Array<{
@@ -256,32 +256,49 @@ function drawRichNodesToCompositionContext(
             };
           }>
         : null;
+      const defaultFontSize = 16;
+      const defaultFontFamily = "sans-serif";
 
       if (runs && runs.length > 0) {
-        // Multi-run rendering: apply per-run style, accumulate x offset.
         let cursorX = x;
-        const defaultFontSize = 16;
-        const defaultFontFamily = "sans-serif";
+        let cursorY = y;
         for (const run of runs) {
           const runFill = run.style?.fill ?? fill;
           const runFontSize = run.style?.fontSize ?? defaultFontSize;
           const runFontFamily = run.style?.fontFamily ?? defaultFontFamily;
           const runFontWeight = run.style?.fontWeight ?? 400;
           const runFontStyle = run.style?.fontStyle ?? "normal";
-          context.fillStyle = runFill !== "transparent" ? runFill : "#0f172a";
-          context.font = `${runFontStyle} ${runFontWeight} ${runFontSize}px ${runFontFamily}`;
-          context.textBaseline = "top";
-          context.fillText(run.text, cursorX, y);
-          cursorX += context.measureText(run.text).width;
-          drawnPrimitiveCount += 1;
+          // lineHeight from the document model is an absolute px value, not a
+          // multiplier. Use it directly as the line advance.
+          const lineHeightPx = typeof run.style?.lineHeight === "number" && run.style.lineHeight > 0
+            ? run.style.lineHeight
+            : runFontSize * 1.2;
+          const runText = run.text ?? "";
+          const lines = runText.split("\n");
+          for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+            const line = lines[lineIndex];
+            if (lineIndex > 0) { cursorX = x; cursorY += lineHeightPx; }
+            if (line.length === 0) continue;
+            context.fillStyle = runFill !== "transparent" ? runFill : "#0f172a";
+            context.font = `${runFontStyle} ${runFontWeight} ${runFontSize}px ${runFontFamily}`;
+            context.textBaseline = "top";
+            context.fillText(line, cursorX, cursorY);
+            cursorX += context.measureText(line).width;
+            drawnPrimitiveCount += 1;
+          }
         }
       } else {
-        // Single-style fallback rendering.
+        const lineHeightPx = defaultFontSize * 1.2;
+        const lines = textContent.split("\n");
         context.fillStyle = fill !== "transparent" ? fill : "#0f172a";
+        context.font = `normal 400 ${defaultFontSize}px ${defaultFontFamily}`;
         context.textBaseline = "top";
-        context.font = "16px sans-serif";
-        context.fillText(textContent, x, y, width > 0 ? width : undefined);
-        drawnPrimitiveCount += 1;
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          const line = lines[lineIndex];
+          if (line.length === 0) continue;
+          context.fillText(line, x, y + lineIndex * lineHeightPx, width > 0 ? width : undefined);
+          drawnPrimitiveCount += 1;
+        }
       }
       context.restore();
       continue;
@@ -468,7 +485,7 @@ function drawRichNodesToCompositionContext(
     for (const overlay of sorted) {
       context.save();
       const strokeColor = overlay.strokeColor ?? "transparent";
-      const strokeW = overlay.strokeWidth ?? 1;
+      const strokeW = (overlay.strokeWidth ?? 1) / Math.max(payload.scale, 0.01);
       const fillColor = overlay.fillColor ?? "transparent";
       const fillAlpha = overlay.fillOpacity ?? 1;
       const dash = overlay.strokeDash;
@@ -636,6 +653,8 @@ export function createWebGPUBackendAdapter(
         return;
       }
 
+      // The canvas is dedicated to the selected backend by the engine
+      // bootstrap path; no other backend should have claimed its context.
       const context = (canvas as unknown as { getContext: (id: string) => unknown | null }).getContext("webgpu");
       if (!context) {
         return;
@@ -844,9 +863,9 @@ export function createWebGPUBackendAdapter(
       device = null;
       initPromise = null;
     },
-    renderFrame(timestampMs) {
+    async renderFrame(timestampMs) {
       hooks?.onPresentAttempt?.(timestampMs);
-      void ensureWebGPUInitialized();
+      await ensureWebGPUInitialized();
       if (!configuredContext || !device) {
         publishWebGPUDiagnostics({
           webgpuRenderPath: "native-clear-only",
