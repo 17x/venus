@@ -1,0 +1,27 @@
+export interface PlaygroundScenarioModelSpec {
+  scenarioId: string
+  sourceData: string
+  adapterOutput: string
+  engineProjection: string
+  interactions: readonly string[]
+  mvpLimits: readonly string[]
+  requiredEngineApis: readonly string[]
+}
+
+const BASE_ENGINE_APIS = ['createEngine', 'engine.runtime.submit', 'engine.resize', 'engine.getView'] as const
+
+export const PLAYGROUND_SCENARIO_MODEL_SPECS: readonly PlaygroundScenarioModelSpec[] = [
+  {scenarioId: 's1-medical-volume-slice-runtime', sourceData: 'Scalar grid records', adapterOutput: 'volume slice mesh and intensity resources', engineProjection: 'generic graph nodes plus resource descriptors', interactions: ['slice scrub', 'fit view'], mvpLimits: ['proxy scalar data until licensed local fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.capability.geometry.setModel']},
+  {scenarioId: 's2-preop-path-simulation', sourceData: 'Waypoint coordinate records', adapterOutput: 'path polyline nodes and waypoint markers', engineProjection: 'generic line and point graph', interactions: ['path step replay', 'pick waypoint'], mvpLimits: ['airport proxy data until surgical-safe sample lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.pick']},
+  {scenarioId: 's3-bim-collab-review', sourceData: 'Building footprint polygons', adapterOutput: 'extruded block layers and review overlays', engineProjection: 'generic mesh and annotation graph', interactions: ['layer toggle', 'pick element'], mvpLimits: ['footprint proxy data until IFC sample lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.pick']},
+  {scenarioId: 's4-cad-assembly-validation', sourceData: 'Part-like numeric records', adapterOutput: 'assembly primitives and constraint markers', engineProjection: 'generic primitive graph and measurement overlays', interactions: ['part isolate', 'measure clearance'], mvpLimits: ['vehicle proxy data until CAD sample lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.capability.geometry.setModel']},
+  {scenarioId: 's5-gis-live-map-streaming', sourceData: 'GeoJSON event feed', adapterOutput: 'tile-like point layers and depth bands', engineProjection: 'generic point and region graph', interactions: ['viewport filter', 'severity layer toggle'], mvpLimits: ['remote feed remains dynamic until pinned fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.runtime.submit']},
+  {scenarioId: 's6-autodrive-twin-replay', sourceData: 'Timeline event records', adapterOutput: 'deterministic replay keyframes', engineProjection: 'generic track and keyframe graph', interactions: ['play replay', 'seek timeline'], mvpLimits: ['sports proxy data until driving sample lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.capability.replay.run']},
+  {scenarioId: 's7-city-twin-monitor-wall', sourceData: 'Country statistics records', adapterOutput: 'city-scale bar layers and monitor panels', engineProjection: 'generic dense scene graph', interactions: ['quality toggle', 'filter band'], mvpLimits: ['GDP proxy data until city fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.events.on']},
+  {scenarioId: 's8-commerce-product-variant-runtime', sourceData: 'Product catalog records', adapterOutput: 'variant cards and layered product proxies', engineProjection: 'generic resource-backed graph nodes', interactions: ['variant switch', 'pick card'], mvpLimits: ['public demo API until licensed catalog fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.pick']},
+  {scenarioId: 's9-molecular-volume-exploration', sourceData: 'Point cloud records', adapterOutput: 'cluster points and volume depth fields', engineProjection: 'generic point cloud and volume resources', interactions: ['cluster filter', 'depth range'], mvpLimits: ['earthquake proxy data until molecule fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.capability.geometry.setModel']},
+  {scenarioId: 's10-game-editor-runtime-preview', sourceData: 'Graph topology records', adapterOutput: 'authoring/runtime graph parity nodes', engineProjection: 'generic graph nodes and edge resources', interactions: ['runtime preview step', 'pick node'], mvpLimits: ['graph proxy data until game scene fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.events.on']},
+  {scenarioId: 's11-node-headless-rendering', sourceData: 'Time-series records', adapterOutput: 'headless deterministic frame inputs', engineProjection: 'generic graph plus capture metadata', interactions: ['capture frame', 'compare revision'], mvpLimits: ['browser route only until headless runner lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.events.on']},
+  {scenarioId: 's12-vector-editor-optin-2d', sourceData: 'Weather curve records', adapterOutput: '2D path editing proxy document', engineProjection: 'explicit opt-in 2D graph projection', interactions: ['edit control point', 'toggle handles'], mvpLimits: ['weather proxy data until vector fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.pick']},
+  {scenarioId: 's13-video-timeline-composition', sourceData: 'Stock time-series records', adapterOutput: 'timeline tracks and clip proxies', engineProjection: 'generic track and keyframe graph', interactions: ['seek timeline', 'toggle track'], mvpLimits: ['stock proxy data until video timeline fixture lands'], requiredEngineApis: [...BASE_ENGINE_APIS, 'engine.capability.replay.run']},
+] as const

@@ -9,20 +9,28 @@ export type ThreeEditorWorldObject = {
   id: string
   /** Human-readable object label rendered in the document model list. */
   label: string
+  /** Primitive kind used by graph builder. */
+  kind: 'box' | 'cone' | 'pipe' | 'image'
   /** World-space x position used by semantic3d transform payloads. */
   x: number
   /** World-space y position used by semantic3d transform payloads. */
   y: number
   /** World-space z position used by semantic3d transform payloads. */
   z: number
-  /** World-space width used by semantic3d bounds payloads. */
-  width: number
-  /** World-space height used by semantic3d bounds payloads. */
-  height: number
-  /** World-space depth used by semantic3d bounds payloads. */
-  depth: number
+  /** World-space width used by box/image primitives. */
+  width?: number
+  /** World-space height used by box/image/cone primitives. */
+  height?: number
+  /** World-space depth used by box/image primitives. */
+  depth?: number
+  /** Base radius used by cone/pipe primitives. */
+  radius?: number
+  /** Secondary radius used by pipe primitives. */
+  innerRadius?: number
   /** Base color used by shape fill and stroke properties. */
   color: string
+  /** Optional source URL for image-plane semantic metadata. */
+  imageSrc?: string
 }
 
 /** Declares runtime switch state used by command buttons and diagnostics rows. */
@@ -60,6 +68,7 @@ export const DEFAULT_THREE_EDITOR_WORLD_OBJECTS: ReadonlyArray<ThreeEditorWorldO
   {
     id: 'mesh-main-cube',
     label: 'Main Cube',
+    kind: 'box',
     x: 0,
     y: 0,
     z: 0,
@@ -71,6 +80,7 @@ export const DEFAULT_THREE_EDITOR_WORLD_OBJECTS: ReadonlyArray<ThreeEditorWorldO
   {
     id: 'mesh-left-cube',
     label: 'Left Block',
+    kind: 'box',
     x: -170,
     y: -42,
     z: 70,
@@ -82,6 +92,7 @@ export const DEFAULT_THREE_EDITOR_WORLD_OBJECTS: ReadonlyArray<ThreeEditorWorldO
   {
     id: 'mesh-right-cube',
     label: 'Right Block',
+    kind: 'box',
     x: 190,
     y: 20,
     z: 55,
@@ -89,5 +100,41 @@ export const DEFAULT_THREE_EDITOR_WORLD_OBJECTS: ReadonlyArray<ThreeEditorWorldO
     height: 180,
     depth: 140,
     color: '#fb7185',
+  },
+  {
+    id: 'mesh-cone-marker',
+    label: 'Cone Marker',
+    kind: 'cone',
+    x: -40,
+    y: 0,
+    z: -230,
+    radius: 46,
+    height: 150,
+    color: '#f59e0b',
+  },
+  {
+    id: 'mesh-pipe-segment',
+    label: 'Pipe Segment',
+    kind: 'pipe',
+    x: 250,
+    y: 30,
+    z: -160,
+    radius: 54,
+    innerRadius: 34,
+    height: 170,
+    color: '#60a5fa',
+  },
+  {
+    id: 'mesh-image-board',
+    label: 'Image Board',
+    kind: 'image',
+    x: -260,
+    y: 90,
+    z: -120,
+    width: 180,
+    height: 120,
+    depth: 8,
+    color: '#e2e8f0',
+    imageSrc: 'https://picsum.photos/512/320',
   },
 ]

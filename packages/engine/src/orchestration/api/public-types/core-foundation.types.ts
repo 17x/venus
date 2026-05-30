@@ -85,6 +85,13 @@ export interface EngineCreateOptions {
   * Optional debug flag for runtime diagnostics.
    */
   debug?: boolean;
+  /**
+   * Enables strict 3D mode.
+   *
+   * When enabled, engine skips all 2D shape packet fallbacks and renders
+   * only explicit mesh primitives supplied by graph nodes.
+   */
+  strict3d?: boolean;
 }
 
 /**

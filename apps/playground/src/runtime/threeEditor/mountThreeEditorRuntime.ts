@@ -112,6 +112,7 @@ export const mountThreeEditorRuntime = (): void => {
   }
   let hoverEntityId: string | null = null
   let selectedEntityId: string | null = null
+  let hideObjectNodes = false
 
   canvas.width = STAGE_WIDTH
   canvas.height = STAGE_HEIGHT
@@ -135,6 +136,7 @@ export const mountThreeEditorRuntime = (): void => {
       },
     },
     backend: 'webgl',
+    strict3d: true,
   })
 
   /**
@@ -147,6 +149,7 @@ export const mountThreeEditorRuntime = (): void => {
       worldObjects: DEFAULT_THREE_EDITOR_WORLD_OBJECTS,
       selectedEntityId,
       hoverEntityId,
+      hideObjectNodes,
     })
     sceneRevision += 1
     engine.setGraph({
@@ -162,7 +165,9 @@ export const mountThreeEditorRuntime = (): void => {
     documentModelList.innerHTML = ''
     DEFAULT_THREE_EDITOR_WORLD_OBJECTS.forEach((object) => {
       const item = document.createElement('li')
-      item.className = `doc-model-item${selectedEntityId === object.id ? ' doc-model-item-active' : ''}`
+      const isSelected = selectedEntityId === object.id
+      const isHovered = hoverEntityId === object.id
+      item.className = `doc-model-item${isSelected ? ' doc-model-item-active' : ''}${isHovered ? ' doc-model-item-hover' : ''}`
       item.textContent = `${object.label} [face] | layer objects | t(${object.x.toFixed(0)}, ${object.y.toFixed(0)}, ${object.z.toFixed(0)})`
       item.addEventListener('click', () => {
         selectedEntityId = object.id
@@ -266,6 +271,27 @@ export const mountThreeEditorRuntime = (): void => {
     onRenderRequested: renderInteractiveScene,
   })
 
+  ;(globalThis as Record<string, unknown>).__venusPlayground3d = {
+    getCameraState: (): ThreeEditorCameraState => ({...cameraState}),
+    setCameraState: async (nextState: Partial<ThreeEditorCameraState>): Promise<void> => {
+      cameraController.setState({
+        ...cameraState,
+        ...nextState,
+      })
+      await renderInteractiveScene()
+    },
+    getOverlayState: (): ThreeEditorOverlayState => ({...overlayState}),
+    setOverlayState: async (patch: Partial<ThreeEditorOverlayState>): Promise<void> => {
+      overlayState = {...overlayState, ...patch}
+      await renderInteractiveScene()
+    },
+    setHideObjectNodes: async (hide: boolean): Promise<void> => {
+      hideObjectNodes = hide
+      await renderInteractiveScene()
+    },
+    getHideObjectNodes: (): boolean => hideObjectNodes,
+  }
+
   const rawInputAdapter = createRawInputToCameraCommandAdapter({
     isActive: () => true,
     onCommand: (command) => {
@@ -364,7 +390,121 @@ export const mountThreeEditorRuntime = (): void => {
     }
     const worldPoint = engine.screenToWorld(point)
     const worldPickResult = engine.pick(worldPoint, {tolerance: PICK_TOLERANCE})
-    return resolvePreferredEntityId(worldPickResult.hits.map((hit) => hit.id))
+    const worldPreferredEntityId = resolvePreferredEntityId(worldPickResult.hits.map((hit) => hit.id))
+    if (worldPreferredEntityId) {
+      return worldPreferredEntityId
+    }
+
+    // Fallback: project object bounds into screen space when strict3d pick cannot resolve mesh ids.
+    const toRadians = (degrees: number): number => (degrees * Math.PI) / 180
+    const normalize = (x: number, y: number, z: number): {x: number; y: number; z: number} => {
+      const len = Math.hypot(x, y, z)
+      if (len <= 0.0001) {
+        return {x: 0, y: 0, z: 1}
+      }
+      return {x: x / len, y: y / len, z: z / len}
+    }
+    const cross = (
+      ax: number,
+      ay: number,
+      az: number,
+      bx: number,
+      by: number,
+      bz: number,
+    ): {x: number; y: number; z: number} => {
+      return {
+        x: ay * bz - az * by,
+        y: az * bx - ax * bz,
+        z: ax * by - ay * bx,
+      }
+    }
+    const dot = (
+      ax: number,
+      ay: number,
+      az: number,
+      bx: number,
+      by: number,
+      bz: number,
+    ): number => ax * bx + ay * by + az * bz
+
+    const projectWorldToCanvas = (
+      worldX: number,
+      worldY: number,
+      worldZ: number,
+    ): {x: number; y: number; depth: number; visible: boolean} => {
+      const yaw = toRadians(cameraState.yaw)
+      const pitch = toRadians(cameraState.pitch)
+      const cosYaw = Math.cos(yaw)
+      const sinYaw = Math.sin(yaw)
+      const cosPitch = Math.cos(pitch)
+      const sinPitch = Math.sin(pitch)
+
+      const distance = Math.max(1, cameraState.distance)
+      const targetX = cameraState.targetX
+      const targetY = cameraState.targetY
+      const targetZ = cameraState.targetZ
+      const perspectiveFovY = cameraState.perspectiveFovY ?? 50
+      const near = cameraState.near ?? 0.1
+      const far = cameraState.far ?? 5000
+
+      const cameraX = targetX + distance * sinYaw * cosPitch
+      const cameraY = targetY - distance * sinPitch
+      const cameraZ = targetZ + distance * cosYaw * cosPitch
+
+      const forward = normalize(targetX - cameraX, targetY - cameraY, targetZ - cameraZ)
+      const rightRaw = cross(0, 1, 0, forward.x, forward.y, forward.z)
+      const right = normalize(rightRaw.x, rightRaw.y, rightRaw.z)
+      const upRaw = cross(forward.x, forward.y, forward.z, right.x, right.y, right.z)
+      const up = normalize(upRaw.x, upRaw.y, upRaw.z)
+
+      const relX = worldX - cameraX
+      const relY = worldY - cameraY
+      const relZ = worldZ - cameraZ
+      const viewX = dot(relX, relY, relZ, right.x, right.y, right.z)
+      const viewY = dot(relX, relY, relZ, up.x, up.y, up.z)
+      const viewZ = dot(relX, relY, relZ, forward.x, forward.y, forward.z)
+      if (viewZ <= near || viewZ >= far) {
+        return {x: 0, y: 0, depth: viewZ, visible: false}
+      }
+
+      const width = Math.max(1, canvas.width)
+      const height = Math.max(1, canvas.height)
+      const aspect = width / height
+      const tanHalfFov = Math.tan((perspectiveFovY * Math.PI / 180) * 0.5)
+      const clipX = viewX / (viewZ * tanHalfFov * Math.max(0.0001, aspect))
+      const clipY = viewY / (viewZ * tanHalfFov)
+      const screenX = (clipX * 0.5 + 0.5) * width
+      const screenY = (0.5 - clipY * 0.5) * height
+      return {x: screenX, y: screenY, depth: viewZ, visible: true}
+    }
+
+    let bestEntityId: string | null = null
+    let bestDepth = Number.POSITIVE_INFINITY
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (const object of DEFAULT_THREE_EDITOR_WORLD_OBJECTS) {
+      const width = object.width ?? (object.radius ? object.radius * 2 : 120)
+      const depth = object.depth ?? (object.radius ? object.radius * 2 : 120)
+      const height = object.height ?? 120
+      const center = projectWorldToCanvas(object.x, object.y + height * 0.5, object.z)
+      if (!center.visible) {
+        continue
+      }
+      const corner = projectWorldToCanvas(object.x + width * 0.5, object.y + height * 0.5, object.z + depth * 0.5)
+      const projectedRadius = corner.visible
+        ? Math.max(14, Math.hypot(corner.x - center.x, corner.y - center.y))
+        : 24
+      const pixelDistance = Math.hypot(point.x - center.x, point.y - center.y)
+      if (pixelDistance > projectedRadius) {
+        continue
+      }
+      if (center.depth < bestDepth || (Math.abs(center.depth - bestDepth) < 0.001 && pixelDistance < bestDistance)) {
+        bestDepth = center.depth
+        bestDistance = pixelDistance
+        bestEntityId = object.id
+      }
+    }
+
+    return bestEntityId
   }
 
   /**
@@ -392,6 +532,26 @@ export const mountThreeEditorRuntime = (): void => {
   }
 
   /**
+   * Resolves one object bounds envelope compatible with box/cone/pipe/image runtime object kinds.
+   * @param object Runtime world object from scenario contract.
+   */
+  const resolveObjectBounds = (
+    object: (typeof DEFAULT_THREE_EDITOR_WORLD_OBJECTS)[number],
+  ): EngineCameraFrameBounds => {
+    const width = object.width ?? (object.radius ? object.radius * 2 : 120)
+    const depth = object.depth ?? (object.radius ? object.radius * 2 : 120)
+    const height = object.height ?? 120
+    return {
+      minX: object.x - width * 0.5,
+      minY: object.y,
+      minZ: object.z - depth * 0.5,
+      maxX: object.x + width * 0.5,
+      maxY: object.y + height,
+      maxZ: object.z + depth * 0.5,
+    }
+  }
+
+  /**
    * Resolves axis-aligned world bounds from runtime object contracts for frame-all commands.
    * @param objects Runtime world objects projected into engine graph nodes.
    */
@@ -405,12 +565,13 @@ export const mountThreeEditorRuntime = (): void => {
     let maxY = Number.NEGATIVE_INFINITY
     let maxZ = Number.NEGATIVE_INFINITY
     objects.forEach((object) => {
-      minX = Math.min(minX, object.x - object.width * 0.5)
-      minY = Math.min(minY, object.y - object.height * 0.5)
-      minZ = Math.min(minZ, object.z - object.depth * 0.5)
-      maxX = Math.max(maxX, object.x + object.width * 0.5)
-      maxY = Math.max(maxY, object.y + object.height * 0.5)
-      maxZ = Math.max(maxZ, object.z + object.depth * 0.5)
+      const bounds = resolveObjectBounds(object)
+      minX = Math.min(minX, bounds.minX)
+      minY = Math.min(minY, bounds.minY)
+      minZ = Math.min(minZ, bounds.minZ)
+      maxX = Math.max(maxX, bounds.maxX)
+      maxY = Math.max(maxY, bounds.maxY)
+      maxZ = Math.max(maxZ, bounds.maxZ)
     })
     return {
       minX,
@@ -434,14 +595,7 @@ export const mountThreeEditorRuntime = (): void => {
     if (!object) {
       return null
     }
-    return {
-      minX: object.x - object.width * 0.5,
-      minY: object.y - object.height * 0.5,
-      minZ: object.z - object.depth * 0.5,
-      maxX: object.x + object.width * 0.5,
-      maxY: object.y + object.height * 0.5,
-      maxZ: object.z + object.depth * 0.5,
-    }
+    return resolveObjectBounds(object)
   }
 
   /**
@@ -603,12 +757,7 @@ export const mountThreeEditorRuntime = (): void => {
       viewportWidth: nextWidth,
       viewportHeight: nextHeight,
     }
-    engine.resize({
-      width: nextWidth,
-      height: nextHeight,
-      fit: 'contain',
-      padding: 20,
-    })
+    engine.resize(nextWidth, nextHeight)
     viewportState = engine.getView()
     await renderInteractiveScene()
   }
@@ -745,14 +894,10 @@ export const mountThreeEditorRuntime = (): void => {
     window.removeEventListener('keydown', handleKeyDown)
     rawInputAdapter.dispose()
     cameraController.dispose()
+    delete (globalThis as Record<string, unknown>).__venusPlayground3d
   })
 
-  engine.resize({
-    width: viewportState.viewportWidth,
-    height: viewportState.viewportHeight,
-    fit: 'contain',
-    padding: 20,
-  })
+  engine.resize(viewportState.viewportWidth, viewportState.viewportHeight)
   viewportState = engine.getView()
   applyRuntimeGraph()
   void renderNow()

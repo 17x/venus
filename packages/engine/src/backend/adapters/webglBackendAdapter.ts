@@ -1111,8 +1111,15 @@ export function createWebGLBackendAdapter(
         : 1;
 
       currentContext.viewport(0, 0, deviceWidth, deviceHeight);
+      if (typeof currentContext.enable === "function" && typeof currentContext.depthFunc === "function") {
+        currentContext.enable(currentContext.DEPTH_TEST);
+        currentContext.depthFunc(currentContext.LEQUAL);
+      }
+      if (typeof currentContext.clearDepth === "function") {
+        currentContext.clearDepth(1);
+      }
       currentContext.clearColor(1, 1, 1, 1);
-      currentContext.clear(currentContext.COLOR_BUFFER_BIT);
+      currentContext.clear(currentContext.COLOR_BUFFER_BIT | currentContext.DEPTH_BUFFER_BIT);
 
       const payload = hooks?.resolveNativeFramePayload?.(timestampMs);
       const payloadSignature = payload
@@ -1170,6 +1177,7 @@ export function createWebGLBackendAdapter(
             translateY: payload.translateY,
             scale: payload.scale,
             meshes: payload.meshes,
+            camera3d: payload.camera3d,
             lineTopologySubmissionEnabled: payload.lineTopologySubmissionEnabled,
           },
           deviceWidth,

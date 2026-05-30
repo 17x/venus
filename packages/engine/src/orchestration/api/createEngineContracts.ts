@@ -85,6 +85,8 @@ export interface CreateEngineOptions extends EngineCreateOptions {
   runtimeAdapter?: EngineRuntimeAdapter;
   /** Optional surface override for host migrations. */
   surface: EngineSurface;
+  /** Optional strict 3D mode override. */
+  strict3d?: boolean;
 }
 
 /**

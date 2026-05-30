@@ -14,7 +14,7 @@ export interface GradientStop {
 // Declares gradient fill/stroke style metadata.
 export interface GradientStyle {
   // Stores gradient strategy used by renderer.
-  type: 'linear' | 'radial'
+  type: 'linear' | 'radial' | 'angular' | 'diamond'
   // Stores ordered stop list for color interpolation.
   stops: GradientStop[]
   // Stores optional linear gradient angle in degrees.
@@ -25,6 +25,10 @@ export interface GradientStyle {
   centerY?: number
   // Stores optional radial radius in normalized coordinates.
   radius?: number
+  // Stores optional angular gradient start angle offset in degrees.
+  startAngle?: number
+  // Stores optional angular gradient sweep angle in degrees.
+  sweepAngle?: number
 }
 
 // Declares basic fill style shape used by editor element props.

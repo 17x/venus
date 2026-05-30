@@ -1,5 +1,6 @@
 import {REMOTE_SCENARIO_DEFINITIONS} from './demos/remoteScenarioCatalog'
 import {tryMountRemoteScenarioPage} from './demos/remoteScenarioPage'
+import {tryMountDrivingGamePage} from './demos/drivingGamePage'
 import {mountThreeEditorRuntime} from './runtime/threeEditor/mountThreeEditorRuntime'
 import './index.css'
 
@@ -17,6 +18,11 @@ const mountHomePage = (): void => {
       title: '3D Editor Runtime',
       description: 'Engine-graph-first local runtime rebuilt with explicit command-state orchestration.',
       link: '#/3dEditor',
+    },
+    {
+      title: 'Driving Game',
+      description: '3D cartoon-style driving game with procedural map generation, WASD controls, and camera settings.',
+      link: '#/driving-game',
     },
     ...REMOTE_SCENARIO_DEFINITIONS.map((scenario) => ({
       title: scenario.title,
@@ -124,6 +130,10 @@ const bootstrapPlayground = async (): Promise<void> => {
 
   const mountedRemoteScenario = await tryMountRemoteScenarioPage()
   if (mountedRemoteScenario) {
+    return
+  }
+  const mountedDrivingGame = await tryMountDrivingGamePage()
+  if (mountedDrivingGame) {
     return
   }
   mountHomePage()

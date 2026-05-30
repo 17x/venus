@@ -22,6 +22,19 @@ export type WebGLNativeMeshPayload = {
   scale: number;
   /** Optional ordered mesh primitives for the current frame. */
   meshes?: ReadonlyArray<WebGLNativeMeshPrimitive>;
+  /** Optional shared 3D camera packet used to project world xyz into clip space. */
+  camera3d?: {
+    yaw: number;
+    pitch: number;
+    distance: number;
+    targetX: number;
+    targetY: number;
+    targetZ: number;
+    perspectiveFovY: number;
+    near: number;
+    far: number;
+    projectionMode: "perspective" | "orthographic";
+  };
   /** Enables native line-topology draw submission when true. */
   lineTopologySubmissionEnabled?: boolean;
 };
@@ -148,9 +161,143 @@ const TRIANGLE_INDEX_STRIDE = 3;
 const MIN_LINE_POSITION_COMPONENTS = 6;
 const MIN_TRIANGLE_POSITION_COMPONENTS = 9;
 const MIN_LINE_VERTEX_COUNT = 2;
-const MIN_LINE_CLIP_COMPONENTS = 4;
-const MIN_TRIANGLE_CLIP_COMPONENTS = 6;
-const VERTEX_COORD_COMPONENTS = 2;
+const MIN_LINE_CLIP_COMPONENTS = 6;
+const MIN_TRIANGLE_CLIP_COMPONENTS = 9;
+const VERTEX_COORD_COMPONENTS = 3;
+const CAMERA_UP_X = 0;
+const CAMERA_UP_Y = 1;
+const CAMERA_UP_Z = 0;
+const CAMERA_EPSILON = 0.0001;
+
+type ProjectedPoint = { clipX: number; clipY: number; clipZ: number; depth: number; visible: boolean };
+
+function normalize3(x: number, y: number, z: number): { x: number; y: number; z: number } {
+  const len = Math.hypot(x, y, z);
+  if (len <= CAMERA_EPSILON) {
+    return { x: 0, y: 0, z: 1 };
+  }
+  return { x: x / len, y: y / len, z: z / len };
+}
+
+function cross3(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+): { x: number; y: number; z: number } {
+  return {
+    x: ay * bz - az * by,
+    y: az * bx - ax * bz,
+    z: ax * by - ay * bx,
+  };
+}
+
+function dot3(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+): number {
+  return ax * bx + ay * by + az * bz;
+}
+
+function projectWorldToClip(
+  worldX: number,
+  worldY: number,
+  worldZ: number,
+  payload: WebGLNativeMeshPayload,
+  deviceWidth: number,
+  deviceHeight: number,
+  dpr: number,
+): ProjectedPoint {
+  const camera = payload.camera3d;
+  if (!camera) {
+    const screenX = (worldX * payload.scale + payload.translateX) * dpr;
+    const screenY = (worldY * payload.scale + payload.translateY) * dpr;
+    return {
+      clipX: (screenX / deviceWidth) * INDEX_PAIR_STRIDE - 1,
+      clipY: 1 - (screenY / deviceHeight) * INDEX_PAIR_STRIDE,
+      clipZ: 0,
+      depth: worldZ,
+      visible: true,
+    };
+  }
+
+  const yaw = (camera.yaw * Math.PI) / 180;
+  const pitch = (camera.pitch * Math.PI) / 180;
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const cosPitch = Math.cos(pitch);
+  const sinPitch = Math.sin(pitch);
+
+  const cameraX = camera.targetX + camera.distance * sinYaw * cosPitch;
+  const cameraY = camera.targetY - camera.distance * sinPitch;
+  const cameraZ = camera.targetZ + camera.distance * cosYaw * cosPitch;
+
+  const forwardRawX = camera.targetX - cameraX;
+  const forwardRawY = camera.targetY - cameraY;
+  const forwardRawZ = camera.targetZ - cameraZ;
+  const forward = normalize3(forwardRawX, forwardRawY, forwardRawZ);
+  const rightRaw = cross3(CAMERA_UP_X, CAMERA_UP_Y, CAMERA_UP_Z, forward.x, forward.y, forward.z);
+  const right = normalize3(rightRaw.x, rightRaw.y, rightRaw.z);
+  const upRaw = cross3(forward.x, forward.y, forward.z, right.x, right.y, right.z);
+  const up = normalize3(upRaw.x, upRaw.y, upRaw.z);
+
+  const relX = worldX - cameraX;
+  const relY = worldY - cameraY;
+  const relZ = worldZ - cameraZ;
+  const viewX = dot3(relX, relY, relZ, right.x, right.y, right.z);
+  const viewY = dot3(relX, relY, relZ, up.x, up.y, up.z);
+  const viewZ = dot3(relX, relY, relZ, forward.x, forward.y, forward.z);
+
+  const aspect = deviceHeight > 0 ? deviceWidth / deviceHeight : 1;
+  if (camera.projectionMode === "orthographic") {
+    if (viewZ <= camera.near + CAMERA_EPSILON || viewZ >= camera.far) {
+      return {
+        clipX: 0,
+        clipY: 0,
+        clipZ: 2,
+        depth: viewZ,
+        visible: false,
+      };
+    }
+    const halfSize = Math.max(1, camera.distance * 0.75);
+    const depth01 = Math.max(0, Math.min(1, (viewZ - camera.near) / Math.max(CAMERA_EPSILON, camera.far - camera.near)));
+    return {
+      clipX: Math.max(-2, Math.min(2, viewX / (halfSize * aspect))),
+      clipY: Math.max(-2, Math.min(2, viewY / halfSize)),
+      clipZ: depth01 * 2 - 1,
+      depth: viewZ,
+      visible: true,
+    };
+  }
+
+  if (viewZ <= camera.near + CAMERA_EPSILON || viewZ >= camera.far) {
+    return {
+      clipX: 0,
+      clipY: 0,
+      clipZ: 2,
+      depth: viewZ,
+      visible: false,
+    };
+  }
+
+  const clampedViewZ = viewZ;
+  const tanHalfFov = Math.tan((camera.perspectiveFovY * Math.PI / 180) * 0.5);
+  const clipX = viewX / (clampedViewZ * tanHalfFov * Math.max(CAMERA_EPSILON, aspect));
+  const clipY = viewY / (clampedViewZ * tanHalfFov);
+  return {
+    clipX: Math.max(-4, Math.min(4, clipX)),
+    clipY: Math.max(-4, Math.min(4, clipY)),
+    clipZ: Math.max(-1, Math.min(1, (((clampedViewZ - camera.near) / Math.max(CAMERA_EPSILON, camera.far - camera.near)) * 2) - 1)),
+    depth: viewZ,
+    visible: true,
+  };
+}
 
 /**
  * Creates one empty pipeline cache used by the native mesh presenter.
@@ -303,8 +450,8 @@ export function presentNativeMeshPrimitives(
       typeof WebGL2RenderingContext !== "undefined" &&
       context instanceof WebGL2RenderingContext;
     const vertexShaderSource = isWebGL2
-      ? "#version 300 es\nin vec2 aPosition; void main(){ gl_Position = vec4(aPosition, 0.0, 1.0); }"
-      : "attribute vec2 aPosition; void main(){ gl_Position = vec4(aPosition, 0.0, 1.0); }";
+      ? "#version 300 es\nin vec3 aPosition; void main(){ gl_Position = vec4(aPosition, 1.0); }"
+      : "attribute vec3 aPosition; void main(){ gl_Position = vec4(aPosition, 1.0); }";
     const fragmentShaderSource = isWebGL2
       ? "#version 300 es\nprecision mediump float; uniform vec4 uColor; out vec4 outColor; void main(){ outColor = uColor; }"
       : "precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor = uColor; }";
@@ -456,24 +603,31 @@ export function presentNativeMeshPrimitives(
         const lineVertices: number[] = [];
         const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
 
-        const appendLineVertexByIndex = (vertexIndex: number): void => {
+        const projectVertexByIndex = (vertexIndex: number): ProjectedPoint => {
           const base = vertexIndex * POSITION_COMPONENT_STRIDE;
           const worldX = mesh.positions[base] ?? 0;
           const worldY = mesh.positions[base + 1] ?? 0;
-          const screenX = (worldX * payload.scale + payload.translateX) * dpr;
-          const screenY = (worldY * payload.scale + payload.translateY) * dpr;
-          const clipX = (screenX / deviceWidth) * INDEX_PAIR_STRIDE - 1;
-          const clipY = 1 - (screenY / deviceHeight) * INDEX_PAIR_STRIDE;
-          lineVertices.push(clipX, clipY);
+          const worldZ = mesh.positions[base + 2] ?? 0;
+          return projectWorldToClip(worldX, worldY, worldZ, payload, deviceWidth, deviceHeight, dpr);
         };
 
         if (Array.isArray(mesh.indices) && mesh.indices.length > 0) {
-          for (const rawIndex of mesh.indices) {
-            appendLineVertexByIndex(Math.floor(rawIndex));
+          for (let index = 0; index + 1 < mesh.indices.length; index += INDEX_PAIR_STRIDE) {
+            const a = projectVertexByIndex(Math.floor(mesh.indices[index] ?? 0));
+            const b = projectVertexByIndex(Math.floor(mesh.indices[index + 1] ?? 0));
+            if (!a.visible || !b.visible) {
+              continue;
+            }
+            lineVertices.push(a.clipX, a.clipY, a.clipZ, b.clipX, b.clipY, b.clipZ);
           }
         } else {
-          for (let index = 0; index < vertexCount; index += 1) {
-            appendLineVertexByIndex(index);
+          for (let index = 0; index + 1 < vertexCount; index += INDEX_PAIR_STRIDE) {
+            const a = projectVertexByIndex(index);
+            const b = projectVertexByIndex(index + 1);
+            if (!a.visible || !b.visible) {
+              continue;
+            }
+            lineVertices.push(a.clipX, a.clipY, a.clipZ, b.clipX, b.clipY, b.clipZ);
           }
         }
 
@@ -542,15 +696,12 @@ export function presentNativeMeshPrimitives(
     const vertices: number[] = [];
     const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
 
-    const appendVertexByIndex = (vertexIndex: number): void => {
+    const projectVertexByIndex = (vertexIndex: number): ProjectedPoint => {
       const base = vertexIndex * POSITION_COMPONENT_STRIDE;
       const worldX = mesh.positions[base] ?? 0;
       const worldY = mesh.positions[base + 1] ?? 0;
-      const screenX = (worldX * payload.scale + payload.translateX) * dpr;
-      const screenY = (worldY * payload.scale + payload.translateY) * dpr;
-      const clipX = (screenX / deviceWidth) * INDEX_PAIR_STRIDE - 1;
-      const clipY = 1 - (screenY / deviceHeight) * INDEX_PAIR_STRIDE;
-      vertices.push(clipX, clipY);
+      const worldZ = mesh.positions[base + 2] ?? 0;
+      return projectWorldToClip(worldX, worldY, worldZ, payload, deviceWidth, deviceHeight, dpr);
     };
 
     if (Array.isArray(mesh.indices) && mesh.indices.length >= TRIANGLE_INDEX_STRIDE) {
@@ -567,8 +718,14 @@ export function presentNativeMeshPrimitives(
         diagnostics.rejectedMeshInvalidIndexCount += 1;
         continue;
       }
-      for (const rawIndex of mesh.indices) {
-        appendVertexByIndex(Math.floor(rawIndex));
+      for (let index = 0; index + 2 < mesh.indices.length; index += TRIANGLE_INDEX_STRIDE) {
+        const a = projectVertexByIndex(Math.floor(mesh.indices[index] ?? 0));
+        const b = projectVertexByIndex(Math.floor(mesh.indices[index + 1] ?? 0));
+        const c = projectVertexByIndex(Math.floor(mesh.indices[index + 2] ?? 0));
+        if (!a.visible || !b.visible || !c.visible) {
+          continue;
+        }
+        vertices.push(a.clipX, a.clipY, a.clipZ, b.clipX, b.clipY, b.clipZ, c.clipX, c.clipY, c.clipZ);
       }
     } else {
       if (mesh.positions.length % MIN_TRIANGLE_POSITION_COMPONENTS !== 0) {
@@ -576,12 +733,14 @@ export function presentNativeMeshPrimitives(
         diagnostics.rejectedMeshInsufficientStreamCount += 1;
         continue;
       }
-      for (
-        let index = 0;
-        index + TRIANGLE_INDEX_STRIDE - 1 < mesh.positions.length;
-        index += POSITION_COMPONENT_STRIDE
-      ) {
-        appendVertexByIndex(index / POSITION_COMPONENT_STRIDE);
+      for (let index = 0; index + 2 < vertexCount; index += TRIANGLE_INDEX_STRIDE) {
+        const a = projectVertexByIndex(index);
+        const b = projectVertexByIndex(index + 1);
+        const c = projectVertexByIndex(index + 2);
+        if (!a.visible || !b.visible || !c.visible) {
+          continue;
+        }
+        vertices.push(a.clipX, a.clipY, a.clipZ, b.clipX, b.clipY, b.clipZ, c.clipX, c.clipY, c.clipZ);
       }
     }
 

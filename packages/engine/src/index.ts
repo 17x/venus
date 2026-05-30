@@ -57,7 +57,6 @@ export {
   createSpatialIndexFromWorld,
   querySpatialCandidates,
 } from "./kernel/spatial/spatialIndex";
-export { createEngineSpatialIndex } from "./kernel/spatial/engineSpatialIndex";
 export type {
   EngineSpatialItem,
   EngineSpatialIndex,

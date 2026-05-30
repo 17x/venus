@@ -1,314 +1,446 @@
 import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
-import type {BuildThreeEditorGraphParams, ThreeEditorWorldObject} from './threeEditorRuntimeContracts'
+import type {BuildThreeEditorGraphParams} from './threeEditorRuntimeContracts'
 
-const WORLD_ORIGIN_X = 360
-const WORLD_ORIGIN_Y = 230
+const pushSegmentPrismMeshNode = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  id: string,
+  x1: number,
+  y1: number,
+  z1: number,
+  x2: number,
+  y2: number,
+  z2: number,
+  color: string,
+  halfThickness = 0.6,
+) => {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const dz = z2 - z1
+  const len = Math.hypot(dx, dy, dz)
+  if (len < 0.0001) {
+    return
+  }
+  const fx = dx / len
+  const fy = dy / len
+  const fz = dz / len
+  const refX = Math.abs(fy) > 0.9 ? 1 : 0
+  const refY = Math.abs(fy) > 0.9 ? 0 : 1
+  const refZ = 0
+  const rxRaw = refY * fz - refZ * fy
+  const ryRaw = refZ * fx - refX * fz
+  const rzRaw = refX * fy - refY * fx
+  const rLen = Math.hypot(rxRaw, ryRaw, rzRaw) || 1
+  const rx = rxRaw / rLen
+  const ry = ryRaw / rLen
+  const rz = rzRaw / rLen
+  const uxRaw = fy * rz - fz * ry
+  const uyRaw = fz * rx - fx * rz
+  const uzRaw = fx * ry - fy * rx
+  const uLen = Math.hypot(uxRaw, uyRaw, uzRaw) || 1
+  const ux = uxRaw / uLen
+  const uy = uyRaw / uLen
+  const uz = uzRaw / uLen
 
-/**
- * Projects one world-space x coordinate into canvas-space x using a stable runtime origin.
- * @param worldX Source world-space x coordinate.
- */
-const toCanvasX = (worldX: number): number => {
-  return WORLD_ORIGIN_X + worldX
-}
+  const rtx = rx * halfThickness
+  const rty = ry * halfThickness
+  const rtz = rz * halfThickness
+  const utx = ux * halfThickness
+  const uty = uy * halfThickness
+  const utz = uz * halfThickness
 
-/**
- * Projects one world-space y coordinate into canvas-space y using a stable runtime origin.
- * @param worldY Source world-space y coordinate.
- */
-const toCanvasY = (worldY: number): number => {
-  return WORLD_ORIGIN_Y - worldY
-}
+  const p0 = [x1 - rtx - utx, y1 - rty - uty, z1 - rtz - utz]
+  const p1 = [x1 + rtx - utx, y1 + rty - uty, z1 + rtz - utz]
+  const p2 = [x1 + rtx + utx, y1 + rty + uty, z1 + rtz + utz]
+  const p3 = [x1 - rtx + utx, y1 - rty + uty, z1 - rtz + utz]
+  const p4 = [x2 - rtx - utx, y2 - rty - uty, z2 - rtz - utz]
+  const p5 = [x2 + rtx - utx, y2 + rty - uty, z2 + rtz - utz]
+  const p6 = [x2 + rtx + utx, y2 + rty + uty, z2 + rtz + utz]
+  const p7 = [x2 - rtx + utx, y2 - rty + uty, z2 - rtz + utz]
 
-/**
- * Builds one deterministic engine graph node list from runtime state without viewport projection math.
- * @param params Scene synthesis input packet with camera, overlays, and world objects.
- */
-export const buildThreeEditorEngineGraph = (
-  params: BuildThreeEditorGraphParams,
-): PlaygroundSceneSnapshot['nodes'] => {
-  const nodes: PlaygroundSceneSnapshot['nodes'] = []
+  const positions = [...p0, ...p1, ...p2, ...p3, ...p4, ...p5, ...p6, ...p7]
+  const indices = [
+    4, 5, 6, 4, 6, 7,
+    0, 1, 2, 0, 2, 3,
+    0, 4, 7, 0, 7, 3,
+    1, 5, 6, 1, 6, 2,
+    3, 2, 6, 3, 6, 7,
+    0, 1, 5, 0, 5, 4,
+  ]
 
-  // Keep one bounded stage backdrop so empty frames remain visually debuggable.
-  nodes.push({
-    id: 'stage-backdrop',
-    type: 'shape',
-    shape: 'rect',
-    x: 18,
-    y: 18,
-    width: 684,
-    height: 424,
-    cornerRadius: 20,
-    fill: '#0f172a',
-    stroke: '#1e293b',
-    strokeWidth: 2,
-    overlayLayer: 'stage',
+  target.push({
+    id,
+    kind: 'custom',
+    mesh: {
+      topology: 'triangles',
+      positions,
+      indices,
+      color,
+    },
   })
-
-  if (params.overlayState.gridEnabled) {
-    appendGridNodes(nodes)
-  }
-  if (params.overlayState.axesEnabled) {
-    appendAxisNodes(nodes)
-  }
-  appendObjectNodes(nodes, params)
-  if (params.overlayState.gizmoEnabled) {
-    appendCornerGizmoNodes(nodes, params.cameraState.yaw, params.cameraState.pitch)
-  }
-
-  return nodes
 }
 
-/**
- * Appends world-grid line nodes into the engine graph packet.
- * @param target Mutable node array receiving new grid nodes.
- */
-const appendGridNodes = (target: PlaygroundSceneSnapshot['nodes']): void => {
-  const step = 80
-  const halfCount = 8
-  for (let index = -halfCount; index <= halfCount; index += 1) {
-    const offset = index * step
-    target.push(
-      {
-        id: `grid-x-${index}`,
-        type: 'shape',
-        shape: 'line',
-        x: toCanvasX(-halfCount * step),
-        y: toCanvasY(offset),
-        width: halfCount * step * 2,
-        height: 0,
-        stroke: index === 0 ? '#64748b' : '#334155',
-        strokeWidth: index === 0 ? 2 : 1,
-        overlayLayer: 'grid',
-      },
-      {
-        id: `grid-y-${index}`,
-        type: 'shape',
-        shape: 'line',
-        x: toCanvasX(offset),
-        y: toCanvasY(halfCount * step),
-        width: 0,
-        height: -halfCount * step * 2,
-        stroke: index === 0 ? '#64748b' : '#334155',
-        strokeWidth: index === 0 ? 2 : 1,
-        overlayLayer: 'grid',
-      },
+const pushBoxMeshNode = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  input: {
+    id: string
+    cx: number
+    cy: number
+    cz: number
+    width: number
+    height: number
+    depth: number
+    color: string
+    metadata?: Record<string, unknown>
+    semantic3d?: Record<string, unknown>
+  },
+) => {
+  const hw = input.width * 0.5
+  const hh = input.height * 0.5
+  const hd = input.depth * 0.5
+
+  const p = [
+    input.cx - hw, input.cy - hh, input.cz - hd,
+    input.cx + hw, input.cy - hh, input.cz - hd,
+    input.cx + hw, input.cy + hh, input.cz - hd,
+    input.cx - hw, input.cy + hh, input.cz - hd,
+    input.cx - hw, input.cy - hh, input.cz + hd,
+    input.cx + hw, input.cy - hh, input.cz + hd,
+    input.cx + hw, input.cy + hh, input.cz + hd,
+    input.cx - hw, input.cy + hh, input.cz + hd,
+  ]
+
+  const indices = [
+    4, 5, 6, 4, 6, 7,
+    0, 1, 2, 0, 2, 3,
+    0, 4, 7, 0, 7, 3,
+    1, 5, 6, 1, 6, 2,
+    3, 2, 6, 3, 6, 7,
+    0, 1, 5, 0, 5, 4,
+  ]
+
+  target.push({
+    id: input.id,
+    kind: 'custom',
+    mesh: {
+      topology: 'triangles',
+      positions: p,
+      indices,
+      color: input.color,
+    },
+    ...(input.metadata ? input.metadata : {}),
+    ...(input.semantic3d ? {semantic3d: input.semantic3d} : {}),
+  })
+}
+
+const pushConeMeshNode = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  input: {
+    id: string
+    cx: number
+    cy: number
+    cz: number
+    radius: number
+    height: number
+    color: string
+    metadata?: Record<string, unknown>
+    semantic3d?: Record<string, unknown>
+  },
+) => {
+  const segments = 20
+  const halfHeight = input.height * 0.5
+  const apex = [input.cx, input.cy + halfHeight, input.cz]
+  const baseY = input.cy - halfHeight
+  const positions: number[] = [...apex]
+  for (let i = 0; i < segments; i += 1) {
+    const angle = (i / segments) * Math.PI * 2
+    positions.push(
+      input.cx + Math.cos(angle) * input.radius,
+      baseY,
+      input.cz + Math.sin(angle) * input.radius,
     )
   }
+  const baseCenterIndex = positions.length / 3
+  positions.push(input.cx, baseY, input.cz)
+
+  const indices: number[] = []
+  for (let i = 0; i < segments; i += 1) {
+    const current = 1 + i
+    const next = 1 + ((i + 1) % segments)
+    indices.push(0, current, next)
+    indices.push(baseCenterIndex, next, current)
+  }
+
+  target.push({
+    id: input.id,
+    kind: 'custom',
+    mesh: {
+      topology: 'triangles',
+      positions,
+      indices,
+      color: input.color,
+    },
+    ...(input.metadata ? input.metadata : {}),
+    ...(input.semantic3d ? {semantic3d: input.semantic3d} : {}),
+  })
 }
 
-/**
- * Appends axis nodes from one shared origin to guarantee intersection stability.
- * @param target Mutable node array receiving new axis nodes.
- */
+const pushPipeMeshNode = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  input: {
+    id: string
+    cx: number
+    cy: number
+    cz: number
+    radius: number
+    innerRadius: number
+    height: number
+    color: string
+    metadata?: Record<string, unknown>
+    semantic3d?: Record<string, unknown>
+  },
+) => {
+  const segments = 24
+  const halfHeight = input.height * 0.5
+  const topY = input.cy + halfHeight
+  const bottomY = input.cy - halfHeight
+  const positions: number[] = []
+
+  for (let i = 0; i < segments; i += 1) {
+    const angle = (i / segments) * Math.PI * 2
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    positions.push(
+      input.cx + cos * input.radius, topY, input.cz + sin * input.radius,
+      input.cx + cos * input.radius, bottomY, input.cz + sin * input.radius,
+      input.cx + cos * input.innerRadius, topY, input.cz + sin * input.innerRadius,
+      input.cx + cos * input.innerRadius, bottomY, input.cz + sin * input.innerRadius,
+    )
+  }
+
+  const indices: number[] = []
+  for (let i = 0; i < segments; i += 1) {
+    const next = (i + 1) % segments
+    const oTopA = i * 4
+    const oBotA = oTopA + 1
+    const iTopA = oTopA + 2
+    const iBotA = oTopA + 3
+    const oTopB = next * 4
+    const oBotB = oTopB + 1
+    const iTopB = oTopB + 2
+    const iBotB = oTopB + 3
+
+    indices.push(oTopA, oBotA, oTopB, oTopB, oBotA, oBotB)
+    indices.push(iTopA, iTopB, iBotA, iTopB, iBotB, iBotA)
+    indices.push(oTopA, oTopB, iTopA, oTopB, iTopB, iTopA)
+    indices.push(oBotA, iBotA, oBotB, oBotB, iBotA, iBotB)
+  }
+
+  target.push({
+    id: input.id,
+    kind: 'custom',
+    mesh: {
+      topology: 'triangles',
+      positions,
+      indices,
+      color: input.color,
+    },
+    ...(input.metadata ? input.metadata : {}),
+    ...(input.semantic3d ? {semantic3d: input.semantic3d} : {}),
+  })
+}
+
+const appendGridNodes = (target: PlaygroundSceneSnapshot['nodes'], gridY: number): void => {
+  const step = 128
+  const halfCount = 4
+  const halfRange = halfCount * step
+  const gridYMinor = gridY + 0.35
+  for (let index = -halfCount; index <= halfCount; index += 1) {
+    const offset = index * step
+    const color = index === 0 ? '#5f6b75' : '#8a96a1'
+    const thickness = 1.05
+    pushSegmentPrismMeshNode(target, `grid-x-${index}`, -halfRange, gridY, offset, halfRange, gridY, offset, color, thickness)
+    pushSegmentPrismMeshNode(target, `grid-z-${index}`, offset, gridYMinor, -halfRange, offset, gridYMinor, halfRange, color, thickness)
+  }
+}
+
 const appendAxisNodes = (target: PlaygroundSceneSnapshot['nodes']): void => {
   const axisLength = 420
-  const originX = toCanvasX(0)
-  const originY = toCanvasY(0)
-  target.push(
-    {
-      id: 'axis-x',
-      type: 'shape',
-      shape: 'line',
-      x: originX - axisLength * 0.72,
-      y: originY,
-      width: axisLength * 1.44,
-      height: 0,
-      stroke: '#ef4444',
-      strokeWidth: 4,
-      docEntityId: 'axis-x',
-      docEntityLabel: 'X Axis',
-      hitPrimitive: 'line',
-      overlayLayer: 'axes',
-    },
-    {
-      id: 'axis-y',
-      type: 'shape',
-      shape: 'rect',
-      x: originX - 1.5,
-      y: originY - axisLength * 0.72,
-      width: 3,
-      height: axisLength * 1.44,
-      fill: '#22c55e',
-      stroke: '#22c55e',
-      strokeWidth: 0,
-      docEntityId: 'axis-y',
-      docEntityLabel: 'Y Axis',
-      hitPrimitive: 'line',
-      overlayLayer: 'axes',
-    },
-    {
-      id: 'axis-z',
-      type: 'shape',
-      shape: 'line',
-      x: originX,
-      y: originY,
-      width: axisLength * 0.56,
-      height: -axisLength * 0.34,
-      stroke: '#3b82f6',
-      strokeWidth: 4,
-      docEntityId: 'axis-z',
-      docEntityLabel: 'Z Axis',
-      hitPrimitive: 'line',
-      overlayLayer: 'axes',
-    },
-    {
-      id: 'axis-origin',
-      type: 'shape',
-      shape: 'ellipse',
-      x: originX - 4,
-      y: originY - 4,
-      width: 8,
-      height: 8,
-      fill: '#bfdbfe',
-      stroke: '#f8fafc',
-      strokeWidth: 1,
-      overlayLayer: 'axes',
-    },
-  )
+  pushSegmentPrismMeshNode(target, 'axis-x', -axisLength, 0, 0, axisLength, 0, 0, '#ef4444', 0.85)
+  pushSegmentPrismMeshNode(target, 'axis-y', 0, -axisLength * 0.8, 0, 0, axisLength * 0.8, 0, '#22c55e', 0.85)
+  pushSegmentPrismMeshNode(target, 'axis-z', 0, 0, -axisLength, 0, 0, axisLength, '#3b82f6', 0.85)
 }
 
-/**
- * Appends semantic3d object nodes so engine-side render paths own final visual interpretation.
- * @param target Mutable node array receiving object nodes.
- * @param params Scene synthesis input packet with selection and camera state.
- */
 const appendObjectNodes = (
   target: PlaygroundSceneSnapshot['nodes'],
   params: BuildThreeEditorGraphParams,
 ): void => {
-  params.worldObjects.forEach((object, index) => {
-    appendOneObjectNode(target, object, index, params)
-  })
-}
-
-/**
- * Appends one object node with semantic3d payload and selection-aware styling.
- * @param target Mutable node array receiving one object node.
- * @param object Source world object contract.
- * @param objectIndex Stable index used by deterministic metadata fields.
- * @param params Scene synthesis input packet with interaction state.
- */
-const appendOneObjectNode = (
-  target: PlaygroundSceneSnapshot['nodes'],
-  object: ThreeEditorWorldObject,
-  objectIndex: number,
-  params: BuildThreeEditorGraphParams,
-): void => {
-  const isHighlighted = params.selectedEntityId === object.id || params.hoverEntityId === object.id
-  const strokeWidth = isHighlighted ? 4 : 2
-  const stroke = isHighlighted ? '#f59e0b' : '#e2e8f0'
-
-  target.push({
-    id: `object-${object.id}`,
-    type: 'shape',
-    shape: 'rect',
-    x: toCanvasX(object.x - object.width * 0.5),
-    y: toCanvasY(object.y + object.height * 0.5),
-    width: object.width,
-    height: object.height,
-    cornerRadius: 10,
-    fill: object.color,
-    stroke,
-    strokeWidth,
-    docEntityId: object.id,
-    docEntityLabel: object.label,
-    hitPrimitive: 'face',
-    overlayLayer: 'objects',
-    materialId: `${object.id}-material`,
-    semantic3d: {
+  params.worldObjects.forEach((object, objectIndex) => {
+    const isHighlighted = params.selectedEntityId === object.id || params.hoverEntityId === object.id
+    const color = isHighlighted ? '#f59e0b' : object.color
+    const width = object.width ?? (object.radius ? object.radius * 2 : 120)
+    const depth = object.depth ?? (object.radius ? object.radius * 2 : 120)
+    const height = object.height ?? 120
+    const radius = object.radius ?? Math.max(width, depth) * 0.5
+    const innerRadius = Math.max(6, Math.min(radius - 2, object.innerRadius ?? radius * 0.62))
+    const cy = object.y + height * 0.5
+    const metadata = {
+      docEntityId: object.id,
+      docEntityLabel: object.label,
+      hitPrimitive: 'face',
+      overlayLayer: 'objects',
+      materialId: `${object.id}-material`,
+      sourceKind: object.kind,
+      ...(object.imageSrc ? {imageSrc: object.imageSrc} : {}),
+    }
+    const semantic3d = {
       bounds: {
-        x: object.x - object.width * 0.5,
-        y: object.y - object.height * 0.5,
-        z: object.z,
-        width: object.width,
-        height: object.height,
-        depth: object.depth,
+        x: object.x - width * 0.5,
+        y: object.y,
+        z: object.z - depth * 0.5,
+        width,
+        height,
+        depth,
       },
       transform: {
         x: object.x,
-        y: object.y,
+        y: cy,
         z: object.z,
-        rotationX: params.cameraState.pitch,
-        rotationY: params.cameraState.yaw,
+        rotationX: 0,
+        rotationY: 0,
         rotationZ: 0,
         scaleX: 1,
         scaleY: 1,
         scaleZ: 1,
       },
-      sourceType: 'shape',
+      sourceType: 'mesh',
       visible: params.overlayState.visibilityMaskEnabled ? objectIndex % 4 !== 3 : true,
       layer: params.overlayState.depthLayeringEnabled ? `depth-${objectIndex % 4}` : 'default',
       lighting: params.overlayState.lightingMode,
       metadata: {
-        role: 'mesh',
+        role: object.kind,
         label: object.label,
+        ...(object.imageSrc ? {imageSrc: object.imageSrc} : {}),
       },
-    },
+    }
+
+    if (object.kind === 'cone') {
+      pushConeMeshNode(target, {
+        id: `object-${object.id}`,
+        cx: object.x,
+        cy,
+        cz: object.z,
+        radius,
+        height,
+        color,
+        metadata,
+        semantic3d,
+      })
+      return
+    }
+
+    if (object.kind === 'pipe') {
+      pushPipeMeshNode(target, {
+        id: `object-${object.id}`,
+        cx: object.x,
+        cy,
+        cz: object.z,
+        radius,
+        innerRadius,
+        height,
+        color,
+        metadata,
+        semantic3d,
+      })
+      return
+    }
+
+    pushBoxMeshNode(target, {
+      id: `object-${object.id}`,
+      cx: object.x,
+      cy,
+      cz: object.z,
+      width,
+      height,
+      depth,
+      color,
+      metadata,
+      semantic3d,
+    })
   })
 }
 
-/**
- * Appends corner orientation gizmo nodes rotated by camera yaw/pitch only.
- * @param target Mutable node array receiving gizmo nodes.
- * @param yaw Camera yaw in degrees.
- * @param pitch Camera pitch in degrees.
- */
 const appendCornerGizmoNodes = (
   target: PlaygroundSceneSnapshot['nodes'],
   yaw: number,
   pitch: number,
 ): void => {
-  const originX = 430
-  const originY = 74
-  const length = 42
-  const vectors = [
-    {id: 'x', x: 1, y: 0, z: 0, color: '#ef4444'},
-    {id: 'y', x: 0, y: 1, z: 0, color: '#22c55e'},
-    {id: 'z', x: 0, y: 0, z: 1, color: '#3b82f6'},
-  ] as const
-
+  const length = 80
   const yawRadians = (yaw * Math.PI) / 180
   const pitchRadians = (pitch * Math.PI) / 180
   const cosYaw = Math.cos(yawRadians)
   const sinYaw = Math.sin(yawRadians)
   const cosPitch = Math.cos(pitchRadians)
   const sinPitch = Math.sin(pitchRadians)
+  const vectors = [
+    {id: 'x', x: 1, y: 0, z: 0, color: '#ef4444'},
+    {id: 'y', x: 0, y: 1, z: 0, color: '#22c55e'},
+    {id: 'z', x: 0, y: 0, z: 1, color: '#3b82f6'},
+  ] as const
 
   vectors.forEach((vector) => {
     const yawX = cosYaw * vector.x - sinYaw * vector.z
     const yawZ = sinYaw * vector.x + cosYaw * vector.z
     const pitchY = cosPitch * vector.y - sinPitch * yawZ
-    const lineWidth = yawX * length
-    const lineHeight = -pitchY * length
-    const lineLength = Math.hypot(lineWidth, lineHeight)
-    if (lineLength < 1) {
-      target.push({
-        id: `gizmo-${vector.id}-point`,
-        type: 'shape',
-        shape: 'ellipse',
-        x: originX - 3,
-        y: originY - 3,
-        width: 7,
-        height: 7,
-        fill: vector.color,
-        stroke: '#e2e8f0',
-        strokeWidth: 1,
-        overlayLayer: 'gizmo',
-      })
-      return
-    }
-    target.push({
-      id: `gizmo-${vector.id}`,
-      type: 'shape',
-      shape: 'line',
-      x: originX,
-      y: originY,
-      width: lineWidth,
-      height: lineHeight,
-      stroke: vector.color,
-      strokeWidth: 3,
-      overlayLayer: 'gizmo',
-    })
+    const pitchZ = sinPitch * vector.y + cosPitch * yawZ
+    pushSegmentPrismMeshNode(
+      target,
+      `gizmo-${vector.id}`,
+      260,
+      160,
+      -260,
+      260 + yawX * length,
+      160 + pitchY * length,
+      -260 + pitchZ * length,
+      vector.color,
+      1.2,
+    )
   })
+}
+
+export const buildThreeEditorEngineGraph = (
+  params: BuildThreeEditorGraphParams,
+): PlaygroundSceneSnapshot['nodes'] => {
+  const nodes: PlaygroundSceneSnapshot['nodes'] = []
+  const cameraDistance = Math.max(1, params.cameraState.distance)
+  const adaptiveNear = Math.max(0.5, Math.min(40, cameraDistance * 0.015))
+  const adaptiveFar = Math.max(adaptiveNear + 800, Math.min(8000, cameraDistance * 6.5))
+  const sceneMinY = params.worldObjects.reduce((minimum, object) => {
+    const objectBaseY = object.y
+    return objectBaseY < minimum ? objectBaseY : minimum
+  }, 0)
+  const gridY = sceneMinY - 1.5
+
+  nodes.push({
+    id: '__engine_camera3d__',
+    kind: 'custom',
+    camera3d: {
+      yaw: params.cameraState.yaw,
+      pitch: params.cameraState.pitch,
+      distance: params.cameraState.distance,
+      targetX: params.cameraState.targetX,
+      targetY: params.cameraState.targetY,
+      targetZ: params.cameraState.targetZ,
+      perspectiveFovY: params.cameraState.perspectiveFovY,
+      near: adaptiveNear,
+      far: adaptiveFar,
+      projectionMode: params.cameraState.projectionMode,
+    },
+  })
+
+  if (params.overlayState.gridEnabled) appendGridNodes(nodes, gridY)
+  if (params.overlayState.axesEnabled) appendAxisNodes(nodes)
+  appendObjectNodes(nodes, params)
+  if (params.overlayState.gizmoEnabled) appendCornerGizmoNodes(nodes, params.cameraState.yaw, params.cameraState.pitch)
+
+  return nodes
 }

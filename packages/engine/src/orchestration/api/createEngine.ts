@@ -84,6 +84,22 @@ const TOPOLOGY_POINT_MIN_POSITION_COUNT = 3;
 const TOPOLOGY_TRIANGLE_MIN_INDEX_COUNT = 3;
 const TOPOLOGY_LINE_MIN_INDEX_COUNT = 2;
 const TOPOLOGY_POINT_MIN_INDEX_COUNT = 1;
+const CAMERA_FOV_Y_DEFAULT_DEGREES = 50;
+const CAMERA_NEAR_DEFAULT = 0.1;
+const CAMERA_FAR_DEFAULT = 5000;
+
+type EngineNativeCamera3dPayload = {
+  yaw: number;
+  pitch: number;
+  distance: number;
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+  perspectiveFovY: number;
+  near: number;
+  far: number;
+  projectionMode: "perspective" | "orthographic";
+};
 const TRIANGLE_INDEX_ZERO = 0;
 const TRIANGLE_INDEX_ONE = 1;
 const TRIANGLE_INDEX_TWO = 2;
@@ -392,6 +408,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   );
   const resolveNow = options.runtimeAdapter?.now ?? (() => performanceNow());
   const engineId = `engine-${Math.max(0, Math.floor(resolveNow()))}`;
+  const strict3dEnabled = options.strict3d === true;
 
   /**
    * Determines whether one graph node is eligible for native mesh submission.
@@ -403,6 +420,10 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
    * @returns True when the node can be safely rendered via GPU mesh path alone.
    */
   function isMeshEligible(node: EngineGraphNodeInput): boolean {
+    if (strict3dEnabled) {
+      return Boolean(node.mesh && typeof node.mesh === "object");
+    }
+
     // Explicit mesh contracts are always mesh-eligible — the adapter authored
     // the geometry explicitly for GPU submission.
     if (node.mesh && typeof node.mesh === "object") {
@@ -513,6 +534,36 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   }
 
   /**
+   * Resolves one optional shared camera packet from graph nodes.
+   * In strict3d mode, callers can provide a helper node with `camera3d` payload.
+   */
+  function resolveNativeCamera3dPayload(nodes: readonly EngineGraphNodeInput[]): EngineNativeCamera3dPayload | undefined {
+    const cameraNode = nodes.find((node) => node && typeof (node as { camera3d?: unknown }).camera3d === "object");
+    if (!cameraNode) {
+      return undefined;
+    }
+    const raw = (cameraNode as { camera3d?: Record<string, unknown> }).camera3d;
+    if (!raw) {
+      return undefined;
+    }
+    const asFinite = (value: unknown, fallback: number): number =>
+      typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    const projectionMode = raw.projectionMode === "orthographic" ? "orthographic" : "perspective";
+    return {
+      yaw: asFinite(raw.yaw, 0),
+      pitch: asFinite(raw.pitch, -35),
+      distance: Math.max(1, asFinite(raw.distance, 720)),
+      targetX: asFinite(raw.targetX, 0),
+      targetY: asFinite(raw.targetY, 0),
+      targetZ: asFinite(raw.targetZ, 0),
+      perspectiveFovY: Math.max(10, Math.min(120, asFinite(raw.perspectiveFovY, CAMERA_FOV_Y_DEFAULT_DEGREES))),
+      near: Math.max(0.001, asFinite(raw.near, CAMERA_NEAR_DEFAULT)),
+      far: Math.max(CAMERA_NEAR_DEFAULT + 1, asFinite(raw.far, CAMERA_FAR_DEFAULT)),
+      projectionMode,
+    };
+  }
+
+  /**
    * Resolves one lightweight native frame payload from latest visible graph nodes.
    * @param _timestampMs Current frame timestamp in milliseconds.
    */
@@ -522,35 +573,43 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     // drift from graph node IDs during document updates; always validate at
     // least one candidate resolves to a graph node before trusting the list.
     // Remove when entity→graph ID mapping is guaranteed stable; ref DEX-112.
-    const rawCandidateIds = latestExecutionSnapshot.visibleCandidateIds.length > 0
-      ? latestExecutionSnapshot.visibleCandidateIds
-      : [...graphNodeState.keys()];
-    const candidateIds = rawCandidateIds.some((id) => graphNodeState.has(id))
+    const rawCandidateIds = strict3dEnabled
+      ? [...graphNodeState.keys()]
+      : latestExecutionSnapshot.visibleCandidateIds.length > 0
+        ? latestExecutionSnapshot.visibleCandidateIds
+        : [...graphNodeState.keys()];
+    const candidateIds = strict3dEnabled
       ? rawCandidateIds
-      : [...graphNodeState.keys()];
+      : rawCandidateIds.some((id) => graphNodeState.has(id))
+        ? rawCandidateIds
+        : [...graphNodeState.keys()];
     const candidateNodes = candidateIds
       .map((nodeId) => graphNodeState.get(nodeId))
       .filter((node): node is EngineGraphNodeInput => Boolean(node));
-    const rects = candidateNodes
-      .map((node) => {
-        const x = typeof node.x === "number" && Number.isFinite(node.x) ? node.x : 0;
-        const y = typeof node.y === "number" && Number.isFinite(node.y) ? node.y : 0;
-        const widthRaw = typeof node.width === "number" && Number.isFinite(node.width) ? node.width : 0;
-        const heightRaw = typeof node.height === "number" && Number.isFinite(node.height) ? node.height : 0;
-        const fill = typeof node.fill === "string"
-          ? node.fill
-          : typeof node.stroke === "string"
-            ? node.stroke
-            : "#334155";
-        return {
-          x,
-          y,
-          width: Math.abs(widthRaw),
-          height: Math.abs(heightRaw),
-          fill,
-        };
-      })
-      .filter((rect) => rect.width > 0 && rect.height > 0);
+    const camera3d = resolveNativeCamera3dPayload(candidateNodes);
+    const renderableNodes = candidateNodes.filter((node) => typeof (node as { camera3d?: unknown }).camera3d === "undefined");
+    const rects = strict3dEnabled
+      ? []
+      : renderableNodes
+        .map((node) => {
+          const x = typeof node.x === "number" && Number.isFinite(node.x) ? node.x : 0;
+          const y = typeof node.y === "number" && Number.isFinite(node.y) ? node.y : 0;
+          const widthRaw = typeof node.width === "number" && Number.isFinite(node.width) ? node.width : 0;
+          const heightRaw = typeof node.height === "number" && Number.isFinite(node.height) ? node.height : 0;
+          const fill = typeof node.fill === "string"
+            ? node.fill
+            : typeof node.stroke === "string"
+              ? node.stroke
+              : "#334155";
+          return {
+            x,
+            y,
+            width: Math.abs(widthRaw),
+            height: Math.abs(heightRaw),
+            fill,
+          };
+        })
+        .filter((rect) => rect.width > 0 && rect.height > 0);
     const meshes: Array<{
       id: string;
       topology: "triangles" | "lines" | "points";
@@ -559,7 +618,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       color: string;
     }> = [];
     let needsComposition = false;
-    candidateNodes.forEach((node) => {
+    renderableNodes.forEach((node) => {
       // Prefer explicit mesh contracts so runtime adapters can submit authored geometry directly.
       const meshInput =
         node.mesh && typeof node.mesh === "object" && Array.isArray((node.mesh as { positions?: unknown }).positions)
@@ -612,7 +671,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       // Track whether any node needs composition so backends can decide
       // between model-complete and mesh-only render paths.
       if (!isMeshEligible(node)) {
-        needsComposition = true;
+        if (!strict3dEnabled) {
+          needsComposition = true;
+        }
         return;
       }
 
@@ -651,16 +712,18 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       translateY: viewport.offsetY,
       scale: viewport.scale,
       rects,
-      nodes: candidateNodes
+      nodes: renderableNodes
         .map((node) => ({
           ...node,
           id: String(node.id),
           type: typeof node.type === "string" ? node.type : "shape",
         })),
       meshes,
+      camera3d,
       needsComposition,
       images: imageRegistry.size > 0 ? imageRegistry : undefined,
       overlays: overlayInstructions.length > 0 ? overlayInstructions : undefined,
+      lineTopologySubmissionEnabled: strict3dEnabled,
     };
   }
 

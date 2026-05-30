@@ -4,6 +4,7 @@ import {
   resolveRemoteScenarioFromRoute,
   type RemoteScenarioDefinition,
 } from './remoteScenarioCatalog'
+import {PLAYGROUND_SCENARIO_INTERACTION_HARNESSES} from '../scenarios/scenarioInteractionHarnesses'
 import type {PlaygroundSceneSnapshot} from '../types/playgroundScene'
 
 /**
@@ -61,6 +62,7 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
         <div class="remote-demo-toolbar">
           <button type="button" class="command-button" id="remote-reload">Reload Remote Data</button>
           <button type="button" class="command-button" id="remote-fit">Fit View</button>
+          <div class="remote-demo-interactions" id="remote-interactions"></div>
           <span class="remote-demo-status" id="remote-status">Initializing...</span>
         </div>
         <div class="canvas-frame remote-canvas-frame">
@@ -74,8 +76,9 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
   const canvas = root.querySelector<HTMLCanvasElement>('#remote-canvas')
   const reloadButton = root.querySelector<HTMLButtonElement>('#remote-reload')
   const fitButton = root.querySelector<HTMLButtonElement>('#remote-fit')
+  const interactions = root.querySelector<HTMLDivElement>('#remote-interactions')
   const status = root.querySelector<HTMLSpanElement>('#remote-status')
-  if (!nav || !canvas || !reloadButton || !fitButton || !status) {
+  if (!nav || !canvas || !reloadButton || !fitButton || !interactions || !status) {
     throw new Error('remote scenario UI mount failed')
   }
 
@@ -83,6 +86,11 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
 
   let revision = 1
   let sceneSnapshot = createLoadingSnapshot(revision, scenario)
+  const harness = PLAYGROUND_SCENARIO_INTERACTION_HARNESSES.find((entry) => entry.scenarioId === scenario.id)
+  const interactionState = {
+    activeControl: harness?.controls[0] ?? 'fit view',
+    revision,
+  }
   let viewport = {
     viewportWidth: 1280,
     viewportHeight: 760,
@@ -128,9 +136,16 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
       `offsetX ${viewport.offsetX.toFixed(1)}`,
       `offsetY ${viewport.offsetY.toFixed(1)}`,
       `draw ${stats.lastExecutionDrawCount ?? 0}`,
+      `interaction ${interactionState.activeControl}`,
       `webglPath ${diagnostics.backendDiagnostics?.webglRenderPath ?? 'none'}`,
     ].join(' | ')
   }
+
+  populateInteractionHarness(interactions, harness?.controls ?? [], (control) => {
+    interactionState.activeControl = control
+    interactionState.revision = revision
+    refreshStatus()
+  })
 
   /**
    * Renders one frame and updates telemetry text.
@@ -173,6 +188,7 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
     status.textContent = 'Fetching public data...'
     try {
       revision += 1
+      interactionState.revision = revision
       const payload = await fetchRemotePayload(scenario)
       sceneSnapshot = scenario.buildScene(revision, payload)
       engine.setGraph({
@@ -207,6 +223,30 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
 
   await fitView()
   await reloadRemoteData()
+}
+
+/**
+ * Populates deterministic interaction controls declared by scenario harness contracts.
+ * @param container Target toolbar container.
+ * @param controls Interaction labels declared by the scenario harness.
+ * @param onSelect Callback invoked when one control is selected.
+ */
+function populateInteractionHarness(
+  container: HTMLDivElement,
+  controls: readonly string[],
+  onSelect: (control: string) => void,
+): void {
+  container.innerHTML = ''
+  controls.forEach((control) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'command-button'
+    button.textContent = control
+    button.addEventListener('click', () => {
+      onSelect(control)
+    })
+    container.append(button)
+  })
 }
 
 /**

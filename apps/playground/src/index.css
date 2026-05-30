@@ -399,6 +399,11 @@ body {
   border-color: var(--ve-primary-soft);
 }
 
+.doc-model-item-hover {
+  border-color: #f0b429;
+  background: #fffaf0;
+}
+
 .doc-model-item-active {
   border-color: #f59e0b;
   background: #fff6e8;
@@ -598,3 +603,40 @@ body {
     flex-wrap: wrap;
   }
 }
+
+/* Driving Game styles */
+.dg{width:100%;height:100%;display:flex;flex-direction:column;background:#1a1a2e;color:#e0e0e0;font-family:"Geist Variable","Inter",sans-serif}
+.lo{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:#1a1a2e}
+.lb{text-align:center;min-width:320px}
+.lb h2{color:#e63946;margin-bottom:16px}
+.pb{width:100%;height:12px;background:#333;border-radius:6px;overflow:hidden;margin:8px 0}
+.pf{height:100%;width:0;background:linear-gradient(90deg,#e63946,#f4a261);border-radius:6px;transition:width .3s ease}
+#lt{color:#aaa;font-size:13px}
+.gl{display:grid;grid-template-columns:1fr 280px;width:100%;height:100%}
+.cp{position:relative;overflow:hidden}
+.gc{width:100%;height:100%;display:block}
+.fps{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#4caf50;padding:4px 10px;border-radius:4px;font-size:13px;font-family:monospace}
+.sp{padding:14px;background:#16213e;overflow-y:auto;border-left:1px solid #333}
+.sp h3{color:#e63946;margin:0 0 12px;font-size:16px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #2a2a4a;font-size:13px}
+.setting-row input[type=checkbox]{cursor:pointer}
+.setting-row input[type=range]{width:100px;cursor:pointer}
+.setting-status{margin-top:12px;padding:8px;background:#0f3460;border-radius:6px;font-size:12px}
+.setting-status p{margin:2px 0}
+.hint{margin-top:12px;padding:8px;background:#1a1a3e;border-radius:6px;font-size:11px;color:#888}
+.hint p{margin:1px 0}
+.driving-game-shell{width:100%;height:100%;display:flex;flex-direction:column;background:#1a1a2e;color:#e0e0e0;font-family:"Geist Variable","Inter",sans-serif}
+.loading-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:#1a1a2e}
+.driving-game-shell .loading-box{text-align:center;min-width:320px}
+.driving-game-shell .loading-box h2{color:#e63946;margin-bottom:16px}
+.progress-bar{width:100%;height:12px;background:#333;border-radius:6px;overflow:hidden;margin:8px 0}
+.driving-game-shell .progress-fill{height:100%;width:0;background:linear-gradient(90deg,#e63946,#f4a261);border-radius:6px;transition:width .3s ease}
+.driving-game-shell #loading-text{color:#aaa;font-size:13px}
+.game-main-layout{display:grid;grid-template-columns:1fr 280px;width:100%;height:100%}
+.canvas-panel{position:relative;overflow:hidden}
+.game-canvas{width:100%;height:100%;display:block}
+.driving-game-shell .fps-counter{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);color:#4caf50;padding:4px 10px;border-radius:4px;font-size:13px;font-family:monospace}
+.settings-panel{padding:14px;background:#16213e;overflow-y:auto;border-left:1px solid #333}
+.settings-panel h3{color:#e63946;margin:0 0 12px;font-size:16px}
+.setting-controls-hint{margin-top:12px;padding:8px;background:#1a1a3e;border-radius:6px;font-size:11px;color:#888}
+.setting-controls-hint p{margin:1px 0}

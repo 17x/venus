@@ -21,6 +21,12 @@ import {
   type SchedulerMode,
 } from './engineScheduler.ts'
 
+export {
+  projectSceneSemantic3DForEngine,
+  type SceneSemantic3DProjectionNode,
+  type SceneSemantic3DProjectionScene,
+} from './internal/engineRenderer/sceneSemantic3dProjection.ts'
+
 /**
  * Runtime-facing engine contract for vector bridge consumers.
  * Performance-tuning mutators stay engine-internal during the debug stage.

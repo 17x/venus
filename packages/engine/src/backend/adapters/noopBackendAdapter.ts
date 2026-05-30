@@ -375,6 +375,19 @@ export interface NoopBackendAdapterHooks {
       /** Optional mesh fill color token in CSS notation. */
       color?: string;
     }>;
+    /** Optional shared 3D camera packet consumed by native mesh projection paths. */
+    camera3d?: {
+      yaw: number;
+      pitch: number;
+      distance: number;
+      targetX: number;
+      targetY: number;
+      targetZ: number;
+      perspectiveFovY: number;
+      near: number;
+      far: number;
+      projectionMode: "perspective" | "orthographic";
+    };
     /** Enables native line-topology draw submission when true. */
     lineTopologySubmissionEnabled?: boolean;
     /**

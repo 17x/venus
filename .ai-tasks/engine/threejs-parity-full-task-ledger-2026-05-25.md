@@ -1525,3 +1525,16 @@ Tests:
   - `pnpm -C packages/lib exec tsc -p tsconfig.json --noEmit`
   - `pnpm -C packages/lib dlx tsx --test packages/lib/src/math/matrix4.test.ts`
   - `pnpm -C packages/engine exec tsc -p tsconfig.json --noEmit`
+
+## 59. 2026-05-29 Scenario API Release Audit Link
+
+This ledger remains the three.js parity execution record. The scenario-to-engine API release audit is now split into a dedicated task document so parity work does not absorb product/domain scenario planning.
+
+Audit artifact:
+
+- `.ai-tasks/engine/engine-api-scenario-release-plan-2026-05-29.md`
+
+Key audit outcome:
+
+- Three.js-style rendering parity is broad, but scenario release readiness still depends on generic API closure for assets/resources, spatial/constraint queries, timeline/replay, headless rendering, backend docs, and bilingual API documentation.
+- Engine must continue to expose scenario needs as product-neutral 3D-first APIs. 2D vector behavior remains an explicit opt-in adapter path, not a default engine semantic.
