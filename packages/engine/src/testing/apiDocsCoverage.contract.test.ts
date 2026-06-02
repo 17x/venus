@@ -169,6 +169,18 @@ test("api docs coverage and EN/CN parity baseline", async () => {
       ],
     },
     {
+      en: "en/migration/runtime-world-navigation-collision-migration.md",
+      cn: "cn/migration/runtime-world-navigation-collision-migration.md",
+      markers: [
+        "Migration Goal",
+        "engine.runtime.navigation.*",
+        "engine.runtime.collision.*",
+        "engine.runtime.world.stepAgents",
+        "engine.runtime.navigation.stepPathAgents",
+        "Readiness Criteria",
+      ],
+    },
+    {
       en: "en/api/overview.md",
       cn: "cn/api/overview.md",
       markers: [

@@ -1,3 +1,5 @@
+import type {EngineMaterialEntity} from '@venus/engine'
+
 /** Declares one minimal graph node contract accepted by playground scene builders. */
 type PlaygroundSceneNode = {
   /** Stable node id required by engine graph ingestion. */
@@ -18,4 +20,6 @@ export interface PlaygroundSceneSnapshot {
   height: number
   /** Renderable node list forwarded to engine setGraph/updateGraph calls. */
   nodes: PlaygroundSceneNode[]
+  /** Optional engine material entities forwarded with graph nodes for native texture/material validation. */
+  materials?: readonly EngineMaterialEntity[]
 }

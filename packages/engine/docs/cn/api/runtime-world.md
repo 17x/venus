@@ -137,3 +137,95 @@ engine.runtime.world.clear(): {
 - `packages/engine/src/runtime/world/runtime-world.foundation.contract.ts`
 - `packages/engine/src/scene-runtime/runtimeWorld/runtimeWorld.contract.ts`
 - `packages/engine/src/ecs/runtimeWorld.ts`
+
+## 兼容 Runtime Helpers
+
+这些 helpers 会作为兼容别名继续保留。新的 adapter 代码应优先使用 [Runtime Navigation And Collision API](runtime-navigation-collision.md) 中定义的 canonical `engine.runtime.navigation.*` 与 `engine.runtime.collision.*`。
+
+### engine.runtime.world.setOpenWorldMap(map)
+
+兼容迁移建议：
+
+- 当 adapter 只需要 collider/obstacle 状态时，使用 `engine.runtime.collision.setObstacles(obstacles)`。
+- map/domain size 语义应尽量保留在 adapter。
+
+```ts
+engine.runtime.world.setOpenWorldMap(map: {
+  mapSize: number;
+  obstacles: readonly Array<{
+    id: string;
+    x: number;
+    z: number;
+    width: number;
+    depth: number;
+  }>;
+}): {
+  mapSize: number;
+  obstacles: readonly Array<{ id: string; x: number; z: number; width: number; depth: number }>;
+}
+```
+
+### engine.runtime.world.getOpenWorldMap()
+
+```ts
+engine.runtime.world.getOpenWorldMap(): {
+  mapSize: number;
+  obstacles: readonly Array<{ id: string; x: number; z: number; width: number; depth: number }>;
+}
+```
+
+### engine.runtime.world.setAgents(agents) / getAgents()
+
+兼容迁移建议：
+
+- 使用 `engine.runtime.navigation.setAgents(agents)` 与 `engine.runtime.navigation.getAgents()`。
+
+```ts
+type Agent = {
+  id: string;
+  kind: "car" | "pedestrian";
+  x: number;
+  z: number;
+  yaw: number;
+  pathIndex: number;
+  speed: number;
+};
+```
+
+### engine.runtime.world.stepAgents(input)
+
+兼容迁移建议：
+
+- raw per-step paths 使用 `engine.runtime.navigation.stepAgents(input)`。
+- reusable registered paths 使用 `engine.runtime.navigation.registerPath(...)` 加 `stepPathAgents(...)`。
+
+```ts
+engine.runtime.world.stepAgents(input: {
+  deltaSeconds: number;
+  carPath: readonly Array<{ x: number; z: number }>;
+  pedestrianPath: readonly Array<{ x: number; z: number }>;
+}): readonly Agent[];
+```
+
+### engine.runtime.world.resolveCollision(input)
+
+兼容迁移建议：
+
+- 使用 `engine.runtime.collision.resolve(input)`。
+- 需要更完整 collision orchestration 时，使用 `registerCollider(...)`、`queryAabb(...)` 与 `evaluateTriggers(...)`。
+
+```ts
+engine.runtime.world.resolveCollision(input: {
+  x: number;
+  z: number;
+  radius: number;
+  velocityX?: number;
+  velocityZ?: number;
+}): {
+  x: number;
+  z: number;
+  velocityX: number;
+  velocityZ: number;
+  collided: boolean;
+}
+```

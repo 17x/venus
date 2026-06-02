@@ -70,6 +70,24 @@ import type {
   EngineRuntimeWorldQueryEntityInput,
   EngineRuntimeWorldQueryEntityOutput,
   EngineRuntimeWorldSnapshotOutput,
+  EngineRuntimeOpenWorldMap,
+  EngineRuntimeWorldAgentState,
+  EngineRuntimeWorldStepInput,
+  EngineRuntimeWorldResolveCollisionInput,
+  EngineRuntimeWorldResolveCollisionOutput,
+  EngineRuntimeWorldObstacle,
+  EngineRuntimeCollisionQueryAabbInput,
+  EngineRuntimeCollisionQueryAabbOutput,
+  EngineRuntimeCollisionUnregisterOutput,
+  EngineRuntimeCollisionEvaluateTriggersInput,
+  EngineRuntimeCollisionEvaluateTriggersOutput,
+  EngineRuntimeNavigationPath,
+  EngineRuntimeNavigationStepPathAgentsInput,
+  EngineRuntimeNavigationUnregisterPathOutput,
+  EngineRuntimeLightingProfile,
+  EngineRuntimeLightingEnvironmentInput,
+  EngineRuntimeLightingEnvironmentOutput,
+  EngineLightCollection,
 } from "./public-types";
 import type {
   BoxTransformSource,
@@ -166,6 +184,36 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   queryRuntimeWorldComponent: (input: EngineRuntimeWorldQueryComponentInput) => EngineRuntimeWorldQueryComponentOutput;
   queryRuntimeNodeTransform: (source: BoxTransformSource) => ResolvedNodeTransform;
   formatRuntimeNodeSvgTransform: (transform: ResolvedNodeTransform) => string | undefined;
+  setRuntimeOpenWorldMap: (map: EngineRuntimeOpenWorldMap) => EngineRuntimeOpenWorldMap;
+  getRuntimeOpenWorldMap: () => EngineRuntimeOpenWorldMap;
+  setRuntimeWorldAgents: (
+    agents: readonly EngineRuntimeWorldAgentState[],
+  ) => readonly EngineRuntimeWorldAgentState[];
+  getRuntimeWorldAgents: () => readonly EngineRuntimeWorldAgentState[];
+  registerRuntimeNavigationPath: (path: EngineRuntimeNavigationPath) => EngineRuntimeNavigationPath;
+  unregisterRuntimeNavigationPath: (pathId: string) => EngineRuntimeNavigationUnregisterPathOutput;
+  getRuntimeNavigationPaths: () => readonly EngineRuntimeNavigationPath[];
+  stepRuntimeWorldAgents: (
+    input: EngineRuntimeWorldStepInput,
+  ) => readonly EngineRuntimeWorldAgentState[];
+  stepRuntimeNavigationPathAgents: (
+    input: EngineRuntimeNavigationStepPathAgentsInput,
+  ) => readonly EngineRuntimeWorldAgentState[];
+  resolveRuntimeWorldCollision: (
+    input: EngineRuntimeWorldResolveCollisionInput,
+  ) => EngineRuntimeWorldResolveCollisionOutput;
+  setRuntimeCollisionObstacles: (
+    obstacles: readonly EngineRuntimeWorldObstacle[],
+  ) => readonly EngineRuntimeWorldObstacle[];
+  getRuntimeCollisionObstacles: () => readonly EngineRuntimeWorldObstacle[];
+  registerRuntimeCollider: (collider: EngineRuntimeWorldObstacle) => EngineRuntimeWorldObstacle;
+  unregisterRuntimeCollider: (colliderId: string) => EngineRuntimeCollisionUnregisterOutput;
+  queryRuntimeCollisionAabb: (
+    input: EngineRuntimeCollisionQueryAabbInput,
+  ) => EngineRuntimeCollisionQueryAabbOutput;
+  evaluateRuntimeCollisionTriggers: (
+    input: EngineRuntimeCollisionEvaluateTriggersInput,
+  ) => EngineRuntimeCollisionEvaluateTriggersOutput;
   clearRuntimeWorldSnapshot: () => EngineRuntimeWorldClearOutput;
   markRuntimeDirtyDomainsBatch: (input: EngineRuntimeDirtyMarkBatchInput) => EngineRuntimeDirtyStateOutput;
   resolveRuntimePendingDirtyDomains: () => readonly EngineRuntimeDirtyMarkInput["domain"][];
@@ -203,6 +251,16 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   startRuntimeTrace: (options: import("./public-types").EngineRuntimeStartTraceInput) => import("./public-types").EngineRuntimeStartTraceOutput;
   stopRuntimeTrace: (traceId: string) => import("./public-types").EngineRuntimeStopTraceOutput;
   getRuntimeMetricsSnapshot: () => import("./public-types").EngineRuntimeMetricsSnapshot;
+  setRuntimeLightingCollection: (collection: EngineLightCollection) => EngineLightCollection;
+  getRuntimeLightingCollection: () => EngineLightCollection;
+  clearRuntimeLightingCollection: () => EngineLightCollection;
+  applyRuntimeLightingProfile: (profile: EngineRuntimeLightingProfile) => EngineLightCollection;
+  resolveRuntimeLightingEnvironment: (
+    input: EngineRuntimeLightingEnvironmentInput,
+  ) => EngineRuntimeLightingEnvironmentOutput;
+  applyRuntimeLightingEnvironment: (
+    input: EngineRuntimeLightingEnvironmentInput,
+  ) => EngineRuntimeLightingEnvironmentOutput;
 }): EngineRuntimeApi {
   /**
    * Clamps one numeric value into [min, max] while preserving deterministic fallback behavior.
@@ -335,7 +393,31 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       getGraphStats: () => deps.resolveRuntimeWorldGraphStatsOutput(),
       queryNodeTransform: (source) => deps.queryRuntimeNodeTransform(source),
       formatNodeSvgTransform: (transform) => deps.formatRuntimeNodeSvgTransform(transform),
+      setOpenWorldMap: (map) => deps.setRuntimeOpenWorldMap(map),
+      getOpenWorldMap: () => deps.getRuntimeOpenWorldMap(),
+      setAgents: (agents) => deps.setRuntimeWorldAgents(agents),
+      getAgents: () => deps.getRuntimeWorldAgents(),
+      stepAgents: (input) => deps.stepRuntimeWorldAgents(input),
+      resolveCollision: (input) => deps.resolveRuntimeWorldCollision(input),
       clear: () => deps.clearRuntimeWorldSnapshot(),
+    },
+    navigation: {
+      setAgents: (agents) => deps.setRuntimeWorldAgents(agents),
+      getAgents: () => deps.getRuntimeWorldAgents(),
+      registerPath: (path) => deps.registerRuntimeNavigationPath(path),
+      unregisterPath: (pathId) => deps.unregisterRuntimeNavigationPath(pathId),
+      getPaths: () => deps.getRuntimeNavigationPaths(),
+      stepAgents: (input) => deps.stepRuntimeWorldAgents(input),
+      stepPathAgents: (input) => deps.stepRuntimeNavigationPathAgents(input),
+    },
+    collision: {
+      registerCollider: (collider) => deps.registerRuntimeCollider(collider),
+      unregisterCollider: (colliderId) => deps.unregisterRuntimeCollider(colliderId),
+      setObstacles: (obstacles) => deps.setRuntimeCollisionObstacles(obstacles),
+      getObstacles: () => deps.getRuntimeCollisionObstacles(),
+      queryAabb: (input) => deps.queryRuntimeCollisionAabb(input),
+      evaluateTriggers: (input) => deps.evaluateRuntimeCollisionTriggers(input),
+      resolve: (input) => deps.resolveRuntimeWorldCollision(input),
     },
     dirty: {
       getState: () => deps.resolveRuntimeDirtyStateOutput(),
@@ -460,6 +542,14 @@ export function createEngineRuntimeFacadeNamespace(deps: {
           resourceStates,
         };
       },
+    },
+    lighting: {
+      setCollection: (collection) => deps.setRuntimeLightingCollection(collection),
+      getCollection: () => deps.getRuntimeLightingCollection(),
+      clearCollection: () => deps.clearRuntimeLightingCollection(),
+      applyProfile: (profile) => deps.applyRuntimeLightingProfile(profile),
+      resolveEnvironment: (input) => deps.resolveRuntimeLightingEnvironment(input),
+      applyEnvironment: (input) => deps.applyRuntimeLightingEnvironment(input),
     },
     resource: {
       register: (descriptor) => deps.registerRuntimeResource(descriptor),

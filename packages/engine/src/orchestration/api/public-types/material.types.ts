@@ -22,6 +22,30 @@ export interface EngineMaterialEntityBase {
 }
 
 /**
+ * Texture sampler wrapping mode token for material texture coordinates.
+ */
+export type EngineTextureSamplerWrapMode = "clamp-to-edge" | "repeat" | "mirrored-repeat";
+
+/**
+ * Texture sampler filtering mode token.
+ */
+export type EngineTextureSamplerFilterMode = "nearest" | "linear";
+
+/**
+ * Texture sampler descriptor shared by graph materials and asset materials.
+ */
+export interface EngineTextureSamplerDescriptor {
+  /** Horizontal UV wrapping mode. */
+  wrapS?: EngineTextureSamplerWrapMode;
+  /** Vertical UV wrapping mode. */
+  wrapT?: EngineTextureSamplerWrapMode;
+  /** Minification filter. */
+  minFilter?: EngineTextureSamplerFilterMode;
+  /** Magnification filter. */
+  magFilter?: EngineTextureSamplerFilterMode;
+}
+
+/**
  * PBR material entity using the metallic-roughness workflow.
  * Aligned with glTF 2.0 PBR Metallic-Roughness material model.
  */
@@ -51,14 +75,24 @@ export interface EnginePbrMaterial extends EngineMaterialEntityBase {
   doubleSided: boolean;
   /** Base color texture URI or data-URL. */
   baseColorTexture?: string;
+  /** Optional base color texture sampler descriptor. */
+  baseColorTextureSampler?: EngineTextureSamplerDescriptor;
   /** Metallic-roughness texture URI (metallic in B, roughness in G). */
   metallicRoughnessTexture?: string;
+  /** Optional metallic-roughness texture sampler descriptor. */
+  metallicRoughnessTextureSampler?: EngineTextureSamplerDescriptor;
   /** Normal map texture URI for tangent-space normal perturbation. */
   normalTexture?: string;
+  /** Optional normal texture sampler descriptor. */
+  normalTextureSampler?: EngineTextureSamplerDescriptor;
   /** Ambient occlusion texture URI. */
   aoTexture?: string;
+  /** Optional ambient occlusion texture sampler descriptor. */
+  aoTextureSampler?: EngineTextureSamplerDescriptor;
   /** Emissive texture URI. */
   emissiveTexture?: string;
+  /** Optional emissive texture sampler descriptor. */
+  emissiveTextureSampler?: EngineTextureSamplerDescriptor;
 }
 
 /**
@@ -70,6 +104,8 @@ export interface EngineUnlitMaterial extends EngineMaterialEntityBase {
   baseColor: [number, number, number, number];
   /** Base color texture URI or data-URL. */
   baseColorTexture?: string;
+  /** Optional base color texture sampler descriptor. */
+  baseColorTextureSampler?: EngineTextureSamplerDescriptor;
   /** Opacity factor. */
   opacity: number;
 }

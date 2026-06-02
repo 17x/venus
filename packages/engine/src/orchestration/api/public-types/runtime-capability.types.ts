@@ -34,6 +34,7 @@ import type {
   EngineRuntimeBackendStateOutput,
   EngineRuntimeCaptureFrameInput,
   EngineRuntimeCaptureFrameOutput,
+  EngineRuntimeCollisionApi,
   EngineRuntimeCommandApi,
   EngineRuntimeCommandTraceOutput,
   EngineRuntimeCompileTriggerOutput,
@@ -41,11 +42,13 @@ import type {
   EngineRuntimeDocumentApi,
   EngineRuntimeGetTraceOutput,
   EngineRuntimeObservabilityApi,
+  EngineRuntimeNavigationApi,
   EngineRuntimePlanApi,
   EngineRuntimePlanInspectOutput,
   EngineRuntimeReplayOutput,
   EngineRuntimeReplayTokenOutput,
   EngineRuntimeResourceApi,
+  EngineRuntimeLightingApi,
   EngineRuntimeVolumeApi,
   EngineRuntimeSpatialQueryOutput,
   EngineRuntimeSubmitOutput,
@@ -141,6 +144,10 @@ export interface EngineRuntimeApi {
   document: EngineRuntimeDocumentApi;
   /** Runtime world foundation API namespace. */
   world: EngineRuntimeWorldApi;
+  /** Runtime navigation API namespace. */
+  navigation: EngineRuntimeNavigationApi;
+  /** Runtime collision API namespace. */
+  collision: EngineRuntimeCollisionApi;
   /** Dirty foundation API namespace. */
   dirty: EngineRuntimeDirtyApi;
   /** Command foundation API namespace. */
@@ -151,6 +158,8 @@ export interface EngineRuntimeApi {
   plan: EngineRuntimePlanApi;
   /** Volume foundation API namespace. */
   volume: EngineRuntimeVolumeApi;
+  /** Lighting foundation API namespace. */
+  lighting: EngineRuntimeLightingApi;
   /** Runtime resource foundation API namespace. */
   resource: EngineRuntimeResourceApi;
   /** Runtime observability foundation API namespace. */

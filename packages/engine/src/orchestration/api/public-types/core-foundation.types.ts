@@ -1,4 +1,5 @@
 import type { EngineBackendCacheFallbackReason } from "../../../backend/fallbackTaxonomy";
+import type { EngineMaterialEntity } from "./material.types";
 /**
  * Engine backend selection mode requested by API consumers.
  */
@@ -254,8 +255,12 @@ export interface EngineMeshPrimitiveInput {
   positions: readonly number[];
   /** Optional packed triangle indices into positions array. */
   indices?: readonly number[];
+  /** Optional packed vertex texture coordinates as [u,v, ...]. */
+  uvs?: readonly number[];
   /** Optional mesh color token in CSS notation. */
   color?: string;
+  /** Optional material id used for material texture binding. */
+  materialId?: string;
 }
 
 /**
@@ -333,6 +338,8 @@ export interface EngineGraphInput {
   revision?: string | number;
   /** Ordered graph node list for current scene state. */
   nodes: readonly EngineGraphNodeInput[];
+  /** Optional material registry referenced by graph nodes and mesh primitives. */
+  materials?: readonly EngineMaterialEntity[];
 }
 
 /**
@@ -766,4 +773,3 @@ export interface EngineDiagnosticsSnapshot {
     runtime: readonly EngineDiagnosticsRuntimeCapability[];
   };
 }
-

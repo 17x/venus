@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "id": "s10-city-openworld-mvp",
+  "scenarioId": "s10-game-editor-runtime-preview",
+  "name": "S10 City Open World MVP",
+  "revision": 1,
+  "previewSeed": 10010,
+  "world": {
+    "mapSize": 420,
+    "roads": [
+      {"id": "road-main-ew", "cx": 0, "cz": 0, "w": 420, "d": 18, "axis": "x"},
+      {"id": "road-main-ns", "cx": 0, "cz": 0, "w": 18, "d": 420, "axis": "z"},
+      {"id": "road-north-ew", "cx": 0, "cz": -96, "w": 420, "d": 16, "axis": "x"},
+      {"id": "road-south-ew", "cx": 0, "cz": 96, "w": 420, "d": 16, "axis": "x"},
+      {"id": "road-west-ns", "cx": -96, "cz": 0, "w": 16, "d": 420, "axis": "z"},
+      {"id": "road-east-ns", "cx": 96, "cz": 0, "w": 16, "d": 420, "axis": "z"}
+    ],
+    "buildings": [
+      {"id": "building-nw-01", "cx": -150, "cz": -150, "w": 38, "d": 44, "h": 76, "color": "#8b9aad"},
+      {"id": "building-nw-02", "cx": -60, "cz": -150, "w": 34, "d": 48, "h": 112, "color": "#a98f76"},
+      {"id": "building-ne-01", "cx": 150, "cz": -150, "w": 44, "d": 38, "h": 94, "color": "#7f8c8d"},
+      {"id": "building-ne-02", "cx": 60, "cz": -150, "w": 32, "d": 42, "h": 68, "color": "#9c7e6a"},
+      {"id": "building-sw-01", "cx": -150, "cz": 150, "w": 42, "d": 42, "h": 86, "color": "#8796a8"},
+      {"id": "building-sw-02", "cx": -60, "cz": 150, "w": 30, "d": 48, "h": 58, "color": "#b0937a"},
+      {"id": "building-se-01", "cx": 150, "cz": 150, "w": 48, "d": 42, "h": 124, "color": "#77838a"},
+      {"id": "building-se-02", "cx": 60, "cz": 150, "w": 36, "d": 36, "h": 72, "color": "#a07f6f"}
+    ],
+    "blockers": [
+      {"id": "blocker-nw-01", "cx": -150, "cz": -150, "w": 42, "d": 48, "h": 76, "color": "#111827"},
+      {"id": "blocker-nw-02", "cx": -60, "cz": -150, "w": 38, "d": 52, "h": 112, "color": "#111827"},
+      {"id": "blocker-ne-01", "cx": 150, "cz": -150, "w": 48, "d": 42, "h": 94, "color": "#111827"},
+      {"id": "blocker-ne-02", "cx": 60, "cz": -150, "w": 36, "d": 46, "h": 68, "color": "#111827"},
+      {"id": "blocker-sw-01", "cx": -150, "cz": 150, "w": 46, "d": 46, "h": 86, "color": "#111827"},
+      {"id": "blocker-sw-02", "cx": -60, "cz": 150, "w": 34, "d": 52, "h": 58, "color": "#111827"},
+      {"id": "blocker-se-01", "cx": 150, "cz": 150, "w": 52, "d": 46, "h": 124, "color": "#111827"},
+      {"id": "blocker-se-02", "cx": 60, "cz": 150, "w": 40, "d": 40, "h": 72, "color": "#111827"},
+      {"id": "boundary-n", "cx": 0, "cz": -202, "w": 420, "d": 24, "h": 18, "color": "#111827"},
+      {"id": "boundary-s", "cx": 0, "cz": 202, "w": 420, "d": 24, "h": 18, "color": "#111827"},
+      {"id": "boundary-w", "cx": -202, "cz": 0, "w": 24, "d": 420, "h": 18, "color": "#111827"},
+      {"id": "boundary-e", "cx": 202, "cz": 0, "w": 24, "d": 420, "h": 18, "color": "#111827"}
+    ],
+    "lamps": [
+      {"id": "lamp-main-01", "x": -132, "z": 14, "h": 16},
+      {"id": "lamp-main-02", "x": -44, "z": 14, "h": 16},
+      {"id": "lamp-main-03", "x": 44, "z": 14, "h": 16},
+      {"id": "lamp-main-04", "x": 132, "z": 14, "h": 16},
+      {"id": "lamp-cross-01", "x": 14, "z": -132, "h": 16},
+      {"id": "lamp-cross-02", "x": 14, "z": -44, "h": 16},
+      {"id": "lamp-cross-03", "x": 14, "z": 44, "h": 16},
+      {"id": "lamp-cross-04", "x": 14, "z": 132, "h": 16}
+    ],
+    "paths": {
+      "car": [
+        {"x": -168, "z": -96},
+        {"x": 168, "z": -96},
+        {"x": 168, "z": 96},
+        {"x": -168, "z": 96}
+      ],
+      "pedestrian": [
+        {"x": -132, "z": -132},
+        {"x": -24, "z": 132},
+        {"x": 132, "z": 24},
+        {"x": 24, "z": -132}
+      ]
+    }
+  },
+  "player": {
+    "x": 0,
+    "z": 42,
+    "yaw": 0,
+    "vehicleType": "sedan"
+  },
+  "agents": {
+    "cars": [
+      {"id": "fixture-car-01", "x": -168, "z": -96, "yaw": 90, "speed": 7, "pathIndex": 0},
+      {"id": "fixture-car-02", "x": 168, "z": 96, "yaw": -90, "speed": 6.5, "pathIndex": 2},
+      {"id": "fixture-car-03", "x": 168, "z": -96, "yaw": 180, "speed": 8, "pathIndex": 1}
+    ],
+    "pedestrians": [
+      {"id": "fixture-ped-01", "x": -132, "z": -132, "yaw": 0, "speed": 2.2, "pathIndex": 0},
+      {"id": "fixture-ped-02", "x": 132, "z": 24, "yaw": 180, "speed": 2, "pathIndex": 2},
+      {"id": "fixture-ped-03", "x": -24, "z": 132, "yaw": -45, "speed": 2.4, "pathIndex": 1}
+    ]
+  },
+  "environment": {
+    "directionDeg": 20,
+    "timeOfDayHours": 14,
+    "weather": "sunny"
+  },
+  "defaults": {
+    "cameraAzimuth": 35,
+    "mapSize": 420,
+    "miniMapZoomLevel": 1,
+    "timeFlowEnabled": true,
+    "timeFlowRate": 0.35,
+    "collisionEnabled": true
+  }
+}

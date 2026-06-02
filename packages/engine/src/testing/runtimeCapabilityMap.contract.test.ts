@@ -67,14 +67,25 @@ function resolveCapabilityHandleMethod(engine: ReturnType<typeof createEngine>, 
  * Verifies runtime capability map keeps canonical stable capability set.
  */
 test("runtime capability map keeps canonical stable capability entries", () => {
-  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 62);
-  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 62);
+  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 88);
+  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 88);
   assert.equal("runtimePlanCreateFramePlan" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeResourceCollectGarbage" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeObservabilityReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeDocumentCreateSnapshot" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeDocumentPreflightApplyChangeSet" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeWorldCompileFromDocument" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeWorldStepAgents" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeWorldResolveCollision" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeNavigationStepAgents" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeNavigationRegisterPath" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeNavigationStepPathAgents" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeCollisionResolve" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeCollisionRegisterCollider" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeCollisionQueryAabb" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeCollisionEvaluateTriggers" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeLightingResolveEnvironment" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeLightingApplyEnvironment" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeDirtyFlush" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeCommandReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeBackendProbeHeadless" in ENGINE_RUNTIME_CAPABILITY_MAP, true);

@@ -4,6 +4,7 @@ import {
   resolveRemoteScenarioFromRoute,
   type RemoteScenarioDefinition,
 } from './remoteScenarioCatalog'
+import {applyS10PickNode, applyS10PreviewStep, type S10GamePreviewState} from './s10GameRuntimeInteractions'
 import {PLAYGROUND_SCENARIO_INTERACTION_HARNESSES} from '../scenarios/scenarioInteractionHarnesses'
 import type {PlaygroundSceneSnapshot} from '../types/playgroundScene'
 
@@ -90,7 +91,11 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
   const interactionState = {
     activeControl: harness?.controls[0] ?? 'fit view',
     revision,
+    previewStep: 0,
+    selectedNodeId: null as string | null,
+    playMode: 'stopped' as 'playing' | 'stopped',
   }
+  let s10PlayTimer: number | null = null
   let viewport = {
     viewportWidth: 1280,
     viewportHeight: 760,
@@ -137,13 +142,85 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
       `offsetY ${viewport.offsetY.toFixed(1)}`,
       `draw ${stats.lastExecutionDrawCount ?? 0}`,
       `interaction ${interactionState.activeControl}`,
+      `previewStep ${interactionState.previewStep}`,
+      `selected ${interactionState.selectedNodeId ?? 'none'}`,
+      `mode ${interactionState.playMode}`,
       `webglPath ${diagnostics.backendDiagnostics?.webglRenderPath ?? 'none'}`,
     ].join(' | ')
   }
 
-  populateInteractionHarness(interactions, harness?.controls ?? [], (control) => {
+  const resolveS10State = (): S10GamePreviewState => ({
+    previewStep: interactionState.previewStep,
+    selectedNodeId: interactionState.selectedNodeId,
+    isPlaying: interactionState.playMode === 'playing',
+  })
+
+  const stopS10PreviewPlayback = (): void => {
+    if (s10PlayTimer !== null) {
+      window.clearInterval(s10PlayTimer)
+      s10PlayTimer = null
+    }
+    interactionState.playMode = 'stopped'
+  }
+
+  const syncSceneSnapshot = async (nextSnapshot: PlaygroundSceneSnapshot): Promise<void> => {
+    sceneSnapshot = nextSnapshot
+    revision += 1
+    interactionState.revision = revision
+    sceneSnapshot = {
+      ...sceneSnapshot,
+      revision,
+    }
+    engine.setGraph({
+      revision: sceneSnapshot.revision,
+      nodes: sceneSnapshot.nodes,
+    })
+    await renderNow()
+  }
+
+  populateInteractionHarness(interactions, harness?.controls ?? [], async (control) => {
     interactionState.activeControl = control
     interactionState.revision = revision
+
+    if (scenario.id !== 's10-game-editor-runtime-preview') {
+      refreshStatus()
+      return
+    }
+
+    if (control === 'runtime preview step') {
+      const result = applyS10PreviewStep(sceneSnapshot, resolveS10State())
+      interactionState.previewStep = result.state.previewStep
+      interactionState.selectedNodeId = result.state.selectedNodeId
+      await syncSceneSnapshot(result.snapshot)
+      return
+    }
+
+    if (control === 'pick node') {
+      const result = applyS10PickNode(sceneSnapshot, resolveS10State())
+      interactionState.selectedNodeId = result.state.selectedNodeId
+      await syncSceneSnapshot(result.snapshot)
+      return
+    }
+
+    if (control === 'play preview') {
+      stopS10PreviewPlayback()
+      interactionState.playMode = 'playing'
+      s10PlayTimer = window.setInterval(() => {
+        const stepResult = applyS10PreviewStep(sceneSnapshot, resolveS10State())
+        interactionState.previewStep = stepResult.state.previewStep
+        interactionState.selectedNodeId = stepResult.state.selectedNodeId
+        void syncSceneSnapshot(stepResult.snapshot)
+      }, 600)
+      refreshStatus()
+      return
+    }
+
+    if (control === 'stop preview') {
+      stopS10PreviewPlayback()
+      refreshStatus()
+      return
+    }
+
     refreshStatus()
   })
 
@@ -188,6 +265,10 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
     status.textContent = 'Fetching public data...'
     try {
       revision += 1
+      stopS10PreviewPlayback()
+      interactionState.playMode = 'stopped'
+      interactionState.previewStep = 0
+      interactionState.selectedNodeId = null
       interactionState.revision = revision
       const payload = await fetchRemotePayload(scenario)
       sceneSnapshot = scenario.buildScene(revision, payload)
@@ -218,6 +299,7 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
 
   window.addEventListener('beforeunload', () => {
     window.removeEventListener('resize', handleResize)
+    stopS10PreviewPlayback()
     engine.dispose()
   })
 
@@ -234,7 +316,7 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
 function populateInteractionHarness(
   container: HTMLDivElement,
   controls: readonly string[],
-  onSelect: (control: string) => void,
+  onSelect: (control: string) => void | Promise<void>,
 ): void {
   container.innerHTML = ''
   controls.forEach((control) => {
@@ -243,7 +325,7 @@ function populateInteractionHarness(
     button.className = 'command-button'
     button.textContent = control
     button.addEventListener('click', () => {
-      onSelect(control)
+      void onSelect(control)
     })
     container.append(button)
   })

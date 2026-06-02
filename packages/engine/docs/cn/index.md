@@ -90,5 +90,6 @@
 18. [场景 Adapter 边界手册](editor-integration/scenario-adapter-boundary-cookbook.md)
 19. [Breaking Changes 策略](migration/breaking-changes.md)
 20. [App Adapter 迁移指南](migration/app-adapter-migration.md)
-21. [预算与 SLO](performance/budgets-and-slos.md)
-22. [回放与追踪](diagnostics/replay-and-trace.md)
+21. [Runtime World Navigation And Collision 迁移指南](migration/runtime-world-navigation-collision-migration.md)
+22. [预算与 SLO](performance/budgets-and-slos.md)
+23. [回放与追踪](diagnostics/replay-and-trace.md)

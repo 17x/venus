@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "s10-game-editor-runtime-preview",
+  "canonicalFixture": {
+    "path": "apps/playground/public/scenario-fixtures/s10/s10-city-openworld.fixture.json",
+    "format": "json",
+    "role": "canonical-local-fixture",
+    "source": "project-authored deterministic mock fixture",
+    "license": "project-owned",
+    "checksum": "pending-update-after-fixture-freeze",
+    "adapterOwner": "apps/playground/src/demos/drivingGameFixture.ts",
+    "fallbackMode": "use seeded generator when fixture fetch or validation fails"
+  },
+  "legacyProxyFixture": {
+    "path": "apps/playground/public/scenario-fixtures/s10/miserables.json",
+    "format": "json",
+    "role": "legacy-remote-proxy-reference",
+    "source": "vega dataset proxy retained for historical S10 remote demo",
+    "license": "requires dataset license review before canonical use"
+  },
+  "expectedModel": {
+    "world": ["mapSize", "roads", "buildings", "blockers", "lamps", "paths"],
+    "runtime": ["player", "agents", "environment", "previewSeed"],
+    "engineProjection": [
+      "engine.runtime.world.setOpenWorldMap",
+      "engine.runtime.world.setAgents",
+      "engine.runtime.world.stepAgents",
+      "engine.runtime.world.resolveCollision",
+      "engine.runtime.lighting.applyEnvironment"
+    ]
+  }
+}

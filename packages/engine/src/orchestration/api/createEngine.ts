@@ -2,11 +2,33 @@ import type {
   EngineGraphNodeInput,
   EngineHandle,
   EngineInvalidateInput,
+  EngineLightCollection,
+  EngineLightEntity,
+  EngineMaterialEntity,
   EngineRenderChainDiagnostics,
   EngineRenderWarningPayload,
+  EngineRuntimeLightingProfile,
+  EngineRuntimeLightingEnvironmentInput,
+  EngineRuntimeLightingEnvironmentOutput,
   EngineRuntimeBackendFallbackTraceItem,
   EnginePublicCapabilitiesOutput,
   EngineRuntimeWorldSnapshotOutput,
+  EngineRuntimeOpenWorldMap,
+  EngineRuntimeWorldObstacle,
+  EngineRuntimeWorldAgentState,
+  EngineRuntimeWorldStepInput,
+  EngineRuntimeWorldResolveCollisionInput,
+  EngineRuntimeWorldResolveCollisionOutput,
+  EngineRuntimeCollisionQueryAabbInput,
+  EngineRuntimeCollisionQueryAabbOutput,
+  EngineRuntimeCollisionUnregisterOutput,
+  EngineRuntimeCollisionEvaluateTriggersInput,
+  EngineRuntimeCollisionEvaluateTriggersOutput,
+  EngineRuntimeCollisionTriggerEvent,
+  EngineRuntimeNavigationPath,
+  EngineRuntimeNavigationPathConstraints,
+  EngineRuntimeNavigationStepPathAgentsInput,
+  EngineRuntimeNavigationUnregisterPathOutput,
 } from "./public-types";
 import {
   resolveEnginePerformanceOptions,
@@ -106,6 +128,9 @@ const TRIANGLE_INDEX_TWO = 2;
 const QUAD_INDEX_THREE = 3;
 const DEFAULT_RUNTIME_PLAN_INTERVAL_MS = 8;
 const DEFAULT_FRAME_BUDGET_MS = 16;
+const MAX_RUNTIME_LIGHT_COUNT = 32;
+const MAX_RUNTIME_OPEN_WORLD_OBSTACLE_COUNT = 4096;
+const MAX_RUNTIME_WORLD_AGENT_COUNT = 1024;
 const TRIANGLE_FALLBACK_INDICES: readonly number[] = [
   TRIANGLE_INDEX_ZERO,
   TRIANGLE_INDEX_ONE,
@@ -186,6 +211,15 @@ function createDefaultBackendDiagnostics() {
     webglNativeMeshCapabilityGateCount: 0,
     activeLightCount: 0,
     meshDrawCallCount: 0,
+    webglNativeMaterialTextureCandidateCount: 0,
+    webglNativeMaterialTextureUvReadyCount: 0,
+    webglNativeMaterialTextureBindingCount: 0,
+    webglNativeMaterialTextureUploadBytes: 0,
+    webglNativeMaterialTextureCacheHitCount: 0,
+    webglNativeMaterialTextureCacheMissCount: 0,
+    webglNativeMaterialTextureDecodeFailureCount: 0,
+    webglNativeMaterialTextureDecodeFailureReason: "none",
+    webglNativeMaterialTextureFallbackReason: "none",
     shadowMapCount: 0,
     shadowDrawCallCount: 0,
     shadowTextureBytes: 0,
@@ -272,6 +306,17 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   const spatialQueryModule = createEngineSpatialQueryModule();
   const hitTestRayModule = createEngineHitTestRayModule();
   const graphNodeState = new Map<string, EngineGraphNodeInput>();
+  let graphMaterials: readonly EngineMaterialEntity[] = [];
+  let runtimeLightingCollection: EngineLightCollection = {
+    lights: [],
+  };
+  let runtimeOpenWorldMap: EngineRuntimeOpenWorldMap = {
+    mapSize: 600,
+    obstacles: [],
+  };
+  let runtimeWorldAgents: readonly EngineRuntimeWorldAgentState[] = [];
+  let runtimeNavigationPaths: readonly EngineRuntimeNavigationPath[] = [];
+  let runtimeCollisionTriggerPairs: readonly string[] = [];
   let viewportState: EngineViewportState = {
     width: options.surface.width,
     height: options.surface.height,
@@ -534,6 +579,507 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   }
 
   /**
+   * Normalizes runtime light collection into deterministic engine-safe shape.
+   * @param collection Caller-provided light collection payload.
+   */
+  function normalizeRuntimeLightingCollection(collection: EngineLightCollection): EngineLightCollection {
+    const normalizedLights = (collection?.lights ?? [])
+      .filter((light): light is EngineLightEntity => Boolean(light) && typeof light.id === "string" && light.id.length > 0)
+      .slice(0, MAX_RUNTIME_LIGHT_COUNT);
+    return {
+      lights: normalizedLights,
+    };
+  }
+
+  /**
+   * Clamps one numeric scalar into [min, max] with deterministic fallback.
+   * @param value Source numeric value.
+   * @param min Lower bound.
+   * @param max Upper bound.
+   */
+  function clampScalar(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) {
+      return min;
+    }
+    return Math.min(max, Math.max(min, value));
+  }
+
+  /**
+   * Resolves one deterministic built-in runtime lighting profile.
+   * @param profile Profile token.
+   */
+  function resolveRuntimeLightingProfile(profile: EngineRuntimeLightingProfile): EngineLightCollection {
+    if (profile === "studio") {
+      return {
+        lights: [
+          { id: "studio-key", type: "directional", color: "#ffffff", intensity: 1.25, targetX: 0, targetY: 0, targetZ: 0 },
+          { id: "studio-fill", type: "hemisphere", color: "#dbeafe", groundColor: "#1e293b", intensity: 0.45 },
+          { id: "studio-ambient", type: "ambient", color: "#f8fafc", intensity: 0.2 },
+        ],
+      };
+    }
+    if (profile === "gameplay") {
+      return {
+        lights: [
+          { id: "game-sun", type: "directional", color: "#fff7d6", intensity: 1.1, targetX: 120, targetY: 0, targetZ: -80 },
+          { id: "game-bounce", type: "hemisphere", color: "#bfdbfe", groundColor: "#0f172a", intensity: 0.35 },
+          { id: "game-ambient", type: "ambient", color: "#e2e8f0", intensity: 0.16 },
+        ],
+      };
+    }
+    return {
+      lights: [
+        { id: "editor-key", type: "directional", color: "#ffffff", intensity: 1, targetX: 0, targetY: 0, targetZ: 0 },
+        { id: "editor-hemi", type: "hemisphere", color: "#dbeafe", groundColor: "#1f2937", intensity: 0.3 },
+      ],
+    };
+  }
+
+  /**
+   * Resolves one deterministic environment-driven lighting rig and atmosphere payload.
+   * @param input Environment-lighting input payload.
+   */
+  function resolveRuntimeLightingEnvironment(
+    input: EngineRuntimeLightingEnvironmentInput,
+  ): EngineRuntimeLightingEnvironmentOutput {
+    const timeOfDayHours = clampScalar(input.timeOfDayHours, 0, 23.999);
+    const directionDeg = Number.isFinite(input.directionDeg) ? input.directionDeg : 0;
+    const cloudCover = clampScalar(input.cloudCover, 0, 1);
+    const precipitation = clampScalar(input.precipitation, 0, 1);
+    const fogDensity = clampScalar(input.fogDensity, 0, 1);
+    const directionalIntensity = Math.max(0, Number.isFinite(input.directionalIntensity) ? input.directionalIntensity : 1);
+    const ambientIntensity = Math.max(0, Number.isFinite(input.ambientIntensity) ? input.ambientIntensity : 0.2);
+    const additionalLights = Array.isArray(input.additionalLights) ? input.additionalLights : [];
+
+    const sunOrbit = ((timeOfDayHours - 6) / 24) * Math.PI * 2;
+    const sunHeight = Math.sin(sunOrbit);
+    const dayFactor = Math.max(0.05, Math.min(1.15, (sunHeight + 0.15) / 1.15));
+    const moonFactor = Math.max(0, Math.min(1, (-sunHeight - 0.05) / 0.95));
+    const sunAzimuthDeg = directionDeg + (timeOfDayHours / 24) * 360;
+    const sunAzimuthRad = (sunAzimuthDeg * Math.PI) / 180;
+    const weatherDirFactor = Math.max(0.25, 1 - cloudCover * 0.45 - precipitation * 0.35 - fogDensity * 0.3);
+    const weatherAmbBoost = 1 + cloudCover * 0.35 + precipitation * 0.2 + fogDensity * 0.55;
+
+    const collection = normalizeRuntimeLightingCollection({
+      lights: [
+        {
+          id: "env-key-light",
+          type: "directional",
+          color: precipitation > 0.25 ? "#dbeafe" : dayFactor >= moonFactor ? "#fff7d6" : "#dbeafe",
+          intensity: directionalIntensity * Math.max(dayFactor, moonFactor * 0.62) * weatherDirFactor,
+          targetX: Math.sin(sunAzimuthRad) * 180,
+          targetY: -30 - sunHeight * 120,
+          targetZ: Math.cos(sunAzimuthRad) * 180,
+        },
+        {
+          id: "env-ambient-light",
+          type: "ambient",
+          color: fogDensity > 0.4 ? "#e5e7eb" : dayFactor >= moonFactor ? "#e2e8f0" : "#bfdbfe",
+          intensity: ambientIntensity * (0.18 + dayFactor * 0.75 + moonFactor * 0.35) * weatherAmbBoost,
+        },
+        {
+          id: "env-hemi-light",
+          type: "hemisphere",
+          color: precipitation > 0.25 ? "#93c5fd" : "#bfdbfe",
+          groundColor: "#0f172a",
+          intensity: Math.max(0, ambientIntensity * (0.25 + dayFactor * 0.7)),
+        },
+        ...additionalLights,
+      ],
+    });
+
+    return {
+      environment: {
+        timeOfDayHours,
+        directionDeg,
+        cloudCover,
+        precipitation,
+        fogDensity,
+        directionalIntensity,
+        ambientIntensity,
+        additionalLights,
+      },
+      collection,
+      atmosphere: {
+        skyColor: precipitation > 0.25 ? "#1e293b" : cloudCover > 0.5 ? "#334155" : "#0f172a",
+        hazeColor: fogDensity > 0.4 ? "#e2e8f0" : precipitation > 0.25 ? "#60a5fa" : "#94a3b8",
+        hazeOpacity: clampScalar(0.04 + cloudCover * 0.12 + precipitation * 0.16 + fogDensity * 0.32, 0, 0.7),
+      },
+    };
+  }
+
+  /**
+   * Normalizes runtime open-world map payload into deterministic engine-safe shape.
+   * @param map Caller-provided open-world map payload.
+   */
+  function normalizeRuntimeOpenWorldMap(map: EngineRuntimeOpenWorldMap): EngineRuntimeOpenWorldMap {
+    const mapSize = Number.isFinite(map.mapSize) ? Math.max(1, Math.abs(map.mapSize)) : 600;
+    const obstacles = (map.obstacles ?? [])
+      .filter((item): item is EngineRuntimeOpenWorldMap["obstacles"][number] =>
+        Boolean(item) && typeof item.id === "string" && item.id.length > 0,
+      )
+      .slice(0, MAX_RUNTIME_OPEN_WORLD_OBSTACLE_COUNT)
+      .map((item) => ({
+        id: item.id,
+        x: Number.isFinite(item.x) ? item.x : 0,
+        z: Number.isFinite(item.z) ? item.z : 0,
+        width: Math.max(0, Number.isFinite(item.width) ? Math.abs(item.width) : 0),
+        depth: Math.max(0, Number.isFinite(item.depth) ? Math.abs(item.depth) : 0),
+      }));
+    return { mapSize, obstacles };
+  }
+
+  /**
+   * Normalizes one runtime collision obstacle into deterministic engine-safe shape.
+   * @param obstacle Caller-provided collider/obstacle payload.
+   */
+  function normalizeRuntimeWorldObstacle(obstacle: EngineRuntimeWorldObstacle): EngineRuntimeWorldObstacle {
+    return {
+      id: typeof obstacle.id === "string" && obstacle.id.length > 0 ? obstacle.id : "collider",
+      x: Number.isFinite(obstacle.x) ? obstacle.x : 0,
+      z: Number.isFinite(obstacle.z) ? obstacle.z : 0,
+      width: Math.max(0, Number.isFinite(obstacle.width) ? Math.abs(obstacle.width) : 0),
+      depth: Math.max(0, Number.isFinite(obstacle.depth) ? Math.abs(obstacle.depth) : 0),
+    };
+  }
+
+  /**
+   * Normalizes runtime world agents payload into deterministic engine-safe shape.
+   * @param agents Caller-provided world agents.
+   */
+  function normalizeRuntimeWorldAgents(
+    agents: readonly EngineRuntimeWorldAgentState[],
+  ): readonly EngineRuntimeWorldAgentState[] {
+    return (agents ?? [])
+      .filter((agent): agent is EngineRuntimeWorldAgentState =>
+        Boolean(agent) && typeof agent.id === "string" && agent.id.length > 0,
+      )
+      .slice(0, MAX_RUNTIME_WORLD_AGENT_COUNT)
+      .map((agent) => ({
+        id: agent.id,
+        kind: agent.kind === "pedestrian" ? "pedestrian" : "car",
+        x: Number.isFinite(agent.x) ? agent.x : 0,
+        z: Number.isFinite(agent.z) ? agent.z : 0,
+        yaw: Number.isFinite(agent.yaw) ? agent.yaw : 0,
+        pathIndex: Number.isFinite(agent.pathIndex) ? Math.max(0, Math.floor(agent.pathIndex)) : 0,
+        speed: Number.isFinite(agent.speed) ? Math.max(0, agent.speed) : 0,
+        pathId: typeof agent.pathId === "string" && agent.pathId.length > 0 ? agent.pathId : undefined,
+      }));
+  }
+
+  /**
+   * Normalizes graph-level material registry into deterministic engine-safe shape.
+   * @param materials Caller-provided graph material registry.
+   */
+  function normalizeGraphMaterials(materials: readonly EngineMaterialEntity[]): readonly EngineMaterialEntity[] {
+    return (materials ?? [])
+      .filter((material): material is EngineMaterialEntity =>
+        Boolean(material) && typeof material.id === "string" && material.id.length > 0,
+      );
+  }
+
+  /**
+   * Normalizes one runtime navigation path into deterministic engine-safe shape.
+   * @param path Caller-provided path payload.
+   */
+  function normalizeRuntimeNavigationPath(path: EngineRuntimeNavigationPath): EngineRuntimeNavigationPath {
+    const constraints = normalizeRuntimeNavigationPathConstraints(path.constraints);
+    return {
+      id: typeof path.id === "string" && path.id.length > 0 ? path.id : "path",
+      loop: path.loop !== false,
+      nodes: (Array.isArray(path.nodes) ? path.nodes : [])
+        .map((node) => ({
+          x: Number.isFinite(node.x) ? node.x : 0,
+          z: Number.isFinite(node.z) ? node.z : 0,
+        })),
+      ...(constraints ? { constraints } : {}),
+    };
+  }
+
+  /**
+   * Normalizes optional path constraints while preserving absent defaults.
+   * @param constraints Caller-provided constraints payload.
+   */
+  function normalizeRuntimeNavigationPathConstraints(
+    constraints: EngineRuntimeNavigationPathConstraints | undefined,
+  ): EngineRuntimeNavigationPathConstraints | undefined {
+    if (!constraints) {
+      return undefined;
+    }
+    const normalized: EngineRuntimeNavigationPathConstraints = {};
+    if (Number.isFinite(constraints.arrivalTolerance) && constraints.arrivalTolerance !== undefined) {
+      normalized.arrivalTolerance = Math.max(0, constraints.arrivalTolerance);
+    }
+    if (Number.isFinite(constraints.maxStepDistance) && constraints.maxStepDistance !== undefined) {
+      normalized.maxStepDistance = Math.max(0, constraints.maxStepDistance);
+    }
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+  }
+
+  /**
+   * Steps one agent along one path.
+   * @param agent Current agent state.
+   * @param path Waypoint path.
+   * @param deltaSeconds Step delta time.
+   * @param options Optional path-following constraints.
+   */
+  function stepRuntimeAgentAlongPath(
+    agent: EngineRuntimeWorldAgentState,
+    path: readonly { x: number; z: number }[],
+    deltaSeconds: number,
+    options: EngineRuntimeNavigationPathConstraints & { loop?: boolean } = {},
+  ): EngineRuntimeWorldAgentState {
+    if (path.length < 2 || deltaSeconds <= 0 || agent.speed <= 0) {
+      return agent;
+    }
+    const currentIndex = Math.min(Math.max(0, Math.floor(agent.pathIndex)), path.length - 1);
+    if (options.loop === false && currentIndex >= path.length - 1) {
+      return { ...agent, pathIndex: currentIndex };
+    }
+    const nextIndex = currentIndex + 1 < path.length ? currentIndex + 1 : 0;
+    const target = path[nextIndex];
+    const dx = target.x - agent.x;
+    const dz = target.z - agent.z;
+    const dist = Math.hypot(dx, dz);
+    const arrivalTolerance = Number.isFinite(options.arrivalTolerance)
+      ? Math.max(0, options.arrivalTolerance ?? 0)
+      : agent.kind === "pedestrian" ? 1.1 : 2.2;
+    if (dist <= arrivalTolerance) {
+      return { ...agent, pathIndex: nextIndex };
+    }
+    const nx = dx / Math.max(0.0001, dist);
+    const nz = dz / Math.max(0.0001, dist);
+    const rawStepDistance = agent.speed * deltaSeconds;
+    const constrainedStepDistance = Number.isFinite(options.maxStepDistance)
+      ? Math.min(rawStepDistance, Math.max(0, options.maxStepDistance ?? rawStepDistance))
+      : rawStepDistance;
+    const stepDistance = Math.min(dist, constrainedStepDistance);
+    return {
+      ...agent,
+      pathIndex: currentIndex,
+      x: agent.x + nx * stepDistance,
+      z: agent.z + nz * stepDistance,
+      yaw: (Math.atan2(nx, nz) * 180) / Math.PI,
+    };
+  }
+
+  /**
+   * Steps current runtime world agents by deterministic waypoint path follow.
+   * @param input Step payload with delta time and path nodes.
+   */
+  function stepRuntimeWorldAgents(
+    input: EngineRuntimeWorldStepInput,
+  ): readonly EngineRuntimeWorldAgentState[] {
+    const deltaSeconds = Number.isFinite(input.deltaSeconds) ? Math.max(0, input.deltaSeconds) : 0;
+    runtimeWorldAgents = runtimeWorldAgents.map((agent) => {
+      const path = agent.kind === "pedestrian" ? input.pedestrianPath : input.carPath;
+      return stepRuntimeAgentAlongPath(agent, path, deltaSeconds);
+    });
+    return runtimeWorldAgents;
+  }
+
+  /**
+   * Advances agents using registered path ids and optional per-step bindings.
+   * @param input Registered path step input.
+   */
+  function stepRuntimeNavigationPathAgents(
+    input: EngineRuntimeNavigationStepPathAgentsInput,
+  ): readonly EngineRuntimeWorldAgentState[] {
+    const deltaSeconds = Number.isFinite(input.deltaSeconds) ? Math.max(0, input.deltaSeconds) : 0;
+    const bindingMap = new Map<string, string>();
+    for (const binding of input.pathBindings ?? []) {
+      if (binding.agentId.length > 0 && binding.pathId.length > 0) {
+        bindingMap.set(binding.agentId, binding.pathId);
+      }
+    }
+    const pathMap = new Map(runtimeNavigationPaths.map((path) => [path.id, path]));
+    runtimeWorldAgents = runtimeWorldAgents.map((agent) => {
+      const pathId = bindingMap.get(agent.id) ?? agent.pathId;
+      if (!pathId) {
+        return agent;
+      }
+      const path = pathMap.get(pathId);
+      if (!path) {
+        return agent;
+      }
+      const stepped = stepRuntimeAgentAlongPath(agent, path.nodes, deltaSeconds, {
+        ...path.constraints,
+        loop: path.loop,
+      });
+      return { ...stepped, pathId };
+    });
+    return runtimeWorldAgents;
+  }
+
+  /**
+   * Resolves one circle-vs-aabb collision against runtime open-world obstacles.
+   * @param input Collision resolve input payload.
+   */
+  function resolveRuntimeWorldCollision(
+    input: EngineRuntimeWorldResolveCollisionInput,
+  ): EngineRuntimeWorldResolveCollisionOutput {
+    let x = Number.isFinite(input.x) ? input.x : 0;
+    let z = Number.isFinite(input.z) ? input.z : 0;
+    let velocityX = Number.isFinite(input.velocityX) ? (input.velocityX as number) : 0;
+    let velocityZ = Number.isFinite(input.velocityZ) ? (input.velocityZ as number) : 0;
+    const radius = Number.isFinite(input.radius) ? Math.max(0, input.radius) : 0;
+    let collided = false;
+    for (const obstacle of runtimeOpenWorldMap.obstacles) {
+      const minX = obstacle.x - obstacle.width * 0.5;
+      const maxX = obstacle.x + obstacle.width * 0.5;
+      const minZ = obstacle.z - obstacle.depth * 0.5;
+      const maxZ = obstacle.z + obstacle.depth * 0.5;
+      if (x + radius < minX || x - radius > maxX || z + radius < minZ || z - radius > maxZ) {
+        continue;
+      }
+      const dxMin = Math.abs((x + radius) - minX);
+      const dxMax = Math.abs(maxX - (x - radius));
+      const dzMin = Math.abs((z + radius) - minZ);
+      const dzMax = Math.abs(maxZ - (z - radius));
+      const minPenetration = Math.min(dxMin, dxMax, dzMin, dzMax);
+      if (minPenetration === dxMin) x = minX - radius;
+      else if (minPenetration === dxMax) x = maxX + radius;
+      else if (minPenetration === dzMin) z = minZ - radius;
+      else z = maxZ + radius;
+      velocityX *= 0.35;
+      velocityZ *= 0.35;
+      collided = true;
+    }
+    return { x, z, velocityX, velocityZ, collided };
+  }
+
+  /**
+   * Registers or replaces one runtime collider.
+   * @param collider Caller-provided collider payload.
+   */
+  function registerRuntimeCollider(collider: EngineRuntimeWorldObstacle): EngineRuntimeWorldObstacle {
+    const normalized = normalizeRuntimeWorldObstacle(collider);
+    if (normalized.id.length === 0) {
+      return normalized;
+    }
+    const nextObstacles = runtimeOpenWorldMap.obstacles.filter((item) => item.id !== normalized.id);
+    runtimeOpenWorldMap = {
+      ...runtimeOpenWorldMap,
+      obstacles: [...nextObstacles, normalized].slice(0, MAX_RUNTIME_OPEN_WORLD_OBSTACLE_COUNT),
+    };
+    return normalized;
+  }
+
+  /**
+   * Unregisters one runtime collider by id.
+   * @param colliderId Collider id.
+   */
+  function unregisterRuntimeCollider(colliderId: string): EngineRuntimeCollisionUnregisterOutput {
+    const beforeCount = runtimeOpenWorldMap.obstacles.length;
+    runtimeOpenWorldMap = {
+      ...runtimeOpenWorldMap,
+      obstacles: runtimeOpenWorldMap.obstacles.filter((item) => item.id !== colliderId),
+    };
+    return {
+      removed: runtimeOpenWorldMap.obstacles.length !== beforeCount,
+      colliderCount: runtimeOpenWorldMap.obstacles.length,
+    };
+  }
+
+  /**
+   * Queries runtime broadphase AABB candidates against active colliders.
+   * @param input Query AABB input.
+   */
+  function queryRuntimeCollisionAabb(
+    input: EngineRuntimeCollisionQueryAabbInput,
+  ): EngineRuntimeCollisionQueryAabbOutput {
+    const query = normalizeRuntimeWorldObstacle({
+      id: "query",
+      x: input.x,
+      z: input.z,
+      width: input.width,
+      depth: input.depth,
+    });
+    const queryMinX = query.x - query.width * 0.5;
+    const queryMaxX = query.x + query.width * 0.5;
+    const queryMinZ = query.z - query.depth * 0.5;
+    const queryMaxZ = query.z + query.depth * 0.5;
+    const colliders = runtimeOpenWorldMap.obstacles.filter((obstacle) => {
+      const minX = obstacle.x - obstacle.width * 0.5;
+      const maxX = obstacle.x + obstacle.width * 0.5;
+      const minZ = obstacle.z - obstacle.depth * 0.5;
+      const maxZ = obstacle.z + obstacle.depth * 0.5;
+      return queryMinX <= maxX && queryMaxX >= minX && queryMinZ <= maxZ && queryMaxZ >= minZ;
+    });
+    return {
+      colliderIds: colliders.map((collider) => collider.id),
+      colliders,
+    };
+  }
+
+  /**
+   * Evaluates collision trigger enter/stay/exit events for one subject.
+   * @param input Trigger evaluation input.
+   */
+  function evaluateRuntimeCollisionTriggers(
+    input: EngineRuntimeCollisionEvaluateTriggersInput,
+  ): EngineRuntimeCollisionEvaluateTriggersOutput {
+    const subjectId = typeof input.subjectId === "string" && input.subjectId.length > 0
+      ? input.subjectId
+      : "subject";
+    const radius = Number.isFinite(input.radius) ? Math.max(0, input.radius) : 0;
+    const candidates = queryRuntimeCollisionAabb({
+      x: input.x,
+      z: input.z,
+      width: radius * 2,
+      depth: radius * 2,
+    }).colliders;
+    const previousPairs = new Set(runtimeCollisionTriggerPairs);
+    const nextPairs = new Set<string>();
+    const events: EngineRuntimeCollisionTriggerEvent[] = [];
+
+    for (const collider of candidates) {
+      const minX = collider.x - collider.width * 0.5;
+      const maxX = collider.x + collider.width * 0.5;
+      const minZ = collider.z - collider.depth * 0.5;
+      const maxZ = collider.z + collider.depth * 0.5;
+      const overlaps =
+        input.x + radius >= minX &&
+        input.x - radius <= maxX &&
+        input.z + radius >= minZ &&
+        input.z - radius <= maxZ;
+      if (!overlaps) {
+        continue;
+      }
+      const pair = `${subjectId}:${collider.id}`;
+      nextPairs.add(pair);
+      events.push({
+        type: previousPairs.has(pair) ? "stay" : "enter",
+        subjectId,
+        colliderId: collider.id,
+      });
+    }
+
+    for (const pair of previousPairs) {
+      const [pairSubjectId, colliderId] = pair.split(":");
+      if (pairSubjectId === subjectId && !nextPairs.has(pair)) {
+        events.push({
+          type: "exit",
+          subjectId,
+          colliderId: colliderId ?? "",
+        });
+      } else if (pairSubjectId !== subjectId) {
+        nextPairs.add(pair);
+      }
+    }
+
+    runtimeCollisionTriggerPairs = [...nextPairs].sort();
+    const output = {
+      events,
+      activePairs: runtimeCollisionTriggerPairs,
+    };
+    if (events.length > 0) {
+      emitEvent("engine.collision.trigger", output);
+    }
+    return output;
+  }
+
+  /**
    * Resolves one optional shared camera packet from graph nodes.
    * In strict3d mode, callers can provide a helper node with `camera3d` payload.
    */
@@ -615,7 +1161,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       topology: "triangles" | "lines" | "points";
       positions: readonly number[];
       indices?: readonly number[];
+      uvs?: readonly number[];
       color: string;
+      materialId?: string;
     }> = [];
     let needsComposition = false;
     renderableNodes.forEach((node) => {
@@ -626,7 +1174,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
             topology?: "triangles" | "lines" | "points";
             positions: readonly number[];
             indices?: readonly number[];
+            uvs?: readonly number[];
             color?: string;
+            materialId?: string;
           })
           : null;
       if (meshInput) {
@@ -658,12 +1208,28 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
               ? node.stroke
               : "#334155";
         const fallbackIndices = topology === "triangles" ? TRIANGLE_FALLBACK_INDICES : [];
+        const vertexCount = Math.floor(meshInput.positions.length / 3);
+        const normalizedUvs =
+          Array.isArray(meshInput.uvs) && meshInput.uvs.length >= vertexCount * 2
+            ? meshInput.uvs
+                .slice(0, vertexCount * 2)
+                .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+            : [];
+        const materialId = typeof meshInput.materialId === "string" && meshInput.materialId.length > 0
+          ? meshInput.materialId
+          : typeof node.materialId === "string" && node.materialId.length > 0
+            ? node.materialId
+            : typeof node.semantic3d?.materialId === "string" && node.semantic3d.materialId.length > 0
+              ? node.semantic3d.materialId
+              : undefined;
         meshes.push({
           id: String(node.id),
           topology,
           positions: [...meshInput.positions],
           indices: normalizedIndices.length >= minimumIndexCount ? normalizedIndices : fallbackIndices,
+          ...(normalizedUvs.length >= vertexCount * 2 ? { uvs: normalizedUvs } : {}),
           color,
+          ...(materialId ? { materialId } : {}),
         });
         return;
       }
@@ -703,7 +1269,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
           x + width, y + height, z,
         ],
         indices: QUAD_FALLBACK_INDICES,
+        uvs: [0, 0, 1, 0, 0, 1, 1, 1],
         color,
+        ...(typeof node.materialId === "string" && node.materialId.length > 0 ? { materialId: node.materialId } : {}),
       });
     });
 
@@ -717,8 +1285,10 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
           ...node,
           id: String(node.id),
           type: typeof node.type === "string" ? node.type : "shape",
-        })),
+      })),
       meshes,
+      materials: graphMaterials,
+      lights: runtimeLightingCollection.lights,
       camera3d,
       needsComposition,
       images: imageRegistry.size > 0 ? imageRegistry : undefined,
@@ -858,6 +1428,9 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     getLastInteractionAtMs: () => lastInteractionAtMs,
     getLastInteractionKind: () => lastInteractionKind,
     getGraphNodeState: () => graphNodeState,
+    setGraphMaterials: (materials) => {
+      graphMaterials = normalizeGraphMaterials(materials);
+    },
     resolveDocumentNodeFromGraphNode,
     setViewport: (view) => viewportFacade.setViewport(view),
     resolveViewSnapshot: (viewport) => resolveViewSnapshotFromViewportState(viewport),
@@ -1227,6 +1800,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         applyGraphPatchBatch,
         getGraphRevision: () => documentSnapshot.revision,
         getGraphNodes: () => [...graphNodeState.values()],
+        getGraphMaterials: () => graphMaterials,
         getGraphNodeCount: () => graphNodeState.size,
       queryGraph, pickGraph, raycastGraph, resolveFrameOrchestration, resolveNow,
       getLastInteractionKind: () => lastInteractionKind,
@@ -1424,6 +1998,48 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       deserializeRuntimeDocumentSnapshot,
       compileRuntimeWorldFromDocument, queryRuntimeWorldEntity, queryRuntimeWorldComponent, queryRuntimeNodeTransform,
       formatRuntimeNodeSvgTransform,
+      setRuntimeOpenWorldMap: (map: EngineRuntimeOpenWorldMap) => {
+        runtimeOpenWorldMap = normalizeRuntimeOpenWorldMap(map);
+        return runtimeOpenWorldMap;
+      },
+      getRuntimeOpenWorldMap: () => runtimeOpenWorldMap,
+      setRuntimeCollisionObstacles: (obstacles: readonly EngineRuntimeWorldObstacle[]) => {
+        runtimeOpenWorldMap = normalizeRuntimeOpenWorldMap({
+          ...runtimeOpenWorldMap,
+          obstacles,
+        });
+        return runtimeOpenWorldMap.obstacles;
+      },
+      getRuntimeCollisionObstacles: () => runtimeOpenWorldMap.obstacles,
+      registerRuntimeCollider,
+      unregisterRuntimeCollider,
+      queryRuntimeCollisionAabb,
+      evaluateRuntimeCollisionTriggers,
+      setRuntimeWorldAgents: (agents: readonly EngineRuntimeWorldAgentState[]) => {
+        runtimeWorldAgents = normalizeRuntimeWorldAgents(agents);
+        return runtimeWorldAgents;
+      },
+      getRuntimeWorldAgents: () => runtimeWorldAgents,
+      registerRuntimeNavigationPath: (path: EngineRuntimeNavigationPath) => {
+        const normalized = normalizeRuntimeNavigationPath(path);
+        runtimeNavigationPaths = [
+          ...runtimeNavigationPaths.filter((item) => item.id !== normalized.id),
+          normalized,
+        ];
+        return normalized;
+      },
+      unregisterRuntimeNavigationPath: (pathId: string): EngineRuntimeNavigationUnregisterPathOutput => {
+        const beforeCount = runtimeNavigationPaths.length;
+        runtimeNavigationPaths = runtimeNavigationPaths.filter((path) => path.id !== pathId);
+        return {
+          removed: runtimeNavigationPaths.length !== beforeCount,
+          pathCount: runtimeNavigationPaths.length,
+        };
+      },
+      getRuntimeNavigationPaths: () => runtimeNavigationPaths,
+      stepRuntimeWorldAgents,
+      stepRuntimeNavigationPathAgents,
+      resolveRuntimeWorldCollision,
       clearRuntimeWorldSnapshot,
       markRuntimeDirtyDomainsBatch,
       resolveRuntimePendingDirtyDomains,
@@ -1443,6 +2059,27 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       createRuntimeHitGeometryPayload, resolveRuntimeHitTolerance, requestRuntimePlanFrame, cancelRuntimePlanFrame,
       setRuntimePlanInteractiveInterval,
       resolveRuntimePlanSchedulerDiagnostics,
+      setRuntimeLightingCollection: (collection: EngineLightCollection) => {
+        runtimeLightingCollection = normalizeRuntimeLightingCollection(collection);
+        return runtimeLightingCollection;
+      },
+      getRuntimeLightingCollection: () => runtimeLightingCollection,
+      clearRuntimeLightingCollection: () => {
+        runtimeLightingCollection = { lights: [] };
+        return runtimeLightingCollection;
+      },
+      applyRuntimeLightingProfile: (profile: EngineRuntimeLightingProfile) => {
+        runtimeLightingCollection = normalizeRuntimeLightingCollection(
+          resolveRuntimeLightingProfile(profile),
+        );
+        return runtimeLightingCollection;
+      },
+      resolveRuntimeLightingEnvironment,
+      applyRuntimeLightingEnvironment: (input: EngineRuntimeLightingEnvironmentInput) => {
+        const resolved = resolveRuntimeLightingEnvironment(input);
+        runtimeLightingCollection = resolved.collection;
+        return resolved;
+      },
       registerRuntimeResource,
       updateRuntimeResource,
       releaseRuntimeResource,
@@ -1486,4 +2123,3 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     },
   };
 }
-

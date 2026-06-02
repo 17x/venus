@@ -179,8 +179,8 @@ export const createRawInputToCameraCommandAdapter = (
         touchOrbitAnchor = point
         options.onCommand({
           type: 'orbit',
-          deltaYaw: -deltaX * 0.2,
-          deltaPitch: deltaY * 0.16,
+          deltaYaw: deltaX * 0.2,
+          deltaPitch: -deltaY * 0.16,
         })
         return true
       }
@@ -228,8 +228,8 @@ export const createRawInputToCameraCommandAdapter = (
     if (dragMode === 'orbit') {
       options.onCommand({
         type: 'orbit',
-        deltaYaw: -deltaX * 0.2,
-        deltaPitch: deltaY * 0.16,
+        deltaYaw: deltaX * 0.2,
+        deltaPitch: -deltaY * 0.16,
       })
       return true
     }

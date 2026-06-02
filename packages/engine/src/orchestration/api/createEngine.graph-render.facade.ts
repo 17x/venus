@@ -13,6 +13,7 @@ type EngineGraphRenderFacadeDependencies = {
   applyGraphPatchBatch: (patch: Parameters<EngineHandle["updateGraph"]>[0]) => void;
   getGraphRevision: () => number;
   getGraphNodes: () => readonly ReturnType<EngineHandle["getGraph"]>["nodes"][number][];
+  getGraphMaterials: () => NonNullable<ReturnType<EngineHandle["getGraph"]>["materials"]>;
   getGraphNodeCount: () => number;
   queryGraph: (bounds: Parameters<EngineHandle["query"]>[0]) => ReturnType<EngineHandle["query"]>;
   pickGraph: (
@@ -69,6 +70,7 @@ export function createEngineGraphRenderFacade(
     applyGraphPatchBatch,
     getGraphRevision,
     getGraphNodes,
+    getGraphMaterials,
     getGraphNodeCount,
     queryGraph,
     pickGraph,
@@ -178,6 +180,7 @@ export function createEngineGraphRenderFacade(
       return {
         revision: getGraphRevision(),
         nodes: [...getGraphNodes()],
+        materials: [...getGraphMaterials()],
       };
     },
     /**

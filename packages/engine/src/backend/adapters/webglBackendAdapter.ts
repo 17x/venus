@@ -898,6 +898,7 @@ export function createWebGLBackendAdapter(
     payloadSignature: string,
     payloadRectCount: number,
     webglFeatureCapabilityGateReason: FeatureCapabilityGateReason,
+    activeLightCount: number,
     meshSubmissionDiagnostics?: WebGLNativeMeshSubmissionDiagnostics,
   ) {
     const frameReuseHit = payloadSignature === lastPayloadSignature && payloadSignature !== "none";
@@ -998,10 +999,19 @@ export function createWebGLBackendAdapter(
           drawPlanWastedCommandCount: 0,
         },
       webglNativeMeshCapabilityGateCount: meshSubmissionDiagnostics?.submissionCapabilityGateCount ?? 0,
-      activeLightCount: 0,
+      activeLightCount: meshSubmissionDiagnostics?.activeLightCount ?? activeLightCount,
       meshDrawCallCount:
         (meshSubmissionDiagnostics?.submittedMeshCount ?? 0)
         + (meshSubmissionDiagnostics?.lineTopologySubmissionSucceededCount ?? 0),
+      webglNativeMaterialTextureCandidateCount: meshSubmissionDiagnostics?.materialTextureCandidateCount ?? 0,
+      webglNativeMaterialTextureUvReadyCount: meshSubmissionDiagnostics?.materialTextureUvReadyCount ?? 0,
+      webglNativeMaterialTextureBindingCount: meshSubmissionDiagnostics?.materialTextureBindingCount ?? 0,
+      webglNativeMaterialTextureUploadBytes: meshSubmissionDiagnostics?.materialTextureUploadBytes ?? 0,
+      webglNativeMaterialTextureCacheHitCount: meshSubmissionDiagnostics?.materialTextureCacheHitCount ?? 0,
+      webglNativeMaterialTextureCacheMissCount: meshSubmissionDiagnostics?.materialTextureCacheMissCount ?? 0,
+      webglNativeMaterialTextureDecodeFailureCount: meshSubmissionDiagnostics?.materialTextureDecodeFailureCount ?? 0,
+      webglNativeMaterialTextureDecodeFailureReason: meshSubmissionDiagnostics?.materialTextureDecodeFailureReason ?? "none",
+      webglNativeMaterialTextureFallbackReason: meshSubmissionDiagnostics?.materialTextureFallbackReason ?? "none",
       shadowMapCount: 0,
       shadowDrawCallCount: 0,
       shadowTextureBytes: 0,
@@ -1090,7 +1100,7 @@ export function createWebGLBackendAdapter(
         currentContext = resolveContext(currentSurface);
       }
       if (!currentContext) {
-        publishWebGLDiagnostics("none", "none", 0, "none");
+        publishWebGLDiagnostics("none", "none", 0, "none", 0);
         return;
       }
 
@@ -1099,7 +1109,7 @@ export function createWebGLBackendAdapter(
         typeof currentContext.clearColor !== "function" ||
         typeof currentContext.clear !== "function"
       ) {
-        publishWebGLDiagnostics("none", "none", 0, "none");
+        publishWebGLDiagnostics("none", "none", 0, "none", 0);
         return;
       }
 
@@ -1126,6 +1136,7 @@ export function createWebGLBackendAdapter(
         ? `${payload.translateX}:${payload.translateY}:${payload.scale}:${payload.rects.map((rect) => `${rect.x},${rect.y},${rect.width},${rect.height},${rect.fill}`).join("|")}`
         : "none";
       const payloadRectCount = payload?.rects.length ?? 0;
+      const activeLightCount = payload?.lights?.length ?? 0;
       const featureCapabilityGateReason = resolveFeatureCapabilityGateReason(payload?.nodes);
       let renderPath: "model-complete" | "packet" | "none" = "none";
       let meshSubmissionDiagnostics: WebGLNativeMeshSubmissionDiagnostics | undefined;
@@ -1157,6 +1168,7 @@ export function createWebGLBackendAdapter(
               payloadSignature,
               payloadRectCount,
               featureCapabilityGateReason,
+              activeLightCount,
               meshSubmissionDiagnostics,
             );
             hooks?.onPresentCommitted?.(timestampMs);
@@ -1177,6 +1189,8 @@ export function createWebGLBackendAdapter(
             translateY: payload.translateY,
             scale: payload.scale,
             meshes: payload.meshes,
+            materials: payload.materials,
+            lights: payload.lights,
             camera3d: payload.camera3d,
             lineTopologySubmissionEnabled: payload.lineTopologySubmissionEnabled,
           },
@@ -1194,6 +1208,7 @@ export function createWebGLBackendAdapter(
             payloadSignature,
             payloadRectCount,
             featureCapabilityGateReason,
+            activeLightCount,
             meshSubmissionDiagnostics,
           );
           hooks?.onPresentCommitted?.(timestampMs);
@@ -1239,6 +1254,7 @@ export function createWebGLBackendAdapter(
         payloadSignature,
         payloadRectCount,
         featureCapabilityGateReason,
+        activeLightCount,
         meshSubmissionDiagnostics,
       );
       hooks?.onPresentCommitted?.(timestampMs);

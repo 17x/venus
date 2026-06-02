@@ -46,6 +46,12 @@ export interface EngineRuntimeWorldFoundationApiDescriptor {
     | "engine.runtime.world.queryEntity"
     | "engine.runtime.world.queryComponent"
     | "engine.runtime.world.getGraphStats"
+    | "engine.runtime.world.setOpenWorldMap"
+    | "engine.runtime.world.getOpenWorldMap"
+    | "engine.runtime.world.setAgents"
+    | "engine.runtime.world.getAgents"
+    | "engine.runtime.world.stepAgents"
+    | "engine.runtime.world.resolveCollision"
     | "engine.runtime.world.clear";
   /** API layering classification. */
   level: EngineRuntimeWorldFoundationLevel;
@@ -82,6 +88,48 @@ export const ENGINE_RUNTIME_WORLD_FOUNDATION_API = {
     errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
     determinism: "Same world snapshot yields identical entityCount and worldRevision values.",
   },
+  setOpenWorldMap: {
+    name: "engine.runtime.world.setOpenWorldMap",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
+    determinism: "Same map payload yields identical open-world obstacle snapshot.",
+  },
+  getOpenWorldMap: {
+    name: "engine.runtime.world.getOpenWorldMap",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
+    determinism: "Same internal open-world map state yields identical output.",
+  },
+  setAgents: {
+    name: "engine.runtime.world.setAgents",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
+    determinism: "Same agent input payload yields identical normalized agent snapshot.",
+  },
+  getAgents: {
+    name: "engine.runtime.world.getAgents",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
+    determinism: "Same internal world-agent state yields identical output ordering.",
+  },
+  stepAgents: {
+    name: "engine.runtime.world.stepAgents",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
+    determinism: "Same dt/path input and same current agent state yields identical stepped state.",
+  },
+  resolveCollision: {
+    name: "engine.runtime.world.resolveCollision",
+    level: "foundation",
+    stability: "beta",
+    errorCodes: ["ENGINE_WORLD_NOT_COMPILED"],
+    determinism: "Same open-world obstacle state and same circle input yields identical resolved position.",
+  },
   queryEntity: {
     name: "engine.runtime.world.queryEntity",
     level: "foundation",
@@ -110,6 +158,12 @@ export const ENGINE_RUNTIME_WORLD_FOUNDATION_API = {
     | "queryEntity"
     | "queryComponent"
     | "getGraphStats"
+    | "setOpenWorldMap"
+    | "getOpenWorldMap"
+    | "setAgents"
+    | "getAgents"
+    | "stepAgents"
+    | "resolveCollision"
     | "clear",
     EngineRuntimeWorldFoundationApiDescriptor
   >

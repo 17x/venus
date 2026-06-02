@@ -139,6 +139,20 @@ type RuntimeBackendDiagnosticsFoundationDependencies = {
       webglNativeMeshCapabilityGateCount: number;
       activeLightCount: number;
       meshDrawCallCount: number;
+      webglNativeMaterialTextureCandidateCount: number;
+      webglNativeMaterialTextureUvReadyCount: number;
+      webglNativeMaterialTextureBindingCount: number;
+      webglNativeMaterialTextureUploadBytes: number;
+      webglNativeMaterialTextureCacheHitCount: number;
+      webglNativeMaterialTextureCacheMissCount: number;
+      webglNativeMaterialTextureDecodeFailureCount: number;
+      webglNativeMaterialTextureDecodeFailureReason: "none" | "image-load-failed";
+      webglNativeMaterialTextureFallbackReason:
+        | "none"
+        | "missing-material"
+        | "missing-uv"
+        | "texture-upload-not-implemented"
+        | "decode-failed";
       shadowMapCount: number;
       shadowDrawCallCount: number;
       shadowTextureBytes: number;

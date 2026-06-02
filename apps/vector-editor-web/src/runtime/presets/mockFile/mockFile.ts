@@ -13,12 +13,98 @@ export const MOCK_FILE: EditorFileDocument = {
   version: '0.0.0',
   createdAt: Date.now(),
   updatedAt: Date.now(),
+  schema: {
+    name: 'venus.vector-editor',
+    version: 1,
+    major: 1,
+    minor: 0,
+  },
+  pages: [
+    {
+      id: 'page-main',
+      name: 'Main Page',
+      width: 960,
+      height: 640,
+    },
+  ],
+  activePageId: 'page-main',
+  lifecycle: {
+    state: 'opened',
+    dirty: false,
+    lastSavedAt: Date.now(),
+    recoveryReason: 'mock-seed',
+    lastTransitionSource: {
+      kind: 'system',
+      event: 'mock.seed',
+      issuedAt: Date.now(),
+    },
+    lastDirtySource: {
+      commandType: 'mock.seed',
+      commandId: 'mock-seed-command',
+      transactionId: 'mock-seed-transaction',
+      issuedAt: Date.now(),
+    },
+  },
+  styleReferences: {
+    fills: {'fill-primary': {name: 'Primary Fill'}},
+    strokes: {'stroke-primary': {name: 'Primary Stroke'}},
+    texts: {'text-primary': {name: 'Primary Text'}},
+    effects: {'effect-primary': {name: 'Primary Effect'}},
+  },
+  extensions: {
+    fixture: true,
+    source: 'mock-file',
+  },
   config: {
     page: {
       unit: 'px',
       width: 960,
       height: 640,
       dpi: 72,
+    },
+    editor: {
+      readOnly: false,
+      migrationDiagnostics: [
+        {
+          code: 'migration.payload.invalid',
+          phase: 'normalize',
+          message: 'Mock diagnostic for contract coverage.',
+          severity: 'warning',
+          details: {origin: 'mock-file'},
+        },
+      ],
+      crashRecoveryReplay: {
+        maxEntries: 20,
+        localOnly: {
+          mode: 'local-only',
+          entries: [
+            {
+              id: 'replay-local-1',
+              label: 'Seed Local Replay',
+              source: 'local',
+              forward: [{op: 'add'}],
+              backward: [{op: 'remove'}],
+              transactionId: 'transaction-local-1',
+              issuedAt: Date.now(),
+            },
+          ],
+        },
+        merged: {
+          mode: 'merged',
+          entries: [
+            {
+              id: 'replay-merged-1',
+              label: 'Seed Merged Replay',
+              source: 'remote',
+              forward: [{op: 'replace'}],
+              backward: [{op: 'replace'}],
+              transactionId: 'transaction-merged-1',
+              issuedAt: Date.now(),
+            },
+          ],
+        },
+      },
+      crashRecoveryReplayMode: 'merged',
     },
   },
   elements: [
@@ -480,6 +566,8 @@ export const MOCK_FILE: EditorFileDocument = {
       name: 'Hero Asset',
       type: 'image',
       mimeType: 'image/svg+xml',
+      file: undefined,
+      imageRef: {kind: 'mock-image-ref'},
       objectUrl: createHeroImageDataUrl(),
     },
     {

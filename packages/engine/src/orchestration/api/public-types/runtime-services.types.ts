@@ -59,6 +59,7 @@ import type {
   EngineRuntimeWorldQueryEntityOutput,
   EngineRuntimeWorldSnapshotOutput,
 } from "./runtime-document-world.types";
+import type { EngineLightCollection } from "./lighting.types";
 
 export interface EngineRuntimePlanInspectOutput {
   /** True when plan payload contains minimal inspectable fields. */
@@ -396,6 +397,273 @@ export interface EngineRuntimeDocumentApi {
 }
 
 /**
+ * Runtime open-world map obstacle contract.
+ */
+export interface EngineRuntimeWorldObstacle {
+  /** Stable obstacle id. */
+  id: string;
+  /** Obstacle center x in world space. */
+  x: number;
+  /** Obstacle center z in world space. */
+  z: number;
+  /** Obstacle width on x axis. */
+  width: number;
+  /** Obstacle depth on z axis. */
+  depth: number;
+}
+
+/**
+ * Runtime open-world map contract.
+ */
+export interface EngineRuntimeOpenWorldMap {
+  /** World bounds size used by map consumers. */
+  mapSize: number;
+  /** Collision and nav obstacles. */
+  obstacles: readonly EngineRuntimeWorldObstacle[];
+}
+
+/**
+ * Runtime world agent contract.
+ */
+export interface EngineRuntimeWorldAgentState {
+  /** Stable agent id. */
+  id: string;
+  /** Agent class token. */
+  kind: "car" | "pedestrian";
+  /** Agent position x. */
+  x: number;
+  /** Agent position z. */
+  z: number;
+  /** Agent facing yaw in degrees. */
+  yaw: number;
+  /** Current path-node index. */
+  pathIndex: number;
+  /** Agent movement speed units/sec. */
+  speed: number;
+  /** Optional registered navigation path id. */
+  pathId?: string;
+}
+
+/**
+ * Runtime navigation path constraints used by deterministic waypoint following.
+ */
+export interface EngineRuntimeNavigationPathConstraints {
+  /** Distance threshold that advances an agent to the next waypoint. */
+  arrivalTolerance?: number;
+  /** Optional maximum movement distance allowed for one step. */
+  maxStepDistance?: number;
+}
+
+/**
+ * Runtime navigation path contract.
+ */
+export interface EngineRuntimeNavigationPath {
+  /** Stable path id. */
+  id: string;
+  /** Ordered waypoint nodes. */
+  nodes: readonly { x: number; z: number }[];
+  /** Whether the final node loops to the first node. */
+  loop: boolean;
+  /** Optional product-neutral path-following constraints. */
+  constraints?: EngineRuntimeNavigationPathConstraints;
+}
+
+/**
+ * Runtime navigation unregister output payload.
+ */
+export interface EngineRuntimeNavigationUnregisterPathOutput {
+  /** Whether one path was removed. */
+  removed: boolean;
+  /** Remaining path count after unregister. */
+  pathCount: number;
+}
+
+/**
+ * Runtime navigation path-binding payload.
+ */
+export interface EngineRuntimeNavigationPathBinding {
+  /** Agent id. */
+  agentId: string;
+  /** Registered path id. */
+  pathId: string;
+}
+
+/**
+ * Runtime navigation registered-path step input payload.
+ */
+export interface EngineRuntimeNavigationStepPathAgentsInput {
+  /** Step delta time in seconds. */
+  deltaSeconds: number;
+  /** Agent-to-path bindings for this step. */
+  pathBindings?: readonly EngineRuntimeNavigationPathBinding[];
+}
+
+/**
+ * Runtime world step input payload.
+ */
+export interface EngineRuntimeWorldStepInput {
+  /** Step delta time in seconds. */
+  deltaSeconds: number;
+  /** Path nodes used by car agents. */
+  carPath: readonly { x: number; z: number }[];
+  /** Path nodes used by pedestrian agents. */
+  pedestrianPath: readonly { x: number; z: number }[];
+}
+
+/**
+ * Runtime collision resolve input payload.
+ */
+export interface EngineRuntimeWorldResolveCollisionInput {
+  /** Position x to resolve. */
+  x: number;
+  /** Position z to resolve. */
+  z: number;
+  /** Collision radius. */
+  radius: number;
+  /** Optional velocity x dampening source. */
+  velocityX?: number;
+  /** Optional velocity z dampening source. */
+  velocityZ?: number;
+}
+
+/**
+ * Runtime collision resolve output payload.
+ */
+export interface EngineRuntimeWorldResolveCollisionOutput {
+  /** Resolved position x. */
+  x: number;
+  /** Resolved position z. */
+  z: number;
+  /** Resolved velocity x. */
+  velocityX: number;
+  /** Resolved velocity z. */
+  velocityZ: number;
+  /** Whether a collision was resolved. */
+  collided: boolean;
+}
+
+/**
+ * Runtime collision unregister output payload.
+ */
+export interface EngineRuntimeCollisionUnregisterOutput {
+  /** Whether one collider was removed. */
+  removed: boolean;
+  /** Remaining collider count after unregister. */
+  colliderCount: number;
+}
+
+/**
+ * Runtime collision broadphase query input payload.
+ */
+export interface EngineRuntimeCollisionQueryAabbInput {
+  /** Query center x. */
+  x: number;
+  /** Query center z. */
+  z: number;
+  /** Query width on x axis. */
+  width: number;
+  /** Query depth on z axis. */
+  depth: number;
+}
+
+/**
+ * Runtime collision broadphase query output payload.
+ */
+export interface EngineRuntimeCollisionQueryAabbOutput {
+  /** Candidate collider ids in deterministic order. */
+  colliderIds: readonly string[];
+  /** Candidate colliders in deterministic order. */
+  colliders: readonly EngineRuntimeWorldObstacle[];
+}
+
+/**
+ * Runtime collision trigger evaluation input payload.
+ */
+export interface EngineRuntimeCollisionEvaluateTriggersInput {
+  /** Stable subject id used for pair-state tracking. */
+  subjectId: string;
+  /** Subject center x. */
+  x: number;
+  /** Subject center z. */
+  z: number;
+  /** Subject collision radius. */
+  radius: number;
+}
+
+/**
+ * Runtime collision trigger event kind.
+ */
+export type EngineRuntimeCollisionTriggerEventKind = "enter" | "stay" | "exit";
+
+/**
+ * Runtime collision trigger event payload.
+ */
+export interface EngineRuntimeCollisionTriggerEvent {
+  /** Trigger event kind. */
+  type: EngineRuntimeCollisionTriggerEventKind;
+  /** Subject id. */
+  subjectId: string;
+  /** Collider id. */
+  colliderId: string;
+}
+
+/**
+ * Runtime collision trigger evaluation output payload.
+ */
+export interface EngineRuntimeCollisionEvaluateTriggersOutput {
+  /** Deterministic trigger events for this evaluation. */
+  events: readonly EngineRuntimeCollisionTriggerEvent[];
+  /** Active subject/collider pair tokens after this evaluation. */
+  activePairs: readonly string[];
+}
+
+/**
+ * Runtime navigation namespace API contract exposed under engine.runtime.navigation.
+ */
+export interface EngineRuntimeNavigationApi {
+  /** Replaces active navigation-agent collection payload. */
+  setAgents: (agents: readonly EngineRuntimeWorldAgentState[]) => readonly EngineRuntimeWorldAgentState[];
+  /** Returns active navigation-agent collection snapshot. */
+  getAgents: () => readonly EngineRuntimeWorldAgentState[];
+  /** Registers or replaces one navigation path. */
+  registerPath: (path: EngineRuntimeNavigationPath) => EngineRuntimeNavigationPath;
+  /** Removes one navigation path by id. */
+  unregisterPath: (pathId: string) => EngineRuntimeNavigationUnregisterPathOutput;
+  /** Returns registered navigation paths in deterministic order. */
+  getPaths: () => readonly EngineRuntimeNavigationPath[];
+  /** Advances agents on deterministic waypoint-follow step. */
+  stepAgents: (input: EngineRuntimeWorldStepInput) => readonly EngineRuntimeWorldAgentState[];
+  /** Advances agents using registered navigation paths and optional per-step bindings. */
+  stepPathAgents: (
+    input: EngineRuntimeNavigationStepPathAgentsInput,
+  ) => readonly EngineRuntimeWorldAgentState[];
+}
+
+/**
+ * Runtime collision namespace API contract exposed under engine.runtime.collision.
+ */
+export interface EngineRuntimeCollisionApi {
+  /** Registers or replaces one collider. */
+  registerCollider: (collider: EngineRuntimeWorldObstacle) => EngineRuntimeWorldObstacle;
+  /** Removes one collider by id. */
+  unregisterCollider: (colliderId: string) => EngineRuntimeCollisionUnregisterOutput;
+  /** Replaces active collision obstacle set. */
+  setObstacles: (obstacles: readonly EngineRuntimeWorldObstacle[]) => readonly EngineRuntimeWorldObstacle[];
+  /** Returns active collision obstacle set. */
+  getObstacles: () => readonly EngineRuntimeWorldObstacle[];
+  /** Queries broadphase AABB candidates against active colliders. */
+  queryAabb: (input: EngineRuntimeCollisionQueryAabbInput) => EngineRuntimeCollisionQueryAabbOutput;
+  /** Evaluates trigger enter/stay/exit events for one subject against active colliders. */
+  evaluateTriggers: (
+    input: EngineRuntimeCollisionEvaluateTriggersInput,
+  ) => EngineRuntimeCollisionEvaluateTriggersOutput;
+  /** Resolves one circle-vs-aabb collision pass against active obstacles. */
+  resolve: (
+    input: EngineRuntimeWorldResolveCollisionInput,
+  ) => EngineRuntimeWorldResolveCollisionOutput;
+}
+
+/**
  * Runtime world namespace API contract exposed under engine.runtime.world.
  */
 export interface EngineRuntimeWorldApi {
@@ -421,6 +689,20 @@ export interface EngineRuntimeWorldApi {
   formatNodeSvgTransform: (
     transform: import("../../../kernel/interaction/shapeTransform").ResolvedNodeTransform,
   ) => string | undefined;
+  /** Replaces active open-world map payload. */
+  setOpenWorldMap: (map: EngineRuntimeOpenWorldMap) => EngineRuntimeOpenWorldMap;
+  /** Returns active open-world map payload. */
+  getOpenWorldMap: () => EngineRuntimeOpenWorldMap;
+  /** Replaces active world-agent collection payload. */
+  setAgents: (agents: readonly EngineRuntimeWorldAgentState[]) => readonly EngineRuntimeWorldAgentState[];
+  /** Returns active world-agent collection snapshot. */
+  getAgents: () => readonly EngineRuntimeWorldAgentState[];
+  /** Advances agents on deterministic path-follow step. */
+  stepAgents: (input: EngineRuntimeWorldStepInput) => readonly EngineRuntimeWorldAgentState[];
+  /** Resolves one circle-vs-aabb collision against active world obstacles. */
+  resolveCollision: (
+    input: EngineRuntimeWorldResolveCollisionInput,
+  ) => EngineRuntimeWorldResolveCollisionOutput;
   /** Clears current runtime-world entity snapshot. */
   clear: () => EngineRuntimeWorldClearOutput;
 }
@@ -679,6 +961,79 @@ export interface EngineRuntimeVolumeApi {
   resolveResidencyBudget: (
     input: EngineRuntimeVolumeResidencyBudgetInput,
   ) => EngineRuntimeVolumeResidencyBudgetOutput;
+}
+
+/**
+ * Runtime lighting profile tokens for deterministic light-rig presets.
+ */
+export type EngineRuntimeLightingProfile = "studio" | "editor" | "gameplay";
+
+/**
+ * Runtime environment-lighting input contract.
+ */
+export interface EngineRuntimeLightingEnvironmentInput {
+  /** Local solar time in [0, 24). */
+  timeOfDayHours: number;
+  /** Solar azimuth angle in degrees. */
+  directionDeg: number;
+  /** Normalized cloud coverage in [0, 1]. */
+  cloudCover: number;
+  /** Normalized precipitation in [0, 1]. */
+  precipitation: number;
+  /** Normalized fog density in [0, 1]. */
+  fogDensity: number;
+  /** Base directional-light intensity scalar. */
+  directionalIntensity: number;
+  /** Base ambient-light intensity scalar. */
+  ambientIntensity: number;
+  /** Optional extra lights appended after resolved rig lights. */
+  additionalLights?: EngineLightCollection["lights"];
+}
+
+/**
+ * Runtime environment-atmosphere output contract.
+ */
+export interface EngineRuntimeLightingAtmosphereOutput {
+  /** Suggested sky tint color token. */
+  skyColor: string;
+  /** Suggested haze tint color token. */
+  hazeColor: string;
+  /** Suggested haze opacity in [0, 1]. */
+  hazeOpacity: number;
+}
+
+/**
+ * Runtime environment-lighting output contract.
+ */
+export interface EngineRuntimeLightingEnvironmentOutput {
+  /** Normalized environment input actually used by the solver. */
+  environment: EngineRuntimeLightingEnvironmentInput;
+  /** Resolved light collection for the environment. */
+  collection: EngineLightCollection;
+  /** Suggested atmosphere output for host-side visual layering. */
+  atmosphere: EngineRuntimeLightingAtmosphereOutput;
+}
+
+/**
+ * Runtime lighting namespace API contract exposed under engine.runtime.lighting.
+ */
+export interface EngineRuntimeLightingApi {
+  /** Replaces active light collection with caller-provided deterministic sequence. */
+  setCollection: (collection: EngineLightCollection) => EngineLightCollection;
+  /** Returns active light collection snapshot. */
+  getCollection: () => EngineLightCollection;
+  /** Clears active light collection. */
+  clearCollection: () => EngineLightCollection;
+  /** Applies one deterministic built-in light profile and returns resulting collection. */
+  applyProfile: (profile: EngineRuntimeLightingProfile) => EngineLightCollection;
+  /** Resolves one deterministic environment lighting output without mutating active collection. */
+  resolveEnvironment: (
+    input: EngineRuntimeLightingEnvironmentInput,
+  ) => EngineRuntimeLightingEnvironmentOutput;
+  /** Applies one deterministic environment lighting output and updates active collection. */
+  applyEnvironment: (
+    input: EngineRuntimeLightingEnvironmentInput,
+  ) => EngineRuntimeLightingEnvironmentOutput;
 }
 
 /**

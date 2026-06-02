@@ -1,3 +1,5 @@
+import type { EngineMaterialEntity } from "../../orchestration/api/public-types/material.types";
+
 /** Declares one mesh primitive emitted by native frame payload for WebGL mesh submission. */
 export type WebGLNativeMeshPrimitive = {
   /** Stable mesh identifier for diagnostics correlation. */
@@ -8,8 +10,12 @@ export type WebGLNativeMeshPrimitive = {
   positions: readonly number[];
   /** Optional triangle indices into positions array. */
   indices?: readonly number[];
+  /** Optional packed uv coordinates as [u,v, ...]. */
+  uvs?: readonly number[];
   /** Optional mesh color token in CSS notation. */
   color?: string;
+  /** Optional material id used for material texture binding. */
+  materialId?: string;
 };
 
 /** Declares one payload consumed by native mesh presenter. */
@@ -22,6 +28,10 @@ export type WebGLNativeMeshPayload = {
   scale: number;
   /** Optional ordered mesh primitives for the current frame. */
   meshes?: ReadonlyArray<WebGLNativeMeshPrimitive>;
+  /** Optional material registry referenced by mesh primitives. */
+  materials?: ReadonlyArray<EngineMaterialEntity>;
+  /** Optional ordered light entities for diagnostics/telemetry correlation. */
+  lights?: ReadonlyArray<{ id: string; type: string; intensity?: number }>;
   /** Optional shared 3D camera packet used to project world xyz into clip space. */
   camera3d?: {
     yaw: number;
@@ -39,6 +49,15 @@ export type WebGLNativeMeshPayload = {
   lineTopologySubmissionEnabled?: boolean;
 };
 
+type WebGLNativeTextureCacheEntry = {
+  texture: WebGLTexture;
+  sourceUri: string;
+  state: "placeholder" | "loading" | "ready" | "uploaded" | "failed";
+  image: TexImageSource | null;
+  width: number;
+  height: number;
+};
+
 /** Declares one cache entry for reusable WebGL mesh pipeline resources. */
 export type WebGLNativeMeshPipelineCache = {
   /** Context identity owning current cached resources. */
@@ -47,10 +66,20 @@ export type WebGLNativeMeshPipelineCache = {
   program: WebGLProgram | null;
   /** Cached vertex buffer reused for per-frame mesh uploads. */
   vertexBuffer: WebGLBuffer | null;
+  /** Cached UV buffer reused for per-frame textured mesh uploads. */
+  uvBuffer: WebGLBuffer | null;
+  /** Cached texture entries keyed by material texture URI. */
+  textureCache: Map<string, WebGLNativeTextureCacheEntry>;
   /** Cached attribute location for mesh clip-space positions. */
   positionLocation: number;
+  /** Cached attribute location for mesh UV coordinates. */
+  uvLocation: number;
   /** Cached uniform location for mesh RGBA color. */
   colorLocation: WebGLUniformLocation | null;
+  /** Cached uniform location for enabling texture sampling. */
+  useTextureLocation: WebGLUniformLocation | null;
+  /** Cached uniform location for texture sampler binding. */
+  textureLocation: WebGLUniformLocation | null;
 };
 
 /** Declares one per-frame diagnostics snapshot for native mesh submissions. */
@@ -153,6 +182,26 @@ export type WebGLNativeMeshSubmissionDiagnostics = {
   pipelineCompileCount: number;
   /** Number of shader pipeline cache reuses observed this frame. */
   pipelineReuseCount: number;
+  /** Number of active runtime lights observed in current frame payload. */
+  activeLightCount: number;
+  /** Number of mesh/material pairs carrying texture references. */
+  materialTextureCandidateCount: number;
+  /** Number of texture candidates that also carry usable UV streams. */
+  materialTextureUvReadyCount: number;
+  /** Number of material textures bound by the native mesh path. */
+  materialTextureBindingCount: number;
+  /** Estimated bytes uploaded for native material textures in current frame. */
+  materialTextureUploadBytes: number;
+  /** Number of native material texture cache hits in current frame. */
+  materialTextureCacheHitCount: number;
+  /** Number of native material texture cache misses in current frame. */
+  materialTextureCacheMissCount: number;
+  /** Number of native material texture decode failures observed in current frame. */
+  materialTextureDecodeFailureCount: number;
+  /** Latest material texture decode failure reason. */
+  materialTextureDecodeFailureReason: "none" | "image-load-failed";
+  /** Latest texture binding fallback reason for current frame. */
+  materialTextureFallbackReason: "none" | "missing-material" | "missing-uv" | "texture-upload-not-implemented" | "decode-failed";
 };
 
 const POSITION_COMPONENT_STRIDE = 3;
@@ -168,6 +217,10 @@ const CAMERA_UP_X = 0;
 const CAMERA_UP_Y = 1;
 const CAMERA_UP_Z = 0;
 const CAMERA_EPSILON = 0.0001;
+const LIGHT_INTENSITY_BASE = 0.35;
+const LIGHT_INTENSITY_GAIN = 0.22;
+const LIGHT_INTENSITY_MAX = 1.35;
+const MATERIAL_TEXTURE_PLACEHOLDER_BYTES = 4;
 
 type ProjectedPoint = { clipX: number; clipY: number; clipZ: number; depth: number; visible: boolean };
 
@@ -299,6 +352,221 @@ function projectWorldToClip(
   };
 }
 
+function resolveLightingFactor(payload: WebGLNativeMeshPayload): number {
+  const lights = Array.isArray(payload.lights) ? payload.lights : [];
+  if (lights.length === 0) {
+    return 1;
+  }
+  let totalIntensity = 0;
+  for (const light of lights) {
+    if (light && typeof light.intensity === "number" && Number.isFinite(light.intensity)) {
+      totalIntensity += Math.max(0, light.intensity);
+    } else {
+      totalIntensity += 1;
+    }
+  }
+  return Math.max(0.15, Math.min(LIGHT_INTENSITY_MAX, LIGHT_INTENSITY_BASE + totalIntensity * LIGHT_INTENSITY_GAIN));
+}
+
+function resolveMaterialBaseColorTexture(material: EngineMaterialEntity | undefined): string | undefined {
+  if (!material) {
+    return undefined;
+  }
+  if ((material.type === "pbr" || material.type === "unlit") && typeof material.baseColorTexture === "string") {
+    return material.baseColorTexture.length > 0 ? material.baseColorTexture : undefined;
+  }
+  return undefined;
+}
+
+function resolveMeshMaterialTextureBinding(
+  payload: WebGLNativeMeshPayload,
+  mesh: WebGLNativeMeshPrimitive,
+): {
+  textureKey: string;
+  sampler?: Extract<EngineMaterialEntity, { type: "pbr" | "unlit" }>["baseColorTextureSampler"];
+} | undefined {
+  if (!mesh.materialId) {
+    return undefined;
+  }
+  const material = (payload.materials ?? []).find((item) => item.id === mesh.materialId);
+  const textureKey = resolveMaterialBaseColorTexture(material);
+  if (!textureKey) {
+    return undefined;
+  }
+  if (material?.type === "pbr" || material?.type === "unlit") {
+    return {
+      textureKey,
+      sampler: material.baseColorTextureSampler,
+    };
+  }
+  return { textureKey };
+}
+
+function applyMaterialTexturePreflight(
+  payload: WebGLNativeMeshPayload,
+  diagnostics: WebGLNativeMeshSubmissionDiagnostics,
+): void {
+  const materialMap = new Map((payload.materials ?? []).map((material) => [material.id, material]));
+  for (const mesh of payload.meshes ?? []) {
+    if (!mesh.materialId) {
+      continue;
+    }
+    const material = materialMap.get(mesh.materialId);
+    if (!material) {
+      diagnostics.materialTextureFallbackReason = "missing-material";
+      continue;
+    }
+    if (!resolveMaterialBaseColorTexture(material)) {
+      continue;
+    }
+    diagnostics.materialTextureCandidateCount += 1;
+    const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
+    const uvReady = Array.isArray(mesh.uvs) && mesh.uvs.length >= vertexCount * 2;
+    if (!uvReady) {
+      diagnostics.materialTextureFallbackReason = "missing-uv";
+      continue;
+    }
+    diagnostics.materialTextureUvReadyCount += 1;
+    diagnostics.materialTextureFallbackReason = "texture-upload-not-implemented";
+  }
+}
+
+function createPlaceholderTexture(
+  context: WebGL2RenderingContext | WebGLRenderingContext,
+  sampler?: Extract<EngineMaterialEntity, { type: "pbr" | "unlit" }>["baseColorTextureSampler"],
+): WebGLTexture | null {
+  if (
+    typeof context.createTexture !== "function" ||
+    typeof context.bindTexture !== "function" ||
+    typeof context.texImage2D !== "function" ||
+    typeof context.texParameteri !== "function"
+  ) {
+    return null;
+  }
+  const texture = context.createTexture();
+  if (!texture) {
+    return null;
+  }
+  context.bindTexture(context.TEXTURE_2D, texture);
+  const pixel = new Uint8Array([255, 255, 255, 255]);
+  context.texImage2D(
+    context.TEXTURE_2D,
+    0,
+    context.RGBA,
+    1,
+    1,
+    0,
+    context.RGBA,
+    context.UNSIGNED_BYTE,
+    pixel,
+  );
+  const wrapS = sampler?.wrapS === "repeat"
+    ? context.REPEAT
+    : sampler?.wrapS === "mirrored-repeat"
+      ? context.MIRRORED_REPEAT
+      : context.CLAMP_TO_EDGE;
+  const wrapT = sampler?.wrapT === "repeat"
+    ? context.REPEAT
+    : sampler?.wrapT === "mirrored-repeat"
+      ? context.MIRRORED_REPEAT
+      : context.CLAMP_TO_EDGE;
+  const minFilter = sampler?.minFilter === "nearest" ? context.NEAREST : context.LINEAR;
+  const magFilter = sampler?.magFilter === "nearest" ? context.NEAREST : context.LINEAR;
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MIN_FILTER, minFilter);
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, magFilter);
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_S, wrapS);
+  context.texParameteri(context.TEXTURE_2D, context.TEXTURE_WRAP_T, wrapT);
+  return texture;
+}
+
+function startImageTextureDecode(sourceUri: string, entry: WebGLNativeTextureCacheEntry): void {
+  if (entry.state !== "placeholder") {
+    return;
+  }
+  const imageCtor = (globalThis as { Image?: new () => HTMLImageElement }).Image;
+  if (typeof imageCtor !== "function") {
+    return;
+  }
+  entry.state = "loading";
+  const image = new imageCtor();
+  image.crossOrigin = "anonymous";
+  image.onload = () => {
+    entry.image = image;
+    entry.width = Math.max(1, Number.isFinite(image.width) ? image.width : 1);
+    entry.height = Math.max(1, Number.isFinite(image.height) ? image.height : 1);
+    entry.state = "ready";
+  };
+  image.onerror = () => {
+    entry.state = "failed";
+  };
+  image.src = sourceUri;
+}
+
+function bindMaterialTexture(
+  context: WebGL2RenderingContext | WebGLRenderingContext,
+  cache: WebGLNativeMeshPipelineCache,
+  textureKey: string | undefined,
+  sampler?: Extract<EngineMaterialEntity, { type: "pbr" | "unlit" }>["baseColorTextureSampler"],
+): {
+  bound: boolean;
+  uploadedBytes: number;
+  cacheHit: boolean;
+  cacheMiss: boolean;
+  decodeFailed: boolean;
+} {
+  if (!textureKey || !cache.textureLocation || !cache.useTextureLocation || cache.uvLocation < 0 || !cache.uvBuffer) {
+    return { bound: false, uploadedBytes: 0, cacheHit: false, cacheMiss: false, decodeFailed: false };
+  }
+  if (
+    typeof context.activeTexture !== "function" ||
+    typeof context.bindTexture !== "function" ||
+    typeof context.uniform1i !== "function" ||
+    typeof context.uniform1f !== "function"
+  ) {
+    return { bound: false, uploadedBytes: 0, cacheHit: false, cacheMiss: false, decodeFailed: false };
+  }
+  let texture = cache.textureCache.get(textureKey);
+  let uploadedBytes = 0;
+  let cacheHit = true;
+  let cacheMiss = false;
+  if (!texture) {
+    cacheHit = false;
+    cacheMiss = true;
+    const placeholderTexture = createPlaceholderTexture(context, sampler) ?? undefined;
+    if (!placeholderTexture) {
+      return { bound: false, uploadedBytes: 0, cacheHit: false, cacheMiss: true, decodeFailed: false };
+    }
+    uploadedBytes = MATERIAL_TEXTURE_PLACEHOLDER_BYTES;
+    texture = {
+      texture: placeholderTexture,
+      sourceUri: textureKey,
+      state: "placeholder",
+      image: null,
+      width: 1,
+      height: 1,
+    };
+    cache.textureCache.set(textureKey, texture);
+    startImageTextureDecode(textureKey, texture);
+  } else if (texture.state === "ready" && texture.image) {
+    context.bindTexture(context.TEXTURE_2D, texture.texture);
+    context.texImage2D(
+      context.TEXTURE_2D,
+      0,
+      context.RGBA,
+      context.RGBA,
+      context.UNSIGNED_BYTE,
+      texture.image,
+    );
+    uploadedBytes = Math.max(MATERIAL_TEXTURE_PLACEHOLDER_BYTES, texture.width * texture.height * 4);
+    texture.state = "uploaded";
+  }
+  context.activeTexture(context.TEXTURE0);
+  context.bindTexture(context.TEXTURE_2D, texture.texture);
+  context.uniform1i(cache.textureLocation, 0);
+  context.uniform1f(cache.useTextureLocation, 1);
+  return { bound: true, uploadedBytes, cacheHit, cacheMiss, decodeFailed: texture.state === "failed" };
+}
+
 /**
  * Creates one empty pipeline cache used by the native mesh presenter.
  */
@@ -307,8 +575,13 @@ export function createWebGLNativeMeshPipelineCache(): WebGLNativeMeshPipelineCac
     contextRef: null,
     program: null,
     vertexBuffer: null,
+    uvBuffer: null,
+    textureCache: new Map(),
     positionLocation: -1,
+    uvLocation: -1,
     colorLocation: null,
+    useTextureLocation: null,
+    textureLocation: null,
   };
 }
 
@@ -327,11 +600,24 @@ export function disposeWebGLNativeMeshPipelineCache(
   if (cache.vertexBuffer && typeof context.deleteBuffer === "function") {
     context.deleteBuffer(cache.vertexBuffer);
   }
+  if (cache.uvBuffer && typeof context.deleteBuffer === "function") {
+    context.deleteBuffer(cache.uvBuffer);
+  }
+  if (typeof context.deleteTexture === "function") {
+    for (const entry of cache.textureCache.values()) {
+      context.deleteTexture(entry.texture);
+    }
+  }
   cache.contextRef = null;
   cache.program = null;
   cache.vertexBuffer = null;
+  cache.uvBuffer = null;
+  cache.textureCache.clear();
   cache.positionLocation = -1;
+  cache.uvLocation = -1;
   cache.colorLocation = null;
+  cache.useTextureLocation = null;
+  cache.textureLocation = null;
 }
 
 /**
@@ -406,7 +692,19 @@ export function presentNativeMeshPrimitives(
     submissionCapabilityGateCount: 0,
     pipelineCompileCount: 0,
     pipelineReuseCount: 0,
+    activeLightCount: payload.lights?.length ?? 0,
+    materialTextureCandidateCount: 0,
+    materialTextureUvReadyCount: 0,
+    materialTextureBindingCount: 0,
+    materialTextureUploadBytes: 0,
+    materialTextureCacheHitCount: 0,
+    materialTextureCacheMissCount: 0,
+    materialTextureDecodeFailureCount: 0,
+    materialTextureDecodeFailureReason: "none",
+    materialTextureFallbackReason: "none",
   };
+  applyMaterialTexturePreflight(payload, diagnostics);
+  const lightingFactor = resolveLightingFactor(payload);
 
   if (allowLineTopologySubmission) {
     diagnostics.supportedTopologies.push("lines");
@@ -445,16 +743,16 @@ export function presentNativeMeshPrimitives(
     disposeWebGLNativeMeshPipelineCache(cache.contextRef, cache);
   }
 
-  if (!cache.program || !cache.vertexBuffer || !cache.colorLocation || cache.positionLocation < 0) {
+  if (!cache.program || !cache.vertexBuffer || !cache.uvBuffer || !cache.colorLocation || cache.positionLocation < 0) {
     const isWebGL2 =
       typeof WebGL2RenderingContext !== "undefined" &&
       context instanceof WebGL2RenderingContext;
     const vertexShaderSource = isWebGL2
-      ? "#version 300 es\nin vec3 aPosition; void main(){ gl_Position = vec4(aPosition, 1.0); }"
-      : "attribute vec3 aPosition; void main(){ gl_Position = vec4(aPosition, 1.0); }";
+      ? "#version 300 es\nin vec3 aPosition; in vec2 aUv; out vec2 vUv; void main(){ vUv = aUv; gl_Position = vec4(aPosition, 1.0); }"
+      : "attribute vec3 aPosition; attribute vec2 aUv; varying vec2 vUv; void main(){ vUv = aUv; gl_Position = vec4(aPosition, 1.0); }";
     const fragmentShaderSource = isWebGL2
-      ? "#version 300 es\nprecision mediump float; uniform vec4 uColor; out vec4 outColor; void main(){ outColor = uColor; }"
-      : "precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor = uColor; }";
+      ? "#version 300 es\nprecision mediump float; in vec2 vUv; uniform vec4 uColor; uniform sampler2D uTexture; uniform float uUseTexture; out vec4 outColor; void main(){ vec4 tex = texture(uTexture, vUv); outColor = uUseTexture > 0.5 ? tex * uColor : uColor; }"
+      : "precision mediump float; varying vec2 vUv; uniform vec4 uColor; uniform sampler2D uTexture; uniform float uUseTexture; void main(){ vec4 tex = texture2D(uTexture, vUv); gl_FragColor = uUseTexture > 0.5 ? tex * uColor : uColor; }";
 
     const vertexShader = context.createShader(context.VERTEX_SHADER);
     const fragmentShader = context.createShader(context.FRAGMENT_SHADER);
@@ -493,7 +791,10 @@ export function presentNativeMeshPrimitives(
       return diagnostics;
     }
     const positionLocation = context.getAttribLocation(program, "aPosition");
+    const uvLocation = context.getAttribLocation(program, "aUv");
     const colorLocation = context.getUniformLocation(program, "uColor");
+    const useTextureLocation = context.getUniformLocation(program, "uUseTexture");
+    const textureLocation = context.getUniformLocation(program, "uTexture");
     if (positionLocation < 0 || !colorLocation) {
       diagnostics.rejectedMeshCount = diagnostics.attemptedMeshCount;
       diagnostics.submissionCapabilityGateCount = diagnostics.attemptedMeshCount;
@@ -506,12 +807,22 @@ export function presentNativeMeshPrimitives(
       diagnostics.submissionCapabilityGateCount = diagnostics.attemptedMeshCount;
       return diagnostics;
     }
+    const uvBuffer = context.createBuffer();
+    if (!uvBuffer) {
+      diagnostics.rejectedMeshCount = diagnostics.attemptedMeshCount;
+      diagnostics.submissionCapabilityGateCount = diagnostics.attemptedMeshCount;
+      return diagnostics;
+    }
 
     cache.contextRef = context;
     cache.program = program;
     cache.vertexBuffer = vertexBuffer;
+    cache.uvBuffer = uvBuffer;
     cache.positionLocation = positionLocation;
+    cache.uvLocation = uvLocation;
     cache.colorLocation = colorLocation;
+    cache.useTextureLocation = useTextureLocation;
+    cache.textureLocation = textureLocation;
     diagnostics.pipelineCompileCount = 1;
   } else {
     diagnostics.pipelineReuseCount = 1;
@@ -523,6 +834,10 @@ export function presentNativeMeshPrimitives(
   }
 
   context.useProgram(cache.program);
+  if (typeof context.enable === "function" && typeof context.blendFunc === "function") {
+    context.enable(context.BLEND);
+    context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
+  }
   context.bindBuffer(context.ARRAY_BUFFER, cache.vertexBuffer);
   context.enableVertexAttribArray(cache.positionLocation);
   context.vertexAttribPointer(
@@ -653,7 +968,13 @@ export function presentNativeMeshPrimitives(
         }
 
         context.bufferData(context.ARRAY_BUFFER, new Float32Array(lineVertices), context.STREAM_DRAW);
-        context.uniform4f(cache.colorLocation, r, g, b, a);
+        context.uniform4f(
+          cache.colorLocation,
+          Math.max(0, Math.min(1, r * lightingFactor)),
+          Math.max(0, Math.min(1, g * lightingFactor)),
+          Math.max(0, Math.min(1, b * lightingFactor)),
+          a,
+        );
         context.drawArrays(linesPrimitiveToken, 0, lineVertices.length / VERTEX_COORD_COMPONENTS);
         diagnostics.lineTopologySubmissionSucceededCount += 1;
         diagnostics.lineTopologySubmissionSucceededCommandCount += lineCommandCount;
@@ -694,7 +1015,9 @@ export function presentNativeMeshPrimitives(
     const color = typeof mesh.color === "string" ? mesh.color : "#334155";
     const [r, g, b, a] = resolveNormalizedColor(color);
     const vertices: number[] = [];
+    const uvs: number[] = [];
     const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
+    const textureBinding = resolveMeshMaterialTextureBinding(payload, mesh);
 
     const projectVertexByIndex = (vertexIndex: number): ProjectedPoint => {
       const base = vertexIndex * POSITION_COMPONENT_STRIDE;
@@ -702,6 +1025,10 @@ export function presentNativeMeshPrimitives(
       const worldY = mesh.positions[base + 1] ?? 0;
       const worldZ = mesh.positions[base + 2] ?? 0;
       return projectWorldToClip(worldX, worldY, worldZ, payload, deviceWidth, deviceHeight, dpr);
+    };
+    const appendUvByIndex = (vertexIndex: number): void => {
+      const base = vertexIndex * 2;
+      uvs.push(mesh.uvs?.[base] ?? 0, mesh.uvs?.[base + 1] ?? 0);
     };
 
     if (Array.isArray(mesh.indices) && mesh.indices.length >= TRIANGLE_INDEX_STRIDE) {
@@ -726,6 +1053,9 @@ export function presentNativeMeshPrimitives(
           continue;
         }
         vertices.push(a.clipX, a.clipY, a.clipZ, b.clipX, b.clipY, b.clipZ, c.clipX, c.clipY, c.clipZ);
+        appendUvByIndex(Math.floor(mesh.indices[index] ?? 0));
+        appendUvByIndex(Math.floor(mesh.indices[index + 1] ?? 0));
+        appendUvByIndex(Math.floor(mesh.indices[index + 2] ?? 0));
       }
     } else {
       if (mesh.positions.length % MIN_TRIANGLE_POSITION_COMPONENTS !== 0) {
@@ -741,6 +1071,9 @@ export function presentNativeMeshPrimitives(
           continue;
         }
         vertices.push(a.clipX, a.clipY, a.clipZ, b.clipX, b.clipY, b.clipZ, c.clipX, c.clipY, c.clipZ);
+        appendUvByIndex(index);
+        appendUvByIndex(index + 1);
+        appendUvByIndex(index + 2);
       }
     }
 
@@ -751,7 +1084,38 @@ export function presentNativeMeshPrimitives(
     }
 
     context.bufferData(context.ARRAY_BUFFER, new Float32Array(vertices), context.STREAM_DRAW);
-    context.uniform4f(cache.colorLocation, r, g, b, a);
+    const textureBound = textureBinding && uvs.length >= (vertices.length / VERTEX_COORD_COMPONENTS) * 2
+      ? bindMaterialTexture(context, cache, textureBinding.textureKey, textureBinding.sampler)
+      : { bound: false, uploadedBytes: 0, cacheHit: false, cacheMiss: false, decodeFailed: false };
+    if (textureBound.bound) {
+      diagnostics.materialTextureBindingCount += 1;
+      diagnostics.materialTextureUploadBytes += textureBound.uploadedBytes;
+      diagnostics.materialTextureCacheHitCount += textureBound.cacheHit ? 1 : 0;
+      diagnostics.materialTextureCacheMissCount += textureBound.cacheMiss ? 1 : 0;
+      if (textureBound.decodeFailed) {
+        diagnostics.materialTextureDecodeFailureCount += 1;
+        diagnostics.materialTextureDecodeFailureReason = "image-load-failed";
+        diagnostics.materialTextureFallbackReason = "decode-failed";
+      } else {
+        diagnostics.materialTextureFallbackReason = "none";
+      }
+      if (cache.uvLocation >= 0 && cache.uvBuffer) {
+        context.bindBuffer(context.ARRAY_BUFFER, cache.uvBuffer);
+        context.bufferData(context.ARRAY_BUFFER, new Float32Array(uvs), context.STREAM_DRAW);
+        context.enableVertexAttribArray(cache.uvLocation);
+        context.vertexAttribPointer(cache.uvLocation, 2, context.FLOAT, false, 0, 0);
+        context.bindBuffer(context.ARRAY_BUFFER, cache.vertexBuffer);
+      }
+    } else if (cache.useTextureLocation && typeof context.uniform1f === "function") {
+      context.uniform1f(cache.useTextureLocation, 0);
+    }
+    context.uniform4f(
+      cache.colorLocation,
+      Math.max(0, Math.min(1, r * lightingFactor)),
+      Math.max(0, Math.min(1, g * lightingFactor)),
+      Math.max(0, Math.min(1, b * lightingFactor)),
+      a,
+    );
     context.drawArrays(context.TRIANGLES, 0, vertices.length / VERTEX_COORD_COMPONENTS);
     diagnostics.submittedMeshCount += 1;
   }
@@ -794,6 +1158,9 @@ export function presentNativeMeshPrimitives(
     diagnostics.lineTopologySubmissionOutcome = "submitted";
   } else if (diagnostics.lineTopologySubmissionGateBlockedCount > 0) {
     diagnostics.lineTopologySubmissionOutcome = "deferred-gate-disabled";
+  }
+  if (typeof context.disable === "function") {
+    context.disable(context.BLEND);
   }
 
   return diagnostics;

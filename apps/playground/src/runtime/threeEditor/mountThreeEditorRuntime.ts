@@ -4,6 +4,7 @@ import {createEngineCameraController} from '@venus/engine'
 import type {EngineCameraState as ThreeEditorCameraState} from '@venus/engine'
 import type {EngineCameraFrameBounds} from '@venus/engine'
 import {createRawInputToCameraCommandAdapter} from './rawInputToCameraCommandAdapter'
+import {createTextureSamplerFromUrl, type TextureSampler} from '../materials/webTextureSampler'
 import {
   DEFAULT_THREE_EDITOR_WORLD_OBJECTS,
   type ThreeEditorLightingMode,
@@ -45,6 +46,7 @@ export const mountThreeEditorRuntime = (): void => {
           <div class="vector-stage-viewport">
             <div class="canvas-frame">
               <canvas id="playground-canvas" class="playground-canvas"></canvas>
+              <canvas id="global-gizmo-overlay" style="position:absolute;top:12px;right:12px;width:110px;height:110px;pointer-events:none"></canvas>
             </div>
           </div>
         </main>
@@ -82,7 +84,8 @@ export const mountThreeEditorRuntime = (): void => {
   const cameraStateLine = root.querySelector<HTMLParagraphElement>('#camera-state')
   const hitStateLine = root.querySelector<HTMLParagraphElement>('#hit-state')
   const documentModelList = root.querySelector<HTMLUListElement>('#doc-model-list')
-  if (!canvas || !commandGroup || !statusLine || !cameraStateLine || !hitStateLine || !documentModelList) {
+  const globalGizmoOverlay = root.querySelector<HTMLCanvasElement>('#global-gizmo-overlay')
+  if (!canvas || !commandGroup || !statusLine || !cameraStateLine || !hitStateLine || !documentModelList || !globalGizmoOverlay) {
     throw new Error('playground runtime mount failed')
   }
 
@@ -103,16 +106,39 @@ export const mountThreeEditorRuntime = (): void => {
     targetZ: 0,
   }
   let overlayState: ThreeEditorOverlayState = {
-    axesEnabled: true,
+    axesEnabled: false,
     gridEnabled: true,
     gizmoEnabled: true,
     depthLayeringEnabled: false,
     visibilityMaskEnabled: false,
     lightingMode: 'lit',
   }
+  let editorLightState = {
+    directionalIntensity: 1.3,
+    ambientIntensity: 0.28,
+    lightAzimuthDeg: 42,
+    timeOfDayHours: 14,
+    cloudCover: 0.12,
+    precipitation: 0,
+    fogDensity: 0.06,
+  }
   let hoverEntityId: string | null = null
   let selectedEntityId: string | null = null
-  let hideObjectNodes = false
+  let worldObjects = DEFAULT_THREE_EDITOR_WORLD_OBJECTS.map((object) => ({...object}))
+  let textureSamplers: {floor?: TextureSampler; panel?: TextureSampler} = {}
+  let gizmoDragState:
+    | null
+    | {
+      pointerId: number
+      entityId: string
+      axis: 'x' | 'y' | 'z'
+      mode: 'translate' | 'rotate' | 'scale'
+      startX: number
+      startY: number
+      objectStartX: number
+      objectStartY: number
+      objectStartZ: number
+    } = null
 
   canvas.width = STAGE_WIDTH
   canvas.height = STAGE_HEIGHT
@@ -138,23 +164,49 @@ export const mountThreeEditorRuntime = (): void => {
     backend: 'webgl',
     strict3d: true,
   })
+  void Promise.all([
+    createTextureSamplerFromUrl('/textures/asphalt_cc0_oga.png'),
+    createTextureSamplerFromUrl('/textures/grass_cc0_oga.png'),
+  ]).then(([floor, panel]) => {
+    textureSamplers = {floor, panel}
+    void renderInteractiveScene()
+  }).catch(() => {
+    textureSamplers = {}
+  })
 
   /**
    * Rebuilds runtime graph nodes from current state and submits them to engine.
    */
   const applyRuntimeGraph = (): void => {
-    const nodes = buildThreeEditorEngineGraph({
+    if (overlayState.lightingMode === 'lit') {
+      engine.runtime.lighting.applyEnvironment({
+        timeOfDayHours: editorLightState.timeOfDayHours,
+        directionDeg: editorLightState.lightAzimuthDeg,
+        cloudCover: editorLightState.cloudCover,
+        precipitation: editorLightState.precipitation,
+        fogDensity: editorLightState.fogDensity,
+        directionalIntensity: editorLightState.directionalIntensity,
+        ambientIntensity: editorLightState.ambientIntensity,
+        additionalLights: [],
+      })
+    } else if (overlayState.lightingMode === 'inherit') {
+      engine.runtime.lighting.applyProfile('studio')
+    } else {
+      engine.runtime.lighting.clearCollection()
+    }
+    const graph = buildThreeEditorEngineGraph({
       cameraState,
       overlayState,
-      worldObjects: DEFAULT_THREE_EDITOR_WORLD_OBJECTS,
+      worldObjects,
       selectedEntityId,
       hoverEntityId,
-      hideObjectNodes,
+      textureSamplers,
     })
     sceneRevision += 1
     engine.setGraph({
       revision: sceneRevision,
-      nodes,
+      nodes: graph.nodes,
+      materials: graph.materials,
     })
   }
 
@@ -163,7 +215,7 @@ export const mountThreeEditorRuntime = (): void => {
    */
   const refreshDocumentModel = (): void => {
     documentModelList.innerHTML = ''
-    DEFAULT_THREE_EDITOR_WORLD_OBJECTS.forEach((object) => {
+    worldObjects.forEach((object) => {
       const item = document.createElement('li')
       const isSelected = selectedEntityId === object.id
       const isHovered = hoverEntityId === object.id
@@ -176,23 +228,6 @@ export const mountThreeEditorRuntime = (): void => {
       })
       documentModelList.append(item)
     })
-    if (overlayState.axesEnabled) {
-      appendHelperRow(documentModelList, 'X Axis')
-      appendHelperRow(documentModelList, 'Y Axis')
-      appendHelperRow(documentModelList, 'Z Axis')
-    }
-  }
-
-  /**
-   * Appends one helper row into document model list.
-   * @param list Target DOM list receiving one helper row.
-   * @param label Display label for helper row.
-   */
-  const appendHelperRow = (list: HTMLUListElement, label: string): void => {
-    const item = document.createElement('li')
-    item.className = 'doc-model-item'
-    item.textContent = `${label} [line] | layer axes | helper`
-    list.append(item)
   }
 
   /**
@@ -233,10 +268,14 @@ export const mountThreeEditorRuntime = (): void => {
       `selected ${selectedEntityId ?? 'none'}`,
       `depth3d ${overlayState.depthLayeringEnabled ? 'on' : 'off'}`,
       `visibilityMask ${overlayState.visibilityMaskEnabled ? 'on' : 'off'}`,
-      `axes ${overlayState.axesEnabled ? 'on' : 'off'}`,
       `grid ${overlayState.gridEnabled ? 'on' : 'off'}`,
       `gizmo ${overlayState.gizmoEnabled ? 'on' : 'off'}`,
       `lighting ${overlayState.lightingMode}`,
+      `time ${editorLightState.timeOfDayHours.toFixed(1)}`,
+      `cloud ${editorLightState.cloudCover.toFixed(2)}`,
+      `rain ${editorLightState.precipitation.toFixed(2)}`,
+      `fog ${editorLightState.fogDensity.toFixed(2)}`,
+      `activeLights ${engine.runtime.lighting.getCollection().lights.length}`,
     ].join(' | ')
   }
 
@@ -245,9 +284,47 @@ export const mountThreeEditorRuntime = (): void => {
    */
   const renderNow = async (): Promise<void> => {
     await engine.render()
+    drawGlobalGizmoOverlay()
     refreshDocumentModel()
     refreshInspectorTelemetry()
     refreshStatus()
+  }
+
+  const drawGlobalGizmoOverlay = (): void => {
+    const canvas2d = globalGizmoOverlay
+    const dpr = Math.max(1, window.devicePixelRatio || 1)
+    const cssW = 110
+    const cssH = 110
+    canvas2d.width = Math.floor(cssW * dpr)
+    canvas2d.height = Math.floor(cssH * dpr)
+    const ctx = canvas2d.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, cssW, cssH)
+    ctx.fillStyle = 'rgba(10,15,28,.6)'
+    ctx.fillRect(0, 0, cssW, cssH)
+    const centerX = 54
+    const centerY = 56
+    const len = 34
+    const yaw = (cameraState.yaw * Math.PI) / 180
+    const pitch = (cameraState.pitch * Math.PI) / 180
+    const cosYaw = Math.cos(yaw)
+    const sinYaw = Math.sin(yaw)
+    const cosPitch = Math.cos(pitch)
+    const sinPitch = Math.sin(pitch)
+    const vectors = [
+      {color: '#ef4444', x: cosYaw, y: sinYaw * sinPitch},
+      {color: '#22c55e', x: 0, y: -cosPitch},
+      {color: '#3b82f6', x: -sinYaw, y: cosYaw * sinPitch},
+    ]
+    for (const vector of vectors) {
+      ctx.strokeStyle = vector.color
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.moveTo(centerX, centerY)
+      ctx.lineTo(centerX + vector.x * len, centerY + vector.y * len)
+      ctx.stroke()
+    }
   }
 
   /**
@@ -280,16 +357,6 @@ export const mountThreeEditorRuntime = (): void => {
       })
       await renderInteractiveScene()
     },
-    getOverlayState: (): ThreeEditorOverlayState => ({...overlayState}),
-    setOverlayState: async (patch: Partial<ThreeEditorOverlayState>): Promise<void> => {
-      overlayState = {...overlayState, ...patch}
-      await renderInteractiveScene()
-    },
-    setHideObjectNodes: async (hide: boolean): Promise<void> => {
-      hideObjectNodes = hide
-      await renderInteractiveScene()
-    },
-    getHideObjectNodes: (): boolean => hideObjectNodes,
   }
 
   const rawInputAdapter = createRawInputToCameraCommandAdapter({
@@ -351,9 +418,37 @@ export const mountThreeEditorRuntime = (): void => {
     if (nodeId.startsWith('object-')) {
       return nodeId.slice('object-'.length)
     }
+    if (nodeId.startsWith('selected-gizmo-')) {
+      const body = nodeId.slice('selected-gizmo-'.length)
+      const marker = body.indexOf('-t')
+      if (marker > 0) {
+        return body.slice(0, marker)
+      }
+      const markerR = body.indexOf('-r')
+      if (markerR > 0) {
+        return body.slice(0, markerR)
+      }
+      const markerS = body.indexOf('-s')
+      if (markerS > 0) {
+        return body.slice(0, markerS)
+      }
+    }
     if (nodeId === 'axis-x' || nodeId === 'axis-y' || nodeId === 'axis-z') {
       return nodeId
     }
+    return null
+  }
+
+  const resolveGizmoAxisFromNodeId = (nodeId: string): 'x' | 'y' | 'z' | null => {
+    if (nodeId.includes('-tx') || nodeId.includes('-sx')) return 'x'
+    if (nodeId.includes('-ty') || nodeId.includes('-sy')) return 'y'
+    if (nodeId.includes('-tz') || nodeId.includes('-sz')) return 'z'
+    return null
+  }
+  const resolveGizmoModeFromNodeId = (nodeId: string): 'translate' | 'rotate' | 'scale' | null => {
+    if (nodeId.includes('-tx') || nodeId.includes('-ty') || nodeId.includes('-tz')) return 'translate'
+    if (nodeId.includes('-rx-') || nodeId.includes('-ry-') || nodeId.includes('-rz-')) return 'rotate'
+    if (nodeId.includes('-sx') || nodeId.includes('-sy') || nodeId.includes('-sz')) return 'scale'
     return null
   }
 
@@ -481,7 +576,7 @@ export const mountThreeEditorRuntime = (): void => {
     let bestEntityId: string | null = null
     let bestDepth = Number.POSITIVE_INFINITY
     let bestDistance = Number.POSITIVE_INFINITY
-    for (const object of DEFAULT_THREE_EDITOR_WORLD_OBJECTS) {
+    for (const object of worldObjects) {
       const width = object.width ?? (object.radius ? object.radius * 2 : 120)
       const depth = object.depth ?? (object.radius ? object.radius * 2 : 120)
       const height = object.height ?? 120
@@ -536,7 +631,7 @@ export const mountThreeEditorRuntime = (): void => {
    * @param object Runtime world object from scenario contract.
    */
   const resolveObjectBounds = (
-    object: (typeof DEFAULT_THREE_EDITOR_WORLD_OBJECTS)[number],
+    object: (typeof worldObjects)[number],
   ): EngineCameraFrameBounds => {
     const width = object.width ?? (object.radius ? object.radius * 2 : 120)
     const depth = object.depth ?? (object.radius ? object.radius * 2 : 120)
@@ -556,7 +651,7 @@ export const mountThreeEditorRuntime = (): void => {
    * @param objects Runtime world objects projected into engine graph nodes.
    */
   const resolveWorldBounds = (
-    objects: ReadonlyArray<(typeof DEFAULT_THREE_EDITOR_WORLD_OBJECTS)[number]>,
+    objects: ReadonlyArray<(typeof worldObjects)[number]>,
   ): EngineCameraFrameBounds => {
     let minX = Number.POSITIVE_INFINITY
     let minY = Number.POSITIVE_INFINITY
@@ -591,7 +686,7 @@ export const mountThreeEditorRuntime = (): void => {
     if (!entityId) {
       return null
     }
-    const object = DEFAULT_THREE_EDITOR_WORLD_OBJECTS.find((candidate) => candidate.id === entityId)
+    const object = worldObjects.find((candidate) => candidate.id === entityId)
     if (!object) {
       return null
     }
@@ -605,7 +700,7 @@ export const mountThreeEditorRuntime = (): void => {
     const selectionBounds = resolveSelectionBounds(selectedEntityId)
     cameraController.applyCommand({
       type: 'frameBounds',
-      bounds: selectionBounds ?? resolveWorldBounds(DEFAULT_THREE_EDITOR_WORLD_OBJECTS),
+      bounds: selectionBounds ?? resolveWorldBounds(worldObjects),
     })
   }
 
@@ -616,7 +711,7 @@ export const mountThreeEditorRuntime = (): void => {
       onClick: run(async () => {
         cameraController.applyCommand({
           type: 'frameBounds',
-          bounds: resolveWorldBounds(DEFAULT_THREE_EDITOR_WORLD_OBJECTS),
+          bounds: resolveWorldBounds(worldObjects),
         })
       }),
     },
@@ -680,13 +775,6 @@ export const mountThreeEditorRuntime = (): void => {
       }),
     },
     {
-      label: 'Toggle XYZ Axes',
-      onClick: run(async () => {
-        overlayState = {...overlayState, axesEnabled: !overlayState.axesEnabled}
-        await renderInteractiveScene()
-      }),
-    },
-    {
       label: 'Toggle Grid',
       onClick: run(async () => {
         overlayState = {...overlayState, gridEnabled: !overlayState.gridEnabled}
@@ -740,6 +828,75 @@ export const mountThreeEditorRuntime = (): void => {
     commandGroup.append(button)
   })
 
+  const cameraSettingsPanel = document.createElement('div')
+  cameraSettingsPanel.style.marginTop = '10px'
+  cameraSettingsPanel.style.paddingTop = '8px'
+  cameraSettingsPanel.style.borderTop = '1px solid #2a2a4a'
+  commandGroup.append(cameraSettingsPanel)
+
+  const appendSlider = (
+    label: string,
+    min: number,
+    max: number,
+    step: number,
+    value: number,
+    onInput: (value: number) => void,
+  ) => {
+    const row = document.createElement('label')
+    row.className = 'setting-row'
+    const text = document.createElement('span')
+    text.textContent = `${label}: ${value.toFixed(2)}`
+    const input = document.createElement('input')
+    input.type = 'range'
+    input.min = String(min)
+    input.max = String(max)
+    input.step = String(step)
+    input.value = String(value)
+    input.addEventListener('input', () => {
+      const next = Number.parseFloat(input.value)
+      if (!Number.isFinite(next)) return
+      text.textContent = `${label}: ${next.toFixed(2)}`
+      onInput(next)
+      void renderInteractiveScene()
+    })
+    row.append(text, input)
+    cameraSettingsPanel.append(row)
+  }
+
+  appendSlider('Cam Yaw', -180, 180, 1, cameraState.yaw, (value) => {
+    cameraState = {...cameraState, yaw: value}
+    cameraController.setState(cameraState)
+  })
+  appendSlider('Cam Pitch', -85, 85, 1, cameraState.pitch, (value) => {
+    cameraState = {...cameraState, pitch: value}
+    cameraController.setState(cameraState)
+  })
+  appendSlider('Cam Dist', 120, 2200, 10, cameraState.distance, (value) => {
+    cameraState = {...cameraState, distance: value}
+    cameraController.setState(cameraState)
+  })
+  appendSlider('Light Dir I', 0, 3, 0.05, editorLightState.directionalIntensity, (value) => {
+    editorLightState = {...editorLightState, directionalIntensity: value}
+  })
+  appendSlider('Light Amb I', 0, 1, 0.02, editorLightState.ambientIntensity, (value) => {
+    editorLightState = {...editorLightState, ambientIntensity: value}
+  })
+  appendSlider('Light Dir', 0, 359, 1, editorLightState.lightAzimuthDeg, (value) => {
+    editorLightState = {...editorLightState, lightAzimuthDeg: value}
+  })
+  appendSlider('Time', 0, 23.9, 0.1, editorLightState.timeOfDayHours, (value) => {
+    editorLightState = {...editorLightState, timeOfDayHours: value}
+  })
+  appendSlider('Cloud', 0, 1, 0.01, editorLightState.cloudCover, (value) => {
+    editorLightState = {...editorLightState, cloudCover: value}
+  })
+  appendSlider('Rain', 0, 1, 0.01, editorLightState.precipitation, (value) => {
+    editorLightState = {...editorLightState, precipitation: value}
+  })
+  appendSlider('Fog', 0, 1, 0.01, editorLightState.fogDensity, (value) => {
+    editorLightState = {...editorLightState, fogDensity: value}
+  })
+
   /**
    * Handles canvas resize and view fitting so engine surface stays in sync with CSS layout.
    */
@@ -768,6 +925,29 @@ export const mountThreeEditorRuntime = (): void => {
 
   canvas.addEventListener('pointerdown', (event) => {
     const point = resolveCanvasPoint(event.clientX, event.clientY)
+    const pickResult = engine.pick(point, {tolerance: PICK_TOLERANCE})
+    const gizmoHit = pickResult.hits.map((entry) => entry.id).find((id) => id.startsWith('selected-gizmo-')) ?? null
+    if (gizmoHit) {
+      const axis = resolveGizmoAxisFromNodeId(gizmoHit)
+      const mode = resolveGizmoModeFromNodeId(gizmoHit)
+      const entityId = selectedEntityId
+      const object = entityId ? worldObjects.find((entry) => entry.id === entityId) : null
+      if (axis && mode && entityId && object) {
+        gizmoDragState = {
+          pointerId: event.pointerId,
+          entityId,
+          axis,
+          mode,
+          startX: point.x,
+          startY: point.y,
+          objectStartX: object.x,
+          objectStartY: object.y,
+          objectStartZ: object.z,
+        }
+        canvas.setPointerCapture(event.pointerId)
+        return
+      }
+    }
     void rawInputAdapter.handlePointerDown(
       point,
       {
@@ -784,6 +964,40 @@ export const mountThreeEditorRuntime = (): void => {
 
   canvas.addEventListener('pointermove', (event) => {
     const point = resolveCanvasPoint(event.clientX, event.clientY)
+    const dragState = gizmoDragState
+    if (dragState && dragState.pointerId === event.pointerId) {
+      const object = worldObjects.find((entry) => entry.id === dragState.entityId)
+      if (object) {
+        const dx = point.x - dragState.startX
+        const dy = point.y - dragState.startY
+        const moveScale = Math.max(0.05, cameraState.distance * 0.0022)
+        if (dragState.mode === 'translate') {
+          if (dragState.axis === 'x') {
+            object.x = dragState.objectStartX + dx * moveScale
+          } else if (dragState.axis === 'y') {
+            object.y = dragState.objectStartY - dy * moveScale
+          } else {
+            object.z = dragState.objectStartZ - dy * moveScale
+          }
+        } else if (dragState.mode === 'rotate') {
+          const delta = (dx - dy) * 0.25
+          object.rotationYDeg = (object.rotationYDeg ?? 0) + delta
+          dragState.startX = point.x
+          dragState.startY = point.y
+        } else if (dragState.mode === 'scale') {
+          const factor = Math.max(0.15, 1 + (dx - dy) * 0.005)
+          if (dragState.axis === 'x') {
+            object.scaleX = Math.max(0.15, factor)
+          } else if (dragState.axis === 'y') {
+            object.scaleY = Math.max(0.15, factor)
+          } else {
+            object.scaleZ = Math.max(0.15, factor)
+          }
+        }
+        void renderInteractiveScene()
+      }
+      return
+    }
     void rawInputAdapter.handlePointerMove(
       point,
       {
@@ -798,6 +1012,11 @@ export const mountThreeEditorRuntime = (): void => {
   })
 
   canvas.addEventListener('pointerup', (event) => {
+    if (gizmoDragState && gizmoDragState.pointerId === event.pointerId) {
+      gizmoDragState = null
+      canvas.releasePointerCapture(event.pointerId)
+      return
+    }
     void rawInputAdapter.handlePointerUp({
       pointerId: event.pointerId,
       pointerType: event.pointerType,
@@ -810,6 +1029,7 @@ export const mountThreeEditorRuntime = (): void => {
   })
 
   canvas.addEventListener('pointerleave', () => {
+    gizmoDragState = null
     void rawInputAdapter.handlePointerLeave()
   })
 

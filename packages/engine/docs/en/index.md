@@ -90,5 +90,6 @@ Each API page must include:
 18. [Scenario Adapter Boundary Cookbook](editor-integration/scenario-adapter-boundary-cookbook.md)
 19. [Breaking Changes](migration/breaking-changes.md)
 20. [App Adapter Migration](migration/app-adapter-migration.md)
-21. [Budgets and SLOs](performance/budgets-and-slos.md)
-22. [Replay and Trace](diagnostics/replay-and-trace.md)
+21. [Runtime World Navigation And Collision Migration](migration/runtime-world-navigation-collision-migration.md)
+22. [Budgets and SLOs](performance/budgets-and-slos.md)
+23. [Replay and Trace](diagnostics/replay-and-trace.md)

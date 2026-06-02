@@ -1,6 +1,7 @@
 import type { EngineBackend } from "../../backend/backend";
 import type { EngineBackendSurface, EngineResolvedBackendMode } from "../backend-contracts";
 import type { EngineBackendCacheFallbackReason } from "../fallbackTaxonomy";
+import type { EngineMaterialEntity } from "../../orchestration/api/public-types/material.types";
 
 /**
  * Declares one backend diagnostics payload emitted by native adapters per frame.
@@ -133,6 +134,29 @@ export interface EngineBackendFrameDiagnostics {
   activeLightCount: number;
   /** Total mesh draw calls submitted across all backends in the current frame. */
   meshDrawCallCount: number;
+  /** Mesh/material pairs carrying texture references in native mesh payload. */
+  webglNativeMaterialTextureCandidateCount: number;
+  /** Texture candidates that also carry usable UV streams. */
+  webglNativeMaterialTextureUvReadyCount: number;
+  /** Material textures bound by native mesh path in the current frame. */
+  webglNativeMaterialTextureBindingCount: number;
+  /** Estimated bytes uploaded for native material textures in the current frame. */
+  webglNativeMaterialTextureUploadBytes: number;
+  /** Native material texture cache hits in the current frame. */
+  webglNativeMaterialTextureCacheHitCount: number;
+  /** Native material texture cache misses in the current frame. */
+  webglNativeMaterialTextureCacheMissCount: number;
+  /** Native material texture decode failures in the current frame. */
+  webglNativeMaterialTextureDecodeFailureCount: number;
+  /** Latest native material texture decode failure reason. */
+  webglNativeMaterialTextureDecodeFailureReason: "none" | "image-load-failed";
+  /** Latest material texture binding fallback reason. */
+  webglNativeMaterialTextureFallbackReason:
+    | "none"
+    | "missing-material"
+    | "missing-uv"
+    | "texture-upload-not-implemented"
+    | "decode-failed";
   /** Rich-feature capability gate reason emitted by WebGL adapter for the latest frame. */
   webglFeatureCapabilityGateReason?:
     | "none"
@@ -372,8 +396,20 @@ export interface NoopBackendAdapterHooks {
       positions: readonly number[];
       /** Optional packed triangle indices into positions array. */
       indices?: readonly number[];
+      /** Optional packed uv coordinates as [u,v, ...]. */
+      uvs?: readonly number[];
       /** Optional mesh fill color token in CSS notation. */
       color?: string;
+      /** Optional material id used for texture/material binding. */
+      materialId?: string;
+    }>;
+    /** Optional graph material registry referenced by mesh primitives. */
+    materials?: readonly EngineMaterialEntity[];
+    /** Optional ordered runtime lights consumed by native mesh shading path. */
+    lights?: ReadonlyArray<{
+      id: string;
+      type: string;
+      intensity?: number;
     }>;
     /** Optional shared 3D camera packet consumed by native mesh projection paths. */
     camera3d?: {

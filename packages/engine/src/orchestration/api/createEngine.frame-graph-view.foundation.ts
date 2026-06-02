@@ -5,6 +5,7 @@ import type {
   EngineViewInput,
   EngineViewSnapshot,
 } from "./public-types";
+import type { EngineMaterialEntity } from "./public-types/material.types";
 import type { EngineDocumentChangeOperation, EngineDocumentChangeSet, EngineDocumentSnapshot } from "../../kernel/document/document-contracts";
 import type { EngineExecutionSnapshot } from "../../orchestration/render-execution/stagedExecutionChain";
 import type { EngineRenderFrameStats } from "../../orchestration/render-runtime/runtimeFacade";
@@ -117,6 +118,8 @@ type FrameGraphViewFoundationDependencies = {
   getLastInteractionKind: () => "none" | "set" | "pan" | "zoom";
   /** Reads graph node map. */
   getGraphNodeState: () => Map<string, EngineGraphNodeInput>;
+  /** Writes current graph material registry. */
+  setGraphMaterials: (materials: readonly EngineMaterialEntity[]) => void;
   /** Resolves document node from graph node input. */
   resolveDocumentNodeFromGraphNode: (
     node: EngineGraphNodeInput,
@@ -249,6 +252,7 @@ export function createFrameGraphViewFoundation(
         graphNodeState.set(node.id, node);
       }
     }
+    deps.setGraphMaterials(Array.isArray(graph.materials) ? graph.materials : []);
 
     const nextNodes = graph.nodes
       .filter((node) => typeof node.id === "string" && node.id.length > 0)

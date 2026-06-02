@@ -1,5 +1,42 @@
 import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 import type {BuildThreeEditorGraphParams} from './threeEditorRuntimeContracts'
+import {sampleProceduralTextureColor} from '../materials/proceduralTextureAtlas'
+
+export type ThreeEditorEngineGraph = Pick<PlaygroundSceneSnapshot, 'nodes' | 'materials'>
+
+const EDITOR_FLOOR_MATERIAL_ID = 'editor-floor-material'
+const EDITOR_PANEL_MATERIAL_ID = 'editor-panel-material'
+
+const createEditorMaterials = (): NonNullable<PlaygroundSceneSnapshot['materials']> => [
+  {
+    id: EDITOR_FLOOR_MATERIAL_ID,
+    type: 'unlit',
+    name: 'Editor Floor Texture Material',
+    baseColor: [1, 1, 1, 1],
+    baseColorTexture: '/textures/asphalt_cc0_oga.png',
+    baseColorTextureSampler: {
+      wrapS: 'repeat',
+      wrapT: 'repeat',
+      minFilter: 'linear',
+      magFilter: 'linear',
+    },
+    opacity: 1,
+  },
+  {
+    id: EDITOR_PANEL_MATERIAL_ID,
+    type: 'unlit',
+    name: 'Editor Object Panel Texture Material',
+    baseColor: [1, 1, 1, 1],
+    baseColorTexture: '/textures/grass_cc0_oga.png',
+    baseColorTextureSampler: {
+      wrapS: 'repeat',
+      wrapT: 'repeat',
+      minFilter: 'linear',
+      magFilter: 'linear',
+    },
+    opacity: 1,
+  },
+]
 
 const pushSegmentPrismMeshNode = (
   target: PlaygroundSceneSnapshot['nodes'],
@@ -90,6 +127,8 @@ const pushBoxMeshNode = (
     height: number
     depth: number
     color: string
+    rotationYDeg?: number
+    materialId?: string
     metadata?: Record<string, unknown>
     semantic3d?: Record<string, unknown>
   },
@@ -98,16 +137,31 @@ const pushBoxMeshNode = (
   const hh = input.height * 0.5
   const hd = input.depth * 0.5
 
-  const p = [
-    input.cx - hw, input.cy - hh, input.cz - hd,
-    input.cx + hw, input.cy - hh, input.cz - hd,
-    input.cx + hw, input.cy + hh, input.cz - hd,
-    input.cx - hw, input.cy + hh, input.cz - hd,
-    input.cx - hw, input.cy - hh, input.cz + hd,
-    input.cx + hw, input.cy - hh, input.cz + hd,
-    input.cx + hw, input.cy + hh, input.cz + hd,
-    input.cx - hw, input.cy + hh, input.cz + hd,
+  const yaw = ((input.rotationYDeg ?? 0) * Math.PI) / 180
+  const cos = Math.cos(yaw)
+  const sin = Math.sin(yaw)
+  const rotate = (x: number, z: number) => {
+    const dx = x - input.cx
+    const dz = z - input.cz
+    return {
+      x: input.cx + dx * cos - dz * sin,
+      z: input.cz + dx * sin + dz * cos,
+    }
+  }
+  const corners = [
+    {x: input.cx - hw, y: input.cy - hh, z: input.cz - hd},
+    {x: input.cx + hw, y: input.cy - hh, z: input.cz - hd},
+    {x: input.cx + hw, y: input.cy + hh, z: input.cz - hd},
+    {x: input.cx - hw, y: input.cy + hh, z: input.cz - hd},
+    {x: input.cx - hw, y: input.cy - hh, z: input.cz + hd},
+    {x: input.cx + hw, y: input.cy - hh, z: input.cz + hd},
+    {x: input.cx + hw, y: input.cy + hh, z: input.cz + hd},
+    {x: input.cx - hw, y: input.cy + hh, z: input.cz + hd},
   ]
+  const p = corners.flatMap((entry) => {
+    const r = rotate(entry.x, entry.z)
+    return [r.x, entry.y, r.z]
+  })
 
   const indices = [
     4, 5, 6, 4, 6, 7,
@@ -117,6 +171,16 @@ const pushBoxMeshNode = (
     3, 2, 6, 3, 6, 7,
     0, 1, 5, 0, 5, 4,
   ]
+  const uvs = [
+    0, 0,
+    1, 0,
+    1, 1,
+    0, 1,
+    0, 0,
+    1, 0,
+    1, 1,
+    0, 1,
+  ]
 
   target.push({
     id: input.id,
@@ -125,8 +189,11 @@ const pushBoxMeshNode = (
       topology: 'triangles',
       positions: p,
       indices,
+      uvs,
       color: input.color,
+      ...(input.materialId ? {materialId: input.materialId} : {}),
     },
+    ...(input.materialId ? {materialId: input.materialId} : {}),
     ...(input.metadata ? input.metadata : {}),
     ...(input.semantic3d ? {semantic3d: input.semantic3d} : {}),
   })
@@ -263,11 +330,111 @@ const appendGridNodes = (target: PlaygroundSceneSnapshot['nodes'], gridY: number
   }
 }
 
-const appendAxisNodes = (target: PlaygroundSceneSnapshot['nodes']): void => {
-  const axisLength = 420
-  pushSegmentPrismMeshNode(target, 'axis-x', -axisLength, 0, 0, axisLength, 0, 0, '#ef4444', 0.85)
-  pushSegmentPrismMeshNode(target, 'axis-y', 0, -axisLength * 0.8, 0, 0, axisLength * 0.8, 0, '#22c55e', 0.85)
-  pushSegmentPrismMeshNode(target, 'axis-z', 0, 0, -axisLength, 0, 0, axisLength, '#3b82f6', 0.85)
+const hexToRgba = (hexColor: string, alpha: number): string => {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor)
+  if (!m) return hexColor
+  const r = Number.parseInt(m[1], 16)
+  const g = Number.parseInt(m[2], 16)
+  const b = Number.parseInt(m[3], 16)
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`
+}
+
+const resolveCameraVectors = (yaw: number, pitch: number) => {
+  const yawRadians = (yaw * Math.PI) / 180
+  const pitchRadians = (pitch * Math.PI) / 180
+  const cosYaw = Math.cos(yawRadians)
+  const sinYaw = Math.sin(yawRadians)
+  const cosPitch = Math.cos(pitchRadians)
+  const sinPitch = Math.sin(pitchRadians)
+  const forward = {
+    x: -sinYaw * cosPitch,
+    y: sinPitch,
+    z: -cosYaw * cosPitch,
+  }
+  const right = {
+    x: cosYaw,
+    y: 0,
+    z: -sinYaw,
+  }
+  const up = {
+    x: sinYaw * sinPitch,
+    y: cosPitch,
+    z: cosYaw * sinPitch,
+  }
+  return {forward, right, up}
+}
+
+const appendBackEdgeHighlight = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  id: string,
+  cx: number,
+  cy: number,
+  cz: number,
+  width: number,
+  height: number,
+  depth: number,
+  cameraState: BuildThreeEditorGraphParams['cameraState'],
+) => {
+  const hw = width * 0.5
+  const hh = height * 0.5
+  const hd = depth * 0.5
+  const {forward} = resolveCameraVectors(cameraState.yaw, cameraState.pitch)
+  const viewX = cx - (cameraState.targetX - forward.x * cameraState.distance)
+  const viewY = cy - (cameraState.targetY - forward.y * cameraState.distance)
+  const viewZ = cz - (cameraState.targetZ - forward.z * cameraState.distance)
+  const ax = Math.abs(viewX)
+  const ay = Math.abs(viewY)
+  const az = Math.abs(viewZ)
+
+  if (ax >= ay && ax >= az) {
+    const x = viewX >= 0 ? cx - hw : cx + hw
+    pushSegmentPrismMeshNode(target, `${id}-be-0`, x, cy - hh, cz - hd, x, cy + hh, cz - hd, '#fbbf24', 0.85)
+    pushSegmentPrismMeshNode(target, `${id}-be-1`, x, cy + hh, cz - hd, x, cy + hh, cz + hd, '#fbbf24', 0.85)
+    pushSegmentPrismMeshNode(target, `${id}-be-2`, x, cy + hh, cz + hd, x, cy - hh, cz + hd, '#fbbf24', 0.85)
+    pushSegmentPrismMeshNode(target, `${id}-be-3`, x, cy - hh, cz + hd, x, cy - hh, cz - hd, '#fbbf24', 0.85)
+    return
+  }
+  if (ay >= ax && ay >= az) {
+    const y = viewY >= 0 ? cy - hh : cy + hh
+    pushSegmentPrismMeshNode(target, `${id}-be-0`, cx - hw, y, cz - hd, cx + hw, y, cz - hd, '#fbbf24', 0.85)
+    pushSegmentPrismMeshNode(target, `${id}-be-1`, cx + hw, y, cz - hd, cx + hw, y, cz + hd, '#fbbf24', 0.85)
+    pushSegmentPrismMeshNode(target, `${id}-be-2`, cx + hw, y, cz + hd, cx - hw, y, cz + hd, '#fbbf24', 0.85)
+    pushSegmentPrismMeshNode(target, `${id}-be-3`, cx - hw, y, cz + hd, cx - hw, y, cz - hd, '#fbbf24', 0.85)
+    return
+  }
+  const z = viewZ >= 0 ? cz - hd : cz + hd
+  pushSegmentPrismMeshNode(target, `${id}-be-0`, cx - hw, cy - hh, z, cx + hw, cy - hh, z, '#fbbf24', 0.85)
+  pushSegmentPrismMeshNode(target, `${id}-be-1`, cx + hw, cy - hh, z, cx + hw, cy + hh, z, '#fbbf24', 0.85)
+  pushSegmentPrismMeshNode(target, `${id}-be-2`, cx + hw, cy + hh, z, cx - hw, cy + hh, z, '#fbbf24', 0.85)
+  pushSegmentPrismMeshNode(target, `${id}-be-3`, cx - hw, cy + hh, z, cx - hw, cy - hh, z, '#fbbf24', 0.85)
+}
+
+const appendTransformGizmoNodes = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  id: string,
+  cx: number,
+  cy: number,
+  cz: number,
+  scale: number,
+) => {
+  const axisLen = Math.max(70, scale * 0.6)
+  const ringRadius = Math.max(46, scale * 0.38)
+  const t = Math.max(0.8, scale * 0.02)
+  pushSegmentPrismMeshNode(target, `${id}-tx`, cx, cy, cz, cx + axisLen, cy, cz, '#ef4444', t)
+  pushSegmentPrismMeshNode(target, `${id}-ty`, cx, cy, cz, cx, cy + axisLen, cz, '#22c55e', t)
+  pushSegmentPrismMeshNode(target, `${id}-tz`, cx, cy, cz, cx, cy, cz + axisLen, '#3b82f6', t)
+  pushBoxMeshNode(target, {id: `${id}-sx`, cx: cx + axisLen, cy, cz, width: 10, height: 10, depth: 10, color: '#ef4444'})
+  pushBoxMeshNode(target, {id: `${id}-sy`, cx, cy: cy + axisLen, cz, width: 10, height: 10, depth: 10, color: '#22c55e'})
+  pushBoxMeshNode(target, {id: `${id}-sz`, cx, cy, cz: cz + axisLen, width: 10, height: 10, depth: 10, color: '#3b82f6'})
+
+  const seg = 40
+  for (let i = 0; i < seg; i += 1) {
+    const a0 = (i / seg) * Math.PI * 2
+    const a1 = ((i + 1) / seg) * Math.PI * 2
+    pushSegmentPrismMeshNode(target, `${id}-rx-${i}`, cx, cy + Math.cos(a0) * ringRadius, cz + Math.sin(a0) * ringRadius, cx, cy + Math.cos(a1) * ringRadius, cz + Math.sin(a1) * ringRadius, '#ef4444', 0.45)
+    pushSegmentPrismMeshNode(target, `${id}-ry-${i}`, cx + Math.cos(a0) * ringRadius, cy, cz + Math.sin(a0) * ringRadius, cx + Math.cos(a1) * ringRadius, cy, cz + Math.sin(a1) * ringRadius, '#22c55e', 0.45)
+    pushSegmentPrismMeshNode(target, `${id}-rz-${i}`, cx + Math.cos(a0) * ringRadius, cy + Math.sin(a0) * ringRadius, cz, cx + Math.cos(a1) * ringRadius, cy + Math.sin(a1) * ringRadius, cz, '#3b82f6', 0.45)
+  }
 }
 
 const appendObjectNodes = (
@@ -275,12 +442,16 @@ const appendObjectNodes = (
   params: BuildThreeEditorGraphParams,
 ): void => {
   params.worldObjects.forEach((object, objectIndex) => {
-    const isHighlighted = params.selectedEntityId === object.id || params.hoverEntityId === object.id
-    const color = isHighlighted ? '#f59e0b' : object.color
-    const width = object.width ?? (object.radius ? object.radius * 2 : 120)
-    const depth = object.depth ?? (object.radius ? object.radius * 2 : 120)
-    const height = object.height ?? 120
-    const radius = object.radius ?? Math.max(width, depth) * 0.5
+    const isSelected = params.selectedEntityId === object.id
+    const isHighlighted = isSelected || params.hoverEntityId === object.id
+    const color = isSelected ? hexToRgba(object.color, 0.45) : isHighlighted ? '#f59e0b' : object.color
+    const scaleX = Math.max(0.15, object.scaleX ?? 1)
+    const scaleY = Math.max(0.15, object.scaleY ?? 1)
+    const scaleZ = Math.max(0.15, object.scaleZ ?? 1)
+    const width = (object.width ?? (object.radius ? object.radius * 2 : 120)) * scaleX
+    const depth = (object.depth ?? (object.radius ? object.radius * 2 : 120)) * scaleZ
+    const height = (object.height ?? 120) * scaleY
+    const radius = (object.radius ?? Math.max(width, depth) * 0.5) * ((scaleX + scaleZ) * 0.5)
     const innerRadius = Math.max(6, Math.min(radius - 2, object.innerRadius ?? radius * 0.62))
     const cy = object.y + height * 0.5
     const metadata = {
@@ -306,11 +477,11 @@ const appendObjectNodes = (
         y: cy,
         z: object.z,
         rotationX: 0,
-        rotationY: 0,
+        rotationY: object.rotationYDeg ?? 0,
         rotationZ: 0,
-        scaleX: 1,
-        scaleY: 1,
-        scaleZ: 1,
+        scaleX,
+        scaleY,
+        scaleZ,
       },
       sourceType: 'mesh',
       visible: params.overlayState.visibilityMaskEnabled ? objectIndex % 4 !== 3 : true,
@@ -335,6 +506,10 @@ const appendObjectNodes = (
         metadata,
         semantic3d,
       })
+      if (isSelected) {
+        appendBackEdgeHighlight(target, `selected-outline-${object.id}`, object.x, cy, object.z, width, height, depth, params.cameraState)
+        appendTransformGizmoNodes(target, `selected-gizmo-${object.id}`, object.x, cy, object.z, Math.max(width, height, depth))
+      }
       return
     }
 
@@ -351,6 +526,10 @@ const appendObjectNodes = (
         metadata,
         semantic3d,
       })
+      if (isSelected) {
+        appendBackEdgeHighlight(target, `selected-outline-${object.id}`, object.x, cy, object.z, width, height, depth, params.cameraState)
+        appendTransformGizmoNodes(target, `selected-gizmo-${object.id}`, object.x, cy, object.z, Math.max(width, height, depth))
+      }
       return
     }
 
@@ -366,51 +545,85 @@ const appendObjectNodes = (
       metadata,
       semantic3d,
     })
+    appendObjectTexturePanels(target, object.id, object.x, object.y + height, object.z, width, depth, params.textureSamplers?.panel)
+    if (isSelected) {
+      appendBackEdgeHighlight(target, `selected-outline-${object.id}`, object.x, cy, object.z, width, height, depth, params.cameraState)
+      appendTransformGizmoNodes(target, `selected-gizmo-${object.id}`, object.x, cy, object.z, Math.max(width, height, depth))
+    }
   })
 }
 
-const appendCornerGizmoNodes = (
+const appendCheckerFloorTexture = (
   target: PlaygroundSceneSnapshot['nodes'],
-  yaw: number,
-  pitch: number,
+  y: number,
+  sampler?: (u: number, v: number) => string,
 ): void => {
-  const length = 80
-  const yawRadians = (yaw * Math.PI) / 180
-  const pitchRadians = (pitch * Math.PI) / 180
-  const cosYaw = Math.cos(yawRadians)
-  const sinYaw = Math.sin(yawRadians)
-  const cosPitch = Math.cos(pitchRadians)
-  const sinPitch = Math.sin(pitchRadians)
-  const vectors = [
-    {id: 'x', x: 1, y: 0, z: 0, color: '#ef4444'},
-    {id: 'y', x: 0, y: 1, z: 0, color: '#22c55e'},
-    {id: 'z', x: 0, y: 0, z: 1, color: '#3b82f6'},
-  ] as const
+  const step = 96
+  const half = 4
+  for (let ix = -half; ix < half; ix += 1) {
+    for (let iz = -half; iz < half; iz += 1) {
+      const even = (ix + iz) % 2 === 0
+      const base = sampler
+        ? sampler((ix + half) / (half * 2), (iz + half) / (half * 2))
+        : sampleProceduralTextureColor('editor-floor', (ix + half) / (half * 2), (iz + half) / (half * 2))
+      pushBoxMeshNode(target, {
+        id: `floor-tex-${ix}-${iz}`,
+        cx: ix * step + step * 0.5,
+        cy: y,
+        cz: iz * step + step * 0.5,
+        width: step,
+        height: 1.2,
+        depth: step,
+        color: even
+          ? base
+          : (sampler
+            ? sampler((ix + half) / (half * 2) + 0.23, (iz + half) / (half * 2) + 0.11)
+            : sampleProceduralTextureColor('editor-floor', (ix + half) / (half * 2) + 0.23, (iz + half) / (half * 2) + 0.11)),
+        materialId: EDITOR_FLOOR_MATERIAL_ID,
+      })
+    }
+  }
+}
 
-  vectors.forEach((vector) => {
-    const yawX = cosYaw * vector.x - sinYaw * vector.z
-    const yawZ = sinYaw * vector.x + cosYaw * vector.z
-    const pitchY = cosPitch * vector.y - sinPitch * yawZ
-    const pitchZ = sinPitch * vector.y + cosPitch * yawZ
-    pushSegmentPrismMeshNode(
-      target,
-      `gizmo-${vector.id}`,
-      260,
-      160,
-      -260,
-      260 + yawX * length,
-      160 + pitchY * length,
-      -260 + pitchZ * length,
-      vector.color,
-      1.2,
-    )
-  })
+const appendObjectTexturePanels = (
+  target: PlaygroundSceneSnapshot['nodes'],
+  objectId: string,
+  cx: number,
+  topY: number,
+  cz: number,
+  width: number,
+  depth: number,
+  sampler?: (u: number, v: number) => string,
+) => {
+  const tile = Math.max(18, Math.min(46, Math.floor(Math.min(width, depth) / 4)))
+  const countX = Math.max(1, Math.floor(width / tile))
+  const countZ = Math.max(1, Math.floor(depth / tile))
+  for (let ix = 0; ix < countX; ix += 1) {
+    for (let iz = 0; iz < countZ; iz += 1) {
+      const px = cx - width * 0.5 + (ix + 0.5) * (width / countX)
+      const pz = cz - depth * 0.5 + (iz + 0.5) * (depth / countZ)
+      pushBoxMeshNode(target, {
+        id: `obj-tex-${objectId}-${ix}-${iz}`,
+        cx: px,
+        cy: topY + 0.75,
+        cz: pz,
+        width: (width / countX) * 0.88,
+        height: 1.2,
+        depth: (depth / countZ) * 0.88,
+        color: sampler
+          ? sampler(ix / Math.max(1, countX), iz / Math.max(1, countZ))
+          : sampleProceduralTextureColor('panel-metal', ix / Math.max(1, countX), iz / Math.max(1, countZ)),
+        materialId: EDITOR_PANEL_MATERIAL_ID,
+      })
+    }
+  }
 }
 
 export const buildThreeEditorEngineGraph = (
   params: BuildThreeEditorGraphParams,
-): PlaygroundSceneSnapshot['nodes'] => {
+): ThreeEditorEngineGraph => {
   const nodes: PlaygroundSceneSnapshot['nodes'] = []
+  const materials = createEditorMaterials()
   const cameraDistance = Math.max(1, params.cameraState.distance)
   const adaptiveNear = Math.max(0.5, Math.min(40, cameraDistance * 0.015))
   const adaptiveFar = Math.max(adaptiveNear + 800, Math.min(8000, cameraDistance * 6.5))
@@ -438,9 +651,8 @@ export const buildThreeEditorEngineGraph = (
   })
 
   if (params.overlayState.gridEnabled) appendGridNodes(nodes, gridY)
-  if (params.overlayState.axesEnabled) appendAxisNodes(nodes)
+  appendCheckerFloorTexture(nodes, gridY - 1.2, params.textureSamplers?.floor)
   appendObjectNodes(nodes, params)
-  if (params.overlayState.gizmoEnabled) appendCornerGizmoNodes(nodes, params.cameraState.yaw, params.cameraState.pitch)
 
-  return nodes
+  return {nodes, materials}
 }

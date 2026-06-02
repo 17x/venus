@@ -2,443 +2,208 @@ import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 
 const SCENE_WIDTH = 1920
 const SCENE_HEIGHT = 1180
+const GRID_ONLY_DEBUG_MODE = true
+type GridSceneNode = {id: string; [key: string]: unknown}
+
+function createGridStripNode(input: {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  z: number
+  color: string
+}): GridSceneNode {
+  const width = Math.max(1, input.width)
+  const height = Math.max(1, input.height)
+  return {
+    id: input.id,
+    type: 'shape',
+    shape: 'rect',
+    x: input.x,
+    y: input.y,
+    width,
+    height,
+    fill: input.color,
+    stroke: input.color,
+    strokeWidth: 0,
+    renderOrder: 40,
+    z: input.z,
+    visible: true,
+    lightingMode: 'unlit',
+    materialId: 'ground-grid-material',
+    semantic3d: {
+      bounds: {x: input.x, y: input.y, z: input.z, width, height, depth: 2},
+      transform: {
+        x: input.x,
+        y: input.y,
+        z: input.z,
+        rotationX: 0,
+        rotationY: 0,
+        rotationZ: 0,
+        scaleX: 1,
+        scaleY: 1,
+        scaleZ: 1,
+      },
+      sourceType: 'shape',
+      renderOrder: 40,
+      visible: true,
+      lightingMode: 'unlit',
+      materialId: 'ground-grid-material',
+    },
+  }
+}
 
 /**
- * Build a typical 3D editor viewport scene for engine capability validation.
- * @param revision Monotonic scene revision for deterministic cache invalidation.
+ * Build one grid/axis-focused 3D editor validation scene.
+ * This temporary mode isolates ground-grid stability under zoom/orbit interactions.
  */
 export const build3DEditorValidationScene = (revision: number): PlaygroundSceneSnapshot => {
-	const nodes: PlaygroundSceneSnapshot['nodes'] = [
-		{
-			id: 'editor-bg',
-			type: 'shape',
-			shape: 'rect',
-			x: 20,
-			y: 20,
-			width: SCENE_WIDTH - 40,
-			height: SCENE_HEIGHT - 40,
-			cornerRadius: 24,
-			fill: '#0f172a',
-			stroke: '#334155',
-			strokeWidth: 2,
-		},
-		{
-			id: 'editor-title',
-			type: 'text',
-			x: 56,
-			y: 60,
-			text: 'Scenario: Typical 3D Editor Validation',
-			style: {
-				fontFamily: 'IBM Plex Sans',
-				fontSize: 30,
-				fontWeight: 600,
-				fill: '#e2e8f0',
-			},
-		},
-		{
-			id: 'editor-subtitle',
-			type: 'text',
-			x: 56,
-			y: 102,
-			text: 'Hierarchy / Viewport / Inspector composition with semantic3d depth layers',
-			style: {
-				fontFamily: 'IBM Plex Sans',
-				fontSize: 15,
-				fill: '#93c5fd',
-			},
-		},
-		{
-			id: 'hierarchy-panel',
-			type: 'shape',
-			shape: 'rect',
-			x: 52,
-			y: 154,
-			width: 276,
-			height: 960,
-			cornerRadius: 16,
-			fill: '#111827',
-			stroke: '#334155',
-			strokeWidth: 2,
-		},
-		{
-			id: 'inspector-panel',
-			type: 'shape',
-			shape: 'rect',
-			x: 1578,
-			y: 154,
-			width: 288,
-			height: 960,
-			cornerRadius: 16,
-			fill: '#111827',
-			stroke: '#334155',
-			strokeWidth: 2,
-		},
-		{
-			id: 'viewport-frame',
-			type: 'shape',
-			shape: 'rect',
-			x: 352,
-			y: 154,
-			width: 1200,
-			height: 960,
-			cornerRadius: 18,
-			fill: '#020617',
-			stroke: '#3b82f6',
-			strokeWidth: 2,
-		},
-		{
-			id: 'viewport-grid-axis-x',
-			type: 'shape',
-			shape: 'line',
-			x: 432,
-			y: 850,
-			width: 980,
-			height: 0,
-			stroke: '#475569',
-			strokeWidth: 2,
-		},
-		{
-			id: 'viewport-grid-axis-y',
-			type: 'shape',
-			shape: 'line',
-			x: 920,
-			y: 336,
-			width: 0,
-			height: 536,
-			stroke: '#64748b',
-			strokeWidth: 2,
-		},
-	]
+  const nodes: PlaygroundSceneSnapshot['nodes'] = [
+    {
+      id: 'editor-bg',
+      type: 'shape',
+      shape: 'rect',
+      x: 20,
+      y: 20,
+      width: SCENE_WIDTH - 40,
+      height: SCENE_HEIGHT - 40,
+      cornerRadius: 24,
+      fill: '#0f172a',
+      stroke: '#334155',
+      strokeWidth: 2,
+    },
+    {
+      id: 'editor-title',
+      type: 'text',
+      x: 56,
+      y: 60,
+      text: 'Scenario: 3D Editor Grid/Axes Stability Validation',
+      style: {
+        fontFamily: 'IBM Plex Sans',
+        fontSize: 30,
+        fontWeight: 600,
+        fill: '#e2e8f0',
+      },
+    },
+    {
+      id: 'editor-subtitle',
+      type: 'text',
+      x: 56,
+      y: 102,
+      text: 'Grid-only debug mode for zoom in/out rendering consistency checks',
+      style: {
+        fontFamily: 'IBM Plex Sans',
+        fontSize: 15,
+        fill: '#93c5fd',
+      },
+    },
+    {
+      id: 'viewport-frame',
+      type: 'shape',
+      shape: 'rect',
+      x: 352,
+      y: 154,
+      width: 1200,
+      height: 960,
+      cornerRadius: 18,
+      fill: '#020617',
+      stroke: '#3b82f6',
+      strokeWidth: 2,
+    },
+    {
+      id: 'object-ground',
+      type: 'shape',
+      shape: 'rect',
+      x: 560,
+      y: 760,
+      width: 740,
+      height: 118,
+      fill: '#172554',
+      stroke: '#60a5fa',
+      strokeWidth: 2,
+      renderOrder: 30,
+      z: 30,
+      visible: true,
+      lightingMode: 'lit',
+      materialId: 'ground-material',
+      semantic3d: {
+        bounds: {x: 560, y: 760, z: 30, width: 740, height: 118, depth: 18},
+        transform: {x: 560, y: 760, z: 30, rotationX: 0, rotationY: 0, rotationZ: 0, scaleX: 1, scaleY: 1, scaleZ: 1},
+        sourceType: 'shape',
+        renderOrder: 30,
+        visible: true,
+        lightingMode: 'lit',
+        materialId: 'ground-material',
+      },
+    },
+  ]
 
-	for (let row = 0; row < 6; row += 1) {
-		for (let column = 0; column < 10; column += 1) {
-			const id = row * 100 + column
-			const x = 432 + column * 94 + row * 8
-			const y = 420 + row * 68
-			nodes.push({
-				id: `grid-dot-${id}`,
-				type: 'shape',
-				shape: 'ellipse',
-				x,
-				y,
-				width: 6,
-				height: 6,
-				fill: '#334155',
-				stroke: '#475569',
-				strokeWidth: 1,
-				renderOrder: 5,
-				z: 4,
-				visible: true,
-				lightingMode: 'unlit',
-				materialId: 'grid-dot-material',
-				semantic3d: {
-					bounds: {
-						x,
-						y,
-						z: 4,
-						width: 6,
-						height: 6,
-						depth: 2,
-					},
-					transform: {
-						x,
-						y,
-						z: 4,
-						rotationX: 0,
-						rotationY: 0,
-						rotationZ: 0,
-						scaleX: 1,
-						scaleY: 1,
-						scaleZ: 1,
-					},
-					sourceType: 'shape',
-					renderOrder: 5,
-					visible: true,
-					lightingMode: 'unlit',
-					materialId: 'grid-dot-material',
-				},
-			})
-		}
-	}
+  const groundTopLeftX = 560
+  const groundTopLeftY = 760
+  const groundWidth = 740
+  const groundHeight = 118
+  const gridInset = 14
+  const gridStep = 38
+  const gridZ = 31
 
-	const sceneObjects = [
-		{
-			id: 'object-ground',
-			shape: 'rect',
-			x: 560,
-			y: 760,
-			width: 740,
-			height: 118,
-			fill: '#172554',
-			stroke: '#60a5fa',
-			z: 30,
-			depth: 18,
-		},
-		{
-			id: 'object-main-cube',
-			shape: 'rect',
-			x: 784,
-			y: 544,
-			width: 238,
-			height: 196,
-			fill: '#0ea5e9',
-			stroke: '#bae6fd',
-			z: 78,
-			depth: 64,
-		},
-		{
-			id: 'object-sphere-left',
-			shape: 'ellipse',
-			x: 612,
-			y: 588,
-			width: 142,
-			height: 142,
-			fill: '#14b8a6',
-			stroke: '#99f6e4',
-			z: 112,
-			depth: 70,
-		},
-		{
-			id: 'object-sphere-right',
-			shape: 'ellipse',
-			x: 1076,
-			y: 620,
-			width: 118,
-			height: 118,
-			fill: '#fb7185',
-			stroke: '#fecdd3',
-			z: 126,
-			depth: 72,
-		},
-	] as const
+  nodes.push(
+    createGridStripNode({
+      id: 'ground-axis-x',
+      x: groundTopLeftX + gridInset,
+      y: groundTopLeftY + Math.floor(groundHeight / 2),
+      width: groundWidth - gridInset * 2,
+      height: 2,
+      z: gridZ + 1,
+      color: '#64748b',
+    }),
+    createGridStripNode({
+      id: 'ground-axis-z',
+      x: groundTopLeftX + Math.floor(groundWidth / 2),
+      y: groundTopLeftY + gridInset,
+      width: 2,
+      height: groundHeight - gridInset * 2,
+      z: gridZ + 1,
+      color: '#94a3b8',
+    }),
+  )
 
-	sceneObjects.forEach((object, index) => {
-		nodes.push({
-			id: object.id,
-			type: 'shape',
-			shape: object.shape,
-			x: object.x,
-			y: object.y,
-			width: object.width,
-			height: object.height,
-			cornerRadius: object.shape === 'rect' ? 14 : undefined,
-			fill: object.fill,
-			stroke: object.stroke,
-			strokeWidth: 2,
-			renderOrder: 120 + index,
-			z: object.z,
-			visible: true,
-			lightingMode: 'lit',
-			materialId: `editor-object-material-${index}`,
-			docEntityId: object.id,
-			docEntityLabel: object.id.replace('object-', ''),
-			hitPrimitive: 'face',
-			semantic3d: {
-				bounds: {
-					x: object.x,
-					y: object.y,
-					z: object.z,
-					width: object.width,
-					height: object.height,
-					depth: object.depth,
-				},
-				transform: {
-					x: object.x,
-					y: object.y,
-					z: object.z,
-					rotationX: 0,
-					rotationY: index * 7,
-					rotationZ: 0,
-					scaleX: 1,
-					scaleY: 1,
-					scaleZ: 1,
-				},
-				sourceType: 'shape',
-				renderOrder: 120 + index,
-				visible: true,
-				lightingMode: 'lit',
-				materialId: `editor-object-material-${index}`,
-			},
-		})
-	})
+  for (let x = groundTopLeftX + gridInset; x <= groundTopLeftX + groundWidth - gridInset; x += gridStep) {
+    nodes.push(
+      createGridStripNode({
+        id: `ground-grid-v-${x}`,
+        x,
+        y: groundTopLeftY + gridInset,
+        width: 1,
+        height: groundHeight - gridInset * 2,
+        z: gridZ,
+        color: '#3b4f79',
+      }),
+    )
+  }
 
-	nodes.push(
-		{
-			id: 'hit-face-surface',
-			type: 'shape',
-			shape: 'rect',
-			x: 1218,
-			y: 488,
-			width: 220,
-			height: 168,
-			cornerRadius: 14,
-			fill: '#0369a1',
-			stroke: '#7dd3fc',
-			strokeWidth: 2,
-			renderOrder: 156,
-			z: 96,
-			visible: true,
-			lightingMode: 'lit',
-			materialId: 'hit-face-material',
-			docEntityId: 'doc-face-quad',
-			docEntityLabel: 'Face Quad',
-			hitPrimitive: 'face',
-			semantic3d: {
-				bounds: {
-					x: 1218,
-					y: 488,
-					z: 96,
-					width: 220,
-					height: 168,
-					depth: 48,
-				},
-				transform: {
-					x: 1218,
-					y: 488,
-					z: 96,
-					rotationX: 0,
-					rotationY: 10,
-					rotationZ: 0,
-					scaleX: 1,
-					scaleY: 1,
-					scaleZ: 1,
-				},
-				sourceType: 'shape',
-				renderOrder: 156,
-				visible: true,
-				lightingMode: 'lit',
-				materialId: 'hit-face-material',
-			},
-		},
-		{
-			id: 'hit-line-edge',
-			type: 'shape',
-			shape: 'line',
-			x: 656,
-			y: 480,
-			width: 352,
-			height: -94,
-			stroke: '#fbbf24',
-			strokeWidth: 4,
-			renderOrder: 170,
-			z: 134,
-			visible: true,
-			lightingMode: 'unlit',
-			materialId: 'hit-line-material',
-			docEntityId: 'doc-line-edge',
-			docEntityLabel: 'Selection Edge',
-			hitPrimitive: 'line',
-			semantic3d: {
-				bounds: {
-					x: 656,
-					y: 386,
-					z: 134,
-					width: 352,
-					height: 94,
-					depth: 8,
-				},
-				transform: {
-					x: 656,
-					y: 480,
-					z: 134,
-					rotationX: 0,
-					rotationY: 22,
-					rotationZ: 0,
-					scaleX: 1,
-					scaleY: 1,
-					scaleZ: 1,
-				},
-				sourceType: 'shape',
-				renderOrder: 170,
-				visible: true,
-				lightingMode: 'unlit',
-				materialId: 'hit-line-material',
-			},
-		},
-		{
-			id: 'hit-point-handle',
-			type: 'shape',
-			shape: 'ellipse',
-			x: 998,
-			y: 442,
-			width: 18,
-			height: 18,
-			fill: '#f97316',
-			stroke: '#fed7aa',
-			strokeWidth: 2,
-			renderOrder: 186,
-			z: 158,
-			visible: true,
-			lightingMode: 'unlit',
-			materialId: 'hit-point-material',
-			docEntityId: 'doc-point-handle',
-			docEntityLabel: 'Vertex Handle',
-			hitPrimitive: 'point',
-			semantic3d: {
-				bounds: {
-					x: 998,
-					y: 442,
-					z: 158,
-					width: 18,
-					height: 18,
-					depth: 10,
-				},
-				transform: {
-					x: 998,
-					y: 442,
-					z: 158,
-					rotationX: 0,
-					rotationY: 0,
-					rotationZ: 0,
-					scaleX: 1,
-					scaleY: 1,
-					scaleZ: 1,
-				},
-				sourceType: 'shape',
-				renderOrder: 186,
-				visible: true,
-				lightingMode: 'unlit',
-				materialId: 'hit-point-material',
-			},
-		},
-	)
+  for (let y = groundTopLeftY + gridInset; y <= groundTopLeftY + groundHeight - gridInset; y += gridStep) {
+    nodes.push(
+      createGridStripNode({
+        id: `ground-grid-h-${y}`,
+        x: groundTopLeftX + gridInset,
+        y,
+        width: groundWidth - gridInset * 2,
+        height: 1,
+        z: gridZ,
+        color: '#3b4f79',
+      }),
+    )
+  }
 
-	for (let row = 0; row < 11; row += 1) {
-		const y = 198 + row * 76
-		nodes.push({
-			id: `hierarchy-row-${row}`,
-			type: 'shape',
-			shape: 'rect',
-			x: 72,
-			y,
-			width: 236,
-			height: 48,
-			cornerRadius: 10,
-			fill: row % 2 === 0 ? '#1f2937' : '#111827',
-			stroke: '#334155',
-			strokeWidth: 1,
-		})
-		if (row < 6) {
-			nodes.push({
-				id: `inspector-field-${row}`,
-				type: 'shape',
-				shape: 'rect',
-				x: 1600,
-				y: 208 + row * 132,
-				width: 244,
-				height: 74,
-				cornerRadius: 10,
-				fill: '#1f2937',
-				stroke: '#334155',
-				strokeWidth: 1,
-			})
-		}
-	}
+  if (!GRID_ONLY_DEBUG_MODE) {
+    // Reserved for restoring full object/hit-testing fixture after grid stability validation closes.
+  }
 
-	return {
-		revision,
-		width: SCENE_WIDTH,
-		height: SCENE_HEIGHT,
-		nodes,
-	}
+  return {
+    revision,
+    width: SCENE_WIDTH,
+    height: SCENE_HEIGHT,
+    nodes,
+  }
 }
