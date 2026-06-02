@@ -1,6 +1,7 @@
 import type { EngineBackend } from "../../backend/backend";
 import type { NoopBackendAdapterHooks } from "./noopBackendAdapter";
 import type { EngineBackendSurface } from "../backend-contracts";
+import type { EngineMaterialEntity } from "../../orchestration/api/public-types/material.types";
 import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../fallbackTaxonomy";
 import { resolveRichPathDrawPlan } from "./richPathDrawPlan";
 import { resolveNativeRectBatchRejectedReason } from "./nativeRectBatchRejectionPlan";
@@ -40,6 +41,54 @@ const GPU_PREDICTOR_PRELOAD_RING_HIGH = 2;
 const GPU_PREDICTOR_PRELOAD_RING_LOW = 1;
 const GPU_PREDICTOR_OVERSCAN_HIGH = 48;
 const GPU_PREDICTOR_OVERSCAN_LOW = 24;
+const WEBGPU_MATERIAL_TEXTURE_PLACEHOLDER_BYTES = 4;
+const WEBGPU_TEXTURE_USAGE_COPY_DST = 0x02;
+const WEBGPU_TEXTURE_USAGE_TEXTURE_BINDING = 0x04;
+const POSITION_COMPONENT_STRIDE = 3;
+
+type WebGPUMaterialTextureFallbackReason =
+  | "none"
+  | "missing-material"
+  | "missing-uv"
+  | "texture-upload-not-implemented"
+  | "decode-failed";
+
+type WebGPUMaterialTextureDiagnostics = {
+  candidateCount: number;
+  uvReadyCount: number;
+  bindingCount: number;
+  uploadBytes: number;
+  cacheHitCount: number;
+  cacheMissCount: number;
+  decodeFailureCount: number;
+  decodeFailureReason: "none" | "image-load-failed";
+  fallbackReason: WebGPUMaterialTextureFallbackReason;
+};
+
+type WebGPUMaterialTextureCacheEntry = {
+  texture: unknown;
+  sourceUri: string;
+  state: "placeholder" | "loading" | "ready" | "uploaded" | "failed";
+  image: HTMLImageElement | null;
+  width: number;
+  height: number;
+};
+
+type WebGPUMaterialTextureMesh = {
+  id: string;
+  positions: readonly number[];
+  uvs?: readonly number[];
+  materialId?: string;
+  color?: string;
+};
+
+type WebGPUMaterialTexturePayload = {
+  translateX?: number;
+  translateY?: number;
+  scale?: number;
+  meshes?: ReadonlyArray<WebGPUMaterialTextureMesh>;
+  materials?: readonly EngineMaterialEntity[];
+};
 
 /**
  * Resolves one deterministic budget-pressure reason from payload cardinality.
@@ -111,6 +160,181 @@ type WebGPUOverlayInstruction = {
   fillOpacity?: number;
   zIndex?: number;
 };
+
+function createEmptyWebGPUMaterialTextureDiagnostics(): WebGPUMaterialTextureDiagnostics {
+  return {
+    candidateCount: 0,
+    uvReadyCount: 0,
+    bindingCount: 0,
+    uploadBytes: 0,
+    cacheHitCount: 0,
+    cacheMissCount: 0,
+    decodeFailureCount: 0,
+    decodeFailureReason: "none",
+    fallbackReason: "none",
+  };
+}
+
+function resolveMaterialBaseColorTexture(material: EngineMaterialEntity | undefined): string | undefined {
+  if (!material) {
+    return undefined;
+  }
+  if ((material.type === "pbr" || material.type === "unlit") && typeof material.baseColorTexture === "string") {
+    return material.baseColorTexture.length > 0 ? material.baseColorTexture : undefined;
+  }
+  return undefined;
+}
+
+function startWebGPUMaterialTextureDecode(sourceUri: string, entry: WebGPUMaterialTextureCacheEntry): void {
+  if (entry.state !== "placeholder") {
+    return;
+  }
+  const imageCtor = (globalThis as { Image?: new () => HTMLImageElement }).Image;
+  if (typeof imageCtor !== "function") {
+    return;
+  }
+  entry.state = "loading";
+  const image = new imageCtor();
+  image.crossOrigin = "anonymous";
+  image.onload = () => {
+    entry.image = image;
+    entry.width = Math.max(1, Number.isFinite(image.width) ? image.width : 1);
+    entry.height = Math.max(1, Number.isFinite(image.height) ? image.height : 1);
+    entry.state = "ready";
+  };
+  image.onerror = () => {
+    entry.state = "failed";
+  };
+  image.src = sourceUri;
+}
+
+function prepareWebGPUMaterialTexture(
+  gpuDevice: {
+    createTexture?: (descriptor: unknown) => unknown;
+    queue?: {
+      copyExternalImageToTexture?: (
+        source: { source: HTMLImageElement },
+        destination: { texture: unknown },
+        copySize: { width: number; height: number },
+      ) => void;
+      writeTexture?: (destination: { texture: unknown }, data: Uint8Array, layout: unknown, size: unknown) => void;
+    };
+  },
+  textureCache: Map<string, WebGPUMaterialTextureCacheEntry>,
+  textureKey: string,
+): { prepared: boolean; uploadedBytes: number; cacheHit: boolean; cacheMiss: boolean; decodeFailed: boolean } {
+  const cached = textureCache.get(textureKey);
+  if (cached) {
+    if (cached.state === "ready" && cached.image && typeof gpuDevice.queue?.copyExternalImageToTexture === "function") {
+      gpuDevice.queue.copyExternalImageToTexture(
+        { source: cached.image },
+        { texture: cached.texture },
+        { width: cached.width, height: cached.height },
+      );
+      cached.state = "uploaded";
+      return {
+        prepared: true,
+        uploadedBytes: Math.max(WEBGPU_MATERIAL_TEXTURE_PLACEHOLDER_BYTES, cached.width * cached.height * 4),
+        cacheHit: true,
+        cacheMiss: false,
+        decodeFailed: false,
+      };
+    }
+    return { prepared: true, uploadedBytes: 0, cacheHit: true, cacheMiss: false, decodeFailed: cached.state === "failed" };
+  }
+  if (typeof gpuDevice.createTexture !== "function" || typeof gpuDevice.queue?.writeTexture !== "function") {
+    return { prepared: false, uploadedBytes: 0, cacheHit: false, cacheMiss: true, decodeFailed: false };
+  }
+  const texture = gpuDevice.createTexture({
+    size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+    format: "rgba8unorm",
+    usage: WEBGPU_TEXTURE_USAGE_COPY_DST | WEBGPU_TEXTURE_USAGE_TEXTURE_BINDING,
+  });
+  if (!texture) {
+    return { prepared: false, uploadedBytes: 0, cacheHit: false, cacheMiss: true, decodeFailed: false };
+  }
+  gpuDevice.queue.writeTexture(
+    { texture },
+    new Uint8Array([255, 255, 255, 255]),
+    { bytesPerRow: 4, rowsPerImage: 1 },
+    { width: 1, height: 1, depthOrArrayLayers: 1 },
+  );
+  const entry: WebGPUMaterialTextureCacheEntry = {
+    texture,
+    sourceUri: textureKey,
+    state: "placeholder",
+    image: null,
+    width: 1,
+    height: 1,
+  };
+  textureCache.set(textureKey, entry);
+  startWebGPUMaterialTextureDecode(textureKey, entry);
+  return {
+    prepared: true,
+    uploadedBytes: WEBGPU_MATERIAL_TEXTURE_PLACEHOLDER_BYTES,
+    cacheHit: false,
+    cacheMiss: true,
+    decodeFailed: false,
+  };
+}
+
+function resolveWebGPUMaterialTextureDiagnostics(
+  payload: WebGPUMaterialTexturePayload | null | undefined,
+  gpuDevice: {
+    createTexture?: (descriptor: unknown) => unknown;
+    queue?: {
+      copyExternalImageToTexture?: (
+        source: { source: HTMLImageElement },
+        destination: { texture: unknown },
+        copySize: { width: number; height: number },
+      ) => void;
+      writeTexture?: (destination: { texture: unknown }, data: Uint8Array, layout: unknown, size: unknown) => void;
+    };
+  },
+  textureCache: Map<string, WebGPUMaterialTextureCacheEntry>,
+): WebGPUMaterialTextureDiagnostics {
+  const diagnostics = createEmptyWebGPUMaterialTextureDiagnostics();
+  const materialMap = new Map((payload?.materials ?? []).map((material) => [material.id, material]));
+  for (const mesh of payload?.meshes ?? []) {
+    if (!mesh.materialId) {
+      continue;
+    }
+    const material = materialMap.get(mesh.materialId);
+    if (!material) {
+      diagnostics.fallbackReason = "missing-material";
+      continue;
+    }
+    const textureKey = resolveMaterialBaseColorTexture(material);
+    if (!textureKey) {
+      continue;
+    }
+    diagnostics.candidateCount += 1;
+    const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
+    const uvReady = Array.isArray(mesh.uvs) && mesh.uvs.length >= vertexCount * 2;
+    if (!uvReady) {
+      diagnostics.fallbackReason = "missing-uv";
+      continue;
+    }
+    diagnostics.uvReadyCount += 1;
+    const preparation = prepareWebGPUMaterialTexture(gpuDevice, textureCache, textureKey);
+    diagnostics.uploadBytes += preparation.uploadedBytes;
+    diagnostics.cacheHitCount += preparation.cacheHit ? 1 : 0;
+    diagnostics.cacheMissCount += preparation.cacheMiss ? 1 : 0;
+    if (preparation.prepared) {
+      diagnostics.bindingCount += 1;
+      if (preparation.decodeFailed) {
+        diagnostics.decodeFailureCount += 1;
+        diagnostics.decodeFailureReason = "image-load-failed";
+        diagnostics.fallbackReason = "decode-failed";
+      } else {
+        diagnostics.fallbackReason = "none";
+      }
+    } else {
+      diagnostics.fallbackReason = "texture-upload-not-implemented";
+    }
+  }
+  return diagnostics;
+}
 
 
 /**
@@ -549,6 +773,93 @@ function drawRichNodesToCompositionContext(
   return drawnPrimitiveCount > 0;
 }
 
+function resolveWebGPUMeshTextureImage(
+  payload: WebGPUMaterialTexturePayload,
+  mesh: WebGPUMaterialTextureMesh,
+  textureCache: Map<string, WebGPUMaterialTextureCacheEntry>,
+): HTMLImageElement | null {
+  if (!mesh.materialId) {
+    return null;
+  }
+  const material = (payload.materials ?? []).find((item) => item.id === mesh.materialId);
+  const textureKey = resolveMaterialBaseColorTexture(material);
+  if (!textureKey) {
+    return null;
+  }
+  const entry = textureCache.get(textureKey);
+  if (!entry || !entry.image || entry.state === "failed") {
+    return null;
+  }
+  return entry.image;
+}
+
+function drawTexturedMeshesToCompositionContext(
+  context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
+  payload: WebGPUMaterialTexturePayload,
+  textureCache: Map<string, WebGPUMaterialTextureCacheEntry>,
+  deviceWidth: number,
+  deviceHeight: number,
+  dpr: number,
+  clearTarget: boolean,
+): boolean {
+  const meshes = payload.meshes ?? [];
+  if (meshes.length === 0) {
+    return false;
+  }
+
+  context.save();
+  if (clearTarget) {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, deviceWidth, deviceHeight);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, deviceWidth, deviceHeight);
+  }
+  context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  context.translate(payload.translateX ?? 0, payload.translateY ?? 0);
+  context.scale(payload.scale ?? 1, payload.scale ?? 1);
+
+  let drawnMeshCount = 0;
+  for (const mesh of meshes) {
+    if (!Array.isArray(mesh.positions) || mesh.positions.length < POSITION_COMPONENT_STRIDE * 3) {
+      continue;
+    }
+    const image = resolveWebGPUMeshTextureImage(payload, mesh, textureCache);
+    if (!image) {
+      continue;
+    }
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const zs: number[] = [];
+    for (let index = 0; index < mesh.positions.length; index += POSITION_COMPONENT_STRIDE) {
+      const x = mesh.positions[index];
+      const y = mesh.positions[index + 1];
+      const z = mesh.positions[index + 2];
+      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+        xs.push(x);
+        ys.push(y);
+        zs.push(z);
+      }
+    }
+    if (xs.length === 0) {
+      continue;
+    }
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const yRange = Math.max(...ys) - Math.min(...ys);
+    const zRange = Math.max(...zs) - Math.min(...zs);
+    const secondary = zRange > yRange ? zs : ys;
+    const minSecondary = Math.min(...secondary);
+    const maxSecondary = Math.max(...secondary);
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxSecondary - minSecondary);
+    context.drawImage(image, minX, minSecondary, width, height);
+    drawnMeshCount += 1;
+  }
+
+  context.restore();
+  return drawnMeshCount > 0;
+}
+
 /**
  * Attempts one WebGPU-native model-complete present via queue texture copy.
  * @param context Configured WebGPU canvas context.
@@ -625,6 +936,7 @@ export function createWebGPUBackendAdapter(
   let nativeSubmissionTotalCount = 0;
   let nativeSubmissionTotalFailureCount = 0;
   let lastPayloadSignature = "";
+  const materialTextureCache = new Map<string, WebGPUMaterialTextureCacheEntry>();
 
   /**
    * Ensures one WebGPU device/context pair is initialized and configured.
@@ -706,7 +1018,9 @@ export function createWebGPUBackendAdapter(
     webgpuFeatureCapabilityGateReason: FeatureCapabilityGateReason;
     payloadSignature: string;
     payloadRectCount: number;
+    materialTextureDiagnostics?: WebGPUMaterialTextureDiagnostics;
   }) {
+    const materialTextureDiagnostics = input.materialTextureDiagnostics ?? createEmptyWebGPUMaterialTextureDiagnostics();
     const frameReuseHit =
       input.payloadSignature === lastPayloadSignature && input.payloadSignature !== "none";
     lastPayloadSignature = input.payloadSignature;
@@ -789,6 +1103,15 @@ export function createWebGPUBackendAdapter(
       webglNativeMaterialTextureDecodeFailureCount: 0,
       webglNativeMaterialTextureDecodeFailureReason: "none",
       webglNativeMaterialTextureFallbackReason: "none",
+      webgpuNativeMaterialTextureCandidateCount: materialTextureDiagnostics.candidateCount,
+      webgpuNativeMaterialTextureUvReadyCount: materialTextureDiagnostics.uvReadyCount,
+      webgpuNativeMaterialTextureBindingCount: materialTextureDiagnostics.bindingCount,
+      webgpuNativeMaterialTextureUploadBytes: materialTextureDiagnostics.uploadBytes,
+      webgpuNativeMaterialTextureCacheHitCount: materialTextureDiagnostics.cacheHitCount,
+      webgpuNativeMaterialTextureCacheMissCount: materialTextureDiagnostics.cacheMissCount,
+      webgpuNativeMaterialTextureDecodeFailureCount: materialTextureDiagnostics.decodeFailureCount,
+      webgpuNativeMaterialTextureDecodeFailureReason: materialTextureDiagnostics.decodeFailureReason,
+      webgpuNativeMaterialTextureFallbackReason: materialTextureDiagnostics.fallbackReason,
       shadowMapCount: 0,
       shadowDrawCallCount: 0,
       shadowTextureBytes: 0,
@@ -906,6 +1229,7 @@ export function createWebGPUBackendAdapter(
         getCurrentTexture: () => { createView: () => unknown };
       };
       const gpuDevice = device as {
+        createTexture?: (descriptor: unknown) => unknown;
         createCommandEncoder: () => {
           beginRenderPass: (input: {
             colorAttachments: Array<{
@@ -919,8 +1243,9 @@ export function createWebGPUBackendAdapter(
         };
         queue: {
           submit: (commands: unknown[]) => void;
+          writeTexture?: (destination: { texture: unknown }, data: Uint8Array, layout: unknown, size: unknown) => void;
           copyExternalImageToTexture?: (
-            source: { source: OffscreenCanvas | HTMLCanvasElement },
+            source: { source: OffscreenCanvas | HTMLCanvasElement | HTMLImageElement },
             destination: { texture: unknown },
             copySize: { width: number; height: number },
           ) => void;
@@ -932,25 +1257,41 @@ export function createWebGPUBackendAdapter(
       const dpr = currentSurface.width > 0
         ? Math.max(1, deviceWidth / currentSurface.width)
         : 1;
-      if (payload && payloadNodeCount > 0) {
+      const materialTextureDiagnostics = resolveWebGPUMaterialTextureDiagnostics(
+        payload,
+        gpuDevice,
+        materialTextureCache,
+      );
+      if (payload && (payloadNodeCount > 0 || materialTextureDiagnostics.bindingCount > 0)) {
         const composition = resolveOffscreenCompositionContext(deviceWidth, deviceHeight);
         if (composition) {
-          const composed = drawRichNodesToCompositionContext(
+          const composedNodes = payloadNodeCount > 0
+            ? drawRichNodesToCompositionContext(
+              composition.context,
+              {
+                translateX: payload.translateX,
+                translateY: payload.translateY,
+                scale: payload.scale,
+                nodes: payload.nodes,
+                images: payload.images,
+                overlays: payload.overlays,
+              },
+              deviceWidth,
+              deviceHeight,
+              dpr,
+            )
+            : false;
+          const composedTexturedMeshes = drawTexturedMeshesToCompositionContext(
             composition.context,
-            {
-              translateX: payload.translateX,
-              translateY: payload.translateY,
-              scale: payload.scale,
-              nodes: payload.nodes,
-              images: payload.images,
-              overlays: payload.overlays,
-            },
+            payload,
+            materialTextureCache,
             deviceWidth,
             deviceHeight,
             dpr,
+            !composedNodes,
           );
           if (
-            composed &&
+            (composedNodes || composedTexturedMeshes) &&
             tryPresentModelCompleteWithWebGPU(
               context,
               gpuDevice,
@@ -970,6 +1311,7 @@ export function createWebGPUBackendAdapter(
               webgpuFeatureCapabilityGateReason: featureCapabilityGateReason,
               payloadSignature,
               payloadRectCount,
+              materialTextureDiagnostics,
             });
             hooks?.onPresentCommitted?.(timestampMs);
             return;
@@ -1002,6 +1344,7 @@ export function createWebGPUBackendAdapter(
           webgpuFeatureCapabilityGateReason: featureCapabilityGateReason,
           payloadSignature,
           payloadRectCount,
+          materialTextureDiagnostics,
         });
       } catch (error) {
         nativeSubmissionTotalFailureCount += 1;
@@ -1015,6 +1358,7 @@ export function createWebGPUBackendAdapter(
           webgpuFeatureCapabilityGateReason: featureCapabilityGateReason,
           payloadSignature,
           payloadRectCount,
+          materialTextureDiagnostics,
         });
         throw error;
       }
@@ -1025,6 +1369,7 @@ export function createWebGPUBackendAdapter(
       configuredContext = null;
       device = null;
       initPromise = null;
+      materialTextureCache.clear();
     },
   };
 }

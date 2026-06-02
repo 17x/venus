@@ -1,7 +1,6 @@
 import {createEngine, type EngineRuntimeWorldAgentState} from '@venus/engine'
 import {createInitialDrivingGameState, type DrivingGameConfig, type DrivingGameState} from './drivingGameTypes'
 import {buildDrivingGameScene, convertCityObstaclesToCollisionBlocks} from './drivingGameScene'
-import {createTextureSamplerFromUrl, type TextureSampler} from '../runtime/materials/webTextureSampler'
 import {generateCityWorldMap} from './cityWorldGenerator'
 import {loadDrivingGameFixture} from './drivingGameFixture'
 
@@ -164,16 +163,6 @@ async function mount() {
     backend: 'webgl',
     strict3d: true,
   })
-  let textureSamplers: {ground?: TextureSampler; road?: TextureSampler} = {}
-  void Promise.all([
-    createTextureSamplerFromUrl('/textures/grass_cc0_oga.png'),
-    createTextureSamplerFromUrl('/textures/asphalt_cc0_oga.png'),
-  ]).then(([ground, road]) => {
-    textureSamplers = {ground, road}
-  }).catch(() => {
-    textureSamplers = {}
-  })
-
   const syncRuntimeWorld = () => {
     engine.runtime.world.setOpenWorldMap({
       mapSize: state.cityMap.mapSize,
@@ -261,16 +250,35 @@ async function mount() {
     syncRuntimeLighting()
   }
 
+  const refreshMaterialTextureDiagnostics = () => {
+    const backend = (engine.getDiagnostics().backendDiagnostics as Record<string, unknown> | undefined) ?? undefined
+    dbEl.dataset.webglMaterialTextureCandidateCount = String(backend?.webglNativeMaterialTextureCandidateCount ?? 0)
+    dbEl.dataset.webglMaterialTextureUvReadyCount = String(backend?.webglNativeMaterialTextureUvReadyCount ?? 0)
+    dbEl.dataset.webglMaterialTextureBindingCount = String(backend?.webglNativeMaterialTextureBindingCount ?? 0)
+    const uploadBytes = Number(backend?.webglNativeMaterialTextureUploadBytes ?? 0)
+    const uploadBytesMax = Math.max(Number(dbEl.dataset.webglMaterialTextureUploadBytesMax ?? 0), uploadBytes)
+    dbEl.dataset.webglMaterialTextureUploadBytes = String(uploadBytes)
+    dbEl.dataset.webglMaterialTextureUploadBytesMax = String(uploadBytesMax)
+    dbEl.dataset.webglMaterialTextureCacheHitCount = String(backend?.webglNativeMaterialTextureCacheHitCount ?? 0)
+    dbEl.dataset.webglMaterialTextureCacheMissCount = String(backend?.webglNativeMaterialTextureCacheMissCount ?? 0)
+    const cacheHitCount = Number(backend?.webglNativeMaterialTextureCacheHitCount ?? 0)
+    if (cacheHitCount > 0 && uploadBytes > 0) {
+      dbEl.dataset.webglMaterialTextureDecodedUploadObserved = 'true'
+    }
+    dbEl.dataset.webglMaterialTextureFallbackReason = String(backend?.webglNativeMaterialTextureFallbackReason ?? 'none')
+  }
+
   updateProgress(10, `Canvas: ${STAGE_W}×${STAGE_H}`)
   await delay(100)
 
   syncRuntimeWorld()
-  engine.setGraph(buildDrivingGameScene(state, textureSamplers) as any)
+  engine.setGraph(buildDrivingGameScene(state) as any)
   syncRuntimeLighting()
   updateProgress(40, 'Graph set')
   await delay(100)
 
   await engine.render()
+  refreshMaterialTextureDiagnostics()
   const stats = engine.getStats()
   updateProgress(90, `Draw: ${stats.lastExecutionDrawCount ?? 0}`)
   await delay(300)
@@ -299,8 +307,10 @@ async function mount() {
       if (state.config.timeOfDayHours < 0) state.config.timeOfDayHours += 24
     }
     syncRuntimeLighting()
-    engine.setGraph(buildDrivingGameScene(state, textureSamplers) as any)
-    engine.render()
+    engine.setGraph(buildDrivingGameScene(state) as any)
+    void engine.render().then(() => {
+      refreshMaterialTextureDiagnostics()
+    })
     drawMiniMap(miniMapCanvas, state)
 
     frameCount++

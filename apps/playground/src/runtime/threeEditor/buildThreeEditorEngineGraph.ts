@@ -1,6 +1,5 @@
 import type {PlaygroundSceneSnapshot} from '../../types/playgroundScene'
 import type {BuildThreeEditorGraphParams} from './threeEditorRuntimeContracts'
-import {sampleProceduralTextureColor} from '../materials/proceduralTextureAtlas'
 
 export type ThreeEditorEngineGraph = Pick<PlaygroundSceneSnapshot, 'nodes' | 'materials'>
 
@@ -545,7 +544,7 @@ const appendObjectNodes = (
       metadata,
       semantic3d,
     })
-    appendObjectTexturePanels(target, object.id, object.x, object.y + height, object.z, width, depth, params.textureSamplers?.panel)
+    appendObjectTexturePanels(target, object.id, object.x, object.y + height, object.z, width, depth)
     if (isSelected) {
       appendBackEdgeHighlight(target, `selected-outline-${object.id}`, object.x, cy, object.z, width, height, depth, params.cameraState)
       appendTransformGizmoNodes(target, `selected-gizmo-${object.id}`, object.x, cy, object.z, Math.max(width, height, depth))
@@ -556,33 +555,20 @@ const appendObjectNodes = (
 const appendCheckerFloorTexture = (
   target: PlaygroundSceneSnapshot['nodes'],
   y: number,
-  sampler?: (u: number, v: number) => string,
 ): void => {
   const step = 96
   const half = 4
-  for (let ix = -half; ix < half; ix += 1) {
-    for (let iz = -half; iz < half; iz += 1) {
-      const even = (ix + iz) % 2 === 0
-      const base = sampler
-        ? sampler((ix + half) / (half * 2), (iz + half) / (half * 2))
-        : sampleProceduralTextureColor('editor-floor', (ix + half) / (half * 2), (iz + half) / (half * 2))
-      pushBoxMeshNode(target, {
-        id: `floor-tex-${ix}-${iz}`,
-        cx: ix * step + step * 0.5,
-        cy: y,
-        cz: iz * step + step * 0.5,
-        width: step,
-        height: 1.2,
-        depth: step,
-        color: even
-          ? base
-          : (sampler
-            ? sampler((ix + half) / (half * 2) + 0.23, (iz + half) / (half * 2) + 0.11)
-            : sampleProceduralTextureColor('editor-floor', (ix + half) / (half * 2) + 0.23, (iz + half) / (half * 2) + 0.11)),
-        materialId: EDITOR_FLOOR_MATERIAL_ID,
-      })
-    }
-  }
+  pushBoxMeshNode(target, {
+    id: 'floor-tex-material-surface',
+    cx: 0,
+    cy: y,
+    cz: 0,
+    width: step * half * 2,
+    height: 1.2,
+    depth: step * half * 2,
+    color: '#6b7280',
+    materialId: EDITOR_FLOOR_MATERIAL_ID,
+  })
 }
 
 const appendObjectTexturePanels = (
@@ -593,30 +579,18 @@ const appendObjectTexturePanels = (
   cz: number,
   width: number,
   depth: number,
-  sampler?: (u: number, v: number) => string,
 ) => {
-  const tile = Math.max(18, Math.min(46, Math.floor(Math.min(width, depth) / 4)))
-  const countX = Math.max(1, Math.floor(width / tile))
-  const countZ = Math.max(1, Math.floor(depth / tile))
-  for (let ix = 0; ix < countX; ix += 1) {
-    for (let iz = 0; iz < countZ; iz += 1) {
-      const px = cx - width * 0.5 + (ix + 0.5) * (width / countX)
-      const pz = cz - depth * 0.5 + (iz + 0.5) * (depth / countZ)
-      pushBoxMeshNode(target, {
-        id: `obj-tex-${objectId}-${ix}-${iz}`,
-        cx: px,
-        cy: topY + 0.75,
-        cz: pz,
-        width: (width / countX) * 0.88,
-        height: 1.2,
-        depth: (depth / countZ) * 0.88,
-        color: sampler
-          ? sampler(ix / Math.max(1, countX), iz / Math.max(1, countZ))
-          : sampleProceduralTextureColor('panel-metal', ix / Math.max(1, countX), iz / Math.max(1, countZ)),
-        materialId: EDITOR_PANEL_MATERIAL_ID,
-      })
-    }
-  }
+  pushBoxMeshNode(target, {
+    id: `obj-tex-${objectId}-material-surface`,
+    cx,
+    cy: topY + 0.75,
+    cz,
+    width: Math.max(1, width * 0.88),
+    height: 1.2,
+    depth: Math.max(1, depth * 0.88),
+    color: '#64748b',
+    materialId: EDITOR_PANEL_MATERIAL_ID,
+  })
 }
 
 export const buildThreeEditorEngineGraph = (
@@ -651,7 +625,7 @@ export const buildThreeEditorEngineGraph = (
   })
 
   if (params.overlayState.gridEnabled) appendGridNodes(nodes, gridY)
-  appendCheckerFloorTexture(nodes, gridY - 1.2, params.textureSamplers?.floor)
+  appendCheckerFloorTexture(nodes, gridY - 1.2)
   appendObjectNodes(nodes, params)
 
   return {nodes, materials}

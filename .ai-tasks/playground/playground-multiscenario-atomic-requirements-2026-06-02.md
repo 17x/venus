@@ -63,7 +63,7 @@ Implemented/partially implemented:
 - Transform gizmo nodes for translate/rotate/scale visuals.
 - Basic transform gizmo interaction.
 - Floor/panel texture graph now submits engine `materials`, mesh `uvs`, and `materialId`.
-- Browser-side sampled public texture fallback remains as visual parity/compatibility layer.
+- Browser-side sampled public texture fallback has been removed after route-level texture parity proof.
 - Lighting now uses `engine.runtime.lighting.applyEnvironment(...)`.
 
 Known gaps:
@@ -72,7 +72,7 @@ Known gaps:
 - Rotation and scale handles need stronger visual and behavioral parity.
 - Selected-object back-edge highlight needs route-level screenshot verification.
 - Atmosphere/haze output from `applyEnvironment` is not yet visualized in 3D editor.
-- True engine UV/material texture path exists for floor/panel, but screenshot parity must still prove decoded texture output before removing fallback tiles.
+- True engine UV/material texture path exists for floor/panel, with browser screenshot parity proving decoded texture output after fallback tile removal.
 - 3D editor does not yet express an authoring/runtime split comparable to S10 game preview.
 
 ### 2.3 Game Current State
@@ -98,7 +98,7 @@ Implemented/partially implemented:
 - Minimap exists with rotation, north pointer, zoom levels, blockers, NPCs, player heading, and sun direction.
 - Sun/moon are sphere meshes rather than boxes.
 - Ground/road texture graph now submits engine `materials`, mesh `uvs`, and `materialId`.
-- Public sampled texture fallback remains as visual parity/compatibility layer for ground/roads.
+- Public sampled texture fallback has been removed after route-level texture parity proof for ground/roads.
 
 Known gaps:
 
@@ -108,8 +108,8 @@ Known gaps:
 - NPC behavior is simple path following; no traffic rules, avoidance, or nav graph.
 - Sun/weather visual layer is MVP atmosphere and light color, no particles for rain/fog.
 - Buildings, pedestrians, cars, lamps are simple procedural geometry; no model/asset runtime.
-- WebGL material texture upload/bind exists; WebGPU parity and browser screenshot proof are still pending.
-- No browser screenshot/canvas-pixel route test currently proves city scene quality.
+- WebGL/WebGPU material texture upload/bind parity exists for the true texture pipeline.
+- Browser screenshot/canvas-pixel route tests prove decoded texture diagnostics on nonblank city/editor canvases.
 
 ## 3. Priority Model
 
@@ -142,7 +142,7 @@ Acceptance:
 
 ### PG-GLOBAL-002 [P0] Scenario adapter boundary contract
 
-Status: PARTIAL
+Status: DONE
 
 Requirement:
 
@@ -299,18 +299,18 @@ Acceptance:
 
 ### PG-3DE-008 [P1] Texture productization bridge
 
-Status: PARTIAL
+Status: DONE
 
 Requirement:
 
 - Submit editor texture surfaces through engine graph `materials`, mesh `uvs`, and `materialId`.
-- Keep sampled-color texture fallback only as temporary visual parity/compatibility coverage.
+- Sampled-color texture fallback has been removed after visual parity proof.
 
 Acceptance:
 
 - Floor and object panel nodes include engine material ids and non-empty UV payloads.
 - Contract test proves the 3D editor scene submits floor/panel texture materials through the engine graph contract.
-- Browser screenshot parity proves decoded WebGL textures before sampled-color fallback is removed.
+- Browser screenshot parity proves decoded WebGL textures after sampled-color fallback removal.
 
 ### PG-3DE-009 [P2] Authoring/runtime split probe
 
@@ -482,18 +482,18 @@ Acceptance:
 
 ### PG-GAME-011 [P1] True texture migration
 
-Status: PARTIAL
+Status: DONE
 
 Requirement:
 
 - Submit ground and road texture surfaces through engine graph `materials`, mesh `uvs`, and `materialId`.
-- Keep sampled-color texture fallback only as temporary visual parity/compatibility coverage.
+- Sampled-color texture fallback has been removed after visual parity proof.
 
 Acceptance:
 
 - Ground and road nodes include engine material ids and non-empty UV payloads.
 - Contract test proves the game scene submits ground/road texture materials through the engine graph contract.
-- Browser screenshot parity proves decoded WebGL textures before sampled-color fallback is removed.
+- Browser screenshot parity proves decoded WebGL textures after sampled-color fallback removal.
 
 ### PG-GAME-012 [P2] Weather particles
 
@@ -667,7 +667,7 @@ Remaining:
 
 ### ENG-PG-002 [P0] True 3D material texture pipeline
 
-Status: PARTIAL
+Status: DONE
 
 Requirement:
 
@@ -700,20 +700,35 @@ Progress:
 - Added contract coverage proving placeholder upload first, decoded-image upload on a later frame, and cache-hit diagnostics.
 - Added WebGL sampler descriptor mapping for wrap/filter texture parameters.
 - Added WebGL texture decode failure diagnostics while keeping placeholder binding active.
+- Added WebGPU native material texture readiness diagnostics:
+  - `webgpuNativeMaterialTextureCandidateCount`
+  - `webgpuNativeMaterialTextureUvReadyCount`
+  - `webgpuNativeMaterialTextureBindingCount`
+  - `webgpuNativeMaterialTextureUploadBytes`
+  - `webgpuNativeMaterialTextureCacheHitCount`
+  - `webgpuNativeMaterialTextureCacheMissCount`
+  - `webgpuNativeMaterialTextureDecodeFailureCount`
+  - `webgpuNativeMaterialTextureDecodeFailureReason`
+  - `webgpuNativeMaterialTextureFallbackReason`
+- Added WebGPU native material texture placeholder upload/cache path using deterministic 1x1 `queue.writeTexture` uploads.
+- Added WebGPU contract coverage proving placeholder upload on first texture-ready frame and cache hit on a later frame.
+- Added WebGPU decoded image texture upload path using `queue.copyExternalImageToTexture` on a later frame.
+- Added WebGPU contract coverage proving decoded-image upload bytes after async `Image` decode.
+- Added WebGPU decoded textured mesh composition present path through native model-complete copy.
+- Added WebGPU contract coverage proving decoded textured mesh `drawImage` composition and WebGPU present on a later frame.
 - Updated bilingual resource/asset ingestion docs with the graph material texture contract.
 - Migrated driving game ground/road graph output to submit engine `materials`, mesh `uvs`, and `materialId`.
 - Migrated 3D editor floor/panel graph output to submit engine `materials`, mesh `uvs`, and `materialId`.
+- Removed playground browser-side sampled-color texture fallback geometry and helper samplers from driving game and 3D editor paths.
 - Added playground contract coverage in `apps/playground/src/testing/playgroundMaterialTextureGraph.contract.test.ts`.
-
-Remaining:
-
-- Implement WebGPU texture upload/bind parity.
-- Add browser screenshot/canvas-pixel parity proving decoded WebGL textures in 3deditor/game.
-- Remove sampled-color fallback tiles after visual parity is proven.
+- Added browser route texture parity coverage in `apps/playground/src/testing/materialTextureBrowserParity.contract.test.ts`:
+  - S10 driving game route proves decoded WebGL material texture upload diagnostics on a nonblank canvas.
+  - 3D editor route proves decoded WebGL material texture upload diagnostics on a nonblank canvas.
+- Added deterministic 3D editor post-decode texture refresh so the route re-renders after backend image decode/upload becomes available.
 
 ### ENG-PG-003 [P1] Multi-light shading quality
 
-Status: PARTIAL
+Status: DONE
 
 Requirement:
 
@@ -723,6 +738,14 @@ Acceptance:
 
 - 3D editor/game lighting changes are obvious in screenshots.
 - Point lights from lamps affect nearby surfaces.
+
+Progress:
+
+- Replaced WebGL native mesh aggregate light-count brightness with deterministic per-mesh shading.
+- WebGL native mesh shading now accounts for `ambient`, `hemisphere`, `directional`, `point`, and `spot` light entity fields.
+- Added backend conformance coverage proving typed runtime lights change submitted native mesh colors and point light range affects intensity.
+- Added browser route parity coverage proving driving game and 3D editor screenshots change when lighting is toggled.
+- Updated bilingual lighting runtime controls docs with native mesh shading behavior and scenario-neutral boundary notes.
 
 ### ENG-PG-004 [P1] Asset/model runtime
 
@@ -763,9 +786,9 @@ pnpm -C packages/engine exec tsx --test src/testing/openWorldRuntime.contract.te
 
 ## 10. Recommended Next Work Order
 
-1. `ENG-PG-001`: promote runtime world/collision/navigation from experimental helpers into stable generic engine APIs, docs, and tests.
-2. `ENG-PG-002`: finish WebGPU parity and browser visual proof, then remove sampled-color texture fallback from 3deditor/game.
-3. `ENG-PG-003`: complete multi-light shading quality so environment/light changes are visibly meaningful in engine output.
+1. `ENG-PG-004`: define generic asset/model runtime hooks, diagnostics, and playground validation path.
+2. `ENG-PG-005`: define generic authoring/runtime graph split and parity diagnostics.
+3. Continue P0 global scenario validation items (`PG-GLOBAL-001`, `PG-GLOBAL-003`) when engine capability work pauses.
 4. `ENG-PG-004`: define generic model/asset runtime API for vehicles, pedestrians, lamps, props, and editor objects.
 5. `ENG-PG-005`: define authoring/runtime parity API shared by S10 game and 3D editor.
 6. `PG-GAME-002`: keep the city generator seed-driven as validation input for the engine world APIs.

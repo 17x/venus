@@ -4,7 +4,6 @@ import {createEngineCameraController} from '@venus/engine'
 import type {EngineCameraState as ThreeEditorCameraState} from '@venus/engine'
 import type {EngineCameraFrameBounds} from '@venus/engine'
 import {createRawInputToCameraCommandAdapter} from './rawInputToCameraCommandAdapter'
-import {createTextureSamplerFromUrl, type TextureSampler} from '../materials/webTextureSampler'
 import {
   DEFAULT_THREE_EDITOR_WORLD_OBJECTS,
   type ThreeEditorLightingMode,
@@ -16,6 +15,8 @@ const STAGE_HEIGHT = 460
 const DEFAULT_YAW = 0
 const DEFAULT_PITCH = 0
 const PICK_TOLERANCE = 10
+const POST_DECODE_TEXTURE_REFRESH_LIMIT = 12
+const PLACEHOLDER_TEXTURE_UPLOAD_BYTES_PER_TEXTURE = 4
 
 /**
  * Mounts a rebuilt 3D-editor runtime where rendering is delegated to engine graph synthesis.
@@ -125,7 +126,8 @@ export const mountThreeEditorRuntime = (): void => {
   let hoverEntityId: string | null = null
   let selectedEntityId: string | null = null
   let worldObjects = DEFAULT_THREE_EDITOR_WORLD_OBJECTS.map((object) => ({...object}))
-  let textureSamplers: {floor?: TextureSampler; panel?: TextureSampler} = {}
+  let postDecodeTextureRefreshAttempts = 0
+  let postDecodeTextureRefreshPending = false
   let gizmoDragState:
     | null
     | {
@@ -164,16 +166,6 @@ export const mountThreeEditorRuntime = (): void => {
     backend: 'webgl',
     strict3d: true,
   })
-  void Promise.all([
-    createTextureSamplerFromUrl('/textures/asphalt_cc0_oga.png'),
-    createTextureSamplerFromUrl('/textures/grass_cc0_oga.png'),
-  ]).then(([floor, panel]) => {
-    textureSamplers = {floor, panel}
-    void renderInteractiveScene()
-  }).catch(() => {
-    textureSamplers = {}
-  })
-
   /**
    * Rebuilds runtime graph nodes from current state and submits them to engine.
    */
@@ -200,7 +192,6 @@ export const mountThreeEditorRuntime = (): void => {
       worldObjects,
       selectedEntityId,
       hoverEntityId,
-      textureSamplers,
     })
     sceneRevision += 1
     engine.setGraph({
@@ -251,9 +242,24 @@ export const mountThreeEditorRuntime = (): void => {
    */
   const refreshStatus = (): void => {
     const diagnostics = engine.getDiagnostics()
+    const backend = (diagnostics.backendDiagnostics as Record<string, unknown> | undefined) ?? undefined
     const stats = engine.getStats()
     const graphNodes = engine.getGraph().nodes
     const nodeCount = diagnostics.framePlan?.sceneNodeCount ?? graphNodes.length
+    statusLine.dataset.webglMaterialTextureCandidateCount = String(backend?.webglNativeMaterialTextureCandidateCount ?? 0)
+    statusLine.dataset.webglMaterialTextureUvReadyCount = String(backend?.webglNativeMaterialTextureUvReadyCount ?? 0)
+    statusLine.dataset.webglMaterialTextureBindingCount = String(backend?.webglNativeMaterialTextureBindingCount ?? 0)
+    const uploadBytes = Number(backend?.webglNativeMaterialTextureUploadBytes ?? 0)
+    const uploadBytesMax = Math.max(Number(statusLine.dataset.webglMaterialTextureUploadBytesMax ?? 0), uploadBytes)
+    statusLine.dataset.webglMaterialTextureUploadBytes = String(uploadBytes)
+    statusLine.dataset.webglMaterialTextureUploadBytesMax = String(uploadBytesMax)
+    statusLine.dataset.webglMaterialTextureCacheHitCount = String(backend?.webglNativeMaterialTextureCacheHitCount ?? 0)
+    statusLine.dataset.webglMaterialTextureCacheMissCount = String(backend?.webglNativeMaterialTextureCacheMissCount ?? 0)
+    const cacheHitCount = Number(backend?.webglNativeMaterialTextureCacheHitCount ?? 0)
+    if (cacheHitCount > 0 && uploadBytes > 0) {
+      statusLine.dataset.webglMaterialTextureDecodedUploadObserved = 'true'
+    }
+    statusLine.dataset.webglMaterialTextureFallbackReason = String(backend?.webglNativeMaterialTextureFallbackReason ?? 'none')
     statusLine.textContent = [
       'scenario 3d-editor-validation',
       `nodes ${nodeCount}`,
@@ -288,6 +294,26 @@ export const mountThreeEditorRuntime = (): void => {
     refreshDocumentModel()
     refreshInspectorTelemetry()
     refreshStatus()
+  }
+
+  const schedulePostDecodeTextureRefresh = (): void => {
+    const candidateCount = Number(statusLine.dataset.webglMaterialTextureCandidateCount ?? 0)
+    const uploadBytesMax = Number(statusLine.dataset.webglMaterialTextureUploadBytesMax ?? 0)
+    const decodedUploadThreshold = Math.max(PLACEHOLDER_TEXTURE_UPLOAD_BYTES_PER_TEXTURE, candidateCount * PLACEHOLDER_TEXTURE_UPLOAD_BYTES_PER_TEXTURE)
+    if (
+      candidateCount <= 0
+      || uploadBytesMax > decodedUploadThreshold
+      || postDecodeTextureRefreshPending
+      || postDecodeTextureRefreshAttempts >= POST_DECODE_TEXTURE_REFRESH_LIMIT
+    ) {
+      return
+    }
+    postDecodeTextureRefreshPending = true
+    postDecodeTextureRefreshAttempts += 1
+    window.requestAnimationFrame(() => {
+      postDecodeTextureRefreshPending = false
+      void renderInteractiveScene()
+    })
   }
 
   const drawGlobalGizmoOverlay = (): void => {
@@ -333,6 +359,7 @@ export const mountThreeEditorRuntime = (): void => {
   const renderInteractiveScene = async (): Promise<void> => {
     applyRuntimeGraph()
     await renderNow()
+    schedulePostDecodeTextureRefresh()
   }
 
   const cameraController = createEngineCameraController({

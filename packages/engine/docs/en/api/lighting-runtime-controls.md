@@ -15,10 +15,18 @@ Replace active runtime light collection.
 ```ts
 engine.runtime.lighting.setCollection({
   lights: [
-    { id: 'key', type: 'directional', color: '#ffffff', intensity: 1.1, targetX: 0, targetY: 0, targetZ: 0 },
-    { id: 'ambient', type: 'ambient', color: '#f8fafc', intensity: 0.2 },
+    {
+      id: "key",
+      type: "directional",
+      color: "#ffffff",
+      intensity: 1.1,
+      targetX: 0,
+      targetY: 0,
+      targetZ: 0,
+    },
+    { id: "ambient", type: "ambient", color: "#f8fafc", intensity: 0.2 },
   ],
-})
+});
 ```
 
 ### `engine.runtime.lighting.getCollection()`
@@ -55,8 +63,19 @@ engine.runtime.lighting.applyEnvironment({
   directionalIntensity: 1.1,
   ambientIntensity: 0.25,
   additionalLights: [],
-})
+});
 ```
+
+## Native Mesh Shading
+
+The active light collection is forwarded into native mesh frame payloads. The WebGL native mesh presenter applies deterministic per-mesh shading before submitting draw colors:
+
+- `ambient` lights add uniform color contribution.
+- `hemisphere` lights blend sky and ground colors from the mesh surface normal.
+- `directional` lights use the light target vector and mesh surface normal.
+- `point` and `spot` lights use mesh center distance, decay, range, and surface direction.
+
+Playground browser parity covers both the driving game and 3D editor routes by comparing canvas screenshots with lighting enabled and disabled. The S10 game route keeps lamp point lights as generic `point` entities so nearby surfaces visibly change without adding game-specific engine API names.
 
 ## Boundary Rules
 

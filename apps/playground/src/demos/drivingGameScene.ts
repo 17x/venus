@@ -1,6 +1,4 @@
 import type {DrivingGameState} from './drivingGameTypes'
-import {sampleProceduralTextureColor} from '../runtime/materials/proceduralTextureAtlas'
-import type {TextureSampler} from '../runtime/materials/webTextureSampler'
 import type {CityObstacle} from './cityWorldGenerator'
 
 const pushBoxMesh = (
@@ -118,10 +116,6 @@ const pushSphereMesh = (
 
 export function buildDrivingGameScene(
   state: DrivingGameState,
-  textureSamplers?: {
-    ground?: TextureSampler
-    road?: TextureSampler
-  },
 ) {
   const {config: cfg, carX, carY, carYaw} = state
   const ms = cfg.mapSize
@@ -219,33 +213,6 @@ export function buildDrivingGameScene(
       : '#555555'
   // Ground and roads as flat boxes on XZ plane.
   pushBoxMesh(nodes, {id: 'ground', cx: 0, cy: -4, cz: 0, width: ms, height: 2, depth: ms, color: weatherGround, materialId: 'game-ground-material'})
-  const patch = Math.max(10, Math.floor(ms / 28))
-  const tile = ms / patch
-  for (let ix = 0; ix < patch; ix += 1) {
-    for (let iz = 0; iz < patch; iz += 1) {
-      const px = -ms * 0.5 + tile * (ix + 0.5)
-      const pz = -ms * 0.5 + tile * (iz + 0.5)
-      const even = (ix + iz) % 2 === 0
-      const texColor = textureSamplers?.ground
-        ? textureSamplers.ground(ix / patch, iz / patch)
-        : sampleProceduralTextureColor('ground-grass', ix / patch, iz / patch)
-      pushBoxMesh(nodes, {
-        id: `ground-tex-${ix}-${iz}`,
-        cx: px,
-        cy: -2.94,
-        cz: pz,
-        width: tile * 0.96,
-        height: 0.16,
-        depth: tile * 0.96,
-        color: even
-          ? texColor
-          : (textureSamplers?.ground
-            ? textureSamplers.ground(ix / patch + 0.37, iz / patch + 0.19)
-            : sampleProceduralTextureColor('ground-grass', ix / patch + 0.37, iz / patch + 0.19)),
-        materialId: 'game-ground-material',
-      })
-    }
-  }
 
   if (cfg.worldGridEnabled) {
     const gridStep = Math.max(8, cfg.worldGridStep)
@@ -296,10 +263,7 @@ export function buildDrivingGameScene(
   }
 
   for (const road of state.cityMap.roads) {
-    const roadColor = textureSamplers?.road
-      ? textureSamplers.road((road.cx + ms * 0.5) / ms, (road.cz + ms * 0.5) / ms)
-      : sampleProceduralTextureColor('road-asphalt', (road.cx + ms * 0.5) / ms, (road.cz + ms * 0.5) / ms)
-    pushBoxMesh(nodes, {id: `road-${road.id}`, cx: road.cx, cy: -2, cz: road.cz, width: road.w, height: 2, depth: road.d, color: roadColor || weatherRoad, materialId: 'game-road-material'})
+    pushBoxMesh(nodes, {id: `road-${road.id}`, cx: road.cx, cy: -2, cz: road.cz, width: road.w, height: 2, depth: road.d, color: weatherRoad, materialId: 'game-road-material'})
     const span = road.axis === 'x' ? road.w : road.d
     for (let m = -span * 0.5 + 12; m < span * 0.5; m += 28) {
       const mx = road.axis === 'x' ? road.cx + m : road.cx

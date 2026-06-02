@@ -153,6 +153,20 @@ type RuntimeBackendDiagnosticsFoundationDependencies = {
         | "missing-uv"
         | "texture-upload-not-implemented"
         | "decode-failed";
+      webgpuNativeMaterialTextureCandidateCount: number;
+      webgpuNativeMaterialTextureUvReadyCount: number;
+      webgpuNativeMaterialTextureBindingCount: number;
+      webgpuNativeMaterialTextureUploadBytes: number;
+      webgpuNativeMaterialTextureCacheHitCount: number;
+      webgpuNativeMaterialTextureCacheMissCount: number;
+      webgpuNativeMaterialTextureDecodeFailureCount: number;
+      webgpuNativeMaterialTextureDecodeFailureReason: "none" | "image-load-failed";
+      webgpuNativeMaterialTextureFallbackReason:
+        | "none"
+        | "missing-material"
+        | "missing-uv"
+        | "texture-upload-not-implemented"
+        | "decode-failed";
       shadowMapCount: number;
       shadowDrawCallCount: number;
       shadowTextureBytes: number;

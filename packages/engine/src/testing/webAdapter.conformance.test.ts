@@ -488,6 +488,145 @@ test("webgl adapter emits model-complete diagnostics from native mesh payload", 
 });
 
 /**
+ * Verifies typed runtime lights influence native mesh color submission instead of acting as a flat light-count scalar.
+ */
+test("webgl adapter applies directional ambient hemisphere and point lights to native mesh shading", () => {
+  const submittedColors: Array<[number, number, number, number]> = [];
+  let currentLights: NonNullable<ReturnType<NonNullable<Parameters<typeof createWebGLBackendAdapter>[1]>["resolveNativeFramePayload"]>>["lights"] = [];
+  let lastDiagnostics: {
+    webglRenderPath: "model-complete" | "packet" | "none";
+    webglNativeMeshSubmittedCount: number;
+    activeLightCount: number;
+  } | null = null;
+
+  const surface = {
+    width: 320,
+    height: 200,
+    canvas: {
+      width: 320,
+      height: 200,
+      getContext: (contextId: "2d" | "webgl" | "webgl2") => {
+        if (contextId !== "webgl2") {
+          return null;
+        }
+        return {
+          viewport() {},
+          clearColor() {},
+          clear() {},
+          enable() {},
+          disable() {},
+          scissor() {},
+          createShader() {
+            return {} as WebGLShader;
+          },
+          shaderSource() {},
+          compileShader() {},
+          createProgram() {
+            return {} as WebGLProgram;
+          },
+          attachShader() {},
+          linkProgram() {},
+          useProgram() {},
+          createBuffer() {
+            return {} as WebGLBuffer;
+          },
+          bindBuffer() {},
+          bufferData() {},
+          getAttribLocation() {
+            return 0;
+          },
+          enableVertexAttribArray() {},
+          vertexAttribPointer() {},
+          drawArrays() {},
+          getUniformLocation() {
+            return {} as WebGLUniformLocation;
+          },
+          uniform4f(_location: WebGLUniformLocation, r: number, g: number, b: number, a: number) {
+            submittedColors.push([r, g, b, a]);
+          },
+          getShaderParameter() {
+            return true;
+          },
+          getProgramParameter() {
+            return true;
+          },
+          drawingBufferWidth: 320,
+          drawingBufferHeight: 200,
+          COLOR_BUFFER_BIT: 0x4000,
+          DEPTH_BUFFER_BIT: 0x0100,
+          DEPTH_TEST: 0x0b71,
+          LEQUAL: 0x0203,
+          SCISSOR_TEST: 0x0c11,
+          FRAMEBUFFER: 0x8d40,
+          ARRAY_BUFFER: 0x8892,
+          STREAM_DRAW: 0x88e0,
+          VERTEX_SHADER: 0x8b31,
+          FRAGMENT_SHADER: 0x8b30,
+          COMPILE_STATUS: 0x8b81,
+          LINK_STATUS: 0x8b82,
+          FLOAT: 0x1406,
+          TRIANGLES: 0x0004,
+          BLEND: 0x0be2,
+          SRC_ALPHA: 0x0302,
+          ONE_MINUS_SRC_ALPHA: 0x0303,
+          bindFramebuffer() {},
+          clearDepth() {},
+          depthFunc() {},
+          blendFunc() {},
+          deleteProgram() {},
+          deleteBuffer() {},
+        } as unknown as WebGL2RenderingContext;
+      },
+    },
+  };
+
+  const backend = createWebGLBackendAdapter(surface, {
+    onBackendDiagnostics: (diagnostics) => {
+      lastDiagnostics = diagnostics;
+    },
+    resolveNativeFramePayload: () => ({
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      rects: [],
+      lights: currentLights,
+      meshes: [
+        {
+          id: "flat-lit-surface",
+          positions: [-40, 0, -40, 40, 0, -40, -40, 0, 40, 40, 0, 40],
+          indices: [0, 1, 2, 2, 1, 3],
+          color: "#808080",
+        },
+      ],
+    }),
+  });
+
+  const renderWithLights = (lights: typeof currentLights): [number, number, number, number] => {
+    currentLights = lights;
+    backend.resize(surface);
+    backend.renderFrame(1);
+    const color = submittedColors.at(-1);
+    assert.ok(color);
+    return color;
+  };
+
+  const unlit = renderWithLights([]);
+  const ambient = renderWithLights([{ id: "ambient", type: "ambient", color: "#ff0000", intensity: 1 }]);
+  const hemisphere = renderWithLights([{ id: "hemi", type: "hemisphere", color: "#0000ff", groundColor: "#00ff00", intensity: 1 }]);
+  const directional = renderWithLights([{ id: "sun", type: "directional", color: "#ffffff", intensity: 1, targetX: 0, targetY: -100, targetZ: 0 }]);
+  const pointNear = renderWithLights([{ id: "lamp", type: "point", color: "#ffffff", intensity: 1, positionX: 0, positionY: 20, positionZ: 0, distance: 80, decay: 1 }]);
+  const pointFar = renderWithLights([{ id: "lamp", type: "point", color: "#ffffff", intensity: 1, positionX: 0, positionY: 20, positionZ: 0, distance: 5, decay: 1 }]);
+
+  assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
+  assert.equal(lastDiagnostics?.webglNativeMeshSubmittedCount, 1);
+  assert.equal(lastDiagnostics?.activeLightCount, 1);
+  assert.equal(ambient[0] > ambient[1], true);
+  assert.equal(hemisphere[1] !== unlit[1] || hemisphere[2] !== unlit[2], true);
+  assert.equal(directional[0] > unlit[0] * 0.9, true);
+  assert.equal(pointNear[0] > pointFar[0], true);
+});
+
+/**
  * Verifies WebGL adapter classifies native mesh submission rejections by deterministic reason counters.
  */
 test("webgl adapter classifies native mesh rejection diagnostics", () => {
@@ -1006,6 +1145,505 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
     assert.equal(drawArraysCount > 0, true);
     assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
   } finally {
+    Object.defineProperty(globalThis, "OffscreenCanvas", {
+      configurable: true,
+      value: originalOffscreenCanvas,
+    });
+  }
+});
+
+test("webgpu adapter reports native material texture placeholder upload and cache reuse", async () => {
+  const originalNavigator = globalThis.navigator;
+  let lastDiagnostics: {
+    webgpuNativeMaterialTextureCandidateCount: number;
+    webgpuNativeMaterialTextureUvReadyCount: number;
+    webgpuNativeMaterialTextureBindingCount: number;
+    webgpuNativeMaterialTextureUploadBytes: number;
+    webgpuNativeMaterialTextureCacheHitCount: number;
+    webgpuNativeMaterialTextureCacheMissCount: number;
+    webgpuNativeMaterialTextureFallbackReason: string;
+  } | null = null;
+  let writeTextureCount = 0;
+  let createTextureCount = 0;
+
+  try {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        gpu: {
+          async requestAdapter() {
+            return {
+              async requestDevice() {
+                return {
+                  createTexture() {
+                    createTextureCount += 1;
+                    return { token: `texture-${createTextureCount}` };
+                  },
+                  createCommandEncoder() {
+                    return {
+                      beginRenderPass() {
+                        return {
+                          end() {},
+                        };
+                      },
+                      finish() {
+                        return { token: "cmd" };
+                      },
+                    };
+                  },
+                  queue: {
+                    submit() {},
+                    writeTexture() {
+                      writeTextureCount += 1;
+                    },
+                  },
+                };
+              },
+            };
+          },
+          getPreferredCanvasFormat() {
+            return "bgra8unorm";
+          },
+        },
+      },
+    });
+
+    const surface = {
+      width: 160,
+      height: 100,
+      canvas: {
+        width: 160,
+        height: 100,
+        getContext: (contextId: string) => {
+          if (contextId !== "webgpu") {
+            return null;
+          }
+          return {
+            configure() {},
+            getCurrentTexture() {
+              return {
+                createView() {
+                  return {};
+                },
+              };
+            },
+          };
+        },
+      },
+    };
+
+    const backend = createWebGPUBackendAdapter(surface, {
+      onBackendDiagnostics: (diagnostics) => {
+        lastDiagnostics = diagnostics;
+      },
+      resolveNativeFramePayload: () => ({
+        translateX: 0,
+        translateY: 0,
+        scale: 1,
+        rects: [],
+        nodes: [],
+        materials: [
+          {
+            id: "mat-ground",
+            type: "unlit",
+            baseColorTexture: "data:image/png;base64,texture-a",
+          },
+        ],
+        meshes: [
+          {
+            id: "mesh-ground",
+            positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+            uvs: [0, 0, 1, 0, 0, 1],
+            materialId: "mat-ground",
+          },
+        ],
+      }),
+    });
+
+    backend.resize(surface);
+    await backend.renderFrame(1);
+
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCandidateCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUvReadyCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureBindingCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUploadBytes, 4);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheHitCount, 0);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheMissCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureFallbackReason, "none");
+    assert.equal(writeTextureCount, 1);
+
+    await backend.renderFrame(2);
+
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCandidateCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUvReadyCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureBindingCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUploadBytes, 0);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheHitCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheMissCount, 0);
+    assert.equal(writeTextureCount, 1);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: originalNavigator,
+    });
+  }
+});
+
+test("webgpu adapter uploads decoded material texture image on later frame", async () => {
+  const originalNavigator = globalThis.navigator;
+  const originalImage = (globalThis as { Image?: unknown }).Image;
+  let lastDiagnostics: {
+    webgpuNativeMaterialTextureBindingCount: number;
+    webgpuNativeMaterialTextureUploadBytes: number;
+    webgpuNativeMaterialTextureCacheHitCount: number;
+    webgpuNativeMaterialTextureCacheMissCount: number;
+    webgpuNativeMaterialTextureDecodeFailureCount: number;
+    webgpuNativeMaterialTextureFallbackReason: string;
+  } | null = null;
+  let writeTextureCount = 0;
+  let copyExternalImageCount = 0;
+
+  class MockDecodedImage {
+    crossOrigin = "";
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    width = 2;
+    height = 2;
+
+    set src(_value: string) {
+      queueMicrotask(() => this.onload?.());
+    }
+  }
+
+  try {
+    Object.defineProperty(globalThis, "Image", {
+      configurable: true,
+      value: MockDecodedImage,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        gpu: {
+          async requestAdapter() {
+            return {
+              async requestDevice() {
+                return {
+                  createTexture() {
+                    return { token: "texture-a" };
+                  },
+                  createCommandEncoder() {
+                    return {
+                      beginRenderPass() {
+                        return {
+                          end() {},
+                        };
+                      },
+                      finish() {
+                        return { token: "cmd" };
+                      },
+                    };
+                  },
+                  queue: {
+                    submit() {},
+                    writeTexture() {
+                      writeTextureCount += 1;
+                    },
+                    copyExternalImageToTexture() {
+                      copyExternalImageCount += 1;
+                    },
+                  },
+                };
+              },
+            };
+          },
+          getPreferredCanvasFormat() {
+            return "bgra8unorm";
+          },
+        },
+      },
+    });
+
+    const surface = {
+      width: 160,
+      height: 100,
+      canvas: {
+        width: 160,
+        height: 100,
+        getContext: (contextId: string) => {
+          if (contextId !== "webgpu") {
+            return null;
+          }
+          return {
+            configure() {},
+            getCurrentTexture() {
+              return {
+                createView() {
+                  return {};
+                },
+              };
+            },
+          };
+        },
+      },
+    };
+
+    const backend = createWebGPUBackendAdapter(surface, {
+      onBackendDiagnostics: (diagnostics) => {
+        lastDiagnostics = diagnostics;
+      },
+      resolveNativeFramePayload: () => ({
+        translateX: 0,
+        translateY: 0,
+        scale: 1,
+        rects: [],
+        nodes: [],
+        materials: [
+          {
+            id: "mat-decoded",
+            type: "unlit",
+            baseColorTexture: "data:image/mock;base64,AAAA",
+          },
+        ],
+        meshes: [
+          {
+            id: "mesh-decoded",
+            positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+            uvs: [0, 0, 1, 0, 0, 1],
+            materialId: "mat-decoded",
+          },
+        ],
+      }),
+    });
+
+    backend.resize(surface);
+    await backend.renderFrame(1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureBindingCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUploadBytes, 4);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheMissCount, 1);
+    assert.equal(writeTextureCount, 1);
+    assert.equal(copyExternalImageCount, 0);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await backend.renderFrame(2);
+
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureBindingCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUploadBytes, 16);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheHitCount, 1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheMissCount, 0);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureDecodeFailureCount, 0);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureFallbackReason, "none");
+    assert.equal(copyExternalImageCount, 1);
+
+    await backend.renderFrame(3);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUploadBytes, 0);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureCacheHitCount, 1);
+    assert.equal(copyExternalImageCount, 1);
+    backend.dispose();
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: originalNavigator,
+    });
+    if (typeof originalImage === "undefined") {
+      Reflect.deleteProperty(globalThis, "Image");
+    } else {
+      Object.defineProperty(globalThis, "Image", {
+        configurable: true,
+        value: originalImage,
+      });
+    }
+  }
+});
+
+test("webgpu adapter presents decoded textured mesh through native model-complete copy", async () => {
+  const originalNavigator = globalThis.navigator;
+  const originalImage = (globalThis as { Image?: unknown }).Image;
+  const originalOffscreenCanvas = (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas;
+  let lastDiagnostics: {
+    webgpuRenderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" | "native-model-complete";
+    webgpuNativeMaterialTextureUploadBytes: number;
+    webgpuNativeMaterialTextureBindingCount: number;
+  } | null = null;
+  let decodedImageCopyCount = 0;
+  let compositionCanvasCopyCount = 0;
+  let drawImageCount = 0;
+
+  class MockDecodedImage {
+    crossOrigin = "";
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    width = 2;
+    height = 2;
+
+    set src(_value: string) {
+      queueMicrotask(() => this.onload?.());
+    }
+  }
+
+  class FakeOffscreenCanvas {
+    width: number;
+    height: number;
+
+    constructor(width: number, height: number) {
+      this.width = width;
+      this.height = height;
+    }
+
+    getContext(contextId: "2d") {
+      if (contextId !== "2d") {
+        return null;
+      }
+      return {
+        save() {},
+        restore() {},
+        setTransform() {},
+        clearRect() {},
+        fillRect() {},
+        translate() {},
+        scale() {},
+        drawImage() {
+          drawImageCount += 1;
+        },
+        fillStyle: "#ffffff",
+      } as unknown as OffscreenCanvasRenderingContext2D;
+    }
+  }
+
+  try {
+    Object.defineProperty(globalThis, "Image", {
+      configurable: true,
+      value: MockDecodedImage,
+    });
+    Object.defineProperty(globalThis, "OffscreenCanvas", {
+      configurable: true,
+      value: FakeOffscreenCanvas,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        gpu: {
+          async requestAdapter() {
+            return {
+              async requestDevice() {
+                return {
+                  createTexture() {
+                    return { token: "texture-a" };
+                  },
+                  createCommandEncoder() {
+                    return {
+                      beginRenderPass() {
+                        return {
+                          end() {},
+                        };
+                      },
+                      finish() {
+                        return { token: "cmd" };
+                      },
+                    };
+                  },
+                  queue: {
+                    submit() {},
+                    writeTexture() {},
+                    copyExternalImageToTexture(source: { source: unknown }) {
+                      if (source.source instanceof MockDecodedImage) {
+                        decodedImageCopyCount += 1;
+                      } else {
+                        compositionCanvasCopyCount += 1;
+                      }
+                    },
+                  },
+                };
+              },
+            };
+          },
+          getPreferredCanvasFormat() {
+            return "bgra8unorm";
+          },
+        },
+      },
+    });
+
+    const surface = {
+      width: 160,
+      height: 100,
+      canvas: {
+        width: 160,
+        height: 100,
+        getContext: (contextId: string) => {
+          if (contextId !== "webgpu") {
+            return null;
+          }
+          return {
+            configure() {},
+            getCurrentTexture() {
+              return {
+                createView() {
+                  return {};
+                },
+              };
+            },
+          };
+        },
+      },
+    };
+
+    const backend = createWebGPUBackendAdapter(surface, {
+      onBackendDiagnostics: (diagnostics) => {
+        lastDiagnostics = diagnostics;
+      },
+      resolveNativeFramePayload: () => ({
+        translateX: 0,
+        translateY: 0,
+        scale: 1,
+        rects: [],
+        nodes: [],
+        materials: [
+          {
+            id: "mat-presented",
+            type: "unlit",
+            baseColorTexture: "data:image/mock;base64,presented",
+          },
+        ],
+        meshes: [
+          {
+            id: "mesh-presented",
+            positions: [10, 10, 0, 90, 10, 0, 10, 70, 0],
+            uvs: [0, 0, 1, 0, 0, 1],
+            materialId: "mat-presented",
+          },
+        ],
+      }),
+    });
+
+    backend.resize(surface);
+    await backend.renderFrame(1);
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureBindingCount, 1);
+    assert.equal(lastDiagnostics?.webgpuRenderPath, "native-clear-only");
+    assert.equal(drawImageCount, 0);
+    assert.equal(compositionCanvasCopyCount, 0);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await backend.renderFrame(2);
+
+    assert.equal(lastDiagnostics?.webgpuRenderPath, "native-model-complete");
+    assert.equal(lastDiagnostics?.webgpuNativeMaterialTextureUploadBytes, 16);
+    assert.equal(decodedImageCopyCount, 1);
+    assert.equal(drawImageCount, 1);
+    assert.equal(compositionCanvasCopyCount, 1);
+    backend.dispose();
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: originalNavigator,
+    });
+    if (typeof originalImage === "undefined") {
+      Reflect.deleteProperty(globalThis, "Image");
+    } else {
+      Object.defineProperty(globalThis, "Image", {
+        configurable: true,
+        value: originalImage,
+      });
+    }
     Object.defineProperty(globalThis, "OffscreenCanvas", {
       configurable: true,
       value: originalOffscreenCanvas,

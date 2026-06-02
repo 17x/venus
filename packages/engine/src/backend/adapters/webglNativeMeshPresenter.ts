@@ -1,4 +1,5 @@
 import type { EngineMaterialEntity } from "../../orchestration/api/public-types/material.types";
+import type { EngineLightEntity } from "../../orchestration/api/public-types/lighting.types";
 
 /** Declares one mesh primitive emitted by native frame payload for WebGL mesh submission. */
 export type WebGLNativeMeshPrimitive = {
@@ -30,8 +31,8 @@ export type WebGLNativeMeshPayload = {
   meshes?: ReadonlyArray<WebGLNativeMeshPrimitive>;
   /** Optional material registry referenced by mesh primitives. */
   materials?: ReadonlyArray<EngineMaterialEntity>;
-  /** Optional ordered light entities for diagnostics/telemetry correlation. */
-  lights?: ReadonlyArray<{ id: string; type: string; intensity?: number }>;
+  /** Optional ordered light entities consumed by native mesh shading and diagnostics. */
+  lights?: ReadonlyArray<EngineLightEntity>;
   /** Optional shared 3D camera packet used to project world xyz into clip space. */
   camera3d?: {
     yaw: number;
@@ -217,14 +218,19 @@ const CAMERA_UP_X = 0;
 const CAMERA_UP_Y = 1;
 const CAMERA_UP_Z = 0;
 const CAMERA_EPSILON = 0.0001;
-const LIGHT_INTENSITY_BASE = 0.35;
-const LIGHT_INTENSITY_GAIN = 0.22;
-const LIGHT_INTENSITY_MAX = 1.35;
+const LIGHTING_FACTOR_MIN = 0.08;
+const LIGHTING_FACTOR_MAX = 1.65;
+const DIRECTIONAL_LIGHT_GAIN = 0.9;
+const POINT_LIGHT_GAIN = 1.25;
+const SPOT_LIGHT_GAIN = 1.15;
+const HEMISPHERE_LIGHT_GAIN = 0.85;
 const MATERIAL_TEXTURE_PLACEHOLDER_BYTES = 4;
 
 type ProjectedPoint = { clipX: number; clipY: number; clipZ: number; depth: number; visible: boolean };
+type Vec3 = { x: number; y: number; z: number };
+type RgbFactor = { r: number; g: number; b: number };
 
-function normalize3(x: number, y: number, z: number): { x: number; y: number; z: number } {
+function normalize3(x: number, y: number, z: number): Vec3 {
   const len = Math.hypot(x, y, z);
   if (len <= CAMERA_EPSILON) {
     return { x: 0, y: 0, z: 1 };
@@ -239,7 +245,7 @@ function cross3(
   bx: number,
   by: number,
   bz: number,
-): { x: number; y: number; z: number } {
+): Vec3 {
   return {
     x: ay * bz - az * by,
     y: az * bx - ax * bz,
@@ -256,6 +262,97 @@ function dot3(
   bz: number,
 ): number {
   return ax * bx + ay * by + az * bz;
+}
+
+function clampUnit(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function clampLightingFactor(value: number): number {
+  return Math.max(LIGHTING_FACTOR_MIN, Math.min(LIGHTING_FACTOR_MAX, value));
+}
+
+function resolveLightColorFactor(
+  light: EngineLightEntity,
+  resolveNormalizedColor: (color: string) => [number, number, number, number],
+): RgbFactor {
+  const [r, g, b] = resolveNormalizedColor(light.color);
+  return { r, g, b };
+}
+
+function addScaledLight(target: RgbFactor, color: RgbFactor, amount: number): void {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+  target.r += color.r * amount;
+  target.g += color.g * amount;
+  target.b += color.b * amount;
+}
+
+function resolveMeshCentroidAndNormal(mesh: WebGLNativeMeshPrimitive): { center: Vec3; normal: Vec3 } {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
+  for (let index = 0; index < vertexCount; index += 1) {
+    const base = index * POSITION_COMPONENT_STRIDE;
+    const x = mesh.positions[base] ?? 0;
+    const y = mesh.positions[base + 1] ?? 0;
+    const z = mesh.positions[base + 2] ?? 0;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+    maxZ = Math.max(maxZ, z);
+  }
+  const rangeX = Number.isFinite(maxX - minX) ? maxX - minX : 0;
+  const rangeY = Number.isFinite(maxY - minY) ? maxY - minY : 0;
+  const rangeZ = Number.isFinite(maxZ - minZ) ? maxZ - minZ : 0;
+  const center = {
+    x: Number.isFinite(minX + maxX) ? (minX + maxX) * 0.5 : 0,
+    y: Number.isFinite(minY + maxY) ? (minY + maxY) * 0.5 : 0,
+    z: Number.isFinite(minZ + maxZ) ? (minZ + maxZ) * 0.5 : 0,
+  };
+  if (rangeY <= Math.max(CAMERA_EPSILON, Math.min(rangeX, rangeZ) * 0.08)) {
+    return { center, normal: { x: 0, y: 1, z: 0 } };
+  }
+
+  const resolvePosition = (vertexIndex: number): Vec3 => {
+    const base = vertexIndex * POSITION_COMPONENT_STRIDE;
+    return {
+      x: mesh.positions[base] ?? 0,
+      y: mesh.positions[base + 1] ?? 0,
+      z: mesh.positions[base + 2] ?? 0,
+    };
+  };
+  const indices = Array.isArray(mesh.indices) && mesh.indices.length >= TRIANGLE_INDEX_STRIDE
+    ? mesh.indices
+    : undefined;
+  const triangleCount = indices
+    ? Math.floor(indices.length / TRIANGLE_INDEX_STRIDE)
+    : Math.floor(vertexCount / TRIANGLE_INDEX_STRIDE);
+  for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
+    const aIndex = indices ? Math.floor(indices[triangleIndex * TRIANGLE_INDEX_STRIDE] ?? 0) : triangleIndex * TRIANGLE_INDEX_STRIDE;
+    const bIndex = indices ? Math.floor(indices[triangleIndex * TRIANGLE_INDEX_STRIDE + 1] ?? 0) : triangleIndex * TRIANGLE_INDEX_STRIDE + 1;
+    const cIndex = indices ? Math.floor(indices[triangleIndex * TRIANGLE_INDEX_STRIDE + 2] ?? 0) : triangleIndex * TRIANGLE_INDEX_STRIDE + 2;
+    if (aIndex < 0 || bIndex < 0 || cIndex < 0 || aIndex >= vertexCount || bIndex >= vertexCount || cIndex >= vertexCount) {
+      continue;
+    }
+    const a = resolvePosition(aIndex);
+    const b = resolvePosition(bIndex);
+    const c = resolvePosition(cIndex);
+    const ab = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+    const ac = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z };
+    const rawNormal = cross3(ab.x, ab.y, ab.z, ac.x, ac.y, ac.z);
+    if (Math.hypot(rawNormal.x, rawNormal.y, rawNormal.z) > CAMERA_EPSILON) {
+      return { center, normal: normalize3(rawNormal.x, rawNormal.y, rawNormal.z) };
+    }
+  }
+  return { center, normal: { x: 0, y: 1, z: 0 } };
 }
 
 function projectWorldToClip(
@@ -352,20 +449,71 @@ function projectWorldToClip(
   };
 }
 
-function resolveLightingFactor(payload: WebGLNativeMeshPayload): number {
+function resolveMeshLightingFactor(
+  payload: WebGLNativeMeshPayload,
+  mesh: WebGLNativeMeshPrimitive,
+  resolveNormalizedColor: (color: string) => [number, number, number, number],
+): RgbFactor {
   const lights = Array.isArray(payload.lights) ? payload.lights : [];
   if (lights.length === 0) {
-    return 1;
+    return { r: 1, g: 1, b: 1 };
   }
-  let totalIntensity = 0;
+
+  const { center, normal } = resolveMeshCentroidAndNormal(mesh);
+  const factor: RgbFactor = { r: LIGHTING_FACTOR_MIN, g: LIGHTING_FACTOR_MIN, b: LIGHTING_FACTOR_MIN };
   for (const light of lights) {
-    if (light && typeof light.intensity === "number" && Number.isFinite(light.intensity)) {
-      totalIntensity += Math.max(0, light.intensity);
-    } else {
-      totalIntensity += 1;
+    const intensity = Math.max(0, Number.isFinite(light.intensity) ? light.intensity : 1);
+    if (intensity <= 0) {
+      continue;
+    }
+    const color = resolveLightColorFactor(light, resolveNormalizedColor);
+    if (light.type === "ambient") {
+      addScaledLight(factor, color, intensity);
+      continue;
+    }
+    if (light.type === "hemisphere") {
+      const groundColor = resolveNormalizedColor(light.groundColor);
+      const skyWeight = clampUnit(normal.y * 0.5 + 0.5);
+      const blended = {
+        r: color.r * skyWeight + groundColor[0] * (1 - skyWeight),
+        g: color.g * skyWeight + groundColor[1] * (1 - skyWeight),
+        b: color.b * skyWeight + groundColor[2] * (1 - skyWeight),
+      };
+      addScaledLight(factor, blended, intensity * HEMISPHERE_LIGHT_GAIN);
+      continue;
+    }
+    if (light.type === "directional") {
+      const directionToLight = normalize3(-light.targetX, -light.targetY, -light.targetZ);
+      const surfaceFactor = Math.max(0, dot3(normal.x, normal.y, normal.z, directionToLight.x, directionToLight.y, directionToLight.z));
+      addScaledLight(factor, color, intensity * DIRECTIONAL_LIGHT_GAIN * surfaceFactor);
+      continue;
+    }
+    if (light.type === "point" || light.type === "spot") {
+      const toLight = normalize3(light.positionX - center.x, light.positionY - center.y, light.positionZ - center.z);
+      const distance = Math.hypot(light.positionX - center.x, light.positionY - center.y, light.positionZ - center.z);
+      const rangeFactor = light.distance > 0
+        ? Math.max(0, 1 - distance / Math.max(CAMERA_EPSILON, light.distance))
+        : 1;
+      const attenuation = Math.pow(rangeFactor, Math.max(0.5, light.decay || 1));
+      const surfaceFactor = Math.max(0, dot3(normal.x, normal.y, normal.z, toLight.x, toLight.y, toLight.z));
+      if (light.type === "spot") {
+        const spotAxis = normalize3(light.targetX - light.positionX, light.targetY - light.positionY, light.targetZ - light.positionZ);
+        const pointToSurface = normalize3(center.x - light.positionX, center.y - light.positionY, center.z - light.positionZ);
+        const coneCos = Math.cos(light.angle);
+        const spotCos = dot3(spotAxis.x, spotAxis.y, spotAxis.z, pointToSurface.x, pointToSurface.y, pointToSurface.z);
+        const penumbraWidth = Math.max(CAMERA_EPSILON, Math.abs(1 - coneCos) * Math.max(0, Math.min(1, light.penumbra)));
+        const coneFactor = clampUnit((spotCos - coneCos) / penumbraWidth);
+        addScaledLight(factor, color, intensity * SPOT_LIGHT_GAIN * attenuation * surfaceFactor * coneFactor);
+      } else {
+        addScaledLight(factor, color, intensity * POINT_LIGHT_GAIN * attenuation * surfaceFactor);
+      }
     }
   }
-  return Math.max(0.15, Math.min(LIGHT_INTENSITY_MAX, LIGHT_INTENSITY_BASE + totalIntensity * LIGHT_INTENSITY_GAIN));
+  return {
+    r: clampLightingFactor(factor.r),
+    g: clampLightingFactor(factor.g),
+    b: clampLightingFactor(factor.b),
+  };
 }
 
 function resolveMaterialBaseColorTexture(material: EngineMaterialEntity | undefined): string | undefined {
@@ -704,8 +852,6 @@ export function presentNativeMeshPrimitives(
     materialTextureFallbackReason: "none",
   };
   applyMaterialTexturePreflight(payload, diagnostics);
-  const lightingFactor = resolveLightingFactor(payload);
-
   if (allowLineTopologySubmission) {
     diagnostics.supportedTopologies.push("lines");
   }
@@ -915,6 +1061,7 @@ export function presentNativeMeshPrimitives(
         diagnostics.lineTopologySubmissionAttemptedCommandCount += lineCommandCount;
         const color = typeof mesh.color === "string" ? mesh.color : "#334155";
         const [r, g, b, a] = resolveNormalizedColor(color);
+        const lightingFactor = resolveMeshLightingFactor(payload, mesh, resolveNormalizedColor);
         const lineVertices: number[] = [];
         const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
 
@@ -970,9 +1117,9 @@ export function presentNativeMeshPrimitives(
         context.bufferData(context.ARRAY_BUFFER, new Float32Array(lineVertices), context.STREAM_DRAW);
         context.uniform4f(
           cache.colorLocation,
-          Math.max(0, Math.min(1, r * lightingFactor)),
-          Math.max(0, Math.min(1, g * lightingFactor)),
-          Math.max(0, Math.min(1, b * lightingFactor)),
+          Math.max(0, Math.min(1, r * lightingFactor.r)),
+          Math.max(0, Math.min(1, g * lightingFactor.g)),
+          Math.max(0, Math.min(1, b * lightingFactor.b)),
           a,
         );
         context.drawArrays(linesPrimitiveToken, 0, lineVertices.length / VERTEX_COORD_COMPONENTS);
@@ -1014,6 +1161,7 @@ export function presentNativeMeshPrimitives(
     }
     const color = typeof mesh.color === "string" ? mesh.color : "#334155";
     const [r, g, b, a] = resolveNormalizedColor(color);
+    const lightingFactor = resolveMeshLightingFactor(payload, mesh, resolveNormalizedColor);
     const vertices: number[] = [];
     const uvs: number[] = [];
     const vertexCount = Math.floor(mesh.positions.length / POSITION_COMPONENT_STRIDE);
@@ -1111,9 +1259,9 @@ export function presentNativeMeshPrimitives(
     }
     context.uniform4f(
       cache.colorLocation,
-      Math.max(0, Math.min(1, r * lightingFactor)),
-      Math.max(0, Math.min(1, g * lightingFactor)),
-      Math.max(0, Math.min(1, b * lightingFactor)),
+      Math.max(0, Math.min(1, r * lightingFactor.r)),
+      Math.max(0, Math.min(1, g * lightingFactor.g)),
+      Math.max(0, Math.min(1, b * lightingFactor.b)),
       a,
     );
     context.drawArrays(context.TRIANGLES, 0, vertices.length / VERTEX_COORD_COMPONENTS);

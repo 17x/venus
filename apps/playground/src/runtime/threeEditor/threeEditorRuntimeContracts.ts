@@ -1,5 +1,4 @@
 import type {EngineCameraState as ThreeEditorCameraState} from '@venus/engine'
-import type {TextureSampler} from '../materials/webTextureSampler'
 
 /** Declares one semantic lighting mode consumed by runtime command toggles. */
 export type ThreeEditorLightingMode = 'inherit' | 'lit' | 'unlit'
@@ -70,11 +69,6 @@ export type BuildThreeEditorGraphParams = {
   selectedEntityId: string | null
   /** Optional hover entity id used for visual emphasis. */
   hoverEntityId: string | null
-  /** Optional texture samplers sourced from public assets. */
-  textureSamplers?: {
-    floor?: TextureSampler
-    panel?: TextureSampler
-  }
 }
 
 /** Declares baseline world objects used by the rebuilt runtime shell. */

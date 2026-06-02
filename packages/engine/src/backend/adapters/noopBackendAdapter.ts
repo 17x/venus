@@ -2,6 +2,7 @@ import type { EngineBackend } from "../../backend/backend";
 import type { EngineBackendSurface, EngineResolvedBackendMode } from "../backend-contracts";
 import type { EngineBackendCacheFallbackReason } from "../fallbackTaxonomy";
 import type { EngineMaterialEntity } from "../../orchestration/api/public-types/material.types";
+import type { EngineLightEntity } from "../../orchestration/api/public-types/lighting.types";
 
 /**
  * Declares one backend diagnostics payload emitted by native adapters per frame.
@@ -152,6 +153,29 @@ export interface EngineBackendFrameDiagnostics {
   webglNativeMaterialTextureDecodeFailureReason: "none" | "image-load-failed";
   /** Latest material texture binding fallback reason. */
   webglNativeMaterialTextureFallbackReason:
+    | "none"
+    | "missing-material"
+    | "missing-uv"
+    | "texture-upload-not-implemented"
+    | "decode-failed";
+  /** Mesh/material pairs carrying texture references in WebGPU native payload. */
+  webgpuNativeMaterialTextureCandidateCount: number;
+  /** WebGPU texture candidates that also carry usable UV streams. */
+  webgpuNativeMaterialTextureUvReadyCount: number;
+  /** Material textures prepared by the WebGPU native path in the current frame. */
+  webgpuNativeMaterialTextureBindingCount: number;
+  /** Estimated bytes uploaded for WebGPU native material textures in the current frame. */
+  webgpuNativeMaterialTextureUploadBytes: number;
+  /** WebGPU native material texture cache hits in the current frame. */
+  webgpuNativeMaterialTextureCacheHitCount: number;
+  /** WebGPU native material texture cache misses in the current frame. */
+  webgpuNativeMaterialTextureCacheMissCount: number;
+  /** WebGPU native material texture decode failures in the current frame. */
+  webgpuNativeMaterialTextureDecodeFailureCount: number;
+  /** Latest WebGPU native material texture decode failure reason. */
+  webgpuNativeMaterialTextureDecodeFailureReason: "none" | "image-load-failed";
+  /** Latest WebGPU material texture binding fallback reason. */
+  webgpuNativeMaterialTextureFallbackReason:
     | "none"
     | "missing-material"
     | "missing-uv"
@@ -406,11 +430,7 @@ export interface NoopBackendAdapterHooks {
     /** Optional graph material registry referenced by mesh primitives. */
     materials?: readonly EngineMaterialEntity[];
     /** Optional ordered runtime lights consumed by native mesh shading path. */
-    lights?: ReadonlyArray<{
-      id: string;
-      type: string;
-      intensity?: number;
-    }>;
+    lights?: ReadonlyArray<EngineLightEntity>;
     /** Optional shared 3D camera packet consumed by native mesh projection paths. */
     camera3d?: {
       yaw: number;
