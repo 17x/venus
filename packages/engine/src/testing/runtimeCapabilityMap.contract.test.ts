@@ -67,8 +67,8 @@ function resolveCapabilityHandleMethod(engine: ReturnType<typeof createEngine>, 
  * Verifies runtime capability map keeps canonical stable capability set.
  */
 test("runtime capability map keeps canonical stable capability entries", () => {
-  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 88);
-  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 88);
+  assert.equal(Object.keys(ENGINE_RUNTIME_CAPABILITY_MAP).length, 97);
+  assert.equal(ENGINE_RUNTIME_CAPABILITY_REGISTRY.length, 97);
   assert.equal("runtimePlanCreateFramePlan" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeResourceCollectGarbage" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeObservabilityReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
@@ -86,6 +86,12 @@ test("runtime capability map keeps canonical stable capability entries", () => {
   assert.equal("runtimeCollisionEvaluateTriggers" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeLightingResolveEnvironment" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeLightingApplyEnvironment" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeAuthoringCreateGraphSnapshot" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeAuthoringCompareGraphSnapshots" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeAuthoringGetDiagnostics" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeModelRegisterAsset" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeModelSetInstances" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
+  assert.equal("runtimeModelGetDiagnostics" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeDirtyFlush" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeCommandReplay" in ENGINE_RUNTIME_CAPABILITY_MAP, true);
   assert.equal("runtimeBackendProbeHeadless" in ENGINE_RUNTIME_CAPABILITY_MAP, true);

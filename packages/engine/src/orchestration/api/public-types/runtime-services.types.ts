@@ -60,12 +60,156 @@ import type {
   EngineRuntimeWorldSnapshotOutput,
 } from "./runtime-document-world.types";
 import type { EngineLightCollection } from "./lighting.types";
+import type { EngineSceneAsset } from "./scene-asset.types";
 
 export interface EngineRuntimePlanInspectOutput {
   /** True when plan payload contains minimal inspectable fields. */
   valid: boolean;
   /** Canonical summary text for diagnostics and logs. */
   summary: string;
+}
+
+/**
+ * Role token for graph snapshots participating in authoring/runtime parity checks.
+ */
+export type EngineRuntimeAuthoringGraphRole = "authoring" | "runtime";
+
+/**
+ * Minimal record shape accepted by authoring graph parity snapshots.
+ */
+export interface EngineRuntimeAuthoringGraphRecordInput {
+  /** Optional stable record id. Positional fallback is used when absent. */
+  readonly id?: unknown;
+}
+
+/**
+ * Minimal graph snapshot input used by authoring/runtime parity diagnostics.
+ */
+export interface EngineRuntimeAuthoringGraphSnapshotInput {
+  /** Stable graph id shared by related authoring/runtime snapshots. */
+  graphId: string;
+  /** Snapshot role within the authoring/runtime lifecycle. */
+  role: EngineRuntimeAuthoringGraphRole;
+  /** Deterministic graph revision supplied by the caller. */
+  revision: number;
+  /** Graph nodes submitted or extracted by the caller. */
+  nodes: readonly EngineRuntimeAuthoringGraphRecordInput[];
+  /** Optional graph materials submitted or extracted by the caller. */
+  materials?: readonly EngineRuntimeAuthoringGraphRecordInput[];
+}
+
+/**
+ * Normalized graph snapshot output stored by runtime authoring parity APIs.
+ */
+export interface EngineRuntimeAuthoringGraphSnapshotOutput {
+  /** Stable snapshot id derived from graph id, role, revision, and signature. */
+  snapshotId: string;
+  /** Stable graph id shared by related authoring/runtime snapshots. */
+  graphId: string;
+  /** Snapshot role within the authoring/runtime lifecycle. */
+  role: EngineRuntimeAuthoringGraphRole;
+  /** Deterministic graph revision supplied by the caller. */
+  revision: number;
+  /** Number of nodes in the snapshot. */
+  nodeCount: number;
+  /** Number of materials in the snapshot. */
+  materialCount: number;
+  /** Sorted node ids included in the snapshot. */
+  nodeIds: readonly string[];
+  /** Sorted material ids included in the snapshot. */
+  materialIds: readonly string[];
+  /** Deterministic structural signature for parity comparisons. */
+  signature: string;
+}
+
+/**
+ * Input for comparing two authoring/runtime graph snapshots.
+ */
+export interface EngineRuntimeAuthoringGraphCompareInput {
+  /** Authoring-side snapshot or snapshot id. */
+  authoring: EngineRuntimeAuthoringGraphSnapshotInput | string;
+  /** Runtime-side snapshot or snapshot id. */
+  runtime: EngineRuntimeAuthoringGraphSnapshotInput | string;
+}
+
+/**
+ * Diff diagnostics returned from authoring/runtime graph comparisons.
+ */
+export interface EngineRuntimeAuthoringGraphComparisonOutput {
+  /** Stable comparison id derived from compared snapshots. */
+  comparisonId: string;
+  /** True when structural signatures match exactly. */
+  matching: boolean;
+  /** Authoring-side snapshot metadata. */
+  authoring: EngineRuntimeAuthoringGraphSnapshotOutput;
+  /** Runtime-side snapshot metadata. */
+  runtime: EngineRuntimeAuthoringGraphSnapshotOutput;
+  /** Runtime node ids absent from authoring snapshot. */
+  addedNodeIds: readonly string[];
+  /** Authoring node ids absent from runtime snapshot. */
+  removedNodeIds: readonly string[];
+  /** Shared node ids present in both snapshots. */
+  sharedNodeIds: readonly string[];
+  /** Runtime material ids absent from authoring snapshot. */
+  addedMaterialIds: readonly string[];
+  /** Authoring material ids absent from runtime snapshot. */
+  removedMaterialIds: readonly string[];
+  /** Runtime revision minus authoring revision. */
+  revisionDelta: number;
+}
+
+/**
+ * Runtime preview token input derived from one graph snapshot.
+ */
+export interface EngineRuntimeAuthoringPreviewTokenInput {
+  /** Preview scope token chosen by the host adapter. */
+  scope: string;
+  /** Snapshot or snapshot id used as the preview source. */
+  snapshot: EngineRuntimeAuthoringGraphSnapshotInput | string;
+  /** Deterministic preview step/frame index. */
+  stepIndex: number;
+}
+
+/**
+ * Runtime preview token output for deterministic authoring preview loops.
+ */
+export interface EngineRuntimeAuthoringPreviewTokenOutput {
+  /** Replay-safe preview token. */
+  token: string;
+  /** Snapshot id encoded by the token. */
+  snapshotId: string;
+  /** Deterministic preview step/frame index. */
+  stepIndex: number;
+  /** Snapshot signature encoded by the token. */
+  signature: string;
+}
+
+/**
+ * Runtime authoring/parity diagnostics output.
+ */
+export interface EngineRuntimeAuthoringDiagnosticsOutput {
+  /** Number of graph snapshots stored by the parity API. */
+  snapshotCount: number;
+  /** Last comparison id, if any comparison has run. */
+  lastComparisonId: string | null;
+  /** Whether the last comparison matched, if any comparison has run. */
+  lastComparisonMatching: boolean | null;
+  /** Number of preview tokens created by this runtime instance. */
+  previewTokenCount: number;
+}
+
+/**
+ * Runtime authoring namespace API contract exposed under engine.runtime.authoring.
+ */
+export interface EngineRuntimeAuthoringApi {
+  /** Creates and stores one normalized graph snapshot. */
+  createGraphSnapshot: (input: EngineRuntimeAuthoringGraphSnapshotInput) => EngineRuntimeAuthoringGraphSnapshotOutput;
+  /** Compares authoring/runtime graph snapshots and returns deterministic diff diagnostics. */
+  compareGraphSnapshots: (input: EngineRuntimeAuthoringGraphCompareInput) => EngineRuntimeAuthoringGraphComparisonOutput;
+  /** Creates a deterministic preview token for one graph snapshot and step. */
+  createPreviewToken: (input: EngineRuntimeAuthoringPreviewTokenInput) => EngineRuntimeAuthoringPreviewTokenOutput;
+  /** Returns current authoring/runtime parity diagnostics. */
+  getDiagnostics: () => EngineRuntimeAuthoringDiagnosticsOutput;
 }
 
 /**
@@ -1034,6 +1178,94 @@ export interface EngineRuntimeLightingApi {
   applyEnvironment: (
     input: EngineRuntimeLightingEnvironmentInput,
   ) => EngineRuntimeLightingEnvironmentOutput;
+}
+
+/**
+ * Runtime model asset descriptor registered under engine.runtime.model.
+ */
+export interface EngineRuntimeModelAssetDescriptor {
+  /** Stable model asset id. */
+  id: string;
+  /** Optional source resource id from engine.runtime.resource. */
+  resourceId?: string;
+  /** Canonical scene asset payload used by model adapters. */
+  scene: EngineSceneAsset;
+  /** Optional LOD distance thresholds in ascending order. */
+  lodDistances?: readonly number[];
+}
+
+/**
+ * Runtime model instance descriptor registered under engine.runtime.model.
+ */
+export interface EngineRuntimeModelInstanceDescriptor {
+  /** Stable model instance id. */
+  id: string;
+  /** Registered model asset id. */
+  modelId: string;
+  /** World-space translation tuple. */
+  translation?: readonly [number, number, number];
+  /** Euler rotation tuple in radians. */
+  rotation?: readonly [number, number, number];
+  /** Non-uniform scale tuple. */
+  scale?: readonly [number, number, number];
+  /** Optional per-instance tint token. */
+  color?: string;
+  /** Optional LOD override for deterministic probes. */
+  lodLevelOverride?: number;
+}
+
+/**
+ * Runtime model instance snapshot returned by model queries.
+ */
+export interface EngineRuntimeModelInstanceSnapshot {
+  /** Stable model instance id. */
+  id: string;
+  /** Registered model asset id. */
+  modelId: string;
+  /** Normalized world-space translation tuple. */
+  translation: readonly [number, number, number];
+  /** Normalized Euler rotation tuple in radians. */
+  rotation: readonly [number, number, number];
+  /** Normalized non-uniform scale tuple. */
+  scale: readonly [number, number, number];
+  /** Optional per-instance tint token. */
+  color?: string;
+  /** Resolved LOD level for this snapshot. */
+  lodLevel: number;
+}
+
+/**
+ * Runtime model registry diagnostics.
+ */
+export interface EngineRuntimeModelDiagnosticsOutput {
+  /** Number of registered model assets. */
+  registeredModelCount: number;
+  /** Number of registered model instances. */
+  instanceCount: number;
+  /** Number of model asset ids referenced by one or more instances. */
+  instancedModelCount: number;
+  /** Number of instances whose model asset is missing. */
+  missingModelInstanceCount: number;
+  /** Number of instances resolved through an LOD policy. */
+  lodResolvedInstanceCount: number;
+  /** Total mesh nodes across registered model assets. */
+  meshNodeCount: number;
+}
+
+/**
+ * Runtime model namespace API contract exposed under engine.runtime.model.
+ */
+export interface EngineRuntimeModelApi {
+  /** Registers or replaces one canonical model asset. */
+  registerAsset: (descriptor: EngineRuntimeModelAssetDescriptor) => EngineRuntimeModelDiagnosticsOutput;
+  /** Removes one model asset and any instances referencing it. */
+  unregisterAsset: (modelId: string) => { unregistered: boolean; removedInstanceCount: number };
+  /** Registers or replaces model instances. */
+  setInstances: (instances: readonly EngineRuntimeModelInstanceDescriptor[]) => EngineRuntimeModelDiagnosticsOutput;
+  /** Returns deterministic instance snapshots with resolved LOD levels. */
+  getInstances: (options?: { cameraPosition?: readonly [number, number, number] }) => readonly EngineRuntimeModelInstanceSnapshot[];
+  /** Returns current model runtime diagnostics. */
+  getDiagnostics: () => EngineRuntimeModelDiagnosticsOutput;
 }
 
 /**

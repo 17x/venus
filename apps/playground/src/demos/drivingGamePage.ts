@@ -1,6 +1,6 @@
 import {createEngine, type EngineRuntimeWorldAgentState} from '@venus/engine'
 import {createInitialDrivingGameState, type DrivingGameConfig, type DrivingGameState} from './drivingGameTypes'
-import {buildDrivingGameScene, convertCityObstaclesToCollisionBlocks} from './drivingGameScene'
+import {buildDrivingGameScene, convertCityObstaclesToCollisionBlocks, createDrivingGameModelAssets, createDrivingGameModelInstances} from './drivingGameScene'
 import {generateCityWorldMap} from './cityWorldGenerator'
 import {loadDrivingGameFixture} from './drivingGameFixture'
 
@@ -245,9 +245,21 @@ async function mount() {
     })
     weatherHaze.style.background = `linear-gradient(rgba(255,255,255,0), ${hexToRgba(resolvedEnvironment.atmosphere.hazeColor, resolvedEnvironment.atmosphere.hazeOpacity)})`
   }
+  const syncRuntimeModels = () => {
+    for (const asset of createDrivingGameModelAssets()) {
+      engine.runtime.model.registerAsset(asset)
+    }
+    const diagnostics = engine.runtime.model.setInstances(createDrivingGameModelInstances(state))
+    dbEl.dataset.runtimeModelRegisteredModelCount = String(diagnostics.registeredModelCount)
+    dbEl.dataset.runtimeModelInstanceCount = String(diagnostics.instanceCount)
+    dbEl.dataset.runtimeModelInstancedModelCount = String(diagnostics.instancedModelCount)
+    dbEl.dataset.runtimeModelLodResolvedInstanceCount = String(diagnostics.lodResolvedInstanceCount)
+    dbEl.dataset.runtimeModelMissingModelInstanceCount = String(diagnostics.missingModelInstanceCount)
+  }
   onDrivingConfigChange = () => {
     syncRuntimeWorld()
     syncRuntimeLighting()
+    syncRuntimeModels()
   }
 
   const refreshMaterialTextureDiagnostics = () => {
@@ -268,11 +280,38 @@ async function mount() {
     dbEl.dataset.webglMaterialTextureFallbackReason = String(backend?.webglNativeMaterialTextureFallbackReason ?? 'none')
   }
 
+  const syncRuntimeAuthoringGraph = (graph: {revision?: number; nodes: Array<Record<string, unknown>>; materials?: Array<Record<string, unknown>>}) => {
+    const revision = Number(graph.revision ?? 1)
+    const authoring = engine.runtime.authoring.createGraphSnapshot({
+      graphId: 's10-driving-game',
+      role: 'authoring',
+      revision,
+      nodes: graph.nodes,
+      materials: graph.materials ?? [],
+    })
+    const runtime = engine.runtime.authoring.createGraphSnapshot({
+      graphId: 's10-driving-game',
+      role: 'runtime',
+      revision,
+      nodes: graph.nodes,
+      materials: graph.materials ?? [],
+    })
+    const comparison = engine.runtime.authoring.compareGraphSnapshots({authoring: authoring.snapshotId, runtime: runtime.snapshotId})
+    const preview = engine.runtime.authoring.createPreviewToken({scope: 's10-driving-game', snapshot: runtime.snapshotId, stepIndex: revision})
+    dbEl.dataset.runtimeAuthoringMatching = String(comparison.matching)
+    dbEl.dataset.runtimeAuthoringAddedNodeCount = String(comparison.addedNodeIds.length)
+    dbEl.dataset.runtimeAuthoringRemovedNodeCount = String(comparison.removedNodeIds.length)
+    dbEl.dataset.runtimeAuthoringPreviewStepIndex = String(preview.stepIndex)
+  }
+
   updateProgress(10, `Canvas: ${STAGE_W}×${STAGE_H}`)
   await delay(100)
 
   syncRuntimeWorld()
-  engine.setGraph(buildDrivingGameScene(state) as any)
+  syncRuntimeModels()
+  const initialGraph = buildDrivingGameScene(state)
+  syncRuntimeAuthoringGraph(initialGraph)
+  engine.setGraph(initialGraph as any)
   syncRuntimeLighting()
   updateProgress(40, 'Graph set')
   await delay(100)
@@ -307,7 +346,10 @@ async function mount() {
       if (state.config.timeOfDayHours < 0) state.config.timeOfDayHours += 24
     }
     syncRuntimeLighting()
-    engine.setGraph(buildDrivingGameScene(state) as any)
+    syncRuntimeModels()
+    const graph = buildDrivingGameScene(state)
+    syncRuntimeAuthoringGraph(graph)
+    engine.setGraph(graph as any)
     void engine.render().then(() => {
       refreshMaterialTextureDiagnostics()
     })
@@ -321,7 +363,7 @@ async function mount() {
       const meshSubmitted = backend && typeof backend.webglNativeMeshSubmittedCount === 'number'
         ? String(backend.webglNativeMeshSubmittedCount)
         : '?'
-      dbEl.textContent = `draw:${s.lastExecutionDrawCount ?? '?'} mesh:${meshSubmitted} lights:${engine.runtime.lighting.getCollection().lights.length} zoom:${state.config.cameraDistance.toFixed(1)} time:${state.config.timeOfDayHours.toFixed(1)}`
+      dbEl.textContent = `draw:${s.lastExecutionDrawCount ?? '?'} mesh:${meshSubmitted} models:${engine.runtime.model.getDiagnostics().instanceCount} parity:${dbEl.dataset.runtimeAuthoringMatching ?? 'false'} lights:${engine.runtime.lighting.getCollection().lights.length} zoom:${state.config.cameraDistance.toFixed(1)} time:${state.config.timeOfDayHours.toFixed(1)}`
       frameCount = 0; fpsTimer = now
     }
     requestAnimationFrame(loop)

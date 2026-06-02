@@ -1,4 +1,7 @@
 import type {
+  EngineRuntimeAuthoringGraphComparisonOutput,
+  EngineRuntimeAuthoringGraphSnapshotOutput,
+  EngineRuntimeModelAssetDescriptor,
   EngineHookListener,
   EngineHookStage,
   EngineRuntimeDecodeCheckpointMode,
@@ -49,6 +52,11 @@ export function createEngineRuntimeRegistriesFoundation(): {
   runtimeGpuResources: Map<string, EngineRuntimeGpuResourceDescriptor>;
   runtimeUploadBatches: Map<string, readonly string[]>;
   runtimeBarrierPlans: Map<string, readonly string[]>;
+  runtimeAuthoringSnapshots: Map<string, EngineRuntimeAuthoringGraphSnapshotOutput>;
+  getLastRuntimeAuthoringComparison: () => EngineRuntimeAuthoringGraphComparisonOutput | null;
+  setLastRuntimeAuthoringComparison: (comparison: EngineRuntimeAuthoringGraphComparisonOutput | null) => void;
+  getRuntimeAuthoringPreviewTokenCounter: () => number;
+  setRuntimeAuthoringPreviewTokenCounter: (nextCounter: number) => void;
   runtimeResourceRegistry: Map<string, {
     id: string;
     kind: EngineRuntimeResourceDescriptor["kind"];
@@ -60,6 +68,21 @@ export function createEngineRuntimeRegistriesFoundation(): {
     decodeErrorCode: string | null;
     pinned: boolean;
     residencyVersion: number;
+  }>;
+  runtimeModelAssets: Map<string, {
+    id: string;
+    resourceId?: string;
+    scene: EngineRuntimeModelAssetDescriptor["scene"];
+    lodDistances: readonly number[];
+  }>;
+  runtimeModelInstances: Map<string, {
+    id: string;
+    modelId: string;
+    translation: readonly [number, number, number];
+    rotation: readonly [number, number, number];
+    scale: readonly [number, number, number];
+    color?: string;
+    lodLevelOverride?: number;
   }>;
   runtimeTraceRegistry: Map<string, {
     traceId: string;
@@ -128,6 +151,9 @@ export function createEngineRuntimeRegistriesFoundation(): {
   const runtimeGpuResources = new Map<string, EngineRuntimeGpuResourceDescriptor>();
   const runtimeUploadBatches = new Map<string, readonly string[]>();
   const runtimeBarrierPlans = new Map<string, readonly string[]>();
+  const runtimeAuthoringSnapshots = new Map<string, EngineRuntimeAuthoringGraphSnapshotOutput>();
+  let lastRuntimeAuthoringComparison: EngineRuntimeAuthoringGraphComparisonOutput | null = null;
+  let runtimeAuthoringPreviewTokenCounter = 0;
   const runtimeResourceRegistry = new Map<string, {
     id: string;
     kind: EngineRuntimeResourceDescriptor["kind"];
@@ -139,6 +165,21 @@ export function createEngineRuntimeRegistriesFoundation(): {
     decodeErrorCode: string | null;
     pinned: boolean;
     residencyVersion: number;
+  }>();
+  const runtimeModelAssets = new Map<string, {
+    id: string;
+    resourceId?: string;
+    scene: EngineRuntimeModelAssetDescriptor["scene"];
+    lodDistances: readonly number[];
+  }>();
+  const runtimeModelInstances = new Map<string, {
+    id: string;
+    modelId: string;
+    translation: readonly [number, number, number];
+    rotation: readonly [number, number, number];
+    scale: readonly [number, number, number];
+    color?: string;
+    lodLevelOverride?: number;
   }>();
   const runtimeTraceRegistry = new Map<string, {
     traceId: string;
@@ -167,7 +208,14 @@ export function createEngineRuntimeRegistriesFoundation(): {
     runtimeGpuResources,
     runtimeUploadBatches,
     runtimeBarrierPlans,
+    runtimeAuthoringSnapshots,
+    getLastRuntimeAuthoringComparison: () => lastRuntimeAuthoringComparison,
+    setLastRuntimeAuthoringComparison: (comparison) => { lastRuntimeAuthoringComparison = comparison; },
+    getRuntimeAuthoringPreviewTokenCounter: () => runtimeAuthoringPreviewTokenCounter,
+    setRuntimeAuthoringPreviewTokenCounter: (nextCounter) => { runtimeAuthoringPreviewTokenCounter = nextCounter; },
     runtimeResourceRegistry,
+    runtimeModelAssets,
+    runtimeModelInstances,
     runtimeTraceRegistry,
   };
 }

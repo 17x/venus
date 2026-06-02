@@ -85,6 +85,8 @@ import { createEngineLifecycleViewFacade } from "./createEngine.lifecycle-view.f
 import { createEngineGraphRenderFacade } from "./createEngine.graph-render.facade";
 import { createEngineEventsHooksCacheFoundation } from "./createEngine.events-hooks-cache.foundation";
 import { createRuntimeResourceObservabilityFoundation } from "./createEngine.runtime-resource-observability.foundation";
+import { createRuntimeAuthoringFoundation } from "./createEngine.runtime-authoring.foundation";
+import { createRuntimeModelFoundation } from "./createEngine.runtime-model.foundation";
 import { createRuntimeGpuBackendQueryFoundation } from "./createEngine.runtime-gpu-backend-query.foundation";
 import { createRuntimePlanFoundation } from "./createEngine.runtime-plan.foundation";
 import { createRuntimeDocumentDirtyCommandFoundation } from "./createEngine.runtime-document-dirty-command.foundation";
@@ -436,7 +438,10 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     eventListeners, eventListenerMetadata, pausedEventTypes, eventTypeDeliveryCounters, eventListenerLastDeliveredAt,
     hookStages, hookListeners, hookListenerMetadata, extensionRegistry, schedulerTaskRegistry, createSchedulerTaskId,
     cacheNamespaces, cacheNamespaceStats, assetStates, headlessSessions, createHeadlessSessionId,
-    runtimeGpuResources, runtimeUploadBatches, runtimeBarrierPlans, runtimeResourceRegistry, runtimeTraceRegistry,
+    runtimeGpuResources, runtimeUploadBatches, runtimeBarrierPlans, runtimeAuthoringSnapshots,
+    getLastRuntimeAuthoringComparison, setLastRuntimeAuthoringComparison,
+    getRuntimeAuthoringPreviewTokenCounter, setRuntimeAuthoringPreviewTokenCounter, runtimeResourceRegistry,
+    runtimeModelAssets, runtimeModelInstances, runtimeTraceRegistry,
   } = createEngineRuntimeRegistriesFoundation();
   let policyRenderState: Readonly<Record<string, unknown>> = {};
   let policyResourceState: Readonly<Record<string, unknown>> = {};
@@ -1636,6 +1641,34 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
     },
   });
   const {
+    createRuntimeAuthoringGraphSnapshot,
+    compareRuntimeAuthoringGraphSnapshots,
+    createRuntimeAuthoringPreviewToken,
+    resolveRuntimeAuthoringDiagnostics,
+  } = createRuntimeAuthoringFoundation({
+    runtimeAuthoringSnapshots,
+    getLastRuntimeAuthoringComparison,
+    setLastRuntimeAuthoringComparison,
+    getRuntimeAuthoringPreviewTokenCounter,
+    setRuntimeAuthoringPreviewTokenCounter,
+    emitEvent: (type, payload) => {
+      emitEvent(type, payload);
+    },
+  });
+  const {
+    registerRuntimeModelAsset,
+    unregisterRuntimeModelAsset,
+    setRuntimeModelInstances,
+    getRuntimeModelInstances,
+    resolveRuntimeModelDiagnostics,
+  } = createRuntimeModelFoundation({
+    runtimeModelAssets,
+    runtimeModelInstances,
+    emitEvent: (type, payload) => {
+      emitEvent(type, payload);
+    },
+  });
+  const {
     getRuntimeMetricsSnapshot, captureRuntimeFrame, resolveRuntimeDocumentSnapshot, compileRuntimeWorld,
     scheduleRuntimeIncrementalCompile, forceRuntimeFullCompile, submitRuntimeCommandBuffer,
     submitRuntimeCommandBufferBatch, createRuntimeGpuResource, updateRuntimeGpuResource,
@@ -2050,6 +2083,10 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       stepRuntimeNavigationPathAgents,
       resolveRuntimeWorldCollision,
       clearRuntimeWorldSnapshot,
+      createRuntimeAuthoringGraphSnapshot,
+      compareRuntimeAuthoringGraphSnapshots,
+      createRuntimeAuthoringPreviewToken,
+      resolveRuntimeAuthoringDiagnostics,
       markRuntimeDirtyDomainsBatch,
       resolveRuntimePendingDirtyDomains,
       resetRuntimeDirtyState,
@@ -2089,6 +2126,11 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
         runtimeLightingCollection = resolved.collection;
         return resolved;
       },
+      registerRuntimeModelAsset,
+      unregisterRuntimeModelAsset,
+      setRuntimeModelInstances,
+      getRuntimeModelInstances,
+      resolveRuntimeModelDiagnostics,
       registerRuntimeResource,
       updateRuntimeResource,
       releaseRuntimeResource,

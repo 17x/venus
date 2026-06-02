@@ -30,6 +30,7 @@ import type {
 } from "./runtime-document-world.types";
 import type {
   EngineRuntimeBackendApi,
+  EngineRuntimeAuthoringApi,
   EngineRuntimeBackendFallbackHistoryOutput,
   EngineRuntimeBackendStateOutput,
   EngineRuntimeCaptureFrameInput,
@@ -49,6 +50,7 @@ import type {
   EngineRuntimeReplayTokenOutput,
   EngineRuntimeResourceApi,
   EngineRuntimeLightingApi,
+  EngineRuntimeModelApi,
   EngineRuntimeVolumeApi,
   EngineRuntimeSpatialQueryOutput,
   EngineRuntimeSubmitOutput,
@@ -144,6 +146,8 @@ export interface EngineRuntimeApi {
   document: EngineRuntimeDocumentApi;
   /** Runtime world foundation API namespace. */
   world: EngineRuntimeWorldApi;
+  /** Runtime authoring/parity API namespace. */
+  authoring: EngineRuntimeAuthoringApi;
   /** Runtime navigation API namespace. */
   navigation: EngineRuntimeNavigationApi;
   /** Runtime collision API namespace. */
@@ -160,6 +164,8 @@ export interface EngineRuntimeApi {
   volume: EngineRuntimeVolumeApi;
   /** Lighting foundation API namespace. */
   lighting: EngineRuntimeLightingApi;
+  /** Runtime model foundation API namespace. */
+  model: EngineRuntimeModelApi;
   /** Runtime resource foundation API namespace. */
   resource: EngineRuntimeResourceApi;
   /** Runtime observability foundation API namespace. */

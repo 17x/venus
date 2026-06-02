@@ -1,5 +1,33 @@
 import type {DrivingGameState} from './drivingGameTypes'
 import type {CityObstacle} from './cityWorldGenerator'
+import type {EngineRuntimeModelAssetDescriptor, EngineRuntimeModelInstanceDescriptor} from '@venus/engine'
+import type {EngineSceneAssetMesh, EngineSceneAssetNode} from '@venus/engine'
+
+const DRIVING_MODEL_IDS = {
+  vehicle: 'driving-game-model-vehicle',
+  pedestrian: 'driving-game-model-pedestrian',
+  lamp: 'driving-game-model-lamp',
+  sun: 'driving-game-model-sun',
+  moon: 'driving-game-model-moon',
+} as const
+
+const createModelNode = (id: string, mesh: EngineSceneAssetMesh): EngineSceneAssetNode => ({
+  id,
+  name: id,
+  children: [],
+  translation: [0, 0, 0],
+  rotation: [0, 0, 0],
+  scale: [1, 1, 1],
+  mesh,
+})
+
+const createModelScene = (id: string, nodes: EngineSceneAssetNode[]) => ({
+  metadata: {sourceFormat: 'playground-procedural-model', sourceUri: `playground://${id}`, version: '1'},
+  nodes,
+  materials: [],
+  lights: [],
+  animations: [],
+})
 
 const pushBoxMesh = (
   target: Array<Record<string, unknown>>,
@@ -114,10 +142,126 @@ const pushSphereMesh = (
   })
 }
 
+export function createDrivingGameModelAssets(): EngineRuntimeModelAssetDescriptor[] {
+  return [
+    {
+      id: DRIVING_MODEL_IDS.vehicle,
+      scene: createModelScene(DRIVING_MODEL_IDS.vehicle, [
+        createModelNode('body', {positions: [-4, -1.6, -7, 4, -1.6, -7, 0, 1.6, 7], indices: [0, 1, 2]}),
+        createModelNode('cabin', {positions: [-3.5, 0, -4, 3.5, 0, -4, 0, 3, 4], indices: [0, 1, 2]}),
+      ]),
+      lodDistances: [90, 220],
+    },
+    {
+      id: DRIVING_MODEL_IDS.pedestrian,
+      scene: createModelScene(DRIVING_MODEL_IDS.pedestrian, [
+        createModelNode('body', {positions: [-0.7, 0, -0.6, 0.7, 0, -0.6, 0, 4.2, 0.6], indices: [0, 1, 2]}),
+        createModelNode('head', {positions: [-0.45, 4.4, 0, 0.45, 4.4, 0, 0, 5.5, 0], indices: [0, 1, 2]}),
+      ]),
+      lodDistances: [60, 160],
+    },
+    {
+      id: DRIVING_MODEL_IDS.lamp,
+      scene: createModelScene(DRIVING_MODEL_IDS.lamp, [
+        createModelNode('post', {positions: [-0.55, 0, -0.55, 0.55, 0, -0.55, 0, 10, 0.55], indices: [0, 1, 2]}),
+        createModelNode('head', {positions: [-1.2, 10, 0, 1.2, 10, 0, 0, 12.4, 0], indices: [0, 1, 2]}),
+      ]),
+      lodDistances: [80, 200],
+    },
+    {
+      id: DRIVING_MODEL_IDS.sun,
+      scene: createModelScene(DRIVING_MODEL_IDS.sun, [
+        createModelNode('orb', {positions: [-1, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2]}),
+      ]),
+      lodDistances: [300],
+    },
+    {
+      id: DRIVING_MODEL_IDS.moon,
+      scene: createModelScene(DRIVING_MODEL_IDS.moon, [
+        createModelNode('orb', {positions: [-1, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2]}),
+      ]),
+      lodDistances: [300],
+    },
+  ]
+}
+
+export function createDrivingGameModelInstances(state: DrivingGameState): EngineRuntimeModelInstanceDescriptor[] {
+  const {config: cfg, carX, carY, carYaw} = state
+  const instances: EngineRuntimeModelInstanceDescriptor[] = [
+    {id: 'player-car', modelId: DRIVING_MODEL_IDS.vehicle, translation: [carX, 0, carY], rotation: [0, (carYaw * Math.PI) / 180, 0], color: '#e63946'},
+    ...state.npcCars.map((npc) => ({
+      id: `npc-car-${npc.id}`,
+      modelId: DRIVING_MODEL_IDS.vehicle,
+      translation: [npc.x, 0, npc.z] as const,
+      rotation: [0, (npc.yaw * Math.PI) / 180, 0] as const,
+      color: '#60a5fa',
+    })),
+    ...state.pedestrians.map((ped) => ({
+      id: `ped-${ped.id}`,
+      modelId: DRIVING_MODEL_IDS.pedestrian,
+      translation: [ped.x, 0, ped.z] as const,
+      rotation: [0, (ped.yaw * Math.PI) / 180, 0] as const,
+      color: '#fca5a5',
+    })),
+    ...state.cityMap.lamps.map((lamp) => ({
+      id: `lamp-${lamp.id}`,
+      modelId: DRIVING_MODEL_IDS.lamp,
+      translation: [lamp.x, 0, lamp.z] as const,
+      scale: [1, lamp.h / 10, 1] as const,
+      color: '#fde68a',
+    })),
+  ]
+
+  const sunOrbital = ((cfg.timeOfDayHours - 6) / 24) * Math.PI * 2
+  const sunHeight = Math.sin(sunOrbital)
+  const sunAzimuthRad = ((cfg.directionDeg + (cfg.timeOfDayHours / 24) * 360) * Math.PI) / 180
+  const sunDistance = cfg.mapSize * 0.62
+  const sunX = Math.sin(sunAzimuthRad) * sunDistance
+  const sunZ = Math.cos(sunAzimuthRad) * sunDistance
+  const sunY = 100 + sunHeight * 180
+  if (cfg.weather === 'sunny' && sunY > -20) {
+    instances.push({id: 'sun', modelId: DRIVING_MODEL_IDS.sun, translation: [carX + sunX * 0.35, Math.max(80, sunY), carY + sunZ * 0.35], scale: [14, 14, 14], color: '#ffd166'})
+  }
+  const moonY = 100 + (-sunHeight) * 180
+  if (cfg.weather === 'sunny' && moonY > -20 && sunHeight < -0.05) {
+    instances.push({id: 'moon', modelId: DRIVING_MODEL_IDS.moon, translation: [-sunX * 0.92, moonY, -sunZ * 0.92], scale: [6, 6, 6], color: '#dbeafe'})
+  }
+
+  return instances
+}
+
+const pushDrivingGameModelInstance = (
+  target: Array<Record<string, unknown>>,
+  instance: EngineRuntimeModelInstanceDescriptor,
+) => {
+  const [x, y, z] = instance.translation ?? [0, 0, 0]
+  const yawDeg = ((instance.rotation?.[1] ?? 0) * 180) / Math.PI
+  if (instance.modelId === DRIVING_MODEL_IDS.vehicle) {
+    pushBoxMesh(target, {id: `${instance.id}-body`, cx: x, cy: y + 3, cz: z, width: 10, height: 4, depth: 18, color: instance.color ?? '#60a5fa', yawDeg})
+    pushBoxMesh(target, {id: `${instance.id}-cabin`, cx: x, cy: y + 6, cz: z - 1, width: 7, height: 3, depth: 8, color: instance.id === 'player-car' ? '#a8dadc' : '#bfdbfe', yawDeg})
+    return
+  }
+  if (instance.modelId === DRIVING_MODEL_IDS.pedestrian) {
+    pushBoxMesh(target, {id: `${instance.id}-body`, cx: x, cy: y + 2.1, cz: z, width: 1.4, height: 4.2, depth: 1.2, color: instance.color ?? '#fca5a5', yawDeg})
+    pushSphereMesh(target, {id: `${instance.id}-head`, cx: x, cy: y + 4.95, cz: z, radius: 0.55, color: '#fde68a'})
+    return
+  }
+  if (instance.modelId === DRIVING_MODEL_IDS.lamp) {
+    const height = 10 * (instance.scale?.[1] ?? 1)
+    pushBoxMesh(target, {id: `${instance.id}-post`, cx: x, cy: y + height * 0.5, cz: z, width: 1.1, height, depth: 1.1, color: '#94a3b8'})
+    pushSphereMesh(target, {id: `${instance.id}-head`, cx: x, cy: y + height + 1.2, cz: z, radius: 1.2, color: instance.color ?? '#fde68a'})
+    return
+  }
+  if (instance.modelId === DRIVING_MODEL_IDS.sun || instance.modelId === DRIVING_MODEL_IDS.moon) {
+    const radius = instance.scale?.[0] ?? 8
+    pushSphereMesh(target, {id: `${instance.id}-sphere`, cx: x, cy: y, cz: z, radius, color: instance.color ?? '#ffd166'})
+  }
+}
+
 export function buildDrivingGameScene(
   state: DrivingGameState,
 ) {
-  const {config: cfg, carX, carY, carYaw} = state
+  const {config: cfg, carX, carY} = state
   const ms = cfg.mapSize
   const nodes: Array<Record<string, unknown>> = []
   const materials = [
@@ -170,33 +314,9 @@ export function buildDrivingGameScene(
     },
   })
 
-  const sunOrbital = ((cfg.timeOfDayHours - 6) / 24) * Math.PI * 2
-  const sunHeight = Math.sin(sunOrbital)
-  const sunAzimuthRad = ((cfg.directionDeg + (cfg.timeOfDayHours / 24) * 360) * Math.PI) / 180
-  const sunDistance = ms * 0.62
-  const sunX = Math.sin(sunAzimuthRad) * sunDistance
-  const sunZ = Math.cos(sunAzimuthRad) * sunDistance
-  const sunY = 100 + sunHeight * 180
-  if (cfg.weather === 'sunny' && sunY > -20) {
-    pushSphereMesh(nodes, {
-      id: 'sun-sphere',
-      cx: carX + sunX * 0.35,
-      cy: Math.max(80, sunY),
-      cz: carY + sunZ * 0.35,
-      radius: 14,
-      color: '#ffd166',
-    })
-  }
-  const moonY = 100 + (-sunHeight) * 180
-  if (cfg.weather === 'sunny' && moonY > -20 && sunHeight < -0.05) {
-    pushSphereMesh(nodes, {
-      id: 'moon-sphere',
-      cx: -sunX * 0.92,
-      cy: moonY,
-      cz: -sunZ * 0.92,
-      radius: 6,
-      color: '#dbeafe',
-    })
+  const modelInstances = createDrivingGameModelInstances(state)
+  for (const instance of modelInstances.filter((item) => item.modelId === DRIVING_MODEL_IDS.sun || item.modelId === DRIVING_MODEL_IDS.moon)) {
+    pushDrivingGameModelInstance(nodes, instance)
   }
 
   const weatherGround = cfg.weather === 'rainy'
@@ -294,85 +414,9 @@ export function buildDrivingGameScene(
     })
   }
 
-  for (const lamp of state.cityMap.lamps) {
-    pushBoxMesh(nodes, {
-      id: `lamp-post-${lamp.id}`,
-      cx: lamp.x,
-      cy: lamp.h * 0.5,
-      cz: lamp.z,
-      width: 1.1,
-      height: lamp.h,
-      depth: 1.1,
-      color: '#94a3b8',
-    })
-    pushSphereMesh(nodes, {
-      id: `lamp-head-${lamp.id}`,
-      cx: lamp.x,
-      cy: lamp.h + 1.2,
-      cz: lamp.z,
-      radius: 1.2,
-      color: '#fde68a',
-    })
+  for (const instance of modelInstances.filter((item) => item.modelId !== DRIVING_MODEL_IDS.sun && item.modelId !== DRIVING_MODEL_IDS.moon)) {
+    pushDrivingGameModelInstance(nodes, instance)
   }
-
-  for (const npc of state.npcCars) {
-    pushBoxMesh(nodes, {
-      id: `npc-car-body-${npc.id}`,
-      cx: npc.x,
-      cy: 2.8,
-      cz: npc.z,
-      width: 8,
-      height: 3.2,
-      depth: 14,
-      color: '#60a5fa',
-      yawDeg: npc.yaw,
-    })
-  }
-  for (const ped of state.pedestrians) {
-    pushBoxMesh(nodes, {
-      id: `ped-body-${ped.id}`,
-      cx: ped.x,
-      cy: 2.1,
-      cz: ped.z,
-      width: 1.4,
-      height: 4.2,
-      depth: 1.2,
-      color: '#fca5a5',
-      yawDeg: ped.yaw,
-    })
-    pushSphereMesh(nodes, {
-      id: `ped-head-${ped.id}`,
-      cx: ped.x,
-      cy: 4.95,
-      cz: ped.z,
-      radius: 0.55,
-      color: '#fde68a',
-    })
-  }
-
-  // Player car (chassis + cabin).
-  pushBoxMesh(nodes, {
-    id: 'car-body',
-    cx: carX,
-    cy: 3,
-    cz: carY,
-    width: 10,
-    height: 4,
-    depth: 18,
-    color: '#e63946',
-    yawDeg: carYaw,
-  })
-  pushBoxMesh(nodes, {
-    id: 'car-cabin',
-    cx: carX,
-    cy: 6,
-    cz: carY - 1,
-    width: 7,
-    height: 3,
-    depth: 8,
-    color: '#a8dadc',
-    yawDeg: carYaw,
-  })
 
   return {revision: 1, nodes, materials}
 }

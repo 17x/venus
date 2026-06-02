@@ -84,3 +84,76 @@ test("game editor runtime preview consistency stays deterministic", () => {
 
   engine.dispose();
 });
+
+/**
+ * Verifies runtime authoring graph parity APIs report deterministic structural equality and diffs.
+ */
+test("runtime authoring namespace compares graph snapshots and preview tokens deterministically", () => {
+  const engine = createEngine({
+    surface: createTestSurface(320, 240),
+    backend: "headless",
+  });
+
+  const authoring = engine.runtime.authoring.createGraphSnapshot({
+    graphId: "preview-graph",
+    role: "authoring",
+    revision: 1,
+    nodes: [
+      { id: "platform", kind: "shape" },
+      { id: "player", kind: "shape" },
+    ],
+    materials: [{ id: "mat-a" }],
+  });
+  const runtime = engine.runtime.authoring.createGraphSnapshot({
+    graphId: "preview-graph",
+    role: "runtime",
+    revision: 2,
+    nodes: [
+      { id: "player", kind: "shape" },
+      { id: "platform", kind: "shape" },
+    ],
+    materials: [{ id: "mat-a" }],
+  });
+
+  const matched = engine.runtime.authoring.compareGraphSnapshots({
+    authoring: authoring.snapshotId,
+    runtime: runtime.snapshotId,
+  });
+  assert.equal(matched.matching, true);
+  assert.equal(matched.revisionDelta, 1);
+  assert.deepEqual(matched.sharedNodeIds, ["platform", "player"]);
+  assert.deepEqual(matched.addedNodeIds, []);
+  assert.deepEqual(matched.removedNodeIds, []);
+
+  const changed = engine.runtime.authoring.compareGraphSnapshots({
+    authoring: authoring.snapshotId,
+    runtime: {
+      graphId: "preview-graph",
+      role: "runtime",
+      revision: 3,
+      nodes: [
+        { id: "platform", kind: "shape" },
+        { id: "runtime-only", kind: "shape" },
+      ],
+      materials: [{ id: "mat-b" }],
+    },
+  });
+  assert.equal(changed.matching, false);
+  assert.deepEqual(changed.addedNodeIds, ["runtime-only"]);
+  assert.deepEqual(changed.removedNodeIds, ["player"]);
+  assert.deepEqual(changed.addedMaterialIds, ["mat-b"]);
+  assert.deepEqual(changed.removedMaterialIds, ["mat-a"]);
+
+  const previewToken = engine.runtime.authoring.createPreviewToken({
+    scope: "preview",
+    snapshot: runtime.snapshotId,
+    stepIndex: 4,
+  });
+  assert.equal(previewToken.snapshotId, runtime.snapshotId);
+  assert.equal(previewToken.stepIndex, 4);
+  assert.equal(previewToken.signature, runtime.signature);
+  assert.equal(engine.runtime.authoring.getDiagnostics().previewTokenCount, 1);
+  assert.equal(engine.runtime.authoring.getDiagnostics().lastComparisonMatching, false);
+
+  engine.dispose();
+});

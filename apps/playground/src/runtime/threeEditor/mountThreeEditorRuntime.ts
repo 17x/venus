@@ -194,6 +194,26 @@ export const mountThreeEditorRuntime = (): void => {
       hoverEntityId,
     })
     sceneRevision += 1
+    const authoring = engine.runtime.authoring.createGraphSnapshot({
+      graphId: 'three-editor-runtime',
+      role: 'authoring',
+      revision: sceneRevision,
+      nodes: graph.nodes,
+      materials: graph.materials ?? [],
+    })
+    const runtime = engine.runtime.authoring.createGraphSnapshot({
+      graphId: 'three-editor-runtime',
+      role: 'runtime',
+      revision: sceneRevision,
+      nodes: graph.nodes,
+      materials: graph.materials ?? [],
+    })
+    const comparison = engine.runtime.authoring.compareGraphSnapshots({authoring: authoring.snapshotId, runtime: runtime.snapshotId})
+    const preview = engine.runtime.authoring.createPreviewToken({scope: 'three-editor-runtime', snapshot: runtime.snapshotId, stepIndex: sceneRevision})
+    statusLine.dataset.runtimeAuthoringMatching = String(comparison.matching)
+    statusLine.dataset.runtimeAuthoringAddedNodeCount = String(comparison.addedNodeIds.length)
+    statusLine.dataset.runtimeAuthoringRemovedNodeCount = String(comparison.removedNodeIds.length)
+    statusLine.dataset.runtimeAuthoringPreviewStepIndex = String(preview.stepIndex)
     engine.setGraph({
       revision: sceneRevision,
       nodes: graph.nodes,
@@ -277,6 +297,7 @@ export const mountThreeEditorRuntime = (): void => {
       `grid ${overlayState.gridEnabled ? 'on' : 'off'}`,
       `gizmo ${overlayState.gizmoEnabled ? 'on' : 'off'}`,
       `lighting ${overlayState.lightingMode}`,
+      `parity ${statusLine.dataset.runtimeAuthoringMatching ?? 'false'}`,
       `time ${editorLightState.timeOfDayHours.toFixed(1)}`,
       `cloud ${editorLightState.cloudCover.toFixed(2)}`,
       `rain ${editorLightState.precipitation.toFixed(2)}`,

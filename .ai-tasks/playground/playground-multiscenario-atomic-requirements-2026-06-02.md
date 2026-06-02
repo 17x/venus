@@ -128,7 +128,7 @@ Status values:
 
 ### PG-GLOBAL-001 [P0] Scenario-owned fixture manifest convention
 
-Status: TODO
+Status: DONE
 
 Requirement:
 
@@ -749,7 +749,7 @@ Progress:
 
 ### ENG-PG-004 [P1] Asset/model runtime
 
-Status: TODO
+Status: DONE
 
 Requirement:
 
@@ -759,9 +759,17 @@ Acceptance:
 
 - Game can use model assets for vehicles, pedestrians, lamps, and sun/moon without hardcoding procedural-only geometry.
 
+Progress:
+
+- Added generic `engine.runtime.model` API for scene asset registration, model instance registration, deterministic instance/LOD snapshots, and model diagnostics.
+- Reused canonical `EngineSceneAsset` payloads for model assets and exported scene asset/model runtime types from the engine public surface.
+- Added runtime capability-map entries and contract coverage for `runtime.model` methods.
+- Added playground S10 model asset catalog and model instances for vehicles, pedestrians, lamps, sun, and moon; route code registers them through `engine.runtime.model` and exposes model diagnostics on the debug element.
+- Updated bilingual resource/asset ingestion docs with runtime model namespace behavior.
+
 ### ENG-PG-005 [P1] Authoring/runtime parity API
 
-Status: TODO
+Status: DONE
 
 Requirement:
 
@@ -770,6 +778,18 @@ Requirement:
 Acceptance:
 
 - S10 game and 3D editor can both validate authoring/runtime graph parity.
+
+Progress:
+
+- Added generic `engine.runtime.authoring` API for authoring/runtime graph snapshots, graph snapshot comparison, deterministic preview tokens, and parity diagnostics.
+- Structural parity signatures compare graph/material identity independent of role and revision while reporting `revisionDelta` separately.
+- Added runtime capability-map entries and contract coverage for `runtime.authoring` methods.
+- Added bilingual API docs:
+  - `packages/engine/docs/en/api/runtime-authoring-parity.md`
+  - `packages/engine/docs/cn/api/runtime-authoring-parity.md`
+- Wired S10 driving game and 3D editor routes to create authoring/runtime snapshots, compare parity, create preview tokens, and expose route diagnostics via datasets.
+- Added playground contract coverage proving both S10 game and 3D editor graph builders validate through `engine.runtime.authoring`.
+- Extended browser route parity coverage to require authoring/runtime parity diagnostics on both routes.
 
 ## 9. Validation Commands
 
@@ -786,14 +806,8 @@ pnpm -C packages/engine exec tsx --test src/testing/openWorldRuntime.contract.te
 
 ## 10. Recommended Next Work Order
 
-1. `ENG-PG-004`: define generic asset/model runtime hooks, diagnostics, and playground validation path.
-2. `ENG-PG-005`: define generic authoring/runtime graph split and parity diagnostics.
-3. Continue P0 global scenario validation items (`PG-GLOBAL-001`, `PG-GLOBAL-003`) when engine capability work pauses.
-4. `ENG-PG-004`: define generic model/asset runtime API for vehicles, pedestrians, lamps, props, and editor objects.
-5. `ENG-PG-005`: define authoring/runtime parity API shared by S10 game and 3D editor.
-6. `PG-GAME-002`: keep the city generator seed-driven as validation input for the engine world APIs.
-7. `PG-3DE-004`: harden transform gizmo interaction tests as validation input for engine picking/transform APIs.
-8. `PG-GLOBAL-003`: add route screenshot/canvas-pixel smoke for game and 3deditor to prove the enriched engine APIs in rendered scenarios.
+1. Continue P0 global scenario validation items (`PG-GLOBAL-003`) now that ENG-PG-002 through ENG-PG-005 are complete.
+2. Continue per-scenario validation depth (`PG-GLOBAL-004`, `PG-3DE-001` through `PG-3DE-007`, `PG-GAME-002` through `PG-GAME-010`) when engine capability work pauses.
 
 ## 11. Handoff Notes
 

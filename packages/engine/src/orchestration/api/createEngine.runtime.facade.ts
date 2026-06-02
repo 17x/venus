@@ -215,6 +215,10 @@ export function createEngineRuntimeFacadeNamespace(deps: {
     input: EngineRuntimeCollisionEvaluateTriggersInput,
   ) => EngineRuntimeCollisionEvaluateTriggersOutput;
   clearRuntimeWorldSnapshot: () => EngineRuntimeWorldClearOutput;
+  createRuntimeAuthoringGraphSnapshot: (input: import("./public-types").EngineRuntimeAuthoringGraphSnapshotInput) => import("./public-types").EngineRuntimeAuthoringGraphSnapshotOutput;
+  compareRuntimeAuthoringGraphSnapshots: (input: import("./public-types").EngineRuntimeAuthoringGraphCompareInput) => import("./public-types").EngineRuntimeAuthoringGraphComparisonOutput;
+  createRuntimeAuthoringPreviewToken: (input: import("./public-types").EngineRuntimeAuthoringPreviewTokenInput) => import("./public-types").EngineRuntimeAuthoringPreviewTokenOutput;
+  resolveRuntimeAuthoringDiagnostics: () => import("./public-types").EngineRuntimeAuthoringDiagnosticsOutput;
   markRuntimeDirtyDomainsBatch: (input: EngineRuntimeDirtyMarkBatchInput) => EngineRuntimeDirtyStateOutput;
   resolveRuntimePendingDirtyDomains: () => readonly EngineRuntimeDirtyMarkInput["domain"][];
   resetRuntimeDirtyState: () => EngineRuntimeDirtyResetOutput;
@@ -261,6 +265,11 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   applyRuntimeLightingEnvironment: (
     input: EngineRuntimeLightingEnvironmentInput,
   ) => EngineRuntimeLightingEnvironmentOutput;
+  registerRuntimeModelAsset: (descriptor: import("./public-types").EngineRuntimeModelAssetDescriptor) => import("./public-types").EngineRuntimeModelDiagnosticsOutput;
+  unregisterRuntimeModelAsset: (modelId: string) => { unregistered: boolean; removedInstanceCount: number };
+  setRuntimeModelInstances: (instances: readonly import("./public-types").EngineRuntimeModelInstanceDescriptor[]) => import("./public-types").EngineRuntimeModelDiagnosticsOutput;
+  getRuntimeModelInstances: (options?: { cameraPosition?: readonly [number, number, number] }) => readonly import("./public-types").EngineRuntimeModelInstanceSnapshot[];
+  resolveRuntimeModelDiagnostics: () => import("./public-types").EngineRuntimeModelDiagnosticsOutput;
 }): EngineRuntimeApi {
   /**
    * Clamps one numeric value into [min, max] while preserving deterministic fallback behavior.
@@ -400,6 +409,12 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       stepAgents: (input) => deps.stepRuntimeWorldAgents(input),
       resolveCollision: (input) => deps.resolveRuntimeWorldCollision(input),
       clear: () => deps.clearRuntimeWorldSnapshot(),
+    },
+    authoring: {
+      createGraphSnapshot: (input) => deps.createRuntimeAuthoringGraphSnapshot(input),
+      compareGraphSnapshots: (input) => deps.compareRuntimeAuthoringGraphSnapshots(input),
+      createPreviewToken: (input) => deps.createRuntimeAuthoringPreviewToken(input),
+      getDiagnostics: () => deps.resolveRuntimeAuthoringDiagnostics(),
     },
     navigation: {
       setAgents: (agents) => deps.setRuntimeWorldAgents(agents),
@@ -550,6 +565,13 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       applyProfile: (profile) => deps.applyRuntimeLightingProfile(profile),
       resolveEnvironment: (input) => deps.resolveRuntimeLightingEnvironment(input),
       applyEnvironment: (input) => deps.applyRuntimeLightingEnvironment(input),
+    },
+    model: {
+      registerAsset: (descriptor) => deps.registerRuntimeModelAsset(descriptor),
+      unregisterAsset: (modelId) => deps.unregisterRuntimeModelAsset(modelId),
+      setInstances: (instances) => deps.setRuntimeModelInstances(instances),
+      getInstances: (options) => deps.getRuntimeModelInstances(options),
+      getDiagnostics: () => deps.resolveRuntimeModelDiagnostics(),
     },
     resource: {
       register: (descriptor) => deps.registerRuntimeResource(descriptor),

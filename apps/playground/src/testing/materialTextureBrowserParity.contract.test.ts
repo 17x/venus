@@ -196,11 +196,13 @@ test('driving game route proves decoded WebGL material texture upload on nonblan
       const bindingCount = Number(target.dataset.webglMaterialTextureBindingCount ?? 0)
       const decodedUploadObserved = target.dataset.webglMaterialTextureDecodedUploadObserved === 'true'
       const fallbackReason = target.dataset.webglMaterialTextureFallbackReason ?? 'none'
+      const authoringParity = target.dataset.runtimeAuthoringMatching === 'true'
       return candidateCount >= 2
         && uvReadyCount >= 2
         && bindingCount >= 2
         && decodedUploadObserved
         && fallbackReason === 'none'
+        && authoringParity
     }, {timeout: 15000})
 
     const sample = await sampleCanvas(page, '#gc')
@@ -228,11 +230,13 @@ test('3d editor route proves decoded WebGL material texture upload on nonblank c
       const bindingCount = Number(target.dataset.webglMaterialTextureBindingCount ?? 0)
       const decodedUploadObserved = target.dataset.webglMaterialTextureDecodedUploadObserved === 'true'
       const fallbackReason = target.dataset.webglMaterialTextureFallbackReason ?? 'none'
+      const authoringParity = target.dataset.runtimeAuthoringMatching === 'true'
       return candidateCount >= 2
         && uvReadyCount >= 2
         && bindingCount >= 2
         && decodedUploadObserved
         && fallbackReason === 'none'
+        && authoringParity
     }, {timeout: 15000})
 
     const sample = await sampleCanvas(page, '#playground-canvas')

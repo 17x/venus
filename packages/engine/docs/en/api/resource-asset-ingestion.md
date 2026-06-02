@@ -13,6 +13,32 @@ Engine resource ingestion is generic. App adapters translate domain files into e
 - Animation resources: keyframe tracks, deterministic revision ids, playback ranges.
 - Volume resources: scalar fields, slice descriptors, transfer function handles.
 
+## Runtime Model Namespace
+
+`engine.runtime.model` is the generic runtime layer above `engine.runtime.resource`. Resource APIs track residency and decode state; model APIs track reusable scene assets, runtime instances, LOD selection, and diagnostics without scenario-specific names.
+
+```ts
+engine.runtime.model.registerAsset({
+  id: "vehicle-model",
+  scene: sceneAsset,
+  lodDistances: [80, 220],
+});
+
+engine.runtime.model.setInstances([
+  { id: "vehicle-1", modelId: "vehicle-model", translation: [0, 0, 12] },
+]);
+
+const diagnostics = engine.runtime.model.getDiagnostics();
+```
+
+Current status:
+
+- Model assets use the canonical `EngineSceneAsset` container shared with glTF ingestion.
+- Model instances normalize translation, rotation, scale, optional color, and optional LOD override.
+- `getInstances({ cameraPosition })` returns deterministic snapshots sorted by instance id with resolved LOD levels.
+- Diagnostics report registered model count, instance count, instanced model count, missing model references, LOD-resolved instances, and mesh node count.
+- Playground S10 registers generic vehicle, pedestrian, lamp, sun, and moon model assets and drives route diagnostics through `engine.runtime.model`.
+
 ## Graph Material Texture Contract
 
 `engine.setGraph(input)` accepts graph-level `materials` and mesh-level `uvs` so scenario adapters can submit true material/texture contracts without baking sampled colors into many small primitives.
