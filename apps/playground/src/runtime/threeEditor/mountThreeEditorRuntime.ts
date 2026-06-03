@@ -9,6 +9,14 @@ import {
   type ThreeEditorLightingMode,
   type ThreeEditorOverlayState,
 } from './threeEditorRuntimeContracts'
+import {
+  createThreeEditorGizmoDragSnapshot,
+  resolveThreeEditorEntityIdFromNodeId,
+  resolveThreeEditorGizmoAxisFromNodeId,
+  resolveThreeEditorGizmoDragTransform,
+  resolveThreeEditorGizmoModeFromNodeId,
+  type ThreeEditorGizmoDragSnapshot,
+} from './threeEditorTransformControls'
 
 const STAGE_WIDTH = 720
 const STAGE_HEIGHT = 460
@@ -47,6 +55,7 @@ export const mountThreeEditorRuntime = (): void => {
           <div class="vector-stage-viewport">
             <div class="canvas-frame">
               <canvas id="playground-canvas" class="playground-canvas"></canvas>
+              <div id="atmosphere-haze-layer" style="position:absolute;inset:8px;border-radius:10px;pointer-events:none;opacity:0;background:transparent"></div>
               <canvas id="global-gizmo-overlay" style="position:absolute;top:12px;right:12px;width:110px;height:110px;pointer-events:none"></canvas>
             </div>
           </div>
@@ -71,6 +80,10 @@ export const mountThreeEditorRuntime = (): void => {
             <h3 class="panel-section-title">Hit Test</h3>
             <p id="hit-state" class="panel-kv">hover none | selected none</p>
           </div>
+          <div class="panel-section">
+            <h3 class="panel-section-title">Authoring / Runtime</h3>
+            <p id="authoring-runtime-state" class="panel-kv">authoring 0/0 | runtime 0/0 | parity false</p>
+          </div>
         </aside>
       </div>
       <footer class="vector-statusbar">
@@ -84,9 +97,11 @@ export const mountThreeEditorRuntime = (): void => {
   const statusLine = root.querySelector<HTMLDivElement>('#status-line')
   const cameraStateLine = root.querySelector<HTMLParagraphElement>('#camera-state')
   const hitStateLine = root.querySelector<HTMLParagraphElement>('#hit-state')
+  const authoringRuntimeStateLine = root.querySelector<HTMLParagraphElement>('#authoring-runtime-state')
   const documentModelList = root.querySelector<HTMLUListElement>('#doc-model-list')
+  const atmosphereHazeLayer = root.querySelector<HTMLDivElement>('#atmosphere-haze-layer')
   const globalGizmoOverlay = root.querySelector<HTMLCanvasElement>('#global-gizmo-overlay')
-  if (!canvas || !commandGroup || !statusLine || !cameraStateLine || !hitStateLine || !documentModelList || !globalGizmoOverlay) {
+  if (!canvas || !commandGroup || !statusLine || !cameraStateLine || !hitStateLine || !authoringRuntimeStateLine || !documentModelList || !atmosphereHazeLayer || !globalGizmoOverlay) {
     throw new Error('playground runtime mount failed')
   }
 
@@ -123,6 +138,22 @@ export const mountThreeEditorRuntime = (): void => {
     precipitation: 0,
     fogDensity: 0.06,
   }
+  let editorAtmosphereState = {
+    skyColor: '#0f172a',
+    hazeColor: '#94a3b8',
+    hazeOpacity: 0.04,
+  }
+  let authoringRuntimeParityState = {
+    authoringNodeCount: 0,
+    runtimeNodeCount: 0,
+    authoringMaterialCount: 0,
+    runtimeMaterialCount: 0,
+    matching: false,
+    revisionDelta: 0,
+    previewStepIndex: 0,
+    authoringSignature: '',
+    runtimeSignature: '',
+  }
   let hoverEntityId: string | null = null
   let selectedEntityId: string | null = null
   let worldObjects = DEFAULT_THREE_EDITOR_WORLD_OBJECTS.map((object) => ({...object}))
@@ -133,13 +164,7 @@ export const mountThreeEditorRuntime = (): void => {
     | {
       pointerId: number
       entityId: string
-      axis: 'x' | 'y' | 'z'
-      mode: 'translate' | 'rotate' | 'scale'
-      startX: number
-      startY: number
-      objectStartX: number
-      objectStartY: number
-      objectStartZ: number
+      snapshot: ThreeEditorGizmoDragSnapshot
     } = null
 
   canvas.width = STAGE_WIDTH
@@ -166,12 +191,33 @@ export const mountThreeEditorRuntime = (): void => {
     backend: 'webgl',
     strict3d: true,
   })
+
+  const hexToRgba = (hexColor: string, alpha: number): string => {
+    const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor)
+    if (!match) {
+      return hexColor
+    }
+    const red = Number.parseInt(match[1], 16)
+    const green = Number.parseInt(match[2], 16)
+    const blue = Number.parseInt(match[3], 16)
+    return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, alpha))})`
+  }
+
+  const refreshAtmosphereHazeLayer = (): void => {
+    const hazeOpacity = Math.max(0, Math.min(0.38, editorAtmosphereState.hazeOpacity))
+    atmosphereHazeLayer.style.opacity = hazeOpacity.toFixed(3)
+    atmosphereHazeLayer.style.background = [
+      `linear-gradient(180deg, ${hexToRgba(editorAtmosphereState.skyColor, 0.1)}, ${hexToRgba(editorAtmosphereState.hazeColor, 0.78)})`,
+      `radial-gradient(circle at 50% 92%, ${hexToRgba(editorAtmosphereState.hazeColor, 0.72)}, rgba(255,255,255,0) 62%)`,
+    ].join(', ')
+  }
+
   /**
    * Rebuilds runtime graph nodes from current state and submits them to engine.
    */
   const applyRuntimeGraph = (): void => {
     if (overlayState.lightingMode === 'lit') {
-      engine.runtime.lighting.applyEnvironment({
+      const environmentOutput = engine.runtime.lighting.applyEnvironment({
         timeOfDayHours: editorLightState.timeOfDayHours,
         directionDeg: editorLightState.lightAzimuthDeg,
         cloudCover: editorLightState.cloudCover,
@@ -181,10 +227,13 @@ export const mountThreeEditorRuntime = (): void => {
         ambientIntensity: editorLightState.ambientIntensity,
         additionalLights: [],
       })
+      editorAtmosphereState = {...environmentOutput.atmosphere}
     } else if (overlayState.lightingMode === 'inherit') {
       engine.runtime.lighting.applyProfile('studio')
+      editorAtmosphereState = {skyColor: '#0f172a', hazeColor: '#94a3b8', hazeOpacity: 0.02}
     } else {
       engine.runtime.lighting.clearCollection()
+      editorAtmosphereState = {skyColor: '#0f172a', hazeColor: '#94a3b8', hazeOpacity: 0}
     }
     const graph = buildThreeEditorEngineGraph({
       cameraState,
@@ -210,10 +259,25 @@ export const mountThreeEditorRuntime = (): void => {
     })
     const comparison = engine.runtime.authoring.compareGraphSnapshots({authoring: authoring.snapshotId, runtime: runtime.snapshotId})
     const preview = engine.runtime.authoring.createPreviewToken({scope: 'three-editor-runtime', snapshot: runtime.snapshotId, stepIndex: sceneRevision})
+    authoringRuntimeParityState = {
+      authoringNodeCount: comparison.authoring.nodeCount,
+      runtimeNodeCount: comparison.runtime.nodeCount,
+      authoringMaterialCount: comparison.authoring.materialCount,
+      runtimeMaterialCount: comparison.runtime.materialCount,
+      matching: comparison.matching,
+      revisionDelta: comparison.revisionDelta,
+      previewStepIndex: preview.stepIndex,
+      authoringSignature: comparison.authoring.signature,
+      runtimeSignature: comparison.runtime.signature,
+    }
     statusLine.dataset.runtimeAuthoringMatching = String(comparison.matching)
     statusLine.dataset.runtimeAuthoringAddedNodeCount = String(comparison.addedNodeIds.length)
     statusLine.dataset.runtimeAuthoringRemovedNodeCount = String(comparison.removedNodeIds.length)
     statusLine.dataset.runtimeAuthoringPreviewStepIndex = String(preview.stepIndex)
+    statusLine.dataset.runtimeAuthoringAuthoringNodeCount = String(comparison.authoring.nodeCount)
+    statusLine.dataset.runtimeAuthoringRuntimeNodeCount = String(comparison.runtime.nodeCount)
+    statusLine.dataset.runtimeAuthoringAuthoringMaterialCount = String(comparison.authoring.materialCount)
+    statusLine.dataset.runtimeAuthoringRuntimeMaterialCount = String(comparison.runtime.materialCount)
     engine.setGraph({
       revision: sceneRevision,
       nodes: graph.nodes,
@@ -254,6 +318,12 @@ export const mountThreeEditorRuntime = (): void => {
     hitStateLine.textContent = [
       `hover ${hoverEntityId ?? 'none'}`,
       `selected ${selectedEntityId ?? 'none'}`,
+    ].join(' | ')
+    authoringRuntimeStateLine.textContent = [
+      `authoring ${authoringRuntimeParityState.authoringNodeCount}/${authoringRuntimeParityState.authoringMaterialCount}`,
+      `runtime ${authoringRuntimeParityState.runtimeNodeCount}/${authoringRuntimeParityState.runtimeMaterialCount}`,
+      `parity ${authoringRuntimeParityState.matching}`,
+      `preview ${authoringRuntimeParityState.previewStepIndex}`,
     ].join(' | ')
   }
 
@@ -298,10 +368,16 @@ export const mountThreeEditorRuntime = (): void => {
       `gizmo ${overlayState.gizmoEnabled ? 'on' : 'off'}`,
       `lighting ${overlayState.lightingMode}`,
       `parity ${statusLine.dataset.runtimeAuthoringMatching ?? 'false'}`,
+      `authoring ${authoringRuntimeParityState.authoringNodeCount}/${authoringRuntimeParityState.authoringMaterialCount}`,
+      `runtime ${authoringRuntimeParityState.runtimeNodeCount}/${authoringRuntimeParityState.runtimeMaterialCount}`,
+      `lightDir ${editorLightState.lightAzimuthDeg.toFixed(1)}`,
+      `dirI ${editorLightState.directionalIntensity.toFixed(2)}`,
+      `ambI ${editorLightState.ambientIntensity.toFixed(2)}`,
       `time ${editorLightState.timeOfDayHours.toFixed(1)}`,
       `cloud ${editorLightState.cloudCover.toFixed(2)}`,
       `rain ${editorLightState.precipitation.toFixed(2)}`,
       `fog ${editorLightState.fogDensity.toFixed(2)}`,
+      `haze ${editorAtmosphereState.hazeOpacity.toFixed(2)}`,
       `activeLights ${engine.runtime.lighting.getCollection().lights.length}`,
     ].join(' | ')
   }
@@ -311,6 +387,7 @@ export const mountThreeEditorRuntime = (): void => {
    */
   const renderNow = async (): Promise<void> => {
     await engine.render()
+    refreshAtmosphereHazeLayer()
     drawGlobalGizmoOverlay()
     refreshDocumentModel()
     refreshInspectorTelemetry()
@@ -398,11 +475,38 @@ export const mountThreeEditorRuntime = (): void => {
 
   ;(globalThis as Record<string, unknown>).__venusPlayground3d = {
     getCameraState: (): ThreeEditorCameraState => ({...cameraState}),
+    getWorldObjects: () => worldObjects.map((object) => ({...object})),
+    getLightingState: () => ({...editorLightState}),
+    getLightingCollection: () => engine.runtime.lighting.getCollection(),
+    getAtmosphereState: () => ({...editorAtmosphereState}),
+    getAuthoringRuntimeParityState: () => ({...authoringRuntimeParityState}),
     setCameraState: async (nextState: Partial<ThreeEditorCameraState>): Promise<void> => {
       cameraController.setState({
         ...cameraState,
         ...nextState,
       })
+      await renderInteractiveScene()
+    },
+    applyGizmoDrag: async (input: {
+      entityId: string
+      axis: 'x' | 'y' | 'z'
+      mode: 'translate' | 'rotate' | 'scale'
+      startX: number
+      startY: number
+      x: number
+      y: number
+    }): Promise<void> => {
+      const object = worldObjects.find((entry) => entry.id === input.entityId)
+      if (!object) {
+        throw new Error(`unknown 3d editor object: ${input.entityId}`)
+      }
+      const snapshot = createThreeEditorGizmoDragSnapshot(object, {
+        axis: input.axis,
+        mode: input.mode,
+        startX: input.startX,
+        startY: input.startY,
+      })
+      Object.assign(object, resolveThreeEditorGizmoDragTransform(snapshot, {x: input.x, y: input.y}, cameraState.distance))
       await renderInteractiveScene()
     },
   }
@@ -463,41 +567,7 @@ export const mountThreeEditorRuntime = (): void => {
    * @param nodeId Engine graph node id from pick result.
    */
   const resolveEntityIdFromNodeId = (nodeId: string): string | null => {
-    if (nodeId.startsWith('object-')) {
-      return nodeId.slice('object-'.length)
-    }
-    if (nodeId.startsWith('selected-gizmo-')) {
-      const body = nodeId.slice('selected-gizmo-'.length)
-      const marker = body.indexOf('-t')
-      if (marker > 0) {
-        return body.slice(0, marker)
-      }
-      const markerR = body.indexOf('-r')
-      if (markerR > 0) {
-        return body.slice(0, markerR)
-      }
-      const markerS = body.indexOf('-s')
-      if (markerS > 0) {
-        return body.slice(0, markerS)
-      }
-    }
-    if (nodeId === 'axis-x' || nodeId === 'axis-y' || nodeId === 'axis-z') {
-      return nodeId
-    }
-    return null
-  }
-
-  const resolveGizmoAxisFromNodeId = (nodeId: string): 'x' | 'y' | 'z' | null => {
-    if (nodeId.includes('-tx') || nodeId.includes('-sx')) return 'x'
-    if (nodeId.includes('-ty') || nodeId.includes('-sy')) return 'y'
-    if (nodeId.includes('-tz') || nodeId.includes('-sz')) return 'z'
-    return null
-  }
-  const resolveGizmoModeFromNodeId = (nodeId: string): 'translate' | 'rotate' | 'scale' | null => {
-    if (nodeId.includes('-tx') || nodeId.includes('-ty') || nodeId.includes('-tz')) return 'translate'
-    if (nodeId.includes('-rx-') || nodeId.includes('-ry-') || nodeId.includes('-rz-')) return 'rotate'
-    if (nodeId.includes('-sx') || nodeId.includes('-sy') || nodeId.includes('-sz')) return 'scale'
-    return null
+    return resolveThreeEditorEntityIdFromNodeId(nodeId)
   }
 
   /**
@@ -883,6 +953,7 @@ export const mountThreeEditorRuntime = (): void => {
   commandGroup.append(cameraSettingsPanel)
 
   const appendSlider = (
+    key: string,
     label: string,
     min: number,
     max: number,
@@ -900,6 +971,7 @@ export const mountThreeEditorRuntime = (): void => {
     input.max = String(max)
     input.step = String(step)
     input.value = String(value)
+    input.dataset.threeEditorSetting = key
     input.addEventListener('input', () => {
       const next = Number.parseFloat(input.value)
       if (!Number.isFinite(next)) return
@@ -911,37 +983,37 @@ export const mountThreeEditorRuntime = (): void => {
     cameraSettingsPanel.append(row)
   }
 
-  appendSlider('Cam Yaw', -180, 180, 1, cameraState.yaw, (value) => {
+  appendSlider('cameraYaw', 'Cam Yaw', -180, 180, 1, cameraState.yaw, (value) => {
     cameraState = {...cameraState, yaw: value}
     cameraController.setState(cameraState)
   })
-  appendSlider('Cam Pitch', -85, 85, 1, cameraState.pitch, (value) => {
+  appendSlider('cameraPitch', 'Cam Pitch', -85, 85, 1, cameraState.pitch, (value) => {
     cameraState = {...cameraState, pitch: value}
     cameraController.setState(cameraState)
   })
-  appendSlider('Cam Dist', 120, 2200, 10, cameraState.distance, (value) => {
+  appendSlider('cameraDistance', 'Cam Dist', 120, 2200, 10, cameraState.distance, (value) => {
     cameraState = {...cameraState, distance: value}
     cameraController.setState(cameraState)
   })
-  appendSlider('Light Dir I', 0, 3, 0.05, editorLightState.directionalIntensity, (value) => {
+  appendSlider('directionalIntensity', 'Light Dir I', 0, 3, 0.05, editorLightState.directionalIntensity, (value) => {
     editorLightState = {...editorLightState, directionalIntensity: value}
   })
-  appendSlider('Light Amb I', 0, 1, 0.02, editorLightState.ambientIntensity, (value) => {
+  appendSlider('ambientIntensity', 'Light Amb I', 0, 1, 0.02, editorLightState.ambientIntensity, (value) => {
     editorLightState = {...editorLightState, ambientIntensity: value}
   })
-  appendSlider('Light Dir', 0, 359, 1, editorLightState.lightAzimuthDeg, (value) => {
+  appendSlider('lightAzimuthDeg', 'Light Dir', 0, 359, 1, editorLightState.lightAzimuthDeg, (value) => {
     editorLightState = {...editorLightState, lightAzimuthDeg: value}
   })
-  appendSlider('Time', 0, 23.9, 0.1, editorLightState.timeOfDayHours, (value) => {
+  appendSlider('timeOfDayHours', 'Time', 0, 23.9, 0.1, editorLightState.timeOfDayHours, (value) => {
     editorLightState = {...editorLightState, timeOfDayHours: value}
   })
-  appendSlider('Cloud', 0, 1, 0.01, editorLightState.cloudCover, (value) => {
+  appendSlider('cloudCover', 'Cloud', 0, 1, 0.01, editorLightState.cloudCover, (value) => {
     editorLightState = {...editorLightState, cloudCover: value}
   })
-  appendSlider('Rain', 0, 1, 0.01, editorLightState.precipitation, (value) => {
+  appendSlider('precipitation', 'Rain', 0, 1, 0.01, editorLightState.precipitation, (value) => {
     editorLightState = {...editorLightState, precipitation: value}
   })
-  appendSlider('Fog', 0, 1, 0.01, editorLightState.fogDensity, (value) => {
+  appendSlider('fogDensity', 'Fog', 0, 1, 0.01, editorLightState.fogDensity, (value) => {
     editorLightState = {...editorLightState, fogDensity: value}
   })
 
@@ -976,21 +1048,20 @@ export const mountThreeEditorRuntime = (): void => {
     const pickResult = engine.pick(point, {tolerance: PICK_TOLERANCE})
     const gizmoHit = pickResult.hits.map((entry) => entry.id).find((id) => id.startsWith('selected-gizmo-')) ?? null
     if (gizmoHit) {
-      const axis = resolveGizmoAxisFromNodeId(gizmoHit)
-      const mode = resolveGizmoModeFromNodeId(gizmoHit)
+      const axis = resolveThreeEditorGizmoAxisFromNodeId(gizmoHit)
+      const mode = resolveThreeEditorGizmoModeFromNodeId(gizmoHit)
       const entityId = selectedEntityId
       const object = entityId ? worldObjects.find((entry) => entry.id === entityId) : null
       if (axis && mode && entityId && object) {
         gizmoDragState = {
           pointerId: event.pointerId,
           entityId,
-          axis,
-          mode,
-          startX: point.x,
-          startY: point.y,
-          objectStartX: object.x,
-          objectStartY: object.y,
-          objectStartZ: object.z,
+          snapshot: createThreeEditorGizmoDragSnapshot(object, {
+            axis,
+            mode,
+            startX: point.x,
+            startY: point.y,
+          }),
         }
         canvas.setPointerCapture(event.pointerId)
         return
@@ -1016,32 +1087,7 @@ export const mountThreeEditorRuntime = (): void => {
     if (dragState && dragState.pointerId === event.pointerId) {
       const object = worldObjects.find((entry) => entry.id === dragState.entityId)
       if (object) {
-        const dx = point.x - dragState.startX
-        const dy = point.y - dragState.startY
-        const moveScale = Math.max(0.05, cameraState.distance * 0.0022)
-        if (dragState.mode === 'translate') {
-          if (dragState.axis === 'x') {
-            object.x = dragState.objectStartX + dx * moveScale
-          } else if (dragState.axis === 'y') {
-            object.y = dragState.objectStartY - dy * moveScale
-          } else {
-            object.z = dragState.objectStartZ - dy * moveScale
-          }
-        } else if (dragState.mode === 'rotate') {
-          const delta = (dx - dy) * 0.25
-          object.rotationYDeg = (object.rotationYDeg ?? 0) + delta
-          dragState.startX = point.x
-          dragState.startY = point.y
-        } else if (dragState.mode === 'scale') {
-          const factor = Math.max(0.15, 1 + (dx - dy) * 0.005)
-          if (dragState.axis === 'x') {
-            object.scaleX = Math.max(0.15, factor)
-          } else if (dragState.axis === 'y') {
-            object.scaleY = Math.max(0.15, factor)
-          } else {
-            object.scaleZ = Math.max(0.15, factor)
-          }
-        }
+        Object.assign(object, resolveThreeEditorGizmoDragTransform(dragState.snapshot, point, cameraState.distance))
         void renderInteractiveScene()
       }
       return

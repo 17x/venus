@@ -18,7 +18,7 @@
 ```ts
 engine.runtime.navigation.setAgents([
   { id: "agent-a", kind: "car", x: 0, z: 0, yaw: 0, pathIndex: 0, speed: 4 },
-])
+]);
 ```
 
 ### `engine.runtime.navigation.getAgents()`
@@ -33,12 +33,15 @@ engine.runtime.navigation.setAgents([
 engine.runtime.navigation.registerPath({
   id: "path-east",
   loop: true,
-  nodes: [{ x: 0, z: 0 }, { x: 100, z: 0 }],
+  nodes: [
+    { x: 0, z: 0 },
+    { x: 100, z: 0 },
+  ],
   constraints: {
     arrivalTolerance: 0.5,
     maxStepDistance: 2,
   },
-})
+});
 ```
 
 Path constraints 是可选项：
@@ -62,9 +65,15 @@ Path constraints 是可选项：
 ```ts
 engine.runtime.navigation.stepAgents({
   deltaSeconds: 1 / 60,
-  carPath: [{ x: 0, z: 0 }, { x: 100, z: 0 }],
-  pedestrianPath: [{ x: 0, z: 0 }, { x: 0, z: 100 }],
-})
+  carPath: [
+    { x: 0, z: 0 },
+    { x: 100, z: 0 },
+  ],
+  pedestrianPath: [
+    { x: 0, z: 0 },
+    { x: 0, z: 100 },
+  ],
+});
 ```
 
 ### `engine.runtime.navigation.stepPathAgents(input)`
@@ -75,7 +84,7 @@ engine.runtime.navigation.stepAgents({
 engine.runtime.navigation.stepPathAgents({
   deltaSeconds: 1 / 60,
   pathBindings: [{ agentId: "agent-a", pathId: "path-east" }],
-})
+});
 ```
 
 ## Collision
@@ -91,7 +100,7 @@ engine.runtime.collision.registerCollider({
   z: 0,
   width: 40,
   depth: 40,
-})
+});
 ```
 
 ### `engine.runtime.collision.unregisterCollider(colliderId)`
@@ -105,7 +114,7 @@ engine.runtime.collision.registerCollider({
 ```ts
 engine.runtime.collision.setObstacles([
   { id: "blocker-a", x: 0, z: 0, width: 40, depth: 40 },
-])
+]);
 ```
 
 ### `engine.runtime.collision.getObstacles()`
@@ -122,7 +131,7 @@ engine.runtime.collision.queryAabb({
   z: 0,
   width: 64,
   depth: 64,
-})
+});
 ```
 
 ### `engine.runtime.collision.evaluateTriggers(input)`
@@ -137,7 +146,23 @@ engine.runtime.collision.evaluateTriggers({
   x: 0,
   z: 0,
   radius: 5,
-})
+});
+```
+
+### `engine.runtime.collision.sweepCircle(input)`
+
+将一个移动 circle 从起点中心扫到目标中心，并与当前 active colliders 做连续碰撞检测。
+该方法返回最早接触、归一化 impact time、接触法线、impact center 与安全终点。
+当单帧位移可能直接穿过较薄 collider，导致离散 `resolve` 尚未观察到 overlap 时，使用该 API。
+
+```ts
+engine.runtime.collision.sweepCircle({
+  startX: 0,
+  startZ: 0,
+  endX: 50,
+  endZ: 0,
+  radius: 2,
+});
 ```
 
 ### `engine.runtime.collision.resolve(input)`
@@ -151,7 +176,7 @@ engine.runtime.collision.resolve({
   radius: 5,
   velocityX: 10,
   velocityZ: 0,
-})
+});
 ```
 
 ## 兼容性

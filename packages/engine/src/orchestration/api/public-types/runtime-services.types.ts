@@ -762,6 +762,46 @@ export interface EngineRuntimeCollisionEvaluateTriggersOutput {
 }
 
 /**
+ * Runtime swept circle collision input payload.
+ */
+export interface EngineRuntimeCollisionSweepCircleInput {
+  /** Sweep start center x. */
+  startX: number;
+  /** Sweep start center z. */
+  startZ: number;
+  /** Sweep target center x. */
+  endX: number;
+  /** Sweep target center z. */
+  endZ: number;
+  /** Moving subject collision radius. */
+  radius: number;
+}
+
+/**
+ * Runtime swept circle collision output payload.
+ */
+export interface EngineRuntimeCollisionSweepCircleOutput {
+  /** Safe terminal center x after sweep. */
+  x: number;
+  /** Safe terminal center z after sweep. */
+  z: number;
+  /** Whether the sweep hit an active collider. */
+  collided: boolean;
+  /** Earliest hit collider id, or null when no hit occurred. */
+  colliderId: string | null;
+  /** Normalized time of impact in [0, 1], or 1 when no hit occurred. */
+  timeOfImpact: number;
+  /** Impact center x at time of impact. */
+  impactX: number;
+  /** Impact center z at time of impact. */
+  impactZ: number;
+  /** Contact normal x axis. */
+  normalX: number;
+  /** Contact normal z axis. */
+  normalZ: number;
+}
+
+/**
  * Runtime navigation namespace API contract exposed under engine.runtime.navigation.
  */
 export interface EngineRuntimeNavigationApi {
@@ -801,6 +841,10 @@ export interface EngineRuntimeCollisionApi {
   evaluateTriggers: (
     input: EngineRuntimeCollisionEvaluateTriggersInput,
   ) => EngineRuntimeCollisionEvaluateTriggersOutput;
+  /** Sweeps one moving circle against active colliders and returns earliest contact. */
+  sweepCircle: (
+    input: EngineRuntimeCollisionSweepCircleInput,
+  ) => EngineRuntimeCollisionSweepCircleOutput;
   /** Resolves one circle-vs-aabb collision pass against active obstacles. */
   resolve: (
     input: EngineRuntimeWorldResolveCollisionInput,

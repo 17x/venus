@@ -34,8 +34,178 @@ interface EngineSceneSnapshot {
   width: number
   /** Stores document height mirrored into scene payload. */
   height: number
+  /** Stores vector-runtime adapter metadata without product workflow semantics. */
+  adapter: EngineSceneAdapterMetadata
   /** Stores flattened scene node list. */
   nodes: EngineRenderableNode[]
+  /** Stores projection diagnostics for fields that are degraded before engine submission. */
+  diagnostics: EngineSceneAdapterDiagnostic[]
+}
+export interface EngineSceneAdapterMetadata {
+  /** Stable adapter contract version for product/runtime diagnostics. */
+  version: 'vector2d.engine-scene-adapter.v1'
+  /** Explicit opt-in dimension mode; engine remains generic and 3D-first. */
+  dimensionMode: '2d' | 'hybrid-2d3d'
+}
+export interface EngineSceneAdapterDiagnostic {
+  /** Stable diagnostic code used by tests and product diagnostics UI. */
+  code:
+    | 'v2d.adapter.degraded.fill-gradient'
+    | 'v2d.adapter.degraded.fill-image'
+    | 'v2d.adapter.degraded.stroke-gradient'
+    | 'v2d.adapter.degraded.blur'
+    | 'v2d.adapter.degraded.boolean'
+    | 'v2d.adapter.degraded.component'
+    | 'v2d.adapter.degraded.shadow-spread'
+    | 'v2d.adapter.degraded.missing-image-source'
+  /** Diagnostic severity. */
+  severity: 'info' | 'warning'
+  /** Source authoring node affected by this projection diagnostic. */
+  nodeId: string
+  /** Canonical authoring field path that triggered the diagnostic. */
+  fieldPath: string
+  /** Compatibility action used before engine submission. */
+  action: 'approximated' | 'dropped' | 'fallback'
+}
+export type EngineSceneAdapterRenderFeature =
+  | 'image'
+  | 'rich-text'
+  | 'fills'
+  | 'strokes'
+  | 'effects'
+  | 'masks'
+  | 'groups'
+  | 'components'
+  | 'booleans'
+export type EngineSceneAdapterRenderSupportStatus =
+  | 'projected'
+  | 'degraded'
+  | 'fallback'
+export interface EngineSceneAdapterRenderSupportRow {
+  /** Commercial authoring feature represented by this adapter row. */
+  feature: EngineSceneAdapterRenderFeature
+  /** Current adapter support status before engine submission. */
+  status: EngineSceneAdapterRenderSupportStatus
+  /** Generic engine payload fields used for the projection. */
+  enginePayloadFields: readonly string[]
+  /** Diagnostics emitted when this feature cannot be represented losslessly. */
+  diagnosticCodes: readonly EngineSceneAdapterDiagnostic['code'][]
+  /** Human-readable projection policy for product diagnostics and release reports. */
+  policy: string
+}
+export interface EngineSceneAdapterDiagnosticsReport {
+  /** Stable report schema version for release tooling. */
+  schemaVersion: 1
+  /** Adapter version whose diagnostics were summarized. */
+  adapterVersion: EngineSceneAdapterMetadata['version']
+  /** Total diagnostic count. */
+  totalCount: number
+  /** Diagnostic count grouped by severity. */
+  severityCounts: Record<EngineSceneAdapterDiagnostic['severity'], number>
+  /** Diagnostic count grouped by stable diagnostic code. */
+  codeCounts: Partial<Record<EngineSceneAdapterDiagnostic['code'], number>>
+  /** Unique affected authoring node ids. */
+  affectedNodeIds: string[]
+  /** Support matrix snapshot used by this report. */
+  supportMatrix: readonly EngineSceneAdapterRenderSupportRow[]
+}
+export const ENGINE_SCENE_ADAPTER_RENDER_SUPPORT_MATRIX: readonly EngineSceneAdapterRenderSupportRow[] = [
+  {
+    feature: 'image',
+    status: 'fallback',
+    enginePayloadFields: ['type', 'assetId', 'x', 'y', 'width', 'height', 'clip'],
+    diagnosticCodes: [
+      'v2d.adapter.degraded.fill-image',
+      'v2d.adapter.degraded.missing-image-source',
+    ],
+    policy: 'Image nodes project to generic image payloads; image fills and missing sources use fallback diagnostics.',
+  },
+  {
+    feature: 'rich-text',
+    status: 'projected',
+    enginePayloadFields: ['type', 'text', 'runs', 'style', 'cacheKey', 'lineCount', 'maxLineHeight'],
+    diagnosticCodes: [],
+    policy: 'Text content, run styles, paragraph fields, and text cache metadata project into generic text payload fields.',
+  },
+  {
+    feature: 'fills',
+    status: 'degraded',
+    enginePayloadFields: ['fill'],
+    diagnosticCodes: [
+      'v2d.adapter.degraded.fill-gradient',
+      'v2d.adapter.degraded.fill-image',
+    ],
+    policy: 'The first effective fill projects to a generic fill color; gradients and image fills emit degradation diagnostics.',
+  },
+  {
+    feature: 'strokes',
+    status: 'degraded',
+    enginePayloadFields: ['stroke', 'strokeWidth', 'dashPattern', 'customDash', 'strokeAlign', 'strokeCap', 'strokeJoin'],
+    diagnosticCodes: ['v2d.adapter.degraded.stroke-gradient'],
+    policy: 'The first effective stroke projects to generic stroke fields; gradient strokes emit degradation diagnostics.',
+  },
+  {
+    feature: 'effects',
+    status: 'degraded',
+    enginePayloadFields: ['shadow'],
+    diagnosticCodes: [
+      'v2d.adapter.degraded.blur',
+      'v2d.adapter.degraded.shadow-spread',
+    ],
+    policy: 'Basic shadow projects to generic shadow fields; blur and shadow spread are currently degraded.',
+  },
+  {
+    feature: 'masks',
+    status: 'projected',
+    enginePayloadFields: ['clip'],
+    diagnosticCodes: [],
+    policy: 'Clip-path references project to generic clip payloads when the referenced clip node exists.',
+  },
+  {
+    feature: 'groups',
+    status: 'projected',
+    enginePayloadFields: ['type', 'children', 'transform'],
+    diagnosticCodes: [],
+    policy: 'Group nodes project to generic group payloads with transform metadata; hierarchy semantics remain product-owned.',
+  },
+  {
+    feature: 'components',
+    status: 'degraded',
+    enginePayloadFields: ['type', 'id', 'transform'],
+    diagnosticCodes: ['v2d.adapter.degraded.component'],
+    policy: 'Component metadata remains product-owned; adapter projects the renderable instance shape and emits component degradation diagnostics.',
+  },
+  {
+    feature: 'booleans',
+    status: 'fallback',
+    enginePayloadFields: ['shape', 'points', 'bezierPoints', 'closed'],
+    diagnosticCodes: ['v2d.adapter.degraded.boolean'],
+    policy: 'Boolean authoring metadata remains product-owned; adapter projects available geometry and emits fallback diagnostics.',
+  },
+]
+export function createEngineSceneAdapterDiagnosticsReport(
+  diagnostics: readonly EngineSceneAdapterDiagnostic[],
+): EngineSceneAdapterDiagnosticsReport {
+  const severityCounts: Record<EngineSceneAdapterDiagnostic['severity'], number> = {
+    info: 0,
+    warning: 0,
+  }
+  const codeCounts: Partial<Record<EngineSceneAdapterDiagnostic['code'], number>> = {}
+  const affectedNodeIdSet = new Set<string>()
+  diagnostics.forEach((diagnostic) => {
+    severityCounts[diagnostic.severity] += 1
+    codeCounts[diagnostic.code] = (codeCounts[diagnostic.code] ?? 0) + 1
+    affectedNodeIdSet.add(diagnostic.nodeId)
+  })
+  return {
+    schemaVersion: 1,
+    adapterVersion: 'vector2d.engine-scene-adapter.v1',
+    totalCount: diagnostics.length,
+    severityCounts,
+    codeCounts,
+    affectedNodeIds: [...affectedNodeIdSet].sort(),
+    supportMatrix: ENGINE_SCENE_ADAPTER_RENDER_SUPPORT_MATRIX,
+  }
 }
 export interface CreateEngineSceneFromRuntimeSnapshotOptions {
   document: EditorDocument
@@ -70,6 +240,7 @@ export function createEngineSceneFromRuntimeSnapshot(
   options: CreateEngineSceneFromRuntimeSnapshotOptions,
 ): EngineSceneSnapshot {
   const compatibility = options.compatibility
+  const dimensionMode = compatibility?.dimensionMode ?? '2d'
   const defaultLightingMode = compatibility?.defaultLightingMode
   const defaultMaterialId = compatibility?.defaultMaterialId
   const includeShapeIdSet = options.includeShapeIds
@@ -77,6 +248,7 @@ export function createEngineSceneFromRuntimeSnapshot(
     : null
   const documentShapeById = new Map(options.document.shapes.map((shape) => [shape.id, shape]))
   const nodes: EngineRenderableNode[] = []
+  const diagnostics = collectEngineSceneAdapterDiagnostics(options.document, documentShapeById)
   if (options.includeDocumentBackground !== false) {
     nodes.push({
       id: '__doc_background__',
@@ -251,7 +423,12 @@ export function createEngineSceneFromRuntimeSnapshot(
     revision: options.revision,
     width: options.document.width,
     height: options.document.height,
+    adapter: {
+      version: 'vector2d.engine-scene-adapter.v1',
+      dimensionMode,
+    },
     nodes,
+    diagnostics,
   }
 }
 export function buildDocumentImageAssetUrlMap(document: EditorDocument) {
@@ -457,6 +634,91 @@ function resolveNodeShadow(
     offsetY: sourceShape.shadow.offsetY,
     blur: sourceShape.shadow.blur,
   }
+}
+function collectEngineSceneAdapterDiagnostics(
+  document: EditorDocument,
+  shapeById: Map<string, EditorDocument['shapes'][number]>,
+): EngineSceneAdapterDiagnostic[] {
+  const diagnostics: EngineSceneAdapterDiagnostic[] = []
+  document.shapes.forEach((shape) => {
+    shape.fills?.forEach((fill, index) => {
+      if (fill.gradient) {
+        diagnostics.push({
+          code: 'v2d.adapter.degraded.fill-gradient',
+          severity: 'warning',
+          nodeId: shape.id,
+          fieldPath: `shapes.${shape.id}.fills.${index}.gradient`,
+          action: 'approximated',
+        })
+      }
+      if (fill.image) {
+        diagnostics.push({
+          code: 'v2d.adapter.degraded.fill-image',
+          severity: 'warning',
+          nodeId: shape.id,
+          fieldPath: `shapes.${shape.id}.fills.${index}.image`,
+          action: 'fallback',
+        })
+      }
+    })
+    shape.strokes?.forEach((stroke, index) => {
+      if (stroke.gradient) {
+        diagnostics.push({
+          code: 'v2d.adapter.degraded.stroke-gradient',
+          severity: 'warning',
+          nodeId: shape.id,
+          fieldPath: `shapes.${shape.id}.strokes.${index}.gradient`,
+          action: 'approximated',
+        })
+      }
+    })
+    if (shape.blur?.enabled) {
+      diagnostics.push({
+        code: 'v2d.adapter.degraded.blur',
+        severity: 'warning',
+        nodeId: shape.id,
+        fieldPath: `shapes.${shape.id}.blur`,
+        action: 'dropped',
+      })
+    }
+    if (shape.booleanOperation && shape.booleanOperation !== 'none') {
+      diagnostics.push({
+        code: 'v2d.adapter.degraded.boolean',
+        severity: 'warning',
+        nodeId: shape.id,
+        fieldPath: `shapes.${shape.id}.booleanOperation`,
+        action: 'fallback',
+      })
+    }
+    if (shape.componentId || shape.componentProperties) {
+      diagnostics.push({
+        code: 'v2d.adapter.degraded.component',
+        severity: 'info',
+        nodeId: shape.id,
+        fieldPath: `shapes.${shape.id}.component`,
+        action: 'dropped',
+      })
+    }
+    if (shape.shadow?.enabled && typeof shape.shadow.spread === 'number' && shape.shadow.spread !== 0) {
+      diagnostics.push({
+        code: 'v2d.adapter.degraded.shadow-spread',
+        severity: 'warning',
+        nodeId: shape.id,
+        fieldPath: `shapes.${shape.id}.shadow.spread`,
+        action: 'approximated',
+      })
+    }
+    if (shape.type === 'image' && shape.assetId && !shape.assetUrl) {
+      diagnostics.push({
+        code: 'v2d.adapter.degraded.missing-image-source',
+        severity: 'warning',
+        nodeId: shape.id,
+        fieldPath: `shapes.${shape.id}.assetUrl`,
+        action: shapeById.has(shape.id) ? 'fallback' : 'dropped',
+      })
+    }
+  })
+  return diagnostics
 }
 function resolveNodeClip(
   sourceShape: EditorDocument['shapes'][number] | undefined,

@@ -18,7 +18,7 @@ Replaces the active navigation-agent collection.
 ```ts
 engine.runtime.navigation.setAgents([
   { id: "agent-a", kind: "car", x: 0, z: 0, yaw: 0, pathIndex: 0, speed: 4 },
-])
+]);
 ```
 
 ### `engine.runtime.navigation.getAgents()`
@@ -33,12 +33,15 @@ Registers or replaces one waypoint path.
 engine.runtime.navigation.registerPath({
   id: "path-east",
   loop: true,
-  nodes: [{ x: 0, z: 0 }, { x: 100, z: 0 }],
+  nodes: [
+    { x: 0, z: 0 },
+    { x: 100, z: 0 },
+  ],
   constraints: {
     arrivalTolerance: 0.5,
     maxStepDistance: 2,
   },
-})
+});
 ```
 
 Path constraints are optional:
@@ -62,9 +65,15 @@ Advances active agents along deterministic waypoint paths.
 ```ts
 engine.runtime.navigation.stepAgents({
   deltaSeconds: 1 / 60,
-  carPath: [{ x: 0, z: 0 }, { x: 100, z: 0 }],
-  pedestrianPath: [{ x: 0, z: 0 }, { x: 0, z: 100 }],
-})
+  carPath: [
+    { x: 0, z: 0 },
+    { x: 100, z: 0 },
+  ],
+  pedestrianPath: [
+    { x: 0, z: 0 },
+    { x: 0, z: 100 },
+  ],
+});
 ```
 
 ### `engine.runtime.navigation.stepPathAgents(input)`
@@ -75,7 +84,7 @@ Advances active agents using registered paths and optional agent-to-path binding
 engine.runtime.navigation.stepPathAgents({
   deltaSeconds: 1 / 60,
   pathBindings: [{ agentId: "agent-a", pathId: "path-east" }],
-})
+});
 ```
 
 ## Collision
@@ -91,7 +100,7 @@ engine.runtime.collision.registerCollider({
   z: 0,
   width: 40,
   depth: 40,
-})
+});
 ```
 
 ### `engine.runtime.collision.unregisterCollider(colliderId)`
@@ -105,7 +114,7 @@ Replaces the active collision obstacle set.
 ```ts
 engine.runtime.collision.setObstacles([
   { id: "blocker-a", x: 0, z: 0, width: 40, depth: 40 },
-])
+]);
 ```
 
 ### `engine.runtime.collision.getObstacles()`
@@ -122,7 +131,7 @@ engine.runtime.collision.queryAabb({
   z: 0,
   width: 64,
   depth: 64,
-})
+});
 ```
 
 ### `engine.runtime.collision.evaluateTriggers(input)`
@@ -137,7 +146,24 @@ engine.runtime.collision.evaluateTriggers({
   x: 0,
   z: 0,
   radius: 5,
-})
+});
+```
+
+### `engine.runtime.collision.sweepCircle(input)`
+
+Sweeps one moving circle from a start center to a target center against active colliders.
+The method returns the earliest continuous contact, normalized time of impact, contact normal,
+impact center, and safe terminal center. Use it when a single frame movement may cross through
+a thin collider before a discrete `resolve` pass can observe overlap.
+
+```ts
+engine.runtime.collision.sweepCircle({
+  startX: 0,
+  startZ: 0,
+  endX: 50,
+  endZ: 0,
+  radius: 2,
+});
 ```
 
 ### `engine.runtime.collision.resolve(input)`
@@ -151,7 +177,7 @@ engine.runtime.collision.resolve({
   radius: 5,
   velocityX: 10,
   velocityZ: 0,
-})
+});
 ```
 
 ## Compatibility

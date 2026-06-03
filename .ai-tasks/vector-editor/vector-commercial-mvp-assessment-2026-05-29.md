@@ -4,6 +4,12 @@
 
 Goal: ship first commercial 2D vector editor version aligned with Adobe Illustrator / Figma-level document foundations.
 
+Deep execution source:
+
+- `.ai-tasks/vector-editor/vector2d-commercial-product-deep-plan-2026-06-03.md`
+
+Use that plan for UI, inspector, interaction, overlay, handler, drawing tool, transform/group, CRUD, and product-runtime-engine full-chain execution.
+
 ### Current Document Model Coverage
 
 `EditorDocument` (document-level):

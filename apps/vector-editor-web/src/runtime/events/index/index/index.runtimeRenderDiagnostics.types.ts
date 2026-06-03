@@ -1,4 +1,5 @@
 import type {RuntimeRenderDiagnosticsStats} from './index.runtimeEvents.types.ts'
+import type {EngineSceneAdapterDiagnosticsReport} from '../../../presets/index.ts'
 
 export interface RuntimeRenderDiagnostics {
   frameCount: number
@@ -209,6 +210,8 @@ export interface RuntimeRenderDiagnostics {
   engineQosGuardTriggers: string[]
   // Latest QoS trace id used for frame-level diagnostics correlation.
   engineQosTrace: string
+  // Latest vector-to-engine scene adapter projection report; product-owned diagnostics only.
+  engineSceneAdapterReport: EngineSceneAdapterDiagnosticsReport
   lastRenderRequestReason: string
   // Stores current scene routing plane resolved by active/overlay contract.
   activeOverlayScenePlane: 'base' | 'active'

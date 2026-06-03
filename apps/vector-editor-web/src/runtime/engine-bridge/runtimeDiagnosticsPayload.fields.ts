@@ -262,6 +262,7 @@ export function buildRuntimeDiagnosticsPayloadFields(
     engineQosFallbackReason: input.engineCoreStats.qosFallbackReason,
     engineQosGuardTriggers: [...input.engineCoreStats.qosGuardTriggers],
     engineQosTrace: input.engineCoreStats.qosTrace,
+    engineSceneAdapterReport: input.engineSceneAdapterReport,
     lastRenderRequestReason: input.renderRequestStats.lastReason,
     activeOverlayScenePlane: input.renderRequestStats.activeOverlayScenePlane,
     activeOverlayOverlayPlane: input.renderRequestStats.activeOverlayOverlayPlane,

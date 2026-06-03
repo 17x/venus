@@ -318,6 +318,8 @@ body {
 }
 
 .canvas-frame {
+  position: relative;
+  overflow: hidden;
   width: min(1040px, calc(100vw - 620px));
   height: min(680px, calc(100vh - 170px));
   border: 1px solid #c8d9eb;

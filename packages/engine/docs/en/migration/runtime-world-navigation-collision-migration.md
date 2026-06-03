@@ -22,12 +22,12 @@ The aliases remain available for compatibility, but new code should not use them
 
 ## Mapping
 
-| Compatibility API | Canonical API |
-| --- | --- |
-| `engine.runtime.world.setAgents(agents)` | `engine.runtime.navigation.setAgents(agents)` |
-| `engine.runtime.world.getAgents()` | `engine.runtime.navigation.getAgents()` |
-| `engine.runtime.world.stepAgents(input)` | `engine.runtime.navigation.stepAgents(input)` |
-| `engine.runtime.world.resolveCollision(input)` | `engine.runtime.collision.resolve(input)` |
+| Compatibility API                                     | Canonical API                                      |
+| ----------------------------------------------------- | -------------------------------------------------- |
+| `engine.runtime.world.setAgents(agents)`              | `engine.runtime.navigation.setAgents(agents)`      |
+| `engine.runtime.world.getAgents()`                    | `engine.runtime.navigation.getAgents()`            |
+| `engine.runtime.world.stepAgents(input)`              | `engine.runtime.navigation.stepAgents(input)`      |
+| `engine.runtime.world.resolveCollision(input)`        | `engine.runtime.collision.resolve(input)`          |
 | `engine.runtime.world.setOpenWorldMap({ obstacles })` | `engine.runtime.collision.setObstacles(obstacles)` |
 
 ## Registered Path Migration
@@ -38,7 +38,10 @@ Adapters that previously passed raw paths every frame can register paths once an
 engine.runtime.navigation.registerPath({
   id: "main-path",
   loop: false,
-  nodes: [{ x: 0, z: 0 }, { x: 20, z: 0 }],
+  nodes: [
+    { x: 0, z: 0 },
+    { x: 20, z: 0 },
+  ],
   constraints: {
     arrivalTolerance: 0.5,
     maxStepDistance: 2,
@@ -77,6 +80,9 @@ const candidates = engine.runtime.collision.queryAabb({
 ```
 
 Use `evaluateTriggers` for deterministic enter/stay/exit trigger semantics.
+
+Use `sweepCircle` for high-speed movement that needs continuous circle-vs-collider contact
+before a discrete overlap pass can resolve penetration.
 
 ## Boundary Rules
 

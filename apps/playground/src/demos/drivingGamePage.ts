@@ -1,12 +1,287 @@
 import {createEngine, type EngineRuntimeWorldAgentState} from '@venus/engine'
-import {createInitialDrivingGameState, type DrivingGameConfig, type DrivingGameState} from './drivingGameTypes'
-import {buildDrivingGameScene, convertCityObstaclesToCollisionBlocks, createDrivingGameModelAssets, createDrivingGameModelInstances} from './drivingGameScene'
+import {createInitialDrivingGameState, DEFAULT_DRIVING_GAME_CONFIG, type DrivingGameConfig, type DrivingGameState} from './drivingGameTypes'
+import {buildDrivingGameScene, convertCityObstaclesToCollisionBlocks, createDrivingGameModelAssets, createDrivingGameModelInstances, resolveDrivingGameSunDirection} from './drivingGameScene'
 import {generateCityWorldMap} from './cityWorldGenerator'
 import {loadDrivingGameFixture} from './drivingGameFixture'
 
 const STAGE_W = 720, STAGE_H = 460
 let currentState: DrivingGameState | null = null
 let onDrivingConfigChange: (() => void) | null = null
+
+type DrivingGameCollisionEngine = Pick<ReturnType<typeof createEngine>, 'runtime'>
+
+export type DrivingGameWeatherEnvironmentInput = {
+  cloudCover: number
+  precipitation: number
+  fogDensity: number
+}
+
+export type DrivingGameLampLight = {
+  id: string
+  type: 'point'
+  color: string
+  intensity: number
+  positionX: number
+  positionY: number
+  positionZ: number
+  distance: number
+  decay: number
+}
+
+export const resolveDrivingGameWeatherEnvironmentInput = (
+  weather: DrivingGameConfig['weather'],
+): DrivingGameWeatherEnvironmentInput => {
+  if (weather === 'cloudy') {
+    return {cloudCover: 0.75, precipitation: 0, fogDensity: 0.06}
+  }
+  if (weather === 'rainy') {
+    return {cloudCover: 0.88, precipitation: 0.85, fogDensity: 0.28}
+  }
+  if (weather === 'foggy') {
+    return {cloudCover: 0.66, precipitation: 0, fogDensity: 0.9}
+  }
+  return {cloudCover: 0.1, precipitation: 0, fogDensity: 0.06}
+}
+
+export const resolveDrivingGameLampLights = (input: {
+  lamps: DrivingGameState['cityMap']['lamps']
+  timeOfDayHours: number
+  weather: DrivingGameConfig['weather']
+}): DrivingGameLampLight[] => {
+  const weatherEnvironment = resolveDrivingGameWeatherEnvironmentInput(input.weather)
+  const sunOrbit = ((input.timeOfDayHours - 6) / 24) * Math.PI * 2
+  const dayFactor = Math.max(0.05, Math.min(1.15, (Math.sin(sunOrbit) + 0.15) / 1.15))
+  if (dayFactor >= 0.28 && weatherEnvironment.fogDensity <= 0.35) {
+    return []
+  }
+  return input.lamps.slice(0, 42).map((lamp) => ({
+    id: `lamp-light-${lamp.id}`,
+    type: 'point',
+    color: '#fde68a',
+    intensity: 0.55,
+    positionX: lamp.x,
+    positionY: lamp.h + 1.2,
+    positionZ: lamp.z,
+    distance: 120,
+    decay: 2,
+  }))
+}
+
+export type DrivingGameVehicleProfile = {
+  mass: number
+  acceleration: number
+  maxSpeed: number
+  radius: number
+  brakeDeceleration: number
+  drag: number
+}
+
+export const DRIVING_GAME_VEHICLE_PROFILES: Record<DrivingGameConfig['vehicleType'], DrivingGameVehicleProfile> = {
+  sedan: {mass: 1.2, acceleration: 22, maxSpeed: 9.2, radius: 5.2, brakeDeceleration: 34, drag: 4},
+  sport: {mass: 1.05, acceleration: 32, maxSpeed: 12, radius: 5, brakeDeceleration: 40, drag: 3.2},
+  suv: {mass: 1.35, acceleration: 20, maxSpeed: 8.5, radius: 5.6, brakeDeceleration: 38, drag: 4.8},
+  truck: {mass: 1.8, acceleration: 14, maxSpeed: 6.8, radius: 6.2, brakeDeceleration: 46, drag: 6.4},
+}
+
+type DrivingGameVehicleTuning = Pick<DrivingGameConfig, 'carSpeed' | 'carAcceleration' | 'carBrakeDeceleration' | 'carDrag'>
+
+export const resolveDrivingGameVehicleProfile = (
+  type: DrivingGameConfig['vehicleType'],
+  tuning: DrivingGameVehicleTuning = DEFAULT_DRIVING_GAME_CONFIG,
+): DrivingGameVehicleProfile => {
+  const base = DRIVING_GAME_VEHICLE_PROFILES[type] ?? DRIVING_GAME_VEHICLE_PROFILES.sedan
+  return {
+    mass: base.mass,
+    acceleration: base.acceleration * (tuning.carAcceleration / DEFAULT_DRIVING_GAME_CONFIG.carAcceleration),
+    maxSpeed: base.maxSpeed * (tuning.carSpeed / DEFAULT_DRIVING_GAME_CONFIG.carSpeed),
+    radius: base.radius,
+    brakeDeceleration: base.brakeDeceleration * (tuning.carBrakeDeceleration / DEFAULT_DRIVING_GAME_CONFIG.carBrakeDeceleration),
+    drag: base.drag * (tuning.carDrag / DEFAULT_DRIVING_GAME_CONFIG.carDrag),
+  }
+}
+
+export type DrivingGameVehicleVelocityStepInput = {
+  vehicle: DrivingGameVehicleProfile
+  deltaSeconds: number
+  velocityX: number
+  velocityY: number
+  wishX: number
+  wishY: number
+  braking: boolean
+}
+
+export const resolveDrivingGameVehicleVelocityStep = (input: DrivingGameVehicleVelocityStepInput) => {
+  let velocityX = input.velocityX
+  let velocityY = input.velocityY
+
+  if (input.wishX !== 0 || input.wishY !== 0) {
+    velocityX += input.wishX * input.vehicle.acceleration * input.deltaSeconds
+    velocityY += input.wishY * input.vehicle.acceleration * input.deltaSeconds
+  } else {
+    const drag = Math.max(0, 1 - (input.vehicle.drag / input.vehicle.mass) * input.deltaSeconds)
+    velocityX *= drag
+    velocityY *= drag
+  }
+
+  if (input.braking) {
+    const brakeFactor = Math.max(0, 1 - (input.vehicle.brakeDeceleration / input.vehicle.mass) * input.deltaSeconds * 0.1)
+    velocityX *= brakeFactor
+    velocityY *= brakeFactor
+  }
+
+  const speed = Math.hypot(velocityX, velocityY)
+  if (speed > input.vehicle.maxSpeed) {
+    const clamp = input.vehicle.maxSpeed / speed
+    velocityX *= clamp
+    velocityY *= clamp
+  }
+
+  return {velocityX, velocityY, speed: Math.hypot(velocityX, velocityY)}
+}
+
+export type DrivingGameNpcMovementStepInput = {
+  engine: DrivingGameCollisionEngine
+  deltaSeconds: number
+  npcCars: DrivingGameState['npcCars']
+  pedestrians: DrivingGameState['pedestrians']
+  carPath: DrivingGameState['cityMap']['carPath']
+  pedestrianPath: DrivingGameState['cityMap']['pedestrianPath']
+}
+
+export const resolveDrivingGameNpcMovementStep = (input: DrivingGameNpcMovementStepInput) => {
+  input.engine.runtime.navigation.setAgents([
+    ...input.npcCars.map((npc) => ({
+      id: npc.id,
+      kind: 'car' as const,
+      x: npc.x,
+      z: npc.z,
+      yaw: npc.yaw,
+      pathIndex: npc.pathIndex,
+      speed: npc.speed,
+    })),
+    ...input.pedestrians.map((ped) => ({
+      id: ped.id,
+      kind: 'pedestrian' as const,
+      x: ped.x,
+      z: ped.z,
+      yaw: ped.yaw,
+      pathIndex: ped.pathIndex,
+      speed: ped.speed,
+    })),
+  ])
+  const steppedAgents = input.engine.runtime.navigation.stepAgents({
+    deltaSeconds: input.deltaSeconds,
+    carPath: input.carPath.map((node) => ({x: node.x, z: node.z})),
+    pedestrianPath: input.pedestrianPath.map((node) => ({x: node.x, z: node.z})),
+  })
+  const steppedCars = steppedAgents.filter((agent) => agent.kind === 'car')
+  const steppedPeds = steppedAgents.filter((agent) => agent.kind === 'pedestrian')
+  return {
+    agents: steppedAgents,
+    npcCars: input.npcCars.map((npc) => {
+      const next = steppedCars.find((agent) => agent.id === npc.id)
+      if (!next) return npc
+      return {...npc, x: next.x, z: next.z, yaw: next.yaw, pathIndex: next.pathIndex}
+    }),
+    pedestrians: input.pedestrians.map((ped) => {
+      const next = steppedPeds.find((agent) => agent.id === ped.id)
+      if (!next) return ped
+      return {...ped, x: next.x, z: next.z, yaw: next.yaw, pathIndex: next.pathIndex}
+    }),
+  }
+}
+
+export type DrivingGameMiniMapProjectionInput = {
+  width: number
+  height: number
+  mapSize: number
+  miniMapZoomLevel: DrivingGameConfig['miniMapZoomLevel']
+  cameraAzimuth: number
+  x: number
+  z: number
+}
+
+export const projectDrivingGameMiniMapPoint = (input: DrivingGameMiniMapProjectionInput) => {
+  const padding = 14
+  const half = input.mapSize * 0.5
+  const zoomScale = input.miniMapZoomLevel === 0 ? 1.45 : input.miniMapZoomLevel === 2 ? 0.72 : 1
+  const scale = ((Math.min(input.width, input.height) * 0.5 - padding) / Math.max(1, half)) * zoomScale
+  const rotation = (-input.cameraAzimuth * Math.PI) / 180
+  const cos = Math.cos(rotation)
+  const sin = Math.sin(rotation)
+  const rotatedX = input.x * cos - input.z * sin
+  const rotatedZ = input.x * sin + input.z * cos
+  return {
+    x: input.width * 0.5 + rotatedX * scale,
+    y: input.height * 0.5 + rotatedZ * scale,
+  }
+}
+
+export type DrivingGameMiniMapNorthIndicatorInput = {
+  width: number
+  cameraAzimuth: number
+}
+
+export const resolveDrivingGameMiniMapNorthIndicator = (input: DrivingGameMiniMapNorthIndicatorInput) => {
+  const centerX = input.width - 20
+  const centerY = 28
+  const length = 14
+  const rotation = (-input.cameraAzimuth * Math.PI) / 180
+  return {
+    centerX,
+    centerY,
+    endX: centerX + Math.sin(rotation) * length,
+    endY: centerY - Math.cos(rotation) * length,
+    labelX: input.width - 24,
+    labelY: 50,
+  }
+}
+
+export type DrivingGamePlayerCollisionStepInput = {
+  engine: DrivingGameCollisionEngine
+  fromX: number
+  fromZ: number
+  toX: number
+  toZ: number
+  radius: number
+  velocityX: number
+  velocityZ: number
+  maxStepDistance?: number
+}
+
+export const resolveDrivingGamePlayerCollisionStep = (input: DrivingGamePlayerCollisionStepInput) => {
+  const radius = Math.max(0, input.radius)
+  const distance = Math.hypot(input.toX - input.fromX, input.toZ - input.fromZ)
+  const maxStepDistance = Math.max(1, input.maxStepDistance ?? Math.max(1, radius * 0.5))
+  const stepCount = Math.max(1, Math.ceil(distance / maxStepDistance))
+  let x = input.fromX
+  let z = input.fromZ
+  let velocityX = input.velocityX
+  let velocityZ = input.velocityZ
+  let collided = false
+
+  for (let stepIndex = 1; stepIndex <= stepCount; stepIndex += 1) {
+    const nextX = input.fromX + ((input.toX - input.fromX) * stepIndex) / stepCount
+    const nextZ = input.fromZ + ((input.toZ - input.fromZ) * stepIndex) / stepCount
+    const resolved = input.engine.runtime.collision.resolve({
+      x: nextX,
+      z: nextZ,
+      radius,
+      velocityX,
+      velocityZ,
+    })
+    x = resolved.x
+    z = resolved.z
+    velocityX = resolved.velocityX
+    velocityZ = resolved.velocityZ
+    if (resolved.collided) {
+      collided = true
+      break
+    }
+  }
+
+  return {x, z, velocityX, velocityZ, collided}
+}
 
 function renderSettings(container: HTMLElement, state: DrivingGameState) {
   const {config} = state
@@ -21,6 +296,7 @@ function renderSettings(container: HTMLElement, state: DrivingGameState) {
     chk('Light Rig', 'lightRigEnabled'),
     chk('Auto Time', 'timeFlowEnabled'),
     chk('Collision', 'collisionEnabled'),
+    chk('Weather FX', 'weatherParticlesEnabled'),
     chk('Shadows', 'shadowsEnabled'),
     chk('Antialias', 'antialiasEnabled'),
     chk('Vsync', 'vsyncEnabled'),
@@ -65,7 +341,7 @@ function renderSettings(container: HTMLElement, state: DrivingGameState) {
       if (el.type === 'checkbox') (currentState.config as unknown as Record<string, unknown>)[key] = el.checked
       else (currentState.config as unknown as Record<string, unknown>)[key] = parseFloat(el.value)
       if (key === 'mapSize') {
-        currentState.cityMap = generateCityWorldMap(currentState.config.mapSize)
+        currentState.cityMap = generateCityWorldMap(currentState.config.mapSize, currentState.config.mapSeed)
       }
       onDrivingConfigChange?.()
       renderSettings(container, currentState)
@@ -205,17 +481,7 @@ async function mount() {
   }
 
   const syncRuntimeLighting = () => {
-    const cloudCover = state.config.weather === 'cloudy'
-      ? 0.75
-      : state.config.weather === 'rainy'
-        ? 0.88
-        : state.config.weather === 'foggy'
-          ? 0.66
-          : 0.1
-    const precipitation = state.config.weather === 'rainy' ? 0.85 : 0
-    const fogDensity = state.config.weather === 'foggy' ? 0.9 : state.config.weather === 'rainy' ? 0.28 : 0.06
-    const sunOrbit = ((state.config.timeOfDayHours - 6) / 24) * Math.PI * 2
-    const dayFactor = Math.max(0.05, Math.min(1.15, (Math.sin(sunOrbit) + 0.15) / 1.15))
+    const weatherEnvironment = resolveDrivingGameWeatherEnvironmentInput(state.config.weather)
     if (!state.config.lightRigEnabled) {
       engine.runtime.lighting.clearCollection()
       return
@@ -223,25 +489,16 @@ async function mount() {
     const resolvedEnvironment = engine.runtime.lighting.applyEnvironment({
       timeOfDayHours: state.config.timeOfDayHours,
       directionDeg: state.config.directionDeg,
-      cloudCover,
-      precipitation,
-      fogDensity,
+      cloudCover: weatherEnvironment.cloudCover,
+      precipitation: weatherEnvironment.precipitation,
+      fogDensity: weatherEnvironment.fogDensity,
       directionalIntensity: state.config.lightDirectionalIntensity,
       ambientIntensity: state.config.lightAmbientIntensity,
-      additionalLights: state.cityMap.lamps
-        .filter(() => dayFactor < 0.28 || fogDensity > 0.35)
-        .slice(0, 42)
-        .map((lamp) => ({
-          id: `lamp-light-${lamp.id}`,
-          type: 'point' as const,
-          color: '#fde68a',
-          intensity: 0.55,
-          positionX: lamp.x,
-          positionY: lamp.h + 1.2,
-          positionZ: lamp.z,
-          distance: 120,
-          decay: 2,
-        })),
+      additionalLights: resolveDrivingGameLampLights({
+        lamps: state.cityMap.lamps,
+        timeOfDayHours: state.config.timeOfDayHours,
+        weather: state.config.weather,
+      }),
     })
     weatherHaze.style.background = `linear-gradient(rgba(255,255,255,0), ${hexToRgba(resolvedEnvironment.atmosphere.hazeColor, resolvedEnvironment.atmosphere.hazeOpacity)})`
   }
@@ -423,13 +680,15 @@ async function mount() {
 
 function updateGame(state: DrivingGameState, dt: number, engine: ReturnType<typeof createEngine>) {
   const {keysDown, config} = state
-  const vehicle = resolveVehicleProfile(config.vehicleType)
+  const vehicle = resolveDrivingGameVehicleProfile(config.vehicleType, config)
   let mx = 0, my = 0
   if (keysDown.has('w') || keysDown.has('arrowup')) my = 1
   if (keysDown.has('s') || keysDown.has('arrowdown')) my = -1
   if (keysDown.has('a') || keysDown.has('arrowleft')) mx = 1
   if (keysDown.has('d') || keysDown.has('arrowright')) mx = -1
 
+  let wishX = 0
+  let wishY = 0
   if (mx !== 0 || my !== 0) {
     const len = Math.sqrt(mx * mx + my * my)
     mx /= len; my /= len
@@ -438,50 +697,35 @@ function updateGame(state: DrivingGameState, dt: number, engine: ReturnType<type
     const forwardY = -Math.cos(cameraYawRad)
     const rightX = Math.cos(cameraYawRad)
     const rightY = -Math.sin(cameraYawRad)
-    const wishX = forwardX * my + rightX * mx
-    const wishY = forwardY * my + rightY * mx
-    state.velocityX += wishX * vehicle.acceleration * dt
-    state.velocityY += wishY * vehicle.acceleration * dt
-  } else {
-    const drag = Math.max(0, 1 - (config.carDrag / vehicle.mass) * dt)
-    state.velocityX *= drag
-    state.velocityY *= drag
+    wishX = forwardX * my + rightX * mx
+    wishY = forwardY * my + rightY * mx
   }
 
-  if (keysDown.has(' ')) {
-    const brakeFactor = Math.max(0, 1 - (config.carBrakeDeceleration / vehicle.mass) * dt * 0.1)
-    state.velocityX *= brakeFactor
-    state.velocityY *= brakeFactor
-  }
-
-  const velocityLength = Math.hypot(state.velocityX, state.velocityY)
-  const maxVelocity = vehicle.maxSpeed
-  if (velocityLength > maxVelocity) {
-    const clamp = maxVelocity / velocityLength
-    state.velocityX *= clamp
-    state.velocityY *= clamp
-  }
-
-  state.carX += state.velocityX * dt
-  state.carY += state.velocityY * dt
-  state.speed = Math.hypot(state.velocityX, state.velocityY)
-  const steppedAgents = engine.runtime.navigation.stepAgents({
+  const velocityStep = resolveDrivingGameVehicleVelocityStep({
+    vehicle,
     deltaSeconds: dt,
-    carPath: state.cityMap.carPath.map((node) => ({x: node.x, z: node.z})),
-    pedestrianPath: state.cityMap.pedestrianPath.map((node) => ({x: node.x, z: node.z})),
+    velocityX: state.velocityX,
+    velocityY: state.velocityY,
+    wishX,
+    wishY,
+    braking: keysDown.has(' '),
   })
-  const steppedCars = steppedAgents.filter((agent) => agent.kind === 'car')
-  const steppedPeds = steppedAgents.filter((agent) => agent.kind === 'pedestrian')
-  state.npcCars = state.npcCars.map((npc) => {
-    const next = steppedCars.find((agent) => agent.id === npc.id)
-    if (!next) return npc
-    return {...npc, x: next.x, z: next.z, yaw: next.yaw, pathIndex: next.pathIndex}
+  state.velocityX = velocityStep.velocityX
+  state.velocityY = velocityStep.velocityY
+
+  const nextCarX = state.carX + state.velocityX * dt
+  const nextCarY = state.carY + state.velocityY * dt
+  state.speed = Math.hypot(state.velocityX, state.velocityY)
+  const agentStep = resolveDrivingGameNpcMovementStep({
+    engine,
+    deltaSeconds: dt,
+    npcCars: state.npcCars,
+    pedestrians: state.pedestrians,
+    carPath: state.cityMap.carPath,
+    pedestrianPath: state.cityMap.pedestrianPath,
   })
-  state.pedestrians = state.pedestrians.map((ped) => {
-    const next = steppedPeds.find((agent) => agent.id === ped.id)
-    if (!next) return ped
-    return {...ped, x: next.x, z: next.z, yaw: next.yaw, pathIndex: next.pathIndex}
-  })
+  state.npcCars = agentStep.npcCars
+  state.pedestrians = agentStep.pedestrians
 
   if (keysDown.has('q')) state.cameraAzimuth -= config.cameraOrbitKeyboardSpeed * dt
   if (keysDown.has('e')) state.cameraAzimuth += config.cameraOrbitKeyboardSpeed * dt
@@ -499,11 +743,13 @@ function updateGame(state: DrivingGameState, dt: number, engine: ReturnType<type
 
   const half = state.config.mapSize / 2 - 5
   if (config.collisionEnabled) {
-    const r = vehicle.radius
-    const resolved = engine.runtime.collision.resolve({
-      x: state.carX,
-      z: state.carY,
-      radius: r,
+    const resolved = resolveDrivingGamePlayerCollisionStep({
+      engine,
+      fromX: state.carX,
+      fromZ: state.carY,
+      toX: nextCarX,
+      toZ: nextCarY,
+      radius: vehicle.radius,
       velocityX: state.velocityX,
       velocityZ: state.velocityY,
     })
@@ -511,19 +757,15 @@ function updateGame(state: DrivingGameState, dt: number, engine: ReturnType<type
     state.carY = resolved.z
     state.velocityX = resolved.velocityX
     state.velocityY = resolved.velocityZ
+  } else {
+    state.carX = nextCarX
+    state.carY = nextCarY
   }
   state.carX = Math.max(-half, Math.min(half, state.carX))
   state.carY = Math.max(-half, Math.min(half, state.carY))
 }
 
 function delay(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)) }
-
-function resolveVehicleProfile(type: DrivingGameConfig['vehicleType']) {
-  if (type === 'sport') return {mass: 1.05, acceleration: 32, maxSpeed: 12, radius: 5}
-  if (type === 'suv') return {mass: 1.35, acceleration: 20, maxSpeed: 8.5, radius: 5.6}
-  if (type === 'truck') return {mass: 1.8, acceleration: 14, maxSpeed: 6.8, radius: 6.2}
-  return {mass: 1.2, acceleration: 22, maxSpeed: 9.2, radius: 5.2}
-}
 
 function drawMiniMap(canvas: HTMLCanvasElement, state: DrivingGameState) {
   const ctx = canvas.getContext('2d')
@@ -532,17 +774,17 @@ function drawMiniMap(canvas: HTMLCanvasElement, state: DrivingGameState) {
   const h = canvas.height
   const cx = w * 0.5
   const cy = h * 0.5
-  const padding = 14
   const half = state.config.mapSize * 0.5
-  const zoomScale = state.config.miniMapZoomLevel === 0 ? 1.45 : state.config.miniMapZoomLevel === 2 ? 0.72 : 1
-  const scale = ((Math.min(w, h) * 0.5 - padding) / Math.max(1, half)) * zoomScale
-  const rot = (-state.cameraAzimuth * Math.PI) / 180
-  const cos = Math.cos(rot)
-  const sin = Math.sin(rot)
   const toMap = (x: number, z: number) => {
-    const rx = x * cos - z * sin
-    const rz = x * sin + z * cos
-    return {x: cx + rx * scale, y: cy + rz * scale}
+    return projectDrivingGameMiniMapPoint({
+      width: w,
+      height: h,
+      mapSize: state.config.mapSize,
+      miniMapZoomLevel: state.config.miniMapZoomLevel,
+      cameraAzimuth: state.cameraAzimuth,
+      x,
+      z,
+    })
   }
 
   ctx.clearRect(0, 0, w, h)
@@ -562,21 +804,22 @@ function drawMiniMap(canvas: HTMLCanvasElement, state: DrivingGameState) {
   ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y); ctx.closePath()
   ctx.stroke()
 
+  const north = resolveDrivingGameMiniMapNorthIndicator({width: w, cameraAzimuth: state.cameraAzimuth})
+  ctx.fillStyle = 'rgba(15,23,42,0.78)'
+  ctx.fillRect(w - 36, 10, 28, 46)
   ctx.strokeStyle = '#f8fafc'
   ctx.fillStyle = '#f8fafc'
   ctx.beginPath()
-  ctx.moveTo(w - 20, 20)
-  ctx.lineTo(w - 20, 38)
+  ctx.moveTo(north.centerX, north.centerY)
+  ctx.lineTo(north.endX, north.endY)
   ctx.stroke()
   ctx.beginPath()
-  ctx.moveTo(w - 20, 14)
-  ctx.lineTo(w - 24, 22)
-  ctx.lineTo(w - 16, 22)
+  ctx.arc(north.endX, north.endY, 3, 0, Math.PI * 2)
   ctx.closePath()
   ctx.fill()
   ctx.fillStyle = '#cbd5e1'
   ctx.font = '10px monospace'
-  ctx.fillText('N', w - 24, 50)
+  ctx.fillText('N', north.labelX, north.labelY)
 
   const cityBlocks = convertCityObstaclesToCollisionBlocks(state.cityMap.blockers)
   ctx.fillStyle = 'rgba(30,41,59,0.92)'
@@ -613,7 +856,7 @@ function drawMiniMap(canvas: HTMLCanvasElement, state: DrivingGameState) {
     ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3)
   }
 
-  const sunAzimuth = ((state.config.directionDeg + (state.config.timeOfDayHours / 24) * 360 - state.cameraAzimuth) * Math.PI) / 180
+  const sunAzimuth = resolveDrivingGameSunDirection(state.config).azimuthRad - (state.cameraAzimuth * Math.PI) / 180
   ctx.strokeStyle = '#facc15'
   ctx.beginPath()
   ctx.moveTo(cx, cy)

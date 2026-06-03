@@ -83,6 +83,7 @@ function resolveRuntimeDebugPanelDataSource(diagnostics: typeof EMPTY_RUNTIME_RE
       qosGuardTriggers: diagnostics.engineQosGuardTriggers,
       qosTrace: diagnostics.engineQosTrace,
     },
+    adapterReport: diagnostics.engineSceneAdapterReport,
   }
 }
 

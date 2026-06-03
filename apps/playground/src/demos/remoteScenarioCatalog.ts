@@ -39,23 +39,23 @@ export const REMOTE_SCENARIO_DEFINITIONS: readonly RemoteScenarioDefinition[] = 
   {
     id: 's1-medical-volume-slice-runtime',
     title: 'Medical Volume Slice Runtime',
-    summary: 'Uses a public scalar-field grid to emulate volumetric slice intensity projection.',
+    summary: 'Uses a local volume-like scalar fixture with slice, transfer, ROI, and capture controls.',
     path: '/medical-volume-slice-runtime',
     aliases: ['/demo/s1-medical-volume-slice-runtime'],
-    datasetUrl: 'https://raw.githubusercontent.com/plotly/datasets/master/volcano.csv',
+    datasetUrl: '/scenario-fixtures/s1/volcano.csv',
     datasetFormat: 'csv',
-    tags: ['S1', 'medical', '3d-volume', 'public-data'],
+    tags: ['S1', 'medical', '3d-volume', 'local-fixture'],
     buildScene: (revision, payload) => buildMedicalSliceScene(revision, payload),
   },
   {
     id: 's2-preop-path-simulation',
     title: 'Pre-op Path Simulation',
-    summary: 'Uses public airport waypoint coordinates to emulate surgical route planning paths.',
+    summary: 'Uses a local path, constraint, and risk-zone fixture for deterministic route simulation.',
     path: '/preop-path-simulation',
     aliases: ['/demo/s2-preop-path-simulation'],
-    datasetUrl: 'https://raw.githubusercontent.com/vega/vega-datasets/main/data/airports.csv',
+    datasetUrl: '/scenario-fixtures/s2/airports.csv',
     datasetFormat: 'csv',
-    tags: ['S2', 'surgical-planning', 'pathing', 'public-data'],
+    tags: ['S2', 'surgical-planning', 'pathing', 'local-fixture'],
     buildScene: (revision, payload) => buildSurgicalPlanningScene(revision, payload),
   },
   {
@@ -351,7 +351,7 @@ function buildSceneScaffold(revision: number, title: string, subtitle: string): 
 }
 
 /**
- * Builds medical volume-like slice scene from a public scalar field CSV grid.
+ * Builds medical volume-like slice scene from a local scalar fixture CSV grid.
  * @param revision Monotonic scene revision used by engine caching paths.
  * @param payload Parsed CSV payload from a free public endpoint.
  */
@@ -362,8 +362,8 @@ function buildMedicalSliceScene(revision: number, payload: unknown): PlaygroundS
   const bounds = resolveNumericBounds(flatValues)
   const snapshot = buildSceneScaffold(
     revision,
-    'S1 Medical Volume Slice Runtime (Public Scalar Dataset)',
-    'Dataset: plotly volcano.csv (open) -> mapped to CT/MRI-like slice intensity bins',
+    'S1 Medical Volume Slice Runtime (Local Fixture)',
+    'Fixture: scenario-fixtures/s1/volcano.csv -> local CT/MRI-like slice, transfer, ROI, capture controls',
   )
 
   const maxRows = Math.min(40, matrix.length)
@@ -390,15 +390,30 @@ function buildMedicalSliceScene(revision: number, payload: unknown): PlaygroundS
         height: cellHeight - 1,
         depth: Math.max(2, Math.round(normalized * 10)),
         fill: `hsl(${hue} 80% ${lightness}%)`,
+        volumeIntensity: normalized,
+        volumeRow: rowIndex,
+        volumeCol: colIndex,
+        volumeSliceIndex: 0,
+        volumeTransferPreset: 'soft-tissue',
       })
     }
   }
+
+  snapshot.nodes.push(
+    {id: 's1-roi-core', type: 'shape', shape: 'rect', x: originX + 420, y: originY + 168, width: 168, height: 120, fill: 'rgba(103,232,249,0.08)', stroke: '#67e8f9', strokeWidth: 2},
+    {id: 's1-roi-margin', type: 'shape', shape: 'rect', x: originX + 300, y: originY + 96, width: 336, height: 252, fill: 'rgba(103,232,249,0.08)', stroke: '#67e8f9', strokeWidth: 2},
+    {id: 's1-roi-edge', type: 'shape', shape: 'rect', x: originX + 96, y: originY + 60, width: 220, height: 132, fill: 'rgba(103,232,249,0.08)', stroke: '#67e8f9', strokeWidth: 2},
+    {id: 's1-slice-label', type: 'text', x: 1128, y: 144, text: 'slice: 0', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#bfdbfe'}},
+    {id: 's1-transfer-label', type: 'text', x: 1128, y: 168, text: 'transfer: soft-tissue', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#bfdbfe'}},
+    {id: 's1-roi-label', type: 'text', x: 1128, y: 192, text: 'roi: none', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#bfdbfe'}},
+    {id: 's1-capture-status', type: 'text', x: 1128, y: 216, text: 'capture: 0', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#fde68a'}},
+  )
 
   return snapshot
 }
 
 /**
- * Builds surgical planning scene from public waypoint coordinates.
+ * Builds surgical planning scene from local waypoint coordinates plus deterministic constraints.
  * @param revision Monotonic scene revision used by engine caching paths.
  * @param payload Parsed CSV payload from a free public endpoint.
  */
@@ -418,8 +433,18 @@ function buildSurgicalPlanningScene(revision: number, payload: unknown): Playgro
   const latBounds = resolveNumericBounds(waypoints.map((entry) => entry.lat))
   const snapshot = buildSceneScaffold(
     revision,
-    'S2 Pre-op Path Simulation (Waypoint Public Dataset)',
-    'Dataset: vega airports.csv (open) -> route waypoints and staged path constraints',
+    'S2 Pre-op Path Simulation (Local Fixture)',
+    'Fixture: scenario-fixtures/s2/airports.csv -> path waypoints, constraints, risk zones, clearance query',
+  )
+
+  snapshot.nodes.push(
+    {id: 's2-constraint-corridor', type: 'shape', shape: 'rect', x: 74, y: 158, z: 1, width: 1378, height: 724, fill: 'rgba(14,165,233,0.05)', stroke: '#0284c7', strokeWidth: 2, constraintType: 'corridor'},
+    {id: 's2-risk-zone-0', type: 'shape', shape: 'rect', x: 640, y: 350, z: 2, width: 180, height: 120, fill: 'rgba(248,113,113,0.12)', stroke: '#fb7185', strokeWidth: 2, riskZone: true},
+    {id: 's2-risk-zone-1', type: 'shape', shape: 'rect', x: 960, y: 560, z: 2, width: 210, height: 150, fill: 'rgba(248,113,113,0.12)', stroke: '#fb7185', strokeWidth: 2, riskZone: true},
+    {id: 's2-edit-label', type: 'text', x: 1128, y: 144, text: 'edit: none', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#bfdbfe'}},
+    {id: 's2-replay-label', type: 'text', x: 1128, y: 168, text: 'replay step: 0', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#bfdbfe'}},
+    {id: 's2-clearance-label', type: 'text', x: 1128, y: 192, text: 'clearance: none n/a', style: {fontFamily: 'IBM Plex Sans', fontSize: 14, fill: '#fde68a'}},
+    {id: 's2-replay-marker', type: 'text', x: 74, y: 158, z: 40, text: 'step 0', style: {fontFamily: 'IBM Plex Sans', fontSize: 13, fill: '#c4b5fd'}},
   )
 
   let previousPoint: {x: number; y: number} | null = null
@@ -440,6 +465,7 @@ function buildSurgicalPlanningScene(revision: number, payload: unknown): Playgro
       fill: '#38bdf8',
       stroke: '#e0f2fe',
       strokeWidth: 1,
+      pathWaypoint: true,
     })
 
     if (previousPoint && index % 2 === 0) {

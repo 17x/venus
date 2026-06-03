@@ -62,3 +62,4 @@ From scenario capability demands, engine evolution priorities are inferred as:
 
 - All endpoints are free and public.
 - On endpoint failure, each page keeps rendering and reports readable load errors in status text.
+- S10 NPC/pedestrian collision policy: NPC cars and pedestrians use path-authored avoidance for the current MVP. Their fixture and fallback/generated paths are authored to stay outside building and boundary blockers, then stepped through `engine.runtime.navigation`; dynamic player penetration is resolved through `engine.runtime.collision`. Future deeper traffic simulation should migrate NPC/pedestrian blocker response to collision-aware navigation instead of adding S10-specific movement APIs.

@@ -4,6 +4,9 @@ import type {
   RuntimeShellSnapshot,
   RuntimeViewportSnapshot,
 } from './index.runtimeEvents.types.ts'
+import {
+  createEngineSceneAdapterDiagnosticsReport,
+} from '../../../presets/index.ts'
 
 export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   frameCount: 0,
@@ -167,6 +170,7 @@ export const EMPTY_RUNTIME_RENDER_DIAGNOSTICS: RuntimeRenderDiagnostics = {
   engineQosFallbackReason: null,
   engineQosGuardTriggers: [],
   engineQosTrace: 'qos:0:static:low',
+  engineSceneAdapterReport: createEngineSceneAdapterDiagnosticsReport([]),
   lastRenderRequestReason: 'none',
   activeOverlayScenePlane: 'base',
   activeOverlayOverlayPlane: 'base',
@@ -469,4 +473,3 @@ export const EMPTY_RUNTIME_MIGRATION_SNAPSHOT: RuntimeMigrationSnapshot = {
     },
   },
 }
-

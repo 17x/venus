@@ -1,5 +1,6 @@
 import * as React from 'react'
 import {type RuntimeRenderPhase} from '../../engineTypes.ts'
+import type {EngineSceneAdapterDiagnosticsReport} from '../../../../presets/index.ts'
 
 // ---------------------------------------------------------------------------
 // EngineStatsHandlerParams — all refs and callbacks required per stats frame
@@ -163,6 +164,8 @@ export type EngineStatsHandlerParams = {
     dirtyBoundsMarkCount: number
     dirtyBoundsMarkArea: number
   }>
+  /** Latest vector scene adapter report generated during scene synchronization. */
+  latestSceneAdapterReportRef: React.MutableRefObject<EngineSceneAdapterDiagnosticsReport>
   /** Frame serial of the last zero-visibility debug snapshot written to window. */
   lastZeroVisibilityDebugFrameRef: React.MutableRefObject<number>
   /** Last scene apply mode and revision metadata for zero-visibility diagnostics. */

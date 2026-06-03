@@ -28,7 +28,7 @@ test('canonical styled shape carries stroke with dash, cap, join, align, and wei
         assert.equal(['center', 'inside', 'outside'].includes(stroke.align), true)
       }
       if (stroke.cap) {
-        assert.equal(['round', 'square', 'flat'].includes(stroke.cap), true)
+        assert.equal(['none', 'round', 'square'].includes(stroke.cap), true)
       }
       if (stroke.join) {
         assert.equal(['bevel', 'round', 'miter'].includes(stroke.join), true)

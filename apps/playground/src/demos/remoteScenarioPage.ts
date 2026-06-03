@@ -4,7 +4,9 @@ import {
   resolveRemoteScenarioFromRoute,
   type RemoteScenarioDefinition,
 } from './remoteScenarioCatalog'
-import {applyS10PickNode, applyS10PreviewStep, type S10GamePreviewState} from './s10GameRuntimeInteractions'
+import {applyS1MedicalVolumeControl, type S1MedicalVolumeControl, type S1MedicalVolumeState} from './s1MedicalVolumeInteractions'
+import {applyS2PathSimulationControl, type S2PathSimulationControl, type S2PathSimulationState} from './s2PathSimulationInteractions'
+import {applyS10PreviewControl, applyS10PreviewStep, compileS10AuthoringRuntimePreview, S10_GAME_PREVIEW_FIXED_TICK_MS, type S10AuthoringRuntimePreviewCompileResult, type S10GamePreviewControl, type S10GamePreviewState} from './s10GameRuntimeInteractions'
 import {PLAYGROUND_SCENARIO_INTERACTION_HARNESSES} from '../scenarios/scenarioInteractionHarnesses'
 import type {PlaygroundSceneSnapshot} from '../types/playgroundScene'
 
@@ -87,6 +89,7 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
 
   let revision = 1
   let sceneSnapshot = createLoadingSnapshot(revision, scenario)
+  let baseS10PreviewSnapshot = sceneSnapshot
   const harness = PLAYGROUND_SCENARIO_INTERACTION_HARNESSES.find((entry) => entry.scenarioId === scenario.id)
   const interactionState = {
     activeControl: harness?.controls[0] ?? 'fit view',
@@ -96,6 +99,20 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
     playMode: 'stopped' as 'playing' | 'stopped',
   }
   let s10PlayTimer: number | null = null
+  let s10PreviewCompile: S10AuthoringRuntimePreviewCompileResult | null = null
+  let s1MedicalState: S1MedicalVolumeState = {
+    sliceIndex: 0,
+    transferPreset: 'soft-tissue',
+    selectedRoiId: null,
+    captureId: 0,
+  }
+  let s2PathState: S2PathSimulationState = {
+    stepIndex: 0,
+    editIndex: 0,
+    selectedWaypointId: null,
+    clearanceQueryId: null,
+    clearanceDistance: Number.POSITIVE_INFINITY,
+  }
   let viewport = {
     viewportWidth: 1280,
     viewportHeight: 760,
@@ -145,6 +162,16 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
       `previewStep ${interactionState.previewStep}`,
       `selected ${interactionState.selectedNodeId ?? 'none'}`,
       `mode ${interactionState.playMode}`,
+      `s1Slice ${s1MedicalState.sliceIndex}`,
+      `s1Transfer ${s1MedicalState.transferPreset}`,
+      `s1Roi ${s1MedicalState.selectedRoiId ?? 'none'}`,
+      `s1Capture ${s1MedicalState.captureId}`,
+      `s2Step ${s2PathState.stepIndex}`,
+      `s2Edit ${s2PathState.editIndex}`,
+      `s2Waypoint ${s2PathState.selectedWaypointId ?? 'none'}`,
+      `s2Clearance ${Number.isFinite(s2PathState.clearanceDistance) ? s2PathState.clearanceDistance.toFixed(1) : 'n/a'}`,
+      `parity ${s10PreviewCompile?.matching ?? 'n/a'}`,
+      `signature ${s10PreviewCompile?.runtimeSignature.slice(0, 10) ?? 'none'}`,
       `webglPath ${diagnostics.backendDiagnostics?.webglRenderPath ?? 'none'}`,
     ].join(' | ')
   }
@@ -171,6 +198,9 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
       ...sceneSnapshot,
       revision,
     }
+    if (scenario.id === 's10-game-editor-runtime-preview') {
+      s10PreviewCompile = compileS10AuthoringRuntimePreview(engine, sceneSnapshot, interactionState.previewStep)
+    }
     engine.setGraph({
       revision: sceneSnapshot.revision,
       nodes: sceneSnapshot.nodes,
@@ -183,40 +213,66 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
     interactionState.revision = revision
 
     if (scenario.id !== 's10-game-editor-runtime-preview') {
-      refreshStatus()
+      if (scenario.id === 's1-medical-volume-slice-runtime') {
+        if (control === 'fit view') {
+          await fitView()
+          return
+        }
+        const result = applyS1MedicalVolumeControl(sceneSnapshot, s1MedicalState, control as S1MedicalVolumeControl)
+        s1MedicalState = result.state
+        interactionState.previewStep = s1MedicalState.sliceIndex
+        interactionState.selectedNodeId = s1MedicalState.selectedRoiId
+        await syncSceneSnapshot(result.snapshot)
+        return
+      }
+      if (scenario.id === 's2-preop-path-simulation') {
+        if (control === 'fit view') {
+          await fitView()
+          return
+        }
+        const result = applyS2PathSimulationControl(sceneSnapshot, s2PathState, control as S2PathSimulationControl)
+        s2PathState = result.state
+        interactionState.previewStep = s2PathState.stepIndex
+        interactionState.selectedNodeId = s2PathState.selectedWaypointId
+        await syncSceneSnapshot(result.snapshot)
+        return
+      }
+      stopS10PreviewPlayback()
+      interactionState.playMode = 'stopped'
+      interactionState.previewStep += 1
+      interactionState.selectedNodeId = `${scenario.id}:${control}:${interactionState.previewStep}`
+      await syncSceneSnapshot(sceneSnapshot)
       return
     }
 
-    if (control === 'runtime preview step') {
-      const result = applyS10PreviewStep(sceneSnapshot, resolveS10State())
+    if (control === 'runtime preview step' || control === 'pick node' || control === 'reset preview') {
+      stopS10PreviewPlayback()
+      const result = applyS10PreviewControl(sceneSnapshot, resolveS10State(), control as S10GamePreviewControl, baseS10PreviewSnapshot)
       interactionState.previewStep = result.state.previewStep
       interactionState.selectedNodeId = result.state.selectedNodeId
-      await syncSceneSnapshot(result.snapshot)
-      return
-    }
-
-    if (control === 'pick node') {
-      const result = applyS10PickNode(sceneSnapshot, resolveS10State())
-      interactionState.selectedNodeId = result.state.selectedNodeId
+      interactionState.playMode = result.state.isPlaying ? 'playing' : 'stopped'
       await syncSceneSnapshot(result.snapshot)
       return
     }
 
     if (control === 'play preview') {
       stopS10PreviewPlayback()
-      interactionState.playMode = 'playing'
+      const result = applyS10PreviewControl(sceneSnapshot, resolveS10State(), 'play preview')
+      interactionState.playMode = result.state.isPlaying ? 'playing' : 'stopped'
       s10PlayTimer = window.setInterval(() => {
         const stepResult = applyS10PreviewStep(sceneSnapshot, resolveS10State())
         interactionState.previewStep = stepResult.state.previewStep
         interactionState.selectedNodeId = stepResult.state.selectedNodeId
         void syncSceneSnapshot(stepResult.snapshot)
-      }, 600)
+      }, S10_GAME_PREVIEW_FIXED_TICK_MS)
       refreshStatus()
       return
     }
 
     if (control === 'stop preview') {
       stopS10PreviewPlayback()
+      const result = applyS10PreviewControl(sceneSnapshot, resolveS10State(), 'stop preview')
+      interactionState.playMode = result.state.isPlaying ? 'playing' : 'stopped'
       refreshStatus()
       return
     }
@@ -269,9 +325,15 @@ async function mountRemoteScenarioPage(scenario: RemoteScenarioDefinition): Prom
       interactionState.playMode = 'stopped'
       interactionState.previewStep = 0
       interactionState.selectedNodeId = null
+      s1MedicalState = {sliceIndex: 0, transferPreset: 'soft-tissue', selectedRoiId: null, captureId: 0}
+      s2PathState = {stepIndex: 0, editIndex: 0, selectedWaypointId: null, clearanceQueryId: null, clearanceDistance: Number.POSITIVE_INFINITY}
       interactionState.revision = revision
       const payload = await fetchRemotePayload(scenario)
       sceneSnapshot = scenario.buildScene(revision, payload)
+      if (scenario.id === 's10-game-editor-runtime-preview') {
+        baseS10PreviewSnapshot = sceneSnapshot
+        s10PreviewCompile = compileS10AuthoringRuntimePreview(engine, sceneSnapshot, interactionState.previewStep)
+      }
       engine.setGraph({
         revision: sceneSnapshot.revision,
         nodes: sceneSnapshot.nodes,

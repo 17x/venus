@@ -81,6 +81,8 @@ import type {
   EngineRuntimeCollisionUnregisterOutput,
   EngineRuntimeCollisionEvaluateTriggersInput,
   EngineRuntimeCollisionEvaluateTriggersOutput,
+  EngineRuntimeCollisionSweepCircleInput,
+  EngineRuntimeCollisionSweepCircleOutput,
   EngineRuntimeNavigationPath,
   EngineRuntimeNavigationStepPathAgentsInput,
   EngineRuntimeNavigationUnregisterPathOutput,
@@ -214,6 +216,9 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   evaluateRuntimeCollisionTriggers: (
     input: EngineRuntimeCollisionEvaluateTriggersInput,
   ) => EngineRuntimeCollisionEvaluateTriggersOutput;
+  sweepRuntimeCollisionCircle: (
+    input: EngineRuntimeCollisionSweepCircleInput,
+  ) => EngineRuntimeCollisionSweepCircleOutput;
   clearRuntimeWorldSnapshot: () => EngineRuntimeWorldClearOutput;
   createRuntimeAuthoringGraphSnapshot: (input: import("./public-types").EngineRuntimeAuthoringGraphSnapshotInput) => import("./public-types").EngineRuntimeAuthoringGraphSnapshotOutput;
   compareRuntimeAuthoringGraphSnapshots: (input: import("./public-types").EngineRuntimeAuthoringGraphCompareInput) => import("./public-types").EngineRuntimeAuthoringGraphComparisonOutput;
@@ -432,6 +437,7 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       getObstacles: () => deps.getRuntimeCollisionObstacles(),
       queryAabb: (input) => deps.queryRuntimeCollisionAabb(input),
       evaluateTriggers: (input) => deps.evaluateRuntimeCollisionTriggers(input),
+      sweepCircle: (input) => deps.sweepRuntimeCollisionCircle(input),
       resolve: (input) => deps.resolveRuntimeWorldCollision(input),
     },
     dirty: {

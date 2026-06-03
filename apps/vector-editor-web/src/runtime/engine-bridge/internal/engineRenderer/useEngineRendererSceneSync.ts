@@ -5,8 +5,10 @@ import type {
   RuntimeEngine as Engine,
 } from '../../engine.ts'
 import {
+  createEngineSceneAdapterDiagnosticsReport,
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
+  type EngineSceneAdapterDiagnosticsReport,
 } from '../../../presets/index.ts'
 import type {SceneShapeSnapshot} from '../../../shared-memory/index.ts'
 import {prepareRenderFrame} from '../../../render-prep/prepareFrame.ts'
@@ -92,6 +94,7 @@ export function useEngineRendererSceneSync(params: {
     dirtyBoundsMarkCount: number
     dirtyBoundsMarkArea: number
   }>
+  latestSceneAdapterReportRef: React.MutableRefObject<EngineSceneAdapterDiagnosticsReport>
   sceneApplyDebugRef: React.MutableRefObject<{
     lastSceneApplyMode: 'none' | 'full-load' | 'preview-load' | 'incremental-patch'
     lastSceneApplyRevision: string
@@ -286,14 +289,17 @@ export function useEngineRendererSceneSync(params: {
         const debugRevision = isPreviewLoad
           ? `${params.statsVersion}:preview:${params.previewSceneRevisionRef.current + 1}`
           : String(params.statsVersion)
-        const nextEngineScene = projectSceneSemantic3DForEngine(createEngineSceneFromRuntimeSnapshot(
+        const adapterScene = createEngineSceneFromRuntimeSnapshot(
           isPreviewLoad
             ? {
                 ...params.replayScenePayload,
                 revision: `${params.statsVersion}:preview:${++params.previewSceneRevisionRef.current}`,
               }
             : params.replayScenePayload,
-        ), params.document)
+        )
+        params.latestSceneAdapterReportRef.current =
+          createEngineSceneAdapterDiagnosticsReport(adapterScene.diagnostics)
+        const nextEngineScene = projectSceneSemantic3DForEngine(adapterScene, params.document)
         // Full snapshot load — not a delta; intentionally bypasses syncSceneDelta
         // which is reserved for incremental patches only (sceneStructureDirty = false path).
         engine.setGraph(nextEngineScene)
@@ -308,11 +314,14 @@ export function useEngineRendererSceneSync(params: {
       } else {
         const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
         incrementalChangedNodeIds = changedIds
-        const incrementalScene = projectSceneSemantic3DForEngine(createEngineSceneFromRuntimeSnapshot({
+        const adapterScene = createEngineSceneFromRuntimeSnapshot({
           ...params.replayScenePayload,
           includeShapeIds: changedIds,
           includeDocumentBackground: false,
-        }), params.document)
+        })
+        params.latestSceneAdapterReportRef.current =
+          createEngineSceneAdapterDiagnosticsReport(adapterScene.diagnostics)
+        const incrementalScene = projectSceneSemantic3DForEngine(adapterScene, params.document)
         const upsertNodes = incrementalScene.nodes
 
         if (upsertNodes.length > 0) {
@@ -467,6 +476,7 @@ export function useEngineRendererSceneSync(params: {
     params.appliedViewportRef,
     params.pendingSceneRenderRef,
     params.latestRenderPrepStatsRef,
+    params.latestSceneAdapterReportRef,
     params.sceneApplyDebugRef,
     params.runtimeStageTimingMsRef,
     params.renderRequestStatsRef,

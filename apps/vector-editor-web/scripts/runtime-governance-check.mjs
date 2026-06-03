@@ -62,6 +62,17 @@ function isRuntimeSourceFile(filePath) {
 }
 
 /**
+ * Determines whether one path is a production TypeScript source file.
+ * @param {string} filePath Absolute file path.
+ * @returns {boolean} True when file is a production TS/TSX source.
+ */
+function isProductionSourceFile(filePath) {
+  return /\/src\/.+\.(ts|tsx|d\.ts)$/.test(filePath) &&
+    !/\/src\/testing\//.test(filePath) &&
+    !/\/src\/.+\.test\.(ts|tsx)$/.test(filePath);
+}
+
+/**
  * Determines whether one path is the runtime engine bridge folder.
  * @param {string} filePath Absolute file path.
  * @returns {boolean} True when file belongs to runtime/engine-bridge.
@@ -80,7 +91,7 @@ function checkEngineApiBoundary(files, appRoot) {
   const violations = [];
 
   for (const filePath of files) {
-    if (!isRuntimeSourceFile(filePath) || isEngineBridgeFile(filePath)) {
+    if (!isProductionSourceFile(filePath)) {
       continue;
     }
 
@@ -88,8 +99,12 @@ function checkEngineApiBoundary(files, appRoot) {
     const relPath = path.relative(appRoot, filePath);
 
     if (
-      content.includes("'@venus/engine'") ||
-      content.includes('"@venus/engine"')
+      isRuntimeSourceFile(filePath) &&
+      !isEngineBridgeFile(filePath) &&
+      (
+        content.includes("'@venus/engine'") ||
+        content.includes('"@venus/engine"')
+      )
     ) {
       violations.push(
         new GovernanceViolation(
@@ -100,7 +115,22 @@ function checkEngineApiBoundary(files, appRoot) {
       );
     }
 
-    if (content.includes("/engine-bridge/internal/")) {
+    if (
+      content.includes("@venus/engine/src") ||
+      content.includes("packages/engine/src") ||
+      content.includes("/packages/engine/") ||
+      content.includes("engine/src/")
+    ) {
+      violations.push(
+        new GovernanceViolation(
+          "runtime-engine-private-source-boundary",
+          relPath,
+          "private engine source imports are forbidden; use public @venus/engine exports behind runtime/engine-bridge/",
+        ),
+      );
+    }
+
+    if (!isEngineBridgeFile(filePath) && content.includes("/engine-bridge/internal/")) {
       violations.push(
         new GovernanceViolation(
           "runtime-engine-internal-boundary",

@@ -307,3 +307,52 @@ test("runtime collision trigger evaluation emits deterministic enter stay exit e
   assert.equal(delivered.length, 3);
   engine.dispose();
 });
+
+test("runtime collision swept circle returns earliest continuous contact", () => {
+  const engine = createEngine({
+    surface: createTestSurface(320, 180),
+    backend: "headless",
+  });
+
+  engine.runtime.collision.setObstacles([
+    { id: "late-blocker", x: 40, z: 0, width: 10, depth: 10 },
+    { id: "early-blocker", x: 10, z: 0, width: 10, depth: 10 },
+  ]);
+
+  const hit = engine.runtime.collision.sweepCircle({
+    startX: 0,
+    startZ: 0,
+    endX: 50,
+    endZ: 0,
+    radius: 2,
+  });
+
+  assert.equal(hit.collided, true);
+  assert.equal(hit.colliderId, "early-blocker");
+  assert.equal(hit.timeOfImpact, 0.06);
+  assert.equal(hit.impactX, 3);
+  assert.equal(hit.impactZ, 0);
+  assert.equal(hit.normalX, -1);
+  assert.equal(hit.normalZ, 0);
+  assert.equal(hit.x < hit.impactX, true);
+
+  const clear = engine.runtime.collision.sweepCircle({
+    startX: 0,
+    startZ: 20,
+    endX: 50,
+    endZ: 20,
+    radius: 2,
+  });
+  assert.deepEqual(clear, {
+    x: 50,
+    z: 20,
+    collided: false,
+    colliderId: null,
+    timeOfImpact: 1,
+    impactX: 50,
+    impactZ: 20,
+    normalX: 0,
+    normalZ: 0,
+  });
+  engine.dispose();
+});

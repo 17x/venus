@@ -29,6 +29,48 @@ const createModelScene = (id: string, nodes: EngineSceneAssetNode[]) => ({
   animations: [],
 })
 
+const createSphereMesh = (radius: number): EngineSceneAssetMesh => {
+  const lat = 12
+  const lon = 16
+  const positions: number[] = []
+  const indices: number[] = []
+  for (let y = 0; y <= lat; y += 1) {
+    const v = y / lat
+    const phi = v * Math.PI
+    for (let x = 0; x <= lon; x += 1) {
+      const u = x / lon
+      const theta = u * Math.PI * 2
+      const sx = Math.sin(phi) * Math.cos(theta)
+      const sy = Math.cos(phi)
+      const sz = Math.sin(phi) * Math.sin(theta)
+      positions.push(sx * radius, sy * radius, sz * radius)
+    }
+  }
+  for (let y = 0; y < lat; y += 1) {
+    for (let x = 0; x < lon; x += 1) {
+      const a = y * (lon + 1) + x
+      const b = a + lon + 1
+      indices.push(a, b, a + 1, b, b + 1, a + 1)
+    }
+  }
+  return {positions, indices}
+}
+
+export const resolveDrivingGameSunDirection = (input: Pick<DrivingGameState['config'], 'directionDeg' | 'timeOfDayHours'>) => {
+  const azimuthDeg = input.directionDeg + (input.timeOfDayHours / 24) * 360
+  const azimuthRad = (azimuthDeg * Math.PI) / 180
+  const orbitalRad = ((input.timeOfDayHours - 6) / 24) * Math.PI * 2
+  const height = Math.sin(orbitalRad)
+  return {
+    azimuthDeg,
+    azimuthRad,
+    orbitalRad,
+    height,
+    x: Math.sin(azimuthRad),
+    z: Math.cos(azimuthRad),
+  }
+}
+
 const pushBoxMesh = (
   target: Array<Record<string, unknown>>,
   input: {
@@ -142,6 +184,66 @@ const pushSphereMesh = (
   })
 }
 
+const seededUnit = (seed: number, index: number) => {
+  let value = (seed ^ (index * 0x9e3779b9)) >>> 0
+  value = (value ^ (value >>> 16)) >>> 0
+  value = Math.imul(value, 0x7feb352d) >>> 0
+  value = (value ^ (value >>> 15)) >>> 0
+  value = Math.imul(value, 0x846ca68b) >>> 0
+  value = (value ^ (value >>> 16)) >>> 0
+  return value / 0xffffffff
+}
+
+export const createDrivingGameWeatherParticleNodes = (state: DrivingGameState): Array<Record<string, unknown>> => {
+  const {config: cfg, carX, carY} = state
+  if (!cfg.weatherParticlesEnabled) {
+    return []
+  }
+  const nodes: Array<Record<string, unknown>> = []
+  const span = Math.min(260, Math.max(120, cfg.mapSize * 0.48))
+  const seed = Math.floor(cfg.mapSeed + cfg.mapSize * 13 + cfg.timeOfDayHours * 17)
+  if (cfg.weather === 'rainy') {
+    const count = 36
+    for (let index = 0; index < count; index += 1) {
+      const x = carX + (seededUnit(seed, index * 3) - 0.5) * span
+      const z = carY + (seededUnit(seed, index * 3 + 1) - 0.5) * span
+      const y = 18 + seededUnit(seed, index * 3 + 2) * 56
+      pushBoxMesh(nodes, {
+        id: `weather-rain-${index}`,
+        cx: x,
+        cy: y,
+        cz: z,
+        width: 0.45,
+        height: 12,
+        depth: 0.45,
+        color: '#93c5fd',
+        yawDeg: -14,
+      })
+    }
+  }
+  if (cfg.weather === 'foggy') {
+    const count = 10
+    for (let index = 0; index < count; index += 1) {
+      const layer = index - (count - 1) * 0.5
+      const x = carX + (seededUnit(seed, index * 5) - 0.5) * span * 0.22
+      const z = carY + layer * 18
+      const width = span * (0.62 + seededUnit(seed, index * 5 + 1) * 0.28)
+      pushBoxMesh(nodes, {
+        id: `weather-fog-${index}`,
+        cx: x,
+        cy: 6 + seededUnit(seed, index * 5 + 2) * 12,
+        cz: z,
+        width,
+        height: 2.6,
+        depth: 7 + seededUnit(seed, index * 5 + 3) * 8,
+        color: '#cbd5e1',
+        yawDeg: state.cameraAzimuth + (seededUnit(seed, index * 5 + 4) - 0.5) * 10,
+      })
+    }
+  }
+  return nodes
+}
+
 export function createDrivingGameModelAssets(): EngineRuntimeModelAssetDescriptor[] {
   return [
     {
@@ -171,14 +273,14 @@ export function createDrivingGameModelAssets(): EngineRuntimeModelAssetDescripto
     {
       id: DRIVING_MODEL_IDS.sun,
       scene: createModelScene(DRIVING_MODEL_IDS.sun, [
-        createModelNode('orb', {positions: [-1, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2]}),
+        createModelNode('orb', createSphereMesh(1)),
       ]),
       lodDistances: [300],
     },
     {
       id: DRIVING_MODEL_IDS.moon,
       scene: createModelScene(DRIVING_MODEL_IDS.moon, [
-        createModelNode('orb', {positions: [-1, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2]}),
+        createModelNode('orb', createSphereMesh(1)),
       ]),
       lodDistances: [300],
     },
@@ -212,18 +314,16 @@ export function createDrivingGameModelInstances(state: DrivingGameState): Engine
     })),
   ]
 
-  const sunOrbital = ((cfg.timeOfDayHours - 6) / 24) * Math.PI * 2
-  const sunHeight = Math.sin(sunOrbital)
-  const sunAzimuthRad = ((cfg.directionDeg + (cfg.timeOfDayHours / 24) * 360) * Math.PI) / 180
+  const sunDirection = resolveDrivingGameSunDirection(cfg)
   const sunDistance = cfg.mapSize * 0.62
-  const sunX = Math.sin(sunAzimuthRad) * sunDistance
-  const sunZ = Math.cos(sunAzimuthRad) * sunDistance
-  const sunY = 100 + sunHeight * 180
+  const sunX = sunDirection.x * sunDistance
+  const sunZ = sunDirection.z * sunDistance
+  const sunY = 100 + sunDirection.height * 180
   if (cfg.weather === 'sunny' && sunY > -20) {
     instances.push({id: 'sun', modelId: DRIVING_MODEL_IDS.sun, translation: [carX + sunX * 0.35, Math.max(80, sunY), carY + sunZ * 0.35], scale: [14, 14, 14], color: '#ffd166'})
   }
-  const moonY = 100 + (-sunHeight) * 180
-  if (cfg.weather === 'sunny' && moonY > -20 && sunHeight < -0.05) {
+  const moonY = 100 + (-sunDirection.height) * 180
+  if (cfg.weather === 'sunny' && moonY > -20 && sunDirection.height < -0.05) {
     instances.push({id: 'moon', modelId: DRIVING_MODEL_IDS.moon, translation: [-sunX * 0.92, moonY, -sunZ * 0.92], scale: [6, 6, 6], color: '#dbeafe'})
   }
 
@@ -319,6 +419,8 @@ export function buildDrivingGameScene(
     pushDrivingGameModelInstance(nodes, instance)
   }
 
+  nodes.push(...createDrivingGameWeatherParticleNodes(state))
+
   const weatherGround = cfg.weather === 'rainy'
     ? '#2f4f36'
     : cfg.weather === 'foggy'
@@ -401,6 +503,19 @@ export function buildDrivingGameScene(
     }
   }
 
+  for (const sidewalk of state.cityMap.sidewalks) {
+    pushBoxMesh(nodes, {
+      id: `sidewalk-${sidewalk.id}`,
+      cx: sidewalk.cx,
+      cy: -1.78,
+      cz: sidewalk.cz,
+      width: sidewalk.w,
+      height: 0.8,
+      depth: sidewalk.d,
+      color: cfg.weather === 'rainy' ? '#6b7280' : '#9ca3af',
+    })
+  }
+
   for (const building of state.cityMap.buildings) {
     pushBoxMesh(nodes, {
       id: building.id,
@@ -412,6 +527,22 @@ export function buildDrivingGameScene(
       depth: building.d,
       color: building.color,
     })
+  }
+
+  for (const prop of state.cityMap.props) {
+    pushBoxMesh(nodes, {
+      id: `prop-${prop.id}`,
+      cx: prop.cx,
+      cy: prop.h * 0.5,
+      cz: prop.cz,
+      width: prop.w,
+      height: prop.h,
+      depth: prop.d,
+      color: prop.color,
+    })
+    if (prop.kind === 'planter') {
+      pushSphereMesh(nodes, {id: `prop-${prop.id}-foliage`, cx: prop.cx, cy: prop.h + 1.2, cz: prop.cz, radius: Math.max(prop.w, prop.d) * 0.45, color: '#22c55e'})
+    }
   }
 
   for (const instance of modelInstances.filter((item) => item.modelId !== DRIVING_MODEL_IDS.sun && item.modelId !== DRIVING_MODEL_IDS.moon)) {

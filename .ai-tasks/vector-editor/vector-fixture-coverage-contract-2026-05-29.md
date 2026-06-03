@@ -14,7 +14,18 @@
 - lifecycle: {state, dirty, lastSavedAt, recoveryReason, lastTransitionSource, lastDirtySource}
 - styleReferences: {fills, strokes, texts, effects}
 - extensions: {fixture: true}
-- shapes: 11 fixture shapes covering all ShapeType variants
+- shapes: 11 fixture shapes covering all ShapeType variants, plus commercial fixture suite profiles
+
+## Commercial Fixture Suite Profiles
+
+- small: compact document for product smoke and fast command tests
+- medium: canonical all-field document for drift and integration contracts
+- large: scaled document for runtime/adapter traversal and scheduling pressure
+- text-heavy: rich text, textRuns, typography, and text layout pressure
+- image-heavy: image nodes, image fills, asset references, and asset URL resolution
+- group-mask-boolean-heavy: nested group, mask, clip, and boolean operation pressure
+- path-heavy: path, bezier, point, arrowhead, and stroke geometry pressure
+- style-heavy: multi-fill, multi-stroke, gradient, effect, and blend-mode pressure
 
 ## DocumentNode Fields
 
@@ -57,7 +68,7 @@
 - cornerRadii: {topLeft, topRight, bottomRight, bottomLeft}
 - ellipseStartAngle: ellipse arc start
 - ellipseEndAngle: ellipse arc end
-- booleanOperation: union, intersection, difference, exclude
+- booleanOperation: union, subtract, intersect, exclude, none
 - componentId: component reference
 - componentProperties: {variant}
 - schema: {sourceNodeType, sourceNodeKind, sourceFeatureKinds, maskGroupId, maskRole}

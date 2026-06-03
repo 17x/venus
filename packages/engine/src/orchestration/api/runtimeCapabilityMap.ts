@@ -330,6 +330,13 @@ export const ENGINE_RUNTIME_CAPABILITY_REGISTRY = [
     notes: "Runtime collision evaluate-triggers capability.",
   },
   {
+    name: "runtimeCollisionSweepCircle",
+    entry: "EngineHandle.runtime.collision.sweepCircle",
+    stability: "stable",
+    layer: "runtime",
+    notes: "Runtime collision swept-circle capability.",
+  },
+  {
     name: "runtimeCollisionResolve",
     entry: "EngineHandle.runtime.collision.resolve",
     stability: "stable",

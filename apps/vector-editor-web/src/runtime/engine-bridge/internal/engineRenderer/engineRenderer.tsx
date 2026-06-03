@@ -7,6 +7,7 @@ import type {
 } from '../../engine.ts'
 import {createEngineRenderScheduler} from '../../engine.ts'
 import {
+  createEngineSceneAdapterDiagnosticsReport,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
 } from '../../../presets/index.ts'
 import type {SceneShapeSnapshot} from '../../../shared-memory/index.ts'
@@ -97,6 +98,7 @@ export function EngineRenderer({
   const deferredVisualRecoveryAfterInteractionRef = React.useRef(false)
   const renderRequestStatsRef = React.useRef(createInitialRenderRequestStats())
   const latestRenderPrepStatsRef = React.useRef(createInitialRenderPrepStats())
+  const latestSceneAdapterReportRef = React.useRef(createEngineSceneAdapterDiagnosticsReport([]))
   const latestPlanDiagnosticsRef = React.useRef(createInitialPlanDiagnostics())
   const sceneApplyDebugRef = React.useRef(createInitialSceneApplyDebugState())
   const runtimeStageTimingMsRef = React.useRef(createInitialRuntimeStageTimingState())
@@ -211,6 +213,7 @@ export function EngineRenderer({
     lastPlanDiagnosticSampleAtRef,
     latestPlanDiagnosticsRef,
     latestRenderPrepStatsRef,
+    latestSceneAdapterReportRef,
     lastZeroVisibilityDebugFrameRef,
     sceneApplyDebugRef,
     deferredVisualRecoveryPendingRef,
@@ -418,6 +421,7 @@ export function EngineRenderer({
     appliedViewportRef,
     pendingSceneRenderRef,
     latestRenderPrepStatsRef,
+    latestSceneAdapterReportRef,
     sceneApplyDebugRef,
     runtimeStageTimingMsRef,
     renderRequestStatsRef,
@@ -475,4 +479,3 @@ export function EngineRenderer({
     />
   )
 }
-

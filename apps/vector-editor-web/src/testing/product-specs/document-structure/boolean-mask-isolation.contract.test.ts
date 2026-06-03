@@ -13,7 +13,7 @@ test('boolean operation shape is isolated from non-masked siblings', () => {
   assert.equal(booleanShapes.length > 0, true)
 
   booleanShapes.forEach((shape) => {
-    assert.equal(['union', 'intersection', 'difference', 'exclude'].includes(shape.booleanOperation!), true)
+    assert.equal(['union', 'subtract', 'intersect', 'exclude', 'none'].includes(shape.booleanOperation!), true)
     // Boolean shapes should have mask context for correct isolation
     assert.equal(typeof shape.schema?.maskGroupId === 'string' || typeof shape.clipPathId === 'string', true)
   })

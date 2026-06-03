@@ -228,6 +228,7 @@ export function createEngineStatsHandler(params: EngineStatsHandlerParams): (nex
         qosGuardTriggers: [...(engineStats?.lastQosGuardTriggers ?? [])],
         qosTrace: engineStats?.lastQosTrace ?? `qos:${params.drawSerialRef.current}:static:low`,
       },
+      engineSceneAdapterReport: params.latestSceneAdapterReportRef.current,
       offscreenSceneDirtyForceRenderFrameThreshold:
         DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.sceneDirtySkipForceRenderFrames,
       dirtyBoundsSmallAreaThreshold:

@@ -76,6 +76,71 @@ test('file runtime round trip preserves metadata, style refs, extensions, and as
 })
 
 /**
+ * Verifies direct file-to-authoring mapping preserves commercial authoring fields that runtime scenes cannot own.
+ */
+test('file authoring round trip preserves modern node style, text, mask, component, and extension fields', () => {
+  const sourceDocument = createCanonicalDocumentModelFixture()
+  const fileDocument = {
+    id: sourceDocument.id,
+    name: sourceDocument.name,
+    version: '1.0.0',
+    createdAt: sourceDocument.createdAt ?? 0,
+    updatedAt: sourceDocument.updatedAt ?? 0,
+    schema: sourceDocument.schema,
+    pages: sourceDocument.pages,
+    activePageId: sourceDocument.activePageId,
+    lifecycle: sourceDocument.lifecycle,
+    styleReferences: sourceDocument.styleReferences,
+    extensions: sourceDocument.extensions,
+    config: {
+      page: {
+        unit: 'px',
+        width: sourceDocument.width,
+        height: sourceDocument.height,
+        dpi: 72,
+      },
+    },
+    elements: createFileElementsFromDocument(sourceDocument),
+    assets: [
+      {
+        id: 'asset-primary',
+        name: 'Primary Asset',
+        type: 'image',
+        mimeType: 'image/png',
+        objectUrl: 'blob:fixture-asset',
+      },
+    ],
+  }
+
+  const roundTripDocument = createEditorDocumentFromFile(fileDocument)
+  const sourceNode = sourceDocument.shapes.find((shape) => shape.id === 'fixture-styled')
+  const roundTripNode = roundTripDocument.shapes.find((shape) => shape.id === 'fixture-styled')
+  assert.ok(sourceNode, 'source fixture-styled node should exist')
+  assert.ok(roundTripNode, 'round-trip fixture-styled node should exist')
+
+  assert.deepEqual(roundTripNode.fills, sourceNode.fills)
+  assert.deepEqual(roundTripNode.strokes, sourceNode.strokes)
+  assert.deepEqual(roundTripNode.shadow, sourceNode.shadow)
+  assert.deepEqual(roundTripNode.blur, sourceNode.blur)
+  assert.equal(roundTripNode.opacity, sourceNode.opacity)
+  assert.equal(roundTripNode.blendMode, sourceNode.blendMode)
+  assert.equal(roundTripNode.locked, sourceNode.locked)
+  assert.equal(roundTripNode.visible, sourceNode.visible)
+  assert.deepEqual(roundTripNode.textRuns, sourceNode.textRuns)
+  assert.equal(roundTripNode.textAutoHeight, sourceNode.textAutoHeight)
+  assert.equal(roundTripNode.textTruncation, sourceNode.textTruncation)
+  assert.equal(roundTripNode.textMaxLines, sourceNode.textMaxLines)
+  assert.equal(roundTripNode.booleanOperation, sourceNode.booleanOperation)
+  assert.equal(roundTripNode.componentId, sourceNode.componentId)
+  assert.deepEqual(roundTripNode.componentProperties, sourceNode.componentProperties)
+  assert.equal(roundTripNode.schema?.maskGroupId, sourceNode.schema?.maskGroupId)
+  assert.equal(roundTripNode.schema?.maskRole, sourceNode.schema?.maskRole)
+  assert.deepEqual(roundTripNode.styleRefs, sourceNode.styleRefs)
+  assert.deepEqual(roundTripNode.extensions, sourceNode.extensions)
+  assert.equal(roundTripNode.assetUrl, 'blob:fixture-asset')
+})
+
+/**
  * Verifies file -> runtime scene -> engine graph projection keeps deterministic 3D semantics.
  */
 test('file runtime round trip projects stable semantic3d engine graph fields', () => {

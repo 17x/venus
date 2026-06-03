@@ -16,6 +16,10 @@ import {
   resolveMaskSelectionCommand,
   resolveRuntimeCommandSideEffects,
 } from './commandResolvers.ts'
+import {
+  resolveVector2DCommandContract,
+  resolveVector2DCommandEnvelopeSource,
+} from './commandContract.ts'
 import type {ShapeStyleHandleDrag} from './shapeStyleHandles.ts'
 import {applyRuntimeEditingModeTransition} from './runtimeEditingModeTransitionPolicy.ts'
 import {filterRuntimeSelectionCandidateIds} from './selectionFilterPolicy.ts'
@@ -100,6 +104,7 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
     command: EditorRuntimeCommand,
     source: CommandEnvelopeSource,
   ) {
+    const commandContract = resolveVector2DCommandContract(command)
     const commandEnvelope = createCommandEnvelope({
       id: resolveNextCommandId(),
       source,
@@ -121,6 +126,9 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
       commandId: commandEnvelope.id,
       transactionId: commandEnvelope.transactionId,
       commandSource: commandEnvelope.source,
+      commandFamily: commandContract.family,
+      beforeAfterPolicy: commandContract.beforeAfterPolicy,
+      mergePolicy: commandContract.mergePolicy,
       issuedAt: commandEnvelope.issuedAt,
     })
     options.dispatchRuntimeEvent({
@@ -129,6 +137,9 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
       commandId: commandEnvelope.id,
       transactionId: commandEnvelope.transactionId,
       commandSource: commandEnvelope.source,
+      commandFamily: commandContract.family,
+      beforeAfterPolicy: commandContract.beforeAfterPolicy,
+      mergePolicy: commandContract.mergePolicy,
       issuedAt: commandEnvelope.issuedAt,
     })
   }
@@ -144,7 +155,9 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
 
     commandDispatchDepth += 1
 
-    const commandSource: CommandEnvelopeSource = isRootDispatch ? 'user' : 'derived'
+    const commandSource: CommandEnvelopeSource = resolveVector2DCommandEnvelopeSource({
+      dispatchDepth: commandDispatchDepth - 1,
+    })
 
     try {
     if (command.type === 'mask.create') {

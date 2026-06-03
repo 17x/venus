@@ -1,4 +1,5 @@
 import type {RuntimeRenderDiagnostics} from '../events/index/index.ts'
+import type {EngineSceneAdapterDiagnosticsReport} from '../presets/index.ts'
 import {buildRuntimeDiagnosticsPayloadFields} from './runtimeDiagnosticsPayload.fields.ts'
 
 interface RenderStatsSnapshot {
@@ -311,6 +312,7 @@ export interface BuildRuntimeDiagnosticsPayloadInput {
   renderPrepDiagnostics: RenderPrepDiagnosticsSnapshot
   renderRequestStats: RenderRequestStatsSnapshot
   engineCoreStats: EngineCoreStatsSnapshot
+  engineSceneAdapterReport: EngineSceneAdapterDiagnosticsReport
   offscreenSceneDirtyForceRenderFrameThreshold: number
   dirtyBoundsSmallAreaThreshold: number
   dirtyBoundsMediumAreaThreshold: number

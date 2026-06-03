@@ -25,6 +25,8 @@ import type {
   EngineRuntimeCollisionEvaluateTriggersInput,
   EngineRuntimeCollisionEvaluateTriggersOutput,
   EngineRuntimeCollisionTriggerEvent,
+  EngineRuntimeCollisionSweepCircleInput,
+  EngineRuntimeCollisionSweepCircleOutput,
   EngineRuntimeNavigationPath,
   EngineRuntimeNavigationPathConstraints,
   EngineRuntimeNavigationStepPathAgentsInput,
@@ -111,6 +113,7 @@ const TOPOLOGY_POINT_MIN_INDEX_COUNT = 1;
 const CAMERA_FOV_Y_DEFAULT_DEGREES = 50;
 const CAMERA_NEAR_DEFAULT = 0.1;
 const CAMERA_FAR_DEFAULT = 5000;
+const RUNTIME_COLLISION_SWEEP_SAFE_BACKOFF = 0.000001;
 
 type EngineNativeCamera3dPayload = {
   yaw: number;
@@ -1094,6 +1097,142 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
   }
 
   /**
+   * Sweeps one moving circle against active runtime colliders.
+   * @param input Swept circle input payload.
+   */
+  function sweepRuntimeCollisionCircle(
+    input: EngineRuntimeCollisionSweepCircleInput,
+  ): EngineRuntimeCollisionSweepCircleOutput {
+    const startX = Number.isFinite(input.startX) ? input.startX : 0;
+    const startZ = Number.isFinite(input.startZ) ? input.startZ : 0;
+    const endX = Number.isFinite(input.endX) ? input.endX : startX;
+    const endZ = Number.isFinite(input.endZ) ? input.endZ : startZ;
+    const radius = Number.isFinite(input.radius) ? Math.max(0, input.radius) : 0;
+    const deltaX = endX - startX;
+    const deltaZ = endZ - startZ;
+    let earliestImpact = 1;
+    let hitColliderId: string | null = null;
+    let hitNormalX = 0;
+    let hitNormalZ = 0;
+
+    for (const collider of runtimeOpenWorldMap.obstacles) {
+      const expandedMinX = collider.x - collider.width * 0.5 - radius;
+      const expandedMaxX = collider.x + collider.width * 0.5 + radius;
+      const expandedMinZ = collider.z - collider.depth * 0.5 - radius;
+      const expandedMaxZ = collider.z + collider.depth * 0.5 + radius;
+      const startsInside =
+        startX >= expandedMinX &&
+        startX <= expandedMaxX &&
+        startZ >= expandedMinZ &&
+        startZ <= expandedMaxZ;
+      let entryTime = 0;
+      let exitTime = 1;
+      let normalX = 0;
+      let normalZ = 0;
+
+      if (startsInside) {
+        const leftPenetration = Math.abs(startX - expandedMinX);
+        const rightPenetration = Math.abs(expandedMaxX - startX);
+        const bottomPenetration = Math.abs(startZ - expandedMinZ);
+        const topPenetration = Math.abs(expandedMaxZ - startZ);
+        const minimumPenetration = Math.min(
+          leftPenetration,
+          rightPenetration,
+          bottomPenetration,
+          topPenetration,
+        );
+        if (minimumPenetration === leftPenetration) normalX = -1;
+        else if (minimumPenetration === rightPenetration) normalX = 1;
+        else if (minimumPenetration === bottomPenetration) normalZ = -1;
+        else normalZ = 1;
+      } else {
+        if (deltaX === 0) {
+          if (startX < expandedMinX || startX > expandedMaxX) {
+            continue;
+          }
+        } else {
+          const inverseDeltaX = 1 / deltaX;
+          let axisEntryTime = (expandedMinX - startX) * inverseDeltaX;
+          let axisExitTime = (expandedMaxX - startX) * inverseDeltaX;
+          let axisNormalX = -1;
+          if (axisEntryTime > axisExitTime) {
+            const swapTime = axisEntryTime;
+            axisEntryTime = axisExitTime;
+            axisExitTime = swapTime;
+            axisNormalX = 1;
+          }
+          if (axisEntryTime > entryTime) {
+            entryTime = axisEntryTime;
+            normalX = axisNormalX;
+            normalZ = 0;
+          }
+          exitTime = Math.min(exitTime, axisExitTime);
+        }
+
+        if (deltaZ === 0) {
+          if (startZ < expandedMinZ || startZ > expandedMaxZ) {
+            continue;
+          }
+        } else {
+          const inverseDeltaZ = 1 / deltaZ;
+          let axisEntryTime = (expandedMinZ - startZ) * inverseDeltaZ;
+          let axisExitTime = (expandedMaxZ - startZ) * inverseDeltaZ;
+          let axisNormalZ = -1;
+          if (axisEntryTime > axisExitTime) {
+            const swapTime = axisEntryTime;
+            axisEntryTime = axisExitTime;
+            axisExitTime = swapTime;
+            axisNormalZ = 1;
+          }
+          if (axisEntryTime > entryTime) {
+            entryTime = axisEntryTime;
+            normalX = 0;
+            normalZ = axisNormalZ;
+          }
+          exitTime = Math.min(exitTime, axisExitTime);
+        }
+      }
+
+      if (entryTime > exitTime || entryTime < 0 || entryTime > 1) {
+        continue;
+      }
+      if (entryTime < earliestImpact) {
+        earliestImpact = entryTime;
+        hitColliderId = collider.id;
+        hitNormalX = normalX;
+        hitNormalZ = normalZ;
+      }
+    }
+
+    if (hitColliderId === null) {
+      return {
+        x: endX,
+        z: endZ,
+        collided: false,
+        colliderId: null,
+        timeOfImpact: 1,
+        impactX: endX,
+        impactZ: endZ,
+        normalX: 0,
+        normalZ: 0,
+      };
+    }
+
+    const safeImpact = Math.max(0, earliestImpact - RUNTIME_COLLISION_SWEEP_SAFE_BACKOFF);
+    return {
+      x: startX + deltaX * safeImpact,
+      z: startZ + deltaZ * safeImpact,
+      collided: true,
+      colliderId: hitColliderId,
+      timeOfImpact: earliestImpact,
+      impactX: startX + deltaX * earliestImpact,
+      impactZ: startZ + deltaZ * earliestImpact,
+      normalX: hitNormalX,
+      normalZ: hitNormalZ,
+    };
+  }
+
+  /**
    * Resolves one optional shared camera packet from graph nodes.
    * In strict3d mode, callers can provide a helper node with `camera3d` payload.
    */
@@ -2057,6 +2196,7 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       unregisterRuntimeCollider,
       queryRuntimeCollisionAabb,
       evaluateRuntimeCollisionTriggers,
+      sweepRuntimeCollisionCircle,
       setRuntimeWorldAgents: (agents: readonly EngineRuntimeWorldAgentState[]) => {
         runtimeWorldAgents = normalizeRuntimeWorldAgents(agents);
         return runtimeWorldAgents;

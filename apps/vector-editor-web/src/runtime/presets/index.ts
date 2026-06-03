@@ -50,6 +50,8 @@ export {
 } from './easing.ts'
 export {
   buildDocumentImageAssetUrlMap,
+  createEngineSceneAdapterDiagnosticsReport,
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
+  type EngineSceneAdapterDiagnosticsReport,
 } from './engineSceneAdapter/engineSceneAdapter.ts'

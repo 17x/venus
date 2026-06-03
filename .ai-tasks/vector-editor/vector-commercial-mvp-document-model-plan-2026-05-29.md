@@ -4,6 +4,14 @@
 
 This document plans the vector 2D editor path toward first commercial MVP release. It focuses on the document model, runtime-to-engine adapter boundary, fake-data completeness, and Adobe Illustrator/Figma benchmark gaps.
 
+For the deeper commercial product execution plan covering UI, property panels, interaction handlers, overlays, marquee/lasso, drawing tools, group transform, file CRUD, element CRUD, and the product-runtime-engine full chain, continue from:
+
+- `.ai-tasks/vector-editor/vector2d-commercial-product-deep-plan-2026-06-03.md`
+
+Canonical authoring model decision:
+
+- `.ai-tasks/vector-editor/vector2d-canonical-authoring-model-contract-2026-06-03.md`
+
 Mutation radius for this planning slice:
 
 - Affected domain: planning documents only.
@@ -160,23 +168,34 @@ Vector must not request engine APIs named after Figma, Illustrator, artboard, la
 
 ## 6. MVP Backlog
 
+This backlog remains the document-model and adapter-foundation slice. The broader product execution queue is `V2D-*` in `.ai-tasks/vector-editor/vector2d-commercial-product-deep-plan-2026-06-03.md`.
+
 ### VEC-MVP-001 [P0] Document model single source of truth
 
-- Status: PARTIAL
+- Status: DONE
 - Scope: decide whether `EditorDocument` or `EditorFileDocument` is the canonical authoring model and document conversion boundaries.
 - Acceptance:
   - One authoritative model doc exists.
   - File/persisted model, runtime model, and engine graph projection have explicit ownership.
   - No field has two undocumented names across layers.
+- Progress:
+  - Added `.ai-tasks/vector-editor/vector2d-canonical-authoring-model-contract-2026-06-03.md`.
+  - Decision: `EditorDocument` is the canonical in-memory authoring model; `EditorFileDocument` is the persisted file/container format; runtime and engine data are projections.
+  - Follow-up implementation gates remain under `V2D-DOC-004`, `V2D-RT-001`, `V2D-RT-003`, and `V2D-E2E-004`.
 
 ### VEC-MVP-002 [P0] Fixture complete sample document
 
-- Status: TODO
+- Status: DONE
 - Scope: update initial fake data or add a canonical MVP fixture that covers every supported document/file/node property.
 - Acceptance:
   - All `EditorFileDocument`, `EditorDocument`, and `DocumentNode` supported fields are represented at least once.
   - Deprecated compatibility fields are covered separately from canonical fields.
   - Test fails when a new public model field lacks fixture coverage decision.
+- Progress:
+  - `createCanonicalDocumentModelFixture()` covers public `EditorDocument` and `DocumentNode` fields through a drift gate.
+  - `MOCK_FILE` and `fixture-full-coverage-element` cover public `EditorFileDocument` and `ElementProps` fields.
+  - `createCommercialDocumentFixtureSuite()` adds small, medium, large, text-heavy, image-heavy, group/mask/boolean-heavy, path-heavy, and style-heavy profiles for shared product/runtime/adapter testing.
+  - `document-fixture-coverage.contract.test.ts` now verifies suite profile presence, structural safety, and reusable coverage samples.
 
 ### VEC-MVP-003 [P0] Normalization and round-trip contracts
 

@@ -196,6 +196,8 @@ export type {
   EngineRuntimeCollisionUnregisterOutput,
   EngineRuntimeCollisionEvaluateTriggersInput,
   EngineRuntimeCollisionEvaluateTriggersOutput,
+  EngineRuntimeCollisionSweepCircleInput,
+  EngineRuntimeCollisionSweepCircleOutput,
   EngineRuntimeCollisionTriggerEvent,
   EngineRuntimeCollisionTriggerEventKind,
   EngineRuntimeNavigationPath,

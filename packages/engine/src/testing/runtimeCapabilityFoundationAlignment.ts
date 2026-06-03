@@ -44,6 +44,7 @@ export const NON_FOUNDATION_CAPABILITY_ENTRIES = [
   "EngineHandle.runtime.collision.getObstacles",
   "EngineHandle.runtime.collision.queryAabb",
   "EngineHandle.runtime.collision.evaluateTriggers",
+  "EngineHandle.runtime.collision.sweepCircle",
   "EngineHandle.runtime.collision.resolve",
 ] as const;
 

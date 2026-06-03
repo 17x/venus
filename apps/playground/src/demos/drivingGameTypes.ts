@@ -48,6 +48,8 @@ export interface DrivingGameConfig {
   carTurnSpeed: number
   /** Map size in world units. */
   mapSize: number
+  /** Seed used by fallback/dev city generation. */
+  mapSeed: number
   /** Whether ground helper grid is visible. */
   worldGridEnabled: boolean
   /** Ground helper grid spacing. */
@@ -66,6 +68,8 @@ export interface DrivingGameConfig {
   timeOfDayHours: number
   /** Weather token used by rendering/lighting presets. */
   weather: 'sunny' | 'cloudy' | 'rainy' | 'foggy'
+  /** Whether deterministic rain/fog particle layers are visible. */
+  weatherParticlesEnabled: boolean
   /** Mini-map zoom level token. */
   miniMapZoomLevel: 0 | 1 | 2
   /** Whether time of day advances automatically. */
@@ -100,6 +104,7 @@ export const DEFAULT_DRIVING_GAME_CONFIG: DrivingGameConfig = {
   carDrag: 4,
   carTurnSpeed: 180,
   mapSize: 400,
+  mapSeed: 400,
   worldGridEnabled: true,
   worldGridStep: 24,
   worldGridThickness: 1.2,
@@ -109,6 +114,7 @@ export const DEFAULT_DRIVING_GAME_CONFIG: DrivingGameConfig = {
   directionDeg: 0,
   timeOfDayHours: 14,
   weather: 'sunny',
+  weatherParticlesEnabled: true,
   miniMapZoomLevel: 1,
   timeFlowEnabled: true,
   timeFlowRate: 0.35,
@@ -151,11 +157,11 @@ export interface DrivingGameState {
 }
 
 export function createInitialDrivingGameState(fixture?: DrivingGameFixtureProjection | null): DrivingGameState {
-  const cityMap = fixture?.cityMap ?? generateCityWorldMap(DEFAULT_DRIVING_GAME_CONFIG.mapSize)
   const config: DrivingGameConfig = {
     ...DEFAULT_DRIVING_GAME_CONFIG,
     ...(fixture?.configPatch ?? {}),
   }
+  const cityMap = fixture?.cityMap ?? generateCityWorldMap(config.mapSize, config.mapSeed)
   return {
     config,
     carX: fixture?.player.x ?? 0,

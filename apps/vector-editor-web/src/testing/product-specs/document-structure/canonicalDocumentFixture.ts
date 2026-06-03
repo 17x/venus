@@ -232,7 +232,7 @@ export function createCanonicalDocumentModelFixture(): EditorDocument {
         blur: {enabled: false, kind: 'layer', radius: 0},
         cornerRadius: 0,
         cornerRadii: {topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0},
-        strokeStartArrowhead: undefined,
+        strokeStartArrowhead: 'none',
         strokeEndArrowhead: 'bar',
         schema: {sourceNodeType: 'VECTOR', sourceNodeKind: 'path', sourceFeatureKinds: ['vector']},
         styleRefs: {},
@@ -311,7 +311,7 @@ export function createCanonicalDocumentModelFixture(): EditorDocument {
         type: 'group',
         name: 'Fixture Group',
         parentId: 'fixture-frame',
-        childIds: [],
+        childIds: ['fixture-styled'],
         x: 16, y: 280, width: 400, height: 200,
         rotation: 0, flipX: false, flipY: false,
         opacity: 1, blendMode: 'normal' as const,
@@ -375,8 +375,187 @@ export function createCanonicalDocumentModelFixture(): EditorDocument {
         clipRule: 'nonzero' as const,
         ellipseStartAngle: undefined, ellipseEndAngle: undefined,
         extensions: {fixtureRole: 'composite'},
-        extensions: {fixtureRole: 'composite'},
       },
     ],
   }
+}
+
+export type CommercialDocumentFixtureKind =
+  | 'small'
+  | 'medium'
+  | 'large'
+  | 'text-heavy'
+  | 'image-heavy'
+  | 'group-mask-boolean-heavy'
+  | 'path-heavy'
+  | 'style-heavy'
+
+export interface CommercialDocumentFixtureDefinition {
+  kind: CommercialDocumentFixtureKind
+  document: EditorDocument
+  coverageTags: string[]
+}
+
+function cloneCanonicalDocument(): EditorDocument {
+  return JSON.parse(JSON.stringify(createCanonicalDocumentModelFixture())) as EditorDocument
+}
+
+function tagDocument(document: EditorDocument, kind: CommercialDocumentFixtureKind, coverageTags: string[]): EditorDocument {
+  return {
+    ...document,
+    id: `commercial-fixture-${kind}`,
+    name: `Commercial Fixture ${kind}`,
+    extensions: {
+      ...document.extensions,
+      commercialFixtureKind: kind,
+      coverageTags,
+    },
+  }
+}
+
+function createSmallDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  const frame = document.shapes.find((shape) => shape.id === 'fixture-frame')
+  const rectangle = document.shapes.find((shape) => shape.id === 'fixture-rect')
+  const text = document.shapes.find((shape) => shape.id === 'fixture-text')
+
+  if (!frame || !rectangle || !text) {
+    return document
+  }
+
+  frame.childIds = ['fixture-rect', 'fixture-text']
+  document.shapes = [frame, rectangle, text]
+  return document
+}
+
+function appendClonedShape(document: EditorDocument, sourceId: string, nextId: string, offsetX: number, offsetY: number): void {
+  const source = document.shapes.find((shape) => shape.id === sourceId)
+  const group = document.shapes.find((shape) => shape.id === 'fixture-group')
+  if (!source || !group) {
+    return
+  }
+
+  document.shapes.push({
+    ...source,
+    id: nextId,
+    name: `${source.name} ${nextId}`,
+    parentId: group.id,
+    childIds: [],
+    x: source.x + offsetX,
+    y: source.y + offsetY,
+    extensions: {
+      ...source.extensions,
+      clonedForFixtureSuite: true,
+    },
+  })
+  group.childIds = [...(group.childIds ?? []), nextId]
+}
+
+function createLargeDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  for (let index = 0; index < 24; index += 1) {
+    appendClonedShape(document, 'fixture-styled', `fixture-large-node-${index}`, (index % 6) * 24, Math.floor(index / 6) * 22)
+  }
+  return document
+}
+
+function createTextHeavyDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  for (let index = 0; index < 8; index += 1) {
+    appendClonedShape(document, 'fixture-text', `fixture-text-node-${index}`, (index % 4) * 48, Math.floor(index / 4) * 28)
+  }
+  return document
+}
+
+function createImageHeavyDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  for (let index = 0; index < 8; index += 1) {
+    appendClonedShape(document, 'fixture-image', `fixture-image-node-${index}`, (index % 4) * 40, Math.floor(index / 4) * 36)
+  }
+  return document
+}
+
+function createGroupMaskBooleanHeavyDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  for (let index = 0; index < 8; index += 1) {
+    appendClonedShape(document, 'fixture-styled', `fixture-boolean-mask-node-${index}`, (index % 4) * 32, Math.floor(index / 4) * 34)
+    const clone = document.shapes.find((shape) => shape.id === `fixture-boolean-mask-node-${index}`)
+    if (clone) {
+      clone.booleanOperation = index % 2 === 0 ? 'union' : 'exclude'
+      clone.schema = {
+        ...clone.schema,
+        maskGroupId: `mask-fixture-${index}`,
+        maskRole: index % 2 === 0 ? 'source' : 'host',
+      }
+    }
+  }
+  return document
+}
+
+function createPathHeavyDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  for (let index = 0; index < 10; index += 1) {
+    appendClonedShape(document, 'fixture-path', `fixture-path-node-${index}`, (index % 5) * 36, Math.floor(index / 5) * 30)
+  }
+  return document
+}
+
+function createStyleHeavyDocumentFixture(): EditorDocument {
+  const document = cloneCanonicalDocument()
+  const blendModes = ['normal', 'multiply', 'screen', 'overlay', 'difference', 'luminosity'] as const
+  blendModes.forEach((blendMode, index) => {
+    appendClonedShape(document, 'fixture-styled', `fixture-style-node-${blendMode}`, (index % 3) * 36, Math.floor(index / 3) * 30)
+    const clone = document.shapes.find((shape) => shape.id === `fixture-style-node-${blendMode}`)
+    if (clone) {
+      clone.blendMode = blendMode
+      clone.fills = clone.fills?.map((fill) => ({...fill, blendMode}))
+      clone.strokes = clone.strokes?.map((stroke) => ({...stroke, blendMode}))
+    }
+  })
+  return document
+}
+
+export function createCommercialDocumentFixtureSuite(): CommercialDocumentFixtureDefinition[] {
+  return [
+    {
+      kind: 'small',
+      document: tagDocument(createSmallDocumentFixture(), 'small', ['pages', 'frame', 'shape', 'text']),
+      coverageTags: ['pages', 'frame', 'shape', 'text'],
+    },
+    {
+      kind: 'medium',
+      document: tagDocument(cloneCanonicalDocument(), 'medium', ['canonical', 'all-node-fields', 'all-shape-types']),
+      coverageTags: ['canonical', 'all-node-fields', 'all-shape-types'],
+    },
+    {
+      kind: 'large',
+      document: tagDocument(createLargeDocumentFixture(), 'large', ['scale', 'groups', 'style']),
+      coverageTags: ['scale', 'groups', 'style'],
+    },
+    {
+      kind: 'text-heavy',
+      document: tagDocument(createTextHeavyDocumentFixture(), 'text-heavy', ['text', 'textRuns', 'typography']),
+      coverageTags: ['text', 'textRuns', 'typography'],
+    },
+    {
+      kind: 'image-heavy',
+      document: tagDocument(createImageHeavyDocumentFixture(), 'image-heavy', ['image', 'assets', 'image-fill']),
+      coverageTags: ['image', 'assets', 'image-fill'],
+    },
+    {
+      kind: 'group-mask-boolean-heavy',
+      document: tagDocument(createGroupMaskBooleanHeavyDocumentFixture(), 'group-mask-boolean-heavy', ['groups', 'masks', 'booleans']),
+      coverageTags: ['groups', 'masks', 'booleans'],
+    },
+    {
+      kind: 'path-heavy',
+      document: tagDocument(createPathHeavyDocumentFixture(), 'path-heavy', ['paths', 'bezier', 'stroke-arrowheads']),
+      coverageTags: ['paths', 'bezier', 'stroke-arrowheads'],
+    },
+    {
+      kind: 'style-heavy',
+      document: tagDocument(createStyleHeavyDocumentFixture(), 'style-heavy', ['fills', 'strokes', 'effects', 'blend-modes']),
+      coverageTags: ['fills', 'strokes', 'effects', 'blend-modes'],
+    },
+  ]
 }

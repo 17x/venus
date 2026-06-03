@@ -81,6 +81,51 @@ type RuntimeDiagnosticsPanelDataSource = {
     // Latest QoS trace id used for frame-level diagnostics correlation.
     qosTrace: RuntimeRenderDiagnostics['engineQosTrace']
   }
+  adapterReport: RuntimeRenderDiagnostics['engineSceneAdapterReport']
+}
+
+function formatAdapterSupportSummary(report: RuntimeRenderDiagnostics['engineSceneAdapterReport']) {
+  const statusCounts = report.supportMatrix.reduce<Record<string, number>>((counts, row) => {
+    counts[row.status] = (counts[row.status] ?? 0) + 1
+    return counts
+  }, {})
+
+  return ['projected', 'degraded', 'fallback']
+    .map((status) => `${status}:${statusCounts[status] ?? 0}`)
+    .join(', ')
+}
+
+function formatAdapterDiagnosticCodeCounts(report: RuntimeRenderDiagnostics['engineSceneAdapterReport']) {
+  const entries = Object.entries(report.codeCounts)
+  if (entries.length === 0) {
+    return 'none'
+  }
+  return entries
+    .map(([code, count]) => `${code}:${count}`)
+    .join(', ')
+}
+
+/**
+ * Renders product-owned vector-to-engine projection diagnostics.
+ * @param props Adapter report and translator.
+ */
+export function VectorAdapterDebugSection(props: {
+  t: TFunction
+  report: RuntimeRenderDiagnostics['engineSceneAdapterReport']
+}) {
+  const {t, report} = props
+  return (
+    <DebugSection title={t('shell.variantB.debug.sectionVectorAdapter', 'Vector Adapter')}>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterVersion', 'Adapter Version')} value={report.adapterVersion}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterSchemaVersion', 'Report Schema')} value={String(report.schemaVersion)}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterDiagnosticTotal', 'Diagnostic Total')} value={String(report.totalCount)}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterWarnings', 'Warnings')} value={String(report.severityCounts.warning)}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterInfo', 'Info')} value={String(report.severityCounts.info)}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterAffectedNodes', 'Affected Nodes')} value={report.affectedNodeIds.length > 0 ? report.affectedNodeIds.join(', ') : 'none'}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterCodeCounts', 'Code Counts')} value={formatAdapterDiagnosticCodeCounts(report)}/>
+      <DebugRow label={t('shell.variantB.debug.vectorAdapterSupportSummary', 'Support Matrix')} value={formatAdapterSupportSummary(report)}/>
+    </DebugSection>
+  )
 }
 
 /**
@@ -249,6 +294,11 @@ export function CompactRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.engineQosTrace', 'QoS Trace')} value={diagnosticsDataSource.engineConfig.qosTrace}/>
       </DebugSection>
 
+      <VectorAdapterDebugSection
+        t={t}
+        report={diagnosticsDataSource.adapterReport}
+      />
+
       <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
         <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate')} value={`${cacheHitRate.toFixed(1)}%`}/>
         <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnosticsDataSource.webglStats.tileCacheSize)}/>
@@ -364,6 +414,11 @@ export function VerboseRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.engineQosGuardTriggers', 'QoS Guard Triggers')} value={diagnosticsDataSource.engineConfig.qosGuardTriggers.length > 0 ? diagnosticsDataSource.engineConfig.qosGuardTriggers.join(', ') : 'none'}/>
         <DebugRow label={t('shell.variantB.debug.engineQosTrace', 'QoS Trace')} value={diagnosticsDataSource.engineConfig.qosTrace}/>
       </DebugSection>
+
+      <VectorAdapterDebugSection
+        t={t}
+        report={diagnosticsDataSource.adapterReport}
+      />
 
       <DebugSection title={t('shell.variantB.debug.sectionPlanner', 'Planner / Frame / Hit')}>
         <DebugRow label={t('shell.variantB.debug.framePlanVersion', 'Frame Plan Version')} value={String(diagnostics.framePlanVersion)}/>

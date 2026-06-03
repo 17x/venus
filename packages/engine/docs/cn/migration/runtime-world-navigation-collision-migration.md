@@ -22,12 +22,12 @@ Canonical 命名空间：
 
 ## 映射关系
 
-| 兼容 API | Canonical API |
-| --- | --- |
-| `engine.runtime.world.setAgents(agents)` | `engine.runtime.navigation.setAgents(agents)` |
-| `engine.runtime.world.getAgents()` | `engine.runtime.navigation.getAgents()` |
-| `engine.runtime.world.stepAgents(input)` | `engine.runtime.navigation.stepAgents(input)` |
-| `engine.runtime.world.resolveCollision(input)` | `engine.runtime.collision.resolve(input)` |
+| 兼容 API                                              | Canonical API                                      |
+| ----------------------------------------------------- | -------------------------------------------------- |
+| `engine.runtime.world.setAgents(agents)`              | `engine.runtime.navigation.setAgents(agents)`      |
+| `engine.runtime.world.getAgents()`                    | `engine.runtime.navigation.getAgents()`            |
+| `engine.runtime.world.stepAgents(input)`              | `engine.runtime.navigation.stepAgents(input)`      |
+| `engine.runtime.world.resolveCollision(input)`        | `engine.runtime.collision.resolve(input)`          |
 | `engine.runtime.world.setOpenWorldMap({ obstacles })` | `engine.runtime.collision.setObstacles(obstacles)` |
 
 ## Registered Path 迁移
@@ -38,7 +38,10 @@ Canonical 命名空间：
 engine.runtime.navigation.registerPath({
   id: "main-path",
   loop: false,
-  nodes: [{ x: 0, z: 0 }, { x: 20, z: 0 }],
+  nodes: [
+    { x: 0, z: 0 },
+    { x: 20, z: 0 },
+  ],
   constraints: {
     arrivalTolerance: 0.5,
     maxStepDistance: 2,
@@ -77,6 +80,8 @@ const candidates = engine.runtime.collision.queryAabb({
 ```
 
 需要确定性的 enter/stay/exit trigger 语义时，使用 `evaluateTriggers`。
+
+高速移动需要在离散 overlap 求解前先获得连续 circle-vs-collider 接触时，使用 `sweepCircle`。
 
 ## 边界规则
 

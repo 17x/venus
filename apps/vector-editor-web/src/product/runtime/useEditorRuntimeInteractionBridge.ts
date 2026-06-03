@@ -75,6 +75,12 @@ export interface EditorRuntimeLastCommandMeta {
   transactionId: string
   /** Stores command source class for root-vs-derived diagnostics. */
   commandSource: 'user' | 'derived' | 'system'
+  /** Stores commercial command taxonomy family for diagnostics and UI grouping. */
+  commandFamily?: import('./commandContract.ts').Vector2DCommandFamily
+  /** Stores before/after capture policy expected for this command. */
+  beforeAfterPolicy?: import('./commandContract.ts').Vector2DCommandBeforeAfterPolicy
+  /** Stores history merge policy expected for this command. */
+  mergePolicy?: import('./commandContract.ts').Vector2DCommandMergePolicy
   /** Stores command issue timestamp for ordering diagnostics. */
   issuedAt: number
 }
@@ -106,6 +112,12 @@ export type EditorRuntimeInteractionEvent = {
   transactionId: string
   /** Stores command source class for root-vs-derived diagnostics. */
   commandSource: 'user' | 'derived' | 'system'
+  /** Stores commercial command taxonomy family for diagnostics and UI grouping. */
+  commandFamily?: import('./commandContract.ts').Vector2DCommandFamily
+  /** Stores before/after capture policy expected for this command. */
+  beforeAfterPolicy?: import('./commandContract.ts').Vector2DCommandBeforeAfterPolicy
+  /** Stores history merge policy expected for this command. */
+  mergePolicy?: import('./commandContract.ts').Vector2DCommandMergePolicy
   /** Stores command issue timestamp for ordering diagnostics. */
   issuedAt: number
 } | {
