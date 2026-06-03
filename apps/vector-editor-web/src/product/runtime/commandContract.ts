@@ -1,6 +1,20 @@
 import type {CommandEnvelopeSource} from '@venus/editor-primitive'
 import type {EditorRuntimeCommand} from '../../runtime/worker/index.ts'
 
+export type Vector2DProductLifecycleCommandType =
+  | 'file.create'
+  | 'file.open'
+  | 'file.import'
+  | 'file.save'
+  | 'file.saveAs'
+  | 'file.close'
+  | 'export.print'
+  | 'export.png'
+  | 'export.pdf'
+  | 'export.csv'
+
+export type Vector2DCommandType = EditorRuntimeCommand['type'] | Vector2DProductLifecycleCommandType
+
 export type Vector2DCommandFamily =
   | 'file'
   | 'history'
@@ -40,7 +54,7 @@ export interface Vector2DCommandFamilyDescriptor {
 }
 
 export interface Vector2DCommandContract {
-  commandType: EditorRuntimeCommand['type']
+  commandType: Vector2DCommandType
   family: Vector2DCommandFamily
   targetIds: string[]
   beforeAfterPolicy: Vector2DCommandBeforeAfterPolicy
@@ -67,7 +81,9 @@ export const VECTOR2D_COMMAND_FAMILIES: readonly Vector2DCommandFamilyDescriptor
   {family: 'export', ownsDocumentMutation: false, requiresRuntimeDispatch: false},
 ]
 
-export function resolveVector2DCommandFamily(commandType: EditorRuntimeCommand['type']): Vector2DCommandFamily {
+export function resolveVector2DCommandFamily(commandType: Vector2DCommandType): Vector2DCommandFamily {
+  if (commandType.startsWith('file.')) return 'file'
+  if (commandType.startsWith('export.')) return 'export'
   if (commandType.startsWith('history.')) return 'history'
   if (commandType.startsWith('selection.')) return 'selection'
   if (commandType.startsWith('viewport.')) return 'viewport'
@@ -109,7 +125,7 @@ export function resolveVector2DCommandFamily(commandType: EditorRuntimeCommand['
   }
 }
 
-export function resolveVector2DCommandTargetIds(command: EditorRuntimeCommand): string[] {
+export function resolveVector2DCommandTargetIds(command: EditorRuntimeCommand | {type: Vector2DProductLifecycleCommandType}): string[] {
   switch (command.type) {
     case 'selection.set':
       return command.shapeIds ?? (command.shapeId ? [command.shapeId] : [])
@@ -144,8 +160,9 @@ export function resolveVector2DCommandTargetIds(command: EditorRuntimeCommand): 
 }
 
 export function resolveVector2DCommandBeforeAfterPolicy(
-  commandType: EditorRuntimeCommand['type'],
+  commandType: Vector2DCommandType,
 ): Vector2DCommandBeforeAfterPolicy {
+  if (commandType.startsWith('file.') || commandType.startsWith('export.')) return 'none'
   if (commandType === 'history.undo' || commandType === 'history.redo') return 'history-stack'
   if (commandType.startsWith('selection.')) return 'selection-state'
   if (commandType.startsWith('viewport.')) return 'viewport-state'
@@ -156,7 +173,9 @@ export function resolveVector2DCommandBeforeAfterPolicy(
   return 'none'
 }
 
-export function resolveVector2DCommandMergePolicy(commandType: EditorRuntimeCommand['type']): Vector2DCommandMergePolicy {
+export function resolveVector2DCommandMergePolicy(commandType: Vector2DCommandType): Vector2DCommandMergePolicy {
+  if (commandType.startsWith('file.') || commandType.startsWith('export.')) return 'none'
+
   switch (commandType) {
     case 'shape.move':
     case 'shape.resize':
@@ -178,6 +197,41 @@ export function resolveVector2DCommandMergePolicy(commandType: EditorRuntimeComm
   }
 }
 
+export function resolveVector2DProductActionCommandType(
+  actionType: string,
+  data?: unknown,
+): Vector2DProductLifecycleCommandType | null {
+  switch (actionType) {
+    case 'newFile':
+      return 'file.create'
+    case 'openFile':
+      return 'file.open'
+    case 'importFile':
+      return 'file.import'
+    case 'saveFile':
+      return 'file.save'
+    case 'saveAs':
+      return 'file.saveAs'
+    case 'closeFile':
+      return 'file.close'
+    case 'print':
+      return 'export.print'
+    case 'exportFile_png':
+      return 'export.png'
+    case 'exportFile_pdf':
+      return 'export.pdf'
+    case 'exportFile_csv':
+      return 'export.csv'
+    case 'exportFile':
+      if (data === 'png' || data === 'pdf' || data === 'csv') {
+        return `export.${data}`
+      }
+      return null
+    default:
+      return null
+  }
+}
+
 export function resolveVector2DCommandEnvelopeSource(input: {
   dispatchDepth: number
   requestedSource?: CommandEnvelopeSource
@@ -186,7 +240,7 @@ export function resolveVector2DCommandEnvelopeSource(input: {
   return input.dispatchDepth === 0 ? 'user' : 'derived'
 }
 
-export function resolveVector2DCommandContract(command: EditorRuntimeCommand): Vector2DCommandContract {
+export function resolveVector2DCommandContract(command: EditorRuntimeCommand | {type: Vector2DProductLifecycleCommandType}): Vector2DCommandContract {
   const family = resolveVector2DCommandFamily(command.type)
   const beforeAfterPolicy = resolveVector2DCommandBeforeAfterPolicy(command.type)
   const mergePolicy = resolveVector2DCommandMergePolicy(command.type)
@@ -203,4 +257,12 @@ export function resolveVector2DCommandContract(command: EditorRuntimeCommand): V
       `v2d.command.merge.${mergePolicy}`,
     ],
   }
+}
+
+export function resolveVector2DProductActionContract(
+  actionType: string,
+  data?: unknown,
+): Vector2DCommandContract | null {
+  const commandType = resolveVector2DProductActionCommandType(actionType, data)
+  return commandType ? resolveVector2DCommandContract({type: commandType}) : null
 }

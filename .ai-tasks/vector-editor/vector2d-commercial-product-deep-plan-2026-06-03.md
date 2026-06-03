@@ -238,10 +238,30 @@ Progress:
 - `createEditorRuntimeCommandController` now mirrors `commandFamily`, `beforeAfterPolicy`, and `mergePolicy` into `lastCommandMeta` and `runtime.command.dispatched` events.
 - Added `runtime-command-boundary.contract.test.ts` covering taxonomy, representative command policies, root/derived source policy, and controller dispatch metadata.
 - Fixed the command-boundary contract fixture to use canonical matrix-first transform payloads and real runtime controller refs, so `tsc -p tsconfig.app.json --noEmit` now validates this gate.
+- Added `runtime-command-source-equivalence.contract.test.ts` proving representative product sources route through equivalent command/action contracts:
+  - header menu, shortcut, context menu, and API delete all produce the same `selection.delete` command contract.
+  - layer panel and API selection edits both produce the same `selection.set` command contract.
+  - properties panel, shortcut bar, and API style edits all produce the same `shape.patch` style command contract.
+  - toolbelt, shortcut, and API tool switches share the same product action path without leaking tool semantics into engine commands.
+- Extended source-equivalence coverage for structure and transform-family actions:
+  - header menu, shortcut bar, layer panel, and API layer reorder produce the same `shape.reorder` layer command contract.
+  - header/context/API group, mask, and boolean actions produce stable `shape.group`, `mask.create`, `mask.release`, and `shape.boolean` command contracts.
+  - header/shortcut/context/API align and distribute actions produce deterministic `shape.align` and `shape.distribute` transform command contracts.
+- Extended source-equivalence coverage into canvas runtime paths:
+  - canvas drag-create via `handleCanvasPointerUp` and API insert both resolve to the same `shape.insert` shape command contract.
+  - canvas transform preview commit and API transform both resolve to the same `shape.transform.batch` transform command contract.
+- Extended source-equivalence coverage for text/path edit actions:
+  - properties panel, shortcut bar, and API text rename/rich-text edits produce the same `shape.rename` and `shape.patch(textRuns)` command chain.
+  - shortcut and API path anchor toggle actions produce the same remove/insert/selection path commit chain.
+- Extended product lifecycle/export command boundary coverage:
+  - `resolveVector2DProductActionContract` maps file actions to `file.*` contracts and print/export actions to `export.*` contracts.
+  - file/export contracts produce deterministic diagnostics while staying outside runtime document dispatch and engine projection.
+  - header menu, shortcut, and API save/print/close sources are verified to trigger product lifecycle side effects without runtime worker commands.
+- Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-command-boundary.contract.test.ts src/testing/product-specs/integration-contract/runtime-command-source-equivalence.contract.test.ts`.
 
 Remaining gate:
 
-- Prove menu, shortcut, toolbar, canvas, inspector, layer panel, and API sources route equivalent commands/results through the same boundary.
+- Extend source-equivalence coverage from command/action and canvas pure paths to browser-level event routing.
 - Extend history merge/rollback/replay assertions from representative metadata to full command-family flows.
 
 ### V2D-RT-002 [P0] State machines
@@ -657,7 +677,7 @@ Acceptance:
 
 ### V2D-E2E-004 [P0] Product-runtime-engine full-chain flow
 
-Status: TODO
+Status: PARTIAL
 
 Flow:
 
@@ -673,6 +693,18 @@ Acceptance:
 - Full chain has one deterministic signature per fixture and interaction script.
 - Adapter version/degradation diagnostics are visible in release reports.
 
+Progress:
+
+- Added `product-runtime-engine-full-chain.contract.test.ts` as a deterministic release-signature smoke for the commercial full-chain path.
+- The smoke starts from a product `shape.patch` command, resolves command taxonomy/diagnostics, applies an authoring document patch, projects runtime shape snapshots, emits a generic engine scene via the Vector2D adapter, publishes the adapter report through shared runtime diagnostics, and verifies the product-visible diagnostics signature.
+- The signature proves adapter version, explicit `hybrid-2d3d` opt-in, generic material/lighting payload, node type counts, selected runtime ids, command metadata, dirty source, and adapter degradation report counts.
+- Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/product-runtime-engine-full-chain.contract.test.ts`.
+- Validation passed with adapter contract: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-engine-adapter.contract.test.ts src/testing/product-specs/integration-contract/product-runtime-engine-full-chain.contract.test.ts`.
+
+Remaining gate:
+
+- Add browser-level replay/visual smoke that drives the actual editor UI, verifies viewport/selection replay, and compares render signatures across save/load.
+
 ## 12. Execution Order
 
 ### Phase A [P0] Commercial skeleton
@@ -680,8 +712,8 @@ Acceptance:
 1. `V2D-DOC-001` canonical authoring model decision. DONE.
 2. `V2D-DOC-004` commercial fixture suite. DONE.
 3. `V2D-RT-001` command boundary. PARTIAL.
-4. `V2D-RT-003` engine adapter contract.
-5. `V2D-E2E-004` full-chain signature smoke.
+4. `V2D-RT-003` engine adapter contract. DONE.
+5. `V2D-E2E-004` full-chain signature smoke. PARTIAL.
 
 ### Phase B [P0] Core editing loop
 

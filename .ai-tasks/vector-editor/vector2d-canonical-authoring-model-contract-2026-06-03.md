@@ -317,7 +317,7 @@ Acceptance:
 
 ### V2D-CAM-004 [P0] Engine adapter projection contract
 
-Status: TODO
+Status: DONE
 
 Document and test `EditorDocument -> engine payload` projection.
 
@@ -326,6 +326,15 @@ Acceptance:
 - adapter output is generic and product-neutral.
 - image, rich text, fills/strokes/effects, masks, groups, and booleans have explicit render support or diagnostics.
 
+Progress:
+
+- `createEngineSceneFromRuntimeSnapshot(...)` emits stable adapter metadata, explicit `2d` / `hybrid-2d3d` dimension opt-in, generic render nodes, and projection diagnostics.
+- `ENGINE_SCENE_ADAPTER_RENDER_SUPPORT_MATRIX` documents image, rich text, fills, strokes, effects, masks, groups, components, and booleans with projected/degraded/fallback status.
+- `createEngineSceneAdapterDiagnosticsReport(...)` summarizes adapter diagnostics for release tooling and product diagnostics UI.
+- `RuntimeRenderDiagnostics.engineSceneAdapterReport` now surfaces the latest adapter report through the shared runtime diagnostics store, and `RuntimeDebugPanel` renders it as a product-visible `Vector Adapter` section.
+- `runtime-engine-adapter.contract.test.ts` proves product-neutral payload keys, support-matrix coverage, diagnostics alignment, and report shape.
+- `product-runtime-engine-full-chain.contract.test.ts` proves a deterministic Product -> Runtime -> Engine -> Product diagnostics signature.
+
 ## 8. Task Status Updates
 
 This document completes the planning decision for:
@@ -333,14 +342,13 @@ This document completes the planning decision for:
 - `V2D-DOC-001 [P0] Canonical authoring model decision`
 - `VEC-MVP-001 [P0] Document model single source of truth`
 
-The baseline commercial fixture suite is now implemented. The command boundary now has a runtime taxonomy/envelope baseline, but it does not close UI source equivalence, full round-trip preservation, or engine adapter projection gates. Those remain explicit follow-up work.
+The baseline commercial fixture suite is now implemented. The command boundary now has a runtime taxonomy/envelope baseline, and the engine adapter projection gate is closed. UI source equivalence, full round-trip preservation diagnostics, runtime-scene compatibility boundaries, and browser-level full-chain replay remain explicit follow-up work.
 
 Implementation gates remain open under:
 
 - `V2D-RT-001` command boundary
-- `V2D-RT-003` engine adapter contract
-- `V2D-E2E-004` product-runtime-engine full-chain flow
-- `V2D-CAM-001` through `V2D-CAM-004` above
+- `V2D-E2E-004` product-runtime-engine full-chain flow browser replay
+- `V2D-CAM-001` through `V2D-CAM-003` above
 
 ## 9. Validation Commands
 
