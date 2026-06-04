@@ -8,6 +8,7 @@ import type {SceneShapeSnapshot} from '../../shared-memory/index.ts'
 import {
   readRunParagraphStyle,
   readRunShadow,
+  resolveCompleteTextRuns,
   resolveEngineShapeKind,
   resolveEngineTextAlign,
 } from './engineSceneAdapter.text/engineSceneAdapter.text.ts'
@@ -338,7 +339,7 @@ export function createEngineSceneFromRuntimeSnapshot(
         lineCount: shape.textLineCount,
         maxLineHeight: shape.textMaxLineHeight,
         text: sourceShape?.text ?? shape.name ?? 'Text',
-        runs: sourceShape?.textRuns?.map((run) => {
+        runs: resolveCompleteTextRuns(sourceShape?.text ?? shape.name ?? 'Text', sourceShape?.textRuns).map((run) => {
           const style = {
             fill: run.style?.color,
             fontFamily: run.style?.fontFamily,
@@ -360,7 +361,7 @@ export function createEngineSceneFromRuntimeSnapshot(
             Object.assign(style as Record<string, unknown>, paragraphStyle)
           }
           return {
-            text: (sourceShape.text ?? '').slice(run.start, run.end),
+            text: (sourceShape?.text ?? shape.name ?? 'Text').slice(run.start, run.end),
             style,
           }
         }),
@@ -437,11 +438,10 @@ export function buildDocumentImageAssetUrlMap(document: EditorDocument) {
     if (shape.type !== 'image') {
       return
     }
-    if (shape.assetId && shape.assetUrl) {
-      map.set(shape.assetId, shape.assetUrl)
-    }
     if (shape.assetUrl) {
-      map.set(shape.id, shape.assetUrl)
+      // Match the exact generic asset key emitted on the engine image node.
+      // Do not load the same URL again under the shape id when assetId exists.
+      map.set(shape.assetId ?? shape.id, shape.assetUrl)
     }
   })
   return map

@@ -26,6 +26,7 @@ import {
 import {ASSET_LIBRARY_CARDS} from '../shell/LeftSidebarShared.tsx'
 import {EditorFrameSidePanels} from './EditorFrameSidePanels.tsx'
 import {useEditorFrameShell} from './useEditorFrameShell.ts'
+import {TEST_IDS} from '../../testing/testIds.ts'
 
 const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
@@ -47,7 +48,7 @@ interface StageCanvasLayerProps {
 
 const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerProps) {
   return (
-    <Col fw fh stretch ref={props.contextRootRef} data-focused={props.focused} autoFocus={true}
+    <Col fw fh stretch ref={props.contextRootRef} data-focused={props.focused} data-testid={TEST_IDS.editor.focusRoot} autoFocus={true}
       tabIndex={0}
       className={'outline-0 bg-white dark:bg-slate-900'}>
       <FileReceiver executeAction={props.executeAction} resolveDropPosition={(clientX, clientY) => {
@@ -69,6 +70,7 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
         >
           <div
             ref={props.stageHostRef}
+            data-testid={TEST_IDS.editor.stage}
             className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
             onContextMenu={props.onContextMenu}
           >
@@ -120,6 +122,7 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
               onPointerDown={props.canvas.onPointerDown}
               onPointerUp={props.canvas.onPointerUp}
               onPointerLeave={props.canvas.onPointerLeave}
+              onPointerCaptureLoss={props.canvas.onPointerCaptureLoss}
               onViewportChange={props.canvas.onViewportChange}
               onViewportPan={props.canvas.onViewportPan}
               onViewportResize={props.canvas.onViewportResize}

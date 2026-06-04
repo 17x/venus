@@ -459,10 +459,6 @@ export function EngineRenderer({
     requestEngineRender,
   })
 
-  React.useEffect(() => {
-    imageCacheRef.current.clear()
-  }, [document.id])
-
   return (
     <canvas
       ref={renderSurfaceRef}

@@ -42,6 +42,7 @@ export function buildUseEditorRuntimeOutputs(input: {
     ) => void
     onPointerUp: () => void
     onPointerLeave: () => void
+    onPointerCaptureLoss: () => void
     onViewportChange: (...args: any[]) => void
     onViewportPan: (...args: any[]) => void
     onViewportResize: (...args: any[]) => void
@@ -95,6 +96,7 @@ export function buildUseEditorRuntimeOutputs(input: {
       onPointerDown: input.canvasInteractions.onPointerDown,
       onPointerUp: input.canvasInteractions.onPointerUp,
       onPointerLeave: input.canvasInteractions.onPointerLeave,
+      onPointerCaptureLoss: input.canvasInteractions.onPointerCaptureLoss,
       onViewportChange: input.canvasInteractions.onViewportChange,
       onViewportPan: input.canvasInteractions.onViewportPan,
       onViewportResize: input.canvasInteractions.onViewportResize,

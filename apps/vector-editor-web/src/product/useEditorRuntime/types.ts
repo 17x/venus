@@ -101,6 +101,7 @@ export interface EditorRuntimeState {
     ) => void
     onPointerUp: () => void
     onPointerLeave: () => void
+    onPointerCaptureLoss: () => void
     onViewportChange: (viewport: CanvasViewportState) => void
     onViewportPan: (deltaX: number, deltaY: number) => void
     onViewportResize: (width: number, height: number) => void

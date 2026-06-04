@@ -150,12 +150,12 @@ export function createRuntimeWorldFromDocument(
       parentId: sourceNode.parentId,
       kind: sourceNode.kind,
       bounds: {
-        // Keep legacy coarse bounds behavior to preserve visibility/picking
-        // compatibility while semantic3d gradually rolls out through runtime stages.
-        x: index * LEGACY_FALLBACK_GRID_STEP,
-        y: index * LEGACY_FALLBACK_GRID_STEP,
-        width: 64,
-        height: 64,
+        // Visibility and picking must use the same world bounds submitted by
+        // adapters. Index-grid fallback is only valid for legacy nodes.
+        x: bounds3d.x,
+        y: bounds3d.y,
+        width: bounds3d.width,
+        height: bounds3d.height,
       },
       bounds3d,
       transform3d,

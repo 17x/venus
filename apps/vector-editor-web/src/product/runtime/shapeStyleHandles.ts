@@ -156,8 +156,8 @@ export function resolveEllipseArcAngleFromPoint(input: {
 
   const localPoint = rotateAround(input.point, center, -(input.shape.rotation ?? 0))
   const normalizedDx = (localPoint.x - center.x) / rx
-  // Keep +90deg mapped upward so style handles match engine arc hit/outline semantics.
-  const normalizedDy = (center.y - localPoint.y) / ry
+  // Screen/world Y grows downward: 0deg points right and +90deg points down.
+  const normalizedDy = (localPoint.y - center.y) / ry
   const angle = (Math.atan2(normalizedDy, normalizedDx) * 180) / Math.PI
   return normalizeDegrees(angle)
 }
@@ -276,8 +276,8 @@ function resolveEllipseArcControls(input: {
     const localPoint = {
       // Keep start-angle handle at mid-radius to match product interaction affordance.
       x: center.x + Math.cos(radians) * rx * radiusFactor,
-      // Keep handle orientation synced with engine arc-angle semantics (+90deg is upward).
-      y: center.y - Math.sin(radians) * ry * radiusFactor,
+      // Screen/world Y grows downward: +90deg is the bottom boundary.
+      y: center.y + Math.sin(radians) * ry * radiusFactor,
     }
     return rotateAround(localPoint, center, input.shape.rotation ?? 0)
   }

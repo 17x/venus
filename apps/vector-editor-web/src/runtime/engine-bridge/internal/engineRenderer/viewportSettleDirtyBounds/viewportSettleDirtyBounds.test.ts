@@ -5,7 +5,14 @@ import {
   DEFAULT_MAX_SETTLE_DIRTY_WORLD_EXTENT,
   DEFAULT_MIN_SCALE_FOR_SETTLE_DIRTY_MARK,
   resolveViewportSettleDirtyBounds,
+  shouldInvalidateViewportForScaleChange,
 } from './viewportSettleDirtyBounds.ts'
+
+test('viewport scale changes invalidate visible world sampling', () => {
+  assert.equal(shouldInvalidateViewportForScaleChange(null, 1), true)
+  assert.equal(shouldInvalidateViewportForScaleChange(1, 2), true)
+  assert.equal(shouldInvalidateViewportForScaleChange(2, 2), false)
+})
 
 /**
  * Verifies settle-phase dirty marking is skipped under extreme zoom-out to avoid lockups.

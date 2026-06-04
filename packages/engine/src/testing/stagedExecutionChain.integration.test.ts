@@ -82,3 +82,34 @@ test("staged execution chain deterministic integration", () => {
   assert.equal(executionA.drawCount > 0, true);
   assert.equal(executionA.pickingHitIds.length > 0, true);
 });
+
+test("staged execution visibility uses semantic world bounds and inverse viewport transform", () => {
+  const initialSnapshot = createDocumentSnapshot();
+  const changeSet: EngineDocumentChangeSet = {
+    id: "semantic-visible-seed",
+    operations: [{
+      type: "upsert-node",
+      node: {
+        id: "visible-shape",
+        kind: "shape",
+        payload: {},
+        semantic3d: {
+          bounds: { x: 100, y: 100, z: 0, width: 20, height: 20, depth: 0 },
+          transform: { x: 100, y: 100, z: 0, rotationX: 0, rotationY: 0, rotationZ: 0, scaleX: 1, scaleY: 1, scaleZ: 1 },
+          visible: true,
+        },
+      },
+    }],
+  };
+  const currentSnapshot = applyDocumentChangeSet(initialSnapshot, changeSet);
+  const compile = compileDocumentChangeSet({ previousSnapshot: initialSnapshot, currentSnapshot, changeSet });
+
+  const execution = resolveStagedExecutionSnapshot({
+    document: currentSnapshot,
+    compile,
+    viewport: { width: 200, height: 200, offsetX: -100, offsetY: -100, scale: 2 },
+  });
+
+  assert.deepEqual(execution.visibleCandidateIds, ["visible-shape"]);
+  assert.deepEqual(execution.pickingHitIds, ["visible-shape"]);
+});

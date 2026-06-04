@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildDocumentImageAssetUrlMap,
   createEngineSceneAdapterDiagnosticsReport,
   createEngineSceneFromRuntimeSnapshot,
   ENGINE_SCENE_ADAPTER_RENDER_SUPPORT_MATRIX,
@@ -88,6 +89,26 @@ test('runtime-engine policy contract applies high-zoom sharpness guard', () => {
 
   assert.equal(typeof policy.dpr, 'number')
   assert.ok((policy.dpr as number) >= 2)
+})
+
+test('Vector2D image registry map uses the exact engine asset key without duplicate shape keys', () => {
+  const document = createCanonicalDocumentModelFixture()
+  document.shapes.push({
+    id: 'image-with-asset',
+    type: 'image',
+    name: 'Image With Asset',
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    assetId: 'asset-image',
+    assetUrl: 'data:image/png;base64,image',
+  })
+
+  const imageAssets = buildDocumentImageAssetUrlMap(document)
+
+  assert.equal(imageAssets.get('asset-image'), 'data:image/png;base64,image')
+  assert.equal(imageAssets.has('image-with-asset'), false)
 })
 
 test('Vector2D engine scene adapter emits explicit 2D opt-in metadata and degradation diagnostics', () => {

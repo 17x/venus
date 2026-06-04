@@ -18,6 +18,11 @@ import {
   RUNTIME_V2_ALERT_WATCH_MISMATCH_RATE_PERCENT,
   useRuntimeDebugSceneDirtyModel,
 } from './RuntimeDebugPanel.sceneDirtyModel.ts'
+import {
+  EMPTY_VECTOR2D_STATE_MACHINE_DIAGNOSTICS,
+  getVector2DStateMachineDiagnosticsSnapshot,
+  subscribeVector2DStateMachineDiagnostics,
+} from '../../../product/runtime/stateMachineContract.ts'
 
 // Keep compact mode as default while preserving verbose diagnostics as a switchable branch.
 const SHOW_VERBOSE_DEBUG = false
@@ -102,6 +107,11 @@ export function RuntimeDebugPanel() {
     getRuntimeMigrationSnapshot,
     () => EMPTY_RUNTIME_MIGRATION_SNAPSHOT,
   )
+  const stateMachines = useSyncExternalStore(
+    subscribeVector2DStateMachineDiagnostics,
+    getVector2DStateMachineDiagnosticsSnapshot,
+    () => EMPTY_VECTOR2D_STATE_MACHINE_DIAGNOSTICS,
+  )
 
   // Keep mismatch rate explicit so migration risk can be tracked at a glance.
   const runtimeV2MismatchRatePercent = runtimeMigrationSnapshot.runtimeV2.checks > 0
@@ -183,6 +193,7 @@ export function RuntimeDebugPanel() {
         runtimeV2AlertClassName={runtimeV2AlertClassName}
         runtimeV2AlertLevel={runtimeV2AlertLevel}
         sceneDirtyModel={sceneDirtyModel}
+        stateMachines={stateMachines}
       />
     )
   }
@@ -199,6 +210,7 @@ export function RuntimeDebugPanel() {
       runtimeV2AlertClassName={runtimeV2AlertClassName}
       runtimeV2AlertLevel={runtimeV2AlertLevel}
       sceneDirtyModel={sceneDirtyModel}
+      stateMachines={stateMachines}
     />
   )
 }

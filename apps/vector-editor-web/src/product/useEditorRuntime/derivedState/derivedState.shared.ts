@@ -50,6 +50,37 @@ export function toRectPolylineFromBounds(bounds: {minX: number; minY: number; ma
 }
 
 /**
+ * Suppresses linked mask detail outlines so one selected mask representation
+ * produces one visible selection outline.
+ */
+export function resolveSelectedDisplayOutlines(
+  document: EditorDocument,
+  payload: {
+    nodeId: string
+    outline: SelectionDisplayOutline
+    detailOutlines?: SelectionDisplayOutline[]
+  },
+): SelectionDisplayOutline[] {
+  const shape = document.shapes.find((candidate) => candidate.id === payload.nodeId)
+  const isMaskRepresentation = Boolean(shape && (
+    shape.schema?.maskRole === 'source' ||
+    shape.schema?.maskRole === 'host' ||
+    (shape.type === 'image' && shape.clipPathId)
+  ))
+  return [
+    payload.outline,
+    ...(isMaskRepresentation ? [] : payload.detailOutlines ?? []),
+  ]
+}
+
+interface SelectionDisplayOutline {
+  kind: 'polyline' | 'bounds'
+  points?: Array<{x: number; y: number}>
+  bounds?: {minX: number; minY: number; maxX: number; maxY: number}
+  closed?: boolean
+}
+
+/**
  * Resolves world-space control sizing from viewport scale.
  * @param scale Current viewport scale.
  */

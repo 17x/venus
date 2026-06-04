@@ -36,6 +36,16 @@ import {
   useRuntimeToolSelectionAction,
   useSaveFileWithLifecycleContext,
 } from './useEditorRuntime.helpers.ts'
+import {
+  executeStateMachineCleanupPlan,
+  publishVector2DStateMachineDiagnostics,
+  resolveDocumentLifecycleSnapshot,
+  resolveSelectionLifecycleSnapshot,
+  resolveStateMachineCleanupPlan,
+  resolveToolLifecycleSnapshot,
+  resolveTransformLifecycleSnapshot,
+  type Vector2DCleanupTrigger,
+} from '../runtime/stateMachineContract.ts'
 export type {
   EditorDocumentState,
   EditorFileAsset,
@@ -263,6 +273,43 @@ const useEditorRuntime = (options: {
       setPenDraftPoints(points)
     },
   })
+  const cleanupInteraction = useCallback((trigger: Vector2DCleanupTrigger) => {
+    const plan = resolveStateMachineCleanupPlan(trigger)
+    executeStateMachineCleanupPlan(plan, {
+      cancelPointerSession: () => {
+        transformManagerRef.current.cancel()
+        selectionDragControllerRef.current.clear()
+        setActiveTransformHandle(null)
+        setHoveredTransformHandle(null)
+      },
+      clearTransformPreview,
+      clearPathHandleDrag: () => setPathHandleDrag(null),
+      clearShapeStyleDrag: () => setShapeStyleHandleDrag(null),
+      clearDraftPrimitive: () => {
+        setDraftPrimitive(null)
+        setPenDraftPoints(null)
+      },
+      clearSnapGuides: () => setSnapGuides([]),
+      exitPrecisionMode: () => {
+        setPathSubSelectionHover(null)
+        runtimeEditingModeControllerRef.current.transition({
+          to: 'idle',
+          reason: plan.reasonCode,
+          owner: plan.owner,
+        })
+      },
+    })
+  }, [
+    clearTransformPreview,
+    setActiveTransformHandle,
+    setDraftPrimitive,
+    setHoveredTransformHandle,
+    setPathHandleDrag,
+    setPathSubSelectionHover,
+    setPenDraftPoints,
+    setShapeStyleHandleDrag,
+    setSnapGuides,
+  ])
   const {
     reorderSelectedShape,
     handleZoom,
@@ -295,6 +342,7 @@ const useEditorRuntime = (options: {
   const setCurrentTool = useRuntimeToolSelectionAction(
     setCurrentToolInternal,
     interactionBridge.bridge,
+    () => cleanupInteraction('tool-switch'),
   )
   const {applyAutoMask, clearMask} = useRuntimeMaskActions(handleCommand)
   const cursorState = useEditorRuntimeCursorState({
@@ -315,6 +363,39 @@ const useEditorRuntime = (options: {
     lastCommandMeta,
     saveFile,
   })
+  useEffect(() => {
+    publishVector2DStateMachineDiagnostics({
+      document: resolveDocumentLifecycleSnapshot({
+        lifecycle: file?.lifecycle,
+        readOnly: file?.config.editor?.readOnly,
+      }),
+      tool: resolveToolLifecycleSnapshot({
+        editingMode,
+        hovered: hoveredShapeId !== null || hoveredTransformHandle !== null,
+        transitionReason: runtimeEditingModeControllerRef.current.getLastTransitionReason(),
+      }),
+      selection: resolveSelectionLifecycleSnapshot({
+        selectedIds: selectedShapeIds,
+        hasSubSelection: pathSubSelection !== null,
+        isolationGroupId,
+        textFocused: editingMode === 'textEditing',
+      }),
+      transform: resolveTransformLifecycleSnapshot({
+        previewActive: transformPreviewActive,
+        committed: !transformPreviewActive,
+      }),
+    })
+  }, [
+    editingMode,
+    file?.config.editor?.readOnly,
+    file?.lifecycle,
+    hoveredShapeId,
+    hoveredTransformHandle,
+    isolationGroupId,
+    pathSubSelection,
+    selectedShapeIds,
+    transformPreviewActive,
+  ])
   const executeAction = useEditorRuntimeExecuteAction({
     add,
     addAsset,
@@ -322,6 +403,7 @@ const useEditorRuntime = (options: {
     canvasRuntime,
     clipboard,
     clearMask,
+    cleanupInteraction,
     closeFile,
     handleCommand,
     insertElement,
@@ -447,6 +529,7 @@ const useEditorRuntime = (options: {
       onPointerDown,
       onPointerUp,
       onPointerLeave,
+      onPointerCaptureLoss: () => cleanupInteraction('pointer-capture-loss'),
       onViewportChange: canvasInteractions.onViewportChange,
       onViewportPan: canvasInteractions.onViewportPan,
       onViewportResize: canvasInteractions.onViewportResize,

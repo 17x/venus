@@ -6,8 +6,8 @@ import {
 import type {RuntimeOverlayInstruction} from '../../../runtime/index.ts'
 import type {EngineOverlayDrawNode} from '../../../runtime/engine-bridge/engine.ts'
 import {
+  createEngineOverlayNodesFromInstructions,
   createEngineOverlayNodesFromSelectorItems,
-  createSelectorOverlayItems,
 } from '../../../runtime/overlay/selectorOverlayAdapter.ts'
 import {
   adaptOverlayModelToInstructions,
@@ -25,6 +25,7 @@ import {useEditorRuntimeDerivedPathOverlay} from './derivedState.pathOverlay.ts'
 import {
   resolveMarqueeControlStyle,
   resolveOverlayControlSizing,
+  resolveSelectedDisplayOutlines,
   toRectPolylineFromBounds,
 } from './derivedState.shared.ts'
 
@@ -37,6 +38,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
   editingMode: string
   transformPreviewActive: boolean
   selectedShapeIds: string[]
+  selectionPresentationShapeIds: string[]
   selectedNode: EditorDocument['shapes'][number] | null
   selectionState: any
   interactionDocument: EditorDocument
@@ -179,19 +181,22 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
 
     const sizing = resolveOverlayControlSizing(input.canvasRuntime.viewport.scale)
     const styleControls = resolveShapeStyleControls({
-      selectedShapeIds: input.selectedShapeIds,
+      selectedShapeIds: input.selectionPresentationShapeIds,
       previewShapeById: input.previewShapeById,
       handleToleranceWorld: sizing.cornerToleranceWorld,
       minRectHandleInsetWorld: sizing.cornerVisualSizeWorld,
       activeDrag: input.shapeStyleHandleDrag,
     })
-    const singleSelectionRotation = input.selectedShapeIds.length === 1
-      ? (input.selectedNode?.rotation ?? 0)
+    const presentationNode = input.selectionPresentationShapeIds.length === 1
+      ? input.previewShapeById.get(input.selectionPresentationShapeIds[0]) ?? null
+      : null
+    const singleSelectionRotation = input.selectionPresentationShapeIds.length === 1
+      ? (presentationNode?.rotation ?? 0)
       : 0
     const overlayModel = buildVectorOverlayModel({
       selectedBounds: input.selectionState.selectedBounds,
       selectionRotationDegrees: singleSelectionRotation,
-      selectedShapeIds: input.selectedShapeIds,
+      selectedShapeIds: input.selectionPresentationShapeIds,
       marqueeBounds: null,
       hoveredShapeBounds: null,
       hoveredShapePolygon: null,
@@ -219,6 +224,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
     input.previewShapeById,
     input.selectedNode?.rotation,
     input.selectedShapeIds,
+    input.selectionPresentationShapeIds,
     input.selectionState.selectedBounds,
     input.shapeStyleHandleDrag,
     shouldSuppressSelectionBoundsOverlay,
@@ -236,7 +242,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
         return
       }
 
-      const selectedOutlines = [payload.outline, ...(payload.detailOutlines ?? [])]
+      const selectedOutlines = resolveSelectedDisplayOutlines(input.interactionDocument, payload)
       selectedOutlines.forEach((outline, outlineIndex) => {
         const worldPoints = outline.kind === 'polyline'
           ? (outline.points ?? [])
@@ -269,7 +275,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
     })
 
     return instructions
-  }, [input.engineGeometryPayload.selected, input.transformPreviewActive])
+  }, [input.engineGeometryPayload.selected, input.interactionDocument, input.transformPreviewActive])
 
   const selectedTextDetailOverlayInstructions = useMemo<RuntimeOverlayInstruction[]>(() => {
     if (input.transformPreviewActive) {
@@ -346,11 +352,10 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
   }, [])
 
   const runtimeOverlayNodes = useMemo<EngineOverlayDrawNode[]>(() => {
-    const selectorItems = createSelectorOverlayItems([
+    return createEngineOverlayNodesFromInstructions([
       ...overlayInstructions,
       ...previewInstructions,
     ])
-    return createEngineOverlayNodesFromSelectorItems(selectorItems, 'world')
   }, [overlayInstructions, previewInstructions])
 
   const effectiveSelectorOverlayItems = useMemo(() => {

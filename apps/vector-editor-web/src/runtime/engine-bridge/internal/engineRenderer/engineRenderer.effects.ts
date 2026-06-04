@@ -20,6 +20,7 @@ interface BackendOverlayInstruction {
   strokeDash?: number[];
   fillColor?: string;
   fillOpacity?: number;
+  pointRadius?: number;
   zIndex?: number;
 }
 
@@ -56,6 +57,7 @@ function convertOverlayNodesToInstructions(
       strokeDash: Array.isArray(rawStyle?.strokeDash) ? rawStyle.strokeDash as number[] : undefined,
       fillColor: typeof rawStyle?.fillColor === "string" ? rawStyle.fillColor as string : undefined,
       fillOpacity: typeof rawStyle?.fillOpacity === "number" ? rawStyle.fillOpacity as number : undefined,
+      pointRadius: typeof rawStyle?.pointRadius === "number" ? rawStyle.pointRadius as number : undefined,
       zIndex: typeof rawStyle?.zIndex === "number" ? rawStyle.zIndex as number : undefined,
     });
   }

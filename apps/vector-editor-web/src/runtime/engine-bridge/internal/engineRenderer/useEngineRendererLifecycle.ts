@@ -8,6 +8,7 @@ import {createEngine} from '../../engine.ts'
 import {buildDocumentImageAssetUrlMap} from '../../../presets/index.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
+import {syncImageRegistry} from './imageRegistrySync.ts'
 
 const ENABLE_RUNTIME_RENDER_DIAGNOSTICS = true
 
@@ -136,8 +137,21 @@ export function useEngineRendererLifecycle(params: {
   ) => void
 }): void {
   React.useEffect(() => {
-    params.assetUrlByIdRef.current = buildDocumentImageAssetUrlMap(params.document)
-  }, [params.assetUrlByIdRef, params.document])
+    const assetUrls = buildDocumentImageAssetUrlMap(params.document)
+    params.assetUrlByIdRef.current = assetUrls
+    syncImageRegistry({
+      assetUrls,
+      imageCache: params.imageCacheRef.current,
+      engine: params.engineRef.current,
+      requestRender: () => params.requestEngineRender('normal', 'deferred-image-drain'),
+    })
+  }, [
+    params.assetUrlByIdRef,
+    params.document,
+    params.engineRef,
+    params.imageCacheRef,
+    params.requestEngineRender,
+  ])
 
   React.useEffect(() => {
     const renderSurface = params.renderSurfaceRef.current

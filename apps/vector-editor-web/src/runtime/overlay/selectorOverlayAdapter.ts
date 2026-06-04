@@ -47,6 +47,22 @@ export function createEngineOverlayNodesFromSelectorItems(
 }
 
 /**
+ * Converts runtime overlay instructions directly to engine nodes without
+ * dropping handler-specific style fields.
+ */
+export function createEngineOverlayNodesFromInstructions(
+  instructions: RuntimeOverlayInstruction[],
+): EngineOverlayDrawNode[] {
+  return instructions.map((instruction) => ({
+    id: instruction.id,
+    type: instruction.primitive,
+    coordinate: instruction.coordinate,
+    points: instruction.points,
+    style: instruction.style ? {...instruction.style} : undefined,
+  }))
+}
+
+/**
  * Resolves selector overlay semantic type from runtime layer metadata.
  */
 function resolveSelectorOverlayType(

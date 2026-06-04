@@ -1,4 +1,4 @@
-import {nid, type DocumentNode, type EditorDocument} from '../../../model/index.ts'
+import type {DocumentNode, EditorDocument} from '../../../model/index.ts'
 import type {HistoryPatch} from '../../history.ts'
 import {
   flattenContours,
@@ -22,6 +22,28 @@ function createLinearBezierPoints(points: Array<{x: number; y: number}>) {
   return points.map((point) => ({
     anchor: {x: point.x, y: point.y},
   }))
+}
+
+function createDeterministicBooleanResultId(input: {
+  documentId: string
+  mode: ShapeBooleanMode
+  sourceIds: string[]
+  polygonIndex: number
+  points: Array<{x: number; y: number}>
+}) {
+  const value = [
+    input.documentId,
+    input.mode,
+    input.sourceIds.join(','),
+    input.polygonIndex,
+    input.points.map((point) => `${point.x},${point.y}`).join(';'),
+  ].join('|')
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `boolean-${(hash >>> 0).toString(36)}`
 }
 
 
@@ -123,7 +145,13 @@ export function createBooleanReplacePatches(
 
       const resultShape: DocumentNode = {
         ...first.pathShape,
-        id: `boolean-${nid()}`,
+        id: createDeterministicBooleanResultId({
+          documentId: document.id,
+          mode,
+          sourceIds: targets.map((target) => target.source.id),
+          polygonIndex,
+          points: combinedPoints,
+        }),
         type: 'path',
         name,
         parentId: commonParentId,

@@ -22,6 +22,7 @@ export function EngineViewport({
   onPointerDown,
   onPointerUp,
   onPointerLeave,
+  onPointerCaptureLoss,
   onViewportChange,
   onViewportPan,
   onViewportResize,
@@ -99,6 +100,7 @@ export function EngineViewport({
   const onPointerDownRef = React.useRef(onPointerDown)
   const onPointerUpRef = React.useRef(onPointerUp)
   const onPointerLeaveRef = React.useRef(onPointerLeave)
+  const onPointerCaptureLossRef = React.useRef(onPointerCaptureLoss)
   const lastZoomDiagnosticRef = React.useRef<{
     phase: 'wheel' | 'commit'
     source: string
@@ -120,6 +122,7 @@ export function EngineViewport({
   onPointerDownRef.current = onPointerDown
   onPointerUpRef.current = onPointerUp
   onPointerLeaveRef.current = onPointerLeave
+  onPointerCaptureLossRef.current = onPointerCaptureLoss
 
   React.useEffect(() => {
     const now = performance.now()
@@ -227,6 +230,7 @@ export function EngineViewport({
       onPointerDown: (pointer, modifiers) => onPointerDownRef.current?.(pointer, modifiers),
       onPointerUp: () => onPointerUpRef.current?.(),
       onPointerLeave: () => onPointerLeaveRef.current?.(),
+      onPointerCaptureLoss: () => onPointerCaptureLossRef.current?.(),
       onZoomingChange: (active) => {
         zoomGestureActiveRef.current = active
         if (active) {

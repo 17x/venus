@@ -52,7 +52,7 @@ export function resolveStagedExecutionSnapshot(options: {
   // This replaces the legacy O(n) linear scan in querySpatialCandidates
   // for scenes with large node counts.
   const spatialIndex = createEngineSpatialIndex<{ nodeId: string }>({ dimension: "2d" });
-  const spatialItems = world.entities.map((entity) => ({
+  const spatialItems = world.entities.filter((entity) => entity.visible !== false).map((entity) => ({
     id: entity.id,
     minX: entity.bounds.x,
     minY: entity.bounds.y,
@@ -67,11 +67,13 @@ export function resolveStagedExecutionSnapshot(options: {
   // offsetX/offsetY and entity bounds are in world space.
   const worldViewportWidth = options.viewport.width / Math.max(options.viewport.scale, 0.001);
   const worldViewportHeight = options.viewport.height / Math.max(options.viewport.scale, 0.001);
+  const worldViewportX = -options.viewport.offsetX / Math.max(options.viewport.scale, 0.001);
+  const worldViewportY = -options.viewport.offsetY / Math.max(options.viewport.scale, 0.001);
   const viewportBounds = {
-    minX: options.viewport.offsetX,
-    minY: options.viewport.offsetY,
-    maxX: options.viewport.offsetX + worldViewportWidth,
-    maxY: options.viewport.offsetY + worldViewportHeight,
+    minX: worldViewportX,
+    minY: worldViewportY,
+    maxX: worldViewportX + worldViewportWidth,
+    maxY: worldViewportY + worldViewportHeight,
   };
   const visibleCandidateIds = spatialIndex
     .search(viewportBounds)
@@ -83,8 +85,8 @@ export function resolveStagedExecutionSnapshot(options: {
   const legacyIndex = createSpatialIndexFromWorld(world);
   const picking = resolvePickingHitStack({
     spatialIndex: legacyIndex,
-      x: options.viewport.offsetX + options.viewport.width / PICKING_CENTER_DIVISOR,
-      y: options.viewport.offsetY + options.viewport.height / PICKING_CENTER_DIVISOR,
+      x: worldViewportX + worldViewportWidth / PICKING_CENTER_DIVISOR,
+      y: worldViewportY + worldViewportHeight / PICKING_CENTER_DIVISOR,
   });
 
   return {

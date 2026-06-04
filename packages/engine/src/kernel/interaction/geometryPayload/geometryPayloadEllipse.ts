@@ -126,8 +126,8 @@ function resolveEllipseArcPoints(
     const angleRadians = (angleDegrees * Math.PI) / HALF_ROTATION_DEGREES
     points.push({
       x: centerX + Math.cos(angleRadians) * radiusX,
-      // Keep arc orientation aligned with hit-test/editor arc-angle semantics.
-      y: centerY - Math.sin(angleRadians) * radiusY,
+      // Screen/world Y grows downward: 0deg right, +90deg down.
+      y: centerY + Math.sin(angleRadians) * radiusY,
     })
   }
 

@@ -53,6 +53,38 @@ export function expandMaskLinkedShapeIds(
   return [...expandedShapeIds]
 }
 
+/**
+ * Collapses linked mask members to one presentation id while preserving the
+ * expanded selection ids for document mutations.
+ */
+export function resolveMaskSelectionPresentationIds(
+  document: EditorDocument,
+  shapeIds: readonly string[],
+) {
+  const selectedIds = new Set(shapeIds)
+  const consumedIds = new Set<string>()
+  const presentationIds: string[] = []
+
+  for (const shapeId of shapeIds) {
+    if (consumedIds.has(shapeId)) {
+      continue
+    }
+
+    const selectedMembers = resolveMaskGroupMembers(document, shapeId)
+      .filter((member) => selectedIds.has(member.id))
+    selectedMembers.forEach((member) => consumedIds.add(member.id))
+
+    const host = selectedMembers.find((member) => (
+      member.schema?.maskRole === 'host' ||
+      (member.type === 'image' && Boolean(member.clipPathId))
+    ))
+    const source = selectedMembers.find((member) => member.schema?.maskRole === 'source')
+    presentationIds.push(host?.id ?? source?.id ?? shapeId)
+  }
+
+  return presentationIds
+}
+
 export function resolveMaskSourceNode(
   document: EditorDocument,
   shape: DocumentNode,

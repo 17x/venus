@@ -64,6 +64,7 @@ export interface ViewportGestureBindingOptions {
   ) => void
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction
+  onPointerCaptureLoss?: VoidFunction
   onZoomingChange?: (active: boolean) => void
   onZoomDiagnostic?: (diagnostic: ViewportZoomDiagnostic) => void
   onZoomCommitViewport?: (viewport: EngineCanvasViewportState) => void
@@ -87,6 +88,7 @@ export function bindViewportGestures({
   onPointerDown,
   onPointerUp,
   onPointerLeave,
+  onPointerCaptureLoss,
   onZoomingChange,
   onZoomDiagnostic,
   onZoomCommitViewport,
@@ -365,14 +367,15 @@ export function bindViewportGestures({
       flushPanCommit()
     }
 
+    const capturedPointerId = interactionPointerId
+    interactionPointerId = null
     if (
-      interactionPointerId === event.pointerId &&
+      capturedPointerId === event.pointerId &&
       typeof element.releasePointerCapture === 'function' &&
       element.hasPointerCapture?.(event.pointerId)
     ) {
       element.releasePointerCapture(event.pointerId)
     }
-    interactionPointerId = null
 
     if (wasInteractionPointer || wasPanPointer) {
       onPointerUp?.()
@@ -386,12 +389,22 @@ export function bindViewportGestures({
     onPointerLeave?.()
   }
 
+  const handleLostPointerCaptureEvent = () => {
+    if (interactionPointerId === null) {
+      return
+    }
+    interactionPointerId = null
+    panOrigin = null
+    onPointerCaptureLoss?.()
+  }
+
   element.addEventListener('wheel', handleWheel, {passive: false})
   element.addEventListener('pointerdown', handlePointerDownEvent)
   element.addEventListener('pointermove', handlePointerMoveEvent)
   element.addEventListener('pointerup', handlePointerUpEvent)
   element.addEventListener('pointerleave', handlePointerLeaveEvent)
   element.addEventListener('pointercancel', handlePointerUpEvent)
+  element.addEventListener('lostpointercapture', handleLostPointerCaptureEvent)
   element.addEventListener('gesturestart', preventGesture as EventListener, {passive: false})
   element.addEventListener('gesturechange', preventGesture as EventListener, {passive: false})
   element.addEventListener('gestureend', preventGesture as EventListener, {passive: false})
@@ -428,6 +441,7 @@ export function bindViewportGestures({
     element.removeEventListener('pointerup', handlePointerUpEvent)
     element.removeEventListener('pointerleave', handlePointerLeaveEvent)
     element.removeEventListener('pointercancel', handlePointerUpEvent)
+    element.removeEventListener('lostpointercapture', handleLostPointerCaptureEvent)
     element.removeEventListener('gesturestart', preventGesture as EventListener)
     element.removeEventListener('gesturechange', preventGesture as EventListener)
     element.removeEventListener('gestureend', preventGesture as EventListener)

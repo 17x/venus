@@ -17,6 +17,7 @@ export type RuntimeEditingMode =
 export interface RuntimeEditingModeTransition {
   readonly to: RuntimeEditingMode
   readonly reason?: string
+  readonly owner?: string
   readonly metadata?: Record<string, unknown>
 }
 
@@ -25,6 +26,7 @@ export interface RuntimeEditingModeListener {
     from: RuntimeEditingMode
     to: RuntimeEditingMode
     reason?: string
+    owner: string
     metadata?: Record<string, unknown>
   }): void
 }
@@ -32,6 +34,7 @@ export interface RuntimeEditingModeListener {
 export interface RuntimeEditingModeController {
   getCurrentMode(): RuntimeEditingMode
   getLastTransitionReason(): string | null
+  getLastTransitionOwner(): string
   transition(payload: RuntimeEditingModeTransition): void
   onTransition(listener: RuntimeEditingModeListener): () => void
 }
@@ -42,6 +45,7 @@ export function createRuntimeEditingModeController(
 ): RuntimeEditingModeController {
   let currentMode: RuntimeEditingMode = initialMode
   let lastReason: string | null = null
+  let lastOwner = 'runtime.editing-mode'
   const listeners = new Set<RuntimeEditingModeListener>()
 
   return {
@@ -51,6 +55,9 @@ export function createRuntimeEditingModeController(
     getLastTransitionReason() {
       return lastReason
     },
+    getLastTransitionOwner() {
+      return lastOwner
+    },
     transition(payload) {
       if (payload.to === currentMode && !payload.reason && !payload.metadata) {
         return
@@ -59,12 +66,14 @@ export function createRuntimeEditingModeController(
       const from = currentMode
       currentMode = payload.to
       lastReason = payload.reason ?? null
+      lastOwner = payload.owner ?? 'runtime.editing-mode'
 
       for (const listener of listeners) {
         listener.onTransition?.({
           from,
           to: payload.to,
           reason: payload.reason,
+          owner: lastOwner,
           metadata: payload.metadata,
         })
       }
@@ -75,4 +84,3 @@ export function createRuntimeEditingModeController(
     },
   }
 }
-

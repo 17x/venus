@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {createCanonicalDocumentModelFixture} from '../document-structure/canonicalDocumentFixture.ts'
-import {resolveMaskGroupMembers, resolveMaskSourceNode} from '../../../runtime/interaction/maskGroup.ts'
+import {
+  resolveMaskGroupMembers,
+  resolveMaskSelectionPresentationIds,
+  resolveMaskSourceNode,
+} from '../../../runtime/interaction/maskGroup.ts'
 
 /**
  * Verifies canonical fixture carries valid parent-child group invariants.
@@ -46,6 +50,24 @@ test('mask group membership resolves source and linked shapes', () => {
 
   const sourceNode = resolveMaskSourceNode(document, maskSource!)
   assert.ok(sourceNode)
+})
+
+test('mask-linked selection keeps mutation ids but collapses to one presentation id', () => {
+  const document = createCanonicalDocumentModelFixture()
+  const maskSource = document.shapes.find((shape) => shape.schema?.maskRole === 'source')
+  assert.ok(maskSource)
+  const members = resolveMaskGroupMembers(document, maskSource!.id)
+  const host = members.find((shape) => (
+    shape.schema?.maskRole === 'host' ||
+    (shape.type === 'image' && Boolean(shape.clipPathId))
+  ))
+
+  const presentationIds = resolveMaskSelectionPresentationIds(
+    document,
+    members.map((shape) => shape.id),
+  )
+
+  assert.deepEqual(presentationIds, [host?.id ?? maskSource!.id])
 })
 
 /**

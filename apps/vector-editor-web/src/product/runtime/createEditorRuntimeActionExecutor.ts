@@ -80,6 +80,8 @@ export interface EditorRuntimeActionExecutorOptions {
   setShowPrint: React.Dispatch<React.SetStateAction<boolean>>
   /** Applies auto-mask on current selection. */
   applyAutoMask: VoidFunction
+  /** Executes shared transient-state cleanup for interruption actions such as Escape. */
+  cleanupInteraction?: (trigger: import('./stateMachineContract.ts').Vector2DCleanupTrigger) => void
 }
 
 /**
@@ -152,6 +154,7 @@ export function createEditorRuntimeActionExecutor(
     }
 
     if (type === 'print') {
+      options.cleanupInteraction?.('modal-open')
       options.setShowPrint(true)
       return
     }
@@ -163,6 +166,24 @@ export function createEditorRuntimeActionExecutor(
 
     if (type === 'saveFile') {
       options.saveFile(options.canvasRuntime.document)
+      return
+    }
+
+    if (type === 'escape-action') {
+      options.cleanupInteraction?.('escape')
+      return
+    }
+
+    if (type === 'cleanup-interaction') {
+      if (
+        data === 'pointer-capture-loss' ||
+        data === 'escape' ||
+        data === 'tab-switch' ||
+        data === 'tool-switch' ||
+        data === 'modal-open'
+      ) {
+        options.cleanupInteraction?.(data)
+      }
       return
     }
 

@@ -86,3 +86,19 @@
   - `vector-2d` 做商用主应用验证；
   - `playground game` 做 3D 全能力验证；
   - `engine` 用 DEX-016/017 补足发布短板。
+
+## 7. 2026-06-04 Vector2D 反向验证发现与修复
+
+Vector2D 缩放场景发现了通用 Engine 可见性缺陷，已作为 Engine 能力修复，而非留在产品侧规避：
+
+- runtime world 的 coarse 2D bounds 曾无条件使用按节点索引生成的 legacy 假网格，导致 visible-set 与真实 scene bounds 脱离。
+- staged visibility 曾把 viewport `offsetX/offsetY` 直接当作 world 起点；在 `screen = world * scale + offset` 契约下，正确 world 起点应为 `-offset / scale`。
+- 已修复 semantic bounds 投影、隐藏节点过滤、inverse viewport culling 与 picking center。
+- 已新增 Engine 定向契约，证明缩放/平移后真实高可见元素仍进入 visible set 与 picking。
+- Vector2D 浏览器 smoke 已加入连续五次真实 `Ctrl+Wheel` 缩放门禁，禁止 populated scene 进入 zero visibility。
+
+同时补充通用 Engine 渲染能力：
+
+- WebGL/WebGPU composition 支持通用 `handle` overlay primitive，并保留 point radius，供任意 authoring 场景使用。
+- 2D ellipse arc 角度契约统一为屏幕/world 2D 坐标：`0deg` 向右，`+90deg` 向下；该约定覆盖 render、geometry outline、hit test 与 adapter handler。
+- 以上 API/primitive 均保持通用语义，不向 Engine 引入 Vector2D 产品命名。

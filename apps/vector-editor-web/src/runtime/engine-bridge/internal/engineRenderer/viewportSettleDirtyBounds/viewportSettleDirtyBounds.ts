@@ -53,6 +53,17 @@ export const DEFAULT_MIN_SCALE_FOR_SETTLE_DIRTY_MARK = 0.02
 export const DEFAULT_MAX_SETTLE_DIRTY_WORLD_EXTENT = 40_000
 
 /**
+ * Resolves whether a viewport commit changes zoom sampling and therefore must
+ * invalidate the newly visible world region.
+ */
+export function shouldInvalidateViewportForScaleChange(
+  previousScale: number | null,
+  nextScale: number,
+): boolean {
+  return previousScale === null || Math.abs(previousScale - nextScale) > Number.EPSILON
+}
+
+/**
  * Resolves one viewport-settle dirty rectangle while guarding extreme low-scale expansion.
  * @param input Viewport dimensions, offsets, and scale for the current settle frame.
  * @param thresholds Optional thresholds for low-scale skip and world-extent clamp.

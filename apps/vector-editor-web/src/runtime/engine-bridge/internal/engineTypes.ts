@@ -66,6 +66,7 @@ export interface EngineViewportProps {
   onPointerDown?: ViewportGestureBindingOptions['onPointerDown']
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction
+  onPointerCaptureLoss?: VoidFunction
   onViewportChange?: (viewport: EngineViewportState) => void
   onViewportPan?: (deltaX: number, deltaY: number) => void
   onViewportResize?: (width: number, height: number) => void

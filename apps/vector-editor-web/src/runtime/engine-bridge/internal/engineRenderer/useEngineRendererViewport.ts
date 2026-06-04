@@ -5,7 +5,10 @@ import type {
 import type {CanvasViewportState as EngineViewportState} from '../../../index.ts'
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {VECTOR_ENGINE_SCENE_PROFILE} from './engineSceneProfile.ts'
-import {resolveViewportSettleDirtyBounds} from './viewportSettleDirtyBounds/viewportSettleDirtyBounds.ts'
+import {
+  resolveViewportSettleDirtyBounds,
+  shouldInvalidateViewportForScaleChange,
+} from './viewportSettleDirtyBounds/viewportSettleDirtyBounds.ts'
 import {commitViewportState, invalidateSceneRegions} from '../../engineContractAdapters.ts'
 
 const OVERSCAN_PX = VECTOR_ENGINE_SCENE_PROFILE.overscanPx
@@ -284,6 +287,7 @@ export function useEngineRendererViewport(params: {
       params.appliedViewportRef.current.offsetX !== nextViewportState.offsetX ||
       params.appliedViewportRef.current.offsetY !== nextViewportState.offsetY ||
       params.appliedViewportRef.current.scale !== nextViewportState.scale
+    const previousViewportScale = params.appliedViewportRef.current?.scale ?? null
     if (viewportChanged) {
       const viewportStateUpdateStart = performance.now()
       // Keep pan/drag input strictly follow-finger by committing directly.
@@ -323,6 +327,16 @@ export function useEngineRendererViewport(params: {
         params.appliedViewportRef.current = viewportCommitResult.snapshot
       }
       viewportStateUpdateMs += performance.now() - viewportStateUpdateStart
+    }
+
+    // A zoom changes world-to-screen sampling and the visible tile footprint.
+    // Invalidate the newly visible world region before rendering so cached
+    // empty/low-detail tiles cannot hide otherwise-visible elements.
+    if (
+      viewportChanged &&
+      shouldInvalidateViewportForScaleChange(previousViewportScale, nextViewportState.scale)
+    ) {
+      markViewportWorldBoundsDirty(nextViewportState)
     }
 
     const exitedInteractionPhase = wasInteractionActive && !params.interactionActive

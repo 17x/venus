@@ -46,6 +46,7 @@ function createActionHarness(input: {
   const insertedBatches: ElementProps[][] = []
   const toolChanges: string[] = []
   const lifecycleActions: string[] = []
+  const cleanupTriggers: string[] = []
 
   const executeAction = createEditorRuntimeActionExecutor({
     add: () => {},
@@ -98,10 +99,14 @@ function createActionHarness(input: {
       }
     },
     applyAutoMask: () => {},
+    cleanupInteraction: (trigger) => {
+      cleanupTriggers.push(trigger)
+    },
   })
 
   return {
     commands,
+    cleanupTriggers,
     insertedBatches,
     lifecycleActions,
     toolChanges,
@@ -206,6 +211,7 @@ function runSourceCases(input: {
       source: sourceCase.source,
       action: sourceCase.action,
       commands: harness.commands,
+      cleanupTriggers: harness.cleanupTriggers,
       contracts: harness.commands.map((command) => resolveVector2DCommandContract(command)),
       lifecycleActions: harness.lifecycleActions,
       toolChanges: harness.toolChanges,
@@ -269,6 +275,29 @@ function resolveHeaderMenuAction(menuId: string) {
     },
   }))
 }
+
+test('Vector2D interruption actions route through shared state-machine cleanup', () => {
+  const document = createCanonicalDocumentModelFixture()
+  const results = runSourceCases({
+    document,
+    cases: [
+      {source: 'shortcut', action: 'escape-action'},
+      {source: 'api', action: 'escape-action'},
+      {source: 'left-sidebar', action: 'cleanup-interaction', data: 'tab-switch'},
+      {source: 'modal', action: 'cleanup-interaction', data: 'modal-open'},
+      {source: 'viewport', action: 'cleanup-interaction', data: 'pointer-capture-loss'},
+    ],
+  })
+
+  assert.deepEqual(results.map((result) => result.cleanupTriggers), [
+    ['escape'],
+    ['escape'],
+    ['tab-switch'],
+    ['modal-open'],
+    ['pointer-capture-loss'],
+  ])
+  assert.deepEqual(results.map((result) => result.commands), [[], [], [], [], []])
+})
 
 test('Vector2D source-equivalence keeps file and export lifecycle actions outside runtime document dispatch', () => {
   const document = createCanonicalDocumentModelFixture()

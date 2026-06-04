@@ -147,7 +147,7 @@ function resolveEllipseAngleDegrees(
   const center = resolveEllipseCenter(bounds)
   const normalizedX = (pointer.x - center.x) / radiusX
   // Treat +90deg as upward to match editor-facing arc-angle semantics.
-  const normalizedY = (center.y - pointer.y) / radiusY
+  const normalizedY = (pointer.y - center.y) / radiusY
   return normalizeAngleDegrees((Math.atan2(normalizedY, normalizedX) * DEGREES_HALF_CIRCLE) / Math.PI)
 }
 
@@ -179,8 +179,8 @@ function resolveEllipseArcBoundaryPoint(
   const radians = (angleDegrees * Math.PI) / DEGREES_HALF_CIRCLE
   return {
     x: center.x + radiusX * Math.cos(radians),
-    // Keep arc boundary projection consistent with angle orientation used by hit testing.
-    y: center.y - radiusY * Math.sin(radians),
+    // Screen/world Y grows downward: +90deg is the bottom boundary.
+    y: center.y + radiusY * Math.sin(radians),
   }
 }
 

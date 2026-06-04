@@ -5,6 +5,7 @@ import type {
 } from '../../../runtime/events/index/index.ts'
 import {DebugRow, DebugSection, formatDiagnosticBytes} from './RuntimeDebugPanel.shared.tsx'
 import type {useRuntimeDebugSceneDirtyModel} from './RuntimeDebugPanel.sceneDirtyModel.ts'
+import type {Vector2DStateMachineDiagnosticsSnapshot} from '../../../product/runtime/stateMachineContract.ts'
 
 type RuntimeDiagnosticsTimingStats = NonNullable<
   NonNullable<RuntimeRenderDiagnostics['stats']>['performance']['timing']
@@ -242,6 +243,7 @@ export function CompactRuntimeDebugPanel(props: {
   runtimeV2AlertClassName: string
   runtimeV2AlertLevel: 'stable' | 'watch' | 'high'
   sceneDirtyModel: ReturnType<typeof useRuntimeDebugSceneDirtyModel>
+  stateMachines: Vector2DStateMachineDiagnosticsSnapshot
 }) {
   const {
     t,
@@ -254,6 +256,7 @@ export function CompactRuntimeDebugPanel(props: {
     runtimeV2AlertClassName,
     runtimeV2AlertLevel,
     sceneDirtyModel,
+    stateMachines,
   } = props
 
   return (
@@ -270,6 +273,13 @@ export function CompactRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.webgpuRenderPath', 'WebGPU Render Path')} value={diagnosticsDataSource.webglStats.webgpuRenderPath}/>
         <DebugRow label={t('shell.variantB.debug.activeOverlayRoutingSummary', 'Active/Overlay Routing')} value={sceneDirtyModel.activeOverlayRoutingSummary}/>
         <DebugRow label={t('shell.variantB.debug.activeOverlayRoutingAlertLevel', 'Routing Alert Level')} value={sceneDirtyModel.activeOverlayRoutingAlertLevel}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionStateMachines', 'Editor State Machines')}>
+        <DebugRow label={'Document'} value={`${stateMachines.document.state} · ${stateMachines.document.reasonCode}`}/>
+        <DebugRow label={'Tool'} value={`${stateMachines.tool.state} · ${stateMachines.tool.reasonCode}`}/>
+        <DebugRow label={'Selection'} value={`${stateMachines.selection.state} · ${stateMachines.selection.reasonCode}`}/>
+        <DebugRow label={'Transform'} value={`${stateMachines.transform.state} · ${stateMachines.transform.reasonCode}`}/>
       </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionEngineConfig', 'Engine Config')}>
@@ -356,6 +366,7 @@ export function VerboseRuntimeDebugPanel(props: {
   runtimeV2AlertClassName: string
   runtimeV2AlertLevel: 'stable' | 'watch' | 'high'
   sceneDirtyModel: ReturnType<typeof useRuntimeDebugSceneDirtyModel>
+  stateMachines: Vector2DStateMachineDiagnosticsSnapshot
 }) {
   const {
     t,
@@ -376,6 +387,7 @@ export function VerboseRuntimeDebugPanel(props: {
     runtimeV2AlertClassName,
     runtimeV2AlertLevel,
     sceneDirtyModel,
+    stateMachines,
   } = props
 
   return (
@@ -391,6 +403,13 @@ export function VerboseRuntimeDebugPanel(props: {
         <DebugRow label={t('shell.variantB.debug.renderPolicyQuality', 'Render Policy Quality')} value={performanceLodStats?.renderPolicyQuality ?? diagnostics.renderPolicyQuality}/>
         <DebugRow label={t('shell.variantB.debug.webglRenderPath', 'WebGL Render Path')} value={diagnosticsDataSource.webglStats.webglRenderPath}/>
         <DebugRow label={t('shell.variantB.debug.webgpuRenderPath', 'WebGPU Render Path')} value={diagnosticsDataSource.webglStats.webgpuRenderPath}/>
+      </DebugSection>
+
+      <DebugSection title={t('shell.variantB.debug.sectionStateMachines', 'Editor State Machines')}>
+        <DebugRow label={'Document'} value={`${stateMachines.document.state} · ${stateMachines.document.reasonCode} · ${stateMachines.document.owner}`}/>
+        <DebugRow label={'Tool'} value={`${stateMachines.tool.state} · ${stateMachines.tool.reasonCode} · ${stateMachines.tool.owner}`}/>
+        <DebugRow label={'Selection'} value={`${stateMachines.selection.state} · ${stateMachines.selection.reasonCode} · ${stateMachines.selection.owner}`}/>
+        <DebugRow label={'Transform'} value={`${stateMachines.transform.state} · ${stateMachines.transform.reasonCode} · ${stateMachines.transform.owner}`}/>
       </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionEngineConfig', 'Engine Config')}>

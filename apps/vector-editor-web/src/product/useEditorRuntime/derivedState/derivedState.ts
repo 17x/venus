@@ -10,7 +10,10 @@ import {
 } from '../../../runtime/index.ts'
 import {EngineRenderer} from '../../../runtime/engine-bridge/index.tsx'
 import type {OverlayDiagnostics} from '../../../runtime/engine-bridge/index.tsx'
-import {buildSelectionState} from '../../../runtime/interaction/index.ts'
+import {
+  buildSelectionState,
+  resolveMaskSelectionPresentationIds,
+} from '../../../runtime/interaction/index.ts'
 import {resolveTransformPreviewRuntimeState, type SnapGuide} from '../../../runtime/interaction/index.ts'
 import type {
   DraftPrimitive,
@@ -261,6 +264,10 @@ export function useEditorRuntimeDerivedState(options: {
     activePathSubSelection,
     activePathShape,
   ), [activePathShape, activePathSubSelection])
+  const selectionPresentationShapeIds = useMemo(
+    () => resolveMaskSelectionPresentationIds(interactionDocument, selectedShapeIds),
+    [interactionDocument, selectedShapeIds],
+  )
 
   const hoveredGeometryShape = useMemo(() => (
     hoverDisplayShapeId ? previewShapeById.get(hoverDisplayShapeId) ?? null : null
@@ -282,7 +289,7 @@ export function useEditorRuntimeDerivedState(options: {
 
   const engineGeometryPayload = useMemo(() => canvasRuntime.requestEngineGeometry({
     hoveredNodeId: hoverDisplayShapeId,
-    selectedNodeIds: selectedShapeIds,
+    selectedNodeIds: selectionPresentationShapeIds,
     pointer: geometryHintPointer,
     tolerance: 6,
     outlineLevel: geometryOutlineLevel,
@@ -292,7 +299,7 @@ export function useEditorRuntimeDerivedState(options: {
     geometryOutlineLevel,
     geometryHintPointer,
     hoverDisplayShapeId,
-    selectedShapeIds,
+    selectionPresentationShapeIds,
   ])
 
   const {
@@ -306,6 +313,7 @@ export function useEditorRuntimeDerivedState(options: {
     editingMode,
     transformPreviewActive,
     selectedShapeIds,
+    selectionPresentationShapeIds,
     selectedNode,
     selectionState,
     interactionDocument,

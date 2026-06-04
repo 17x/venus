@@ -75,7 +75,7 @@ Engine must not own:
 
 ### V2D-UI-001 [P0] App shell and navigation baseline
 
-Status: TODO
+Status: DONE
 
 Scope:
 
@@ -218,7 +218,7 @@ Progress:
 
 ### V2D-RT-001 [P0] Product/runtime command boundary
 
-Status: PARTIAL
+Status: DONE
 
 Scope:
 
@@ -257,12 +257,20 @@ Progress:
   - `resolveVector2DProductActionContract` maps file actions to `file.*` contracts and print/export actions to `export.*` contracts.
   - file/export contracts produce deterministic diagnostics while staying outside runtime document dispatch and engine projection.
   - header menu, shortcut, and API save/print/close sources are verified to trigger product lifecycle side effects without runtime worker commands.
-- Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-command-boundary.contract.test.ts src/testing/product-specs/integration-contract/runtime-command-source-equivalence.contract.test.ts`.
-
-Remaining gate:
-
-- Extend source-equivalence coverage from command/action and canvas pure paths to browser-level event routing.
-- Extend history merge/rollback/replay assertions from representative metadata to full command-family flows.
+- Added `runtime-command-history-flow.contract.test.ts` proving history behavior across representative command families:
+  - continuous transform commands merge deterministically by transaction.
+  - transform, style, text, and shape command flows fully rollback through undo and reproduce the final document through redo.
+  - layer, mask, group, path, boolean, align, and distribute commands emit deterministic forward and backward patch plans.
+  - crash-recovery replay preserves deterministic transaction order and merged patch chains.
+- Replaced random boolean result ids with geometry/input-derived deterministic ids so local, remote, undo/redo, and crash replay produce identical boolean patch plans.
+- Added `playwright-command-routing-smoke.mjs` as a real-browser event-routing gate:
+  - starts the Vector2D Vite application and a headless Chromium session.
+  - verifies layer-tree pointer and keyboard activation route into selection state.
+  - verifies stage-focused `Ctrl+A` and `Delete` shortcuts route through runtime commands and update document layers.
+  - verifies routed command results become visible in the History UI without browser errors.
+- Added stable editor focus-root/stage test ids and `test:browser-command-routing` package script for repeatable release validation.
+- Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-command-boundary.contract.test.ts src/testing/product-specs/integration-contract/runtime-command-source-equivalence.contract.test.ts src/testing/product-specs/integration-contract/runtime-command-history-flow.contract.test.ts`.
+- Browser validation passed: `pnpm -C apps/vector-editor-web run test:browser-command-routing`.
 
 ### V2D-RT-002 [P0] State machines
 
@@ -279,6 +287,29 @@ Acceptance:
 
 - Every transition has a reason code and owner.
 - Pointer capture loss, Escape, tab switch, tool switch, and modal open clean up safely.
+
+Progress:
+
+- Added `apps/vector-editor-web/src/product/runtime/stateMachineContract.ts` as the unified product/runtime state-machine contract.
+- Added deterministic state projections with stable `state`, `reasonCode`, and `owner` fields:
+  - document lifecycle covers created/opened/dirty/saving/saved/recovery/closed plus product-level read-only/error precedence.
+  - tool lifecycle covers idle/hover/press/drag/precision/commit/cancel/interrupted.
+  - selection lifecycle covers none/single/multi/sub-selection/isolation/text-focus with explicit precedence.
+  - transform lifecycle covers preview/commit-pending/committed/rolled-back/cancelled.
+- Added deterministic cleanup plans for pointer capture loss, Escape, tab switch, tool switch, and modal open.
+- Runtime editing-mode controller now records and publishes transition owner, defaulting to `runtime.editing-mode` while allowing cleanup/cross-domain ownership.
+- Added `executeStateMachineCleanupPlan(...)` and wired it into real Escape and tool-switch paths:
+  - Escape shortcut/API actions now execute shared transient cleanup without dispatching a document mutation command.
+  - tool switches cancel pointer/transform sessions, clear previews/drags/drafts/snap guides, exit precision mode, and publish `cleanup.tool-switch` ownership before activating the next tool.
+- Wired the shared cleanup action into the remaining interruption paths:
+  - left-sidebar tab switches execute `cleanup.tab-switch`.
+  - print/template modal opening executes `cleanup.modal-open`.
+  - generic viewport gesture binding publishes unexpected `lostpointercapture` through a product cleanup callback without adding product semantics to engine APIs.
+  - normal pointer-up clears the active pointer id before releasing capture, preventing false capture-loss cleanup.
+- Added a dedicated state-machine diagnostics store. Current document/tool/selection/transform snapshots are published by `useEditorRuntime` and displayed in both compact and verbose Runtime Debug Panel modes.
+- Added `runtime-state-machines.contract.test.ts` and validated it together with existing pointer lifecycle and editing-mode transition-policy tests.
+- Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-state-machines.contract.test.ts src/testing/product-specs/integration-contract/runtime-command-source-equivalence.contract.test.ts src/product/runtime/canvasInteractionController/__tests__/pointerLifecycleState.test.ts src/product/runtime/__tests__/runtimeEditingModeTransitionPolicy.test.ts`.
+- Validation passed: `pnpm -C apps/vector-editor-web exec tsc -p tsconfig.app.json --noEmit --pretty false`.
 
 ### V2D-RT-003 [P0] Engine adapter contract
 
@@ -309,6 +340,17 @@ Progress:
 - Added contract coverage proving the release-facing adapter diagnostics report summarizes commercial degradation in a stable shape.
 - Runtime renderer scene sync now publishes the latest adapter diagnostics report into shared `RuntimeRenderDiagnostics.engineSceneAdapterReport`, preserving the vector product boundary while keeping engine payloads generic.
 - Product `RuntimeDebugPanel` now includes a `Vector Adapter` diagnostics section in compact and verbose modes, surfacing adapter version, report schema, total diagnostics, severity counts, affected nodes, diagnostic code counts, and support-matrix summary.
+- Completed the live image-resource registration path from canonical `DocumentNode.assetId/assetUrl` through the vector runtime bridge into generic engine `setImageRegistry(...)`:
+  - document image URLs now create and cache browser image resources instead of only building an unused URL map;
+  - changed URLs replace stale cache entries, failed resources are evicted, and successful/failed loads schedule deterministic redraws;
+  - engine image registry remains generic and receives no Vector2D product semantics.
+- Fixed zoom-time element disappearance across both sides of the vector runtime/engine boundary:
+  - vector runtime invalidates the newly visible world region for every viewport scale change while retaining the extreme zoom-out extent guard;
+  - engine runtime world now uses adapter-submitted semantic bounds instead of index-derived legacy fallback bounds;
+  - engine staged visibility/picking now converts `screen = world * scale + offset` back to world viewport coordinates with `-offset / scale`;
+  - hidden semantic nodes are excluded from the staged spatial visible set.
+- Added focused contracts for image registry reconciliation, failed/stale image recovery, zoom-scale visible-region invalidation, semantic-world-bounds culling, and inverse viewport visibility/picking.
+- Browser smoke now performs five real `Ctrl+Wheel` zoom steps and fails if a populated scene enters zero visibility.
 - Validation passed: `pnpm -C apps/vector-editor-web exec tsc -p tsconfig.app.json --noEmit --pretty false`.
 - Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/runtime/events/index/index.test.ts`.
 - Validation passed: `pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-engine-adapter.contract.test.ts`.
@@ -318,7 +360,7 @@ Progress:
 
 ### V2D-INT-001 [P0] Selection model
 
-Status: TODO
+Status: PARTIAL
 
 Scope:
 
@@ -331,9 +373,18 @@ Acceptance:
 - Selection is explainable through stable diagnostics.
 - Single-select and multi-select never disagree across canvas and layer panel.
 
+Progress:
+
+- Added a mask-selection presentation policy that collapses expanded mask-linked mutation ids to one stable visual representative.
+- Selection mutation semantics remain expanded, while engine geometry/selection outlines receive presentation ids only; this removes duplicated masked-element outlines/marquee chrome without weakening mask CRUD behavior.
+- Main selection marquee/control generation now also consumes the collapsed mask presentation ids; mutation/protection ids remain expanded.
+- Selected mask representatives suppress linked clip/source `detailOutlines`, so the selected layer emits one primary mask outline instead of visually recreating multiple selection boxes.
+- Added contract coverage for modern host/source masks and legacy source/member mask groups.
+- Remaining: cycle-hit, full hidden/locked/group filtering diagnostics, and cross-surface selection synchronization gate.
+
 ### V2D-INT-002 [P0] Marquee and lasso
 
-Status: TODO
+Status: PARTIAL
 
 Scope:
 
@@ -348,9 +399,14 @@ Acceptance:
 - Candidate ids, resolved ids, rejected ids, and rejection reasons are observable.
 - Rotated/grouped/clipped nodes have deterministic inclusion behavior.
 
+Progress:
+
+- Mask-linked selection presentation is now deterministic and no longer emits repeated masked-element selection chrome.
+- Remaining: lasso path selection, rejected-id diagnostics, and complete rotated/grouped/clipped marquee inclusion matrix.
+
 ### V2D-INT-003 [P0] Keyboard, shortcut, clipboard
 
-Status: TODO
+Status: PARTIAL
 
 Scope:
 
@@ -367,7 +423,7 @@ Acceptance:
 
 ### V2D-OVL-001 [P0] Overlay taxonomy
 
-Status: TODO
+Status: PARTIAL
 
 Overlay types:
 
@@ -399,9 +455,16 @@ Acceptance:
 - Overlay instructions are generated from runtime/product state and submitted to engine through generic overlay/render payloads.
 - Overlay drawing cannot mutate document state directly.
 
+Progress:
+
+- Mask-linked document selection ids are separated from visual presentation ids before engine geometry/overlay generation, preventing duplicate host/source outlines while preserving command targets.
+- Runtime overlay instructions now reach engine overlay nodes directly instead of passing through the lossy pointer-selector descriptor bridge.
+- Generic engine overlay composition now renders `handle` primitives and preserves `pointRadius`, making rectangle-radius and ellipse-arc boundary controls visible.
+- Remaining: complete overlay owner/hit-priority/degradation matrix and browser-level visual regression coverage.
+
 ### V2D-OVL-002 [P0] Overlay hit priority
 
-Status: TODO
+Status: PARTIAL
 
 Scope:
 
@@ -439,9 +502,14 @@ Acceptance:
 - Every handler is idempotent across duplicate browser events where possible.
 - Lost pointer capture, pointer cancel, and window blur cannot leave stale preview state.
 
+Progress:
+
+- Browser smoke covers repeated real wheel-zoom commits and rejects zero-visibility regression.
+- Remaining: complete duplicate-event idempotency matrix and window visibility/focus browser gates.
+
 ### V2D-HDL-002 [P0] Special handlers
 
-Status: TODO
+Status: PARTIAL
 
 Handlers:
 
@@ -463,9 +531,15 @@ Acceptance:
 - Special handlers share the same command/transaction pipeline.
 - Every special handler has cancel/rollback behavior and diagnostics.
 
+Progress:
+
+- Rectangle corner-radius and ellipse arc-boundary controls are emitted, visually preserved through the engine overlay bridge, and retain existing drag/commit behavior.
+- Ellipse arc semantics are unified across adapter/backend geometry, hit testing, outlines, and handlers: `0deg` points right and `+90deg` points down in screen/world 2D coordinates.
+- Remaining: the other listed special handlers and complete cancel/rollback diagnostics.
+
 ### V2D-TOOL-001 [P0] Drawing tools baseline
 
-Status: TODO
+Status: PARTIAL
 
 Tools:
 
@@ -604,6 +678,12 @@ Acceptance:
 - Text focus blocks conflicting canvas shortcuts.
 - Rich text runs survive save/load and render through adapter/engine path without silent collapse.
 
+Progress:
+
+- Vector adapter now completes sparse rich-text run ranges before engine submission, preserving uncovered newlines, unstyled gaps, and trailing text.
+- WebGL/WebGPU composition already renders explicit line breaks from the generic run stream; regression coverage now proves sparse runs cannot silently collapse multi-line content.
+- Remaining: automatic width wrapping, caret/range/IME editing, truncation/max-line behavior, and missing-font diagnostics.
+
 ### V2D-ASSET-001 [P1] Asset and style libraries
 
 Status: TODO
@@ -711,7 +791,7 @@ Remaining gate:
 
 1. `V2D-DOC-001` canonical authoring model decision. DONE.
 2. `V2D-DOC-004` commercial fixture suite. DONE.
-3. `V2D-RT-001` command boundary. PARTIAL.
+3. `V2D-RT-001` command boundary. DONE.
 4. `V2D-RT-003` engine adapter contract. DONE.
 5. `V2D-E2E-004` full-chain signature smoke. PARTIAL.
 

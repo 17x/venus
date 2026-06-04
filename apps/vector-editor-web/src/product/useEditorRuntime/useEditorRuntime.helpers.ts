@@ -138,14 +138,16 @@ export function useRuntimeInteractionDiagnosticRecorder(
 export function useRuntimeToolSelectionAction(
   setCurrentToolInternal: (toolName: ToolName) => void,
   runtimeBridge: RuntimeBridgeDispatch,
+  beforeSelect?: (toolName: ToolName) => void,
 ) {
   return useCallback((toolName: ToolName) => {
+    beforeSelect?.(toolName)
     setCurrentToolInternal(toolName)
     runtimeBridge.dispatch({
       type: 'runtime.tool.selected',
       tool: toolName,
     })
-  }, [runtimeBridge, setCurrentToolInternal])
+  }, [beforeSelect, runtimeBridge, setCurrentToolInternal])
 }
 
 /**

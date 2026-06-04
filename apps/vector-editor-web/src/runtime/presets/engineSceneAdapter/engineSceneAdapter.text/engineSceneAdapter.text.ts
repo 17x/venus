@@ -1,4 +1,45 @@
-import type {ShapeType} from '../../../model/index.ts'
+import type {ShapeType, TextRun} from '../../../model/index.ts'
+
+/**
+ * Completes sparse rich-text runs so line breaks and unstyled gaps are never
+ * dropped when the engine renders the run stream.
+ */
+export function resolveCompleteTextRuns(text: string, runs: readonly TextRun[] | undefined): TextRun[] {
+  if (text.length === 0) {
+    return []
+  }
+  if (!runs || runs.length === 0) {
+    return [{start: 0, end: text.length, style: {}}]
+  }
+
+  const sortedRuns = [...runs]
+    .map((run) => ({
+      ...run,
+      start: Math.max(0, Math.min(text.length, run.start)),
+      end: Math.max(0, Math.min(text.length, run.end)),
+    }))
+    .filter((run) => run.end > run.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end)
+  const completeRuns: TextRun[] = []
+  let cursor = 0
+  let fallbackStyle = sortedRuns[0]?.style ?? {}
+
+  for (const run of sortedRuns) {
+    if (run.start > cursor) {
+      completeRuns.push({start: cursor, end: run.start, style: fallbackStyle})
+    }
+    const start = Math.max(cursor, run.start)
+    if (run.end > start) {
+      completeRuns.push({...run, start})
+      cursor = run.end
+      fallbackStyle = run.style ?? fallbackStyle
+    }
+  }
+  if (cursor < text.length) {
+    completeRuns.push({start: cursor, end: text.length, style: fallbackStyle})
+  }
+  return completeRuns
+}
 
 /**
  * Maps editor shape kinds to engine render shape kinds.

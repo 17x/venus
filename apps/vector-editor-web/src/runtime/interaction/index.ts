@@ -62,3 +62,4 @@ export type {
 } from './productInteractionTypes.ts'
 // Selection helpers used by product hooks for derived state.
 export {buildSelectionState} from './selection/selectionManager.ts'
+export {resolveMaskSelectionPresentationIds} from './maskGroup.ts'

@@ -34,6 +34,7 @@ interface UseEditorRuntimeExecuteActionOptions {
   setPasteSerial: React.Dispatch<React.SetStateAction<number>>
   setShowPrint: React.Dispatch<React.SetStateAction<boolean>>
   applyAutoMask: VoidFunction
+  cleanupInteraction?: (trigger: import('../runtime/stateMachineContract.ts').Vector2DCleanupTrigger) => void
 }
 
 /**

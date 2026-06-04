@@ -198,6 +198,8 @@ type WebGLOverlayInstruction = {
   fillColor?: string;
   /** Fill opacity. */
   fillOpacity?: number;
+  /** Point-handle radius in world units. */
+  pointRadius?: number;
   /** Whether stroke should not scale with zoom. */
   nonScalingStroke?: boolean;
   /** Layer z-index for ordering. */
@@ -666,6 +668,22 @@ function drawRichNodesToCompositionContext(
           if (dash) {
             context.setLineDash([]);
           }
+          drawnPrimitiveCount += 1;
+        }
+      } else if (overlay.primitive === "handle" && overlay.points && overlay.points.length >= 1) {
+        const point = overlay.points[0];
+        const radius = Math.max(0, overlay.pointRadius ?? strokeW * 3);
+        context.beginPath();
+        context.arc(point.x, point.y, radius, 0, FULL_CIRCLE_RADIANS);
+        if (fillColor !== "transparent") {
+          context.fillStyle = fillColor;
+          context.fill();
+          drawnPrimitiveCount += 1;
+        }
+        if (strokeColor !== "transparent" && strokeW > 0) {
+          context.strokeStyle = strokeColor;
+          context.lineWidth = strokeW;
+          context.stroke();
           drawnPrimitiveCount += 1;
         }
       }

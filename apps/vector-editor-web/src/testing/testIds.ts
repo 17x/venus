@@ -1,4 +1,8 @@
 export const TEST_IDS = {
+  editor: {
+    focusRoot: 'editor.focus-root',
+    stage: 'editor.stage',
+  },
   inspector: {
     workspace: 'inspector.workspace',
     panelStack: 'inspector.panel-stack',

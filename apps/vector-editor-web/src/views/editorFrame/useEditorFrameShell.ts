@@ -53,6 +53,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
       })
     },
     onSetLeftTab(payload) {
+      options.executeAction('cleanup-interaction', 'tab-switch')
       options.setVariantBSections((current) => ({
         ...current,
         activeTab: payload.tab,
@@ -165,6 +166,7 @@ export function useEditorFrameShell(options: UseEditorFrameShellOptions) {
       })
     },
     onOpenTemplatePicker: () => {
+      options.executeAction('cleanup-interaction', 'modal-open')
       options.setShowTemplatePresetPicker(true)
     },
     onApplyAssetTemplate: options.onApplyAssetTemplate,

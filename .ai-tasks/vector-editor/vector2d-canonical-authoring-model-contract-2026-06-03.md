@@ -116,10 +116,17 @@ Runtime projections must be rebuildable from `EditorDocument` plus runtime state
 Engine receives:
 
 - generic graph/resource/runtime payloads
+- generic loaded-resource registries keyed by adapter-owned stable asset ids
 - explicit 2D opt-in profile and adapter diagnostics
 - generic render, hit, overlay, and frame diagnostics
 
 Engine must not receive Vector2D product semantics as API names. Terms such as artboard, layer panel, pen tool, pathfinder, direct selection, Figma, and Illustrator stay in vector product/runtime.
+
+Image resource ownership rule:
+
+- `EditorDocument.DocumentNode.assetId/assetUrl` remains authoring truth.
+- Vector runtime resolves and loads browser image resources, reconciles stale or failed URLs, and registers loaded resources with the engine by stable asset id.
+- Engine only consumes the generic image registry and must not resolve Vector2D files, assets panels, or persistence containers.
 
 ## 3. Conversion Graph
 
@@ -342,11 +349,10 @@ This document completes the planning decision for:
 - `V2D-DOC-001 [P0] Canonical authoring model decision`
 - `VEC-MVP-001 [P0] Document model single source of truth`
 
-The baseline commercial fixture suite is now implemented. The command boundary now has a runtime taxonomy/envelope baseline, and the engine adapter projection gate is closed. UI source equivalence, full round-trip preservation diagnostics, runtime-scene compatibility boundaries, and browser-level full-chain replay remain explicit follow-up work.
+The baseline commercial fixture suite is now implemented. The command boundary is closed across runtime taxonomy/envelopes, product source equivalence, deterministic history replay, and real-browser event routing. The engine adapter projection gate is also closed. Full round-trip preservation diagnostics, runtime-scene compatibility boundaries, and browser-level full-chain replay remain explicit follow-up work.
 
 Implementation gates remain open under:
 
-- `V2D-RT-001` command boundary
 - `V2D-E2E-004` product-runtime-engine full-chain flow browser replay
 - `V2D-CAM-001` through `V2D-CAM-003` above
 
