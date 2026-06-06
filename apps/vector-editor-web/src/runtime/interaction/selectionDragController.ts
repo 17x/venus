@@ -108,8 +108,8 @@ const SELECTION_MIN_HIT_TOLERANCE_PX = 4;
             allowFrameSelection,
             preferGroupSelection,
             tolerance: resolvedHitTolerance,
-            // Keep pointer-down hint verification aligned with hover/click masked policy.
-            excludeClipBoundImage: true,
+            // Keep the clipped host as the outer draggable element.
+            excludeClipBoundImage: false,
             clipTolerance: resolvedHitTolerance,
             resolveHoveredFromPointer: true,
             outlineLevel: 'low',
@@ -121,13 +121,17 @@ const SELECTION_MIN_HIT_TOLERANCE_PX = 4;
       }
       if (!hitShape) {
         const hitShapeId = resolveHitGeometryV2({
-          nodes: snapshot.document.shapes,
+          nodes: snapshot.document.shapes.map((shape) => (
+            shape.type === 'lineSegment' || shape.type === 'polygon' || shape.type === 'star' || shape.type === 'path'
+              ? {...shape, geometrySpace: 'world' as const}
+              : shape
+          )),
           pointer,
           allowFrameSelection,
           preferGroupSelection,
           tolerance: resolvedHitTolerance,
-          // Keep click candidates aligned with hover to avoid hover/click mismatch.
-          excludeClipBoundImage: true,
+          // Keep the clipped host as the outer draggable element.
+          excludeClipBoundImage: false,
           clipTolerance: resolvedHitTolerance,
           resolveHoveredFromPointer: true,
           outlineLevel: 'low',

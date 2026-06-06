@@ -240,6 +240,9 @@ export interface RuntimeRenderDiagnostics {
   overlayGuideDroppedCount: number
   overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
   overlayPathEditWhitelistActive: boolean
+  overlayProjectionDiagnosticCount: number
+  overlayProjectionDiagnosticCodes: string
+  overlayProjectionDiagnosticNodes: string
   sceneDirtyRequestCount: number
   deferredImageDrainRequestCount: number
   idleRedrawRequestCount: number

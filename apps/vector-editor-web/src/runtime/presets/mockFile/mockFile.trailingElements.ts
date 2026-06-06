@@ -6,7 +6,8 @@ export const MOCK_FILE_TRAILING_ELEMENTS: EditorFileDocument['elements'] = [
     type: 'path',
     layer: 999,
     name: 'Full Coverage Element',
-    show: true,
+    // Contract-only all-fields fixture; keep it out of the commercial default canvas.
+    show: false,
     x: 24,
     y: 24,
     cx: 120,

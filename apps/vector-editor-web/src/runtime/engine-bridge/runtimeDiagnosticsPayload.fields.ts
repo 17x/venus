@@ -294,6 +294,12 @@ export function buildRuntimeDiagnosticsPayloadFields(
       input.renderRequestStats.overlayGuideSelectionStrategy,
     overlayPathEditWhitelistActive:
       input.renderRequestStats.overlayPathEditWhitelistActive,
+    overlayProjectionDiagnosticCount:
+      input.renderRequestStats.overlayProjectionDiagnosticCount,
+    overlayProjectionDiagnosticCodes:
+      input.renderRequestStats.overlayProjectionDiagnosticCodes,
+    overlayProjectionDiagnosticNodes:
+      input.renderRequestStats.overlayProjectionDiagnosticNodes,
     sceneDirtyRequestCount: input.renderRequestStats.sceneDirtyCount,
     deferredImageDrainRequestCount: input.renderRequestStats.deferredImageDrainCount,
     idleRedrawRequestCount: input.renderRequestStats.idleRedrawCount,

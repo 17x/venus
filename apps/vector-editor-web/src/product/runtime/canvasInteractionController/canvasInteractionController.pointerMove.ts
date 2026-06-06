@@ -21,7 +21,11 @@ import {
   buildVectorOverlayModel,
   resolveVectorOverlayHit,
 } from '../../../runtime/primitive/index.ts'
-import {resolveShapeStyleControls, type ShapeStyleHandleDrag} from '../shapeStyleHandles.ts'
+import {
+  resolveConstrainedShapeStyleDragPoint,
+  resolveShapeStyleControls,
+  type ShapeStyleHandleDrag,
+} from '../shapeStyleHandles.ts'
 import {
   applyTransformPreviewFromManager,
   resolveMarqueeControlSizing,
@@ -196,12 +200,22 @@ export function createPointerMoveHandler(
         if (!current) {
           return current
         }
+        const shape = options.previewShapeById.get(current.payload.shapeId)
+        const constrainedPoint = shape
+          ? resolveConstrainedShapeStyleDragPoint({
+              shape,
+              drag: {
+                ...current,
+                payload: {...current.payload, point},
+              } as ShapeStyleHandleDrag,
+            })
+          : point
         if (current.kind === 'rect-radius') {
           return {
             kind: 'rect-radius',
             payload: {
               ...current.payload,
-              point,
+              point: constrainedPoint,
             },
           }
         }
@@ -209,7 +223,7 @@ export function createPointerMoveHandler(
           kind: 'ellipse-arc',
           payload: {
             ...current.payload,
-            point,
+            point: constrainedPoint,
           },
         }
       })
@@ -318,11 +332,13 @@ export function createPointerMoveHandler(
           // Keep selected hover outline alive while marquee handles are active
           // so marquee and element outline can render together (group handled in renderer).
           const hoveredSelectionPayload = options.canvasRuntime.requestEngineGeometry({
+            nodes: options.interactionDocument.shapes,
             pointer: point,
+            preferGroupSelection: options.currentTool === 'selector',
             tolerance: adaptiveHitTolerance.worldPx,
             clipTolerance: Math.max(0.5, adaptiveHitTolerance.worldPx * 0.25),
             allowFrameSelection: false,
-            excludeClipBoundImage: true,
+            excludeClipBoundImage: false,
             strictStrokeHitTest: false,
             resolveHoveredFromPointer: true,
             outlineLevel: 'low',
@@ -402,12 +418,14 @@ export function createPointerMoveHandler(
     })
     // Resolve hovered id in engine so pointer-move hover data stays on the unified geometry source.
     const hoverGeometryPayload = options.canvasRuntime.requestEngineGeometry({
+      nodes: options.interactionDocument.shapes,
       pointer: point,
+      preferGroupSelection: options.currentTool === 'selector',
       tolerance: hoverSelectorQueryOptions.tolerancePx,
       clipTolerance: Math.max(0.5, adaptiveHitTolerance.worldPx * 0.25),
       allowFrameSelection: false,
-      // Keep masked image hosts out of direct hover hits so hover/click share one policy.
-      excludeClipBoundImage: true,
+      // The host is the outer selectable element; engine clip validation limits its hit area.
+      excludeClipBoundImage: false,
       strictStrokeHitTest: false,
       resolveHoveredFromPointer: true,
       outlineLevel: 'low',

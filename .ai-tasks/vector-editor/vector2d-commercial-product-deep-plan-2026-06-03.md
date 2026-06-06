@@ -12,6 +12,11 @@ Canonical authoring model decision:
 
 - `.ai-tasks/vector-editor/vector2d-canonical-authoring-model-contract-2026-06-03.md`
 
+Render/operation/hit-test consistency contract:
+
+- `.ai-tasks/vector-editor/vector2d-render-operation-hittest-consistency-contract-2026-06-06.md`
+- `.ai-tasks/vector-editor/vector2d-consistency-execution-roadmap-2026-06-06.md`
+
 ## 1. Product Benchmark Frame
 
 ### 1.1 Products To Benchmark
@@ -149,6 +154,17 @@ Acceptance:
 
 Progress:
 
+- Rectangle corner-radius and ellipse arc-angle handlers now compile product semantics into the
+  generic Engine `runtime.constraints` API instead of owning range/circle projection.
+- Rectangle radius uses `scalar-range`; ellipse pointer input is normalized to a 3D unit-circle
+  constraint and converted back to canonical screen-space degrees by the Vector adapter.
+- Live handle drag points and commit values share the same constraint projection path.
+- Fixed radius-handle no-op instability: pointer-down/up without movement preserves the radius.
+- Rotated rectangle radius handles now derive in local shape space before world rotation.
+- Contract coverage proves radius clamping, ellipse projection, visible live-point projection,
+  and Engine/Vector adapter boundary behavior.
+- Remaining: migrate transform constraints and additional special handlers; complete
+  cancel/rollback and diagnostics matrix.
 - Added `.ai-tasks/vector-editor/vector2d-canonical-authoring-model-contract-2026-06-03.md`.
 - Decision: `EditorDocument` is the canonical in-memory authoring model; `EditorFileDocument` is persistence; `NormalizedRuntimeDocument`, `RuntimeSceneLatest`, and engine payloads are projections or compatibility surfaces.
 - Documented ownership, conversion graph, field preservation policy, asset naming, legacy fill/stroke precedence, hierarchy invariants, and implementation follow-up gates.
@@ -784,6 +800,7 @@ Progress:
 Remaining gate:
 
 - Add browser-level replay/visual smoke that drives the actual editor UI, verifies viewport/selection replay, and compares render signatures across save/load.
+- Include the render/operation/hit-test replay defined in `vector2d-render-operation-hittest-consistency-contract-2026-06-06.md`.
 
 ## 12. Execution Order
 
@@ -829,12 +846,91 @@ pnpm -C apps/vector-editor-web m2:run-all
 pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/**/*.test.ts
 pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/integration-contract/runtime-engine-adapter.contract.test.ts
 pnpm -C apps/vector-editor-web exec tsx --test src/testing/product-specs/document-structure/document-governance.contract.test.ts
+pnpm -C apps/vector-editor-web run test:consistency-replay
 git diff --check
 ```
 
 Future release gate should add browser-level product smoke for the file CRUD, single-select CRUD, multi-select CRUD, and product-runtime-engine full-chain flows.
 
-## 14. Handoff Rules
+## 14. 2026-06-04 Render / Hit / Selection Consistency Repair
+
+Status: IMPLEMENTED, regression-gated
+
+- Geometry queries now accept the live interaction document, so transform/style previews and hit-test no longer read a stale committed snapshot.
+- Group nodes no longer apply their box translation to children whose coordinates are already absolute.
+- Canvas selector hit-test may prefer a containing group, while direct/layer selection preserves the explicitly selected child so its own transform and special handlers remain available.
+- Mask source candidates collapse to their visible image host, and selection state keeps only that host, producing one outer selection box.
+- Clipped image hosts remain selectable; Engine clip validation limits their effective hit area instead of excluding the host.
+- Point-based Vector shapes declare world-space geometry to the generic Engine hit-test API, keeping line/path/polygon render, hover, drag, and transform coordinates aligned.
+- Runtime command and transaction ids remain monotonic across React controller recreation; repeated semantic history ids remain distinct committed entries.
+- The hidden full-field coverage fixture remains available to model tests but no longer paints over the default commercial canvas.
+- Ellipse sectors use one contract across handler, render, outline, and hit-test: `0deg` right, `+90deg` down, positive sweep with wrap through `360deg`, and stroke on both radial gap edges.
+- Vector adapter emits generic Engine `clipPathId` / `clipRule` references; WebGL/WebGPU model-complete composition applies the referenced clip path.
+
+Regression gates:
+
+```bash
+pnpm -C apps/vector-editor-web exec tsx --test src/runtime/presets/engineSceneAdapter/engineSceneAdapter.test.ts src/product/runtime/__tests__/runtimeSelectionFilterPolicyBehavior.test.ts src/testing/product-specs/rendering/vector-render-regressions.contract.test.ts src/testing/product-specs/document-structure/mock-file-coverage.contract.test.ts
+pnpm -C apps/vector-editor-web run test:browser-command-routing
+pnpm -C packages/engine exec tsx --test src/testing/webAdapter.conformance.test.ts
+```
+
+Verified on 2026-06-04:
+
+- Real editor smoke: images render, rectangle radius handlers render, mask selection has one host outline, and line selection/drag works.
+- Selection box and special handlers preserve explicit child selection instead of being replaced by a containing group.
+- Style-handle release retains the live preview until the worker commit arrives, avoiding the release flash.
+- Group, line, path, polygon, and star transform patches keep descendant/point geometry synchronized with render and hit-test state.
+- History keeps recording after the first operation because command/transaction ids no longer reset when the React command controller is recreated.
+- `pnpm -C apps/vector-editor-web run test:browser-command-routing`: PASS.
+- Full Vector2D product specs: 179 PASS, 0 FAIL.
+- Relevant Engine specs: 51 PASS, 0 FAIL.
+- Vector2D and Engine TypeScript checks: PASS.
+
+Verified on 2026-06-05:
+
+- Rotation disappearance root cause: Vector adapter emitted transform matrices in non-standard order while Engine backend attempted legacy inference. Standardized generic Engine scene transforms to Canvas/SVG affine order `[a,b,c,d,e,f]` in both adapter and backend.
+- Shadow root cause: Vector adapter already projected `shadow`, but WebGL/WebGPU model-complete composition did not apply `shadowColor`, `shadowOffsetX`, `shadowOffsetY`, or `shadowBlur`. Engine backends now consume generic shadow payloads for rich nodes.
+- Move/hit-test drift root cause: worker spatial broadphase used `x/y/width/height` for some point-based geometry. Spatial index now resolves runtime bounds from the same point/clip geometry used by scene writes.
+- Real browser QA: selected Analytics Card, set `Rotation=30°`, moved to `X=220/Y=240`, then dragged from the new visible position; inspector updated to `X=270/Y=281`, confirming render/operation/hit-test alignment for the tested flow.
+- Inspector color inputs now normalize CSS `rgb/rgba(...)` values to `#rrggbb` for the HTML color control only, preserving document-model color strings while removing browser format warnings.
+
+Verified on 2026-06-06:
+
+- Added committed browser replay gate: `pnpm -C apps/vector-editor-web run test:consistency-replay`.
+- The replay starts the actual editor, selects `Analytics Card`, edits Inspector transform fields to `X=220`, `Y=240`, `Rotation=30°`, drags from the transformed visible center, and asserts Inspector X/Y update again while rotation and selection remain stable.
+- Latest replay result: PASS with target `card-analytics`, viewport scale `1.1812`, expected `X=274.18/Y=275.56`, actual `X=276/Y=274`, rotation `30`.
+- Rotated overlay root cause fixed: selected Engine geometry payload now recomputes when the live `interactionDocument` changes, preventing stale selected-outline geometry after Inspector transforms and drag previews.
+- Added regression spec for rotated single-selection marquee bounds so the selected overlay cannot expand into an abnormal blue polygon for the tested 30° case.
+- Engine M3 phase 1 extracted shared rich-node composition helpers for Canvas/SVG matrix interpretation and generic shadow application across WebGL/WebGPU.
+- Added Engine helper regression coverage: `richNodeComposition.contract.test.ts`.
+- Engine M3 phase 2 extracted shared rich-node clip composition helper for generic polygon/ellipse/rect clip sources across WebGL/WebGPU.
+- Added Engine helper regression coverage for polygon, ellipse, rect, and missing-source clip behavior.
+- Engine M3 phase 3 extracted shared rich-node rounded-rect path helper across WebGL/WebGPU.
+- Rounded rect composition now clamps corner radii to valid geometry, preventing oversized radii from drifting between backend implementations.
+- Engine M3 phase 3 extracted shared rich-node ellipse-sector path helper across WebGL/WebGPU.
+- Ellipse sector composition now wraps `end < start` through 360deg and closes non-full sectors through center, preserving radial gap-edge fill/stroke semantics.
+- Engine M3 phase 3 extracted shared rich-node point/path/bezier path helper across WebGL/WebGPU.
+- Path composition now shares point path, bezier path, explicit closed/open, and fallback line behavior through generic Engine helpers.
+- Engine M3 phase 3 extracted shared rich-node text-run layout fallback helper across WebGL/WebGPU.
+- Text composition now shares single-style multiline, multi-run cursor advance, line-height fallback, and newline reset behavior through generic Engine fragments.
+- M4 projection diagnostics phase 1 added product-visible `projectionDiagnostics` on `OverlayDiagnostics`.
+- Runtime derived state now reports `v2d.projection.overlay-geometry.mismatch` when selected runtime bounds and Engine selected geometry bounds drift beyond tolerance.
+- Runtime derived state now reports `v2d.projection.spatial-bounds.stale` when runtime selected bounds exist but Engine selected geometry is missing.
+- Runtime render diagnostics and Runtime Debug Panel now surface projection diagnostic count/codes/nodes.
+- Added regression coverage for zero projection diagnostics on aligned bounds, deterministic mismatch payloads on drift, stale spatial-bound payloads when Engine geometry is missing, and runtime diagnostics stats mirroring.
+- Browser warnings remaining: WebGL ReadPixels performance warnings only; no app/page errors observed.
+- Full Vector2D product specs: 179 PASS, 0 FAIL.
+- Relevant Engine backend/helper specs: 41 PASS, 0 FAIL.
+- Vector2D and Engine TypeScript checks: PASS.
+- `git diff --check`: PASS.
+
+Detailed follow-up contract:
+
+- `.ai-tasks/vector-editor/vector2d-render-operation-hittest-consistency-contract-2026-06-06.md`
+- `.ai-tasks/vector-editor/vector2d-consistency-execution-roadmap-2026-06-06.md`
+
+## 15. Handoff Rules
 
 - Do not continue Vector2D work from playground `PG-S12` alone. Start from this document when the user says Vector2D commercialization is the priority.
 - Keep product semantics in `apps/vector-editor-web` and `.ai-tasks/vector-editor/*`.

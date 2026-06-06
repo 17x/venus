@@ -131,7 +131,9 @@ export function resolveOutlineForNode(
   if ((node.type === 'polygon' || node.type === 'star') && node.points && node.points.length >= MIN_POLYGON_OUTLINE_POINTS) {
     return {
       kind: 'polyline',
-      points: node.points.map((point) => ({x: point.x, y: point.y})),
+      points: node.geometrySpace === 'world'
+        ? node.points.map((point) => ({x: point.x, y: point.y}))
+        : resolveTransformedPoints(node.points, worldMatrix),
       closed: true,
     }
   }
@@ -188,13 +190,14 @@ function resolveLineSegmentPoints(
   matrix: GeometryMatrix2D,
 ): EngineEditorPoint[] {
   if (Array.isArray(node.points) && node.points.length >= LINE_SEGMENT_POINT_MIN_COUNT) {
-    return resolveTransformedPoints([
+    const points = [
       {x: node.points[0].x, y: node.points[0].y},
       {
         x: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].x,
         y: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].y,
       },
-    ], matrix)
+    ]
+    return node.geometrySpace === 'world' ? points : resolveTransformedPoints(points, matrix)
   }
 
   return resolveTransformedPoints([

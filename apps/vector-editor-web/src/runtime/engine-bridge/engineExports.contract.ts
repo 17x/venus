@@ -9,6 +9,7 @@ import {
   getNormalizedBoundsFromBox,
   resolveEngineAdaptiveHitTolerance,
   resolveEngineGeometryPayload,
+  resolveEngineConstraintProjection,
   resolveNodeTransform,
 } from './engine.ts'
 import {
@@ -39,6 +40,7 @@ export const ENGINE_EXPORT_CONTRACT: {
   doNormalizedBoundsOverlap: typeof doNormalizedBoundsOverlap
   getNormalizedBoundsFromBox: typeof getNormalizedBoundsFromBox
   resolveEngineGeometryPayload: typeof resolveEngineGeometryPayload
+  resolveEngineConstraintProjection: typeof resolveEngineConstraintProjection
   resolveEngineAdaptiveHitTolerance: typeof resolveEngineAdaptiveHitTolerance
   resolveNodeTransform: typeof resolveNodeTransform
   schedulerType: EngineRenderScheduler | null
@@ -58,6 +60,7 @@ export const ENGINE_EXPORT_CONTRACT: {
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
   resolveEngineGeometryPayload,
+  resolveEngineConstraintProjection,
   resolveEngineAdaptiveHitTolerance,
   resolveNodeTransform,
   schedulerType: null,

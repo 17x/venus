@@ -26,25 +26,32 @@ export function resolveRuntimeSelectionAllowIdSet(document: EditorDocument): Rea
  */
 export function filterRuntimeSelectionCandidateIds(input: RuntimeSelectionFilterInput): string[] {
   const allowIdSet = resolveRuntimeSelectionAllowIdSet(input.interactionDocument)
+  const maskHostBySourceId = new Map<string, string>()
+  input.interactionDocument.shapes.forEach((shape) => {
+    if (shape.type === 'image' && shape.clipPathId) {
+      maskHostBySourceId.set(shape.clipPathId, shape.id)
+    }
+  })
   const filteredIds: string[] = []
   const emittedIds = new Set<string>()
 
   for (const candidateId of input.candidateIds) {
+    const presentationId = maskHostBySourceId.get(candidateId) ?? candidateId
     // Keep candidate order deterministic while removing duplicate ids from mixed hit payload sources.
-    if (emittedIds.has(candidateId)) {
+    if (emittedIds.has(presentationId)) {
       continue
     }
-    if (!allowIdSet.has(candidateId)) {
+    if (!allowIdSet.has(presentationId)) {
       continue
     }
-    if (input.isHidden?.(candidateId)) {
+    if (input.isHidden?.(presentationId)) {
       continue
     }
-    if (input.isLocked?.(candidateId)) {
+    if (input.isLocked?.(presentationId)) {
       continue
     }
-    emittedIds.add(candidateId)
-    filteredIds.push(candidateId)
+    emittedIds.add(presentationId)
+    filteredIds.push(presentationId)
   }
 
   return filteredIds

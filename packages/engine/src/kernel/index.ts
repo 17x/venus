@@ -5,6 +5,8 @@ export * from "./profile-validator";
 export * from "./runtime-builder";
 export * from "./engineKernel";
 export * from "./animation/engineAnimationController";
+export * from "./constraint/constraint.contract";
+export * from "./constraint/constraintSolver";
 export * from "./ecs/runtimeWorld";
 export * from "./view/viewportFacade";
 export * from "./interaction/camera/cameraCommandProtocol";

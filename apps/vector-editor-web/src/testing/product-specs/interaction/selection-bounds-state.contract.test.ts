@@ -18,8 +18,8 @@ function createSceneSnapshots(): SceneShapeSnapshot[] {
     y: shape.y,
     width: shape.width,
     height: shape.height,
-    isHovered: shape.id === 'fixture-node',
-    isSelected: shape.id === 'fixture-frame' || shape.id === 'fixture-node',
+    isHovered: shape.id === 'fixture-rect',
+    isSelected: shape.id === 'fixture-frame' || shape.id === 'fixture-rect',
   }))
 }
 
@@ -31,8 +31,8 @@ test('buildSelectionState resolves selected ids, hover, and union bounds', () =>
   const snapshots = createSceneSnapshots()
   const state = buildSelectionState(document, snapshots)
 
-  assert.deepEqual(state.selectedIds.slice().sort(), ['fixture-frame', 'fixture-node'])
-  assert.equal(state.hoverId, 'fixture-node')
+  assert.deepEqual(state.selectedIds.slice().sort(), ['fixture-frame', 'fixture-rect'])
+  assert.equal(state.hoverId, 'fixture-rect')
   assert.ok(state.selectedBounds)
   assert.equal(state.selectedBounds.minX < state.selectedBounds.maxX, true)
   assert.equal(state.selectedBounds.minY < state.selectedBounds.maxY, true)

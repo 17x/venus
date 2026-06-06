@@ -262,6 +262,9 @@ interface RenderRequestStatsSnapshot {
   overlayGuideDroppedCount: number
   overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
   overlayPathEditWhitelistActive: boolean
+  overlayProjectionDiagnosticCount: number
+  overlayProjectionDiagnosticCodes: string
+  overlayProjectionDiagnosticNodes: string
   sceneDirtyCount: number
   deferredImageDrainCount: number
   idleRedrawCount: number

@@ -46,6 +46,11 @@ export const NON_FOUNDATION_CAPABILITY_ENTRIES = [
   "EngineHandle.runtime.collision.evaluateTriggers",
   "EngineHandle.runtime.collision.sweepCircle",
   "EngineHandle.runtime.collision.resolve",
+  "EngineHandle.runtime.constraints.register",
+  "EngineHandle.runtime.constraints.unregister",
+  "EngineHandle.runtime.constraints.get",
+  "EngineHandle.runtime.constraints.getAll",
+  "EngineHandle.runtime.constraints.resolve",
 ] as const;
 
 /**

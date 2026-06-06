@@ -25,8 +25,8 @@ export function resolveHoverHitTestOptions(options?: {
     maxExactCandidateCount: HOVER_GATED_HIT_CANDIDATE_COUNT,
     allowFrameSelection: false,
     tolerance: options?.tolerance ?? 6,
-    // Keep shared resolver default aligned with runtime hover/click masked policy.
-    excludeClipBoundImage: true,
+    // Keep the clipped host as the outer selectable element.
+    excludeClipBoundImage: false,
     clipTolerance: options?.clipTolerance ?? 1.5,
   }
 }

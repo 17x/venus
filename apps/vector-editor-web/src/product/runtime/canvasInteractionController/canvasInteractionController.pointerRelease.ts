@@ -55,13 +55,15 @@ export function createPointerUpHandler(
               : Math.max(0.5, queryOptions.tolerancePx)
             // Resolve point hit candidates in engine so vector no longer owns click hit geometry logic.
             const pointPayload = options.canvasRuntime.requestEngineGeometry({
+              nodes: options.interactionDocument.shapes,
               pointer: queryPoint,
+              preferGroupSelection: options.currentTool === 'selector',
               // Keep click tolerance aligned with hover adaptive hit policy.
               tolerance: pointTolerance,
               clipTolerance: Math.max(0.5, pointTolerance * 0.25),
               allowFrameSelection: false,
-              // Keep masked image hosts out of direct click hits to match hover behavior.
-              excludeClipBoundImage: true,
+              // The host is the outer selectable element; engine clip validation limits its hit area.
+              excludeClipBoundImage: false,
               strictStrokeHitTest: false,
               outlineLevel: 'low',
             })
@@ -86,6 +88,7 @@ export function createPointerUpHandler(
 
             // Resolve final marquee ids in engine so vector no longer owns contain/intersect geometry checks.
             const marqueePayload = options.canvasRuntime.requestEngineGeometry({
+              nodes: options.interactionDocument.shapes,
               marqueeBounds: selectorRect,
               marqueeMode: queryOptions.mode,
               outlineLevel: 'low',

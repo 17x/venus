@@ -54,6 +54,10 @@ Scenario foundations (DEX-010 to DEX-017):
 #### DEX-011 Surgical Planning & Path Simulation (P1) — TODO
 
 - [ ] Define path constraint API contracts
+  - Generic constraint-system decision and atomic design completed:
+    `.ai-tasks/engine/engine-generic-constraint-system-design-2026-06-04.md`
+  - Initial generic kernel and governed `runtime.constraints` API landed:
+    line/segment/plane/circle/scalar-range/angle-range, registry, transient resolve, diagnostics.
 - [ ] Add collision/risk query contracts
 - [ ] Add deterministic replay hooks
 - [ ] Primary scenarios: S1, S2

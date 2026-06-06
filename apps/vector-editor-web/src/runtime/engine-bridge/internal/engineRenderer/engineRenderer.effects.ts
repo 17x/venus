@@ -228,6 +228,7 @@ export function useEngineRendererOverlayDiagnosticsEffect(overlayDiagnosticsInpu
     guideDroppedCount?: number
     guideSelectionStrategy?: 'full' | 'axis-first' | 'axis-relevance'
     pathEditWhitelistActive?: boolean
+    projectionDiagnostics?: Array<{code: string; nodeId: string}>
   } | undefined
   renderRequestStatsRef: React.MutableRefObject<{
     overlayDegraded: boolean
@@ -236,6 +237,9 @@ export function useEngineRendererOverlayDiagnosticsEffect(overlayDiagnosticsInpu
     overlayGuideDroppedCount: number
     overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
     overlayPathEditWhitelistActive: boolean
+    overlayProjectionDiagnosticCount: number
+    overlayProjectionDiagnosticCodes: string
+    overlayProjectionDiagnosticNodes: string
   }>
 }) {
   const {overlayDiagnostics, renderRequestStatsRef} = overlayDiagnosticsInput
@@ -249,5 +253,13 @@ export function useEngineRendererOverlayDiagnosticsEffect(overlayDiagnosticsInpu
       overlayDiagnostics?.guideSelectionStrategy ?? 'full'
     renderRequestStatsRef.current.overlayPathEditWhitelistActive =
       overlayDiagnostics?.pathEditWhitelistActive ?? false
+    const projectionDiagnostics = overlayDiagnostics?.projectionDiagnostics ?? []
+    renderRequestStatsRef.current.overlayProjectionDiagnosticCount = projectionDiagnostics.length
+    renderRequestStatsRef.current.overlayProjectionDiagnosticCodes = projectionDiagnostics.length > 0
+      ? Array.from(new Set(projectionDiagnostics.map((diagnostic) => diagnostic.code))).join(', ')
+      : 'none'
+    renderRequestStatsRef.current.overlayProjectionDiagnosticNodes = projectionDiagnostics.length > 0
+      ? Array.from(new Set(projectionDiagnostics.map((diagnostic) => diagnostic.nodeId))).join(', ')
+      : 'none'
   }, [overlayDiagnostics, renderRequestStatsRef])
 }

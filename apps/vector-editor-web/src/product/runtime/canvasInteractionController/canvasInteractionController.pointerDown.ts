@@ -43,7 +43,7 @@ function resolvePointerDownMarqueeHandle(
 ) {
   return resolveMarqueeTransformHandleAtPoint({
     point,
-    selectedShapeIds: options.selectedShapeIds,
+    selectedShapeIds: options.selectionState.selectedIds,
     previewShapeById: options.previewShapeById,
     selectedBounds: options.selectionState.selectedBounds,
     viewportScale: options.canvasRuntime.viewport.scale,
@@ -60,11 +60,11 @@ function resolvePointerDownShapeStyleHandle(
   point: {x: number; y: number},
   options: EditorRuntimeCanvasInteractionControllerOptions,
 ): ShapeStyleHandleDrag | null {
-  if (!options.selectionState.selectedBounds || options.selectedShapeIds.length === 0) {
+  if (!options.selectionState.selectedBounds || options.selectionState.selectedIds.length === 0) {
     return null
   }
 
-  const selectedNodes = options.selectedShapeIds
+  const selectedNodes = options.selectionState.selectedIds
     .map((id) => options.previewShapeById.get(id))
     .filter((shape): shape is import('../../../runtime/model/index.ts').DocumentNode => Boolean(shape))
   const singleSelectionRotation = selectedNodes.length === 1
@@ -72,7 +72,7 @@ function resolvePointerDownShapeStyleHandle(
     : 0
   const sizing = resolveMarqueeControlSizing(options.canvasRuntime.viewport.scale)
   const styleControls = resolveShapeStyleControls({
-    selectedShapeIds: options.selectedShapeIds,
+    selectedShapeIds: options.selectionState.selectedIds,
     previewShapeById: options.previewShapeById,
     handleToleranceWorld: sizing.cornerToleranceWorld,
     minRectHandleInsetWorld: sizing.cornerToleranceWorld,
@@ -85,7 +85,7 @@ function resolvePointerDownShapeStyleHandle(
   const overlayModel = buildVectorOverlayModel({
     selectedBounds: options.selectionState.selectedBounds,
     selectionRotationDegrees: singleSelectionRotation,
-    selectedShapeIds: options.selectedShapeIds,
+    selectedShapeIds: options.selectionState.selectedIds,
     marqueeBounds: null,
     hoveredShapeBounds: null,
     hoveredShapePolygon: null,
@@ -168,7 +168,7 @@ export function createPointerDownHandler(
           const startedTransformSession = startTransformSessionFromSelection({
             point,
             handle: marqueeHandle,
-            selectedShapeIds: options.selectedShapeIds,
+            selectedShapeIds: options.selectionState.selectedIds,
             previewShapeById: options.previewShapeById,
             selectedBounds: options.selectionState.selectedBounds,
             transformManagerRef: options.transformManagerRef,
@@ -217,11 +217,13 @@ export function createPointerDownHandler(
       // Sample pointer-down hit candidates through the same geometry source used by click/hover
       // so diagnostics can be compared across key paths without tolerance drift.
       const pointerDownGeometryPayload = options.canvasRuntime.requestEngineGeometry({
+        nodes: options.interactionDocument.shapes,
         pointer: point,
+        preferGroupSelection: options.currentTool === 'selector',
         tolerance: adaptiveHitTolerance.worldPx,
         clipTolerance: Math.max(0.5, adaptiveHitTolerance.worldPx * 0.25),
         allowFrameSelection: false,
-        excludeClipBoundImage: true,
+        excludeClipBoundImage: false,
         strictStrokeHitTest: false,
         resolveHoveredFromPointer: true,
         outlineLevel: 'low',

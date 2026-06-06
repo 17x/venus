@@ -88,7 +88,10 @@ export interface CanvasRuntimeApi<TDocument extends EditorDocument> {
   subscribe: (listener: VoidFunction) => VoidFunction
   /** Resolves unified engine geometry payload for vector outline/marquee/hint strategy. */
   requestEngineGeometry: (
-    options: Omit<ResolveEngineGeometryPayloadOptions, 'nodes'>,
+    options: Omit<ResolveEngineGeometryPayloadOptions, 'nodes'> & {
+      /** Optional live interaction nodes used before committed snapshot catches up. */
+      nodes?: unknown[]
+    },
   ) => EngineGeometryPayload
   updateHoverFromPoint: (pointer: {x: number; y: number}) => void
   updatePresentationConfig: (patch: CanvasPresentationConfigPatch) => void
@@ -247,7 +250,16 @@ export function createCanvasRuntimeApi<TDocument extends EditorDocument>(
     // Route geometry queries through engine so product layer stays policy-only.
     requestEngineGeometry: (requestOptions) => resolveHitGeometryV2({
       ...requestOptions,
-      nodes: snapshot.document.shapes,
+      nodes: (requestOptions.nodes ?? snapshot.document.shapes).map((node) => (
+        node && typeof node === 'object' && (
+          (node as {type?: string}).type === 'lineSegment' ||
+          (node as {type?: string}).type === 'polygon' ||
+          (node as {type?: string}).type === 'star' ||
+          (node as {type?: string}).type === 'path'
+        )
+          ? {...node, geometrySpace: 'world'}
+          : node
+      )),
     }),
     updateHoverFromPoint: (pointer) => {
       // Route hover hit resolution through engine payload so vector no longer owns hit geometry.
@@ -258,7 +270,7 @@ export function createCanvasRuntimeApi<TDocument extends EditorDocument>(
         clipTolerance: hoverResolveOptions?.clipTolerance ?? 1.5,
         allowFrameSelection: hoverResolveOptions?.allowFrameSelection ?? false,
         strictStrokeHitTest: hoverResolveOptions?.strictStrokeHitTest ?? false,
-        excludeClipBoundImage: hoverResolveOptions?.excludeClipBoundImage ?? true,
+        excludeClipBoundImage: hoverResolveOptions?.excludeClipBoundImage ?? false,
         resolveHoveredFromPointer: true,
         outlineLevel: 'low',
       })

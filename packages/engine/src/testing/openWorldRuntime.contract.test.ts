@@ -160,6 +160,29 @@ test("runtime navigation registered paths honor constraints and non-loop complet
   engine.dispose();
 });
 
+test("runtime navigation driver corrects drift through generic active-segment constraint", () => {
+  const engine = createEngine({
+    surface: createTestSurface(320, 180),
+    backend: "headless",
+  });
+  engine.runtime.navigation.setAgents([
+    { id: "drifted", kind: "car", x: 2, z: 5, yaw: 0, pathIndex: 0, speed: 2 },
+  ]);
+  engine.runtime.navigation.registerPath({
+    id: "straight",
+    loop: false,
+    nodes: [{ x: 0, z: 0 }, { x: 10, z: 0 }],
+  });
+
+  const [agent] = engine.runtime.navigation.stepPathAgents({
+    deltaSeconds: 1,
+    pathBindings: [{ agentId: "drifted", pathId: "straight" }],
+  });
+  assert.equal(agent.z, 0);
+  assert.equal(agent.x > 2, true);
+  engine.dispose();
+});
+
 test("runtime world resolveCollision resolves penetration and damps velocity", () => {
   const engine = createEngine({
     surface: createTestSurface(320, 180),

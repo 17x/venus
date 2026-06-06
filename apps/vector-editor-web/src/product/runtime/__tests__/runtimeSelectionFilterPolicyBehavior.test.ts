@@ -68,3 +68,53 @@ test('allow-id resolver returns exactly interaction document shape ids', () => {
   assert.equal(allowSet.has('c'), true)
   assert.equal(allowSet.has('b'), false)
 })
+
+test('selection filter preserves explicit nested candidates for direct/layer selection', () => {
+  const interactionDocument: EditorDocument = {
+    id: 'doc',
+    name: 'doc',
+    width: 100,
+    height: 100,
+    shapes: [
+      {id: 'outer', type: 'group', name: 'Outer', x: 0, y: 0, width: 80, height: 80, childIds: ['inner']},
+      {id: 'inner', type: 'group', name: 'Inner', x: 10, y: 10, width: 60, height: 60, parentId: 'outer', childIds: ['leaf']},
+      {id: 'leaf', type: 'rectangle', name: 'Leaf', x: 20, y: 20, width: 10, height: 10, parentId: 'inner'},
+    ],
+  }
+
+  const filtered = filterRuntimeSelectionCandidateIds({
+    candidateIds: ['leaf', 'inner', 'outer'],
+    interactionDocument,
+  })
+
+  assert.deepEqual(filtered, ['leaf', 'inner', 'outer'])
+})
+
+test('selection filter presents a clip source and clipped image as one outer host', () => {
+  const interactionDocument: EditorDocument = {
+    id: 'doc',
+    name: 'doc',
+    width: 100,
+    height: 100,
+    shapes: [
+      {id: 'mask', type: 'ellipse', name: 'Mask', x: 10, y: 10, width: 60, height: 60},
+      {
+        id: 'image',
+        type: 'image',
+        name: 'Image',
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 80,
+        clipPathId: 'mask',
+      },
+    ],
+  }
+
+  const filtered = filterRuntimeSelectionCandidateIds({
+    candidateIds: ['mask', 'image'],
+    interactionDocument,
+  })
+
+  assert.deepEqual(filtered, ['image'])
+})

@@ -82,6 +82,10 @@ export function createHistoryManager(seed: Array<Omit<HistoryEntry, 'source'>> =
 
       const entryWithSource: HistoryEntry = {
         ...entry,
+        // Repeated edits of the same target often produce the same semantic
+        // entry id. Keep every committed operation addressable in the
+        // timeline instead of letting duplicate ids collapse UI metadata.
+        id: resolveUniqueLocalHistoryEntryId(entry.id, localEntries),
         source: 'local',
       }
 
@@ -164,6 +168,20 @@ export function createHistoryManager(seed: Array<Omit<HistoryEntry, 'source'>> =
       })
     },
   }
+}
+
+function resolveUniqueLocalHistoryEntryId(
+  requestedId: string,
+  entries: readonly HistoryEntry[],
+): string {
+  if (!entries.some((entry) => entry.id === requestedId)) {
+    return requestedId
+  }
+  let suffix = 2
+  while (entries.some((entry) => entry.id === `${requestedId}#${suffix}`)) {
+    suffix += 1
+  }
+  return `${requestedId}#${suffix}`
 }
 
 /**

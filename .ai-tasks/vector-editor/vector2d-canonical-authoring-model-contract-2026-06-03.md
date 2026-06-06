@@ -259,11 +259,27 @@ Commands are authoring mutations. They patch `EditorDocument`, not engine graph 
 
 Overlays are runtime/product projections derived from `EditorDocument`, selection state, hover state, and tool sessions. They are not document nodes unless the user commits a drawing/editing command.
 
-### 6.4 File CRUD
+### 6.4 Render / Operation / Hit-Test Consistency
+
+Commercial editing requires `EditorDocument`, runtime scene memory, worker spatial index, Engine render payload, Engine hit-test payload, and overlay instructions to converge after every committed command.
+
+Rules:
+
+- Vector2D adapter emits generic Engine transform matrices in standard Canvas/SVG affine order `[a,b,c,d,e,f]`.
+- Point-based geometry must declare and preserve its geometry space. Current Vector2D line/path/polygon/star authoring points are world-space unless a projection explicitly converts them with a matching transform.
+- Scene-memory bounds and spatial broadphase bounds must come from the same runtime bounds resolver.
+- Backend effects such as shadow are generic render payloads; if the inspector exposes the effect as enabled, Engine backend composition must render it or emit an explicit degradation diagnostic.
+- Mask and clip presentation remains product-owned: selection chrome presents the visible outer host once, while mutation commands may expand linked host/source ids at the command boundary.
+
+Detailed contract:
+
+- `.ai-tasks/vector-editor/vector2d-render-operation-hittest-consistency-contract-2026-06-06.md`
+
+### 6.5 File CRUD
 
 File CRUD changes `EditorFileDocument` containers and lifecycle. Live editing always happens through `EditorDocument` after open/create.
 
-### 6.5 Element CRUD
+### 6.6 Element CRUD
 
 Element CRUD changes `DocumentNode` records through product commands. The same command path must serve canvas, layer panel, inspector, menu, shortcut, and API triggers.
 

@@ -114,7 +114,7 @@ export const ENGINE_SCENE_ADAPTER_RENDER_SUPPORT_MATRIX: readonly EngineSceneAda
   {
     feature: 'image',
     status: 'fallback',
-    enginePayloadFields: ['type', 'assetId', 'x', 'y', 'width', 'height', 'clip'],
+    enginePayloadFields: ['type', 'assetId', 'x', 'y', 'width', 'height', 'clipPathId', 'clipRule'],
     diagnosticCodes: [
       'v2d.adapter.degraded.fill-image',
       'v2d.adapter.degraded.missing-image-source',
@@ -158,7 +158,7 @@ export const ENGINE_SCENE_ADAPTER_RENDER_SUPPORT_MATRIX: readonly EngineSceneAda
   {
     feature: 'masks',
     status: 'projected',
-    enginePayloadFields: ['clip'],
+    enginePayloadFields: ['clipPathId', 'clipRule'],
     diagnosticCodes: [],
     policy: 'Clip-path references project to generic clip payloads when the referenced clip node exists.',
   },
@@ -248,6 +248,9 @@ export function createEngineSceneFromRuntimeSnapshot(
     ? new Set(options.includeShapeIds)
     : null
   const documentShapeById = new Map(options.document.shapes.map((shape) => [shape.id, shape]))
+  const clipSourceIdSet = new Set(options.document.shapes.flatMap((shape) => (
+    shape.clipPathId ? [shape.clipPathId] : []
+  )))
   const nodes: EngineRenderableNode[] = []
   const diagnostics = collectEngineSceneAdapterDiagnostics(options.document, documentShapeById)
   if (options.includeDocumentBackground !== false) {
@@ -271,15 +274,22 @@ export function createEngineSceneFromRuntimeSnapshot(
     const sourceShape = documentShapeById.get(shape.id)
     const sourceBounds = resolveSourceShapeBounds(sourceShape)
     const sourceTransform = resolveSourceShapeTransform(sourceShape)
-    const paint = resolveShapePaint(sourceShape)
+    const paint = clipSourceIdSet.has(shape.id)
+      ? {fill: 'transparent', stroke: 'transparent', strokeWidth: 0}
+      : resolveShapePaint(sourceShape)
     const sourceType = sourceShape?.type ?? shape.type
     const clip = resolveNodeClip(sourceShape, documentShapeById)
     if (sourceType === 'group') {
       nodes.push({
         id: shape.id,
         type: 'group',
+        x: sourceBounds?.x ?? shape.x,
+        y: sourceBounds?.y ?? shape.y,
+        width: sourceBounds?.width ?? shape.width,
+        height: sourceBounds?.height ?? shape.height,
         children: [],
-        transform: sourceTransform,
+        // Vector document children already use absolute world coordinates.
+        // Do not apply the group box translation again through hierarchy.
         lightingMode: defaultLightingMode,
         materialId: defaultMaterialId,
       })
@@ -297,7 +307,7 @@ export function createEngineSceneFromRuntimeSnapshot(
           width: sourceBounds?.width ?? shape.width,
           height: sourceBounds?.height ?? shape.height,
           transform: sourceTransform,
-          clip,
+          ...clip,
           lightingMode: defaultLightingMode,
           materialId: defaultMaterialId,
           fill: paint.fill,
@@ -316,7 +326,7 @@ export function createEngineSceneFromRuntimeSnapshot(
         transform: sourceTransform,
         shadow: resolveNodeShadow(sourceShape),
         assetId: sourceShape?.assetId ?? sourceShape?.id ?? shape.id,
-        clip,
+        ...clip,
         lightingMode: defaultLightingMode,
         materialId: defaultMaterialId,
       })
@@ -332,7 +342,7 @@ export function createEngineSceneFromRuntimeSnapshot(
         height: sourceBounds?.height ?? shape.height,
         transform: sourceTransform,
         shadow: resolveNodeShadow(sourceShape),
-        clip,
+        ...clip,
         lightingMode: defaultLightingMode,
         materialId: defaultMaterialId,
         cacheKey: shape.textRenderHash ? `worker:${shape.textRenderHash}` : undefined,
@@ -411,7 +421,7 @@ export function createEngineSceneFromRuntimeSnapshot(
       strokeStartArrowhead: sourceShape?.strokeStartArrowhead,
       strokeEndArrowhead: sourceShape?.strokeEndArrowhead,
       shadow: resolveNodeShadow(sourceShape),
-      clip,
+      ...clip,
       transform: sourceTransform,
       lightingMode: defaultLightingMode,
       materialId: defaultMaterialId,
@@ -731,8 +741,8 @@ function resolveNodeClip(
     return undefined
   }
   return {
-    clipNodeId: sourceShape.clipPathId,
-    rule: sourceShape.clipRule,
+    clipPathId: sourceShape.clipPathId,
+    clipRule: sourceShape.clipRule ?? 'nonzero',
   }
 }
 function resolveSourceShapeBounds(
@@ -758,13 +768,8 @@ function resolveSourceShapeTransform(
   const resolved = resolveNodeTransform(sourceShape)
   const affine = resolved.matrix
   return {
-    matrix: [
-      affine[0],
-      affine[2],
-      affine[4],
-      affine[1],
-      affine[3],
-      affine[5],
-    ] as const,
+    // Generic Engine transform matrices use standard Canvas/SVG affine order:
+    // [a, b, c, d, e, f].
+    matrix: affine,
   }
 }

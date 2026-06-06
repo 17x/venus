@@ -84,6 +84,15 @@ test("api docs coverage and EN/CN parity baseline", async () => {
       markers: ["engine.runtime.compileWorld", "engine.runtime.submit", "Runtime API"],
     },
     {
+      en: "en/api/runtime-constraints.md",
+      cn: "cn/api/runtime-constraints.md",
+      markers: [
+        "engine.runtime.constraints.register",
+        "engine.runtime.constraints.resolve",
+        "missing-constraint-set",
+      ],
+    },
+    {
       en: "en/api/runtime-document.md",
       cn: "cn/api/runtime-document.md",
       markers: [

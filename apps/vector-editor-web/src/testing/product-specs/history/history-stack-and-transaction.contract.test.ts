@@ -59,6 +59,34 @@ test('history stack truncates redo branch when new local transaction is pushed',
   assert.equal(summary.cursor, 1)
 })
 
+test('history stack keeps repeated semantic entry ids as distinct committed operations', () => {
+  const manager = createHistoryManager()
+
+  manager.pushLocalEntry(createHistoryEntry('transform:shape-a', 'move shape'), {
+    commandMeta: {
+      commandId: 'runtime-cmd-1',
+      transactionId: 'runtime-txn-1',
+      commandSource: 'user',
+      issuedAt: 100,
+      commandType: 'shape.move',
+    },
+  })
+  manager.pushLocalEntry(createHistoryEntry('transform:shape-a', 'move shape'), {
+    commandMeta: {
+      commandId: 'runtime-cmd-2',
+      transactionId: 'runtime-txn-2',
+      commandSource: 'user',
+      issuedAt: 101,
+      commandType: 'shape.move',
+    },
+  })
+
+  assert.deepEqual(
+    manager.getSummary().entries.map((entry) => entry.id),
+    ['transform:shape-a', 'transform:shape-a#2'],
+  )
+})
+
 test('history stack exposes crash-recovery recent-N replay snapshots for local-only and merged modes', () => {
   const manager = createHistoryManager()
 

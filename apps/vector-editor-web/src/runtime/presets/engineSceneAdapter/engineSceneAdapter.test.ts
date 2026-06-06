@@ -142,3 +142,100 @@ test('scene adapter projects paragraph style fields from text runs', () => {
   assert.equal(runStyle.paragraphSpaceBeforeLine, 8)
   assert.equal(runStyle.paragraphSpaceAfterLine, 9)
 })
+
+test('scene adapter keeps absolute-positioned group children from receiving group translation twice', () => {
+  const document: EditorDocument = {
+    id: 'doc-group',
+    name: 'Group Document',
+    width: 400,
+    height: 300,
+    shapes: [
+      {id: 'group-1', type: 'group', name: 'Group', x: 80, y: 60, width: 200, height: 160, childIds: ['child-1']},
+      {id: 'child-1', type: 'rectangle', name: 'Child', x: 100, y: 90, width: 40, height: 30, parentId: 'group-1'},
+    ],
+  }
+  const shapes: SceneShapeSnapshot[] = document.shapes.map((shape) => ({
+    id: shape.id,
+    name: shape.name,
+    type: shape.type,
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+    isHovered: false,
+    isSelected: false,
+  }))
+
+  const scene = createEngineSceneFromRuntimeSnapshot({document, shapes, revision: 3})
+  const group = scene.nodes.find((node) => node.id === 'group-1')
+  const child = scene.nodes.find((node) => node.id === 'child-1')
+
+  assert.ok(group)
+  assert.equal(group.transform, undefined)
+  assert.equal(group.x, 80)
+  assert.equal(child?.x, 100)
+})
+
+test('scene adapter emits standard Canvas affine matrix order for rotated nodes', () => {
+  const document = createMinimalDocument()
+  document.shapes[0] = {
+    ...document.shapes[0],
+    rotation: 30,
+  }
+  const scene = createEngineSceneFromRuntimeSnapshot({
+    document,
+    shapes: createMinimalShapeSnapshot(),
+    revision: 31,
+  })
+
+  const node = scene.nodes.find((item) => item.id === 'shape-1') as Record<string, unknown> | undefined
+  const transform = node?.transform as {matrix?: number[]} | undefined
+  const matrix = transform?.matrix
+  assert.ok(matrix)
+  assert.equal(matrix.length, 6)
+  assert.equal(Math.abs(matrix[2] ?? 0) < 1, true, 'c component should contain skew/rotation, not translation')
+  assert.equal(Math.abs(matrix[4] ?? 0) > 1, true, 'e component should contain translation')
+})
+
+test('scene adapter projects clip references into generic engine clip fields', () => {
+  const document: EditorDocument = {
+    id: 'doc-clip',
+    name: 'Clip Document',
+    width: 400,
+    height: 300,
+    shapes: [
+      {id: 'clip-1', type: 'ellipse', name: 'Clip', x: 20, y: 30, width: 100, height: 80},
+      {
+        id: 'image-1',
+        type: 'image',
+        name: 'Image',
+        x: 0,
+        y: 0,
+        width: 160,
+        height: 120,
+        assetId: 'asset-1',
+        assetUrl: 'data:image/png;base64,fixture',
+        clipPathId: 'clip-1',
+        clipRule: 'evenodd',
+      },
+    ],
+  }
+  const shapes: SceneShapeSnapshot[] = document.shapes.map((shape) => ({
+    id: shape.id,
+    name: shape.name,
+    type: shape.type,
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+    isHovered: false,
+    isSelected: false,
+  }))
+
+  const scene = createEngineSceneFromRuntimeSnapshot({document, shapes, revision: 4})
+  const image = scene.nodes.find((node) => node.id === 'image-1')
+
+  assert.equal(image?.clipPathId, 'clip-1')
+  assert.equal(image?.clipRule, 'evenodd')
+  assert.equal(image?.clip, undefined)
+})

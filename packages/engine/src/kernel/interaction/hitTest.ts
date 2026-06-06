@@ -75,6 +75,8 @@ export interface EngineEditorHitTestNode {
 	}
 	points?: EngineEditorPoint[]
 	bezierPoints?: EngineEditorBezierPoint[]
+	/** Declares whether point/bezier geometry is already expressed in world space. */
+	geometrySpace?: 'local' | 'world'
 	closed?: boolean
 	// Stores optional ellipse arc start angle in degrees.
 	ellipseStartAngle?: number
@@ -201,13 +203,25 @@ export function isPointInsideEngineShapeHitArea(
 	const tolerance = options?.tolerance ?? DEFAULT_HIT_TOLERANCE
 	const strictStrokeHitTest = options?.strictStrokeHitTest ?? false
 	const testPointer = resolveShapeHitPointer(pointer, shape, options?.shapeById)
+	const pointGeometryPointer = shape.geometrySpace === 'world' ? pointer : testPointer
 
 	if (shape.type === 'image' || shape.type === 'text') {
 		return isPointInsideBounds(testPointer, getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height))
 	}
 
 	if (shape.type === 'lineSegment') {
-		return isPointNearLineSegment(testPointer, {
+		const points = shape.points
+		if (points && points.length >= 2) {
+			const start = points[0]
+			const end = points[points.length - 1]
+			return isPointNearLineSegment(pointGeometryPointer, {
+				x1: start.x,
+				y1: start.y,
+				x2: end.x,
+				y2: end.y,
+			}, tolerance)
+		}
+		return isPointNearLineSegment(pointGeometryPointer, {
 			x1: shape.x,
 			y1: shape.y,
 			x2: shape.x + shape.width,
@@ -266,26 +280,26 @@ export function isPointInsideEngineShapeHitArea(
 		const hasStrokeArea = hasShapeStrokeHitArea(shape)
 		const strokeOnly = strictStrokeHitTest && hasStrokeArea
 		return (
-			(hasStrokeArea && isPointNearPolygonEdge(testPointer, points, tolerance)) ||
-			(!strokeOnly && hasShapeFillHitArea(shape) && isPointInsidePolygon(testPointer, points))
+			(hasStrokeArea && isPointNearPolygonEdge(pointGeometryPointer, points, tolerance)) ||
+			(!strokeOnly && hasShapeFillHitArea(shape) && isPointInsidePolygon(pointGeometryPointer, points))
 		)
 	}
 
 	if (shape.type === 'path') {
 		const coarseBounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
 		// Skip expensive path segment/polygon checks when pointer is clearly outside expanded bounds.
-		if (!isPointInsideExpandedBounds(testPointer, coarseBounds, tolerance)) {
+		if (!isPointInsideExpandedBounds(pointGeometryPointer, coarseBounds, tolerance)) {
 			return false
 		}
 
 		const closedShape = isClosedPathShape(shape)
 		const hasStrokeArea = hasShapeStrokeHitArea(shape)
 		const strokeOnly = strictStrokeHitTest && hasStrokeArea
-		if (hasStrokeArea && isPathStrokeHit(testPointer, shape, tolerance, closedShape)) {
+		if (hasStrokeArea && isPathStrokeHit(pointGeometryPointer, shape, tolerance, closedShape)) {
 			return true
 		}
 		return !strokeOnly && hasShapeFillHitArea(shape, closedShape) &&
-			isPathFillHit(testPointer, shape, tolerance, closedShape)
+			isPathFillHit(pointGeometryPointer, shape, tolerance, closedShape)
 	}
 
 	return false

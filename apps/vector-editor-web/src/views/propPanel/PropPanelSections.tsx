@@ -13,7 +13,7 @@ import {
 import {IconInputField} from './IconInputField.tsx'
 import {ProtectedInput} from './protectedInput.tsx'
 import {PropPanelFontFamilyPicker} from './PropPanelFontFamilyPicker.tsx'
-import {FieldRow, InlineIconAction, PaintRow, SectionBlock} from './PropPanelShared.tsx'
+import {FieldRow, InlineIconAction, PaintRow, resolveColorInputValue, SectionBlock} from './PropPanelShared.tsx'
 
 interface SectionProps {
   props: SelectedElementProps
@@ -420,7 +420,7 @@ export function EffectsSection({props, patchElementProps}: SectionProps) {
         <span className={EDITOR_TEXT_PANEL_LABEL_CLASS}>Color</span>
         <ProtectedInput
           type={'color'}
-          value={shadow.color}
+          value={resolveColorInputValue(shadow.color)}
           title={t('inspector.properties.fields.shadowColor', 'Shadow Color')}
           onChange={(event) => {
             patchElementProps({shadow: {enabled: shadow.enabled, color: event.target.value, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: shadow.blur}})

@@ -15,6 +15,8 @@ import {
 import type {
   EngineHandle as InternalEngine,
   CreateEngineOptions,
+  EngineConstraintResolveOutput,
+  EngineConstraintSet,
 } from '@venus/engine'
 import {
   createSingleFlightScheduler,
@@ -212,6 +214,15 @@ type BridgeHelperEngine = InternalEngine & {
   runtime: {
     /** Stores plan API namespace used by geometry wrappers. */
     plan: BridgeRuntimePlan
+    /** Stores product-neutral constraint API used by adapter wrappers. */
+    constraints: {
+      register: (set: EngineConstraintSet) => EngineConstraintSet
+      resolve: (input: {
+        constraintSetId: string
+        candidate: {position: {x: number; y: number; z: number}}
+        scalar?: number
+      }) => EngineConstraintResolveOutput
+    }
   }
 }
 
@@ -345,6 +356,24 @@ export function resolveEngineGeometryPayload(
 }
 
 /**
+ * Resolves one transient adapter candidate through the formal Engine Constraint API.
+ * Product adapters own the meaning of the set and convert the generic result back.
+ */
+export function resolveEngineConstraintProjection(input: {
+  set: EngineConstraintSet
+  candidate: {position: {x: number; y: number; z: number}}
+  scalar?: number
+}): EngineConstraintResolveOutput {
+  const engine = resolveBridgeHelperEngine()
+  engine.runtime.constraints.register(input.set)
+  return engine.runtime.constraints.resolve({
+    constraintSetId: input.set.id,
+    candidate: input.candidate,
+    ...(input.scalar !== undefined ? {scalar: input.scalar} : {}),
+  })
+}
+
+/**
  * Resolves adaptive hit tolerance through formal runtime plan API.
  * @param options Optional viewport and tuning inputs for adaptive tolerance.
  */
@@ -439,4 +468,3 @@ export {
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
 }
-

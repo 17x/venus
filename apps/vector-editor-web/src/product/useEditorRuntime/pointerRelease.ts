@@ -95,7 +95,9 @@ export function handleCanvasPointerUp(options: {
   }
   if (options.shapeStyleHandleDrag) {
     options.commitShapeStyleHandleUpdate(options.shapeStyleHandleDrag)
-    options.setShapeStyleHandleDrag(null)
+    // Keep the live preview through the worker round-trip so the committed
+    // document cannot briefly render the pre-drag value on pointer-up.
+    window.setTimeout(() => options.setShapeStyleHandleDrag(null), 50)
     return
   }
   options.selectionDragControllerRef.current?.pointerUp()

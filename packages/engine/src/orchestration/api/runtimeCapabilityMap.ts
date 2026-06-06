@@ -22,7 +22,7 @@ export interface EngineRuntimeCapabilityRecord {
 /**
  * Version marker for diagnostics capability snapshot payload compatibility.
  */
-export const ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION = 12;
+export const ENGINE_RUNTIME_CAPABILITY_SCHEMA_VERSION = 13;
 
 /**
  * Single-source runtime capability registry consumed by docs/tests/tooling.
@@ -342,6 +342,41 @@ export const ENGINE_RUNTIME_CAPABILITY_REGISTRY = [
     stability: "stable",
     layer: "runtime",
     notes: "Runtime collision resolve capability.",
+  },
+  {
+    name: "runtimeConstraintsRegister",
+    entry: "EngineHandle.runtime.constraints.register",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime product-neutral constraint-set registration capability.",
+  },
+  {
+    name: "runtimeConstraintsUnregister",
+    entry: "EngineHandle.runtime.constraints.unregister",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime product-neutral constraint-set unregister capability.",
+  },
+  {
+    name: "runtimeConstraintsGet",
+    entry: "EngineHandle.runtime.constraints.get",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime product-neutral constraint-set query capability.",
+  },
+  {
+    name: "runtimeConstraintsGetAll",
+    entry: "EngineHandle.runtime.constraints.getAll",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime product-neutral constraint-set collection capability.",
+  },
+  {
+    name: "runtimeConstraintsResolve",
+    entry: "EngineHandle.runtime.constraints.resolve",
+    stability: "experimental",
+    layer: "runtime",
+    notes: "Runtime deterministic constraint projection capability.",
   },
   {
     name: "runtimeDirtyGetState",

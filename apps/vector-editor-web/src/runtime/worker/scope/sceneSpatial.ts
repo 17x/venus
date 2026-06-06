@@ -19,11 +19,12 @@ export function rebuildSpatialIndex(
   document: EditorDocument,
 ) {
   spatialIndex.load(
-    document.shapes.map((shape, order) => createSpatialItem(shape, order)),
+    document.shapes.map((shape, order) => createSpatialItem(document, shape, order)),
   )
 }
 
 function createSpatialItem(
+  document: EditorDocument,
   shape: DocumentNode,
   order: number,
 ): WorkerSpatialItem<{
@@ -31,7 +32,7 @@ function createSpatialItem(
   type: DocumentNode['type']
   order: number
 }> {
-  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+  const bounds = resolveRuntimeShapeBounds(shape, document)
   return {
     id: shape.id,
     minX: bounds.minX,
@@ -56,7 +57,7 @@ export function updateSpatialShape(
     return
   }
 
-  spatialIndex.update(createSpatialItem(document.shapes[index], index))
+  spatialIndex.update(createSpatialItem(document, document.shapes[index], index))
 }
 
 export function syncSpatialRange(
@@ -73,7 +74,7 @@ export function syncSpatialRange(
   }
 
   for (let index = boundedStart; index <= boundedEnd; index += 1) {
-    spatialIndex.update(createSpatialItem(document.shapes[index], index))
+    spatialIndex.update(createSpatialItem(document, document.shapes[index], index))
   }
 }
 
@@ -302,7 +303,7 @@ function resolveShapeBounds(shape: DocumentNode) {
     )
   }
 
-  if ((shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
+  if ((shape.type === 'lineSegment' || shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
     const pointBounds = getPathBounds(shape.points)
     return getNormalizedBounds(
       pointBounds.x,

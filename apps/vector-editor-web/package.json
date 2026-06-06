@@ -18,6 +18,7 @@
     "perf:gate:template": "node ./scripts/perf-gate.mjs --report ./scripts/perf-gate.report.template.json",
     "perf:fps:playwright": "node ./scripts/playwright-fps-check.mjs",
     "test:browser-command-routing": "node ./scripts/playwright-command-routing-smoke.mjs",
+    "test:consistency-replay": "node ./scripts/playwright-consistency-replay.mjs",
     "report:feature-matrix": "pnpm dlx tsx ./scripts/template-feature-matrix-report.ts",
     "report:render-parity-checklist": "pnpm dlx tsx ./scripts/render-parity-checklist-report.ts",
     "report:render-parity-sampled": "pnpm dlx tsx ./scripts/render-parity-sampled-report.ts",

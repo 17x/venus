@@ -128,6 +128,9 @@ export type EngineStatsHandlerParams = {
     overlayGuideDroppedCount: number
     overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
     overlayPathEditWhitelistActive: boolean
+    overlayProjectionDiagnosticCount: number
+    overlayProjectionDiagnosticCodes: string
+    overlayProjectionDiagnosticNodes: string
     canvasResizeCommitCount: number
     canvasResizeDeferredCommitCount: number
     canvasResizeLastCommitReason: string

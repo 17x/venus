@@ -3,13 +3,17 @@ import {getBoundingRectFromBezierPoints} from '../../model/index.ts'
 import type {EditorDocument} from '../../model/index.ts'
 import type {SceneShapeSnapshot} from '../../shared-memory/index.ts'
 import {resolveMaskSourceNode} from '../maskGroup.ts'
+import {resolveMaskSelectionPresentationIds} from '../maskGroup.ts'
 import type {InteractionBounds, SelectionState} from '../productInteractionTypes.ts'
 
 export function buildSelectionState(
   _document: EditorDocument,
   snapshots: SceneShapeSnapshot[],
 ): SelectionState {
-  const selectedIds = snapshots.filter((shape) => shape.isSelected).map((shape) => shape.id)
+  const selectedIds = resolveMaskSelectionPresentationIds(
+    _document,
+    snapshots.filter((shape) => shape.isSelected).map((shape) => shape.id),
+  )
   const hoverId = snapshots.find((shape) => shape.isHovered)?.id ?? null
 
   if (selectedIds.length === 0) {

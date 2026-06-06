@@ -309,6 +309,12 @@ export function CompactRuntimeDebugPanel(props: {
         report={diagnosticsDataSource.adapterReport}
       />
 
+      <DebugSection title={t('shell.variantB.debug.sectionProjectionDiagnostics', 'Projection Diagnostics')}>
+        <DebugRow label={t('shell.variantB.debug.projectionDiagnosticCount', 'Projection Diagnostic Count')} value={String(diagnostics.overlayProjectionDiagnosticCount)}/>
+        <DebugRow label={t('shell.variantB.debug.projectionDiagnosticCodes', 'Projection Diagnostic Codes')} value={diagnostics.overlayProjectionDiagnosticCodes}/>
+        <DebugRow label={t('shell.variantB.debug.projectionDiagnosticNodes', 'Projection Diagnostic Nodes')} value={diagnostics.overlayProjectionDiagnosticNodes}/>
+      </DebugSection>
+
       <DebugSection title={t('shell.variantB.debug.sectionExportAndCache', 'Export / Cache / WebGL')}>
         <DebugRow label={t('shell.variantB.debug.cacheHitRate', 'Cache Hit Rate')} value={`${cacheHitRate.toFixed(1)}%`}/>
         <DebugRow label={t('shell.variantB.debug.tileCacheSize', 'Tile Cache Size')} value={String(diagnosticsDataSource.webglStats.tileCacheSize)}/>
@@ -438,6 +444,12 @@ export function VerboseRuntimeDebugPanel(props: {
         t={t}
         report={diagnosticsDataSource.adapterReport}
       />
+
+      <DebugSection title={t('shell.variantB.debug.sectionProjectionDiagnostics', 'Projection Diagnostics')}>
+        <DebugRow label={t('shell.variantB.debug.projectionDiagnosticCount', 'Projection Diagnostic Count')} value={String(diagnostics.overlayProjectionDiagnosticCount)}/>
+        <DebugRow label={t('shell.variantB.debug.projectionDiagnosticCodes', 'Projection Diagnostic Codes')} value={diagnostics.overlayProjectionDiagnosticCodes}/>
+        <DebugRow label={t('shell.variantB.debug.projectionDiagnosticNodes', 'Projection Diagnostic Nodes')} value={diagnostics.overlayProjectionDiagnosticNodes}/>
+      </DebugSection>
 
       <DebugSection title={t('shell.variantB.debug.sectionPlanner', 'Planner / Frame / Hit')}>
         <DebugRow label={t('shell.variantB.debug.framePlanVersion', 'Frame Plan Version')} value={String(diagnostics.framePlanVersion)}/>

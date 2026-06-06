@@ -103,6 +103,7 @@ import { createEngineRuntimeCapabilityDisposeFacade } from "./createEngine.runti
 import type { EngineBackendFrameDiagnostics } from "../../backend/adapters/noopBackendAdapter";
 import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../../backend/fallbackTaxonomy";
 import type { EngineRuntimeDocumentWarningCode } from "../../kernel/document/document-warning-codes";
+import { resolveEngineConstraintSet } from "../../kernel/constraint/constraintSolver";
 const ENGINE_RUNTIME_DOCUMENT_SCHEMA_VERSION = 1;
 const TOPOLOGY_TRIANGLE_MIN_POSITION_COUNT = 9;
 const TOPOLOGY_LINE_MIN_POSITION_COUNT = 6;
@@ -871,11 +872,27 @@ export function createEngine(options: CreateEngineOptions): EngineHandle {
       ? Math.min(rawStepDistance, Math.max(0, options.maxStepDistance ?? rawStepDistance))
       : rawStepDistance;
     const stepDistance = Math.min(dist, constrainedStepDistance);
+    const proposedPosition = {
+      x: agent.x + nx * stepDistance,
+      y: 0,
+      z: agent.z + nz * stepDistance,
+    };
+    const constrained = resolveEngineConstraintSet({
+      id: "runtime-navigation-path",
+      rules: [{
+        constraint: {
+          id: "active-path-segment",
+          kind: "segment",
+          start: { x: path[currentIndex].x, y: 0, z: path[currentIndex].z },
+          end: { x: target.x, y: 0, z: target.z },
+        },
+      }],
+    }, { position: proposedPosition });
     return {
       ...agent,
       pathIndex: currentIndex,
-      x: agent.x + nx * stepDistance,
-      z: agent.z + nz * stepDistance,
+      x: constrained.pose.position.x,
+      z: constrained.pose.position.z,
       yaw: (Math.atan2(nx, nz) * 180) / Math.PI,
     };
   }

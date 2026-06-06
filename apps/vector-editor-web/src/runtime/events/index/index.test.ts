@@ -235,6 +235,9 @@ test('runtime render diagnostics publish notifies listeners and updates snapshot
     activeOverlayUsesActivePlane: true,
     activeOverlayProtectedNodeCount: 2,
     activeOverlayInteractionActiveNodeCount: 7,
+    overlayProjectionDiagnosticCount: 1,
+    overlayProjectionDiagnosticCodes: 'v2d.projection.overlay-geometry.mismatch',
+    overlayProjectionDiagnosticNodes: 'card',
     schedulerQueueWaitMs: 1,
     schedulerThrottleDelayMs: 0,
     presentRafDelayMs: 0,
@@ -260,6 +263,12 @@ test('runtime render diagnostics publish notifies listeners and updates snapshot
   assert.equal(diagnostics.stats?.overlay.activeOverlayUsesActivePlane, true)
   assert.equal(diagnostics.stats?.overlay.activeOverlayProtectedNodeCount, 2)
   assert.equal(diagnostics.stats?.overlay.activeOverlayInteractionActiveNodeCount, 7)
+  assert.equal(diagnostics.overlayProjectionDiagnosticCount, 1)
+  assert.equal(diagnostics.overlayProjectionDiagnosticCodes, 'v2d.projection.overlay-geometry.mismatch')
+  assert.equal(diagnostics.overlayProjectionDiagnosticNodes, 'card')
+  assert.equal(diagnostics.stats?.overlay.overlayProjectionDiagnosticCount, 1)
+  assert.equal(diagnostics.stats?.overlay.overlayProjectionDiagnosticCodes, 'v2d.projection.overlay-geometry.mismatch')
+  assert.equal(diagnostics.stats?.overlay.overlayProjectionDiagnosticNodes, 'card')
 
   unsubscribe()
 })
@@ -411,4 +420,3 @@ test('runtime event reset clears normalized interaction snapshot and emits liste
 
   unsubscribe()
 })
-

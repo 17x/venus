@@ -111,6 +111,9 @@ export function useEngineRendererLifecycle(params: {
     overlayGuideDroppedCount: number
     overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
     overlayPathEditWhitelistActive: boolean
+    overlayProjectionDiagnosticCount: number
+    overlayProjectionDiagnosticCodes: string
+    overlayProjectionDiagnosticNodes: string
     sceneDirtyCount: number
     deferredImageDrainCount: number
     idleRedrawCount: number

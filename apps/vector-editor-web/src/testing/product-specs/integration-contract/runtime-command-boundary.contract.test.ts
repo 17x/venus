@@ -217,3 +217,46 @@ test('runtime command controller publishes command contract metadata with dispat
     assert.equal(event.commandSource, 'user')
   }
 })
+
+test('runtime command controller keeps transaction ids monotonic across controller recreation', () => {
+  const transactionIds: string[] = []
+  const createController = () => createEditorRuntimeCommandController({
+    add: () => {},
+    canvasRuntime: {
+      dispatchCommand: (_command: EditorRuntimeCommand, meta: {transactionId: string}) => {
+        transactionIds.push(meta.transactionId)
+      },
+      document: {id: 'doc', name: 'Doc', width: 100, height: 100, shapes: []},
+      viewport: {scale: 1, viewportWidth: 100, viewportHeight: 100},
+      requestEngineGeometry: () => ({pointHitNodeIds: []}),
+    } as unknown as Parameters<typeof createEditorRuntimeCommandController>[0]['canvasRuntime'],
+    selectedNode: null,
+    interactionDocument: {id: 'doc', name: 'Doc', width: 100, height: 100, shapes: []},
+    previewShapes: [],
+    currentTool: 'selector',
+    selectedShapeIds: [],
+    getLastCanvasPoint: () => null,
+    clearTransformPreview: () => {},
+    transformManagerRef: {current: createTransformSessionManager()},
+    selectionDragControllerRef: {current: createSelectionDragController()},
+    setActiveTransformHandle: createNoopSetter(),
+    setHoveredTransformHandle: createNoopSetter(),
+    setDraftPrimitive: createNoopSetter(),
+    setPathHandleDrag: createNoopSetter(),
+    setShapeStyleHandleDrag: createNoopSetter(),
+    setSelectorOverlayItems: createNoopSetter(),
+    setSnappingEnabled: createNoopSetter(),
+    setSnapGuides: createNoopSetter(),
+    setIsolationGroupId: createNoopSetter(),
+    runtimeEditingModeControllerRef: {current: createRuntimeEditingModeController('idle')},
+    setLastCommandType: () => {},
+    setLastCommandMeta: () => {},
+    dispatchRuntimeEvent: () => {},
+  })
+
+  createController().handleRuntimeCommand({type: 'shape.move', shapeId: 'shape-1', x: 10, y: 12})
+  createController().handleRuntimeCommand({type: 'shape.move', shapeId: 'shape-1', x: 20, y: 24})
+
+  assert.equal(transactionIds.length, 2)
+  assert.notEqual(transactionIds[0], transactionIds[1])
+})

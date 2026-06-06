@@ -295,6 +295,9 @@ export interface RuntimeRenderDiagnosticsStats {
     overlayGuideDroppedCount: number
     overlayGuideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
     overlayPathEditWhitelistActive: boolean
+    overlayProjectionDiagnosticCount: number
+    overlayProjectionDiagnosticCodes: string
+    overlayProjectionDiagnosticNodes: string
     /** Stores current scene routing plane resolved by active/overlay contract. */
     activeOverlayScenePlane: 'base' | 'active'
     /** Stores current overlay routing plane resolved by active/overlay contract. */
@@ -424,4 +427,3 @@ export interface RuntimeMigrationSnapshot {
     adapterSnapshotGovernance: RuntimeAdapterSnapshotGovernanceSnapshot
   }
 }
-

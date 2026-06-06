@@ -2,6 +2,7 @@ import type {OverlayControl} from '@venus/editor-primitive'
 import {CONTROL_PRIORITY} from '@venus/editor-primitive'
 import {getNormalizedBoundsFromBox} from '@venus/lib'
 import type {DocumentNode} from '../../runtime/model/index.ts'
+import {resolveEngineConstraintProjection} from '../../runtime/engine-bridge/engine.ts'
 
 /**
  * Declares supported rectangle-corner identifiers for per-corner radius editing.
@@ -132,7 +133,22 @@ export function resolveRectCornerRadiusFromPoint(input: {
         : Math.min(distanceFromLeft, distanceFromBottom)
 
   const maxRadius = Math.min(width, height) / 2
-  return clamp(rawRadius, 0, maxRadius)
+  const result = resolveEngineConstraintProjection({
+    set: {
+      id: 'vector-adapter:rect-radius-range',
+      rules: [{
+        constraint: {
+          id: 'radius-range',
+          kind: 'scalar-range',
+          min: 0,
+          max: maxRadius,
+        },
+      }],
+    },
+    candidate: {position: {x: 0, y: 0, z: 0}},
+    scalar: rawRadius,
+  })
+  return result.scalar ?? null
 }
 
 /**
@@ -155,11 +171,79 @@ export function resolveEllipseArcAngleFromPoint(input: {
   const ry = Math.max(Number.EPSILON, (bounds.maxY - bounds.minY) / 2)
 
   const localPoint = rotateAround(input.point, center, -(input.shape.rotation ?? 0))
-  const normalizedDx = (localPoint.x - center.x) / rx
+  const result = resolveEngineConstraintProjection({
+    set: {
+      id: 'vector-adapter:ellipse-unit-circle',
+      rules: [{
+        constraint: {
+          id: 'unit-circle',
+          kind: 'circle',
+          center: {x: 0, y: 0, z: 0},
+          normal: {x: 0, y: 0, z: 1},
+          radius: 1,
+        },
+      }],
+    },
+    candidate: {
+      position: {
+        x: (localPoint.x - center.x) / rx,
+        y: (localPoint.y - center.y) / ry,
+        z: 0,
+      },
+    },
+  })
   // Screen/world Y grows downward: 0deg points right and +90deg points down.
-  const normalizedDy = (localPoint.y - center.y) / ry
-  const angle = (Math.atan2(normalizedDy, normalizedDx) * 180) / Math.PI
+  const angle = (Math.atan2(result.pose.position.y, result.pose.position.x) * 180) / Math.PI
   return normalizeDegrees(angle)
+}
+
+/**
+ * Projects a live product drag point through Engine constraints, then converts it back to world space.
+ */
+export function resolveConstrainedShapeStyleDragPoint(input: {
+  shape: DocumentNode
+  drag: ShapeStyleHandleDrag
+}): {x: number; y: number} {
+  const bounds = getNormalizedBoundsFromBox(input.shape.x, input.shape.y, input.shape.width, input.shape.height)
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  }
+
+  if (input.drag.kind === 'rect-radius' && input.shape.type === 'rectangle') {
+    const radius = resolveRectCornerRadiusFromPoint({
+      shape: input.shape,
+      corner: input.drag.payload.corner,
+      point: input.drag.payload.point,
+    }) ?? 0
+    const corners = {
+      topLeft: {x: bounds.minX, y: bounds.minY, dx: 1, dy: 1},
+      topRight: {x: bounds.maxX, y: bounds.minY, dx: -1, dy: 1},
+      bottomRight: {x: bounds.maxX, y: bounds.maxY, dx: -1, dy: -1},
+      bottomLeft: {x: bounds.minX, y: bounds.maxY, dx: 1, dy: -1},
+    } satisfies Record<RectCornerKey, {x: number; y: number; dx: number; dy: number}>
+    const corner = corners[input.drag.payload.corner]
+    return rotateAround({
+      x: corner.x + corner.dx * radius,
+      y: corner.y + corner.dy * radius,
+    }, center, input.shape.rotation ?? 0)
+  }
+
+  if (input.drag.kind === 'ellipse-arc' && input.shape.type === 'ellipse') {
+    const angle = resolveEllipseArcAngleFromPoint({
+      shape: input.shape,
+      point: input.drag.payload.point,
+    }) ?? 0
+    const radians = (angle * Math.PI) / 180
+    const rx = Math.max(Number.EPSILON, (bounds.maxX - bounds.minX) / 2)
+    const ry = Math.max(Number.EPSILON, (bounds.maxY - bounds.minY) / 2)
+    return rotateAround({
+      x: center.x + Math.cos(radians) * rx * 0.5,
+      y: center.y + Math.sin(radians) * ry * 0.5,
+    }, center, input.shape.rotation ?? 0)
+  }
+
+  return input.drag.payload.point
 }
 
 /**
@@ -208,13 +292,13 @@ function resolveRectRadiusControls(input: {
       ? input.activeDrag
       : null
 
-    const cornerPoint = rotateAround(corners[corner], center, input.shape.rotation ?? 0)
+    const inset = Math.max(input.minRectHandleInsetWorld, resolvedCornerRadii[corner])
     const controlPoint = activeCornerDrag
       ? activeCornerDrag.payload.point
-      : {
-          x: cornerPoint.x + (insetDirection[corner].x / Math.SQRT2) * Math.max(input.minRectHandleInsetWorld, resolvedCornerRadii[corner]),
-          y: cornerPoint.y + (insetDirection[corner].y / Math.SQRT2) * Math.max(input.minRectHandleInsetWorld, resolvedCornerRadii[corner]),
-        }
+      : rotateAround({
+          x: corners[corner].x + insetDirection[corner].x * inset,
+          y: corners[corner].y + insetDirection[corner].y * inset,
+        }, center, input.shape.rotation ?? 0)
 
     return {
       id: `shape-style:rect-radius:${input.shape.id}:${corner}`,
@@ -344,16 +428,6 @@ function rotateAround(point: {x: number; y: number}, center: {x: number; y: numb
     x: center.x + dx * cos - dy * sin,
     y: center.y + dx * sin + dy * cos,
   }
-}
-
-/**
- * Clamps a value to the inclusive [min, max] range.
- */
-function clamp(value: number, min: number, max: number) {
-  if (Number.isNaN(value)) {
-    return min
-  }
-  return Math.min(max, Math.max(min, value))
 }
 
 /**

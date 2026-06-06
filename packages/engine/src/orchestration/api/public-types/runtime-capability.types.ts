@@ -62,6 +62,7 @@ import type {
   EngineRuntimeGpuResourceOutput,
   EngineRuntimeWorldApi,
 } from "./runtime-services.types";
+import type { EngineRuntimeConstraintApi } from "../../../kernel/constraint/constraint.contract";
 
 export interface EngineRuntimeApi {
   /** Returns current runtime document snapshot. */
@@ -152,6 +153,8 @@ export interface EngineRuntimeApi {
   navigation: EngineRuntimeNavigationApi;
   /** Runtime collision API namespace. */
   collision: EngineRuntimeCollisionApi;
+  /** Product-neutral runtime constraint API namespace. */
+  constraints: EngineRuntimeConstraintApi;
   /** Dirty foundation API namespace. */
   dirty: EngineRuntimeDirtyApi;
   /** Command foundation API namespace. */

@@ -146,7 +146,7 @@ function resolveEllipseAngleDegrees(
   const radiusY = Math.max(Number.EPSILON, (bounds.maxY - bounds.minY) / HALF_DIVISOR)
   const center = resolveEllipseCenter(bounds)
   const normalizedX = (pointer.x - center.x) / radiusX
-  // Treat +90deg as upward to match editor-facing arc-angle semantics.
+  // Screen/world Y grows downward: 0deg right and +90deg down.
   const normalizedY = (pointer.y - center.y) / radiusY
   return normalizeAngleDegrees((Math.atan2(normalizedY, normalizedX) * DEGREES_HALF_CIRCLE) / Math.PI)
 }

@@ -974,6 +974,11 @@ test("webgl adapter classifies native mesh capability-gate diagnostics", () => {
  */
 test("webgl adapter emits model-complete diagnostics from rich-node payload", () => {
   let drawArraysCount = 0;
+  let clipCount = 0;
+  let clipRule: CanvasFillRule | null = null;
+  const transforms: number[][] = [];
+  const appliedShadows: Array<{color?: string; offsetX?: number; offsetY?: number; blur?: number}> = [];
+  const currentShadow: {color?: string; offsetX?: number; offsetY?: number; blur?: number} = {};
   let lastDiagnostics: {
     webglRenderPath: "model-complete" | "packet" | "none";
   } | null = null;
@@ -1003,14 +1008,36 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
         beginPath() {},
         moveTo() {},
         lineTo() {},
+        rect() {},
+        ellipse() {},
         bezierCurveTo() {},
         closePath() {},
+        clip(rule?: CanvasFillRule) {
+          clipCount += 1;
+          clipRule = rule ?? "nonzero";
+        },
         fill() {},
         stroke() {},
         clearRect() {},
         fillRect() {},
         translate() {},
         scale() {},
+        transform(...args: number[]) {
+          transforms.push(args);
+        },
+        set shadowColor(value: string) {
+          currentShadow.color = value;
+        },
+        set shadowOffsetX(value: number) {
+          currentShadow.offsetX = value;
+        },
+        set shadowOffsetY(value: number) {
+          currentShadow.offsetY = value;
+        },
+        set shadowBlur(value: number) {
+          currentShadow.blur = value;
+          appliedShadows.push({...currentShadow});
+        },
         strokeRect() {},
       } as unknown as OffscreenCanvasRenderingContext2D;
     }
@@ -1125,6 +1152,15 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
         rects: [],
         nodes: [
           {
+            id: "clip-1",
+            type: "shape",
+            shape: "rect",
+            x: 8,
+            y: 10,
+            width: 48,
+            height: 36,
+          },
+          {
             id: "shape-1",
             type: "shape",
             shape: "line",
@@ -1134,6 +1170,17 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
             height: 24,
             stroke: "#ff0000",
             strokeWidth: 2,
+            clipPathId: "clip-1",
+            clipRule: "evenodd",
+            shadow: {
+              color: "rgba(0,0,0,0.35)",
+              offsetX: 4,
+              offsetY: 6,
+              blur: 12,
+            },
+            transform: {
+              matrix: [1, 0.5, -0.25, 1, 80, 40],
+            },
           },
         ],
       }),
@@ -1143,6 +1190,15 @@ test("webgl adapter emits model-complete diagnostics from rich-node payload", ()
     backend.renderFrame(1);
 
     assert.equal(drawArraysCount > 0, true);
+    assert.equal(clipCount, 1);
+    assert.equal(clipRule, "evenodd");
+    assert.deepEqual(transforms.at(-1), [1, 0.5, -0.25, 1, 80, 40]);
+    assert.deepEqual(appliedShadows.at(-1), {
+      color: "rgba(0,0,0,0.35)",
+      offsetX: 4,
+      offsetY: 6,
+      blur: 12,
+    });
     assert.equal(lastDiagnostics?.webglRenderPath, "model-complete");
   } finally {
     Object.defineProperty(globalThis, "OffscreenCanvas", {
@@ -2193,6 +2249,8 @@ test("webgpu adapter emits native-model-complete diagnostics from rich-node payl
   const originalSetTimeout = globalThis.setTimeout;
   let copiedImageCount = 0;
   let submittedCount = 0;
+  const appliedShadows: Array<{color?: string; offsetX?: number; offsetY?: number; blur?: number}> = [];
+  const currentShadow: {color?: string; offsetX?: number; offsetY?: number; blur?: number} = {};
   let lastDiagnostics: {
     webgpuRenderPath: "hybrid-webgl" | "native-clear-only" | "native-rect-batch" | "native-model-complete";
     webgpuNativeSubmissionSuccessCount: number;
@@ -2230,6 +2288,19 @@ test("webgpu adapter emits native-model-complete diagnostics from rich-node payl
         fillRect() {},
         translate() {},
         scale() {},
+        set shadowColor(value: string) {
+          currentShadow.color = value;
+        },
+        set shadowOffsetX(value: number) {
+          currentShadow.offsetX = value;
+        },
+        set shadowOffsetY(value: number) {
+          currentShadow.offsetY = value;
+        },
+        set shadowBlur(value: number) {
+          currentShadow.blur = value;
+          appliedShadows.push({...currentShadow});
+        },
         strokeRect() {},
       } as unknown as OffscreenCanvasRenderingContext2D;
     }
@@ -2321,6 +2392,12 @@ test("webgpu adapter emits native-model-complete diagnostics from rich-node payl
             fill: "#ff0000",
             stroke: "#222222",
             strokeWidth: 1,
+            shadow: {
+              color: "rgba(0,0,0,0.4)",
+              offsetX: 3,
+              offsetY: 5,
+              blur: 9,
+            },
             bezierPoints: [
               {
                 anchor: { x: 10, y: 12 },
@@ -2352,6 +2429,12 @@ test("webgpu adapter emits native-model-complete diagnostics from rich-node payl
 
     assert.equal(copiedImageCount > 0, true);
     assert.equal(submittedCount, 0);
+    assert.deepEqual(appliedShadows.at(-1), {
+      color: "rgba(0,0,0,0.4)",
+      offsetX: 3,
+      offsetY: 5,
+      blur: 9,
+    });
     assert.equal(lastDiagnostics?.webgpuRenderPath, "native-model-complete");
     assert.equal(lastDiagnostics?.webgpuNativeSubmissionSuccessCount, 1);
   } finally {

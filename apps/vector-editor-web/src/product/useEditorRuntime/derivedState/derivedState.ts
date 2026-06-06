@@ -42,6 +42,7 @@ import {
   resolveShapeStylePreviewDocument,
 } from './derivedState.shared.ts'
 import {useEditorRuntimeDerivedStateOverlays} from './derivedState.overlays.ts'
+import {collectProjectionDiagnostics} from './derivedState.projectionDiagnostics.ts'
 
 /**
  * Derives renderer/overlay interaction state from runtime snapshots for editor product hooks.
@@ -233,14 +234,6 @@ export function useEditorRuntimeDerivedState(options: {
   }), [overlayInteractionDegraded, selectionState.selectedBounds, snapGuides])
   const effectiveSnapGuides = reducedSnapGuides.guides
   const overlayGuideSelectionStrategy = reducedSnapGuides.strategy
-  const overlayDiagnostics = useMemo<OverlayDiagnostics>(() => ({
-    degraded: overlayInteractionDegraded,
-    guideInputCount: snapGuides.length,
-    guideKeptCount: effectiveSnapGuides.length,
-    guideDroppedCount: Math.max(0, snapGuides.length - effectiveSnapGuides.length),
-    guideSelectionStrategy: overlayGuideSelectionStrategy,
-    pathEditWhitelistActive: hasPathEditActivity,
-  }), [effectiveSnapGuides.length, hasPathEditActivity, overlayGuideSelectionStrategy, overlayInteractionDegraded, snapGuides.length])
   const activePathSubSelection = pathSubSelectionHover ?? pathSubSelection
   const selectionChromeRegistry = useMemo(() => createRuntimeSelectionChromeRegistry(), [])
   const selectionChrome = useMemo(() => selectionChromeRegistry.resolve({
@@ -288,6 +281,7 @@ export function useEditorRuntimeDerivedState(options: {
   }, [hasPathEditActivity, hoveredGeometryShape])
 
   const engineGeometryPayload = useMemo(() => canvasRuntime.requestEngineGeometry({
+    nodes: interactionDocument.shapes,
     hoveredNodeId: hoverDisplayShapeId,
     selectedNodeIds: selectionPresentationShapeIds,
     pointer: geometryHintPointer,
@@ -299,7 +293,30 @@ export function useEditorRuntimeDerivedState(options: {
     geometryOutlineLevel,
     geometryHintPointer,
     hoverDisplayShapeId,
+    interactionDocument,
     selectionPresentationShapeIds,
+  ])
+
+  const projectionDiagnostics = useMemo(() => collectProjectionDiagnostics({
+    selectedBounds: selectionState.selectedBounds,
+    selectedGeometryPayloads: engineGeometryPayload.selected,
+  }), [engineGeometryPayload.selected, selectionState.selectedBounds])
+
+  const overlayDiagnostics = useMemo<OverlayDiagnostics>(() => ({
+    degraded: overlayInteractionDegraded,
+    guideInputCount: snapGuides.length,
+    guideKeptCount: effectiveSnapGuides.length,
+    guideDroppedCount: Math.max(0, snapGuides.length - effectiveSnapGuides.length),
+    guideSelectionStrategy: overlayGuideSelectionStrategy,
+    pathEditWhitelistActive: hasPathEditActivity,
+    projectionDiagnostics,
+  }), [
+    effectiveSnapGuides.length,
+    hasPathEditActivity,
+    overlayGuideSelectionStrategy,
+    overlayInteractionDegraded,
+    projectionDiagnostics,
+    snapGuides.length,
   ])
 
   const {

@@ -90,6 +90,10 @@ import type {
   EngineRuntimeLightingEnvironmentInput,
   EngineRuntimeLightingEnvironmentOutput,
   EngineLightCollection,
+  EngineConstraintResolveInput,
+  EngineConstraintResolveOutput,
+  EngineConstraintSet,
+  EngineConstraintUnregisterOutput,
 } from "./public-types";
 import type {
   BoxTransformSource,
@@ -104,6 +108,7 @@ import type {
   EngineGeometryPayload,
 } from "../../kernel/interaction/geometryPayload";
 import type { EngineRenderSchedulerDiagnostics } from "../../orchestration/renderScheduler";
+import { resolveEngineConstraintSet } from "../../kernel/constraint/constraintSolver";
 
 const ONE_GIBIBYTE_BYTES = Number("1024") * Number("1024") * Number("1024");
 const INTERACTION_VOLUME_BUDGET_RATIO = 0.125;
@@ -276,6 +281,8 @@ export function createEngineRuntimeFacadeNamespace(deps: {
   getRuntimeModelInstances: (options?: { cameraPosition?: readonly [number, number, number] }) => readonly import("./public-types").EngineRuntimeModelInstanceSnapshot[];
   resolveRuntimeModelDiagnostics: () => import("./public-types").EngineRuntimeModelDiagnosticsOutput;
 }): EngineRuntimeApi {
+  let runtimeConstraintSets: readonly EngineConstraintSet[] = [];
+
   /**
    * Clamps one numeric value into [min, max] while preserving deterministic fallback behavior.
    * @param value Source numeric value.
@@ -439,6 +446,54 @@ export function createEngineRuntimeFacadeNamespace(deps: {
       evaluateTriggers: (input) => deps.evaluateRuntimeCollisionTriggers(input),
       sweepCircle: (input) => deps.sweepRuntimeCollisionCircle(input),
       resolve: (input) => deps.resolveRuntimeWorldCollision(input),
+    },
+    constraints: {
+      register: (set: EngineConstraintSet): EngineConstraintSet => {
+        const normalizedId = set.id.trim();
+        if (normalizedId.length === 0) {
+          throw new Error("Constraint set id must not be empty.");
+        }
+        const normalized = {
+          ...set,
+          id: normalizedId,
+          rules: [...set.rules],
+        };
+        runtimeConstraintSets = [
+          ...runtimeConstraintSets.filter((item) => item.id !== normalized.id),
+          normalized,
+        ];
+        return normalized;
+      },
+      unregister: (constraintSetId: string): EngineConstraintUnregisterOutput => {
+        const beforeCount = runtimeConstraintSets.length;
+        runtimeConstraintSets = runtimeConstraintSets.filter((set) => set.id !== constraintSetId);
+        return {
+          removed: runtimeConstraintSets.length !== beforeCount,
+          constraintSetCount: runtimeConstraintSets.length,
+        };
+      },
+      get: (constraintSetId: string) =>
+        runtimeConstraintSets.find((set) => set.id === constraintSetId) ?? null,
+      getAll: () => runtimeConstraintSets,
+      resolve: (input: EngineConstraintResolveInput): EngineConstraintResolveOutput => {
+        const set = runtimeConstraintSets.find((item) => item.id === input.constraintSetId);
+        if (!set) {
+          return {
+            status: "unsatisfied",
+            pose: input.candidate,
+            ...(input.scalar !== undefined ? { scalar: input.scalar } : {}),
+            correctionDistance: 0,
+            activeConstraintIds: [],
+            violations: [{
+              constraintId: input.constraintSetId,
+              code: "missing-constraint-set",
+              correctionDistance: 0,
+            }],
+            iterations: 0,
+          };
+        }
+        return resolveEngineConstraintSet(set, input.candidate, input.scalar);
+      },
     },
     dirty: {
       getState: () => deps.resolveRuntimeDirtyStateOutput(),

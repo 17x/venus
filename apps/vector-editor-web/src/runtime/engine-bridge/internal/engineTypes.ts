@@ -22,6 +22,14 @@ export interface OverlayDiagnostics {
   guideDroppedCount: number
   guideSelectionStrategy: 'full' | 'axis-first' | 'axis-relevance'
   pathEditWhitelistActive: boolean
+  projectionDiagnostics?: Array<{
+    code: string
+    nodeId: string
+    source: string
+    expectedBounds: {minX: number; minY: number; maxX: number; maxY: number}
+    actualBounds: {minX: number; minY: number; maxX: number; maxY: number}
+    tolerance: number
+  }>
 }
 
 export interface EngineRendererProps {

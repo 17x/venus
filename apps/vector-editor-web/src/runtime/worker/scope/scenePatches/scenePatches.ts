@@ -142,7 +142,17 @@ export function applyPatches(
       const scaleX = patch.prevWidth === 0 ? 1 : patch.nextWidth / patch.prevWidth
       const scaleY = patch.prevHeight === 0 ? 1 : patch.nextHeight / patch.prevHeight
 
-      if ((shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
+      if (shape.type === 'group') {
+        getDescendants(shape.id, document.shapes).forEach((child) => {
+          scaleShapeGeometry(child, shape.x, shape.y, scaleX, scaleY)
+          const childIndex = document.shapes.findIndex((item) => item.id === child.id)
+          writeRuntimeShapeToScene(scene, document, childIndex, child)
+          updateSpatialShape(spatialIndex, document, child.id)
+          changedShapeIds.add(child.id)
+        })
+      }
+
+      if ((shape.type === 'lineSegment' || shape.type === 'path' || shape.type === 'polygon' || shape.type === 'star') && shape.points && shape.points.length > 0) {
         shape.points = shape.points.map((point) => ({
           x: shape.x + (point.x - shape.x) * scaleX,
           y: shape.y + (point.y - shape.y) * scaleY,
@@ -186,6 +196,22 @@ export function applyPatches(
         return
       }
 
+      const rotationDelta = patch.nextRotation - patch.prevRotation
+      const center = {
+        x: shape.x + shape.width / 2,
+        y: shape.y + shape.height / 2,
+      }
+      if (shape.type === 'group') {
+        getDescendants(shape.id, document.shapes).forEach((child) => {
+          rotateShapeGeometry(child, center, rotationDelta)
+          const childIndex = document.shapes.findIndex((item) => item.id === child.id)
+          writeRuntimeShapeToScene(scene, document, childIndex, child)
+          updateSpatialShape(spatialIndex, document, child.id)
+          changedShapeIds.add(child.id)
+        })
+      } else {
+        rotatePointGeometry(shape, center, rotationDelta)
+      }
       shape.rotation = patch.nextRotation
       const index = document.shapes.findIndex((item) => item.id === shape.id)
       writeRuntimeShapeToScene(scene, document, index, shape)
@@ -388,4 +414,79 @@ export function applyPatches(
 export {
   rebuildSpatialIndex,
   syncClippedImageRuntimeGeometry,
+}
+
+function scaleShapeGeometry(
+  shape: EditorDocument['shapes'][number],
+  originX: number,
+  originY: number,
+  scaleX: number,
+  scaleY: number,
+) {
+  shape.x = originX + (shape.x - originX) * scaleX
+  shape.y = originY + (shape.y - originY) * scaleY
+  shape.width *= scaleX
+  shape.height *= scaleY
+  shape.points = shape.points?.map((point) => ({
+    x: originX + (point.x - originX) * scaleX,
+    y: originY + (point.y - originY) * scaleY,
+  }))
+  shape.bezierPoints = shape.bezierPoints?.map((point) => ({
+    anchor: {
+      x: originX + (point.anchor.x - originX) * scaleX,
+      y: originY + (point.anchor.y - originY) * scaleY,
+    },
+    cp1: point.cp1 ? {
+      x: originX + (point.cp1.x - originX) * scaleX,
+      y: originY + (point.cp1.y - originY) * scaleY,
+    } : point.cp1,
+    cp2: point.cp2 ? {
+      x: originX + (point.cp2.x - originX) * scaleX,
+      y: originY + (point.cp2.y - originY) * scaleY,
+    } : point.cp2,
+  }))
+}
+
+function rotateShapeGeometry(
+  shape: EditorDocument['shapes'][number],
+  center: {x: number; y: number},
+  degrees: number,
+) {
+  const shapeCenter = rotatePoint({
+    x: shape.x + shape.width / 2,
+    y: shape.y + shape.height / 2,
+  }, center, degrees)
+  shape.x = shapeCenter.x - shape.width / 2
+  shape.y = shapeCenter.y - shape.height / 2
+  rotatePointGeometry(shape, center, degrees)
+  shape.rotation = (shape.rotation ?? 0) + degrees
+}
+
+function rotatePointGeometry(
+  shape: EditorDocument['shapes'][number],
+  center: {x: number; y: number},
+  degrees: number,
+) {
+  shape.points = shape.points?.map((point) => rotatePoint(point, center, degrees))
+  shape.bezierPoints = shape.bezierPoints?.map((point) => ({
+    anchor: rotatePoint(point.anchor, center, degrees),
+    cp1: point.cp1 ? rotatePoint(point.cp1, center, degrees) : point.cp1,
+    cp2: point.cp2 ? rotatePoint(point.cp2, center, degrees) : point.cp2,
+  }))
+}
+
+function rotatePoint(
+  point: {x: number; y: number},
+  center: {x: number; y: number},
+  degrees: number,
+) {
+  const radians = (degrees * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  const dx = point.x - center.x
+  const dy = point.y - center.y
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  }
 }

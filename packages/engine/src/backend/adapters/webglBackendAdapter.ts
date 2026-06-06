@@ -2,7 +2,16 @@ import type { EngineBackend } from "../../backend/backend";
 import type { NoopBackendAdapterHooks } from "./noopBackendAdapter";
 import type { EngineBackendSurface } from "../backend-contracts";
 import { ENGINE_BACKEND_CACHE_FALLBACK_REASON } from "../fallbackTaxonomy";
-import { resolveRichPathDrawPlan } from "./richPathDrawPlan";
+import {
+  applyRichNodeCanvasClip,
+  applyRichNodeCanvasShadow,
+  buildRichNodeEllipsePath,
+  buildRichNodePath,
+  buildRichNodeRoundedRectPath,
+  resolveRichNodeCanvasShadow,
+  resolveRichNodeCanvasTransform,
+  resolveRichNodeTextFragments,
+} from "./richNodeComposition";
 import {
   resolveFeatureCapabilityGateReason,
   type FeatureCapabilityGateReason,
@@ -30,15 +39,8 @@ const DEFAULT_FALLBACK_RGBA: [number, number, number, number] = [
 ];
 const PAYLOAD_RECT_COUNT_HIGH_THRESHOLD = 256;
 const PAYLOAD_RECT_COUNT_MEDIUM_THRESHOLD = 64;
-const MATRIX_COMPONENT_MIN = 6;
-const MATRIX_INDEX_A = 0;
-const MATRIX_INDEX_B = 1;
-const MATRIX_INDEX_E_LEGACY = 2;
-const MATRIX_INDEX_C = 3;
-const MATRIX_INDEX_D = 4;
+const MATRIX_INDEX_C = 2;
 const MATRIX_INDEX_F = 5;
-const MATRIX_LEGACY_EPSILON = 0.0001;
-const MATRIX_LEGACY_MIN_DELTA = 0.5;
 const FULL_CIRCLE_MULTIPLIER = 2;
 const FULL_CIRCLE_RADIANS = Math.PI * FULL_CIRCLE_MULTIPLIER;
 const RGB_CHANNEL_MIN = 3;
@@ -47,7 +49,6 @@ const RGB_ALPHA_CHANNEL_INDEX = 3;
 const HEX_PAIR_LENGTH = 2;
 const HEX_GREEN_PAIR_START = 2;
 const HEX_BLUE_PAIR_START = 4;
-const HALF_DIVISOR = 2;
 const QUAD_VERTEX_STRIDE_COMPONENT_COUNT = 4;
 const ATTRIBUTE_COMPONENT_COUNT = 2;
 const TRIANGLE_STRIP_VERTEX_COUNT = 4;
@@ -82,7 +83,7 @@ function resolveNormalizedColor(color: string): [number, number, number, number]
       const r = Number.parseInt(hex[0] + hex[0], HEX_RADIX);
       const g = Number.parseInt(hex[1] + hex[1], HEX_RADIX);
         const b = Number.parseInt(
-          hex[MATRIX_INDEX_E_LEGACY] + hex[MATRIX_INDEX_E_LEGACY],
+          hex[MATRIX_INDEX_C] + hex[MATRIX_INDEX_C],
           HEX_RADIX,
         );
       return [r / BYTE_CHANNEL_MAX, g / BYTE_CHANNEL_MAX, b / BYTE_CHANNEL_MAX, DEFAULT_ALPHA];
@@ -113,7 +114,7 @@ function resolveNormalizedColor(color: string): [number, number, number, number]
       return [
         Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[0])) / BYTE_CHANNEL_MAX,
         Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[1])) / BYTE_CHANNEL_MAX,
-          Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[MATRIX_INDEX_E_LEGACY])) / BYTE_CHANNEL_MAX,
+          Math.max(0, Math.min(BYTE_CHANNEL_MAX, channels[MATRIX_INDEX_C])) / BYTE_CHANNEL_MAX,
         alpha,
       ];
     }
@@ -154,6 +155,7 @@ type WebGLNativeSceneNode = {
   textRuns?: unknown;
   clipPathId?: string;
   clipId?: string;
+  clipRule?: "nonzero" | "evenodd";
   shadow?: unknown;
   /** Uniform corner radius for rounded rectangles. */
   cornerRadius?: number;
@@ -260,29 +262,6 @@ function drawRichNodesToCompositionContext(
   deviceHeight: number,
   dpr: number,
 ): boolean {
-  /**
-   * Resolves one payload matrix to canvas transform tuple order.
-   * @param matrix Node matrix payload emitted by scene adapter.
-   */
-  const resolveCanvasTransform = (matrix: readonly number[]) => {
-    if (matrix.length < MATRIX_COMPONENT_MIN) {
-      return null;
-    }
-    const a = matrix[MATRIX_INDEX_A] ?? 1;
-    const b = matrix[MATRIX_INDEX_B] ?? 0;
-    const cLegacy = matrix[MATRIX_INDEX_C] ?? 0;
-    const dLegacy = matrix[MATRIX_INDEX_D] ?? 1;
-    const eLegacy = matrix[MATRIX_INDEX_E_LEGACY] ?? 0;
-    const fLegacy = matrix[MATRIX_INDEX_F] ?? 0;
-    const cCanvas = matrix[MATRIX_INDEX_E_LEGACY] ?? 0;
-    const dCanvas = matrix[MATRIX_INDEX_C] ?? 1;
-    const eCanvas = matrix[MATRIX_INDEX_D] ?? 0;
-    const fCanvas = matrix[MATRIX_INDEX_F] ?? 0;
-    const legacyLikely = Math.abs(dCanvas) < MATRIX_LEGACY_EPSILON && Math.abs(dLegacy) >= MATRIX_LEGACY_MIN_DELTA;
-    return legacyLikely
-      ? { a, b, c: cLegacy, d: dLegacy, e: eLegacy, f: fLegacy }
-      : { a, b, c: cCanvas, d: dCanvas, e: eCanvas, f: fCanvas };
-  };
   if (!payload.nodes || payload.nodes.length === 0) {
     return false;
   }
@@ -299,15 +278,17 @@ function drawRichNodesToCompositionContext(
   context.translate(payload.translateX, payload.translateY);
   context.scale(payload.scale, payload.scale);
   let drawnPrimitiveCount = 0;
+  const nodeById = new Map(payload.nodes.map((node) => [node.id, node]));
 
   for (const node of payload.nodes) {
     if (node.type === "group") {
       continue;
     }
     context.save();
+    applyRichNodeCanvasClip(context, node, nodeById);
     const matrix = node.transform?.matrix;
-    if (Array.isArray(matrix) && matrix.length >= MATRIX_COMPONENT_MIN) {
-      const resolvedMatrix = resolveCanvasTransform(matrix);
+    if (Array.isArray(matrix)) {
+      const resolvedMatrix = resolveRichNodeCanvasTransform(matrix);
       if (resolvedMatrix) {
         context.transform(
           resolvedMatrix.a,
@@ -327,84 +308,28 @@ function drawRichNodesToCompositionContext(
     const width = typeof node.width === "number" && Number.isFinite(node.width) ? Math.abs(node.width) : 0;
     const height = typeof node.height === "number" && Number.isFinite(node.height) ? Math.abs(node.height) : 0;
     const shape = typeof node.shape === "string" ? node.shape : "rect";
+    applyRichNodeCanvasShadow(context, resolveRichNodeCanvasShadow(node.shadow));
 
     if (node.type === "text") {
-      // Render text with optional multi-run style and multi-line support.
-      const textContent = typeof node.text === "string" ? node.text : "Text";
-      const runs = Array.isArray((node as Record<string, unknown>).runs)
-        ? (node as Record<string, unknown>).runs as Array<{
-            text: string;
-            style?: {
-              fill?: string;
-              fontFamily?: string;
-              fontSize?: number;
-              fontWeight?: number;
-              fontStyle?: string;
-              lineHeight?: number;
-              letterSpacing?: number;
-              align?: string;
-              verticalAlign?: string;
-              textDecoration?: string;
-              shadow?: unknown;
-            };
-          }>
-        : null;
-      const defaultFontSize = 16;
-      const defaultFontFamily = "sans-serif";
-
-      if (runs && runs.length > 0) {
-        // Multi-run rendering: apply per-run style, accumulate x offset,
-        // and handle explicit '\n' line breaks for multi-line text.
-        let cursorX = x;
-        let cursorY = y;
-        for (const run of runs) {
-          const runFill = run.style?.fill ?? fill;
-          const runFontSize = run.style?.fontSize ?? defaultFontSize;
-          const runFontFamily = run.style?.fontFamily ?? defaultFontFamily;
-          const runFontWeight = run.style?.fontWeight ?? 400;
-          const runFontStyle = run.style?.fontStyle ?? "normal";
-          // lineHeight from the document model is an absolute px value, not a
-          // multiplier. Use it directly as the line advance.
-          const lineHeightPx = typeof run.style?.lineHeight === "number" && run.style.lineHeight > 0
-            ? run.style.lineHeight
-            : runFontSize * 1.2;
-          const runText = run.text ?? "";
-
-          // Split run text by newlines for multi-line support.
-          const lines = runText.split("\n");
-          for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-            const line = lines[lineIndex];
-            if (lineIndex > 0) {
-              cursorX = x;
-              cursorY += lineHeightPx;
-            }
-            if (line.length === 0) {
-              continue;
-            }
-            context.fillStyle = runFill !== "transparent" ? runFill : "#0f172a";
-            context.font = `${runFontStyle} ${runFontWeight} ${runFontSize}px ${runFontFamily}`;
-            context.textBaseline = "top";
-            context.fillText(line, cursorX, cursorY);
-            cursorX += context.measureText(line).width;
-            drawnPrimitiveCount += 1;
-          }
-        }
-      } else {
-        // Single-style fallback with multi-line support.
-        // lineHeight of 1.2 × fontSize gives reasonable default spacing.
-        const lineHeightPx = defaultFontSize * 1.2;
-        const lines = textContent.split("\n");
-        context.fillStyle = fill !== "transparent" ? fill : "#0f172a";
-        context.font = `normal 400 ${defaultFontSize}px ${defaultFontFamily}`;
+      const nodeRecord = node as Record<string, unknown>;
+      const fragments = resolveRichNodeTextFragments({
+        text: typeof node.text === "string" ? node.text : "Text",
+        textRuns: nodeRecord.runs ?? node.textRuns,
+        fill,
+        x,
+        y,
+        width,
+        measureTextWidth: (line, font) => {
+          context.font = font;
+          return context.measureText(line).width;
+        },
+      });
+      for (const fragment of fragments) {
+        context.fillStyle = fragment.fill;
+        context.font = fragment.font;
         context.textBaseline = "top";
-        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-          const line = lines[lineIndex];
-          if (line.length === 0) {
-            continue;
-          }
-          context.fillText(line, x, y + lineIndex * lineHeightPx, width > 0 ? width : undefined);
-          drawnPrimitiveCount += 1;
-        }
+        context.fillText(fragment.text, fragment.x, fragment.y, fragment.maxWidth);
+        drawnPrimitiveCount += 1;
       }
       context.restore();
       continue;
@@ -433,34 +358,9 @@ function drawRichNodesToCompositionContext(
     }
 
     if (shape === "ellipse") {
-      const cx = x + width / HALF_DIVISOR;
-      const cy = y + height / HALF_DIVISOR;
-      const rx = Math.max(0, width / HALF_DIVISOR);
-      const ry = Math.max(0, height / HALF_DIVISOR);
-      // Resolve arc start/end angles from node payload (in degrees, converted to radians).
-      const startAngleDeg = typeof (node as Record<string, unknown>).ellipseStartAngle === "number"
-        ? (node as Record<string, unknown>).ellipseStartAngle as number
-        : 0;
-      const endAngleDeg = typeof (node as Record<string, unknown>).ellipseEndAngle === "number"
-        ? (node as Record<string, unknown>).ellipseEndAngle as number
-        : 360;
-      const startAngleRad = (startAngleDeg * Math.PI) / 180;
-      const endAngleRad = (endAngleDeg * Math.PI) / 180;
-      const sweepRad = endAngleRad - startAngleRad;
-      const isFullCircle = Math.abs(Math.abs(sweepRad) - FULL_CIRCLE_RADIANS) < 0.001;
-
-      context.beginPath();
-      if (isFullCircle) {
-        context.ellipse(cx, cy, rx, ry, 0, 0, FULL_CIRCLE_RADIANS);
-      } else {
-        // Draw arc with line-to-center for pie/wedge appearance when filled.
-        if (fill !== "transparent") {
-          context.moveTo(cx, cy);
-          context.ellipse(cx, cy, rx, ry, 0, startAngleRad, endAngleRad, sweepRad < 0);
-          context.closePath();
-        } else {
-          context.ellipse(cx, cy, rx, ry, 0, startAngleRad, endAngleRad, sweepRad < 0);
-        }
+      if (!buildRichNodeEllipsePath(context, node, x, y, width, height)) {
+        context.restore();
+        continue;
       }
       if (fill !== "transparent") {
         context.fillStyle = fill;
@@ -470,11 +370,6 @@ function drawRichNodesToCompositionContext(
       if (stroke !== "transparent" && strokeWidth > 0) {
         context.strokeStyle = stroke;
         context.lineWidth = strokeWidth;
-        // For non-full arcs, redraw the arc outline without the center line.
-        if (!isFullCircle) {
-          context.beginPath();
-          context.ellipse(cx, cy, rx, ry, 0, startAngleRad, endAngleRad, sweepRad < 0);
-        }
         context.stroke();
         drawnPrimitiveCount += 1;
       }
@@ -482,45 +377,7 @@ function drawRichNodesToCompositionContext(
       continue;
     }
 
-    const points = Array.isArray(node.points) ? node.points : [];
-    const bezierPoints = Array.isArray(node.bezierPoints) ? node.bezierPoints : [];
-    const pathDrawPlan = resolveRichPathDrawPlan({
-      shape,
-      points,
-      bezierPoints,
-    });
-    if (pathDrawPlan.shouldEnterPathBranch) {
-      context.beginPath();
-      if (pathDrawPlan.hasBezierPath) {
-        context.moveTo(bezierPoints[0].anchor.x, bezierPoints[0].anchor.y);
-        for (let index = 1; index < bezierPoints.length; index += 1) {
-          const previous = bezierPoints[index - 1];
-          const current = bezierPoints[index];
-          const cp1 = previous.cp2 ?? previous.anchor;
-          const cp2 = current.cp1 ?? current.anchor;
-          context.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, current.anchor.x, current.anchor.y);
-        }
-      } else if (pathDrawPlan.hasPointPath) {
-        context.moveTo(points[0].x, points[0].y);
-        for (let index = 1; index < points.length; index += 1) {
-          context.lineTo(points[index].x, points[index].y);
-        }
-      } else if (pathDrawPlan.shouldFallbackLine) {
-        // Preserve compatibility for line nodes that encode segment delta through width/height.
-        context.moveTo(x, y);
-        context.lineTo(x + width, y + height);
-      } else {
-        context.restore();
-        continue;
-      }
-      // Respect explicit closed property from the node payload, falling back
-      // to the path-draw-plan's geometry-based closed detection.
-      const nodeClosed = typeof (node as Record<string, unknown>).closed === "boolean"
-        ? (node as Record<string, unknown>).closed as boolean
-        : pathDrawPlan.shouldClosePath;
-      if (nodeClosed) {
-        context.closePath();
-      }
+    if (buildRichNodePath(context, node, shape, x, y, width, height)) {
       if (fill !== "transparent" && shape !== "line") {
         context.fillStyle = fill;
         context.fill();
@@ -538,34 +395,7 @@ function drawRichNodesToCompositionContext(
 
     // Default rect rendering with optional rounded corners.
     if (width > 0 && height > 0) {
-      const cr = typeof (node as Record<string, unknown>).cornerRadius === "number"
-        ? (node as Record<string, unknown>).cornerRadius as number
-        : 0;
-      const radii = (node as Record<string, unknown>).cornerRadii as
-        | { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number }
-        | undefined;
-      const hasRoundedCorners = cr > 0 || (radii && (
-        (radii.topLeft ?? 0) > 0 || (radii.topRight ?? 0) > 0 ||
-        (radii.bottomRight ?? 0) > 0 || (radii.bottomLeft ?? 0) > 0
-      ));
-
-      if (hasRoundedCorners) {
-        // Use per-corner radii when available, falling back to uniform radius.
-        const tl = radii?.topLeft ?? cr;
-        const tr = radii?.topRight ?? cr;
-        const br = radii?.bottomRight ?? cr;
-        const bl = radii?.bottomLeft ?? cr;
-        context.beginPath();
-        context.moveTo(x + tl, y);
-        context.lineTo(x + width - tr, y);
-        context.arcTo(x + width, y, x + width, y + tr, Math.max(0, tr));
-        context.lineTo(x + width, y + height - br);
-        context.arcTo(x + width, y + height, x + width - br, y + height, Math.max(0, br));
-        context.lineTo(x + bl, y + height);
-        context.arcTo(x, y + height, x, y + height - bl, Math.max(0, bl));
-        context.lineTo(x, y + tl);
-        context.arcTo(x, y, x + tl, y, Math.max(0, tl));
-        context.closePath();
+      if (buildRichNodeRoundedRectPath(context, node, x, y, width, height)) {
         if (fill !== "transparent") {
           context.fillStyle = fill;
           context.fill();

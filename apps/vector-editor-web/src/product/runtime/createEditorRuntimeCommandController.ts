@@ -26,6 +26,12 @@ import {filterRuntimeSelectionCandidateIds} from './selectionFilterPolicy.ts'
 import type {RuntimeInteractionDiagnosticEvent} from './interactionDiagnosticPolicy.ts'
 import type {EditorRuntimeLastCommandMeta} from './useEditorRuntimeInteractionBridge.ts'
 
+// Keep ids monotonic across React-driven controller recreation. A controller
+// instance may be replaced after any runtime snapshot update, but command
+// history transactions must remain unique for the whole editor session.
+const resolveNextRuntimeCommandId = createCommandIdFactory('runtime-cmd')
+const resolveNextRuntimeTransactionId = createCommandTransactionIdFactory('runtime-txn')
+
 /**
  * Declares dependencies required by the pure runtime command controller.
  */
@@ -90,8 +96,6 @@ export interface EditorRuntimeCommandControllerOptions {
  * Creates a pure runtime command controller that owns side-effects and command dispatch policy.
  */
 export function createEditorRuntimeCommandController(options: EditorRuntimeCommandControllerOptions) {
-  const resolveNextCommandId = createCommandIdFactory('runtime-cmd')
-  const resolveNextTransactionId = createCommandTransactionIdFactory('runtime-txn')
   let commandDispatchDepth = 0
   let activeTransactionId: string | null = null
 
@@ -106,9 +110,9 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
   ) {
     const commandContract = resolveVector2DCommandContract(command)
     const commandEnvelope = createCommandEnvelope({
-      id: resolveNextCommandId(),
+      id: resolveNextRuntimeCommandId(),
       source,
-      transactionId: activeTransactionId ?? resolveNextTransactionId(),
+      transactionId: activeTransactionId ?? resolveNextRuntimeTransactionId(),
       issuedAt: Date.now(),
       command,
     })
@@ -150,7 +154,7 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
   function handleRuntimeCommand(command: EditorRuntimeCommand): void {
     const isRootDispatch = commandDispatchDepth === 0
     if (isRootDispatch) {
-      activeTransactionId = resolveNextTransactionId()
+      activeTransactionId = resolveNextRuntimeTransactionId()
     }
 
     commandDispatchDepth += 1
@@ -207,13 +211,14 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
         viewportHeight: options.canvasRuntime.viewport.viewportHeight,
       })
       const geometryPayload = options.canvasRuntime.requestEngineGeometry({
+        nodes: options.interactionDocument.shapes,
         pointer,
         tolerance: adaptiveHitTolerance.worldPx,
         clipTolerance: 1.5,
         allowFrameSelection: false,
         preferGroupSelection: options.currentTool === 'selector',
         // Keep cycle-hit aligned with hover/click by excluding clip-bound image hosts.
-        excludeClipBoundImage: true,
+        excludeClipBoundImage: false,
         resolveHoveredFromPointer: true,
         outlineLevel: 'low',
       })
