@@ -46,9 +46,18 @@ export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
 export {Unit, type UnitType} from './unit.ts'
 export type {
   DocumentNode,
+  DocumentObjectType,
   DocumentSchemaMeta,
   EditorDocument,
+  EllipseDocumentNode,
+  FrameDocumentNode,
+  GroupDocumentNode,
+  ImageDocumentNode,
+  LineSegmentDocumentNode,
+  PathDocumentNode,
+  PolygonDocumentNode,
   RectangleCornerRadii,
+  RectangleDocumentNode,
   ShapeFillStyle,
   ShapeGradientStop,
   ShapeGradientStyle,
@@ -56,7 +65,11 @@ export type {
   ShapeShadowStyle,
   ShapeStrokeStyle,
   ShapeType,
+  StarDocumentNode,
   StrokeArrowhead,
   TextRun,
+  TextDocumentNode,
   TextStyle,
+  TypedDocumentNode,
 } from './documentModel.ts'
+export {DOCUMENT_OBJECT_TYPES} from './documentModel.ts'

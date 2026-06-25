@@ -1,20 +1,19 @@
-/**
- * Renderer cache barrel.
- * Re-exports geometry and tile cache contracts for renderer/runtime callers.
- */
+// Compatibility forwarding barrel; cache ownership lives in core/cache and
+// renderer backends should import from core/cache or the public engine barrel.
+
 export type {
   GeometryCacheEntry,
-} from './geometryCache.ts'
+} from '../../core/cache/index.ts'
 
 export {
   GeometryCache,
-} from './geometryCache.ts'
+} from '../../core/cache/index.ts'
 
 export type {
   LayeredTileCacheKey,
-} from './tileCache.ts'
+} from '../../core/cache/index.ts'
 
 export {
   LayeredTileCache,
   toLayeredTileCacheSignature,
-} from './tileCache.ts'
+} from '../../core/cache/index.ts'

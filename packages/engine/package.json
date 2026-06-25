@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test src/**/*.test.ts __tests__/**/*.test.ts",
+    "demo": "vite --host 127.0.0.1",
     "bench:scenario": "tsx src/bench/runBenchmark.ts"
   },
   "exports": {
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "vite": "8.0.2"
   }
 }

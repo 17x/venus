@@ -1,17 +1,24 @@
 import type {BezierPoint, Point} from './geometry/geometry.ts'
 
+/** Lists every canonical object type supported by the editor document model. */
+export const DOCUMENT_OBJECT_TYPES = [
+  'frame',
+  'group',
+  'rectangle',
+  'ellipse',
+  'polygon',
+  'star',
+  'lineSegment',
+  'path',
+  'text',
+  'image',
+] as const
+
+/** Declares one canonical object type supported by the editor document model. */
+export type DocumentObjectType = (typeof DOCUMENT_OBJECT_TYPES)[number]
+
 /** Declares supported runtime/document shape categories. */
-export type ShapeType =
-  | 'frame'
-  | 'group'
-  | 'rectangle'
-  | 'ellipse'
-  | 'polygon'
-  | 'star'
-  | 'lineSegment'
-  | 'path'
-  | 'text'
-  | 'image'
+export type ShapeType = DocumentObjectType
 
 /** Declares arrowhead style values for stroked open paths. */
 export type StrokeArrowhead = 'none' | 'triangle' | 'diamond' | 'circle' | 'bar'
@@ -202,6 +209,95 @@ export interface DocumentNode {
   /** Stores source metadata for adapters and diagnostics. */
   schema?: DocumentSchemaMeta
 }
+
+/** Declares a frame node that can own ordered child objects. */
+export interface FrameDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'frame'
+  /** Stores ordered child ids owned by the frame. */
+  childIds: string[]
+}
+
+/** Declares a generic group node that owns ordered child objects. */
+export interface GroupDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'group'
+  /** Stores ordered child ids owned by the group. */
+  childIds: string[]
+}
+
+/** Declares a rectangle node, including optional corner-radius styles. */
+export interface RectangleDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'rectangle'
+}
+
+/** Declares an ellipse or ellipse-arc node. */
+export interface EllipseDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'ellipse'
+}
+
+/** Declares a polygon node backed by absolute vertex points. */
+export interface PolygonDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'polygon'
+  /** Stores polygon vertices in world coordinates. */
+  points: Point[]
+}
+
+/** Declares a star node backed by absolute vertex points. */
+export interface StarDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'star'
+  /** Stores star vertices in world coordinates. */
+  points: Point[]
+}
+
+/** Declares an open line-segment node with optional endpoint arrowheads. */
+export interface LineSegmentDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'lineSegment'
+  /** Stores the segment endpoints in world coordinates. */
+  points: Point[]
+}
+
+/** Declares a custom path node backed by bezier anchors and optional flat points. */
+export interface PathDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'path'
+  /** Stores bezier anchors and handles in world coordinates. */
+  bezierPoints: BezierPoint[]
+}
+
+/** Declares a text node with plain text and optional rich-text runs. */
+export interface TextDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'text'
+  /** Stores the editable plain text payload. */
+  text: string
+}
+
+/** Declares an image node backed by a document asset. */
+export interface ImageDocumentNode extends DocumentNode {
+  /** Narrows the semantic object type. */
+  type: 'image'
+  /** Stores the referenced document asset id. */
+  assetId: string
+}
+
+/** Declares the preferred typed union for new object-model code. */
+export type TypedDocumentNode =
+  | FrameDocumentNode
+  | GroupDocumentNode
+  | RectangleDocumentNode
+  | EllipseDocumentNode
+  | PolygonDocumentNode
+  | StarDocumentNode
+  | LineSegmentDocumentNode
+  | PathDocumentNode
+  | TextDocumentNode
+  | ImageDocumentNode
 
 /** Declares canonical editor document payload. */
 export interface EditorDocument {

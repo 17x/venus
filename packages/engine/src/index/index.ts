@@ -1,3 +1,5 @@
+// Engine public barrel owns stable package exports; implementation details and
+// product/editor semantics must remain in their owning modules.
 export type {
   EngineAnimationController,
   EngineEasingDefinition,
@@ -16,8 +18,14 @@ export {
 } from '../math/matrix/matrix.ts'
 
 export type {
+  EngineRenderableNodeType,
   EngineRenderableNode,
+  EngineShapeKind,
   EngineSceneSnapshot,
+} from '../scene/types/types.ts'
+export {
+  ENGINE_RENDERABLE_NODE_TYPES,
+  ENGINE_SHAPE_TYPES,
 } from '../scene/types/types.ts'
 export type {
   EngineHitTestResult,
@@ -26,6 +34,10 @@ export type {
 export type {
   EngineRenderScheduler,
 } from '../runtime/renderScheduler/renderScheduler.ts'
+export type {
+  EngineBackend,
+  EngineRenderQuality,
+} from '../renderer/types/index.ts'
 export type {
   CreateEngineOptions,
   Engine,
@@ -59,21 +71,23 @@ export {
   createRenderCameraProjector,
   projectWorldPoint,
   unprojectScreenPoint,
-} from '../renderer/camera/index.ts'
+} from '../core/camera/index.ts'
 
 export {
   hitTestLayeredCommands,
   hitTestBaseLayer,
   hitTestActiveLayer,
-} from '../renderer/hit/index.ts'
+} from '../core/hit/index.ts'
 
 export type {
   GeometryCacheEntry,
-  GeometryCache,
   LayeredTileCacheKey,
+} from '../core/cache/index.ts'
+export {
+  GeometryCache,
   LayeredTileCache,
   toLayeredTileCacheSignature,
-} from '../renderer/cache/index.ts'
+} from '../core/cache/index.ts'
 
 export {
   querySpatialIndex,

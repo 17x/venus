@@ -1,14 +1,6 @@
-import { applyMatrixToPoint } from '../../math/matrix/matrix.ts'
-import type { EngineRenderCamera, EngineRenderPoint } from '../../core/types.ts'
+// Compatibility forwarding module; backend-neutral camera unprojection ownership
+// lives in core/camera rather than renderer backend directories.
 
-/**
- * Unprojects one screen-space point into world space using camera inverse matrix.
-  * @param point point parameter.
- * @param camera Camera state snapshot.
-*/
-export function unprojectScreenPoint(
-  point: EngineRenderPoint,
-  camera: Pick<EngineRenderCamera, 'inverseMatrix'>,
-): EngineRenderPoint {
-  return applyMatrixToPoint(camera.inverseMatrix, point)
-}
+export {
+  unprojectScreenPoint,
+} from '../../core/camera/unproject.ts'

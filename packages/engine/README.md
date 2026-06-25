@@ -6,6 +6,13 @@ Venus 的机制层引擎。它提供纯粹的渲染与几何能力，包括 scen
 
 - engine 专属能力、边界与接入说明，应保留在当前 package 内。
 - 全局 `docs/` 只保留跨 package 的架构、治理与导航信息。
+- AI-facing engine implementation rules live in [`AI/`](./AI/).
+- English docs index: [`docs/en/README.md`](./docs/en/README.md).
+- Engine object-model API plan: [`docs/en/object-model-api.md`](./docs/en/object-model-api.md).
+- Engine scene object model reference: [`docs/en/scene-object-model.md`](./docs/en/scene-object-model.md).
+- Engine scene capability matrix: [`docs/en/scene-capability-matrix.md`](./docs/en/scene-capability-matrix.md).
+- Engine API reference: [`docs/en/api-reference.md`](./docs/en/api-reference.md).
+- Quick drawing tutorial: [`docs/en/tutorials/draw-shapes.md`](./docs/en/tutorials/draw-shapes.md).
 
 当前职责链：
 

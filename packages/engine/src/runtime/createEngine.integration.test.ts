@@ -115,32 +115,42 @@ function createTextHeavyScene(nodeCount: number): EngineSceneSnapshot {
 function installFakeCanvasEnvironment() {
   const originalOffscreenCanvas = (globalThis as typeof globalThis & {OffscreenCanvas?: unknown}).OffscreenCanvas
   const recordedDrawCalls: RecordedDrawCall[] = []
+  const recordedCanvas2DCalls: string[] = []
 
   class Fake2DContext {
     imageSmoothingEnabled = true
     imageSmoothingQuality: ImageSmoothingQuality = 'high'
-    clearRect() {}
-    setTransform() {}
-    save() {}
-    restore() {}
-    beginPath() {}
-    rect() {}
-    roundRect() {}
-    ellipse() {}
-    moveTo() {}
-    lineTo() {}
-    bezierCurveTo() {}
-    closePath() {}
-    clip() {}
-    fill() {}
-    stroke() {}
-    translate() {}
-    rotate() {}
-    scale() {}
-    transform() {}
-    fillText() {}
-    strokeText() {}
-    drawImage() {}
+
+    /**
+     * Records one Canvas2D method name for backend selection assertions.
+     */
+    private record(name: string) {
+      recordedCanvas2DCalls.push(name)
+    }
+
+    clearRect() { this.record('clearRect') }
+    setTransform() { this.record('setTransform') }
+    save() { this.record('save') }
+    restore() { this.record('restore') }
+    beginPath() { this.record('beginPath') }
+    rect() { this.record('rect') }
+    roundRect() { this.record('roundRect') }
+    ellipse() { this.record('ellipse') }
+    moveTo() { this.record('moveTo') }
+    lineTo() { this.record('lineTo') }
+    bezierCurveTo() { this.record('bezierCurveTo') }
+    quadraticCurveTo() { this.record('quadraticCurveTo') }
+    closePath() { this.record('closePath') }
+    clip() { this.record('clip') }
+    fill() { this.record('fill') }
+    stroke() { this.record('stroke') }
+    translate() { this.record('translate') }
+    rotate() { this.record('rotate') }
+    scale() { this.record('scale') }
+    transform() { this.record('transform') }
+    fillText() { this.record('fillText') }
+    strokeText() { this.record('strokeText') }
+    drawImage() { this.record('drawImage') }
         /**
      * Handles measureText.
      * @param text Text content.
@@ -353,6 +363,7 @@ getContext(kind: string) {
   return {
     OffscreenCanvas: FakeOffscreenCanvas,
     recordedDrawCalls,
+    recordedCanvas2DCalls,
     restore() {
       if (originalOffscreenCanvas === undefined) {
         Reflect.deleteProperty(globalThis, 'OffscreenCanvas')
@@ -462,6 +473,54 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
       width: 120,
       height: 160,
     })
+  } finally {
+    environment.restore()
+  }
+})
+
+test('createEngine can render through the Canvas2D backend for local demos', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createScene(),
+      viewport: {
+        viewportWidth: 200,
+        viewportHeight: 150,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      performance: {
+        culling: true,
+        lod: {enabled: false},
+        tiles: {enabled: false},
+        overscan: {enabled: false},
+      },
+      render: {
+        backend: 'canvas2d',
+        quality: 'full',
+        interactionPreview: {enabled: false},
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 200,
+      viewportHeight: 150,
+      outputWidth: 200,
+      outputHeight: 150,
+    })
+
+    const stats = await engine.renderFrame()
+
+    assert.equal(engine.getDiagnostics().backend, 'canvas2d')
+    assert.equal(stats.drawCount, 1)
+    assert.equal(stats.visibleCount, 1)
+    assert.equal(stats.culledCount, 1)
+    assert.equal(environment.recordedCanvas2DCalls.includes('rect'), true)
+    assert.equal(environment.recordedDrawCalls.length, 0)
   } finally {
     environment.restore()
   }

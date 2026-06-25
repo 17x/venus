@@ -1,15 +1,14 @@
-/**
- * Renderer camera barrel.
- * Re-exports projection and camera helper primitives for renderer/runtime callers.
- */
+// Compatibility forwarding barrel; backend-neutral camera helper ownership lives
+// in core/camera and renderer backend modules should not own camera contracts.
+
 export {
   createRenderCameraProjector,
-} from './camera.ts'
+} from '../../core/camera/index.ts'
 
 export {
   projectWorldPoint,
-} from './project.ts'
+} from '../../core/camera/index.ts'
 
 export {
   unprojectScreenPoint,
-} from './unproject.ts'
+} from '../../core/camera/index.ts'

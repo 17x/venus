@@ -2,5 +2,5 @@
 
 Canonical AI governance entrypoint:
 
-- [AI Highest-Level Standard](./AI_HIGHEST_STANDARD.md)
+- [AI Highest-Level Standard](../AI/AI_HIGHEST_STANDARD.md)
 - [Monorepo Responsibility Standard](./MONOREPO_RESPONSIBILITY_STANDARD.md)

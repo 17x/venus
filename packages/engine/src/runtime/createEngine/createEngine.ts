@@ -5,10 +5,12 @@ import {
   type EngineCanvasViewportState,
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
+import { createCanvas2DEngineRenderer } from '../../renderer/canvas2d/canvas2d.ts'
 import { createWebGLEngineRenderer } from '../../renderer/webgl/index.ts'
 import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
 import { getEngineRenderPlanCacheDiagnostics } from '../../renderer/plan/index.ts'
 import type {
+  EngineBackend,
   EngineCanvasSurfaceFactory,
   EngineFrameBudget,
   EngineInteractionPredictorState,
@@ -104,6 +106,9 @@ export interface ResolvedEnginePerformanceOptions {
 }
 
 interface EngineRenderOptions {
+  // Selects the renderer backend. Defaults to WebGL; Canvas2D is intended for
+  // deterministic local demos and fallback-capability validation.
+  backend?: EngineBackend
   quality?: EngineRenderQuality
   webglClearColor?: readonly [number, number, number, number]
   // Short alias for pixel ratio config.
@@ -193,7 +198,7 @@ export interface CreateEngineOptions {
 }
 
 export interface EngineRuntimeDiagnostics {
-  backend: 'webgl'
+  backend: EngineBackend
   renderStats: EngineRenderStats | null
   pixelRatio: number
   outputPixelRatio: number
@@ -386,18 +391,26 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
   })
-  const renderer = createWebGLEngineRenderer({
-    canvas: options.canvas,
-    createCanvasSurface: options.host?.createCanvasSurface,
-    enableCulling: resolvedPerformance.culling,
-    clearColor: options.render?.webglClearColor,
-    antialias: options.render?.webglAntialias ?? true,
-    modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
-    lod: resolvedPerformance.lodConfig,
-    tileConfig: resolvedPerformance.tileConfig,
-    initialRender: options.render?.initialRender,
-    interactionPreview: options.render?.interactionPreview,
-  })
+  const renderBackend = options.render?.backend ?? 'webgl'
+  const renderer = renderBackend === 'canvas2d'
+    ? createCanvas2DEngineRenderer({
+      canvas: options.canvas,
+      createCanvasSurface: options.host?.createCanvasSurface,
+      enableCulling: resolvedPerformance.culling,
+      interactionPreview: options.render?.interactionPreview,
+    })
+    : createWebGLEngineRenderer({
+      canvas: options.canvas,
+      createCanvasSurface: options.host?.createCanvasSurface,
+      enableCulling: resolvedPerformance.culling,
+      clearColor: options.render?.webglClearColor,
+      antialias: options.render?.webglAntialias ?? true,
+      modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
+      lod: resolvedPerformance.lodConfig,
+      tileConfig: resolvedPerformance.tileConfig,
+      initialRender: options.render?.initialRender,
+      interactionPreview: options.render?.interactionPreview,
+    })
   const renderContext: {
     quality: EngineRenderQuality
     lodEnabled: boolean
@@ -1122,7 +1135,7 @@ markDirtyBounds(bounds, zoomLevel) {
     },
     getDiagnostics() {
       return {
-        backend: 'webgl',
+        backend: renderer.capabilities.backend,
         renderStats: latestRenderStats,
         pixelRatio,
         outputPixelRatio,
@@ -1238,4 +1251,3 @@ function resolveAdaptiveHitTestExactBudget(options: {
 
   return options.interactionActive ? LOW_PRESSURE_INTERACTION_EXACT_BUDGET : LOW_PRESSURE_IDLE_EXACT_BUDGET
 }
-

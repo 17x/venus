@@ -6,6 +6,9 @@ This document defines ownership, boundaries, and one-way dependencies for `@venu
 
 - `src/math`, `src/time`, `src/utils`, `src/core`
   - Shared primitives and foundational utilities.
+  - `src/core/cache`, `src/core/hit`, and `src/core/camera` own backend-neutral
+    geometry/tile cache contracts, layered command hit-testing, and camera
+    projection helpers.
 - `src/scene`
   - Scene storage, indexing, geometry contracts, world-bounds derivation.
 - `src/interaction`
@@ -31,6 +34,8 @@ Allowed direction only:
 Forbidden:
 
 - Reverse dependencies (for example `scene -> renderer`, `renderer -> runtime`, `interaction -> runtime`).
+- Backend-neutral document model, scene hit-test, geometry cache, tile cache,
+  and camera helpers importing from `renderer/*`.
 
 ## Renderer WebGL Subsystem Boundaries
 
@@ -52,6 +57,20 @@ Rules:
 - Helper/resource modules must not import backend orchestrator or capability modules.
 - Capability modules must not import backend orchestrator.
 - Orchestrator (`renderer/webgl/webgl.ts`) may depend on helper/resource/capability modules.
+
+## Backend-Neutral Ownership
+
+The following modules must stay isolated from renderer backend ownership:
+
+- `scene/types/*`: render-facing scene/document model contracts.
+- `scene/hitTest/*`: scene-state exact/coarse hit-test execution.
+- `core/cache/*`: geometry and tile cache contracts.
+- `core/hit/*`: layered draw-command hit-test policy.
+- `core/camera/*`: project/unproject helpers.
+
+`renderer/cache/*`, `renderer/hit/*`, and `renderer/camera/*` are compatibility
+forwarders only. New code should import from `core/*` or the public package
+barrel rather than treating renderer backend directories as the owner.
 
 ## File Header Policy
 

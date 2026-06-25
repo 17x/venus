@@ -1,15 +1,14 @@
-/**
- * Renderer hit-test barrel.
- * Re-exports layered/base/active hit-test entrypoints.
- */
+// Compatibility forwarding barrel; layered hit-test ownership lives in core/hit
+// and renderer backend modules should not import this surface for new code.
+
 export {
   hitTestLayeredCommands,
-} from './hitTest.ts'
+} from '../../core/hit/index.ts'
 
 export {
   hitTestBaseLayer,
-} from './hitTestBase.ts'
+} from '../../core/hit/index.ts'
 
 export {
   hitTestActiveLayer,
-} from './hitTestActive.ts'
+} from '../../core/hit/index.ts'
