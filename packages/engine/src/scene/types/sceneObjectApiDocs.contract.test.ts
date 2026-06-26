@@ -31,6 +31,7 @@ const REQUIRED_SECTIONS = [
   '## Hit-Test Behavior',
   '## Patch Behavior',
   '## Cache Behavior',
+  '## Demo',
   '## Non-Goals',
 ] as const
 
@@ -99,4 +100,22 @@ test('object model API plan preserves API-first development order', () => {
 
   assert.equal(content.includes('add type and capability tests'), true)
   assert.equal(content.includes('then add or update render tests'), true)
+})
+
+test('engine categorized API catalog links every object API page', () => {
+  const content = readEngineDoc('api/README.md')
+
+  assert.equal(content.includes('# Engine API Catalog'), true)
+  assert.equal(content.includes('## Runtime and Rendering'), true)
+  assert.equal(content.includes('## Scene Object APIs'), true)
+  assert.equal(content.includes('## Hit-Test and Query APIs'), true)
+  assert.equal(content.includes('## Camera and Cache APIs'), true)
+
+  for (const docName of OBJECT_API_DOCS) {
+    assert.equal(
+      content.includes(`scene-objects/${docName}.md`),
+      true,
+      `api/README.md should link ${docName}.md`,
+    )
+  }
 })

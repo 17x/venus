@@ -52,8 +52,9 @@ visible bounds. Exact clip-aware bounds are an API-first future refinement.
 
 ## Hit-Test Behavior
 
-Scene-store hit-testing does not yet fully enforce all clip semantics. Exact
-clip-aware hit-testing should be specified per shape before implementation.
+Scene-store hit-testing enforces inline `clipShape` geometry for rectangular and
+path clips. `clipNodeId` remains a render-facing reuse descriptor and requires a
+future API update before graph-referenced clip hit-testing is exact.
 
 ## Patch Behavior
 
@@ -63,6 +64,30 @@ depending on backend implementation.
 ## Cache Behavior
 
 Cache keys should include clip id, inline clip geometry, and fill rule.
+
+## Demo
+
+```ts
+const clippedImage = {
+  id: 'image-clipped',
+  type: 'image',
+  x: 80,
+  y: 80,
+  width: 220,
+  height: 140,
+  assetId: 'hero-image',
+  clip: {
+    clipShape: {
+      kind: 'rect',
+      rect: {x: 100, y: 100, width: 180, height: 100},
+      radius: 18,
+    },
+  },
+} satisfies EngineImageNode
+
+engine.loadScene({revision: 10, width: 640, height: 480, nodes: [clippedImage]})
+await engine.renderFrame()
+```
 
 ## Non-Goals
 

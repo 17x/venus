@@ -449,6 +449,7 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
     const hit = engine.hitTest({x: 15, y: 25})
     const miss = engine.hitTest({x: 250, y: 250})
     const candidates = engine.queryViewportCandidates()
+    const viewportDiagnostics = engine.getDiagnostics().viewport
 
     // The render path should submit only the visible node and surface one draw call.
     assert.equal(stats.drawCount, 1)
@@ -460,6 +461,13 @@ test('createEngine integrates scene load, render output, hitTest, and render pos
     assert.equal(hit?.nodeId, 'rect-visible')
     assert.equal(miss, null)
     assert.deepEqual(candidates, ['rect-visible'])
+    assert.deepEqual(
+      {
+        x: viewportDiagnostics.inverseMatrix[0] * 60 + viewportDiagnostics.inverseMatrix[2],
+        y: viewportDiagnostics.inverseMatrix[4] * 120 + viewportDiagnostics.inverseMatrix[5],
+      },
+      {x: 25, y: 50},
+    )
 
     const drawCall = environment.recordedDrawCalls.at(-1)
     assert.ok(drawCall, 'expected one submitted WebGL draw call')

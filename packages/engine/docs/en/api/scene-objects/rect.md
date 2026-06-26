@@ -64,7 +64,9 @@ The node is indexed by world bounds derived from `x`, `y`, `width`,
 
 ## Hit-Test Behavior
 
-Currently hit-tested through local/world bounds with tolerance.
+Hit-testing first uses AABB pruning, then exact rectangle or rounded-rectangle
+fill/stroke geometry. Rounded corner cutouts should not hit when the pointer is
+outside the rounded shape.
 
 ## Patch Behavior
 
@@ -75,6 +77,27 @@ invalidates style.
 
 Geometry cache keys should include bounds, corner data, stroke width, clip, and
 transform-affecting context.
+
+## Demo
+
+```ts
+const rectNode = {
+  id: 'rect-rounded',
+  type: 'shape',
+  shape: 'rect',
+  x: 40,
+  y: 40,
+  width: 160,
+  height: 96,
+  cornerRadius: 16,
+  fill: '#dbeafe',
+  stroke: '#2563eb',
+  strokeWidth: 2,
+} satisfies EngineShapeNode
+
+engine.loadScene({revision: 3, width: 640, height: 480, nodes: [rectNode]})
+await engine.renderFrame()
+```
 
 ## Non-Goals
 

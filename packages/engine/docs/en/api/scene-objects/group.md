@@ -58,6 +58,37 @@ Changing `children` invalidates structure and geometry. Changing `transform`,
 `opacity`, `blendMode`, `shadow`, or `clip` invalidates render plans and
 transform/style-dependent caches.
 
+## Demo
+
+```ts
+const groupNode = {
+  id: 'group-1',
+  type: 'group',
+  transform: {matrix: [1, 0, 80, 0, 1, 40]},
+  children: [
+    {
+      id: 'group-rect',
+      type: 'shape',
+      shape: 'rect',
+      x: 0,
+      y: 0,
+      width: 120,
+      height: 80,
+      fill: '#dcfce7',
+    },
+  ],
+} satisfies EngineGroupNode
+
+engine.loadScene({
+  revision: 2,
+  width: 640,
+  height: 480,
+  nodes: [groupNode],
+})
+
+await engine.renderFrame()
+```
+
 ## Non-Goals
 
 - Group/ungroup product commands.

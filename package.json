@@ -8,6 +8,8 @@
     "dev": "pnpm --filter @venus/vector-editor-web dev",
     "build": "pnpm --filter @venus/vector-editor-web build",
     "dev vector": "pnpm --filter @venus/vector-editor-web dev",
+    "dev engine-docs": "pnpm --filter @venus/engine-docs dev",
+    "build engine-docs": "pnpm --filter @venus/engine-docs build",
     "dev playground": "pnpm --filter @venus/playground dev",
     "lint": "eslint . && node ./scripts/module-governance-check.mjs",
     "governance:check": "node ./scripts/module-governance-check.mjs",

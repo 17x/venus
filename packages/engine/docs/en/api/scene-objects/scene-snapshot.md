@@ -70,6 +70,38 @@ Use `loadScene` for full replacement and `applyScenePatchBatch` or
 `revision`, `planVersion`, `bufferVersion`, `dirtyNodeIds`, and
 `removedNodeIds` are cache invalidation inputs.
 
+## Demo
+
+```ts
+import {createEngine, type EngineSceneSnapshot} from '@venus/engine'
+
+const scene: EngineSceneSnapshot = {
+  revision: 1,
+  width: 640,
+  height: 480,
+  nodes: [
+    {
+      id: 'rect-1',
+      type: 'shape',
+      shape: 'rect',
+      x: 40,
+      y: 40,
+      width: 160,
+      height: 96,
+      fill: '#dbeafe',
+    },
+  ],
+}
+
+const engine = createEngine({
+  canvas,
+  initialScene: scene,
+  render: {backend: 'canvas2d'},
+})
+
+await engine.renderFrame()
+```
+
 ## Non-Goals
 
 - Product file format.

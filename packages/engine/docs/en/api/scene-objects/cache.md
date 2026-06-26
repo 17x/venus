@@ -78,6 +78,19 @@ removed node ids, revision, or backend-specific cache keys.
 `toLayeredTileCacheSignature` creates stable tile signatures from tile coords
 and zoom bucket.
 
+## Demo
+
+```ts
+const geometryCache = new GeometryCache<Path2D>()
+geometryCache.set({key: 'rect-1:geometry:v1', value: rectPath})
+
+const tileCache = new LayeredTileCache<ImageBitmap>()
+const key = {x: 0, y: 0, zoomBucket: 2}
+tileCache.set(key, bitmap)
+
+console.log(toLayeredTileCacheSignature(key), geometryCache.get('rect-1:geometry:v1'))
+```
+
 ## Non-Goals
 
 - GPU texture ownership.

@@ -5,18 +5,16 @@ are the API source of truth for future implementation work.
 
 ## Object APIs
 
-- `scene-snapshot.md`
-- `group.md`
-- `rect.md`
-- `ellipse.md`
-- `line.md`
-- `polygon.md`
-- `path.md`
-- `text.md`
-- `image.md`
-- `clip.md`
-- `camera.md`
-- `cache.md`
+| Category | API Pages |
+| --- | --- |
+| Structure | `scene-snapshot.md`, `group.md` |
+| Shapes | `rect.md`, `ellipse.md`, `line.md`, `polygon.md`, `path.md` |
+| Content | `text.md`, `image.md` |
+| Constraints | `clip.md` |
+| Mechanisms | `camera.md`, `cache.md` |
+
+Each API page includes a minimal `Demo` section that can be copied into a local
+engine runtime setup.
 
 ## Development Rule
 

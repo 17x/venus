@@ -74,6 +74,29 @@ Changing bounds or `sourceRect` invalidates geometry. Changing `assetId`,
 Cache keys should include `assetId`, `sourceRect`, `naturalSize`,
 `imageSmoothing`, clip, and transform-affecting context.
 
+## Demo
+
+```ts
+const imageNode = {
+  id: 'image-1',
+  type: 'image',
+  x: 80,
+  y: 80,
+  width: 220,
+  height: 140,
+  assetId: 'hero-image',
+  sourceRect: {x: 0, y: 0, width: 800, height: 500},
+  naturalSize: {width: 800, height: 500},
+  imageSmoothing: true,
+} satisfies EngineImageNode
+
+engine.setResourceLoader({
+  resolveImage: (assetId) => imageMap.get(assetId) ?? null,
+})
+engine.loadScene({revision: 9, width: 640, height: 480, nodes: [imageNode]})
+await engine.renderFrame()
+```
+
 ## Non-Goals
 
 - Asset persistence.

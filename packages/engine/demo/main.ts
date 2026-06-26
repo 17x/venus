@@ -4,11 +4,17 @@ import {
 } from '../src/index.ts'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#engine-canvas')
-const status = document.querySelector<HTMLDivElement>('#status')
+const renderStatus = document.querySelector<HTMLPreElement>('#render-status')
+const selfTest = document.querySelector<HTMLPreElement>('#self-test')
+const hoverHit = document.querySelector<HTMLPreElement>('#hover-hit')
+const clickHit = document.querySelector<HTMLPreElement>('#click-hit')
 
-if (!canvas || !status) {
-  throw new Error('Engine demo expected #engine-canvas and #status elements')
+if (!canvas || !renderStatus || !selfTest || !hoverHit || !clickHit) {
+  throw new Error('Engine demo expected canvas and hit-test output elements')
 }
+
+const HOVER_TOLERANCE = 10
+const CLICK_TOLERANCE = 6
 
 const viewport = {
   viewportWidth: canvas.clientWidth,
@@ -20,6 +26,18 @@ const viewport = {
 
 const image = new Image()
 image.src = createDemoImageDataUrl()
+
+const hitFixtures = [
+  {id: 'rect-rounded', scenePoint: {x: 115, y: 88}},
+  {id: 'ellipse-arc', scenePoint: {x: 302, y: 90}},
+  {id: 'line-arrow', scenePoint: {x: 520, y: 90}},
+  {id: 'polygon', scenePoint: {x: 714, y: 96}},
+  {id: 'path-bezier', scenePoint: {x: 214, y: 276}},
+  {id: 'closed-path-fill', scenePoint: {x: 128, y: 440}},
+  {id: 'stroke-only-rect', scenePoint: {x: 266, y: 426}},
+  {id: 'text-rich', scenePoint: {x: 520, y: 244}},
+  {id: 'image-clipped', scenePoint: {x: 760, y: 274}},
+] as const
 
 const scene: EngineSceneSnapshot = {
   revision: 1,
@@ -121,6 +139,36 @@ const scene: EngineSceneSnapshot = {
           strokeEndArrowhead: 'diamond',
         },
         {
+          id: 'closed-path-fill',
+          type: 'shape',
+          shape: 'path',
+          x: 62,
+          y: 384,
+          width: 130,
+          height: 92,
+          points: [
+            {x: 128, y: 384},
+            {x: 192, y: 468},
+            {x: 62, y: 468},
+          ],
+          closed: true,
+          fill: '#fce7f3',
+          stroke: '#db2777',
+          strokeWidth: 3,
+        },
+        {
+          id: 'stroke-only-rect',
+          type: 'shape',
+          shape: 'rect',
+          x: 256,
+          y: 382,
+          width: 142,
+          height: 88,
+          cornerRadius: 24,
+          stroke: '#475569',
+          strokeWidth: 8,
+        },
+        {
           id: 'text-rich',
           type: 'text',
           x: 420,
@@ -197,6 +245,25 @@ const engine = createEngine({
   },
 })
 
+const demoWindow = window as typeof window & {
+  venusEngineDemo?: {
+    hitAt(x: number, y: number, tolerance?: number): unknown
+    selfTest(): string
+  }
+}
+
+demoWindow.venusEngineDemo = {
+  hitAt(x: number, y: number, tolerance = CLICK_TOLERANCE) {
+    const point = {x, y}
+    return {
+      hit: engine.hitTest(point, tolerance),
+      candidates: engine.queryPointCandidates(point, tolerance),
+      diagnostics: engine.getDiagnostics().hitPlan,
+    }
+  },
+  selfTest: formatSelfTestBlock,
+}
+
 image.addEventListener('load', () => {
   void render('image ready')
 })
@@ -207,18 +274,24 @@ window.addEventListener('resize', () => {
 })
 
 canvas.addEventListener('pointerdown', (event) => {
-  const scenePoint = toScenePoint(event)
-  const hit = engine.hitTest(scenePoint, 6)
-  status.textContent = hit
-    ? `Hit ${hit.nodeId} at ${Math.round(scenePoint.x)}, ${Math.round(scenePoint.y)}`
-    : `Empty at ${Math.round(scenePoint.x)}, ${Math.round(scenePoint.y)}`
+  const pointer = resolvePointer(event)
+  clickHit.textContent = formatHitTestBlock('clicked', pointer, CLICK_TOLERANCE)
+})
+
+canvas.addEventListener('pointermove', (event) => {
+  const pointer = resolvePointer(event)
+  hoverHit.textContent = formatHitTestBlock('hover', pointer, HOVER_TOLERANCE)
 })
 
 canvas.addEventListener('wheel', (event) => {
   event.preventDefault()
-  const nextScale = Math.min(2.4, Math.max(0.5, viewport.scale * (event.deltaY > 0 ? 0.9 : 1.1)))
-  viewport.scale = nextScale
-  engine.setViewport(viewport)
+  const currentViewport = engine.getDiagnostics().viewport
+  const nextScale = Math.min(2.4, Math.max(0.5, currentViewport.scale * (event.deltaY > 0 ? 0.9 : 1.1)))
+  const bounds = canvas.getBoundingClientRect()
+  engine.zoomTo(nextScale, {
+    x: event.clientX - bounds.left,
+    y: event.clientY - bounds.top,
+  })
   void render(`zoom ${nextScale.toFixed(2)}x`)
 }, {passive: false})
 
@@ -230,7 +303,14 @@ void render('ready')
  */
 async function render(reason: string) {
   const stats = await engine.renderFrame()
-  status.textContent = `${reason}: ${stats.visibleCount} visible, ${stats.drawCount} drawn, backend ${engine.getDiagnostics().backend}`
+  renderStatus.textContent = [
+    `reason: ${reason}`,
+    `backend: ${engine.getDiagnostics().backend}`,
+    `visible: ${stats.visibleCount}`,
+    `drawn: ${stats.drawCount}`,
+    `culled: ${stats.culledCount}`,
+  ].join('\n')
+  selfTest.textContent = formatSelfTestBlock()
 }
 
 /**
@@ -241,8 +321,6 @@ function resizeCanvas() {
   const rect = canvas.getBoundingClientRect()
   canvas.width = Math.max(1, Math.round(rect.width * ratio))
   canvas.height = Math.max(1, Math.round(rect.height * ratio))
-  viewport.viewportWidth = rect.width
-  viewport.viewportHeight = rect.height
   engine.resize({
     viewportWidth: rect.width,
     viewportHeight: rect.height,
@@ -252,14 +330,100 @@ function resizeCanvas() {
 }
 
 /**
- * Converts pointer coordinates into engine scene coordinates.
+ * Converts pointer coordinates into engine scene coordinates through the
+ * engine-owned inverse viewport matrix.
  */
-function toScenePoint(event: PointerEvent) {
+function resolvePointer(event: PointerEvent) {
   const bounds = canvas.getBoundingClientRect()
-  return {
-    x: (event.clientX - bounds.left - viewport.offsetX) / viewport.scale,
-    y: (event.clientY - bounds.top - viewport.offsetY) / viewport.scale,
+  const currentViewport = engine.getDiagnostics().viewport
+  const screenPoint = {
+    x: event.clientX - bounds.left,
+    y: event.clientY - bounds.top,
   }
+  const scenePoint = applyMatrixToPoint(currentViewport.inverseMatrix, screenPoint)
+
+  return {
+    screenPoint,
+    scenePoint,
+    viewport: currentViewport,
+  }
+}
+
+/**
+ * Runs one hit-test mode and formats the diagnostics block shown in the demo.
+ */
+function formatHitTestBlock(
+  mode: 'hover' | 'clicked',
+  pointer: ReturnType<typeof resolvePointer>,
+  tolerance: number,
+) {
+  const {screenPoint, scenePoint, viewport: currentViewport} = pointer
+  const hit = engine.hitTest(scenePoint, tolerance)
+  const diagnostics = engine.getDiagnostics()
+  const plan = diagnostics.hitPlan
+  const candidates = engine.queryPointCandidates(scenePoint, tolerance)
+
+  return [
+    `mode: ${mode}`,
+    `screen: ${Math.round(screenPoint.x)}, ${Math.round(screenPoint.y)}`,
+    `point: ${Math.round(scenePoint.x)}, ${Math.round(scenePoint.y)}`,
+    `viewport: offset ${Math.round(currentViewport.offsetX)}, ${Math.round(currentViewport.offsetY)} / scale ${currentViewport.scale.toFixed(2)}`,
+    `tolerance: ${tolerance}`,
+    `primary: ${hit?.nodeId ?? 'none'}`,
+    `type: ${hit?.nodeType ?? 'none'}`,
+    `candidates(${candidates.length}): ${formatList(candidates)}`,
+    `hits: ${plan?.hitCount ?? 0}`,
+    `exact checks: ${plan?.exactCheckCount ?? 0}`,
+    `budget: ${formatBudget(plan?.exactCheckBudget)}`,
+    `budget exceeded: ${String(plan?.exactBudgetExceeded ?? false)}`,
+  ].join('\n')
+}
+
+/**
+ * Runs known scene-space hit points so page load itself proves hit-test works.
+ */
+function formatSelfTestBlock() {
+  return hitFixtures.map((fixture) => {
+    const hit = engine.hitTest(fixture.scenePoint, CLICK_TOLERANCE)
+    return `${fixture.id}: ${hit?.nodeId ?? 'none'}`
+  }).join('\n')
+}
+
+/**
+ * Applies one row-major 3x3 matrix to a point.
+ */
+function applyMatrixToPoint(
+  matrix: readonly [number, number, number, number, number, number, number, number, number],
+  point: {x: number; y: number},
+) {
+  return {
+    x: matrix[0] * point.x + matrix[1] * point.y + matrix[2],
+    y: matrix[3] * point.x + matrix[4] * point.y + matrix[5],
+  }
+}
+
+/**
+ * Formats a compact id list for panel output.
+ */
+function formatList(values: readonly string[]) {
+  if (values.length === 0) {
+    return 'none'
+  }
+
+  return values.slice(0, 8).join(', ') + (values.length > 8 ? ', …' : '')
+}
+
+/**
+ * Formats the exact-check budget for readable demo diagnostics.
+ */
+function formatBudget(value: number | undefined) {
+  if (value === undefined) {
+    return 'n/a'
+  }
+  if (!Number.isFinite(value)) {
+    return '∞'
+  }
+  return String(value)
 }
 
 /**

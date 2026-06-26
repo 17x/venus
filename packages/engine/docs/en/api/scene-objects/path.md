@@ -71,8 +71,9 @@ stroke width and transformed into world space.
 
 ## Hit-Test Behavior
 
-Currently hit-tested through bounds. Exact path fill/stroke hit-testing should
-be specified with path fixtures before implementation.
+Hit-testing first uses AABB pruning, then exact path fill/stroke geometry.
+Open paths hit only their stroke area. Closed paths may hit fill and stroke
+areas. Bezier paths are sampled with tolerance-aware density.
 
 ## Patch Behavior
 
@@ -83,6 +84,30 @@ geometry. Changing fill/stroke invalidates style.
 
 Geometry cache keys should include bezier/point geometry, closure, arrowheads,
 stroke width, clip, and simplification-related counts.
+
+## Demo
+
+```ts
+const pathNode = {
+  id: 'path-bezier',
+  type: 'shape',
+  shape: 'path',
+  x: 60,
+  y: 160,
+  width: 260,
+  height: 120,
+  bezierPoints: [
+    {anchor: {x: 60, y: 260}},
+    {anchor: {x: 320, y: 180}, cp1: {x: 140, y: 110}, cp2: {x: 240, y: 330}},
+  ],
+  stroke: '#7c3aed',
+  strokeWidth: 5,
+  strokeEndArrowhead: 'diamond',
+} satisfies EngineShapeNode
+
+engine.loadScene({revision: 7, width: 640, height: 480, nodes: [pathNode]})
+await engine.renderFrame()
+```
 
 ## Non-Goals
 

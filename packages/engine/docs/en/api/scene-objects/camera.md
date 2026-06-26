@@ -70,6 +70,17 @@ render scheduling state.
 Camera changes may invalidate viewport-dependent cache entries but should not
 invalidate scene content by themselves.
 
+## Demo
+
+```ts
+const diagnostics = engine.getDiagnostics()
+const screenPoint = {x: 240, y: 160}
+const worldPoint = unprojectScreenPoint(screenPoint, diagnostics.viewport)
+const projectedBack = projectWorldPoint(worldPoint, diagnostics.viewport)
+
+console.log({worldPoint, projectedBack})
+```
+
 ## Non-Goals
 
 - App viewport UI ownership.

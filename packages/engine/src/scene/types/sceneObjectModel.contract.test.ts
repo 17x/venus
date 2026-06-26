@@ -471,7 +471,7 @@ test('engine scene object model hit-tests every clickable renderable object kind
     {nodeId: 'shape-ellipse', point: {x: 150, y: 60}, tolerance: 1},
     {nodeId: 'shape-line', point: {x: 145, y: 84}, tolerance: 3},
     {nodeId: 'shape-polygon', point: {x: 112, y: 110}, tolerance: 1},
-    {nodeId: 'shape-path', point: {x: 160, y: 112}, tolerance: 2},
+    {nodeId: 'shape-path', point: {x: 152, y: 132}, tolerance: 3},
     {nodeId: 'text-rich', point: {x: 230, y: 60}, tolerance: 1},
     {nodeId: 'image-clipped', point: {x: 230, y: 110}, tolerance: 1},
   ] as const
@@ -481,4 +481,156 @@ test('engine scene object model hit-tests every clickable renderable object kind
 
     assert.equal(hit?.nodeId, clickCase.nodeId, `${clickCase.nodeId} should be directly clickable`)
   }
+})
+
+test('engine scene hit-test resolves exact geometry beyond AABB candidates', () => {
+  const store = createEngineSceneStore({
+    initialScene: {
+      revision: 'exact-hit-geometry',
+      width: 420,
+      height: 360,
+      nodes: [
+        {
+          id: 'rounded-rect',
+          type: 'shape',
+          shape: 'rect',
+          x: 10,
+          y: 10,
+          width: 80,
+          height: 80,
+          cornerRadius: 32,
+          fill: '#dbeafe',
+          stroke: '#2563eb',
+          strokeWidth: 4,
+        },
+        {
+          id: 'ellipse-arc',
+          type: 'shape',
+          shape: 'ellipse',
+          x: 120,
+          y: 10,
+          width: 100,
+          height: 80,
+          ellipseStartAngle: 0,
+          ellipseEndAngle: 90,
+          fill: '#fef3c7',
+          stroke: '#d97706',
+          strokeWidth: 4,
+        },
+        {
+          id: 'line-stroke',
+          type: 'shape',
+          shape: 'line',
+          x: 20,
+          y: 140,
+          width: 120,
+          height: 0,
+          points: [
+            {x: 20, y: 140},
+            {x: 140, y: 140},
+          ],
+          stroke: '#0f766e',
+          strokeWidth: 4,
+        },
+        {
+          id: 'wide-stroke-line',
+          type: 'shape',
+          shape: 'line',
+          x: 170,
+          y: 88,
+          width: 90,
+          height: 0,
+          points: [
+            {x: 170, y: 88},
+            {x: 260, y: 88},
+          ],
+          stroke: '#ef4444',
+          strokeWidth: 14,
+        },
+        {
+          id: 'polygon-triangle',
+          type: 'shape',
+          shape: 'polygon',
+          x: 180,
+          y: 120,
+          width: 90,
+          height: 80,
+          points: [
+            {x: 225, y: 120},
+            {x: 270, y: 200},
+            {x: 180, y: 200},
+          ],
+          fill: '#dcfce7',
+          stroke: '#16a34a',
+          strokeWidth: 3,
+          closed: true,
+        },
+        {
+          id: 'open-path',
+          type: 'shape',
+          shape: 'path',
+          x: 20,
+          y: 230,
+          width: 120,
+          height: 80,
+          points: [
+            {x: 20, y: 300},
+            {x: 80, y: 230},
+            {x: 140, y: 300},
+          ],
+          closed: false,
+          stroke: '#7c3aed',
+          strokeWidth: 4,
+        },
+        {
+          id: 'closed-path',
+          type: 'shape',
+          shape: 'path',
+          x: 180,
+          y: 230,
+          width: 90,
+          height: 80,
+          points: [
+            {x: 225, y: 230},
+            {x: 270, y: 310},
+            {x: 180, y: 310},
+          ],
+          closed: true,
+          fill: '#ede9fe',
+          stroke: '#7c3aed',
+          strokeWidth: 3,
+        },
+        {
+          id: 'clipped-image',
+          type: 'image',
+          x: 300,
+          y: 20,
+          width: 80,
+          height: 80,
+          assetId: 'asset',
+          clip: {
+            clipShape: {
+              kind: 'rect',
+              rect: {x: 320, y: 40, width: 40, height: 40},
+            },
+          },
+        },
+      ],
+    },
+  })
+
+  assert.equal(store.hitTest({x: 12, y: 12}, 0), null, 'rounded corner cutout should reject AABB-only hits')
+  assert.equal(store.hitTest({x: 50, y: 50}, 0)?.nodeId, 'rounded-rect')
+  assert.equal(store.hitTest({x: 130, y: 80}, 0), null, 'ellipse arc should reject points outside angle sweep')
+  assert.equal(store.hitTest({x: 190, y: 30}, 0)?.nodeId, 'ellipse-arc')
+  assert.equal(store.hitTest({x: 80, y: 148}, 2), null, 'click tolerance should miss thin line when too far')
+  assert.equal(store.hitTest({x: 80, y: 148}, 9)?.nodeId, 'line-stroke', 'hover tolerance should hit line stroke')
+  assert.equal(store.hitTest({x: 210, y: 94}, 1)?.nodeId, 'wide-stroke-line', 'stroke width should contribute to click hit area')
+  assert.equal(store.hitTest({x: 185, y: 125}, 0), null, 'triangle AABB corner should miss exact polygon')
+  assert.equal(store.hitTest({x: 225, y: 172}, 0)?.nodeId, 'polygon-triangle')
+  assert.equal(store.hitTest({x: 80, y: 282}, 0), null, 'open path should not fill its interior')
+  assert.equal(store.hitTest({x: 80, y: 232}, 6)?.nodeId, 'open-path')
+  assert.equal(store.hitTest({x: 225, y: 282}, 0)?.nodeId, 'closed-path')
+  assert.equal(store.hitTest({x: 306, y: 26}, 0), null, 'inline clip should reject image AABB outside clip')
+  assert.equal(store.hitTest({x: 340, y: 60}, 0)?.nodeId, 'clipped-image')
 })

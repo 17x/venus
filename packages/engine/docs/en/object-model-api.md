@@ -71,7 +71,7 @@ Each object API page must answer:
 - Shape kinds currently include `rect`, `ellipse`, `line`, `polygon`, and `path`.
 - Render command emission for every shape kind is covered by
   `src/renderer/canvas2d/shapes.objectModelRender.test.ts`.
-- Click/hit-test coverage for shape, text, and image is covered by
+- Hover/click hit-test coverage for shape, text, and image is covered by
   `src/scene/types/sceneObjectModel.contract.test.ts`.
 - Backend-neutral hit/cache/camera contracts are isolated under `src/core`.
 - Documentation completeness and wording are covered by
@@ -82,3 +82,20 @@ Each object API page must answer:
 Do not add new object behavior directly to renderer backends first. Add or update
 its object API document, add type and capability tests, implement the mechanism
 in the owning domain, then add or update render tests.
+
+## Hit-Test Modes
+
+Hover and click both use the same scene geometry hit-test kernel. The caller
+chooses mode by passing different tolerances and by storing separate UI state:
+
+- Hover should use a larger tolerance so thin strokes, open lines, and bezier
+  paths are discoverable during pointer movement.
+- Click should use a smaller tolerance and should report the ordered hit list,
+  candidate ids, exact-check counts, and primary hit.
+- Stroke hit areas use the larger of caller tolerance and half of `strokeWidth`
+  so visible wide strokes remain clickable.
+
+The scene hit-test kernel must account for AABB pruning first, then exact
+geometry rules for rounded rectangles, ellipse arc sectors, open lines,
+polygons, open/closed paths, stroke-only areas, fill areas, transforms, text
+bounds, image bounds, and inline clips.

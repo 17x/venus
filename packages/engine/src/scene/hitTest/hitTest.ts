@@ -1,4 +1,14 @@
-import type { EnginePoint, EngineRenderableNode } from '../types/types.ts'
+import {
+  isPointInsideEngineClipShape,
+  isPointInsideEngineShapeHitArea,
+  type EngineEditorHitTestNode,
+} from '../../interaction/hitTest/hitTest.ts'
+import type {
+  EngineClipShape,
+  EnginePoint,
+  EngineRenderableNode,
+  EngineShapeNode,
+} from '../types/types.ts'
 import type { MutableEngineSceneState } from '../patch/patch.ts'
 
 export interface EngineHitTestResult {
@@ -30,6 +40,7 @@ const IDENTITY_MATRIX: Matrix2D = [1, 0, 0, 0, 1, 0]
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
 const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6
 const MATRIX_INVERSION_EPSILON = 1e-8
+const LINE_ENDPOINT_MIN_COUNT = 2
 
 // Resolve only the primary hit while preserving shared exact-check accounting.
 /**
@@ -206,7 +217,7 @@ function isPointInsideNode(
 
   switch (node.type) {
     case 'image':
-      return isPointInsideRect(
+      return isPointInsideNodeClip(localPoint, node) && isPointInsideRect(
         localPoint,
         node.x,
         node.y,
@@ -218,7 +229,7 @@ function isPointInsideNode(
       const width = node.width ?? estimateTextWidth(node)
       const lineHeight = node.style.lineHeight ?? node.style.fontSize * TEXT_LINE_HEIGHT_MULTIPLIER
       const height = node.height ?? lineHeight
-      return isPointInsideRect(
+      return isPointInsideNodeClip(localPoint, node) && isPointInsideRect(
         localPoint,
         node.x,
         node.y,
@@ -230,16 +241,212 @@ function isPointInsideNode(
     case 'group':
       return false
     case 'shape':
-      return isPointInsideRect(
+      return isPointInsideNodeClip(localPoint, node) && isPointInsideEngineShapeHitArea(
         localPoint,
-        node.x,
-        node.y,
-        node.width,
-        node.height,
-        tolerance,
+        toEditorHitTestShape(node),
+        {
+          tolerance: resolveShapeHitTolerance(node, tolerance),
+          strictStrokeHitTest: false,
+        },
       )
     default:
       return false
+  }
+}
+
+/**
+ * Resolves visual stroke-aware hit tolerance for exact shape checks.
+ * @param node Target shape node.
+ * @param tolerance Caller-provided pointer tolerance.
+ */
+function resolveShapeHitTolerance(
+  node: EngineShapeNode,
+  tolerance: number,
+) {
+  const strokeHalfWidth = Math.max(0, node.strokeWidth ?? 0) / 2
+  return Math.max(0, tolerance, strokeHalfWidth)
+}
+
+/**
+ * Converts one render-facing engine shape into the shared geometry hit-test
+ * shape contract used by interaction helpers.
+ * @param node Target shape node.
+ */
+function toEditorHitTestShape(node: EngineShapeNode): EngineEditorHitTestNode {
+  if (node.shape === 'line') {
+    const endpoints = resolveLineEndpoints(node)
+    return {
+      id: node.id,
+      type: 'lineSegment',
+      x: endpoints.start.x,
+      y: endpoints.start.y,
+      width: endpoints.end.x - endpoints.start.x,
+      height: endpoints.end.y - endpoints.start.y,
+      stroke: {enabled: hasStroke(node)},
+      fill: {enabled: false},
+    }
+  }
+
+  return {
+    id: node.id,
+    type: toEditorShapeType(node),
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    fill: {enabled: hasFill(node)},
+    stroke: {enabled: hasStroke(node)},
+    cornerRadius: node.cornerRadius,
+    cornerRadii: node.cornerRadii,
+    points: node.points ? [...node.points] : undefined,
+    bezierPoints: node.bezierPoints ? [...node.bezierPoints] : undefined,
+    closed: node.closed,
+    ellipseStartAngle: node.ellipseStartAngle,
+    ellipseEndAngle: node.ellipseEndAngle,
+  }
+}
+
+/**
+ * Resolves one engine shape kind into the editor-geometry hit-test kind.
+ * @param node Target shape node.
+ */
+function toEditorShapeType(node: EngineShapeNode): EngineEditorHitTestNode['type'] {
+  switch (node.shape) {
+    case 'rect':
+      return 'rectangle'
+    case 'ellipse':
+      return 'ellipse'
+    case 'polygon':
+      return 'polygon'
+    case 'path':
+      return 'path'
+    case 'line':
+      return 'lineSegment'
+    default:
+      return 'rectangle'
+  }
+}
+
+/**
+ * Resolves explicit line points before falling back to the node diagonal.
+ * @param node Target shape node.
+ */
+function resolveLineEndpoints(node: EngineShapeNode) {
+  if (node.points && node.points.length >= LINE_ENDPOINT_MIN_COUNT) {
+    return {
+      start: node.points[0],
+      end: node.points[node.points.length - 1],
+    }
+  }
+
+  return {
+    start: {x: node.x, y: node.y},
+    end: {x: node.x + node.width, y: node.y + node.height},
+  }
+}
+
+/**
+ * Resolves whether one engine shape exposes a fill hit area.
+ * @param node Target shape node.
+ */
+function hasFill(node: EngineShapeNode) {
+  if (node.shape === 'line') {
+    return false
+  }
+
+  return Boolean(node.fill || node.closed)
+}
+
+/**
+ * Resolves whether one engine shape exposes a stroke hit area.
+ * @param node Target shape node.
+ */
+function hasStroke(node: EngineShapeNode) {
+  return Boolean(node.stroke || (node.strokeWidth ?? 0) > 0 || node.shape === 'line')
+}
+
+/**
+ * Applies inline clipping to scene hit-test results.
+ * @param point Local-space point.
+ * @param node Target renderable node.
+ */
+function isPointInsideNodeClip(
+  point: EnginePoint,
+  node: EngineRenderableNode,
+): boolean {
+  const clipShape = node.clip?.clipShape
+  if (!clipShape) {
+    return true
+  }
+
+  return isPointInsideEngineClipShape(
+    point,
+    toEditorClipShape(node.id, clipShape),
+    {
+      tolerance: 0,
+    },
+  )
+}
+
+/**
+ * Converts inline engine clip geometry to the shared geometry hit-test contract.
+ * @param ownerId ownerId parameter.
+ * @param clipShape clipShape parameter.
+ */
+function toEditorClipShape(
+  ownerId: string,
+  clipShape: EngineClipShape,
+): EngineEditorHitTestNode {
+  if (clipShape.kind === 'rect') {
+    return {
+      id: `${ownerId}:clip`,
+      type: 'rectangle',
+      x: clipShape.rect.x,
+      y: clipShape.rect.y,
+      width: clipShape.rect.width,
+      height: clipShape.rect.height,
+      cornerRadius: clipShape.radius,
+      fill: {enabled: true},
+      stroke: {enabled: false},
+    }
+  }
+
+  const bounds = getPointBounds(clipShape.points)
+  return {
+    id: `${ownerId}:clip`,
+    type: 'path',
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    points: [...clipShape.points],
+    closed: clipShape.closed !== false,
+    fill: {enabled: true},
+    stroke: {enabled: false},
+  }
+}
+
+/**
+ * Resolves simple bounds for point-based clip paths.
+ * @param points points parameter.
+ */
+function getPointBounds(points: readonly EnginePoint[]) {
+  if (points.length === 0) {
+    return {x: 0, y: 0, width: 0, height: 0}
+  }
+
+  const xs = points.map((point) => point.x)
+  const ys = points.map((point) => point.y)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
+  const maxX = Math.max(...xs)
+  const maxY = Math.max(...ys)
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
   }
 }
 

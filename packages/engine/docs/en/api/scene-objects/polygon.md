@@ -61,8 +61,8 @@ and transformed into world space.
 
 ## Hit-Test Behavior
 
-Currently hit-tested through bounds. Exact polygon fill/stroke hit-testing is a
-future API-first refinement.
+Hit-testing first uses AABB pruning, then exact polygon fill and edge/stroke
+geometry. Polygon point order defines the closed contour.
 
 ## Patch Behavior
 
@@ -73,6 +73,34 @@ invalidates style.
 
 Geometry cache keys should include point list, closed state, stroke width, clip,
 and transform-affecting context.
+
+## Demo
+
+```ts
+const polygonNode = {
+  id: 'polygon-1',
+  type: 'shape',
+  shape: 'polygon',
+  x: 80,
+  y: 60,
+  width: 160,
+  height: 140,
+  points: [
+    {x: 160, y: 60},
+    {x: 240, y: 130},
+    {x: 205, y: 200},
+    {x: 95, y: 190},
+    {x: 80, y: 95},
+  ],
+  fill: '#dcfce7',
+  stroke: '#16a34a',
+  strokeWidth: 3,
+  closed: true,
+} satisfies EngineShapeNode
+
+engine.loadScene({revision: 6, width: 640, height: 480, nodes: [polygonNode]})
+await engine.renderFrame()
+```
 
 ## Non-Goals
 

@@ -61,8 +61,8 @@ into world space.
 
 ## Hit-Test Behavior
 
-Currently hit-tested through bounds with tolerance. Stroke-distance exact
-hit-testing should be specified before implementation.
+Hit-testing first uses AABB pruning, then exact stroke-distance checks against
+the rendered line segment. Hover can use a larger tolerance than click.
 
 ## Patch Behavior
 
@@ -73,6 +73,28 @@ style invalidates style.
 
 Geometry cache keys should include endpoints, arrowheads, stroke width, clip, and
 transform-affecting context.
+
+## Demo
+
+```ts
+const lineNode = {
+  id: 'line-arrow',
+  type: 'shape',
+  shape: 'line',
+  x: 40,
+  y: 120,
+  width: 240,
+  height: 0,
+  points: [{x: 40, y: 120}, {x: 280, y: 120}],
+  stroke: '#0f766e',
+  strokeWidth: 5,
+  strokeStartArrowhead: 'circle',
+  strokeEndArrowhead: 'triangle',
+} satisfies EngineShapeNode
+
+engine.loadScene({revision: 5, width: 640, height: 480, nodes: [lineNode]})
+await engine.renderFrame()
+```
 
 ## Non-Goals
 

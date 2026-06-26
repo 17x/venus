@@ -89,6 +89,32 @@ layout and render caches.
 Cache keys should include `cacheKey` when supplied. Otherwise include text,
 runs, style, wrap, measurement hints, clip, and transform-affecting context.
 
+## Demo
+
+```ts
+const textNode = {
+  id: 'text-1',
+  type: 'text',
+  x: 48,
+  y: 80,
+  width: 280,
+  height: 56,
+  text: 'Engine text node',
+  runs: [
+    {text: 'Engine', style: {fontWeight: 700}},
+    {text: ' text node', style: {fill: '#475569'}},
+  ],
+  style: {
+    fontFamily: 'system-ui',
+    fontSize: 28,
+    fill: '#111827',
+  },
+} satisfies EngineTextNode
+
+engine.loadScene({revision: 8, width: 640, height: 480, nodes: [textNode]})
+await engine.renderFrame()
+```
+
 ## Non-Goals
 
 - IME behavior.

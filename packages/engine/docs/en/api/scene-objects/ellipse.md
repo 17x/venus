@@ -61,8 +61,9 @@ and transform.
 
 ## Hit-Test Behavior
 
-Currently hit-tested through local/world bounds with tolerance. Exact ellipse and
-arc hit-testing should be added through API-first tests before implementation.
+Hit-testing first uses AABB pruning, then exact ellipse fill/stroke geometry.
+When `ellipseStartAngle` or `ellipseEndAngle` is present, hit-testing uses the
+same arc-sector angle range as rendering.
 
 ## Patch Behavior
 
@@ -73,6 +74,28 @@ invalidates style.
 
 Geometry cache keys should include bounds, arc angles, stroke width, clip, and
 transform-affecting context.
+
+## Demo
+
+```ts
+const ellipseNode = {
+  id: 'ellipse-arc',
+  type: 'shape',
+  shape: 'ellipse',
+  x: 80,
+  y: 60,
+  width: 180,
+  height: 120,
+  ellipseStartAngle: 20,
+  ellipseEndAngle: 320,
+  fill: '#fef3c7',
+  stroke: '#d97706',
+  strokeWidth: 3,
+} satisfies EngineShapeNode
+
+engine.loadScene({revision: 4, width: 640, height: 480, nodes: [ellipseNode]})
+await engine.renderFrame()
+```
 
 ## Non-Goals
 

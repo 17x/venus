@@ -220,7 +220,7 @@ export interface EngineRuntimeDiagnostics {
     leaveRatioThreshold: number
     stableFrameCount: number
   }
-  viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight'>
+  viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight' | 'matrix' | 'inverseMatrix'>
   cameraAnimation: EngineCameraAnimationState
   // Reports internal render-strategy state so diagnostics can correlate
   // quality/preview decisions with interaction and fallback behavior.
@@ -1163,6 +1163,8 @@ markDirtyBounds(bounds, zoomLevel) {
           offsetY: viewport.offsetY,
           viewportWidth: viewport.viewportWidth,
           viewportHeight: viewport.viewportHeight,
+          matrix: viewport.matrix,
+          inverseMatrix: viewport.inverseMatrix,
         },
         cameraAnimation: {
           active: cameraAnimationState.active,
