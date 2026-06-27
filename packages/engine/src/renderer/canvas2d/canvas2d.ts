@@ -600,11 +600,12 @@ function drawShapeNode(
   const drawWidth = localRect?.width ?? node.width
   const drawHeight = localRect?.height ?? node.height
   const fill = node.fill ?? 'rgba(17,24,39,0.05)'
-  const stroke = node.stroke ?? '#1f2937'
-  const strokeWidth = node.strokeWidth ?? 1
+  const stroke = node.stroke
+  const strokeWidth = node.strokeWidth ?? (stroke ? 1 : 0)
+  const shouldStroke = Boolean(stroke) && stroke !== 'transparent' && strokeWidth > 0
 
   context.fillStyle = fill
-  context.strokeStyle = stroke
+  context.strokeStyle = stroke ?? 'transparent'
   context.lineWidth = strokeWidth
   context.lineCap = 'round'
   context.lineJoin = 'round'
@@ -635,15 +636,19 @@ function drawShapeNode(
   if (shouldFill) {
     context.fill()
   }
-  context.stroke()
+  if (shouldStroke) {
+    context.stroke()
+  }
 
   // Draw arrowheads after stroke so the cap shape stays sharp.
-  drawShapeArrowheads(context, node, stroke, strokeWidth, {
-    x: drawX,
-    y: drawY,
-    width: drawWidth,
-    height: drawHeight,
-  })
+  if (shouldStroke) {
+    drawShapeArrowheads(context, node, stroke!, strokeWidth, {
+      x: drawX,
+      y: drawY,
+      width: drawWidth,
+      height: drawHeight,
+    })
+  }
 }
 
 /**
@@ -659,7 +664,7 @@ function drawEllipseArcNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineShapeNode,
   fill: string,
-  stroke: string,
+  stroke: string | undefined,
   strokeWidth: number,
   rect: {x: number; y: number; width: number; height: number},
 ) {
@@ -680,11 +685,13 @@ function drawEllipseArcNode(
     context.fill()
   }
 
-  context.beginPath()
-  context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
-  context.strokeStyle = stroke
-  context.lineWidth = strokeWidth
-  context.stroke()
+  if (stroke && stroke !== 'transparent' && strokeWidth > 0) {
+    context.beginPath()
+    context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
+    context.strokeStyle = stroke
+    context.lineWidth = strokeWidth
+    context.stroke()
+  }
 }
 
 /**

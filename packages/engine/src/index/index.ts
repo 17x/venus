@@ -45,6 +45,16 @@ export type {
 export {
   createEngine,
 } from '../runtime/createEngine/createEngine.ts'
+export type {
+  VenusEventHandler,
+  VenusEventMap,
+  VenusEventName,
+  VenusNode,
+  VenusParameters,
+} from '../runtime/venus/Venus.ts'
+export {
+  Venus,
+} from '../runtime/venus/Venus.ts'
 
 export type {
   EngineDrawCommand,

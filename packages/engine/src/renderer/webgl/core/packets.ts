@@ -120,7 +120,7 @@ export function compileEngineWebGLPacketPlan(
       textCacheKey,
       hasShadow: resolveNodeHasShadow(prepared.node),
       hasExpensiveEffect: resolveNodeHasExpensiveEffect(prepared.node),
-      shapeHasStroke: prepared.node.type === 'shape' && Boolean(prepared.node.stroke),
+      shapeHasStroke: prepared.node.type === 'shape' && Boolean(prepared.node.stroke) && (prepared.node.strokeWidth ?? 1) > 0,
       shapeHasFill: prepared.node.type === 'shape' && Boolean(prepared.node.fill),
       shapeStrokeWidth: prepared.node.type === 'shape' ? prepared.node.strokeWidth : undefined,
       shapeKind: prepared.node.type === 'shape' ? prepared.node.shape : undefined,
