@@ -1,6 +1,31 @@
 import {useEffect, useRef, useState, type Dispatch, type SetStateAction} from 'react'
 import {Button} from './components/ui/button.tsx'
 import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  Bell,
+  BellOff,
+  Bug,
+  Camera,
+  Crosshair,
+  Expand,
+  Film,
+  FlipHorizontal,
+  FlipVertical,
+  Gauge,
+  List,
+  Maximize,
+  Play,
+  Plus,
+  ScanEye,
+  Search,
+  Timer,
+  Trash2,
+  ZoomIn,
+} from 'lucide-react'
+import {
   engineApiCategories,
   type EngineApiCategory,
   type EngineApiDoc,
@@ -9,6 +34,12 @@ import {
 import {Venus, type VenusNode} from '../../../packages/engine/src/index.ts'
 
 type ThemeMode = 'light' | 'dark'
+type VenusHitTestResult = ReturnType<Venus['hitTest']>
+
+interface HitTestPanelState {
+  point: {x: number; y: number}
+  result: VenusHitTestResult
+}
 
 const getApiAnchorId = (category: EngineApiCategory, api: EngineApiDoc) => {
   return `${category.id}-${api.id}`
@@ -139,6 +170,45 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     ]
   }
 
+  if (apiId === 'polygon-node') {
+    return [{type: 'polygon', x: 72, y: 56, width: 220, height: 168, points: [{x: 182, y: 56}, {x: 292, y: 120}, {x: 254, y: 224}, {x: 110, y: 224}, {x: 72, y: 120}], fill: isLight ? '#dcfce7' : '#14532d', stroke: isLight ? '#16a34a' : '#86efac', strokeWidth: 3}]
+  }
+
+  if (apiId === 'path-node') {
+    return [{type: 'path', x: 64, y: 64, width: 280, height: 180, points: [{x: 64, y: 160}, {x: 200, y: 64}, {x: 344, y: 160}, {x: 200, y: 244}], stroke: isLight ? '#7c3aed' : '#a78bfa', strokeWidth: 5, closed: true}]
+  }
+
+  if (apiId === 'image-node') {
+    return [{type: 'image', x: 80, y: 56, width: 240, height: 160, assetId: 'demo-image'}]
+  }
+
+  if (apiId === 'add') {
+    return [{type: 'rect', x: 96, y: 76, width: 300, height: 170, fill: isLight ? '#dbeafe' : '#1e3a8a', stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 5, cornerRadius: 16}]
+  }
+
+  if (apiId === 'mount') {
+    return [{type: 'rect', x: 64, y: 52, width: 340, height: 220, fill: isLight ? '#dcfce7' : '#14532d', stroke: isLight ? '#16a34a' : '#86efac', strokeWidth: 5, cornerRadius: .16}]
+  }
+
+  if (apiId === 'hitTest') {
+    return [
+      {type: 'rect', x: 92, y: 72, width: 300, height: 170, fill: isLight ? '#e0f2fe' : '#0c4a6e', stroke: '#0ea5e9', strokeWidth: 5, cornerRadius: 16},
+      {type: 'ellipse', x: 250, y: 130, width: 40, height: 40, fill: '#22c55e'},
+    ]
+  }
+
+  if (apiId === 'getNodeById' || apiId === 'getParentId') {
+    return [{
+      type: 'group',
+      x: 40,
+      y: 38,
+      children: [
+        {type: 'rect', x: 40, y: 40, width: 310, height: 170, fill: isLight ? '#dbeafe' : '#1e3a8a', stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 4, cornerRadius: 18},
+        {type: 'ellipse', x: 84, y: 76, width: 84, height: 70, fill: isLight ? '#fef3c7' : '#78350f', stroke: isLight ? '#f59e0b' : '#fbbf24', strokeWidth: 3},
+      ],
+    }]
+  }
+
   return [
     {type: 'rect', x: 96, y: 76, width: 300, height: 170, fill: panel, stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 5, cornerRadius: 16},
   ]
@@ -193,8 +263,6 @@ interface ModelControlValues {
   width: number
   height: number
   rotation: number
-  scaleX: number
-  scaleY: number
   skewX: number
   skewY: number
   originX: number
@@ -236,8 +304,6 @@ interface ModelControlValues {
   childRectOpacity: number
   childRectCornerRadius: number
   childRectRotation: number
-  childRectScaleX: number
-  childRectScaleY: number
   childRectSkewX: number
   childRectSkewY: number
   childRectOriginX: number
@@ -257,8 +323,6 @@ interface ModelControlValues {
   childEllipseStartAngle: number
   childEllipseEndAngle: number
   childEllipseRotation: number
-  childEllipseScaleX: number
-  childEllipseScaleY: number
   childEllipseSkewX: number
   childEllipseSkewY: number
   childEllipseOriginX: number
@@ -276,8 +340,6 @@ interface ModelControlValues {
   childTextFontWeight: number
   childTextLineHeight: number
   childTextRotation: number
-  childTextScaleX: number
-  childTextScaleY: number
   childTextSkewX: number
   childTextSkewY: number
   childTextOriginX: number
@@ -290,6 +352,9 @@ interface ModelControlValues {
   clipPathHeight: number
   clipPathCornerRadius: number
   clipIsEllipse: boolean
+  pathClosed: boolean
+  imageSmoothing: boolean
+  assetId: string
   shadowEnabled: boolean
   shadowColor: string
   shadowBlur: number
@@ -297,7 +362,7 @@ interface ModelControlValues {
   shadowOffsetY: number
 }
 
-const editableModelApiIds = new Set(['rect-node', 'ellipse-node', 'line-node', 'text-node', 'group-node', 'clip-node', 'mask-node'])
+const editableModelApiIds = new Set(['rect-node', 'ellipse-node', 'line-node', 'text-node', 'group-node', 'clip-node', 'mask-node', 'polygon-node', 'path-node', 'image-node'])
 
 const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelControlValues => {
   const isLight = theme === 'light'
@@ -313,8 +378,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     width: apiId === 'line-node' ? 310 : 240,
     height: apiId === 'line-node' ? 128 : 140,
     rotation: 0,
-    scaleX: 1,
-    scaleY: 1,
     skewX: 0,
     skewY: 0,
     originX: 50,
@@ -356,8 +419,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childRectOpacity: 100,
     childRectCornerRadius: 18,
     childRectRotation: 0,
-    childRectScaleX: 1,
-    childRectScaleY: 1,
     childRectSkewX: 0,
     childRectSkewY: 0,
     childRectOriginX: 50,
@@ -377,8 +438,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childEllipseStartAngle: 0,
     childEllipseEndAngle: 360,
     childEllipseRotation: 0,
-    childEllipseScaleX: 1,
-    childEllipseScaleY: 1,
     childEllipseSkewX: 0,
     childEllipseSkewY: 0,
     childEllipseOriginX: 50,
@@ -396,8 +455,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childTextFontWeight: 700,
     childTextLineHeight: 52,
     childTextRotation: 0,
-    childTextScaleX: 1,
-    childTextScaleY: 1,
     childTextSkewX: 0,
     childTextSkewY: 0,
     childTextOriginX: 50,
@@ -410,6 +467,9 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     clipPathHeight: 140,
     clipPathCornerRadius: 18,
     clipIsEllipse: apiId === 'clip-node',
+    pathClosed: true,
+    imageSmoothing: true,
+    assetId: 'demo-image',
     shadowEnabled: false,
     shadowColor: '#000000',
     shadowBlur: 12,
@@ -456,11 +516,9 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   const childEllipseStroke = withOpacity(controls.childEllipseStroke, controls.childEllipseStrokeOpacity)
   const opacity = controls.opacity / 100
   const shadow = resolveShadow(controls)
-  const transform = {
+  const flatTransform = {
     transform: {
       rotation: controls.rotation,
-      scaleX: controls.scaleX,
-      scaleY: controls.scaleY,
       skewX: controls.skewX,
       skewY: controls.skewY,
       flipX: controls.flipX,
@@ -471,8 +529,6 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   const childRectTransform = {
     transform: {
       rotation: controls.childRectRotation,
-      scaleX: controls.childRectScaleX,
-      scaleY: controls.childRectScaleY,
       skewX: controls.childRectSkewX,
       skewY: controls.childRectSkewY,
       flipX: controls.childRectFlipX,
@@ -483,8 +539,6 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   const childEllipseTransform = {
     transform: {
       rotation: controls.childEllipseRotation,
-      scaleX: controls.childEllipseScaleX,
-      scaleY: controls.childEllipseScaleY,
       skewX: controls.childEllipseSkewX,
       skewY: controls.childEllipseSkewY,
       flipX: controls.childEllipseFlipX,
@@ -495,8 +549,6 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   const childTextTransform = {
     transform: {
       rotation: controls.childTextRotation,
-      scaleX: controls.childTextScaleX,
-      scaleY: controls.childTextScaleY,
       skewX: controls.childTextSkewX,
       skewY: controls.childTextSkewY,
       flipX: controls.childTextFlipX,
@@ -514,19 +566,19 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     }
 
   if (apiId === 'rect-node') {
-    return [{id: commonId, type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, cornerRadius: controls.cornersLocked ? controls.cornerRadius : undefined, cornerRadii, ...transform}]
+    return [{id: commonId, type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, cornerRadius: controls.cornersLocked ? controls.cornerRadius : undefined, cornerRadii, ...flatTransform}]
   }
 
   if (apiId === 'ellipse-node') {
-    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ...transform}]
+    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ...flatTransform}]
   }
 
   if (apiId === 'line-node') {
-    return [{id: commonId, type: 'line', x: controls.x, y: controls.y, width: controls.x2 - controls.x, height: controls.y2 - controls.y, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, ...transform}]
+    return [{id: commonId, type: 'line', x: controls.x, y: controls.y, width: controls.x2 - controls.x, height: controls.y2 - controls.y, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, ...flatTransform}]
   }
 
   if (apiId === 'text-node') {
-    return [{id: commonId, type: 'text', x: controls.x, y: controls.y, width: controls.width, height: controls.height, text: controls.text, runs: createTextRuns(controls), fill, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight, opacity, shadow, ...transform}]
+    return [{id: commonId, type: 'text', x: controls.x, y: controls.y, width: controls.width, height: controls.height, text: controls.text, runs: createTextRuns(controls), fill, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight, opacity, shadow, ...flatTransform}]
   }
 
   if (apiId === 'group-node') {
@@ -537,7 +589,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
       y: controls.y,
       opacity,
       shadow,
-      ...transform,
+      ...flatTransform,
       children: [
         {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: childRectFill, stroke: childRectStroke, strokeWidth: controls.childRectStrokeWidth, opacity: controls.childRectOpacity / 100, cornerRadius: controls.childRectCornerRadius, ...childRectTransform},
         {type: 'text', x: controls.childTextX, y: controls.childTextY, width: controls.childTextWidth, height: controls.childTextHeight, text: controls.childText, fill: controls.childTextFill, fontSize: controls.childTextFontSize, fontWeight: controls.childTextFontWeight, lineHeight: controls.childTextLineHeight, opacity: controls.childTextOpacity / 100, ...childTextTransform},
@@ -554,13 +606,25 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
       id: commonId,
       type: apiId === 'clip-node' ? 'clip' : 'mask',
       opacity,
-      ...transform,
+      ...flatTransform,
       clipPath,
       children: [
         {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: childRectFill, stroke: childRectStroke, strokeWidth: controls.childRectStrokeWidth, opacity: controls.childRectOpacity / 100, cornerRadius: controls.childRectCornerRadius, shadow, ...childRectTransform},
         {type: 'ellipse', x: controls.childEllipseX, y: controls.childEllipseY, width: controls.childEllipseWidth, height: controls.childEllipseHeight, fill: childEllipseFill, stroke: childEllipseStroke, strokeWidth: controls.childEllipseStrokeWidth, opacity: controls.childEllipseOpacity / 100, ellipseStartAngle: controls.childEllipseStartAngle, ellipseEndAngle: controls.childEllipseEndAngle, ...childEllipseTransform},
       ],
     }]
+  }
+
+  if (apiId === 'polygon-node') {
+    return [{id: commonId, type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], fill, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, ...flatTransform}]
+  }
+
+  if (apiId === 'path-node') {
+    return [{id: commonId, type: 'path', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y + controls.height}], fill: controls.pathClosed ? fill : undefined, stroke, strokeWidth: controls.strokeWidth, opacity, shadow, closed: controls.pathClosed, ...flatTransform}]
+  }
+
+  if (apiId === 'image-node') {
+    return [{id: commonId, type: 'image', x: controls.x, y: controls.y, width: controls.width, height: controls.height, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing, opacity, ...flatTransform}]
   }
 
   return null
@@ -594,58 +658,77 @@ function ModelControlPanel({
       return {...currentControls, [key]: nextValue}
     })
   }
-  const numberField = (key: keyof ModelControlValues, label: string, unit = '', input?: {min?: number; max?: number; step?: number}) => {
-    const value = controls[key]
-    if (typeof value !== 'number') {
-      return null
-    }
+  // Compact single-letter labels with full name as tooltip.
+  const fieldLabel: Record<string, string> = {
+    x: 'X', y: 'Y', x2: 'X₂', y2: 'Y₂', width: 'W', height: 'H',
+    rotation: 'R', opacity: 'O', fillOpacity: 'Fα', strokeOpacity: 'Sα', strokeWidth: 'Sw',
+    cornerRadius: 'R', cornerTopLeft: 'Tl', cornerTopRight: 'Tr', cornerBottomRight: 'Br', cornerBottomLeft: 'Bl',
+    fontSize: 'Fs', fontWeight: 'Fw', lineHeight: 'Lh',
+    ellipseStartAngle: 'As', ellipseEndAngle: 'Ae',
+    originX: 'Ox', originY: 'Oy',
+    shadowBlur: 'Bl', shadowOffsetX: 'Sx', shadowOffsetY: 'Sy',
+    selectedTextStart: 'Ss', selectedTextEnd: 'Se',
+    pathClosed: 'Cl', imageSmoothing: 'Sm',
+    // Child field labels (same suffixes)
+    childRectX: 'X', childRectY: 'Y', childRectWidth: 'W', childRectHeight: 'H',
+    childRectRotation: 'R', childRectOpacity: 'O', childRectFillOpacity: 'Fα', childRectStrokeOpacity: 'Sα', childRectStrokeWidth: 'Sw', childRectCornerRadius: 'R',
+    childEllipseX: 'X', childEllipseY: 'Y', childEllipseWidth: 'W', childEllipseHeight: 'H',
+    childEllipseRotation: 'R', childEllipseOpacity: 'O', childEllipseFillOpacity: 'Fα', childEllipseStrokeOpacity: 'Sα', childEllipseStrokeWidth: 'Sw',
+    childEllipseStartAngle: 'As', childEllipseEndAngle: 'Ae',
+    childTextX: 'X', childTextY: 'Y', childTextWidth: 'W', childTextHeight: 'H',
+    childTextRotation: 'R', childTextOpacity: 'O', childTextFontSize: 'Fs', childTextFontWeight: 'Fw', childTextLineHeight: 'Lh',
+    clipPathX: 'X', clipPathY: 'Y', clipPathWidth: 'W', clipPathHeight: 'H', clipPathCornerRadius: 'R',
+  }
+  const getFieldLabel = (key: string, full: string) => fieldLabel[key] ?? full.slice(0, 2)
 
-    return <label key={String(key)} className={'grid grid-cols-[48px_64px_24px] items-center gap-1'}>
-      <span className={'truncate text-[11px] text-muted-foreground'}>{label}</span>
+  const numberField = (key: keyof ModelControlValues, fullLabel: string, unit = '', input?: {min?: number; max?: number; step?: number}) => {
+    const value = controls[key]
+    if (typeof value !== 'number') return null
+    const label = getFieldLabel(String(key), fullLabel)
+    return <label key={String(key)} className={'flex items-center gap-1.5'} title={fullLabel}>
+      <span className={'flex size-6 shrink-0 items-center justify-center rounded border border-border text-[10px] font-medium text-muted-foreground'}>{label}</span>
       <input
-        className={'h-7 w-16 rounded-md border bg-background px-1.5 text-xs'}
+        className={'h-6 w-full min-w-0 rounded bg-muted/50 px-1.5 text-xs tabular-nums outline-none focus:bg-muted'}
         type={'number'}
         min={input?.min}
         max={input?.max}
         step={input?.step ?? 1}
         value={value}
-        onChange={(event) => setNumber(key, event.target.value)}
+        onChange={(e) => setNumber(key, e.target.value)}
       />
-      <span className={'text-[11px] text-muted-foreground'}>{unit}</span>
+      {unit ? <span className={'shrink-0 text-[10px] text-muted-foreground'}>{unit}</span> : null}
     </label>
   }
-  const colorField = (key: keyof ModelControlValues, label: string) => {
+  const colorField = (key: keyof ModelControlValues, fullLabel: string) => {
     const value = controls[key]
-    if (typeof value !== 'string') {
-      return null
-    }
-
-    return <label className={'grid grid-cols-[64px_88px_28px] items-center gap-1'}>
-      <span className={'truncate text-[11px] text-muted-foreground'}>{label}</span>
-      <input className={'h-7 w-[88px] rounded-md border bg-background px-1.5 text-xs'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
-      <input className={'size-7 rounded-md border bg-background'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+    if (typeof value !== 'string') return null
+    const label = getFieldLabel(String(key), fullLabel)
+    return <label className={'flex items-center gap-1.5'} title={fullLabel}>
+      <span className={'flex size-6 shrink-0 items-center justify-center rounded border border-border text-[10px] font-medium text-muted-foreground'}>{label}</span>
+      <input className={'h-6 w-full min-w-0 rounded bg-muted/50 px-1.5 text-xs outline-none focus:bg-muted'} value={value} onChange={(e) => setValue(key, e.target.value as never)} />
+      <input className={'size-6 shrink-0 cursor-pointer rounded border-0 bg-transparent'} type={'color'} value={value} onChange={(e) => setValue(key, e.target.value as never)} />
     </label>
   }
-  const toggleField = (key: keyof ModelControlValues, label: string) => {
+  const toggleField = (key: keyof ModelControlValues, fullLabel: string) => {
     const value = controls[key]
-    if (typeof value !== 'boolean') {
-      return null
-    }
-
-    return <label className={'grid grid-cols-[48px_32px_20px] items-center gap-1'}>
-      <span className={'truncate text-[11px] text-muted-foreground'}>{label}</span>
+    if (typeof value !== 'boolean') return null
+    const label = getFieldLabel(String(key), fullLabel)
+    return <label className={'flex items-center gap-1.5'} title={fullLabel}>
+      <span className={'flex size-6 shrink-0 items-center justify-center rounded border border-border text-[10px] font-medium text-muted-foreground'}>{label}</span>
       <span className={'text-[11px] text-muted-foreground'}>{value ? 'on' : 'off'}</span>
-      <input type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+      <input className={'size-4'} type={'checkbox'} checked={value} onChange={(e) => setValue(key, e.target.checked as never)} />
     </label>
   }
   const isCompositeModel = apiId === 'group-node' || apiId === 'clip-node' || apiId === 'mask-node'
-  const showFill = apiId !== 'line-node' && !isCompositeModel
-  const showStroke = apiId !== 'text-node' && !isCompositeModel
+  const showFill = apiId !== 'line-node' && !isCompositeModel && apiId !== 'image-node'
+  const showStroke = apiId !== 'text-node' && !isCompositeModel && apiId !== 'image-node'
   const showCornerRadius = apiId === 'rect-node'
   const showText = apiId === 'text-node'
   const showTypography = apiId === 'text-node'
   const showEllipseAngles = apiId === 'ellipse-node'
   const showLineEndpoints = apiId === 'line-node'
+  const showPathOptions = apiId === 'path-node'
+  const showImageOptions = apiId === 'image-node'
   const cornerSectionTitle = 'Rect'
   const compositeTabs = apiId === 'group-node'
     ? [
@@ -683,16 +766,16 @@ function ModelControlPanel({
         <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Transform</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {numberField('clipPathX', 'x', 'px', {min: 0, max: 280})}
-            {numberField('clipPathY', 'y', 'px', {min: 0, max: 280})}
-            {numberField('clipPathWidth', 'w', 'px', {min: 20, max: 380})}
-            {numberField('clipPathHeight', 'h', 'px', {min: 20, max: 260})}
+            {numberField('clipPathX', 'x', '', {min: 0, max: 280})}
+            {numberField('clipPathY', 'y', '', {min: 0, max: 280})}
+            {numberField('clipPathWidth', 'w', '', {min: 20, max: 380})}
+            {numberField('clipPathHeight', 'h', '', {min: 20, max: 260})}
           </div>
         </section>
         <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Clip Path</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {numberField('clipPathCornerRadius', 'radius', 'px', {min: 0, max: 90})}
+            {numberField('clipPathCornerRadius', 'radius', '', {min: 0, max: 90})}
             {toggleField('clipIsEllipse', 'ellipse')}
           </div>
         </section>
@@ -704,13 +787,11 @@ function ModelControlPanel({
         <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Transform</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {numberField('childRectX', 'x', 'px', {min: 0, max: 280})}
-            {numberField('childRectY', 'y', 'px', {min: 0, max: 280})}
-            {numberField('childRectWidth', 'w', 'px', {min: 20, max: 380})}
-            {numberField('childRectHeight', 'h', 'px', {min: 20, max: 260})}
+            {numberField('childRectX', 'x', '', {min: 0, max: 280})}
+            {numberField('childRectY', 'y', '', {min: 0, max: 280})}
+            {numberField('childRectWidth', 'w', '', {min: 20, max: 380})}
+            {numberField('childRectHeight', 'h', '', {min: 20, max: 260})}
             {numberField('childRectRotation', 'rotate', '°', {min: -180, max: 180})}
-            {numberField('childRectScaleX', 'scale x', '×', {min: -4, max: 4, step: 0.1})}
-            {numberField('childRectScaleY', 'scale y', '×', {min: -4, max: 4, step: 0.1})}
             {numberField('childRectSkewX', 'skew x', '°', {min: -45, max: 45})}
             {numberField('childRectSkewY', 'skew y', '°', {min: -45, max: 45})}
             {numberField('childRectOriginX', 'origin x', '%', {min: 0, max: 100})}
@@ -725,16 +806,16 @@ function ModelControlPanel({
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Appearance</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
             {numberField('childRectOpacity', 'opacity', '%', {min: 0, max: 100})}
-            {numberField('childRectFillOpacity', 'fill α', '%', {min: 0, max: 100})}
-            {numberField('childRectStrokeOpacity', 'stroke α', '%', {min: 0, max: 100})}
-            {numberField('childRectStrokeWidth', 'stroke', 'px', {min: 0, max: 24})}
+            {numberField('childRectFillOpacity', 'fill opacity', '%', {min: 0, max: 100})}
+            {numberField('childRectStrokeOpacity', 'stroke opacity', '%', {min: 0, max: 100})}
+            {numberField('childRectStrokeWidth', 'stroke', '', {min: 0, max: 24})}
           </div>
           {colorField('childRectFill', 'fill')}
           {colorField('childRectStroke', 'stroke')}
         </section>
         <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Rect</p>
-          {numberField('childRectCornerRadius', 'radius', 'px', {min: 0, max: 90})}
+          {numberField('childRectCornerRadius', 'radius', '', {min: 0, max: 90})}
         </section>
       </div>
     }
@@ -744,13 +825,11 @@ function ModelControlPanel({
         <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Transform</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {numberField('childEllipseX', 'x', 'px', {min: 0, max: 280})}
-            {numberField('childEllipseY', 'y', 'px', {min: 0, max: 280})}
-            {numberField('childEllipseWidth', 'w', 'px', {min: 20, max: 380})}
-            {numberField('childEllipseHeight', 'h', 'px', {min: 20, max: 260})}
+            {numberField('childEllipseX', 'x', '', {min: 0, max: 280})}
+            {numberField('childEllipseY', 'y', '', {min: 0, max: 280})}
+            {numberField('childEllipseWidth', 'w', '', {min: 20, max: 380})}
+            {numberField('childEllipseHeight', 'h', '', {min: 20, max: 260})}
             {numberField('childEllipseRotation', 'rotate', '°', {min: -180, max: 180})}
-            {numberField('childEllipseScaleX', 'scale x', '×', {min: -4, max: 4, step: 0.1})}
-            {numberField('childEllipseScaleY', 'scale y', '×', {min: -4, max: 4, step: 0.1})}
             {numberField('childEllipseSkewX', 'skew x', '°', {min: -45, max: 45})}
             {numberField('childEllipseSkewY', 'skew y', '°', {min: -45, max: 45})}
             {numberField('childEllipseOriginX', 'origin x', '%', {min: 0, max: 100})}
@@ -765,9 +844,9 @@ function ModelControlPanel({
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Appearance</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
             {numberField('childEllipseOpacity', 'opacity', '%', {min: 0, max: 100})}
-            {numberField('childEllipseFillOpacity', 'fill α', '%', {min: 0, max: 100})}
-            {numberField('childEllipseStrokeOpacity', 'stroke α', '%', {min: 0, max: 100})}
-            {numberField('childEllipseStrokeWidth', 'stroke', 'px', {min: 0, max: 24})}
+            {numberField('childEllipseFillOpacity', 'fill opacity', '%', {min: 0, max: 100})}
+            {numberField('childEllipseStrokeOpacity', 'stroke opacity', '%', {min: 0, max: 100})}
+            {numberField('childEllipseStrokeWidth', 'stroke', '', {min: 0, max: 24})}
           </div>
           {colorField('childEllipseFill', 'fill')}
           {colorField('childEllipseStroke', 'stroke')}
@@ -786,13 +865,11 @@ function ModelControlPanel({
       <section className={'grid gap-2'}>
         <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Transform</p>
         <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-          {numberField('childTextX', 'x', 'px', {min: 0, max: 280})}
-          {numberField('childTextY', 'y', 'px', {min: 0, max: 280})}
-          {numberField('childTextWidth', 'w', 'px', {min: 20, max: 380})}
-          {numberField('childTextHeight', 'h', 'px', {min: 20, max: 260})}
+          {numberField('childTextX', 'x', '', {min: 0, max: 280})}
+          {numberField('childTextY', 'y', '', {min: 0, max: 280})}
+          {numberField('childTextWidth', 'w', '', {min: 20, max: 380})}
+          {numberField('childTextHeight', 'h', '', {min: 20, max: 260})}
           {numberField('childTextRotation', 'rotate', '°', {min: -180, max: 180})}
-          {numberField('childTextScaleX', 'scale x', '×', {min: -4, max: 4, step: 0.1})}
-          {numberField('childTextScaleY', 'scale y', '×', {min: -4, max: 4, step: 0.1})}
           {numberField('childTextSkewX', 'skew x', '°', {min: -45, max: 45})}
           {numberField('childTextSkewY', 'skew y', '°', {min: -45, max: 45})}
           {numberField('childTextOriginX', 'origin x', '%', {min: 0, max: 100})}
@@ -813,16 +890,16 @@ function ModelControlPanel({
       <section className={'grid gap-2'}>
         <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Text</p>
         <label className={'grid gap-1'}>
-          <span className={'text-xs text-muted-foreground'}>multi-line text</span>
+          <span className={'text-xs text-muted-foreground'}>Text</span>
           <textarea className={'min-h-20 rounded-md border bg-background px-3 py-2 text-sm'} value={controls.childText} onChange={(event) => setValue('childText', event.target.value)} />
         </label>
       </section>
       <section className={'grid gap-2'}>
         <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Typography</p>
         <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-          {numberField('childTextFontSize', 'size', 'px', {min: 12, max: 72})}
+          {numberField('childTextFontSize', 'size', '', {min: 12, max: 72})}
           {numberField('childTextFontWeight', 'weight', '', {min: 100, max: 900, step: 100})}
-          {numberField('childTextLineHeight', 'line h', 'px', {min: 16, max: 96})}
+          {numberField('childTextLineHeight', 'line h', '', {min: 16, max: 96})}
         </div>
       </section>
     </div>
@@ -841,38 +918,46 @@ function ModelControlPanel({
         <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
           {showLineEndpoints
             ? <>
-              {numberField('x', 'x', 'px', {min: 0, max: 460})}
-              {numberField('y', 'y', 'px', {min: 0, max: 460})}
-              {numberField('x2', 'x2', 'px', {min: 0, max: 460})}
-              {numberField('y2', 'y2', 'px', {min: 0, max: 460})}
+              {numberField('x', 'x', '', {min: 0, max: 460})}
+              {numberField('y', 'y', '', {min: 0, max: 460})}
+              {numberField('x2', 'x2', '', {min: 0, max: 460})}
+              {numberField('y2', 'y2', '', {min: 0, max: 460})}
             </>
             : <>
-              {numberField('x', 'x', 'px', {min: 0, max: 280})}
-              {numberField('y', 'y', 'px', {min: 0, max: 280})}
-              {numberField('width', 'w', 'px', {min: 20, max: 380})}
-              {numberField('height', 'h', 'px', {min: 20, max: 260})}
+              {numberField('x', 'x', '', {min: 0, max: 280})}
+              {numberField('y', 'y', '', {min: 0, max: 280})}
+              {numberField('width', 'w', '', {min: 20, max: 380})}
+              {numberField('height', 'h', '', {min: 20, max: 260})}
             </>}
-          {numberField('rotation', 'rotate', '°', {min: -180, max: 180})}
-          {numberField('scaleX', 'scale x', '×', {min: -4, max: 4, step: 0.1})}
-          {numberField('scaleY', 'scale y', '×', {min: -4, max: 4, step: 0.1})}
-          {numberField('skewX', 'skew x', '°', {min: -45, max: 45})}
-          {numberField('skewY', 'skew y', '°', {min: -45, max: 45})}
-          {numberField('originX', 'origin x', '%', {min: 0, max: 100})}
-          {numberField('originY', 'origin y', '%', {min: 0, max: 100})}
-          <div className={'col-span-2 grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {toggleField('flipX', 'flip x')}
-            {toggleField('flipY', 'flip y')}
-          </div>
-        </div>
-      </section>
+              {numberField('rotation', 'rotate', '°', {min: -180, max: 180})}
+              {numberField('skewX', 'skew x', '°', {min: -45, max: 45})}
+              {numberField('skewY', 'skew y', '°', {min: -45, max: 45})}
+              {numberField('originX', 'origin x', '%', {min: 0, max: 100})}
+              {numberField('originY', 'origin y', '%', {min: 0, max: 100})}
+            </div>
+          </section>
+
+          {!isCompositeModel
+            ? <section className={'grid gap-2'}>
+              <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Flip</p>
+              <div className={'flex gap-2'}>
+                <Button variant={'outline'} size={'sm'} onClick={() => {
+                  setControls((c) => ({...c, flipX: !c.flipX}))
+                }}><FlipHorizontal className={'size-3.5'}/> {controls.flipX ? 'On' : 'Off'}</Button>
+                <Button variant={'outline'} size={'sm'} onClick={() => {
+                  setControls((c) => ({...c, flipY: !c.flipY}))
+                }}><FlipVertical className={'size-3.5'}/> {controls.flipY ? 'On' : 'Off'}</Button>
+              </div>
+            </section>
+            : null}
 
       <section className={'grid gap-2'}>
         <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Appearance</p>
         <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
           {numberField('opacity', 'opacity', '%', {min: 0, max: 100})}
-          {showFill ? numberField('fillOpacity', 'fill α', '%', {min: 0, max: 100}) : null}
-          {showStroke ? numberField('strokeOpacity', 'stroke α', '%', {min: 0, max: 100}) : null}
-          {showStroke ? numberField('strokeWidth', 'stroke', 'px', {min: 0, max: 24}) : null}
+          {showFill ? numberField('fillOpacity', 'fill opacity', '%', {min: 0, max: 100}) : null}
+          {showStroke ? numberField('strokeOpacity', 'stroke opacity', '%', {min: 0, max: 100}) : null}
+          {showStroke ? numberField('strokeWidth', 'stroke', '', {min: 0, max: 24}) : null}
         </div>
         {showFill ? colorField('fill', 'fill') : null}
         {showStroke ? colorField('stroke', 'stroke') : null}
@@ -885,12 +970,12 @@ function ModelControlPanel({
             <Button variant={'outline'} size={'sm'} onClick={() => setValue('cornersLocked', !controls.cornersLocked)}>{controls.cornersLocked ? 'Locked' : 'Separate'}</Button>
           </div>
           {controls.cornersLocked
-            ? numberField('cornerRadius', 'radius', 'px', {min: 0, max: 90})
+            ? numberField('cornerRadius', 'radius', '', {min: 0, max: 90})
             : <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-              {numberField('cornerTopLeft', 'top left', 'px', {min: 0, max: 90})}
-              {numberField('cornerTopRight', 'top right', 'px', {min: 0, max: 90})}
-              {numberField('cornerBottomRight', 'bottom right', 'px', {min: 0, max: 90})}
-              {numberField('cornerBottomLeft', 'bottom left', 'px', {min: 0, max: 90})}
+              {numberField('cornerTopLeft', 'top left', '', {min: 0, max: 90})}
+              {numberField('cornerTopRight', 'top right', '', {min: 0, max: 90})}
+              {numberField('cornerBottomRight', 'bottom right', '', {min: 0, max: 90})}
+              {numberField('cornerBottomLeft', 'bottom left', '', {min: 0, max: 90})}
             </div>}
         </section>
         : null}
@@ -909,14 +994,14 @@ function ModelControlPanel({
         ? <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Text</p>
           <label className={'grid gap-1'}>
-            <span className={'text-xs text-muted-foreground'}>multi-line text</span>
+            <span className={'text-xs text-muted-foreground'}>Text</span>
             <textarea className={'min-h-24 rounded-md border bg-background px-3 py-2 text-sm'} value={controls.text} onChange={(event) => setValue('text', event.target.value)} />
           </label>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {numberField('selectedTextStart', 'start', '', {min: 0, max: Math.max(1, controls.text.length)})}
-            {numberField('selectedTextEnd', 'end', '', {min: 0, max: Math.max(1, controls.text.length)})}
+            {numberField('selectedTextStart', 'sel start', '', {min: 0, max: Math.max(1, controls.text.length)})}
+            {numberField('selectedTextEnd', 'sel end', '', {min: 0, max: Math.max(1, controls.text.length)})}
           </div>
-          {colorField('selectedTextFill', 'sel fill')}
+          {colorField('selectedTextFill', 'selection fill')}
         </section>
         : null}
 
@@ -924,9 +1009,31 @@ function ModelControlPanel({
         ? <section className={'grid gap-2'}>
           <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Typography</p>
           <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-            {numberField('fontSize', 'size', 'px', {min: 12, max: 72})}
+            {numberField('fontSize', 'size', '', {min: 12, max: 72})}
             {numberField('fontWeight', 'weight', '', {min: 100, max: 900, step: 100})}
-            {numberField('lineHeight', 'line h', 'px', {min: 16, max: 96})}
+            {numberField('lineHeight', 'line h', '', {min: 16, max: 96})}
+          </div>
+        </section>
+        : null}
+
+      {showPathOptions
+        ? <section className={'grid gap-2'}>
+          <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Path</p>
+          <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
+            {toggleField('pathClosed', 'closed')}
+          </div>
+        </section>
+        : null}
+
+      {showImageOptions
+        ? <section className={'grid gap-2'}>
+          <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Image</p>
+          <label className={'grid gap-1'}>
+            <span className={'text-xs text-muted-foreground'}>assetId</span>
+            <input className={'h-7 w-full rounded-md border bg-background px-3 py-1 text-xs'} value={controls.assetId} onChange={(event) => setValue('assetId', event.target.value)} />
+          </label>
+          <div className={'grid grid-cols-2 gap-x-3 gap-y-2 pt-1'}>
+            {toggleField('imageSmoothing', 'smoothing')}
           </div>
         </section>
         : null}
@@ -940,14 +1047,255 @@ function ModelControlPanel({
           ? <div className={'grid gap-2'}>
             {colorField('shadowColor', 'color')}
             <div className={'grid grid-cols-2 gap-x-3 gap-y-2'}>
-              {numberField('shadowBlur', 'blur', 'px', {min: 0, max: 40})}
-              {numberField('shadowOffsetX', 'x', 'px', {min: -40, max: 40})}
-              {numberField('shadowOffsetY', 'y', 'px', {min: -40, max: 40})}
+              {numberField('shadowBlur', 'blur', '', {min: 0, max: 40})}
+              {numberField('shadowOffsetX', 'x', '', {min: -40, max: 40})}
+              {numberField('shadowOffsetY', 'y', '', {min: -40, max: 40})}
             </div>
           </div>
           : null}
       </section>
     </div>}
+  </div>
+}
+
+function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const venusRef = useRef<Venus | null>(null)
+  const [output, setOutput] = useState<string>('')
+  const [clickPoint, setClickPoint] = useState<{x: number; y: number} | null>(null)
+  const [hoverHit, setHoverHit] = useState<HitTestPanelState | null>(null)
+  const [clickedHit, setClickedHit] = useState<HitTestPanelState | null>(null)
+  const [eventLogs, setEventLogs] = useState<string[]>([])
+  const logIdRef = useRef(0)
+
+  const pushLog = (msg: string) => {
+    logIdRef.current += 1
+    setEventLogs((prev) => [`[${logIdRef.current}] ${msg}`, ...prev].slice(0, 6))
+  }
+
+  const showResult = (label: string, value: unknown) => {
+    setOutput(`${label}: ${JSON.stringify(value, null, 2)}`)
+    pushLog(`${label} → ${JSON.stringify(value)}`)
+  }
+  const stringifyHitPanel = (state: HitTestPanelState | null) => {
+    if (!state) {
+      return 'Move or click on the canvas.'
+    }
+
+    return JSON.stringify({
+      point: state.point,
+      nodeId: state.result?.nodeId ?? null,
+      nodeType: state.result?.nodeType ?? null,
+      hitType: state.result?.hitType ?? null,
+      raw: state.result,
+    }, null, 2)
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const logicalWidth = 400
+    const logicalHeight = 300
+    const scale = window.devicePixelRatio || 1
+    canvas.width = Math.round(logicalWidth * scale)
+    canvas.height = Math.round(logicalHeight * scale)
+    canvas.style.width = '400px'
+    canvas.style.height = `${logicalHeight}px`
+    const venus = new Venus({culling: false, lod: false, render: {backend: 'canvas2d'}})
+    venus.mount(canvas)
+    venus.resize({width: logicalWidth, height: logicalHeight})
+    const demoNodes: VenusNode[] = [{id: 'card', type: 'rect', x: 80, y: 60, width: 240, height: 60, fill: theme === 'light' ? '#dbeafe' : '#1e3a8a', stroke: theme === 'light' ? '#2563eb' : '#93c5fd', strokeWidth: 3, cornerRadius: 10},
+      {type: 'ellipse', x: 140, y: 140, width: 120, height: 90, fill: theme === 'light' ? '#fef3c7':'#78350f', stroke: theme==='light'?'#f59e0b':'#fbbf24', strokeWidth: 3},
+    ]
+    demoNodes.forEach((n) => venus.add(n))
+    void venus.render()
+    venusRef.current = venus
+    return () => { venus.destroy(); venusRef.current = null }
+  }, [api.id, theme])
+
+  const venus = () => venusRef.current
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setClickPoint({x: Math.round(x), y: Math.round(y)})
+    const v = venus()
+    if (!v) return
+    if (api.id === 'hitTest') {
+      const hit = v.hitTest({x, y}, {phase: 'click'})
+      setClickedHit({point: {x: Math.round(x), y: Math.round(y)}, result: hit})
+    } else if (api.id === 'project') {
+      const projected = v.project({x, y})
+      showResult('project', projected)
+    } else if (api.id === 'unproject') {
+      const unprojected = v.unproject({x, y})
+      showResult('unproject', unprojected)
+    }
+  }
+  const handleCanvasHover = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (api.id !== 'hitTest') {
+      return
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const hit = venus()?.hitTest({x, y}, {phase: 'hover'}) ?? null
+    setHoverHit({point: {x: Math.round(x), y: Math.round(y)}, result: hit})
+  }
+
+  const renderControls = () => {
+    const v = venus()
+    switch (api.id) {
+      case 'add':
+        return <div className={'flex flex-wrap gap-2'}>
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            const node = v.add({type: 'rect', x: 60 + Math.random() * 200, y: 40 + Math.random() * 140, width: 80, height: 48, fill: '#22c55e', cornerRadius: 8})
+            showResult('add', {id: node.id, type: node.type})
+            void v.render()
+          }}><Plus className={'size-3.5'}/> Add</Button>
+        </div>
+      case 'bounds':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('bounds', v.bounds()) }}><ScanEye className={'size-3.5'}/> Bounds</Button>
+      case 'children':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('children', v.children().map((c) => ({type: c.type, id: c.id}))) }}><List className={'size-3.5'}/> Children</Button>
+      case 'getNodeById': {
+        const [lookupId, setLookupId] = useState('')
+        return <div className={'flex gap-2'}>
+          <input className={'h-8 w-28 rounded-md border bg-background px-2 text-xs'} placeholder={'node id'} value={lookupId} onChange={(e) => setLookupId(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getNodeById', v.getNodeById(lookupId)) }}><Search className={'size-3.5'}/> Find</Button>
+        </div>
+      }
+      case 'getParentId': {
+        const [pid, setPid] = useState('')
+        return <div className={'flex gap-2'}>
+          <input className={'h-8 w-28 rounded-md border bg-background px-2 text-xs'} placeholder={'node id'} value={pid} onChange={(e) => setPid(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getParentId', v.getParentId(pid)) }}><Search className={'size-3.5'}/> Find parent</Button>
+        </div>
+      }
+      case 'snapshot':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const s = v.snapshot(); showResult('snapshot', {revision: s.revision, nodeCount: s.nodes.length}) } }}><Camera className={'size-3.5'}/> Snapshot</Button>
+      case 'fitBounds':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const r = v.fitBounds(v.bounds(), 16); showResult('fitBounds', r) } }}><Maximize className={'size-3.5'}/> Fit</Button>
+      case 'zoomTo': {
+        const [z, setZ] = useState('1.5')
+        return <div className={'flex gap-2 items-center'}>
+          <input className={'h-8 w-20 rounded-md border bg-background px-2 text-xs'} type={'number'} step={0.1} value={z} onChange={(e) => setZ(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('zoomTo', v.zoomTo(Number(z), {x: 200, y: 150})) }}><ZoomIn className={'size-3.5'}/> Zoom</Button>
+        </div>
+      }
+      case 'panBy':
+        return <div className={'flex gap-1'}>
+          {[{Icon: ArrowLeft, dx: -40, dy: 0}, {Icon: ArrowUp, dx: 0, dy: -30}, {Icon: ArrowDown, dx: 0, dy: 30}, {Icon: ArrowRight, dx: 40, dy: 0}].map(({Icon, dx, dy}, i) =>
+            <Button key={i} variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('panBy', v.panBy({x: dx, y: dy})) }}><Icon className={'size-4'}/></Button>
+          )}
+        </div>
+      case 'project':
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair className={'size-3'}/> Click canvas to project document to screen. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+      case 'unproject':
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair className={'size-3'}/> Click canvas to unproject screen to document. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+      case 'enableDebug': {
+        const [showBounds, setShowBounds] = useState(false)
+        const [showHits, setShowHits] = useState(false)
+        return <div className={'flex flex-wrap gap-2 items-center'}>
+          <Bug className={'size-3.5 text-muted-foreground'}/>
+          <label className={'flex items-center gap-1 text-xs'}><input type={'checkbox'} checked={showBounds} onChange={(e) => { setShowBounds(e.target.checked); if (v) showResult('enableDebug', v.enableDebug({showBounds: e.target.checked, showHitCandidates: showHits})) }} />bounds</label>
+          <label className={'flex items-center gap-1 text-xs'}><input type={'checkbox'} checked={showHits} onChange={(e) => { setShowHits(e.target.checked); if (v) showResult('enableDebug', v.enableDebug({showBounds, showHitCandidates: e.target.checked})) }} />hit candidates</label>
+        </div>
+      }
+      case 'inspect':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('inspect', v.inspect()) }}><Gauge className={'size-3.5'}/> Inspect</Button>
+      case 'measureFrame':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.measureFrame().then((measurement) => showResult('measureFrame', measurement)) } }}><Timer className={'size-3.5'}/> Profile</Button>
+      case 'mount':
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Play className={'size-3'}/> Mounted and rendering</p>
+      case 'resize': {
+        const [rw, setRw] = useState('400')
+        const [rh, setRh] = useState('300')
+        return <div className={'flex gap-2 items-center'}>
+          <input className={'h-8 w-16 rounded-md border bg-background px-2 text-xs'} placeholder={'w'} value={rw} onChange={(e) => setRw(e.target.value)} />
+          <span className={'text-xs text-muted-foreground'}>×</span>
+          <input className={'h-8 w-16 rounded-md border bg-background px-2 text-xs'} placeholder={'h'} value={rh} onChange={(e) => setRh(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.resize({width: Number(rw), height: Number(rh)}); showResult('resized to', {width: Number(rw), height: Number(rh)}); void v.render() } }}><Expand className={'size-3.5'}/> Resize</Button>
+        </div>
+      }
+      case 'render':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.render(); showResult('render', 'frame rendered') } }}><Play className={'size-3.5'}/> Render</Button>
+      case 'hitTest':
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair className={'size-3'}/> Move and click on the canvas. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+      case 'on':
+        return <div className={'flex flex-wrap gap-2'}>
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            const off = v.on('render:after', () => pushLog('render:after fired'))
+            showResult('on', 'subscribed render:after (auto-off 8s)')
+            setTimeout(() => { off(); pushLog('unsubscribed render:after') }, 8000)
+          }}><Bell className={'size-3.5'}/> Subscribe</Button>
+        </div>
+      case 'off':
+        return <div className={'flex flex-wrap gap-2'}>
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            const handler = () => pushLog('one-shot hit')
+            v.on('hit', handler)
+            v.off('hit', handler)
+            showResult('off', 'handler detached before any event')
+          }}><BellOff className={'size-3.5'}/> Unsubscribe</Button>
+        </div>
+      case 'animate':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const animation = v.animate('card', [{x: 80, rotation: 0}, {x: 40 + Math.random() * 180, rotation: 18}], {duration: 600, easing: 'easeOut'})
+          showResult('animate', {methods: ['cancel', 'pause', 'play'], finished: 'Promise<void>'})
+          void animation.finished.then(() => pushLog('animation finished'))
+        }}><Film className={'size-3.5'}/> Animate</Button>
+      case 'destroy':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          v.destroy()
+          venusRef.current = null
+          showResult('destroy', 'engine disposed')
+        }}><Trash2 className={'size-3.5'}/> Destroy</Button>
+      default:
+        return null
+    }
+  }
+
+  return <div className={'grid gap-4'}>
+    <canvas
+      ref={canvasRef}
+      aria-label={`${api.title} interactive demo`}
+      className={'h-[300px] w-[400px] max-w-full rounded-lg border bg-card shadow-sm'}
+      onClick={handleCanvasClick}
+      onMouseMove={handleCanvasHover}
+      onMouseLeave={() => setHoverHit(null)}
+      style={{cursor: (api.id === 'hitTest' || api.id === 'project' || api.id === 'unproject') ? 'crosshair' : 'default'}}
+    />
+    <div className={'flex flex-wrap gap-2 items-center'}>{renderControls()}</div>
+    {api.id === 'hitTest' ? <div className={'grid gap-3 sm:grid-cols-2'}>
+      <div className={'rounded-xl bg-muted/40 p-3'}>
+        <p className={'mb-1 text-xs font-medium'}>Hover</p>
+        <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(hoverHit)}</code></pre>
+      </div>
+      <div className={'rounded-xl bg-muted/40 p-3'}>
+        <p className={'mb-1 text-xs font-medium'}>Clicked</p>
+        <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(clickedHit)}</code></pre>
+      </div>
+    </div> : null}
+    <div className={'flex gap-3'}>
+      {output ? <div className={'flex-1 rounded-xl bg-muted/40 p-3'}>
+        <p className={'mb-1 text-xs font-medium'}>Return value</p>
+        <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{output}</code></pre>
+      </div> : null}
+      {eventLogs.length > 0 ? <div className={'flex-1 rounded-xl bg-muted/40 p-3'}>
+        <p className={'mb-1 text-xs font-medium'}>Events</p>
+        <div className={'max-h-40 overflow-auto'}>
+          {eventLogs.map((log, i) => <p key={i} className={'text-xs text-muted-foreground'}>{log}</p>)}
+        </div>
+      </div> : null}
+    </div>
   </div>
 }
 
@@ -993,7 +1341,7 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
     return <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border bg-card shadow-sm'} />
   }
 
-  return <div className={'grid gap-5 lg:grid-cols-[400px_420px]'}>
+  return <div className={'grid gap-5 lg:grid-cols-[400px_480px]'}>
     <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border bg-card shadow-sm'} />
     <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
   </div>
@@ -1100,7 +1448,7 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
   }
 
   const hitTest = () => {
-    venusRef.current?.hitTest({x: 160, y: 120})
+    venusRef.current?.hitTest({x: 160, y: 120}, {phase: 'click'})
   }
 
   const resize = () => {
@@ -1110,10 +1458,10 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
   return <div className={'flex flex-col gap-3'}>
     <canvas ref={canvasRef} aria-label={'Venus events interactive demo'} className={'w-full rounded-lg border bg-card shadow-sm'} />
     <div className={'flex flex-wrap gap-2'}>
-      <Button variant={'outline'} size={'sm'} onClick={() => void addNode()}>Add node</Button>
-      <Button variant={'outline'} size={'sm'} onClick={() => void renderNow()}>Render</Button>
-      <Button variant={'outline'} size={'sm'} onClick={hitTest}>Hit test</Button>
-      <Button variant={'outline'} size={'sm'} onClick={resize}>Resize</Button>
+      <Button variant={'outline'} size={'sm'} onClick={() => void addNode()}><Plus className={'size-3.5'}/> Add</Button>
+      <Button variant={'outline'} size={'sm'} onClick={() => void renderNow()}><Play className={'size-3.5'}/> Render</Button>
+      <Button variant={'outline'} size={'sm'} onClick={hitTest}><Crosshair className={'size-3.5'}/> Hit test</Button>
+      <Button variant={'outline'} size={'sm'} onClick={resize}><Expand className={'size-3.5'}/> Resize</Button>
     </div>
     <div className={'max-h-56 overflow-auto rounded-xl bg-muted/40 p-3'}>
       {logs.length === 0
@@ -1217,9 +1565,11 @@ export function App() {
                     </header>
 
                     <div className={'flex flex-col gap-3'}>
-                      {api.id === 'events-demo'
-                        ? <EventInspectorDemo theme={theme}/>
-                        : <ApiCanvasDemo api={api} theme={theme}/>}
+                      {category.id === 'methods'
+                        ? <InteractiveMethodDemo api={api} theme={theme}/>
+                        : api.id === 'events-demo'
+                          ? <EventInspectorDemo theme={theme}/>
+                          : <ApiCanvasDemo api={api} theme={theme}/>}
                     </div>
 
                     <details className={'group rounded-xl bg-muted/50'}>

@@ -362,7 +362,7 @@ function hasFill(node: EngineShapeNode) {
  * @param node Target shape node.
  */
 function hasStroke(node: EngineShapeNode) {
-  return Boolean(node.stroke || (node.strokeWidth ?? 0) > 0 || node.shape === 'line')
+  return Boolean(node.stroke && (node.strokeWidth ?? 1) > 0)
 }
 
 /**

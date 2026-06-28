@@ -182,6 +182,10 @@ export interface Engine {
         x: number;
         y: number;
     }, tolerance?: number): EngineHitTestResult | null;
+    hitTestAll(point: {
+        x: number;
+        y: number;
+    }, tolerance?: number): EngineHitTestResult[];
     getNode(nodeId: EngineNodeId): EngineRenderableNode | null;
     getSnapshot(): EngineSceneSnapshot;
     setViewport(next: EngineViewportOptions): EngineCanvasViewportState;

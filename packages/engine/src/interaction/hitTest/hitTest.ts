@@ -204,6 +204,10 @@ export function isPointInsideEngineShapeHitArea(
   }
 
   if (shape.type === 'lineSegment') {
+    if (!hasShapeStrokeHitArea(shape)) {
+      return false
+    }
+
     return isPointNearLineSegment(testPointer, {
       x1: shape.x,
       y1: shape.y,

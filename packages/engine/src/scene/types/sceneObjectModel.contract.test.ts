@@ -634,3 +634,46 @@ test('engine scene hit-test resolves exact geometry beyond AABB candidates', () 
   assert.equal(store.hitTest({x: 306, y: 26}, 0), null, 'inline clip should reject image AABB outside clip')
   assert.equal(store.hitTest({x: 340, y: 60}, 0)?.nodeId, 'clipped-image')
 })
+
+test('engine scene hit-test treats zero stroke width as no stroke area', () => {
+  const store = createEngineSceneStore({
+    initialScene: {
+      revision: 'zero-stroke-hit-test',
+      width: 220,
+      height: 140,
+      nodes: [
+        {
+          id: 'filled-zero-stroke-rect',
+          type: 'shape',
+          shape: 'rect',
+          x: 20,
+          y: 20,
+          width: 80,
+          height: 50,
+          fill: '#dbeafe',
+          stroke: '#2563eb',
+          strokeWidth: 0,
+        },
+        {
+          id: 'zero-stroke-line',
+          type: 'shape',
+          shape: 'line',
+          x: 20,
+          y: 100,
+          width: 120,
+          height: 0,
+          points: [
+            {x: 20, y: 100},
+            {x: 140, y: 100},
+          ],
+          stroke: '#ef4444',
+          strokeWidth: 0,
+        },
+      ],
+    },
+  })
+
+  assert.equal(store.hitTest({x: 40, y: 40}, 0)?.nodeId, 'filled-zero-stroke-rect')
+  assert.equal(store.hitTest({x: 19, y: 45}, 0), null)
+  assert.equal(store.hitTest({x: 80, y: 100}, 0), null)
+})

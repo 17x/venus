@@ -315,6 +315,7 @@ export interface Engine {
   prepareHitPlan(point: {x: number; y: number}, tolerance?: number): EngineHitPlan
   query(bounds: EngineRect): EngineNodeId[]
   hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
+  hitTestAll(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult[]
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
   getSnapshot(): EngineSceneSnapshot
   setViewport(next: EngineViewportOptions): EngineCanvasViewportState
@@ -942,6 +943,14 @@ query(bounds) {
      * @param tolerance tolerance parameter.
      */
 hitTest(point, tolerance) {
+      return this.hitTestAll(point, tolerance)[0] ?? null
+    },
+        /**
+     * Handles hitTestAll.
+     * @param point point parameter.
+     * @param tolerance tolerance parameter.
+     */
+hitTestAll(point, tolerance) {
       const resolvedTolerance = tolerance ?? 0
       const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
         budgetPressure: latestBudgetPressure,
@@ -963,7 +972,7 @@ hitTest(point, tolerance) {
         exactBudgetExceeded: hitSummary.exactBudgetExceeded,
         queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => store.queryPointCandidates(queryPoint, queryTolerance),
       })
-      return hits[0] ?? null
+      return hits
     },
         /**
      * Handles getNode.

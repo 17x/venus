@@ -49,11 +49,26 @@ export type {
   VenusEventHandler,
   VenusEventMap,
   VenusEventName,
+  VenusAnimationController,
+  VenusAnimationKeyframe,
+  VenusAnimationOptions,
+  VenusAnimatableProperty,
+  VenusCacheDiagnostics,
+  VenusDebugFlags,
+  VenusDocumentModelType,
+  VenusFrameMeasurement,
+  VenusHitTestOptions,
   VenusNode,
   VenusParameters,
+  VenusPublicMethodName,
+  VenusRuntimeInspection,
+  VenusTransform2D,
+  VenusTransformOrigin,
 } from '../runtime/venus/Venus.ts'
 export {
   Venus,
+  VENUS_DOCUMENT_MODEL_TYPES,
+  VENUS_PUBLIC_METHOD_NAMES,
 } from '../runtime/venus/Venus.ts'
 
 export type {
