@@ -77,7 +77,7 @@ import {
 } from '../../animation/index.ts'
 import {
   resolveLayeredRenderBridgeOutput,
-} from '../bridge/index.ts'
+} from './layeredBridge/layeredBridge.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 

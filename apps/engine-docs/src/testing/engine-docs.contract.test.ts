@@ -31,7 +31,7 @@ describe('engine docs app contract', () => {
   it('defines categorized API pages with demos', () => {
     assert.deepEqual(
       engineApiCategories.map((category) => category.id),
-      ['start', 'document-models', 'venus-parameters', 'methods', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa'],
+      ['start', 'base-modules', 'document-models', 'venus-parameters', 'backend-strategy', 'methods', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa'],
     )
 
     for (const category of engineApiCategories) {
@@ -60,7 +60,7 @@ describe('engine docs app contract', () => {
       'add', 'bounds', 'children', 'getNodeById', 'getParentId', 'snapshot',
       'fitBounds', 'zoomTo', 'panBy', 'project', 'unproject',
       'enableDebug', 'inspect', 'measureFrame',
-      'mount', 'resize', 'render', 'hitTest', 'on', 'off', 'animate', 'destroy',
+      'mount', 'resize', 'render', 'hitTest', 'on', 'off', 'modules', 'animate', 'destroy',
     ])
 
     const apiIds = new Set(engineApiCategories.flatMap((category) => category.apis.map((api) => api.id)))
@@ -81,6 +81,10 @@ describe('engine docs app contract', () => {
     for (const api of documentModelsCategory.apis) {
       const kind = api.id.slice(0, -documentModelApiIdSuffix.length)
       assert.ok(api.properties?.some((property) => property === `type: ${kind}`), `missing type property for ${kind}`)
+      assert.ok(api.properties?.includes('appearance?: VenusAppearance'), `missing structured appearance property for ${kind}`)
+      assert.ok(api.propertyGroups?.some((group) => group.title === 'Identity'), `missing Identity property group for ${kind}`)
+      assert.ok(api.propertyGroups?.some((group) => group.title === 'Transform'), `missing Transform property group for ${kind}`)
+      assert.ok(api.propertyGroups?.some((group) => group.title === 'Appearance'), `missing Appearance property group for ${kind}`)
       assert.match(api.demo, new RegExp(`type:\\s*['"]${kind}['"]|type:\\s*${kind}\\b`), `demo must add a ${kind} node`)
     }
   })
@@ -176,6 +180,8 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /<table/)
     assert.match(appSource, />Default</)
     assert.match(appSource, /Properties/)
+    assert.match(appSource, /api\.propertyGroups/)
+    assert.match(appSource, /group\.title/)
     assert.match(appSource, /Methods/)
     assert.match(appSource, /\{api\.summary\}/)
     assert.match(appSource, /max-h-72/)
@@ -191,7 +197,8 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /group-hover:opacity-100/)
     assert.match(appSource, /group-focus-within:opacity-100/)
     assert.match(appSource, /editableModelApiIds/)
-    assert.match(appSource, /size-6.*items-center.*justify-center.*rounded.*border/)
+    assert.match(appSource, /size-5.*items-center.*justify-center.*rounded.*border/)
+    assert.match(appSource, /size-6.*cursor-pointer.*rounded.*border/)
     assert.match(appSource, /bg-muted\/50/)
     assert.match(appSource, /type=\{'number'\}/)
     assert.match(appSource, /type=\{'color'\}/)
@@ -224,7 +231,10 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /childEllipseOriginX/)
     assert.match(appSource, /clipPathX/)
     assert.match(appSource, /controls\.compositeTarget !== 'parent'/)
-    assert.match(appSource, /top left/)
+    assert.match(appSource, /cornerTopLeft/)
+    assert.match(appSource, /cornerTopRight/)
+    assert.match(appSource, /cornerBottomRight/)
+    assert.match(appSource, /cornerBottomLeft/)
     assert.match(appSource, /ellipseStartAngle/)
     assert.match(appSource, />Text</)
     assert.match(appSource, /lineHeight/)
@@ -248,7 +258,49 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /data-theme=\{theme\}/)
     assert.match(appSource, /useState<ThemeMode>\('light'\)/)
     assert.match(appSource, /new Venus/)
+    assert.match(appSource, /render: \{backend: 'canvas2d'\}/)
+    assert.match(appSource, /BackendDiagnosticsPanel/)
+    assert.match(appSource, /readBackendDiagnostics/)
+    assert.match(appSource, /useMemo/)
+    assert.match(appSource, /const demoNodes = useMemo/)
+    assert.match(appSource, /let cancelled = false/)
+    assert.doesNotMatch(appSource, /const editableNodes =/)
+    assert.doesNotMatch(appSource, /setBackendDiagnostics\(null\)/)
+    assert.doesNotMatch(appSource, /void venus\.render\(\)\.then\(\(\) => setBackendDiagnostics/)
+    assert.match(appSource, /backend: \{diagnostics\.backend\}/)
+    assert.match(appSource, /fallback: none/)
+    assert.match(appSource, /venus\.on\('backend:fallback'/)
+    assert.match(appSource, /base-entry/)
+    assert.match(appSource, /api\.id === 'base-entry'/)
     assert.match(appSource, /venus\.add/)
+    assert.match(docsSource, /title: 'Base and Modules'/)
+    assert.match(docsSource, /title: 'Module services'/)
+    assert.match(docsSource, /@venus\/engine\/base/)
+    assert.match(docsSource, /defineVenusModule/)
+    assert.match(docsSource, /VENUS_MODULE_NAMES/)
+    assert.match(docsSource, /falls back to Canvas2D/)
+    assert.match(docsSource, /registered services: document, viewport, invalidation/)
+    assert.match(docsSource, /VenusRegisteredServiceMap/)
+    assert.match(docsSource, /venus\.inspect\(\)\.modules/)
+    assert.match(docsSource, /module diagnostics/)
+    assert.match(docsSource, /services\.get\("document"\): VenusDocumentService/)
+    assert.match(docsSource, /services\.require\("viewport"\): VenusViewportService/)
+    assert.match(docsSource, /Use get\(\) for optional services and require\(\)/)
+    assert.match(docsSource, /module\.dependsOn\?: VenusModuleName\[\]/)
+    assert.match(docsSource, /module\.requires\?: VenusInternalServiceName\[\]/)
+    assert.match(docsSource, /Use dependsOn for user-module dependencies/)
+    assert.match(docsSource, /requires on the module definition to fail before install runs/)
+    assert.match(docsSource, /title: 'Backend Strategy'/)
+    assert.match(docsSource, /WebGL is the primary presentation path/)
+    assert.match(docsSource, /Canvas2D-to-texture: text, shadows, blur, masks/)
+    assert.match(docsSource, /Animation invalidation/)
+    assert.match(docsSource, /Animation never calls WebGL or Canvas2D directly/)
+    assert.match(appSource, /apiId === 'render-backends'/)
+    assert.match(appSource, /apiId === 'animation-invalidation'/)
+    assert.match(docsSource, /stable shallow-frozen facades/)
+    assert.match(docsSource, /backend fallback diagnostics/)
+    assert.match(docsSource, /backend:fallback/)
+    assert.match(docsSource, /render\|camera\|hitTest\|select\|snap\|animate\|debug\|scale\|effects\|history\|export/)
     assert.match(docsSource, /title: 'Rect'/)
     assert.match(docsSource, /title: 'Mask'/)
     assert.doesNotMatch(docsSource, /title: '(Rect|Ellipse|Line|Text|Group|Clip|Mask) Node'/)

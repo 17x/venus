@@ -2,10 +2,12 @@
 // resource caches must stay in renderer backend modules.
 
 export type {
+  GeometryCacheKey,
   GeometryCacheEntry,
 } from './geometryCache.ts'
 
 export {
+  computeGeometryCacheKeySignature,
   GeometryCache,
 } from './geometryCache.ts'
 

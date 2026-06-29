@@ -57,6 +57,85 @@ export interface EngineShadow {
   blur?: number
 }
 
+/** Declares an inner shadow effect applied inside shape geometry. */
+export interface EngineInnerShadow {
+  /** Shadow colour (CSS string). */
+  color?: string
+  /** Shadow blur radius in pixels. */
+  blur?: number
+}
+
+/** Declares layer blur applied after shape rendering. */
+export interface EngineLayerBlur {
+  /** Blur radius in pixels. */
+  amount: number
+}
+
+/** Declares one gradient colour stop used by gradient paints. */
+export interface EngineGradientStop {
+  /** Stop position in the [0, 1] interval. */
+  offset: number
+  /** CSS colour string for this stop. */
+  color: string
+  /** Optional per-stop opacity in the [0, 1] interval. */
+  opacity?: number
+}
+
+/** Declares a linear gradient paint descriptor. */
+export interface EngineLinearGradient {
+  type: 'linear'
+  /** Gradient start x in local node coordinates. */
+  startX: number
+  /** Gradient start y in local node coordinates. */
+  startY: number
+  /** Gradient end x in local node coordinates. */
+  endX: number
+  /** Gradient end y in local node coordinates. */
+  endY: number
+  /** Ordered colour stops. */
+  stops: readonly EngineGradientStop[]
+}
+
+/** Declares a radial gradient paint descriptor. */
+export interface EngineRadialGradient {
+  type: 'radial'
+  /** Gradient centre x in local node coordinates. */
+  centerX: number
+  /** Gradient centre y in local node coordinates. */
+  centerY: number
+  /** Gradient radius in local node units. */
+  radius: number
+  /** Ordered colour stops. */
+  stops: readonly EngineGradientStop[]
+}
+
+/** Declares one gradient descriptor accepted by gradient paints. */
+export type EngineGradient = EngineLinearGradient | EngineRadialGradient
+
+/** Declares a solid-colour paint used for fills and strokes. */
+export interface EngineSolidPaint {
+  type: 'solid'
+  /** CSS colour string. */
+  color: string
+  /** Optional paint-level opacity in the [0, 1] interval. */
+  opacity?: number
+}
+
+/** Declares a gradient paint used for fills and strokes. */
+export interface EngineGradientPaint {
+  type: 'gradient'
+  /** Gradient descriptor. */
+  gradient: EngineGradient
+  /** Optional paint-level opacity in the [0, 1] interval. */
+  opacity?: number
+}
+
+/** Declares one paint descriptor accepted by multi-paint fill and stroke lists. */
+export type EnginePaint = EngineSolidPaint | EngineGradientPaint
+
+/** Declares stroke alignment relative to the shape's path. */
+export type EngineStrokeAlign = 'center' | 'inside' | 'outside'
+
 /** Declares per-corner rectangle radii for rounded rectangle rendering. */
 export interface EngineRectangleCornerRadii {
   topLeft?: number
@@ -94,6 +173,10 @@ export interface EngineNodeBase {
   blendMode?: string
   transform?: EngineTransform2D
   shadow?: EngineShadow
+  /** Inner shadow effect clipped to shape interior. */
+  innerShadow?: EngineInnerShadow
+  /** Layer blur applied via CSS filter after rendering. */
+  layerBlur?: EngineLayerBlur
   // `clipNodeId` enables graph-level clip reuse, while `clipShape` supports
   // inline clipping for lightweight nodes (for example clipped images).
   clip?: EngineNodeClip
@@ -107,6 +190,8 @@ export interface EngineTextStyle {
   lineHeight?: number
   letterSpacing?: number
   fill?: string
+  /** Ordered paint list for text fill (takes precedence over `fill`). */
+  fills?: readonly EnginePaint[]
   stroke?: string
   strokeWidth?: number
   align?: 'start' | 'center' | 'end'
@@ -178,9 +263,23 @@ export interface EngineShapeNode extends EngineNodeBase {
   pointCount?: number
   bezierPointCount?: number
   closed?: boolean
+  /** Single fill colour (backward compatible; prefer `fills` when present). */
   fill?: string
+  /** Single stroke colour (backward compatible; prefer `strokes` when present). */
   stroke?: string
   strokeWidth?: number
+  /** Ordered paint list for fill (takes precedence over `fill`). */
+  fills?: readonly EnginePaint[]
+  /** Ordered paint list for stroke (takes precedence over `stroke`). */
+  strokes?: readonly EnginePaint[]
+  /** Stroke alignment relative to path geometry. Defaults to center. */
+  strokeAlign?: EngineStrokeAlign
+  /** Dash pattern as alternating dash-gap lengths. Empty or absent means solid. */
+  strokeDashArray?: readonly number[]
+  /** Line cap style for open stroke paths. Defaults to round. */
+  strokeCap?: 'butt' | 'round' | 'square'
+  /** Line join style for stroke corners. Defaults to round. */
+  strokeJoin?: 'miter' | 'round' | 'bevel'
 }
 
 export type EngineRenderableNode =

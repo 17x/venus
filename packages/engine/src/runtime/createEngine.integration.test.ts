@@ -151,6 +151,12 @@ function installFakeCanvasEnvironment() {
     fillText() { this.record('fillText') }
     strokeText() { this.record('strokeText') }
     drawImage() { this.record('drawImage') }
+    setLineDash() { this.record('setLineDash') }
+    createLinearGradient() { this.record('createLinearGradient'); return {} as CanvasGradient }
+    createRadialGradient() { this.record('createRadialGradient'); return {} as CanvasGradient }
+    getLineDash() { return [] }
+    globalAlpha = 1
+    globalCompositeOperation: GlobalCompositeOperation = 'source-over'
         /**
      * Handles measureText.
      * @param text Text content.
@@ -924,6 +930,101 @@ test('createEngine reports high-zoom text sharpness SLA violations on deferred t
     assert.equal(secondStats.webglHighZoomTextSlaViolationCount ?? 0, 0)
     assert.ok(secondDiagnostics.highZoomTextSlaCheckedCount >= firstDiagnostics.highZoomTextSlaCheckedCount)
     assert.equal(secondDiagnostics.highZoomTextSlaViolationCount, firstDiagnostics.highZoomTextSlaViolationCount)
+  } finally {
+    environment.restore()
+  }
+})
+
+/**
+ * Builds a scene with one node of every supported shape kind for backend parity
+ * smoke testing through the Canvas2D renderer.
+ */
+function createAllShapeTypesScene(): EngineSceneSnapshot {
+  const shapeTypes: EngineShapeNode[] = [
+    {id: 'smoke-rect', type: 'shape', shape: 'rect', x: 10, y: 10, width: 60, height: 40, fill: '#ff0000', stroke: '#000000', strokeWidth: 2},
+    {id: 'smoke-ellipse', type: 'shape', shape: 'ellipse', x: 80, y: 10, width: 60, height: 40, fill: '#00ff00'},
+    {id: 'smoke-line', type: 'shape', shape: 'line', x: 150, y: 10, width: 60, height: 40, stroke: '#0000ff', strokeWidth: 3},
+    {id: 'smoke-polygon', type: 'shape', shape: 'polygon', x: 220, y: 10, width: 60, height: 40, fill: '#ffff00', points: [{x: 250, y: 10}, {x: 280, y: 50}, {x: 220, y: 50}]},
+    {id: 'smoke-path', type: 'shape', shape: 'path', x: 290, y: 10, width: 60, height: 40, stroke: '#ff00ff', strokeWidth: 3, points: [{x: 290, y: 50}, {x: 320, y: 10}, {x: 350, y: 50}]},
+  ]
+
+  return {
+    revision: 1,
+    width: 400,
+    height: 300,
+    nodes: [
+      ...shapeTypes,
+      {id: 'smoke-text', type: 'text', x: 10, y: 80, width: 120, height: 30, text: 'Smoke Test', style: {fontFamily: 'Arial', fontSize: 16, fill: '#111111'}},
+      {id: 'smoke-image', type: 'image', x: 10, y: 130, width: 80, height: 60, assetId: 'smoke-asset'},
+      {
+        id: 'smoke-group',
+        type: 'group',
+        children: [
+          {id: 'smoke-group-rect', type: 'shape', shape: 'rect', x: 100, y: 130, width: 50, height: 40, fill: '#ff8800'},
+          {id: 'smoke-group-ellipse', type: 'shape', shape: 'ellipse', x: 160, y: 130, width: 50, height: 40, fill: '#00ffff'},
+        ],
+      },
+      {
+        id: 'smoke-clip',
+        type: 'group',
+        clip: {clipShape: {kind: 'rect', rect: {x: 230, y: 130, width: 80, height: 60}}},
+        children: [
+          {id: 'smoke-clip-rect', type: 'shape', shape: 'rect', x: 220, y: 120, width: 100, height: 80, fill: '#88ff00'},
+        ],
+      },
+    ],
+  }
+}
+
+test('createEngine renders all shape model types through Canvas2D backend without errors', async () => {
+  const environment = installFakeCanvasEnvironment()
+
+  try {
+    const canvas = new environment.OffscreenCanvas(1, 1) as OffscreenCanvas
+    const engine = createEngine({
+      canvas,
+      initialScene: createAllShapeTypesScene(),
+      viewport: {
+        viewportWidth: 400,
+        viewportHeight: 300,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      },
+      performance: {
+        culling: false,
+        lod: {enabled: false},
+        tiles: {enabled: false},
+        overscan: {enabled: false},
+      },
+      render: {
+        backend: 'canvas2d',
+        quality: 'full',
+        interactionPreview: {enabled: false},
+      },
+    })
+
+    engine.resize({
+      viewportWidth: 400,
+      viewportHeight: 300,
+      outputWidth: 400,
+      outputHeight: 300,
+    })
+
+    const stats = await engine.renderFrame()
+
+    // All shape types must produce draw calls; clip child may be culled when
+    // entirely outside viewport, so only assert lower bound.
+    assert.ok(stats.drawCount >= 8)
+    assert.ok(stats.visibleCount >= 8)
+    assert.equal(stats.culledCount, 0)
+    // Canvas2D backend must be selected (not WebGL).
+    assert.equal(environment.recordedDrawCalls.length, 0)
+    // Verify all major canvas operations were invoked for different shape types.
+    assert.equal(environment.recordedCanvas2DCalls.includes('fill'), true)
+    assert.equal(environment.recordedCanvas2DCalls.includes('stroke'), true)
+    assert.equal(environment.recordedCanvas2DCalls.includes('fillText'), true)
+    assert.equal(environment.recordedCanvas2DCalls.includes('drawImage'), true)
   } finally {
     environment.restore()
   }

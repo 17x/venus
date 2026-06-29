@@ -5,12 +5,13 @@ import type {
   EngineShadow,
   EngineRenderableNode,
   EngineSceneSnapshot,
+  EngineShapeNode,
   EngineTextRun,
+  EngineTextStyle,
   EngineTransform2D,
 } from '../../scene/types/types.ts'
 import {resolveLeafNodeWorldBounds} from '../../scene/worldBounds/worldBounds.ts'
 import {
-  DEFAULT_ENGINE_VIEWPORT,
   panEngineViewportState,
   resolveEngineViewportState,
   zoomEngineViewportState,
@@ -18,7 +19,126 @@ import {
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
 
-type VenusBackend = 'canvas2d' | 'webgl' | 'auto'
+export type VenusBackend = 'canvas2d' | 'webgl' | 'auto'
+
+/** Lists short user-facing capability module names reserved by Venus. */
+export const VENUS_MODULE_NAMES = [
+  'render',
+  'camera',
+  'hitTest',
+  'select',
+  'snap',
+  'animate',
+  'debug',
+  'scale',
+  'effects',
+  'history',
+  'export',
+] as const
+
+/** Declares one short public Venus capability module name. */
+export type VenusModuleName = (typeof VENUS_MODULE_NAMES)[number]
+
+/** Lists internal foundation services available to installed modules. */
+export const VENUS_INTERNAL_SERVICE_NAMES = [
+  'document',
+  'sceneStore',
+  'geometry',
+  'spatial',
+  'geometryCache',
+  'invalidation',
+  'viewport',
+  'renderPlan',
+  'scheduler',
+  'resource',
+  'backendBridge',
+] as const
+
+/** Declares one internal foundation service name. */
+export type VenusInternalServiceName = (typeof VENUS_INTERNAL_SERVICE_NAMES)[number]
+
+/** Document service exposed to installed modules without exposing private stores. */
+export interface VenusDocumentService {
+  snapshot(): EngineSceneSnapshot
+  children(): readonly VenusNode[]
+  bounds(): {x: number; y: number; width: number; height: number}
+}
+
+/** Viewport service exposed to modules that need coordinate conversion. */
+export interface VenusViewportService {
+  project(point: {x: number; y: number}): {x: number; y: number}
+  unproject(point: {x: number; y: number}): {x: number; y: number}
+}
+
+/** Invalidation service exposed to modules that need mutation cost classification. */
+export interface VenusInvalidationService {
+  classify(changedProperties: readonly string[]): VenusInvalidationKind
+}
+
+/** Maps registered internal service names to their typed service contracts. */
+export interface VenusRegisteredServiceMap {
+  document: VenusDocumentService
+  viewport: VenusViewportService
+  invalidation: VenusInvalidationService
+}
+
+/** Declares one registered service name with a known public service contract. */
+export type VenusRegisteredServiceName = keyof VenusRegisteredServiceMap
+
+/** Read-only service registry passed to Venus modules during installation. */
+export interface VenusServiceRegistry {
+  /** Returns whether one internal service exists in this runtime. */
+  has(name: VenusInternalServiceName): boolean
+  /** Returns one service by name, or null when the service is not registered. */
+  get<TName extends VenusRegisteredServiceName>(name: TName): VenusRegisteredServiceMap[TName] | null
+  /** Returns one untyped reserved service by name, or null when the service is not registered. */
+  get<TService = unknown>(name: VenusInternalServiceName): TService | null
+  /** Returns one registered service or throws when the service is unavailable. */
+  require<TName extends VenusRegisteredServiceName>(name: TName): VenusRegisteredServiceMap[TName]
+  /** Returns one untyped reserved service or throws when the service is unavailable. */
+  require<TService = unknown>(name: VenusInternalServiceName): TService
+  /** Lists the internal service names currently registered in this runtime. */
+  list(): readonly VenusInternalServiceName[]
+}
+
+/** Context passed once to each module installed on a Venus instance. */
+export interface VenusModuleContext {
+  /** The runtime instance receiving the module. */
+  venus: Venus
+  /** Constructor parameters for this runtime. */
+  parameters: Readonly<VenusParameters>
+  /** Internal foundation services exposed through stable short names. */
+  services: VenusServiceRegistry
+}
+
+/** Declares an installable user-facing Venus capability module. */
+export interface VenusModule {
+  /** Short module name, for example `camera`, `hitTest`, or `scale`. */
+  name: VenusModuleName
+  /** Other user-facing modules that must already be installed. */
+  dependsOn?: readonly VenusModuleName[]
+  /** Internal services this module requires before installation can run. */
+  requires?: readonly VenusInternalServiceName[]
+  /** Installs module behavior on one Venus instance. */
+  install(context: VenusModuleContext): void
+}
+
+/** Returns whether a string is one reserved Venus user capability module name. */
+export function isVenusModuleName(name: string): name is VenusModuleName {
+  return (VENUS_MODULE_NAMES as readonly string[]).includes(name)
+}
+
+/**
+ * Defines one Venus capability module and validates its public short name.
+ * @param module Capability module definition.
+ */
+export function defineVenusModule(module: VenusModule): VenusModule {
+  if (!isVenusModuleName(module.name)) {
+    throw new Error(`Unknown Venus module "${module.name}"`)
+  }
+
+  return module
+}
 
 /** Lists public document object kinds accepted by `venus.add`. */
 export const VENUS_DOCUMENT_MODEL_TYPES = [
@@ -59,6 +179,7 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'hitTest',
   'on',
   'off',
+  'modules',
   'animate',
   'destroy',
 ] as const
@@ -92,11 +213,7 @@ export type VenusTransform2D = {
   skewX?: number
   /** Local vertical skew in degrees. */
   skewY?: number
-  /** Mirrors geometry horizontally around the transform origin. */
-  flipX?: boolean
-  /** Mirrors geometry vertically around the transform origin. */
-  flipY?: boolean
-  /** Pivot used for rotation, scale, skew, and flip. */
+  /** Pivot used for rotation, scale, and skew. */
   origin?: VenusTransformOrigin
 }
 
@@ -108,6 +225,8 @@ export interface VenusParameters {
     antialias?: boolean
     quality?: 'interactive' | 'full'
   }
+  /** Optional user capability modules installed during construction. */
+  modules?: readonly VenusModule[]
 }
 
 /** Declares the debug visualizations and diagnostics requested by `venus.enableDebug`. */
@@ -172,6 +291,27 @@ export interface VenusCacheDiagnostics {
   fallbackReason: string | null
 }
 
+/** Describes an automatic render backend fallback. */
+export interface VenusBackendFallback {
+  /** Backend that was attempted first. */
+  from: 'webgl'
+  /** Backend selected after fallback. */
+  to: 'canvas2d'
+  /** Human-readable initialization failure reason. */
+  reason: string
+}
+
+/** Describes public module installation diagnostics. */
+export interface VenusModuleDiagnostics {
+  /** Installed modules in installation order. */
+  installed: readonly VenusModuleName[]
+  /** Last module installation failure, when construction failed or was recovered by tests. */
+  lastError: {
+    module: VenusModuleName
+    reason: string
+  } | null
+}
+
 /** Declares options for `venus.hitTest`. */
 export interface VenusHitTestOptions {
   /** Interaction phase; hover uses a larger default tolerance than click. */
@@ -198,6 +338,10 @@ export interface VenusRuntimeInspection {
   lastFrameMeasurement: Omit<VenusFrameMeasurement, 'diagnostics'> | null
   /** Normalized cache diagnostics for docs and debug panels. */
   cache: VenusCacheDiagnostics
+  /** Last automatic backend fallback, if auto mode needed one. */
+  backendFallback: VenusBackendFallback | null
+  /** Installed module diagnostics. */
+  modules: VenusModuleDiagnostics
   /** Engine-level diagnostics, available after mount. */
   engine: EngineRuntimeDiagnostics | null
 }
@@ -208,6 +352,7 @@ export interface VenusEventMap {
   resized: {width: number; height: number}
   'render:before': {revision: number}
   'render:after': {revision: number}
+  'backend:fallback': VenusBackendFallback
   hit: {point: {x: number; y: number}; phase: 'hover' | 'click'; tolerance: number; result: ReturnType<Engine['hitTest']>}
   destroyed: {}
 }
@@ -241,6 +386,153 @@ export interface VenusAnimationController {
   play(): void
 }
 
+/** Declares one gradient colour stop for Venus paint descriptors. */
+export interface VenusGradientStop {
+  /** Stop position in the [0, 1] interval. */
+  offset: number
+  /** CSS colour string for this stop. */
+  color: string
+  /** Optional per-stop opacity in the [0, 1] interval. */
+  opacity?: number
+}
+
+/** Declares a linear gradient for Venus paints. */
+export interface VenusLinearGradient {
+  type: 'linear'
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  stops: readonly VenusGradientStop[]
+}
+
+/** Declares a radial gradient for Venus paints. */
+export interface VenusRadialGradient {
+  type: 'radial'
+  centerX: number
+  centerY: number
+  radius: number
+  stops: readonly VenusGradientStop[]
+}
+
+/** Declares one gradient descriptor for Venus paints. */
+export type VenusGradient = VenusLinearGradient | VenusRadialGradient
+
+/** Declares a solid-colour paint for Venus fills and strokes. */
+export interface VenusSolidPaint {
+  type: 'solid'
+  color: string
+  opacity?: number
+}
+
+/** Declares a gradient paint for Venus fills and strokes. */
+export interface VenusGradientPaint {
+  type: 'gradient'
+  gradient: VenusGradient
+  opacity?: number
+}
+
+/** Declares one paint descriptor accepted by Venus fill and stroke lists. */
+export type VenusPaint = VenusSolidPaint | VenusGradientPaint
+
+/** Declares one blend mode accepted by Venus appearance fields. */
+export type VenusBlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'colorDodge'
+  | 'colorBurn'
+  | 'hardLight'
+  | 'softLight'
+  | 'difference'
+  | 'exclusion'
+
+/** Declares stroke alignment relative to path geometry. */
+export type VenusStrokeAlign = 'center' | 'inside' | 'outside'
+
+/** Declares one Figma-like stroke layer in structured Venus appearance. */
+export interface VenusStroke {
+  /** Ordered paint list for this stroke. */
+  paints: readonly VenusPaint[]
+  /** Stroke width in document units. */
+  width?: number
+  /** Stroke alignment relative to path geometry. */
+  align?: VenusStrokeAlign
+  /** Dash pattern as alternating dash-gap lengths. */
+  dash?: readonly number[]
+  /** Line cap style for open stroke paths. */
+  cap?: 'butt' | 'round' | 'square'
+  /** Line join style for stroke corners. */
+  join?: 'miter' | 'round' | 'bevel'
+  /** Whether this stroke participates in rendering. */
+  visible?: boolean
+}
+
+/** Declares one Figma-like effect layer in structured Venus appearance. */
+export type VenusEffect =
+  | {
+    type: 'dropShadow'
+    color?: string
+    offsetX?: number
+    offsetY?: number
+    blur?: number
+    visible?: boolean
+  }
+  | {
+    type: 'innerShadow'
+    color?: string
+    blur?: number
+    visible?: boolean
+  }
+  | {
+    type: 'layerBlur'
+    amount: number
+    visible?: boolean
+  }
+
+/** Groups visual properties in a Figma-like appearance object. */
+export interface VenusAppearance {
+  /** Ordered fill paint layers. Takes precedence over flat `fills` and `fill`. */
+  fills?: readonly VenusPaint[]
+  /** Ordered stroke layers. The first visible stroke is projected to the current engine stroke fields. */
+  strokes?: readonly VenusStroke[]
+  /** Ordered visual effects. First visible effect of each supported type is projected to engine fields. */
+  effects?: readonly VenusEffect[]
+  /** Node opacity in the [0, 1] interval. Takes precedence over flat `opacity`. */
+  opacity?: number
+  /** Node blend mode. Takes precedence over flat `blendMode`. */
+  blendMode?: VenusBlendMode
+}
+
+/** Declares responsive constraints reserved for higher-level layout flows. */
+export interface VenusConstraints {
+  horizontal?: 'min' | 'center' | 'max' | 'stretch' | 'scale'
+  vertical?: 'min' | 'center' | 'max' | 'stretch' | 'scale'
+}
+
+/** Declares one export setting attached to a document node. */
+export interface VenusExportSetting {
+  format: 'png' | 'jpg' | 'svg' | 'pdf'
+  scale?: number
+  suffix?: string
+}
+
+/** Declares the highest-impact render invalidation caused by a document mutation. */
+export type VenusInvalidationKind =
+  | 'none'
+  | 'transformOnly'
+  | 'opacityOnly'
+  | 'visibility'
+  | 'geometry'
+  | 'paint'
+  | 'text'
+  | 'effect'
+  | 'clipMask'
+  | 'structural'
+
 type VenusNodeBase = {
   id?: string
   name?: string
@@ -248,8 +540,20 @@ type VenusNodeBase = {
   locked?: boolean
   opacity?: number
   blendMode?: string
+  /** Structured Figma-like appearance group. Takes precedence over compatible flat appearance fields. */
+  appearance?: VenusAppearance
+  /** Layout constraints reserved for parent resize/layout flows. */
+  constraints?: VenusConstraints
+  /** Export hints reserved for future export pipelines. */
+  exportSettings?: readonly VenusExportSetting[]
+  /** Arbitrary host metadata not interpreted by the engine. */
+  data?: Record<string, unknown>
   /** Preferred transform object for editable local transforms. */
   transform?: VenusTransform2D
+  /** Inner shadow effect (clipped to shape interior). */
+  innerShadow?: {color?: string; blur?: number}
+  /** Layer blur radius in pixels. */
+  layerBlur?: {amount: number}
   /** Compatibility x-scale applied when `transform.scaleX` is absent. */
   scaleX?: number
   /** Compatibility y-scale applied when `transform.scaleY` is absent. */
@@ -258,10 +562,6 @@ type VenusNodeBase = {
   skewX?: number
   /** Compatibility vertical skew in degrees. */
   skewY?: number
-  /** Compatibility horizontal mirror flag. */
-  flipX?: boolean
-  /** Compatibility vertical mirror flag. */
-  flipY?: boolean
   /** Rotation in degrees. */
   rotation?: number
 }
@@ -276,6 +576,18 @@ export type VenusNode =
     fill?: string
     stroke?: string
     strokeWidth?: number
+    /** Ordered paint list for fill (takes precedence over `fill`). */
+    fills?: readonly VenusPaint[]
+    /** Ordered paint list for stroke (takes precedence over `stroke`). */
+    strokes?: readonly VenusPaint[]
+    /** Stroke alignment relative to path geometry. Defaults to center. */
+    strokeAlign?: VenusStrokeAlign
+    /** Dash pattern as alternating dash-gap lengths. Empty or absent means solid. */
+    strokeDashArray?: readonly number[]
+    /** Line cap style for stroke ends. Defaults to round. */
+    strokeCap?: 'butt' | 'round' | 'square'
+    /** Line join style for stroke corners. Defaults to round. */
+    strokeJoin?: 'miter' | 'round' | 'bevel'
     cornerRadius?: number
     cornerRadii?: {topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number}
     ellipseStartAngle?: number
@@ -290,6 +602,12 @@ export type VenusNode =
     height: number
     stroke?: string
     strokeWidth?: number
+    /** Ordered paint list for stroke (takes precedence over `stroke`). */
+    strokes?: readonly VenusPaint[]
+    strokeAlign?: VenusStrokeAlign
+    strokeDashArray?: readonly number[]
+    strokeCap?: 'butt' | 'round' | 'square'
+    strokeJoin?: 'miter' | 'round' | 'bevel'
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
@@ -301,6 +619,8 @@ export type VenusNode =
     text: string
     runs?: readonly EngineTextRun[]
     fill?: string
+    /** Ordered paint list for text fill (takes precedence over `fill`). */
+    fills?: readonly VenusPaint[]
     fontSize?: number
     fontWeight?: number
     lineHeight?: number
@@ -332,6 +652,12 @@ export type VenusNode =
     fill?: string
     stroke?: string
     strokeWidth?: number
+    fills?: readonly VenusPaint[]
+    strokes?: readonly VenusPaint[]
+    strokeAlign?: VenusStrokeAlign
+    strokeDashArray?: readonly number[]
+    strokeCap?: 'butt' | 'round' | 'square'
+    strokeJoin?: 'miter' | 'round' | 'bevel'
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
@@ -354,6 +680,12 @@ export type VenusNode =
     fill?: string
     stroke?: string
     strokeWidth?: number
+    fills?: readonly VenusPaint[]
+    strokes?: readonly VenusPaint[]
+    strokeAlign?: VenusStrokeAlign
+    strokeDashArray?: readonly number[]
+    strokeCap?: 'butt' | 'round' | 'square'
+    strokeJoin?: 'miter' | 'round' | 'bevel'
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
@@ -386,6 +718,135 @@ const DEBUG_OVERLAY_STROKE_WIDTH = 1
 const DEBUG_HIT_TOLERANCE = 6
 const DEFAULT_CLICK_HIT_TOLERANCE = 0
 const DEFAULT_HOVER_HIT_TOLERANCE = 6
+
+class VenusReadonlyServiceRegistry implements VenusServiceRegistry {
+  private readonly services: ReadonlyMap<VenusInternalServiceName, unknown>
+  private readonly readonlyServices = new Map<VenusInternalServiceName, unknown>()
+
+  constructor(services: ReadonlyMap<VenusInternalServiceName, unknown>) {
+    this.services = services
+  }
+
+  has(name: VenusInternalServiceName): boolean {
+    return this.services.has(name)
+  }
+
+  get<TService = unknown>(name: VenusInternalServiceName): TService | null {
+    if (this.readonlyServices.has(name)) {
+      return this.readonlyServices.get(name) as TService
+    }
+
+    const service = this.services.get(name)
+    if (!service) {
+      return null
+    }
+
+    const readonlyService = typeof service === 'object'
+      ? Object.freeze({...service})
+      : service
+    this.readonlyServices.set(name, readonlyService)
+    return readonlyService as TService
+  }
+
+  require<TService = unknown>(name: VenusInternalServiceName): TService {
+    const service = this.get<TService>(name)
+    if (!service) {
+      throw new Error(`Venus service "${name}" is not registered`)
+    }
+
+    return service
+  }
+
+  list(): readonly VenusInternalServiceName[] {
+    return [...this.services.keys()]
+  }
+}
+
+const venusInvalidationPriority: Record<VenusInvalidationKind, number> = {
+  none: 0,
+  opacityOnly: 1,
+  visibility: 2,
+  transformOnly: 3,
+  paint: 4,
+  effect: 5,
+  geometry: 6,
+  text: 7,
+  clipMask: 8,
+  structural: 9,
+}
+
+/**
+ * Classifies changed Venus node property paths into one render invalidation kind.
+ * @param changedProperties Changed public property names or dotted paths.
+ */
+export function classifyVenusNodeMutation(
+  changedProperties: readonly string[],
+): VenusInvalidationKind {
+  let result: VenusInvalidationKind = 'none'
+
+  for (const property of changedProperties) {
+    const root = property.split('.')[0]
+    const kind = classifyVenusPropertyMutation(root, property)
+    if (venusInvalidationPriority[kind] > venusInvalidationPriority[result]) {
+      result = kind
+    }
+  }
+
+  return result
+}
+
+/**
+ * Classifies one changed Venus node property.
+ * @param root Root property name.
+ * @param path Full property path.
+ */
+function classifyVenusPropertyMutation(root: string, path: string): VenusInvalidationKind {
+  if (['type', 'children', 'clipPath', 'parentId'].includes(root)) {
+    return root === 'clipPath' ? 'clipMask' : 'structural'
+  }
+
+  if (['visible'].includes(root)) {
+    return 'visibility'
+  }
+
+  if (['opacity'].includes(root) || path === 'appearance.opacity') {
+    return 'opacityOnly'
+  }
+
+  if (['transform', 'rotation', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY'].includes(root)) {
+    return 'transformOnly'
+  }
+
+  if (['x', 'y', 'width', 'height', 'points', 'bezierPoints', 'closed', 'cornerRadius', 'cornerRadii', 'ellipseStartAngle', 'ellipseEndAngle'].includes(root)) {
+    return 'geometry'
+  }
+
+  if (['text', 'runs', 'fontSize', 'fontWeight', 'lineHeight'].includes(root)) {
+    return 'text'
+  }
+
+  if (['shadow', 'innerShadow', 'layerBlur'].includes(root) || path.startsWith('appearance.effects')) {
+    return 'effect'
+  }
+
+  if ([
+    'appearance',
+    'fill',
+    'fills',
+    'stroke',
+    'strokes',
+    'strokeWidth',
+    'strokeAlign',
+    'strokeDashArray',
+    'strokeCap',
+    'strokeJoin',
+    'blendMode',
+  ].includes(root)) {
+    return path.startsWith('appearance.effects') ? 'effect' : 'paint'
+  }
+
+  return 'none'
+}
 
 /** Reads a monotonic timestamp when available. */
 const getVenusNow = (): number => {
@@ -455,8 +916,6 @@ const hasTransformFields = (node: VenusNodeBase): boolean => {
     || node.scaleY !== undefined
     || node.skewX
     || node.skewY
-    || node.flipX
-    || node.flipY
     || transform?.x
     || transform?.y
     || transform?.rotation
@@ -464,8 +923,6 @@ const hasTransformFields = (node: VenusNodeBase): boolean => {
     || transform?.scaleY !== undefined
     || transform?.skewX
     || transform?.skewY
-    || transform?.flipX
-    || transform?.flipY
     || transform?.origin
   )
 }
@@ -522,8 +979,8 @@ const createVenusTransform = (
     ? bounds.y + (originUnit === 'px' ? origin?.y ?? bounds.height * 0.5 : bounds.height * (origin?.y ?? 0.5))
     : origin?.y ?? 0
   const rotation = (transform?.rotation ?? node.rotation ?? 0) * DEGREES_TO_RADIANS
-  const scaleX = (transform?.scaleX ?? node.scaleX ?? 1) * (transform?.flipX ?? node.flipX ? -1 : 1)
-  const scaleY = (transform?.scaleY ?? node.scaleY ?? 1) * (transform?.flipY ?? node.flipY ? -1 : 1)
+  const scaleX = transform?.scaleX ?? node.scaleX ?? 1
+  const scaleY = transform?.scaleY ?? node.scaleY ?? 1
   const skewX = Math.tan((transform?.skewX ?? node.skewX ?? 0) * DEGREES_TO_RADIANS)
   const skewY = Math.tan((transform?.skewY ?? node.skewY ?? 0) * DEGREES_TO_RADIANS)
   const cos = Math.cos(rotation)
@@ -686,7 +1143,99 @@ const createBoundsOverlayNode = (
 }
 
 const resolveNodeOpacity = (node: VenusNodeBase) => {
-  return node.visible === false ? 0 : node.opacity
+  return node.visible === false ? 0 : node.appearance?.opacity ?? node.opacity
+}
+
+const resolveNodeBlendMode = (node: VenusNodeBase) => {
+  return node.appearance?.blendMode ?? node.blendMode
+}
+
+const isVisibleAppearanceLayer = (layer: {visible?: boolean}) => {
+  return layer.visible !== false
+}
+
+const resolveAppearanceEffects = (
+  node: VenusNode,
+): {
+  shadow?: EngineShadow
+  innerShadow?: {color?: string; blur?: number}
+  layerBlur?: {amount: number}
+} => {
+  const effects = node.appearance?.effects
+  const legacyShadow = 'shadow' in node ? node.shadow : undefined
+
+  if (!effects) {
+    return {
+      shadow: legacyShadow,
+      innerShadow: node.innerShadow,
+      layerBlur: node.layerBlur,
+    }
+  }
+
+  const dropShadow = effects.find((effect) => effect.type === 'dropShadow' && isVisibleAppearanceLayer(effect))
+  const innerShadow = effects.find((effect) => effect.type === 'innerShadow' && isVisibleAppearanceLayer(effect))
+  const layerBlur = effects.find((effect) => effect.type === 'layerBlur' && isVisibleAppearanceLayer(effect))
+
+  return {
+    shadow: dropShadow?.type === 'dropShadow'
+      ? {
+        color: dropShadow.color,
+        offsetX: dropShadow.offsetX,
+        offsetY: dropShadow.offsetY,
+        blur: dropShadow.blur,
+      }
+      : undefined,
+    innerShadow: innerShadow?.type === 'innerShadow'
+      ? {
+        color: innerShadow.color,
+        blur: innerShadow.blur,
+      }
+      : undefined,
+    layerBlur: layerBlur?.type === 'layerBlur'
+      ? {amount: layerBlur.amount}
+      : undefined,
+  }
+}
+
+const resolveAppearanceFills = (
+  node: VenusNode,
+  legacyFills?: readonly VenusPaint[],
+) => {
+  return node.appearance?.fills ?? legacyFills
+}
+
+const resolveAppearanceStroke = (
+  node: VenusNode,
+  legacy: {
+    strokes?: readonly VenusPaint[]
+    strokeWidth?: number
+    strokeAlign?: VenusStrokeAlign
+    strokeDashArray?: readonly number[]
+    strokeCap?: 'butt' | 'round' | 'square'
+    strokeJoin?: 'miter' | 'round' | 'bevel'
+  },
+) => {
+  const structuredStroke = node.appearance?.strokes?.find(isVisibleAppearanceLayer)
+
+  if (!structuredStroke) {
+    return {
+      strokes: legacy.strokes,
+      strokeWidth: legacy.strokeWidth,
+      strokeAlign: legacy.strokeAlign,
+      strokeDashArray: legacy.strokeDashArray,
+      strokeCap: legacy.strokeCap,
+      strokeJoin: legacy.strokeJoin,
+    }
+  }
+
+  return {
+    strokes: structuredStroke.paints,
+    strokeWidth: structuredStroke.width,
+    strokeAlign: structuredStroke.align,
+    strokeDashArray: structuredStroke.dash,
+    strokeCap: structuredStroke.cap,
+    strokeJoin: structuredStroke.join,
+  }
 }
 
 /**
@@ -778,18 +1327,22 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
   const id = node.id ?? fallbackId
 
   if (node.type === 'group') {
+    const effects = resolveAppearanceEffects(node)
     return {
       id,
       type: 'group',
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
-      shadow: node.shadow,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, getNodeBounds(node) ?? undefined),
       children: node.children.map((child, index) => toEngineNode(child, `${id}-child-${index}`)),
     }
   }
 
   if (node.type === 'clip' || node.type === 'mask') {
+    const effects = resolveAppearanceEffects(node)
     const clipPathX = 'x' in node.clipPath ? node.clipPath.x ?? 0 : 0
     const clipPathY = 'y' in node.clipPath ? node.clipPath.y ?? 0 : 0
     const clipPathWidth = 'width' in node.clipPath && typeof node.clipPath.width === 'number' ? node.clipPath.width : 160
@@ -799,7 +1352,10 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       id,
       type: 'group',
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, getNodeBounds(node) ?? undefined),
       clip: {
         clipShape: {
@@ -822,6 +1378,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
   }
 
   if (node.type === 'text') {
+    const effects = resolveAppearanceEffects(node)
     return {
       id,
       type: 'text',
@@ -830,7 +1387,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       width: node.width,
       height: node.height,
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
+      blendMode: resolveNodeBlendMode(node),
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width ?? 0, height: node.height ?? 0}),
       text: node.text,
       runs: node.runs,
@@ -841,12 +1398,24 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
         fontWeight: node.fontWeight ?? 700,
         lineHeight: node.lineHeight,
         fill: node.fill ?? '#0f172a',
-        shadow: node.shadow,
+        fills: resolveAppearanceFills(node, node.fills) as EngineTextStyle['fills'],
+        shadow: effects.shadow,
       },
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
     }
   }
 
   if (node.type === 'line') {
+    const effects = resolveAppearanceEffects(node)
+    const strokeStyle = resolveAppearanceStroke(node, {
+      strokes: node.strokes,
+      strokeWidth: node.strokeWidth,
+      strokeAlign: node.strokeAlign,
+      strokeDashArray: node.strokeDashArray,
+      strokeCap: node.strokeCap,
+      strokeJoin: node.strokeJoin,
+    })
     return {
       id,
       type: 'shape',
@@ -856,15 +1425,31 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       width: node.width,
       height: node.height,
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
-      shadow: node.shadow,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
       stroke: node.stroke ?? '#475569',
-      strokeWidth: node.strokeWidth ?? 4,
+      strokeWidth: strokeStyle.strokeWidth ?? 4,
+      strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
+      strokeAlign: strokeStyle.strokeAlign,
+      strokeDashArray: strokeStyle.strokeDashArray,
+      strokeCap: strokeStyle.strokeCap,
+      strokeJoin: strokeStyle.strokeJoin,
     }
   }
 
   if (node.type === 'rect' || node.type === 'ellipse') {
+    const effects = resolveAppearanceEffects(node)
+    const strokeStyle = resolveAppearanceStroke(node, {
+      strokes: node.strokes,
+      strokeWidth: node.strokeWidth,
+      strokeAlign: node.strokeAlign,
+      strokeDashArray: node.strokeDashArray,
+      strokeCap: node.strokeCap,
+      strokeJoin: node.strokeJoin,
+    })
     return {
       id,
       type: 'shape',
@@ -874,12 +1459,20 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       width: node.width,
       height: node.height,
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
-      shadow: node.shadow,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
       fill: node.fill,
       stroke: node.stroke,
-      strokeWidth: node.strokeWidth,
+      strokeWidth: strokeStyle.strokeWidth,
+      fills: resolveAppearanceFills(node, node.fills) as EngineShapeNode['fills'],
+      strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
+      strokeAlign: strokeStyle.strokeAlign,
+      strokeDashArray: strokeStyle.strokeDashArray,
+      strokeCap: strokeStyle.strokeCap,
+      strokeJoin: strokeStyle.strokeJoin,
       cornerRadius: node.type === 'rect' ? node.cornerRadius : undefined,
       cornerRadii: node.type === 'rect' ? node.cornerRadii : undefined,
       ellipseStartAngle: node.type === 'ellipse' ? node.ellipseStartAngle : undefined,
@@ -888,6 +1481,15 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
   }
 
   if (node.type === 'polygon') {
+    const effects = resolveAppearanceEffects(node)
+    const strokeStyle = resolveAppearanceStroke(node, {
+      strokes: node.strokes,
+      strokeWidth: node.strokeWidth,
+      strokeAlign: node.strokeAlign,
+      strokeDashArray: node.strokeDashArray,
+      strokeCap: node.strokeCap,
+      strokeJoin: node.strokeJoin,
+    })
     return {
       id,
       type: 'shape',
@@ -897,18 +1499,35 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       width: node.width,
       height: node.height,
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
-      shadow: node.shadow,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
       fill: node.fill,
       stroke: node.stroke,
-      strokeWidth: node.strokeWidth,
+      strokeWidth: strokeStyle.strokeWidth,
+      fills: resolveAppearanceFills(node, node.fills) as EngineShapeNode['fills'],
+      strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
+      strokeAlign: strokeStyle.strokeAlign,
+      strokeDashArray: strokeStyle.strokeDashArray,
+      strokeCap: strokeStyle.strokeCap,
+      strokeJoin: strokeStyle.strokeJoin,
       points: node.points,
       closed: node.closed ?? true,
     }
   }
 
   if (node.type === 'path') {
+    const effects = resolveAppearanceEffects(node)
+    const strokeStyle = resolveAppearanceStroke(node, {
+      strokes: node.strokes,
+      strokeWidth: node.strokeWidth,
+      strokeAlign: node.strokeAlign,
+      strokeDashArray: node.strokeDashArray,
+      strokeCap: node.strokeCap,
+      strokeJoin: node.strokeJoin,
+    })
     return {
       id,
       type: 'shape',
@@ -918,12 +1537,20 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       width: node.width,
       height: node.height,
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
-      shadow: node.shadow,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
       fill: node.fill,
       stroke: node.stroke,
-      strokeWidth: node.strokeWidth,
+      strokeWidth: strokeStyle.strokeWidth,
+      fills: resolveAppearanceFills(node, node.fills) as EngineShapeNode['fills'],
+      strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
+      strokeAlign: strokeStyle.strokeAlign,
+      strokeDashArray: strokeStyle.strokeDashArray,
+      strokeCap: strokeStyle.strokeCap,
+      strokeJoin: strokeStyle.strokeJoin,
       points: node.points as EngineRenderableNode extends {points?: infer T} ? T : undefined,
       bezierPoints: node.bezierPoints as EngineRenderableNode extends {bezierPoints?: infer T} ? T : undefined,
       closed: node.closed,
@@ -933,6 +1560,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
   }
 
   if (node.type === 'image') {
+    const effects = resolveAppearanceEffects(node)
     return {
       id,
       type: 'image',
@@ -941,7 +1569,10 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       width: node.width,
       height: node.height,
       opacity: resolveNodeOpacity(node),
-      blendMode: node.blendMode,
+      blendMode: resolveNodeBlendMode(node),
+      shadow: effects.shadow,
+      innerShadow: effects.innerShadow,
+      layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
       assetId: node.assetId,
       sourceRect: node.sourceRect,
@@ -964,16 +1595,24 @@ export class Venus {
   private revision = 1
   private nodeIndex = 0
   private readonly listeners = new Map<VenusEventName, Set<VenusEventHandler>>()
+  private readonly installedModules = new Set<VenusModuleName>()
+  private lastModuleError: VenusModuleDiagnostics['lastError'] = null
+  private readonly services = new Map<VenusInternalServiceName, unknown>()
+  private readonly serviceRegistry: VenusServiceRegistry
   /** Stores current viewport state for camera commands and projection helpers. */
   private viewport: EngineCanvasViewportState = resolveEngineViewportState({
-    ...DEFAULT_ENGINE_VIEWPORT,
     viewportWidth: DEFAULT_VENUS_VIEWPORT_WIDTH,
     viewportHeight: DEFAULT_VENUS_VIEWPORT_HEIGHT,
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
   })
   /** Stores current debug flags. */
   private debugFlags: VenusDebugFlags = {showBounds: false, showHitCandidates: false, showCache: false}
   /** Stores the latest measured render frame for diagnostics panels. */
   private lastFrameMeasurement: VenusFrameMeasurement | null = null
+  /** Stores the latest automatic backend fallback for diagnostics panels. */
+  private lastBackendFallback: VenusBackendFallback | null = null
   /** Stores the last pointer used for debug hit-candidate overlays. */
   private lastDebugHitPoint: {x: number; y: number} | null = null
 
@@ -1094,6 +1733,11 @@ export class Venus {
         }
         : null,
       cache: createVenusCacheDiagnostics(this.debugFlags.showCache, engine),
+      backendFallback: this.lastBackendFallback ? {...this.lastBackendFallback} : null,
+      modules: {
+        installed: this.modules(),
+        lastError: this.lastModuleError ? {...this.lastModuleError} : null,
+      },
       engine,
     }
   }
@@ -1118,6 +1762,66 @@ export class Venus {
 
   constructor(parameters: VenusParameters = {}) {
     this.parameters = parameters
+    this.registerInternalServices()
+    this.serviceRegistry = new VenusReadonlyServiceRegistry(this.services)
+    this.installModules(parameters.modules ?? [])
+  }
+
+  /** Returns the installed user capability module names. */
+  modules(): readonly VenusModuleName[] {
+    return [...this.installedModules]
+  }
+
+  private registerInternalServices(): void {
+    this.services.set('document', {
+      snapshot: () => this.snapshot(),
+      children: () => this.children(),
+      bounds: () => this.bounds(),
+    })
+    this.services.set('viewport', {
+      project: (point: {x: number; y: number}) => this.project(point),
+      unproject: (point: {x: number; y: number}) => this.unproject(point),
+    })
+    this.services.set('invalidation', {
+      classify: (changedProperties: readonly string[]) => classifyVenusNodeMutation(changedProperties),
+    })
+  }
+
+  private installModules(modules: readonly VenusModule[]): void {
+    for (const module of modules) {
+      if (this.installedModules.has(module.name)) {
+        this.failModuleInstall(module.name, `Venus module "${module.name}" is already installed`)
+      }
+
+      for (const dependencyName of module.dependsOn ?? []) {
+        if (!this.installedModules.has(dependencyName)) {
+          this.failModuleInstall(module.name, `Venus module "${module.name}" requires module "${dependencyName}" to be installed first`)
+        }
+      }
+
+      try {
+        for (const serviceName of module.requires ?? []) {
+          this.serviceRegistry.require(serviceName)
+        }
+      } catch (error) {
+        this.failModuleInstall(module.name, error instanceof Error ? error.message : String(error))
+      }
+
+      this.installedModules.add(module.name)
+      module.install({
+        venus: this,
+        parameters: this.parameters,
+        services: this.serviceRegistry,
+      })
+    }
+  }
+
+  private failModuleInstall(moduleName: VenusModuleName, reason: string): never {
+    this.lastModuleError = {
+      module: moduleName,
+      reason,
+    }
+    throw new Error(reason)
   }
 
   /**
@@ -1193,19 +1897,47 @@ export class Venus {
 
   mount(canvas: HTMLCanvasElement) {
     this.canvas = canvas
-    this.engine = createEngine({
+    this.engine = this.createMountedEngine(canvas)
+    this.applyViewport(this.viewport)
+    this.emit('mounted', {canvas})
+  }
+
+  private createMountedEngine(canvas: HTMLCanvasElement): Engine {
+    const requestedBackend = this.parameters.render?.backend ?? 'auto'
+    const createWithBackend = (backend: 'canvas2d' | 'webgl') => createEngine({
       canvas,
       initialScene: this.createSnapshot(),
       culling: this.parameters.culling ?? false,
       lod: this.parameters.lod ? {enabled: true} : {enabled: false},
       render: {
-        backend: this.parameters.render?.backend === 'webgl' ? 'webgl' : 'canvas2d',
+        backend,
         quality: this.parameters.render?.quality ?? 'full',
         webglAntialias: this.parameters.render?.antialias ?? true,
       },
     })
-    this.applyViewport(this.viewport)
-    this.emit('mounted', {canvas})
+
+    if (requestedBackend === 'canvas2d') {
+      this.lastBackendFallback = null
+      return createWithBackend('canvas2d')
+    }
+
+    try {
+      this.lastBackendFallback = null
+      return createWithBackend('webgl')
+    } catch (error) {
+      if (requestedBackend === 'webgl') {
+        throw error
+      }
+
+      const fallback: VenusBackendFallback = {
+        from: 'webgl',
+        to: 'canvas2d',
+        reason: error instanceof Error ? error.message : String(error),
+      }
+      this.lastBackendFallback = fallback
+      this.emit('backend:fallback', fallback)
+      return createWithBackend('canvas2d')
+    }
   }
 
   resize(size: {width: number, height: number}) {

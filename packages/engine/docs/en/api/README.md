@@ -9,8 +9,20 @@ Use these APIs when embedding the engine into a host canvas.
 
 | API | Page | Demo |
 | --- | --- | --- |
+| `Venus`, `createVenus`, `defineVenusModule` | [`base-and-modules.md`](./base-and-modules.md) | Create a base runtime and install short capability modules per instance. |
 | `createEngine` | [`../api-reference.md`](../api-reference.md) | Create a canvas runtime, load a scene, resize, render one frame. |
 | `EngineSceneSnapshot` | [`scene-objects/scene-snapshot.md`](./scene-objects/scene-snapshot.md) | Build the render-facing scene payload consumed by `createEngine`. |
+
+```ts
+import {createVenus} from '@venus/engine/base'
+
+const venus = createVenus()
+venus.mount(canvas)
+venus.add({type: 'rect', x: 40, y: 40, width: 160, height: 96})
+await venus.render()
+```
+
+Low-level runtime integration remains available through `createEngine`:
 
 ```ts
 import {createEngine, type EngineSceneSnapshot} from '@venus/engine'

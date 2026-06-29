@@ -9,7 +9,8 @@
     "bench:scenario": "tsx src/bench/runBenchmark.ts"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./base": "./src/base.ts"
   },
   "dependencies": {
     "@venus/lib": "workspace:*",

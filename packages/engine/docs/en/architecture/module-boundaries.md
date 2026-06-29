@@ -20,6 +20,45 @@ This document defines ownership, boundaries, and one-way dependencies for `@venu
 - `src/worker`
   - Worker bridge/capability adapters.
 
+## Public Module Layer
+
+The user-facing module layer uses short capability names:
+
+| Module | Purpose |
+| --- | --- |
+| `render` | Static rendering, scene updates, backend selection. |
+| `camera` | Pan, zoom, fit, project, unproject. |
+| `hitTest` | Hover, click, and query hit testing. |
+| `select` | Selection state, marquee, handles, selection bounds. |
+| `snap` | Grid, guide, object, and angle snapping. |
+| `animate` | Keyframes and invalidation-aware animation. |
+| `debug` | Inspect, overlays, frame timing, cache diagnostics. |
+| `scale` | Culling, LOD, snapshot, tile, and cache strategy. |
+| `effects` | Canvas2D fidelity rasterization and texture composition. |
+| `history` | Commands, undo/redo, patch, replay. |
+| `export` | PNG/SVG/PDF export and export settings. |
+
+The default package entry may stay broad for compatibility. Advanced users can
+start from the base entry:
+
+```ts
+import {createVenus, defineVenusModule} from '@venus/engine/base'
+
+const debugNames = defineVenusModule({
+  name: 'debug',
+  install({venus}) {
+    venus.on('render:after', () => console.log(venus.modules()))
+  },
+})
+
+const venus = createVenus({
+  modules: [debugNames],
+})
+```
+
+Capability modules are installed per instance through constructor parameters.
+The engine does not use a global `Venus.use(...)` registry.
+
 ## One-Way Dependency Rule
 
 Allowed direction only:

@@ -15,11 +15,19 @@ const BACKEND_NEUTRAL_DIRS = [
   'core/hit',
   'core/camera',
 ] as const
-const RENDERER_COMPAT_DIRS = [
-  'renderer/cache',
-  'renderer/hit',
-  'renderer/camera',
+
+const INTERNAL_FOUNDATION_DIRS = [
+  'math',
+  'time',
+  'utils',
+  'scene',
+  'core/cache',
+  'core/hit',
+  'core/camera',
 ] as const
+
+// Compatibility forwarders under renderer/ were removed when all importers
+// migrated to canonical core/ locations (ref: A-009 cleanup).
 
 /**
  * Lists TypeScript source files under one relative source directory.
@@ -67,21 +75,6 @@ test('document model, scene hit-test, and core cache/camera/hit do not import re
   }
 })
 
-test('renderer cache, hit, and camera modules stay compatibility forwarders only', () => {
-  for (const relativeDir of RENDERER_COMPAT_DIRS) {
-    for (const filePath of listTypeScriptFiles(relativeDir)) {
-      const source = readSource(filePath)
-      const publicDeclarationPattern = /export\s+(class|function|interface)\s+/
-
-      assert.equal(
-        publicDeclarationPattern.test(source),
-        false,
-        `${filePath} should forward core ownership instead of declaring backend-neutral APIs`,
-      )
-    }
-  }
-})
-
 test('public engine barrel exports backend-neutral APIs from core instead of renderer backend paths', () => {
   const source = readSource(resolve(SOURCE_ROOT, 'index/index.ts'))
 
@@ -91,4 +84,45 @@ test('public engine barrel exports backend-neutral APIs from core instead of ren
   assert.equal(source.includes("'../core/cache"), true)
   assert.equal(source.includes("'../core/hit"), true)
   assert.equal(source.includes("'../core/camera"), true)
+})
+
+test('Venus module contract uses short instance-level modules without a global registry', () => {
+  const venusSource = readSource(resolve(SOURCE_ROOT, 'runtime/venus/Venus.ts'))
+  const baseSource = readSource(resolve(SOURCE_ROOT, 'base.ts'))
+
+  for (const moduleName of ['render', 'camera', 'hitTest', 'select', 'snap', 'animate', 'debug', 'scale', 'effects', 'history', 'export']) {
+    assert.equal(venusSource.includes(`'${moduleName}'`), true, `missing module name ${moduleName}`)
+  }
+
+  assert.equal(venusSource.includes('largeScenePerformance'), false)
+  assert.equal(venusSource.includes('Venus.use'), false)
+  assert.equal(venusSource.includes('static use'), false)
+  assert.equal(baseSource.includes('createVenus'), true)
+  assert.equal(baseSource.includes('defineVenusModule'), true)
+  assert.equal(baseSource.includes('new Venus(parameters)'), true)
+})
+
+test('internal foundations do not import user-facing Venus module layer', () => {
+  for (const relativeDir of INTERNAL_FOUNDATION_DIRS) {
+    for (const filePath of listTypeScriptFiles(relativeDir)) {
+      const source = readSource(filePath)
+
+      assert.equal(
+        /from ['"].*(runtime\/venus|\/base|'\.\.\/base|"\.\.\/base)/.test(source),
+        false,
+        `${filePath} must not import Venus runtime or base module layer`,
+      )
+    }
+  }
+})
+
+test('package exports expose default compatibility and explicit base entry only', () => {
+  const packageJson = JSON.parse(readSource(resolve(SOURCE_ROOT, '../package.json'))) as {
+    exports: Record<string, string>
+  }
+
+  assert.equal(packageJson.exports['.'], './src/index.ts')
+  assert.equal(packageJson.exports['./base'], './src/base.ts')
+  assert.equal(packageJson.exports['./largeScenePerformance'], undefined)
+  assert.equal(packageJson.exports['./preset'], undefined)
 })

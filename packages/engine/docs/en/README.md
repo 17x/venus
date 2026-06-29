@@ -11,6 +11,7 @@ This folder stores English, human-readable documentation for `@venus/engine`.
 - `scene-capability-matrix.md`: render, hit-test, indexing, and extension coverage.
 - `tutorials/draw-shapes.md`: minimal drawing tutorial.
 - `architecture/module-boundaries.md`: module ownership and dependency boundaries.
+- `architecture/render-backends.md`: WebGL-first, Canvas2D fallback, and Canvas2D-to-texture strategy.
 - `architecture/source-outline.md`: source-module responsibility map.
 
 ## Language Policy

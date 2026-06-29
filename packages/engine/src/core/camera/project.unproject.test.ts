@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { projectWorldPoint } from './project.ts'
 import { unprojectScreenPoint } from './unproject.ts'
-import type { EngineRenderCamera } from '../../core/types.ts'
+import type { EngineRenderCamera } from '../types.ts'
 
 test('projectWorldPoint and unprojectScreenPoint are invertible with paired matrices', () => {
   const camera: Pick<EngineRenderCamera, 'matrix' | 'inverseMatrix'> = {

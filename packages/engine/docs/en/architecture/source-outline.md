@@ -19,7 +19,9 @@ Core flow:
 
 1. `runtime` owns state orchestration and render driving.
 2. `scene` owns render-facing data, indexing, and candidate plans.
-3. `renderer` selects WebGL or Canvas2D backends and emits frames.
+3. `renderer` selects WebGL or Canvas2D backends and emits frames. See
+   `render-backends.md` for the WebGL-first, Canvas2D fallback, and
+   Canvas2D-to-texture strategy.
 4. `interaction` provides mechanism-level hit, snap, viewport, and transform
    calculations.
 

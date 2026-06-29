@@ -27,6 +27,16 @@ export interface EngineWebGLRenderPacket {
   shapeKind?: Extract<EngineRenderableNode, { type: 'shape' }>['shape']
   shapePointCount?: number
   shapeBezierPointCount?: number
+  /** Whether the shape uses gradient fills (requires model-complete for accuracy). */
+  hasGradientFill?: boolean
+  /** Whether the shape uses gradient strokes (requires model-complete for accuracy). */
+  hasGradientStroke?: boolean
+  /** Whether the shape has a non-default blendMode (requires full compositing). */
+  hasNonDefaultBlend?: boolean
+  /** Whether the shape has inner shadow (requires model-complete). */
+  hasInnerShadow?: boolean
+  /** Whether the shape has layer blur (requires model-complete). */
+  hasLayerBlur?: boolean
 }
 
 export interface EngineWebGLPacketPlan {
@@ -128,6 +138,11 @@ export function compileEngineWebGLPacketPlan(
       shapeBezierPointCount: prepared.node.type === 'shape'
         ? (prepared.node.bezierPointCount ?? prepared.node.bezierPoints?.length ?? 0)
         : undefined,
+      hasGradientFill: resolveNodeHasGradientFill(prepared.node),
+      hasGradientStroke: resolveNodeHasGradientStroke(prepared.node),
+      hasNonDefaultBlend: resolveNodeHasNonDefaultBlend(prepared.node),
+      hasInnerShadow: resolveNodeHasInnerShadow(prepared.node),
+      hasLayerBlur: resolveNodeHasLayerBlur(prepared.node),
     })
 
     if (prepared.node.type === 'text') {
@@ -211,6 +226,49 @@ function resolveNodeHasShadow(node: EngineRenderableNode) {
 function resolveNodeHasExpensiveEffect(node: EngineRenderableNode) {
   // Treat non-default blend/clip usage as expensive so effect LOD can skip them.
   return Boolean((node.blendMode && node.blendMode !== 'normal') || node.clip)
+}
+
+/**
+ * Detects gradient fills (requires model-complete path for accuracy).
+ * @param node Target node.
+ */
+function resolveNodeHasGradientFill(node: EngineRenderableNode) {
+  if (node.type !== 'shape') return false
+  return (node.fills?.some((p) => p.type === 'gradient')) ?? false
+}
+
+/**
+ * Detects gradient strokes (requires model-complete path for accuracy).
+ * @param node Target node.
+ */
+function resolveNodeHasGradientStroke(node: EngineRenderableNode) {
+  if (node.type !== 'shape') return false
+  return (node.strokes?.some((p) => p.type === 'gradient')) ?? false
+}
+
+/**
+ * Detects non-default blend modes that need full compositing.
+ * @param node Target node.
+ */
+function resolveNodeHasNonDefaultBlend(node: EngineRenderableNode) {
+  const bm = node.blendMode
+  return Boolean(bm && bm !== 'normal' && bm !== 'passThrough')
+}
+
+/**
+ * Detects inner shadow effects (require model-complete path).
+ * @param node Target node.
+ */
+function resolveNodeHasInnerShadow(node: EngineRenderableNode) {
+  return Boolean(node.innerShadow?.color && node.innerShadow?.blur && node.innerShadow.blur > 0)
+}
+
+/**
+ * Detects layer blur (requires model-complete path).
+ * @param node Target node.
+ */
+function resolveNodeHasLayerBlur(node: EngineRenderableNode) {
+  return Boolean(node.layerBlur?.amount && node.layerBlur.amount > 0)
 }
 
 /**

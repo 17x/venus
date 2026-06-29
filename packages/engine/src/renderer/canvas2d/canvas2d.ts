@@ -11,6 +11,7 @@ import {
 import type {
   EngineImageNode,
   EngineNodeBase,
+  EnginePaint,
   EngineRect,
   EngineRenderableNode,
   EngineShapeNode,
@@ -449,7 +450,9 @@ function drawPreparedNode(
 
   context.save()
 
+  applyBlendMode(context, node)
   applyNodeOpacity(context, node)
+  applyLayerBlur(context, node)
   applyNodeShadow(context, node)
   applyClipByNodeReference(context, node, preparedNodeById, worldBoundsById)
   applyWorldTransform(context, worldMatrix)
@@ -579,7 +582,182 @@ function drawImageNode(
 }
 
 /**
- * Handles drawShapeNode.
+ * Activates the canvas blend mode for nodes that carry a non-default blendMode.
+ * @param context Rendering context.
+ * @param node Target node.
+ */
+function applyBlendMode(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineRenderableNode,
+) {
+  const blendMode = (node as {blendMode?: string}).blendMode
+  if (blendMode && blendMode !== 'normal' && blendMode !== 'passThrough') {
+    context.globalCompositeOperation = blendMode as GlobalCompositeOperation
+  }
+}
+
+/**
+ * Resolves one paint descriptor into a CSS colour string or CanvasGradient.
+ * @param context Rendering context.
+ * @param paint Paint descriptor.
+ * @param rect Bounding rect in local coordinates for gradient sizing.
+ */
+function resolvePaint(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  paint: EnginePaint,
+  rect: {x: number; y: number; width: number; height: number},
+): string | CanvasGradient {
+  if (paint.type === 'solid') {
+    return paint.color
+  }
+
+  const gradient = paint.gradient
+  if (gradient.type === 'linear') {
+    const canvasGradient = context.createLinearGradient(
+      rect.x + gradient.startX,
+      rect.y + gradient.startY,
+      rect.x + gradient.endX,
+      rect.y + gradient.endY,
+    )
+    for (const stop of gradient.stops) {
+      canvasGradient.addColorStop(stop.offset, stop.color)
+    }
+    return canvasGradient
+  }
+
+  // Radial gradient.
+  const canvasGradient = context.createRadialGradient(
+    rect.x + gradient.centerX,
+    rect.y + gradient.centerY,
+    0,
+    rect.x + gradient.centerX,
+    rect.y + gradient.centerY,
+    gradient.radius,
+  )
+  for (const stop of gradient.stops) {
+    canvasGradient.addColorStop(stop.offset, stop.color)
+  }
+  return canvasGradient
+}
+
+/**
+ * Resolves the effective paint-level opacity for a solid or gradient paint.
+ * @param paint Paint descriptor.
+ */
+function resolvePaintOpacity(paint: EnginePaint): number {
+  return paint.type === 'solid' ? (paint.opacity ?? 1) : (paint.opacity ?? 1)
+}
+
+/**
+ * Applies stroke dash array only; stroke alignment is handled inline by the
+ * fill-or-stroke ordering in drawShapeNode / drawEllipseArcNode.
+ * @param context Rendering context.
+ * @param node Shape node.
+ */
+function applyStrokeDash(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineShapeNode,
+) {
+  if (node.strokeDashArray && node.strokeDashArray.length > 0) {
+    context.setLineDash(node.strokeDashArray as number[])
+  } else {
+    context.setLineDash([])
+  }
+}
+
+/**
+ * Resolves the effective stroke width after alignment adjustment.
+ * Inside/outside alignment doubles the physical lineWidth because the fill
+ * pass masks the unwanted half.
+ * @param node Shape node.
+ */
+function resolveAlignedStrokeWidth(node: EngineShapeNode): number {
+  const base = node.strokeWidth ?? 0
+  if ((node.strokeAlign === 'inside' || node.strokeAlign === 'outside') && base > 0) {
+    return base * 2
+  }
+  return base
+}
+
+/**
+ * Applies a multi-paint fill list to the current path, falling back to legacy fill.
+ * @param context Rendering context.
+ * @param node Shape node.
+ * @param rect Local bounding rect for gradient sizing.
+ */
+function applyFills(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineShapeNode,
+  rect: {x: number; y: number; width: number; height: number},
+) {
+  if (node.fills && node.fills.length > 0) {
+    for (const paint of node.fills) {
+      const fillValue = resolvePaint(context, paint, rect)
+      const opacity = resolvePaintOpacity(paint)
+      context.globalAlpha *= opacity
+      context.fillStyle = fillValue
+      context.fill()
+      context.globalAlpha /= opacity
+    }
+    return
+  }
+
+  // Legacy single fill.
+  const fill = node.fill ?? 'rgba(17,24,39,0.05)'
+  if (fill !== 'transparent') {
+    context.fillStyle = fill
+    context.fill()
+  }
+}
+
+/**
+ * Applies a multi-paint stroke list to the current path, falling back to legacy stroke.
+ * Stroke alignment (inside/outside) is achieved by doubling the physical lineWidth
+ * and relying on fill-or-stroke ordering in the caller to mask the unwanted half.
+ * @param context Rendering context.
+ * @param node Shape node.
+ * @param rect Local bounding rect for gradient sizing.
+ * @param strokeAfterFill When true, stroke is drawn after fill (inside alignment).
+ */
+function applyStrokes(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineShapeNode,
+  rect: {x: number; y: number; width: number; height: number},
+): {stroked: boolean; strokeColor: string | undefined; strokeWidth: number} {
+  const alignedWidth = resolveAlignedStrokeWidth(node)
+  context.lineWidth = alignedWidth
+
+  if (node.strokes && node.strokes.length > 0) {
+    let firstColor: string | undefined
+    for (const paint of node.strokes) {
+      const strokeValue = resolvePaint(context, paint, rect)
+      const opacity = resolvePaintOpacity(paint)
+      if (!firstColor && paint.type === 'solid') {
+        firstColor = paint.color
+      }
+      context.globalAlpha *= opacity
+      context.strokeStyle = strokeValue
+      context.stroke()
+      context.globalAlpha /= opacity
+    }
+    return {stroked: true, strokeColor: firstColor, strokeWidth: alignedWidth}
+  }
+
+  // Legacy single stroke.
+  const stroke = node.stroke
+  const strokeWidth = node.strokeWidth ?? 0
+  if (stroke && stroke !== 'transparent' && strokeWidth > 0) {
+    context.strokeStyle = stroke
+    context.stroke()
+    return {stroked: true, strokeColor: stroke, strokeWidth: alignedWidth}
+  }
+
+  return {stroked: false, strokeColor: undefined, strokeWidth: 0}
+}
+
+/**
+ * Handles drawShapeNode with full gradient, dash, multi-fill/stroke, and
+ * stroke-alignment support.
  * @param context Rendering context.
  * @param node Target node.
  * @param localRect localRect parameter.
@@ -599,73 +777,83 @@ function drawShapeNode(
   const drawY = localRect?.y ?? node.y
   const drawWidth = localRect?.width ?? node.width
   const drawHeight = localRect?.height ?? node.height
-  const fill = node.fill ?? 'rgba(17,24,39,0.05)'
-  const stroke = node.stroke
-  const strokeWidth = node.strokeWidth ?? (stroke ? 1 : 0)
-  const shouldStroke = Boolean(stroke) && stroke !== 'transparent' && strokeWidth > 0
+  const rect = {x: drawX, y: drawY, width: drawWidth, height: drawHeight}
 
-  context.fillStyle = fill
-  context.strokeStyle = stroke ?? 'transparent'
-  context.lineWidth = strokeWidth
-  context.lineCap = 'round'
-  context.lineJoin = 'round'
+  applyStrokeDash(context, node)
+
+  // Inner shadow renders before fill so it sits under the fill layer.
+  applyInnerShadow(context, node, rect)
+
+  const cap = node.strokeCap ?? 'round'
+  const join = node.strokeJoin ?? 'round'
+  context.lineCap = cap as CanvasLineCap
+  context.lineJoin = join as CanvasLineJoin
 
   if (node.shape === 'ellipse' && hasEllipseArc(node)) {
-    drawEllipseArcNode(context, node, fill, stroke, strokeWidth, {
-      x: drawX,
-      y: drawY,
-      width: drawWidth,
-      height: drawHeight,
-    })
+    drawEllipseArcNode(context, node, rect)
     return
   }
 
-  context.beginPath()
+  const isLine = node.shape === 'line'
+  const align = node.strokeAlign ?? 'center'
 
-  const appended = appendShapePath(context, node, {
-    x: drawX,
-    y: drawY,
-    width: drawWidth,
-    height: drawHeight,
-  }, pathSimplificationBucket, viewportScale, counters)
+  // Helper: trace the shape path again (after appendShapePath consumed the current path).
+  const retrace = () => {
+    context.beginPath()
+    appendShapePath(context, node, rect, pathSimplificationBucket, viewportScale, counters)
+  }
+
+  context.beginPath()
+  const appended = appendShapePath(context, node, rect, pathSimplificationBucket, viewportScale, counters)
   if (!appended) {
     return
   }
 
-  const shouldFill = fill !== 'transparent' && (node.shape !== 'line')
-  if (shouldFill) {
-    context.fill()
-  }
-  if (shouldStroke) {
-    context.stroke()
-  }
-
-  // Draw arrowheads after stroke so the cap shape stays sharp.
-  if (shouldStroke) {
-    drawShapeArrowheads(context, node, stroke!, strokeWidth, {
-      x: drawX,
-      y: drawY,
-      width: drawWidth,
-      height: drawHeight,
-    })
+  if (!isLine) {
+    if (align === 'inside') {
+      // Fill first, then clip to shape and stroke with 2x width so only the inner half renders.
+      applyFills(context, node, rect)
+      context.save()
+      retrace()
+      context.clip()
+      const strokeResult = applyStrokes(context, node, rect)
+      context.restore()
+      if (strokeResult.stroked && strokeResult.strokeColor) {
+        drawShapeArrowheads(context, node, strokeResult.strokeColor, strokeResult.strokeWidth, rect)
+      }
+    } else if (align === 'outside') {
+      // Stroke with 2x width (renders inside+outside), then fill over the inside half.
+      const strokeResult = applyStrokes(context, node, rect)
+      applyFills(context, node, rect)
+      if (strokeResult.stroked && strokeResult.strokeColor) {
+        drawShapeArrowheads(context, node, strokeResult.strokeColor, strokeResult.strokeWidth, rect)
+      }
+    } else {
+      // Center: standard fill-then-stroke.
+      applyFills(context, node, rect)
+      const strokeResult = applyStrokes(context, node, rect)
+      if (strokeResult.stroked && strokeResult.strokeColor) {
+        drawShapeArrowheads(context, node, strokeResult.strokeColor, strokeResult.strokeWidth, rect)
+      }
+    }
+  } else {
+    // Lines have no fill; stroke alignment just doubles the visible width.
+    const strokeResult = applyStrokes(context, node, rect)
+    if (strokeResult.stroked && strokeResult.strokeColor) {
+      drawShapeArrowheads(context, node, strokeResult.strokeColor, strokeResult.strokeWidth, rect)
+    }
   }
 }
 
 /**
- * Handles drawEllipseArcNode.
+ * Handles drawEllipseArcNode with full paint-list support.
  * @param context Rendering context.
  * @param node Target node.
- * @param fill fill parameter.
- * @param stroke stroke parameter.
- * @param strokeWidth strokeWidth parameter.
  * @param rect rect parameter.
  */
 function drawEllipseArcNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineShapeNode,
-  fill: string,
-  stroke: string | undefined,
-  strokeWidth: number,
   rect: {x: number; y: number; width: number; height: number},
 ) {
   const cx = rect.x + rect.width / HALF_DIVISOR
@@ -675,22 +863,74 @@ function drawEllipseArcNode(
   const start = resolveCanvasEllipseAngleRadians(node.ellipseStartAngle ?? 0)
   const end = resolveCanvasEllipseAngleRadians(node.ellipseEndAngle ?? ELLIPSE_END_ANGLE_DEGREES)
   const arc = normalizeArcRange(start, end)
+  const align = node.strokeAlign ?? 'center'
 
-  if (fill !== 'transparent') {
+  // Ellipse arc path (open, for strokes).
+  const traceArc = () => {
+    context.beginPath()
+    context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
+  }
+  // Closed pie path (for fills).
+  const traceClosedArc = () => {
     context.beginPath()
     context.moveTo(cx, cy)
     context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
     context.closePath()
-    context.fillStyle = fill
-    context.fill()
   }
 
-  if (stroke && stroke !== 'transparent' && strokeWidth > 0) {
-    context.beginPath()
-    context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
-    context.strokeStyle = stroke
-    context.lineWidth = strokeWidth
-    context.stroke()
+  applyStrokeDash(context, node)
+  const alignedWidth = resolveAlignedStrokeWidth(node)
+  context.lineWidth = alignedWidth
+
+  const drawStrokes = () => {
+    if (node.strokes && node.strokes.length > 0) {
+      for (const paint of node.strokes) {
+        traceArc()
+        const strokeValue = resolvePaint(context, paint, rect)
+        const opacity = resolvePaintOpacity(paint)
+        context.globalAlpha *= opacity
+        context.strokeStyle = strokeValue
+        context.stroke()
+        context.globalAlpha /= opacity
+      }
+      return
+    }
+    const legacyStroke = node.stroke
+    const legacyWidth = node.strokeWidth ?? 0
+    if (legacyStroke && legacyStroke !== 'transparent' && legacyWidth > 0) {
+      traceArc()
+      context.strokeStyle = legacyStroke
+      context.stroke()
+    }
+  }
+
+  const drawFills = () => {
+    if (node.fills && node.fills.length > 0) {
+      for (const paint of node.fills) {
+        traceClosedArc()
+        const fillValue = resolvePaint(context, paint, rect)
+        const opacity = resolvePaintOpacity(paint)
+        context.globalAlpha *= opacity
+        context.fillStyle = fillValue
+        context.fill()
+        context.globalAlpha /= opacity
+      }
+      return
+    }
+    const legacyFill = node.fill ?? 'rgba(17,24,39,0.05)'
+    if (legacyFill !== 'transparent') {
+      traceClosedArc()
+      context.fillStyle = legacyFill
+      context.fill()
+    }
+  }
+
+  if (align === 'outside') {
+    drawStrokes()
+    drawFills()
+  } else {
+    drawFills()
+    drawStrokes()
   }
 }
 
@@ -727,6 +967,61 @@ function applyNodeShadow(
   context.shadowBlur = node.shadow.blur ?? 0
   context.shadowOffsetX = node.shadow.offsetX ?? 0
   context.shadowOffsetY = node.shadow.offsetY ?? 0
+}
+
+/**
+ * Applies inner shadow by drawing an inverted shadow mask inside shape bounds.
+ * Called from drawShapeNode where the shape path is available.
+ * @param context Rendering context.
+ * @param node Shape node with optional innerShadow.
+ * @param rect Local bounding rect.
+ */
+function applyInnerShadow(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineShapeNode,
+  rect: {x: number; y: number; width: number; height: number},
+) {
+  const is = node.innerShadow
+  if (!is || !is.color || !(is.blur && is.blur > 0)) {
+    return
+  }
+
+  const pad = Math.max(is.blur * 2, 20)
+  const outerX = rect.x - pad
+  const outerY = rect.y - pad
+  const outerW = rect.width + pad * 2
+  const outerH = rect.height + pad * 2
+
+  context.save()
+  // 1. Fill entire area with shadow colour (shadowBlur renders the soft edge).
+  context.shadowColor = is.color
+  context.shadowBlur = is.blur
+  context.shadowOffsetX = 0
+  context.shadowOffsetY = 0
+  context.fillStyle = is.color
+  context.fillRect(outerX, outerY, outerW, outerH)
+  // 2. Punch out the shape interior so shadow only appears at edges.
+  context.globalCompositeOperation = 'destination-out'
+  context.shadowColor = 'transparent'
+  context.shadowBlur = 0
+  context.fillStyle = 'black'
+  context.fillRect(rect.x + 1, rect.y + 1, Math.max(0, rect.width - 2), Math.max(0, rect.height - 2))
+  context.restore()
+}
+
+/**
+ * Applies CSS filter blur to the layer before drawing.
+ * @param context Rendering context.
+ * @param node Target node.
+ */
+function applyLayerBlur(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineNodeBase,
+) {
+  const blur = node.layerBlur
+  if (blur && blur.amount > 0) {
+    context.filter = `blur(${blur.amount}px)`
+  }
 }
 
 /**

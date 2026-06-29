@@ -268,8 +268,13 @@ function createShader(
   context.compileShader(shader)
   if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
     const log = context.getShaderInfoLog(shader) ?? 'unknown error'
+    const shaderKind = type === context.VERTEX_SHADER
+      ? 'vertex'
+      : type === context.FRAGMENT_SHADER
+        ? 'fragment'
+        : 'unknown'
     context.deleteShader(shader)
-    throw new Error(`webgl shader compile failed: ${log}`)
+    throw new Error(`webgl ${shaderKind} shader compile failed: ${log}`)
   }
 
   return shader

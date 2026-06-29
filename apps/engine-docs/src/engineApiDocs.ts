@@ -11,6 +11,11 @@ export interface EngineApiMethod {
   parameters?: EngineApiParameter[]
 }
 
+export interface EngineApiPropertyGroup {
+  title: string
+  properties: string[]
+}
+
 export interface EngineApiDoc {
   id: string
   title: string
@@ -18,6 +23,7 @@ export interface EngineApiDoc {
   readableDescription: string
   parameters?: EngineApiParameter[]
   properties?: string[]
+  propertyGroups?: EngineApiPropertyGroup[]
   methods?: EngineApiMethod[]
   demo: string
   demoCaption: string
@@ -30,7 +36,56 @@ export interface EngineApiCategory {
   apis: EngineApiDoc[]
 }
 
-export const engineApiCategories: EngineApiCategory[] = [
+const propertyGroupTitles = [
+  'Identity',
+  'Transform',
+  'Appearance',
+  'Effects',
+  'Type Specific',
+] as const
+
+const classifyPropertyGroup = (property: string): (typeof propertyGroupTitles)[number] => {
+  const name = property.split(':')[0].split('?')[0]
+
+  if (['type', 'id', 'name', 'visible', 'locked'].includes(name)) {
+    return 'Identity'
+  }
+
+  if (['transform', 'rotation', 'x', 'y', 'width', 'height'].includes(name)) {
+    return 'Transform'
+  }
+
+  if (['appearance', 'blendMode', 'fill', 'fills', 'stroke', 'strokes', 'strokeWidth', 'strokeAlign', 'strokeDashArray', 'opacity'].includes(name)) {
+    return 'Appearance'
+  }
+
+  if (['shadow', 'innerShadow', 'layerBlur'].includes(name)) {
+    return 'Effects'
+  }
+
+  return 'Type Specific'
+}
+
+const createPropertyGroups = (properties: string[]): EngineApiPropertyGroup[] => {
+  return propertyGroupTitles
+    .map((title) => ({
+      title,
+      properties: properties.filter((property) => classifyPropertyGroup(property) === title),
+    }))
+    .filter((group) => group.properties.length > 0)
+}
+
+const withGroupedProperties = (categories: EngineApiCategory[]): EngineApiCategory[] => {
+  return categories.map((category) => ({
+    ...category,
+    apis: category.apis.map((api) => ({
+      ...api,
+      propertyGroups: api.propertyGroups ?? (api.properties ? createPropertyGroups(api.properties) : undefined),
+    })),
+  }))
+}
+
+const rawEngineApiCategories: EngineApiCategory[] = [
   {
     id: 'start',
     title: 'Start',
@@ -64,6 +119,97 @@ await venus.render()`,
     ],
   },
   {
+    id: 'base-modules',
+    title: 'Base and Modules',
+    summary: 'Start from the base runtime and add short capability modules when needed.',
+    apis: [
+      {
+        id: 'base-entry',
+        title: 'Base entry',
+        summary: '@venus/engine/base exposes the minimal Venus runtime and constructor-time module contract.',
+        readableDescription: 'Use the base entry when package size and explicit capability boundaries matter. Add modules per instance instead of using a global registry.',
+        parameters: [
+          {name: 'modules', type: 'readonly VenusModule[]', defaultValue: '[]', description: 'Capability modules installed once during Venus construction.'},
+        ],
+        properties: [
+          'VENUS_MODULE_NAMES: render|camera|hitTest|select|snap|animate|debug|scale|effects|history|export',
+          'VENUS_INTERNAL_SERVICE_NAMES: document|sceneStore|geometry|spatial|geometryCache|invalidation|viewport|renderPlan|scheduler|resource|backendBridge',
+          'registered services: document, viewport, invalidation',
+          'VenusRegisteredServiceMap: typed get() contracts for registered services',
+          'venus.inspect().modules: installed modules and last install error',
+        ],
+        methods: [
+          {
+            name: 'createVenus',
+            description: 'Creates a Venus base runtime with optional capability modules.',
+            parameters: [
+              {name: 'parameters', type: 'VenusParameters', defaultValue: '{}', description: 'Runtime options including optional modules.'},
+            ],
+          },
+          {
+            name: 'defineVenusModule',
+            description: 'Defines one capability module and validates that it uses a reserved short name.',
+            parameters: [
+              {name: 'module', type: 'VenusModule', description: 'Module object with name, optional dependsOn, optional requires, and install callback.'},
+            ],
+          },
+          {
+            name: 'venus.modules',
+            description: 'Returns installed capability module names for this instance.',
+          },
+        ],
+        demo: `import {createVenus, defineVenusModule} from '@venus/engine/base'
+
+const debugNames = defineVenusModule({
+  name: 'debug',
+  dependsOn: [],
+  requires: ['document'],
+  install({venus, services}) {
+    const document = services.require('document')
+    venus.on('render:after', () => console.log(venus.modules()))
+    venus.on('render:after', () => console.log(document.bounds()))
+  },
+})
+
+const venus = createVenus({
+  modules: [debugNames],
+})
+
+venus.mount(document.querySelector('canvas')!)
+venus.add({type: 'rect', x: 72, y: 56, width: 160, height: 96})
+await venus.render()`,
+        demoCaption: 'The preview uses the base entry with no optional capability modules installed.',
+      },
+      {
+        id: 'module-services',
+        title: 'Module services',
+        summary: 'Read typed internal services from a module without importing private engine files.',
+        readableDescription: 'Registered service names are typed through VenusRegisteredServiceMap. Use get() for optional services and require() when the module cannot operate without a service. Use dependsOn for user-module dependencies, and requires on the module definition to fail before install runs. Returned service objects are stable shallow-frozen facades.',
+        properties: [
+          'module.dependsOn?: VenusModuleName[]',
+          'module.requires?: VenusInternalServiceName[]',
+          'services.get("document"): VenusDocumentService | null',
+          'services.get("viewport"): VenusViewportService | null',
+          'services.get("invalidation"): VenusInvalidationService | null',
+          'services.require("viewport"): VenusViewportService',
+          'services.require("invalidation"): VenusInvalidationService',
+          'services.get("geometryCache"): unknown | null until registered',
+        ],
+        demo: `const module = defineVenusModule({
+  name: 'debug',
+  requires: ['invalidation'],
+  install({services}) {
+    const document = services.get('document')
+    const invalidation = services.require('invalidation')
+    console.log(document?.bounds())
+    console.log(invalidation.classify(['appearance.fills']))
+  },
+})`,
+        demoCaption: 'Registered services are typed; planned services remain nullable.',
+      },
+    ],
+  },
+  {
     id: 'document-models',
     title: 'Document Models',
     summary: 'Each document object has its own API page and an editable canvas demo.',
@@ -73,7 +219,7 @@ await venus.render()`,
         title: 'Rect',
         summary: 'Draws a rectangle or rounded rectangle.',
         readableDescription: 'Rect is the simplest filled shape. Use it for panels, cards, boxes, handles, and rectangular hit regions. Rounded corners are controlled by cornerRadius.',
-        properties: ['type: rect', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'fill?: string', 'fillOpacity via rgba fill', 'stroke?: string', 'strokeOpacity via rgba stroke', 'strokeWidth?: number, 0 means no stroke', 'opacity?: number', 'shadow?: EngineShadow', 'cornerRadius?: number', 'cornerRadii?: topLeft, topRight, bottomRight, bottomLeft'],
+        properties: ['type: rect', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow', 'cornerRadius?: number', 'cornerRadii?: topLeft, topRight, bottomRight, bottomLeft'],
         demo: `venus.add({type: 'rect', x: 64, y: 48, width: 220, height: 132})`,
         demoCaption: 'The preview renders a rounded rectangle with editable fill, stroke, size, and radius.',
       },
@@ -82,7 +228,7 @@ await venus.render()`,
         title: 'Ellipse',
         summary: 'Draws an ellipse inside a rectangular bounds box.',
         readableDescription: 'Ellipse uses the same x, y, width, and height box model as rect. Hit testing uses ellipse geometry rather than only its AABB.',
-        properties: ['type: ellipse', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'fill?: string', 'fillOpacity via rgba fill', 'stroke?: string', 'strokeOpacity via rgba stroke', 'strokeWidth?: number, 0 means no stroke', 'opacity?: number', 'shadow?: EngineShadow', 'ellipseStartAngle?: number', 'ellipseEndAngle?: number'],
+        properties: ['type: ellipse', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow', 'ellipseStartAngle?: number', 'ellipseEndAngle?: number'],
         demo: `venus.add({type: 'ellipse', x: 96, y: 64, width: 240, height: 140})`,
         demoCaption: 'The preview renders an ellipse whose bounds, fill, and stroke are editable.',
       },
@@ -91,7 +237,7 @@ await venus.render()`,
         title: 'Line',
         summary: 'Draws a stroked line segment.',
         readableDescription: 'Line is stroke-first. The width and height fields describe the segment delta from x/y, and hit testing expands by strokeWidth plus pointer tolerance.',
-        properties: ['type: line', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number as endX - startX', 'height: number as endY - startY', 'stroke?: string', 'strokeOpacity via rgba stroke', 'strokeWidth?: number, 0 means no stroke', 'opacity?: number', 'shadow?: EngineShadow'],
+        properties: ['type: line', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number as endX - startX', 'height: number as endY - startY', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'line', x: 72, y: 92, width: 300, height: 120})`,
         demoCaption: 'The preview renders a line segment with editable position, delta, and stroke.',
       },
@@ -100,7 +246,7 @@ await venus.render()`,
         title: 'Text',
         summary: 'Draws plain text with basic typography controls.',
         readableDescription: 'Text is a document object, not a canvas label. It has its own position, content, fill color, and typography fields so editors can select, inspect, and serialize it.',
-        properties: ['type: text', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width?: number', 'height?: number', 'text: string with line breaks', 'runs?: EngineTextRun[] for selected-range styling', 'fill?: string', 'fontSize?: number', 'fontWeight?: number', 'lineHeight?: number', 'opacity?: number', 'shadow?: EngineShadow'],
+        properties: ['type: text', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width?: number', 'height?: number', 'text: string with line breaks', 'runs?: EngineTextRun[] for selected-range styling', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'fontSize?: number', 'fontWeight?: number', 'lineHeight?: number', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'text', x: 80, y: 150, text: 'Venus Text'})`,
         demoCaption: 'The preview renders editable text content, color, size, and weight.',
       },
@@ -109,7 +255,7 @@ await venus.render()`,
         title: 'Group',
         summary: 'Groups children so they can move, render, and hit-test as a composed subtree.',
         readableDescription: 'Groups are scene tree containers. The group stores its own transform, children stay as nested VenusNode objects with stable ids, and Venus keeps an internal id index for lookup. Child coordinates remain group-local; rendering, hit testing, and geometry cache compose parent-to-child matrices in tree order.',
-        properties: ['type: group', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as legacy parent translateX', 'y?: number as legacy parent translateY', 'opacity?: number applied to the subtree', 'shadow?: EngineShadow', 'children: VenusNode[] as nested scene tree objects with stable ids in group-local coordinates'],
+        properties: ['type: group', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as legacy parent translateX', 'y?: number as legacy parent translateY', 'opacity?: number applied to the subtree', 'shadow?: EngineShadow', 'children: VenusNode[] as nested scene tree objects with stable ids in group-local coordinates'],
         demo: `venus.add({type: 'group', x: 32, y: 24, children: [...]})`,
         demoCaption: 'The preview moves a group parent while editing child appearance.',
       },
@@ -118,7 +264,7 @@ await venus.render()`,
         title: 'Clip',
         summary: 'Constrains child rendering to a clip path.',
         readableDescription: 'Clip is group-like composition with a clipPath and nested children. The clip node stores its own transform, clipPath remains an editable child-like shape, and children keep local coordinates inside the clipped subtree.',
-        properties: ['type: clip', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to clipped subtree', 'clipPath: rect or ellipse VenusNode in the current facade', 'children: VenusNode[] as nested scene tree objects clipped by clipPath'],
+        properties: ['type: clip', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to clipped subtree', 'clipPath: rect or ellipse VenusNode in the current facade', 'children: VenusNode[] as nested scene tree objects clipped by clipPath'],
         demo: `venus.add({type: 'clip', clipPath, children})`,
         demoCaption: 'The preview updates the clip path bounds and child colors live.',
       },
@@ -127,7 +273,7 @@ await venus.render()`,
         title: 'Mask',
         summary: 'Uses mask-like composition for children.',
         readableDescription: 'Mask currently uses the same tree shape as clip: a transformed container with a mask path and nested children. It remains separate so alpha or luminance mask semantics can be added without changing document ownership.',
-        properties: ['type: mask', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to masked subtree', 'clipPath: VenusNode currently equivalent to clipPath', 'children: VenusNode[] as nested scene tree objects currently clipped like clip children'],
+        properties: ['type: mask', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to masked subtree', 'clipPath: VenusNode currently equivalent to clipPath', 'children: VenusNode[] as nested scene tree objects currently clipped like clip children'],
         demo: `venus.add({type: 'mask', clipPath, children})`,
         demoCaption: 'The preview updates mask-style composition through the current Venus facade.',
       },
@@ -136,7 +282,7 @@ await venus.render()`,
         title: 'Polygon',
         summary: 'Draws closed point-list polygon geometry.',
         readableDescription: 'Polygon draws ordered points as a closed shape. Fill and stroke apply when present. The closed flag defaults to true for polygon, so omitted closed values still render closed polygons.',
-        properties: ['type: polygon', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'points?: {x: number, y: number}[] as ordered vertices', 'closed?: boolean (defaults to true)', 'fill?: string', 'fillOpacity via rgba fill', 'stroke?: string', 'strokeOpacity via rgba stroke', 'strokeWidth?: number, 0 means no stroke', 'opacity?: number', 'shadow?: EngineShadow'],
+        properties: ['type: polygon', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'points?: {x: number, y: number}[] as ordered vertices', 'closed?: boolean (defaults to true)', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'polygon', x: 72, y: 56, width: 220, height: 168, points: [{x: 182, y: 56}, {x: 292, y: 120}, {x: 254, y: 224}, {x: 110, y: 224}, {x: 72, y: 120}], fill: '#dcfce7', stroke: '#16a34a', strokeWidth: 3})`,
         demoCaption: 'The preview renders an editable polygon with fill, stroke, and vertex controls.',
       },
@@ -145,7 +291,7 @@ await venus.render()`,
         title: 'Path',
         summary: 'Draws custom point or bezier path geometry.',
         readableDescription: 'Path supports both straight-line points and bezier curve geometry. Closed and open paths behave differently for fill and hit-test. Arrowheads apply to open paths.',
-        properties: ['type: path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'points?: {x: number, y: number}[] as straight-line vertices', 'bezierPoints?: {anchor: {x,y}, cp1?: {x,y}|null, cp2?: {x,y}|null}[]', 'closed?: boolean', 'strokeStartArrowhead?: none|triangle|diamond|circle|bar', 'strokeEndArrowhead?: none|triangle|diamond|circle|bar', 'fill?: string', 'fillOpacity via rgba fill', 'stroke?: string', 'strokeOpacity via rgba stroke', 'strokeWidth?: number, 0 means no stroke', 'opacity?: number', 'shadow?: EngineShadow'],
+        properties: ['type: path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'points?: {x: number, y: number}[] as straight-line vertices', 'bezierPoints?: {anchor: {x,y}, cp1?: {x,y}|null, cp2?: {x,y}|null}[]', 'closed?: boolean', 'strokeStartArrowhead?: none|triangle|diamond|circle|bar', 'strokeEndArrowhead?: none|triangle|diamond|circle|bar', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'path', x: 64, y: 64, width: 280, height: 180, points: [{x: 64, y: 160}, {x: 200, y: 64}, {x: 344, y: 160}, {x: 200, y: 244}], stroke: '#7c3aed', strokeWidth: 5, closed: true})`,
         demoCaption: 'The preview renders an editable path with bezier, arrowhead, and closure controls.',
       },
@@ -154,7 +300,7 @@ await venus.render()`,
         title: 'Image',
         summary: 'Renders an asset-backed raster image with crop and smoothing controls.',
         readableDescription: 'Image connects an assetId to a renderable quad. The engine resolves the asset through host-provided resource loading. Source cropping and smoothing are renderer hints.',
-        properties: ['type: image', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'assetId: string', 'sourceRect?: {x, y, width, height}', 'naturalSize?: {width, height}', 'imageSmoothing?: boolean', 'opacity?: number'],
+        properties: ['type: image', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'assetId: string', 'sourceRect?: {x, y, width, height}', 'naturalSize?: {width, height}', 'imageSmoothing?: boolean', 'opacity?: number'],
         demo: `venus.add({type: 'image', x: 80, y: 56, width: 240, height: 160, assetId: 'demo-image'})`,
         demoCaption: 'The preview shows an image placeholder rendered through the engine image node.',
       },
@@ -173,7 +319,7 @@ await venus.render()`,
         parameters: [
           {name: 'culling', type: 'boolean', defaultValue: 'false', description: 'Skips drawing objects outside the viewport when enabled.'},
           {name: 'lod', type: 'boolean', defaultValue: 'false', description: 'Enables level-of-detail behavior for large or zoomed scenes.'},
-          {name: 'render.backend', type: 'canvas2d | webgl | auto', defaultValue: 'auto', description: 'Selects the renderer backend.'},
+          {name: 'render.backend', type: 'canvas2d | webgl | auto', defaultValue: 'auto', description: 'Tries WebGL first and falls back to Canvas2D when initialization fails.'},
           {name: 'render.antialias', type: 'boolean', defaultValue: 'true', description: 'Requests antialiasing from the selected backend.'},
           {name: 'render.quality', type: 'interactive | full', defaultValue: 'full', description: 'Chooses the render quality lane.'},
         ],
@@ -187,6 +333,62 @@ await venus.render()`,
   },
 })`,
         demoCaption: 'The preview lists constructor parameters as opt-in rendering choices.',
+      },
+    ],
+  },
+  {
+    id: 'backend-strategy',
+    title: 'Backend Strategy',
+    summary: 'WebGL is the primary presentation path; Canvas2D is available for fallback and fidelity rasterization.',
+    apis: [
+      {
+        id: 'render-backends',
+        title: 'Render backends',
+        summary: 'Select the backend explicitly or let auto mode fall back when WebGL cannot initialize.',
+        readableDescription: 'The document model stays backend-neutral. WebGL handles the primary presentation path. Canvas2D can render directly for deterministic pages, or rasterize high-fidelity content that WebGL later composites as a texture.',
+        parameters: [
+          {name: 'render.backend', type: 'auto | webgl | canvas2d', defaultValue: 'auto', description: 'Auto tries WebGL first, then falls back to Canvas2D when initialization fails.'},
+          {name: 'render.antialias', type: 'boolean', defaultValue: 'true', description: 'Requests antialiasing from the selected backend.'},
+          {name: 'render.quality', type: 'interactive | full', defaultValue: 'full', description: 'Selects the render quality lane.'},
+        ],
+        properties: [
+          'WebGL packets: large scene presentation, transforms, opacity, texture composition',
+          'Canvas2D direct: deterministic docs, tests, fallback rendering',
+          'Canvas2D-to-texture: text, shadows, blur, masks, complex paint, image preprocessing',
+          'venus.inspect().backendFallback: last automatic WebGL-to-Canvas2D fallback',
+          'backend:fallback event: emitted only when auto mode successfully falls back',
+        ],
+        demo: `const venus = new Venus({
+  render: {backend: 'auto'},
+})
+
+venus.on('backend:fallback', (event) => {
+  console.log(event.from, event.to, event.reason)
+})
+
+venus.mount(document.querySelector('canvas')!)
+venus.add({type: 'rect', x: 72, y: 56, width: 180, height: 96})
+await venus.render()
+
+console.log(venus.inspect().backendFallback)`,
+        demoCaption: 'The preview renders with a deterministic Canvas2D docs backend while the API describes production backend selection.',
+      },
+      {
+        id: 'animation-invalidation',
+        title: 'Animation invalidation',
+        summary: 'Animation mutates document properties; invalidation chooses the cheapest render path.',
+        readableDescription: 'Animation never calls WebGL or Canvas2D directly. It updates backend-neutral node fields, classifies the mutation, and lets render scheduling decide whether to reuse geometry, reuse texture, rerasterize fidelity content, or rebuild geometry.',
+        parameters: [
+          {name: 'transform changes', type: 'x | y | rotation | scale | skew', description: 'Reuse geometry or cached texture and update matrices or packets.'},
+          {name: 'composite changes', type: 'opacity | blendMode', description: 'Reuse geometry or texture and update composition state.'},
+          {name: 'paint/effect changes', type: 'fill | stroke | shadow | blur | mask', description: 'Rebuild packets or rerasterize a Canvas2D fidelity texture.'},
+          {name: 'geometry/content changes', type: 'size | points | path | text', description: 'Rebuild bounds, geometry, hit data, and affected caches.'},
+        ],
+        demo: `venus.animate('card', [
+  {x: 72, rotation: 0},
+  {x: 220, rotation: 18},
+], {duration: 600, easing: 'easeOut'})`,
+        demoCaption: 'The preview uses transform animation, which reuses geometry rather than rerasterizing paint every frame.',
       },
     ],
   },
@@ -326,7 +528,7 @@ await venus.render()`,
         id: 'inspect',
         title: 'inspect',
         summary: 'Returns current Venus and engine diagnostics snapshot.',
-        readableDescription: 'Collects revision, mount state, debug flags, viewport state, cache diagnostics, last frame timing, and mounted engine diagnostics into a structured object.',
+        readableDescription: 'Collects revision, mount state, module diagnostics, debug flags, viewport state, cache diagnostics, backend fallback diagnostics, last frame timing, and mounted engine diagnostics into a structured object.',
         demo: `const diag = venus.inspect()\n// VenusRuntimeInspection`,
         demoCaption: 'Returns engine diagnostics for inspection.',
       },
@@ -387,7 +589,7 @@ await venus.render()`,
         id: 'on',
         title: 'on',
         summary: 'Subscribes to a Venus lifecycle or interaction event.',
-        readableDescription: 'Registers a handler for events like mounted, document:changed, render:after, hit, and destroyed. Returns an unsubscribe function.',
+        readableDescription: 'Registers a handler for events like mounted, document:changed, backend:fallback, render:after, hit, and destroyed. Returns an unsubscribe function.',
         parameters: [
           {name: 'eventName', type: 'VenusEventName', description: 'Event channel to subscribe to.'},
           {name: 'handler', type: '(event) => void', description: 'Callback invoked when the event fires.'},
@@ -406,6 +608,14 @@ await venus.render()`,
         ],
         demo: `const handler = () => {}\nvenus.on('hit', handler)\nvenus.off('hit', handler)`,
         demoCaption: 'Removes a specific handler from the hit event channel.',
+      },
+      {
+        id: 'modules',
+        title: 'modules',
+        summary: 'Returns installed capability module names.',
+        readableDescription: 'Reports the short user capability modules installed on this Venus instance.',
+        demo: `const installed = venus.modules()\n// ['camera', 'hitTest']`,
+        demoCaption: 'Returns module names installed during construction.',
       },
       {
         id: 'animate',
@@ -488,7 +698,7 @@ const clicked = venus.hitTest(pointer, {phase: 'click'})`,
         parameters: [
           {name: 'culling', type: 'boolean', defaultValue: 'false', description: 'Skips offscreen objects when enabled.'},
           {name: 'lod', type: 'boolean', defaultValue: 'false', description: 'Enables level-of-detail behavior.'},
-          {name: 'render.backend', type: 'canvas2d | webgl | auto', defaultValue: 'auto', description: 'Renderer backend selection.'},
+          {name: 'render.backend', type: 'canvas2d | webgl | auto', defaultValue: 'auto', description: 'Renderer backend selection. Auto tries WebGL first and falls back to Canvas2D if initialization fails.'},
           {name: 'render.antialias', type: 'boolean', defaultValue: 'true', description: 'Backend antialiasing preference.'},
           {name: 'render.quality', type: 'interactive | full', defaultValue: 'full', description: 'Render quality lane.'},
         ],
@@ -534,7 +744,7 @@ const clicked = venus.hitTest(pointer, {phase: 'click'})`,
         summary: 'Subscribes to internal lifecycle and interaction events.',
         readableDescription: 'Events let an app observe what the engine is doing without coupling UI code to renderer internals. Use them for status panels, analytics, debug overlays, autosave, and interaction feedback.',
         methods: [
-          {name: 'venus.on', description: 'Register a handler for one event channel and return an unsubscribe function.', parameters: [{name: 'eventName', type: 'VenusEventName', description: 'Event channel such as mounted, document:changed, render:after, hit, or destroyed.'}, {name: 'handler', type: '(event) => void', description: 'Callback invoked when the event fires.'}]},
+          {name: 'venus.on', description: 'Register a handler for one event channel and return an unsubscribe function.', parameters: [{name: 'eventName', type: 'VenusEventName', description: 'Event channel such as mounted, document:changed, backend:fallback, render:after, hit, or destroyed.'}, {name: 'handler', type: '(event) => void', description: 'Callback invoked when the event fires.'}]},
           {name: 'venus.off', description: 'Remove a handler manually when you do not use the returned unsubscribe function.', parameters: [{name: 'eventName', type: 'VenusEventName', description: 'The event channel to unsubscribe from.'}, {name: 'handler', type: '(event) => void', description: 'The same function reference passed to on.'}]},
         ],
         demo: `const unsubscribe = venus.on('render:after', console.log)`,
@@ -586,3 +796,5 @@ const clicked = venus.hitTest(pointer, {phase: 'click'})`,
     ],
   },
 ]
+
+export const engineApiCategories: EngineApiCategory[] = withGroupedProperties(rawEngineApiCategories)
