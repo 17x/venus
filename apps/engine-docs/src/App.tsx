@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction} from 'react'
-import {Button, CollapsibleNav, type CollapsibleNavItem} from '@venus/ui'
+import {Button, CollapsibleNav, Separator, Badge, type CollapsibleNavItem} from '@venus/ui'
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +10,7 @@ import {
   Bug,
   Camera,
   Check,
+  ChevronRight,
   Copy,
   Crosshair,
   Expand,
@@ -97,6 +98,23 @@ function CodeBox({code, className}: {code: string; className?: string}) {
       </Tooltip>
     </div>
     <pre className={'engine-code-scroll max-h-[min(60vh,32rem)] overflow-auto p-4 font-mono text-xs leading-6 text-muted-foreground'}><code>{code}</code></pre>
+  </div>
+}
+
+/** A disclosure with a rotating chevron arrow. Replaces broken <details>/<summary>. */
+function Disclosure({title, defaultOpen = false, children}: {title: string; defaultOpen?: boolean; children: React.ReactNode}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return <div className={'rounded-md border border-border bg-muted/25'}>
+    <button
+      type={'button'}
+      onClick={() => setOpen(!open)}
+      className={'flex w-full items-center gap-2 rounded-md px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-muted/50'}
+    >
+      <ChevronRight className={`size-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}/>
+      {title}
+    </button>
+    {open && <div className={'px-4 pb-4'}>{children}</div>}
   </div>
 }
 
@@ -2755,23 +2773,29 @@ export function App() {
                   const isLastDocModel = isDocModel && apiIndex === category.apis.length - 1
                   const isMethods = category.id === 'methods'
 
-                  return <article key={api.id} id={apiAnchorId} className={'flex scroll-mt-20 flex-col gap-8 py-10'}>
+                  return <article key={api.id} id={apiAnchorId} className={'flex scroll-mt-20 flex-col gap-6 py-8'}>
+                    {apiIndex > 0 ? <Separator className={'mb-2'}/> : null}
                     <header className={'flex w-full flex-col gap-2'}>
-                      <h3 className={'group block w-full text-2xl font-semibold tracking-tight'}>
-                        <HeadingAnchor href={`#${apiAnchorId}`}/>
-                        <span>{api.title}</span>
-                      </h3>
+                      <div className={'flex items-center gap-2'}>
+                        <h3 className={'group text-xl font-semibold tracking-tight'}>
+                          <HeadingAnchor href={`#${apiAnchorId}`}/>
+                          <span>{api.title}</span>
+                        </h3>
+                        {isMethods && <Badge variant={'secondary'}>method</Badge>}
+                        {isDocModel && !isLastDocModel && <Badge variant={'outline'}>shape</Badge>}
+                        {isStart && <Badge variant={'amber'}>start here</Badge>}
+                      </div>
                       <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{api.summary}</p>
                       {isDocModel && !isLastDocModel
                         ? <div className={'flex items-center gap-1 pt-1'}>
-                          <Tooltip text={copiedApiId === api.id ? 'Copied' : 'Copy'}>
+                          <Tooltip text={copiedApiId === api.id ? 'Copied' : 'Copy example'}>
                             <Button variant={'ghost'} size={'sm'} className={'h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground'} onClick={() => {
                               void navigator.clipboard.writeText(createCopyCompCode(api.id, theme)).then(() => {
                                 setCopiedApiId(api.id)
                                 window.setTimeout(() => setCopiedApiId((id) => id === api.id ? null : id), 1200)
                               })
                             }}>
-                              {copiedApiId === api.id ? '✓ Copied' : '📋 Copy COMP'}
+                              {copiedApiId === api.id ? '✓ Copied' : <><Copy data-icon={'inline-start'}/> Copy example</>}
                             </Button>
                           </Tooltip>
                         </div>
@@ -2803,17 +2827,14 @@ export function App() {
 
                     {/* Usage accordion: only for non-Start, non-DocModel, non-Methods */}
                     {!isStart && !isDocModel && !isMethods
-                      ? <details className={'group rounded-md border border-border bg-muted/25'}>
-                        <summary className={'cursor-pointer px-4 py-3 text-sm font-medium'}>Usage</summary>
-                        <div className={'px-4 pb-4'}>
-                          <div className={'mb-2 flex justify-end'}>
-                            <Button variant={'ghost'} size={'sm'} onClick={() => void copyUsage(api)}>
-                              {copiedApiId === api.id ? 'Copied' : 'Copy'}
-                            </Button>
-                          </div>
-                          <pre className={'max-h-72 overflow-auto rounded-xl bg-background p-4 text-xs leading-6 text-muted-foreground'}><code>{createUsageCode(api, theme)}</code></pre>
+                      ? <Disclosure title={'Usage'}>
+                        <div className={'mb-2 flex justify-end'}>
+                          <Button variant={'ghost'} size={'sm'} onClick={() => void copyUsage(api)}>
+                            {copiedApiId === api.id ? 'Copied' : 'Copy'}
+                          </Button>
                         </div>
-                      </details>
+                        <pre className={'max-h-72 overflow-auto rounded-md bg-background p-4 text-xs leading-6 text-muted-foreground'}><code>{createUsageCode(api, theme)}</code></pre>
+                      </Disclosure>
                       : null}
 
                     {api.parameters && api.parameters.length > 0
@@ -2825,15 +2846,21 @@ export function App() {
 
                     {(api.properties?.length ?? 0) > 0
                       ? <section className={'flex min-w-0 flex-col gap-3'}>
-                        <h4 className={'text-sm font-medium'}>Properties</h4>
+                        <div className={'flex items-center gap-2'}>
+                          <h4 className={'text-sm font-medium'}>Properties</h4>
+                          <Badge variant={'secondary'} className={'text-[10px]'}>{api.properties.length}</Badge>
+                        </div>
                         {(api.propertyGroups?.length ?? 0) > 0
                           ? <div className={'grid gap-3 md:grid-cols-2'}>
                             {api.propertyGroups?.map((group) => {
-                              return <div key={group.title} className={'rounded-md border border-border bg-muted/25 p-3'}>
-                                <h5 className={'mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground'}>{group.title}</h5>
-                                <ul className={'flex flex-col gap-1 text-sm text-muted-foreground'}>
+                              return <div key={group.title} className={'rounded-md border border-border bg-muted/25 p-4'}>
+                                <h5 className={'mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'}>{group.title}</h5>
+                                <ul className={'flex flex-col gap-1.5'}>
                                   {group.properties.map((property) => {
-                                    return <li key={property} className={'leading-6'}>• {property}</li>
+                                    return <li key={property} className={'flex items-start gap-2 text-[13px] leading-6'}>
+                                      <code className={'mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0 text-[11px] font-mono text-foreground/80'}>{property.split(':')[0].split('?')[0]}</code>
+                                      <span className={'text-muted-foreground'}>{property.includes(':') ? property.slice(property.indexOf(':') + 1).trim() : ''}</span>
+                                    </li>
                                   })}
                                 </ul>
                               </div>

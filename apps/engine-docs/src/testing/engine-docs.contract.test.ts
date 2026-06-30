@@ -364,7 +364,7 @@ describe('engine docs app contract', () => {
     const titleIndex = appSource.indexOf('<h3')
     const descriptionIndex = appSource.indexOf('{api.summary}')
     const demoIndex = appSource.indexOf('<ApiCanvasDemo api={api} theme={theme}/>')
-    const usageIndex = appSource.indexOf('<details')
+    const usageIndex = appSource.indexOf('<Disclosure')
     const parametersIndex = appSource.indexOf('>Parameters</h4>')
 
     assert.ok(titleIndex >= 0)
