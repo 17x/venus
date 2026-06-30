@@ -107,6 +107,7 @@ export interface EngineShapeNode extends EngineNodeBase {
     };
     ellipseStartAngle?: number;
     ellipseEndAngle?: number;
+    ellipseDrawWedgeLine?: boolean;
     strokeStartArrowhead?: 'none' | 'triangle' | 'diamond' | 'circle' | 'bar';
     strokeEndArrowhead?: 'none' | 'triangle' | 'diamond' | 'circle' | 'bar';
     points?: readonly EnginePoint[];

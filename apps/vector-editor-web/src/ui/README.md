@@ -1,6 +1,7 @@
-# Vector UI Structure
+# Vector UI Compatibility Layer
 
-This app owns its UI stack under `src/ui`.
+The shared source of truth now lives in `packages/ui`.
+This folder remains as an app-local compatibility layer so existing imports from `src/ui` keep working while consuming `@venus/ui/vector`.
 
 ## Folders
 
@@ -13,7 +14,7 @@ This app owns its UI stack under `src/ui`.
 - `kit/`
   - compatibility and product-facing wrappers exported through `src/ui`
 - `index.ts`
-  - single export entry for app-wide UI imports (`src/ui` alias)
+  - re-exports `@venus/ui/vector`; prefer this entry for app-wide UI imports.
 
 ## Conventions
 
@@ -26,8 +27,8 @@ This app owns its UI stack under `src/ui`.
 
 ## Primitive Source Of Truth
 
-- Vector UI primitives must be generated from shadcn base UI.
-- Canonical generated files live in `src/ui/primitives/*`.
-- `src/ui/kit/components/ui/*` is the compatibility/export layer for `src/ui` and should wrap `src/ui/primitives/*` instead of re-implementing them.
+- Vector UI primitives must be generated from shadcn Base UI.
+- Canonical shared files live in `packages/ui/src/vector/*`.
+- `src/ui/index.ts` is the compatibility/export layer and should re-export `@venus/ui/vector`.
 - When introducing or updating primitives, run shadcn CLI first, then apply minimal compatibility patches.
 - Semantic surfaces such as menu/context-menu/tabs/input-group must use the generated shadcn primitives (`dropdown-menu`, `context-menu`, `tabs`, `input-group`) via `src/ui` exports.

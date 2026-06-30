@@ -67,6 +67,8 @@ export type {
   VenusGradient,
   VenusGradientPaint,
   VenusGradientStop,
+  VenusGroupNode,
+  VenusGroupOptions,
   VenusHitTestOptions,
   VenusInvalidationKind,
   VenusDocumentService,
@@ -103,6 +105,29 @@ export {
   VENUS_MODULE_NAMES,
   VENUS_PUBLIC_METHOD_NAMES,
 } from '../runtime/venus/Venus.ts'
+
+export {
+  VenusNodeProxy,
+  VenusRectProxy,
+  VenusEllipseProxy,
+  VenusLineProxy,
+  VenusTextProxy,
+  VenusGroupProxy,
+  VenusClipProxy,
+  VenusMaskProxy,
+  VenusPolygonProxy,
+  VenusPathProxy,
+  VenusImageProxy,
+  createVenusNodeProxy,
+} from '../runtime/venus/VenusNodeProxy.ts'
+export type {
+  VenusShapeModelFamily,
+  VenusShapeModelSpec,
+} from '../runtime/venus/shapeModel.ts'
+export {
+  VENUS_COMMON_RENDER_PROPERTIES,
+  VENUS_SHAPE_MODEL_SPECS,
+} from '../runtime/venus/shapeModel.ts'
 
 export type {
   EngineDrawCommand,

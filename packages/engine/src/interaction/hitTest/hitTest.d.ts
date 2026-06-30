@@ -26,8 +26,40 @@ export interface EngineEditorHitTestNode {
     stroke?: {
         enabled?: boolean;
     };
+    /** Stroke width in document units. */
+    strokeWidth?: number;
+    /** Stroke alignment relative to path geometry. */
+    strokeAlign?: 'center' | 'inside' | 'outside';
+    /** Dash pattern (not yet used by hit-test geometry). */
+    strokeDashArray?: readonly number[];
+    /** Line cap style (not yet used by hit-test geometry). */
+    strokeCap?: 'butt' | 'round' | 'square';
+    /** Line join style (not yet used by hit-test geometry). */
+    strokeJoin?: 'miter' | 'round' | 'bevel';
+    cornerRadius?: number;
+    cornerRadii?: {
+        topLeft?: number;
+        topRight?: number;
+        bottomRight?: number;
+        bottomLeft?: number;
+    };
     points?: EngineEditorPoint[];
     bezierPoints?: EngineEditorBezierPoint[];
+    closed?: boolean;
+    ellipseStartAngle?: number;
+    ellipseEndAngle?: number;
+    ellipseDrawWedgeLine?: boolean;
+    text?: string;
+    textRuns?: Array<{
+        start: number;
+        end: number;
+        style?: {
+            fontSize?: number;
+            lineHeight?: number;
+            textAlign?: 'left' | 'center' | 'right';
+            verticalAlign?: 'top' | 'middle' | 'bottom';
+        };
+    }>;
     schema?: {
         sourceFeatureKinds?: string[];
     };

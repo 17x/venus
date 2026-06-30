@@ -18,12 +18,26 @@
     "noFallthroughCasesInSwitch": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": "../..",
+    "paths": {
+      "@venus/ui": [
+        "packages/ui/src/index.ts"
+      ],
+      "@venus/ui/*": [
+        "packages/ui/src/*"
+      ]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "jsx": "react-jsx"
   },
+  "references": [
+    {
+      "path": "../../packages/ui/tsconfig.json"
+    }
+  ],
   "include": [
     "src"
   ],

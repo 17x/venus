@@ -50,6 +50,7 @@ function createEngineObjectModelScene(): EngineSceneSnapshot {
       height: 20,
       ellipseStartAngle: 20,
       ellipseEndAngle: 320,
+      ellipseDrawWedgeLine: true,
       fill: '#fef3c7',
     },
     {
@@ -513,6 +514,7 @@ test('engine scene hit-test resolves exact geometry beyond AABB candidates', () 
           height: 80,
           ellipseStartAngle: 0,
           ellipseEndAngle: 90,
+          ellipseDrawWedgeLine: true,
           fill: '#fef3c7',
           stroke: '#d97706',
           strokeWidth: 4,

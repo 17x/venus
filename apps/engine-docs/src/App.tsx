@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction} from 'react'
-import {Button} from './components/ui/button.tsx'
+import {Button, CollapsibleNav, type CollapsibleNavItem} from '@venus/ui'
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,12 +9,15 @@ import {
   BellOff,
   Bug,
   Camera,
+  Check,
+  Copy,
   Crosshair,
   Expand,
   Film,
   Gauge,
   List,
   Maximize,
+  Palette,
   Play,
   Plus,
   ScanEye,
@@ -29,9 +32,14 @@ import {
   type EngineApiDoc,
   type EngineApiParameter,
 } from './engineApiDocs.ts'
-import {Venus, type VenusNode} from '../../../packages/engine/src/index.ts'
+import {
+  Venus,
+  VENUS_COMMON_RENDER_PROPERTIES,
+  VENUS_SHAPE_MODEL_SPECS,
+  type VenusNode,
+} from '../../../packages/engine/src/index.ts'
 
-type ThemeMode = 'light' | 'dark'
+type ThemeMode = 'light' | 'dark' | 'cartoon'
 type VenusHitTestResult = ReturnType<Venus['hitTest']>
 type VenusInspection = ReturnType<Venus['inspect']>
 
@@ -69,6 +77,29 @@ function Tooltip({text, children}: {text: string; children: React.ReactNode}) {
   </span>
 }
 
+/** A code display box with content-height sizing, scroll, and a copy button visible on hover. */
+function CodeBox({code, className}: {code: string; className?: string}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1200)
+  }
+
+  return <div className={`overflow-hidden rounded-md border border-border bg-muted/25 text-card-foreground ${className ?? ''}`}>
+    <div className={'flex h-8 items-center justify-between border-b border-border bg-card px-3'}>
+      <span className={'font-mono text-[11px] font-medium text-muted-foreground'}>code</span>
+      <Tooltip text={copied ? 'Copied' : 'Copy'}>
+        <Button variant={'ghost'} size={'icon'} aria-label={copied ? 'Copied' : 'Copy code'} className={'size-6 rounded-sm text-muted-foreground hover:text-foreground'} onClick={handleCopy}>
+          {copied ? <Check data-icon="inline-start"/> : <Copy data-icon="inline-start"/>}
+        </Button>
+      </Tooltip>
+    </div>
+    <pre className={'engine-code-scroll max-h-[min(60vh,32rem)] overflow-auto p-4 font-mono text-xs leading-6 text-muted-foreground'}><code>{code}</code></pre>
+  </div>
+}
+
 const readBackendDiagnostics = (venus: Venus): BackendDiagnostics => {
   const inspection = venus.inspect()
 
@@ -79,18 +110,8 @@ const readBackendDiagnostics = (venus: Venus): BackendDiagnostics => {
 }
 
 function BackendDiagnosticsPanel({diagnostics}: {diagnostics: BackendDiagnostics | null}) {
-  if (!diagnostics) {
-    return null
-  }
-
-  return <div className={'flex flex-wrap items-center gap-2 text-xs text-muted-foreground'}>
-    <span className={'rounded-md bg-muted/60 px-2 py-1'}>backend: {diagnostics.backend}</span>
-    {diagnostics.fallback
-      ? <span className={'rounded-md bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300'}>
-        fallback: {diagnostics.fallback.from} → {diagnostics.fallback.to}
-      </span>
-      : <span className={'rounded-md bg-muted/40 px-2 py-1'}>fallback: none</span>}
-  </div>
+  void diagnostics
+  return null
 }
 
 const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
@@ -99,7 +120,7 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
   const panel = isLight ? '#dbeafe' : '#1e3a8a'
 
   if (apiId === 'new-venus') {
-    return [{type: 'rect', x: 40, y: 32, width: 180, height: 96, fill: '#2563eb'}]
+    return [{type: 'rect', x: 110, y: 102, width: 180, height: 96, fill: '#2563eb'}]
   }
 
   if (apiId === 'base-entry') {
@@ -274,11 +295,74 @@ nodes.forEach((node) => venus.add(node))
 await venus.render()`
 }
 
+/** Generates a short "Copy COMP" code snippet showing creation + proxy-style property changes. */
+const createCopyCompCode = (apiId: string, theme: ThemeMode): string => {
+  const isLight = theme === 'light'
+  const kind = apiId.replace('-node', '')
+
+  const base = `import {Venus} from '@venus/engine'
+
+const venus = new Venus()
+venus.mount(document.querySelector('canvas')!)
+
+const r = venus.add({type: '${kind}', x: 60, y: 50, width: 220, height: 140${kind === 'rect' ? ', cornerRadius: 12' : ''}})`
+
+  const props: Record<string, string> = {
+    rect: `r.width = 280
+r.fill = '#${isLight ? '3b82f6' : '93c5fd'}'
+r.stroke = '#${isLight ? '1e40af' : 'bfdbfe'}'
+r.strokeWidth = 3
+r.cornerRadius = 16
+r.opacity = 0.9`,
+    ellipse: `r.fill = '#${isLight ? 'f59e0b' : 'fcd34d'}'
+r.stroke = '#${isLight ? 'b45309' : 'fde68a'}'
+r.strokeWidth = 2
+r.startAngle = 30
+r.endAngle = 330`,
+    line: `r.stroke = '#${isLight ? '7c3aed' : 'c4b5fd'}'
+r.strokeWidth = 4
+r.strokeDashArray = [8, 4]`,
+    text: `r.text = 'Hello Venus'
+r.fontSize = 24
+r.fontWeight = 600
+r.fill = '#${isLight ? '0f172a' : 'f8fafc'}'
+r.lineHeight = 1.5`,
+    group: `const g = r
+const child = g.addChild({type: 'rect', x: 20, y: 20, width: 80, height: 60, fill: '#${isLight ? '3b82f6' : '93c5fd'}'})
+child.opacity = 0.7
+g.x = 80
+g.rotation = 5`,
+    clip: `// clipPath defines the visible region
+// children are the clipped content
+r.x = 80
+r.opacity = 0.9`,
+    mask: `// Same structure as clip; engine normalizes both
+r.opacity = 0.85`,
+    polygon: `r.fill = '#${isLight ? '22c55e' : '86efac'}'
+r.stroke = '#${isLight ? '166534' : 'bbf7d0'}'
+r.strokeWidth = 2
+r.closed = true
+const pts = [{x: 110, y: 50}, {x: 280, y: 80}, {x: 240, y: 190}, {x: 70, y: 170}]
+r.points = pts`,
+    path: `r.stroke = '#${isLight ? 'dc2626' : 'fca5a5'}'
+r.strokeWidth = 4
+r.closed = true
+r.startArrowhead = 'triangle'
+r.endArrowhead = 'circle'`,
+    image: `r.assetId = 'my-image'
+r.width = 240
+r.height = 160
+r.smoothing = true`,
+  }
+
+  return `${base}\n${props[kind] ?? ''}\n\nawait venus.render()`
+}
+
 function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
-  return <div className={'overflow-hidden rounded-xl bg-muted/30'}>
+  return <div className={'overflow-hidden rounded-md border border-border bg-muted/25'}>
     <table className={'w-full border-collapse text-left text-sm'}>
       <thead className={'text-xs text-muted-foreground'}>
-        <tr className={'border-b border-border/40'}>
+        <tr className={'border-b border-border'}>
           <th className={'px-3 py-2 font-medium'}>Name</th>
           <th className={'px-3 py-2 font-medium'}>Type</th>
           <th className={'px-3 py-2 font-medium'}>Default</th>
@@ -287,7 +371,7 @@ function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
       </thead>
       <tbody>
         {parameters.map((parameter) => {
-          return <tr key={parameter.name} className={'border-b border-border/30 last:border-0'}>
+          return <tr key={parameter.name} className={'border-b border-border last:border-0'}>
             <td className={'px-3 py-2 align-top font-mono text-xs'}>{parameter.name}</td>
             <td className={'px-3 py-2 align-top text-xs text-muted-foreground'}>{parameter.type}</td>
             <td className={'px-3 py-2 align-top text-xs text-muted-foreground'}>{parameter.defaultValue ?? '—'}</td>
@@ -327,6 +411,7 @@ interface ModelControlValues {
   cornersLocked: boolean
   ellipseStartAngle: number
   ellipseEndAngle: number
+  ellipseDrawWedgeLine: boolean
   text: string
   selectedTextFill: string
   selectedTextStart: number
@@ -391,6 +476,7 @@ interface ModelControlValues {
   clipPathCornerRadius: number
   clipIsEllipse: boolean
   pathClosed: boolean
+  pathUseBezier: boolean
   imageSmoothing: boolean
   assetId: string
   shadowEnabled: boolean
@@ -418,6 +504,12 @@ interface ModelControlValues {
 }
 
 const editableModelApiIds = new Set(['rect-node', 'ellipse-node', 'line-node', 'text-node', 'group-node', 'clip-node', 'mask-node', 'polygon-node', 'path-node', 'image-node'])
+const shapeApiIds = ['rect-node', 'ellipse-node', 'line-node', 'text-node', 'group-node', 'clip-node', 'mask-node', 'polygon-node', 'path-node', 'image-node'] as const
+const themeOptions: Array<{name: ThemeMode; label: string}> = [
+  {name: 'light', label: 'Classic light'},
+  {name: 'dark', label: 'Classic dark'},
+  {name: 'cartoon', label: 'Cartoon'},
+]
 
 const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelControlValues => {
   const isLight = theme === 'light'
@@ -426,12 +518,12 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
   return {
     id: apiId.replace('-node', '-demo'),
     compositeTarget: 'parent',
-    x: apiId === 'line-node' ? 86 : 96,
-    y: apiId === 'text-node' ? 176 : 72,
-    x2: 396,
-    y2: 224,
-    width: apiId === 'line-node' ? 310 : 240,
-    height: apiId === 'line-node' ? 128 : 140,
+    x: apiId === 'group-node' ? 0 : (apiId === 'line-node' ? 110 : (apiId === 'text-node' ? 90 : 110)),
+    y: apiId === 'group-node' ? 0 : (apiId === 'line-node' ? 110 : (apiId === 'text-node' ? 108 : 95)),
+    x2: 290,
+    y2: 190,
+    width: apiId === 'line-node' ? 180 : (apiId === 'text-node' ? 220 : 180),
+    height: apiId === 'line-node' ? 80 : 110,
     rotation: 0,
     skewX: 0,
     skewY: 0,
@@ -448,9 +540,10 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     cornerTopRight: 18,
     cornerBottomRight: 18,
     cornerBottomLeft: 18,
-    cornersLocked: true,
+    cornersLocked: apiId !== 'rect-node',
     ellipseStartAngle: 0,
     ellipseEndAngle: 360,
+    ellipseDrawWedgeLine: false,
     text: apiId === 'group-node' ? 'Grouped' : 'Venus Text\nmulti-line',
     selectedTextFill: '#ef4444',
     selectedTextStart: 0,
@@ -460,10 +553,10 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     lineHeight: 52,
     childFill,
     childStroke,
-    childRectX: 40,
-    childRectY: 40,
-    childRectWidth: 220,
-    childRectHeight: 132,
+    childRectX: 110,
+    childRectY: 95,
+    childRectWidth: 180,
+    childRectHeight: 110,
     childRectFill: isLight ? '#dbeafe' : '#1e3a8a',
     childRectFillOpacity: 100,
     childRectStroke: isLight ? '#2563eb' : '#93c5fd',
@@ -476,10 +569,10 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childRectSkewY: 0,
     childRectOriginX: 50,
     childRectOriginY: 50,
-    childEllipseX: 156,
-    childEllipseY: 92,
-    childEllipseWidth: 120,
-    childEllipseHeight: 92,
+    childEllipseX: 200,
+    childEllipseY: 113,
+    childEllipseWidth: 96,
+    childEllipseHeight: 74,
     childEllipseFill: childFill,
     childEllipseFillOpacity: 100,
     childEllipseStroke: childStroke,
@@ -493,9 +586,9 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childEllipseSkewY: 0,
     childEllipseOriginX: 50,
     childEllipseOriginY: 50,
-    childTextX: 62,
-    childTextY: 112,
-    childTextWidth: 220,
+    childTextX: 132,
+    childTextY: 156,
+    childTextWidth: 180,
     childTextHeight: 72,
     childText: apiId === 'group-node' ? 'Grouped' : 'Child',
     childTextFill: childStroke,
@@ -508,13 +601,14 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childTextSkewY: 0,
     childTextOriginX: 50,
     childTextOriginY: 50,
-    clipPathX: 96,
-    clipPathY: 72,
-    clipPathWidth: 240,
-    clipPathHeight: 140,
+    clipPathX: 110,
+    clipPathY: 82,
+    clipPathWidth: 180,
+    clipPathHeight: 136,
     clipPathCornerRadius: 18,
     clipIsEllipse: apiId === 'clip-node',
     pathClosed: true,
+    pathUseBezier: apiId === 'path-node',
     imageSmoothing: true,
     assetId: 'demo-image',
     shadowEnabled: false,
@@ -555,6 +649,11 @@ const resolveShadow = (controls: ModelControlValues) => {
     ? {color: withOpacity(controls.shadowColor, 35), blur: controls.shadowBlur, offsetX: controls.shadowOffsetX, offsetY: controls.shadowOffsetY}
     : undefined
 }
+
+const createBezierDemoPoints = (x: number, y: number, width: number, height: number) => [
+  {anchor: {x, y: y + height * 0.72}, cp2: {x: x + width * 0.16, y: y - height * 0.2}},
+  {anchor: {x: x + width, y: y + height * 0.72}, cp1: {x: x + width * 0.84, y: y - height * 0.2}},
+]
 
 const createTextRuns = (controls: ModelControlValues) => {
   const start = Math.max(0, Math.min(controls.text.length, controls.selectedTextStart))
@@ -668,7 +767,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   if (apiId === 'ellipse-node') {
-    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ...strokeStyle, ...flatTransform}]
+    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, ...strokeStyle, ...flatTransform}]
   }
 
   if (apiId === 'line-node') {
@@ -718,7 +817,21 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   if (apiId === 'path-node') {
-    return [{id: commonId, type: 'path', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y + controls.height}], fill: controls.pathClosed ? fill : undefined, fills: controls.pathClosed ? gradientFills : undefined, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, closed: controls.pathClosed, ...strokeStyle, ...flatTransform}]
+    const pathBase = {id: commonId, type: 'path' as const, x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill: controls.pathClosed ? fill : 'transparent', fills: controls.pathClosed ? gradientFills : undefined, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, closed: controls.pathClosed, ...strokeStyle, ...flatTransform}
+    return controls.pathUseBezier
+      ? [{
+        ...pathBase,
+        bezierPoints: createBezierDemoPoints(controls.x, controls.y, controls.width, controls.height),
+      }]
+      : [{
+        ...pathBase,
+        points: [
+          {x: controls.x, y: controls.y + controls.height},
+          {x: controls.x + controls.width * 0.5, y: controls.y},
+          {x: controls.x + controls.width, y: controls.y + controls.height},
+          {x: controls.x + controls.width * 0.5, y: controls.y + controls.height},
+        ],
+      }]
   }
 
   if (apiId === 'image-node') {
@@ -726,6 +839,69 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   return null
+}
+
+const createMinimalModelNode = (apiId: string, controls: ModelControlValues): VenusNode => {
+  const fill = withOpacity(controls.fill, controls.fillOpacity)
+  const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
+
+  if (apiId === 'rect-node') {
+    return controls.cornersLocked
+      ? {type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, cornerRadius: controls.cornerRadius}
+      : {type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, cornerRadii: {topLeft: controls.cornerTopLeft, topRight: controls.cornerTopRight, bottomRight: controls.cornerBottomRight, bottomLeft: controls.cornerBottomLeft}}
+  }
+
+  if (apiId === 'ellipse-node') {
+    return {type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine}
+  }
+
+  if (apiId === 'line-node') {
+    return {type: 'line', x: controls.x, y: controls.y, width: controls.x2 - controls.x, height: controls.y2 - controls.y, stroke, strokeWidth: controls.strokeWidth}
+  }
+
+  if (apiId === 'text-node') {
+    return {type: 'text', x: controls.x, y: controls.y, width: controls.width, text: controls.text, fill, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight}
+  }
+
+  if (apiId === 'group-node') {
+    return {type: 'group', x: controls.x, y: controls.y, children: [
+      {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: withOpacity(controls.childRectFill, controls.childRectFillOpacity), cornerRadius: controls.childRectCornerRadius},
+      {type: 'text', x: controls.childTextX, y: controls.childTextY, text: controls.childText, fill: controls.childTextFill, fontSize: controls.childTextFontSize},
+    ]}
+  }
+
+  if (apiId === 'clip-node' || apiId === 'mask-node') {
+    return {
+      type: apiId === 'clip-node' ? 'clip' : 'mask',
+      clipPath: controls.clipIsEllipse
+        ? {type: 'ellipse', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight}
+        : {type: 'rect', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight, cornerRadius: controls.clipPathCornerRadius},
+      children: [{type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: withOpacity(controls.childRectFill, controls.childRectFillOpacity)}],
+    }
+  }
+
+  if (apiId === 'polygon-node') {
+    return {type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], fill, stroke, strokeWidth: controls.strokeWidth}
+  }
+
+  if (apiId === 'path-node') {
+    return controls.pathUseBezier
+      ? {type: 'path', x: controls.x, y: controls.y, width: controls.width, height: controls.height, bezierPoints: createBezierDemoPoints(controls.x, controls.y, controls.width, controls.height), fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: controls.strokeWidth, closed: controls.pathClosed}
+      : {type: 'path', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y + controls.height}], fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: controls.strokeWidth, closed: controls.pathClosed}
+  }
+
+  if (apiId === 'image-node') {
+    return {type: 'image', x: controls.x, y: controls.y, width: controls.width, height: controls.height, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing}
+  }
+
+  return createExampleNodes(apiId, 'light')[0]
+}
+
+const createModelCode = (apiId: string, controls: ModelControlValues) => {
+  return `const node = ${JSON.stringify(createMinimalModelNode(apiId, controls), null, 2)}
+
+venus.add(node)
+await venus.render()`
 }
 
 function ModelControlPanel({
@@ -807,6 +983,7 @@ function ModelControlPanel({
     shadowOffsetY: 'Off Y: shadow vertical shift in px',
     imageSmoothing: 'Smoothing: bilinear image filtering',
     pathClosed: 'Closed: whether path connects back to start',
+    pathUseBezier: 'Bezier: render cubic curve segments from bezierPoints',
   }
 
   const numberField = (key: keyof ModelControlValues, fullLabel: string, unit = '', input?: {min?: number; max?: number; step?: number}) => {
@@ -818,7 +995,7 @@ function ModelControlPanel({
       <label className={'flex items-center gap-1'}>
         <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>{label}</span>
         <input
-          className={'h-6 w-full min-w-0 max-w-[88px] rounded bg-muted/50 px-1.5 text-xs tabular-nums outline-none'}
+          className={'h-6 w-full min-w-0 max-w-[88px] rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none'}
           type={'number'}
           min={input?.min}
           max={input?.max}
@@ -841,7 +1018,7 @@ function ModelControlPanel({
         <input className={'size-6 shrink-0 cursor-pointer rounded border p-0'} type={'color'} value={value} onChange={(e) => setValue(key, e.target.value as never)} />
       </Tooltip>
       <Tooltip text={tip}>
-        <input className={'h-6 w-full min-w-0 max-w-[76px] rounded bg-muted/50 px-1.5 text-xs outline-none'} value={value} onChange={(e) => setValue(key, e.target.value as never)} />
+        <input className={'h-6 w-full min-w-0 max-w-[76px] rounded bg-muted/25 px-1.5 text-xs outline-none'} value={value} onChange={(e) => setValue(key, e.target.value as never)} />
       </Tooltip>
     </label>
   }
@@ -881,11 +1058,11 @@ function ModelControlPanel({
       ['childEllipse', 'Ellipse'],
     ] as const
   const compositeTabList = isCompositeModel
-    ? <div className={'mb-4 grid grid-cols-4 gap-1 rounded-lg bg-muted/40 p-1'}>
+    ? <div className={'mb-4 grid grid-cols-4 gap-1 rounded-lg bg-muted/25 p-1'}>
       {compositeTabs.map(([target, label]) => {
         return <button
           key={target}
-          className={controls.compositeTarget === target ? 'rounded-md bg-background px-2 py-1.5 text-xs font-medium shadow-sm' : 'rounded-md px-2 py-1.5 text-xs text-muted-foreground'}
+          className={controls.compositeTarget === target ? 'rounded-md bg-background px-2 py-1.5 text-xs font-medium' : 'rounded-md px-2 py-1.5 text-xs text-muted-foreground'}
           type={'button'}
           onClick={() => setValue('compositeTarget', target)}
         >
@@ -1031,13 +1208,11 @@ function ModelControlPanel({
     </div>
   }
 
-  return <div className={'rounded-xl border bg-background/80 p-5 shadow-sm'}>
+  return <div className={'rounded-md border bg-card p-5'}>
     <div className={'mb-4 flex items-center justify-between gap-3'}>
       <p className={'text-sm font-medium'}>properties</p>
     </div>
     {compositeTabList}
-    {isCompositeModel && controls.compositeTarget !== 'parent' ? compositeElementProperties() : null}
-
     {isCompositeModel && controls.compositeTarget !== 'parent' ? compositeElementProperties() : null}
 
     {isCompositeModel && controls.compositeTarget !== 'parent' ? null : <>
@@ -1067,7 +1242,7 @@ function ModelControlPanel({
       </div>
 
       {/* ---- Appearance ---- */}
-      <div className={'rounded border bg-muted/10 px-3 py-2'}>
+      <div className={'rounded border bg-muted/25 px-3 py-2'}>
         <p className={'mb-1.5 text-xs font-medium text-muted-foreground'}>Appearance</p>
 
         {/* Fill row */}
@@ -1079,7 +1254,7 @@ function ModelControlPanel({
             <input className={'size-5 shrink-0 cursor-pointer rounded border'} type={'color'} value={controls.gradientStartColor} onChange={(e) => setValue('gradientStartColor', e.target.value)} />
             <input className={'size-5 shrink-0 cursor-pointer rounded border'} type={'color'} value={controls.gradientEndColor} onChange={(e) => setValue('gradientEndColor', e.target.value)} />
             <div className={'h-3 w-12 rounded'} style={{background: `linear-gradient(${controls.gradientAngle}deg, ${controls.gradientStartColor}, ${controls.gradientEndColor})`}} />
-            <input className={'h-5 w-10 rounded bg-muted/50 px-1 text-[11px] tabular-nums outline-none'} type={'number'} min={0} max={360} step={15} value={controls.gradientAngle} onChange={(e) => setValue('gradientAngle', Number(e.target.value))} />
+            <input className={'h-5 w-10 rounded bg-muted/25 px-1 text-[11px] tabular-nums outline-none'} type={'number'} min={0} max={360} step={15} value={controls.gradientAngle} onChange={(e) => setValue('gradientAngle', Number(e.target.value))} />
             <span className={'text-[10px] text-muted-foreground'}>°</span>
           </> : null}
         </div> : null}
@@ -1102,7 +1277,7 @@ function ModelControlPanel({
           {numberField('opacity', 'opacity', '%', {min: 0, max: 100})}
           {!isCompositeModel ? <label className={'flex items-center gap-0.5'}>
             <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>Bm</span>
-            <select className={'h-6 w-20 rounded bg-muted/50 px-1 text-[11px] outline-none'} value={controls.blendMode} onChange={(e) => setValue('blendMode' as never, (e.target.value || undefined) as never)}>
+            <select className={'h-6 w-20 rounded bg-muted/25 px-1 text-[11px] outline-none'} value={controls.blendMode} onChange={(e) => setValue('blendMode' as never, (e.target.value || undefined) as never)}>
               <option value={''}>normal</option><option value={'multiply'}>multi</option><option value={'screen'}>screen</option>
               <option value={'overlay'}>overlay</option><option value={'darken'}>darken</option><option value={'lighten'}>lighten</option>
             </select>
@@ -1121,33 +1296,33 @@ function ModelControlPanel({
         <div className={'flex flex-wrap items-center gap-1.5'}>
           <label className={'flex items-center gap-0.5'}>
             <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>Da</span>
-            <input className={'h-6 w-12 rounded bg-muted/50 px-1 text-xs tabular-nums outline-none'} type={'number'} min={0} max={40} step={1} value={controls.strokeDashArray[0] ?? ''} onChange={(e) => {
+            <input className={'h-6 w-12 rounded bg-muted/25 px-1 text-xs tabular-nums outline-none'} type={'number'} min={0} max={40} step={1} value={controls.strokeDashArray[0] ?? ''} onChange={(e) => {
               const v = Number(e.target.value); const g = controls.strokeDashArray[1] ?? controls.strokeDashArray[0] ?? 0
               setValue('strokeDashArray' as never, (v > 0 ? [v, g] : []) as never)
             }} />
           </label>
           <label className={'flex items-center gap-0.5'}>
             <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>Ga</span>
-            <input className={'h-6 w-12 rounded bg-muted/50 px-1 text-xs tabular-nums outline-none'} type={'number'} min={0} max={40} step={1} value={controls.strokeDashArray[1] ?? ''} onChange={(e) => {
+            <input className={'h-6 w-12 rounded bg-muted/25 px-1 text-xs tabular-nums outline-none'} type={'number'} min={0} max={40} step={1} value={controls.strokeDashArray[1] ?? ''} onChange={(e) => {
               const v = Number(e.target.value); const d = controls.strokeDashArray[0] ?? 0
               setValue('strokeDashArray' as never, (d > 0 && v > 0 ? [d, v] : (d > 0 ? [d] : [])) as never)
             }} />
           </label>
           <label className={'flex items-center gap-0.5'}>
             <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>Al</span>
-            <select className={'h-6 w-16 rounded bg-muted/50 px-1 text-[11px] outline-none'} value={controls.strokeAlign} onChange={(e) => setValue('strokeAlign' as never, (e.target.value || undefined) as never)}>
+            <select className={'h-6 w-16 rounded bg-muted/25 px-1 text-[11px] outline-none'} value={controls.strokeAlign} onChange={(e) => setValue('strokeAlign' as never, (e.target.value || undefined) as never)}>
               <option value={''}>center</option><option value={'inside'}>inside</option><option value={'outside'}>outside</option>
             </select>
           </label>
           <label className={'flex items-center gap-0.5'}>
             <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>Ca</span>
-            <select className={'h-6 w-16 rounded bg-muted/50 px-1 text-[11px] outline-none'} value={controls.strokeCap} onChange={(e) => setValue('strokeCap' as never, (e.target.value || undefined) as never)}>
+            <select className={'h-6 w-16 rounded bg-muted/25 px-1 text-[11px] outline-none'} value={controls.strokeCap} onChange={(e) => setValue('strokeCap' as never, (e.target.value || undefined) as never)}>
               <option value={''}>round</option><option value={'butt'}>butt</option><option value={'square'}>square</option>
             </select>
           </label>
           <label className={'flex items-center gap-0.5'}>
             <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>Jo</span>
-            <select className={'h-6 w-16 rounded bg-muted/50 px-1 text-[11px] outline-none'} value={controls.strokeJoin} onChange={(e) => setValue('strokeJoin' as never, (e.target.value || undefined) as never)}>
+            <select className={'h-6 w-16 rounded bg-muted/25 px-1 text-[11px] outline-none'} value={controls.strokeJoin} onChange={(e) => setValue('strokeJoin' as never, (e.target.value || undefined) as never)}>
               <option value={''}>round</option><option value={'miter'}>miter</option><option value={'bevel'}>bevel</option>
             </select>
           </label>
@@ -1178,7 +1353,10 @@ function ModelControlPanel({
         {numberField('lineHeight', 'lineH', '', {min: 16, max: 96})}
       </div> : null}
 
-      {showPathOptions ? <div className={'mt-2'}>{toggleField('pathClosed', 'closed')}</div> : null}
+      {showPathOptions ? <div className={'mt-2 flex flex-wrap gap-2'}>
+        {toggleField('pathClosed', 'closed')}
+        {toggleField('pathUseBezier', 'bezier')}
+      </div> : null}
 
       {showImageOptions ? <div className={'mt-2 grid gap-1'}>
         <input className={'h-5 w-full rounded border bg-background px-2 text-[11px]'} value={controls.assetId} onChange={(e) => setValue('assetId', e.target.value)} />
@@ -1189,7 +1367,7 @@ function ModelControlPanel({
       <div className={'mt-3 border-t pt-2'}>
         <p className={'mb-1.5 text-xs font-medium text-muted-foreground'}>Effects</p>
 
-        <div className={'rounded border bg-muted/20 px-2 py-1.5 mb-1'}>
+        <div className={'rounded border bg-muted/25 px-2 py-1.5 mb-1'}>
           <div className={'flex items-center justify-between mb-0.5'}>
             <span className={'text-[11px] font-medium'}>Drop Shadow</span>
             <button type={'button'} className={'rounded border px-1.5 py-px text-[10px] transition ' + (controls.shadowEnabled ? 'bg-foreground text-background' : 'text-muted-foreground')} onClick={() => setValue('shadowEnabled', !controls.shadowEnabled)}>{controls.shadowEnabled ? 'On' : 'Off'}</button>
@@ -1204,7 +1382,7 @@ function ModelControlPanel({
           </> : null}
         </div>
 
-        <div className={'rounded border bg-muted/20 px-2 py-1.5 mb-1'}>
+        <div className={'rounded border bg-muted/25 px-2 py-1.5 mb-1'}>
           <div className={'flex items-center justify-between mb-0.5'}>
             <span className={'text-[11px] font-medium'}>Inner Shadow</span>
             <button type={'button'} className={'rounded border px-1.5 py-px text-[10px] transition ' + (controls.innerShadowEnabled ? 'bg-foreground text-background' : 'text-muted-foreground')} onClick={() => setValue('innerShadowEnabled', !controls.innerShadowEnabled)}>{controls.innerShadowEnabled ? 'On' : 'Off'}</button>
@@ -1215,7 +1393,7 @@ function ModelControlPanel({
           </> : null}
         </div>
 
-        <div className={'rounded border bg-muted/20 px-2 py-1.5'}>
+        <div className={'rounded border bg-muted/25 px-2 py-1.5'}>
           <div className={'flex items-center justify-between mb-0.5'}>
             <span className={'text-[11px] font-medium'}>Layer Blur</span>
             <button type={'button'} className={'rounded border px-1.5 py-px text-[10px] transition ' + (controls.layerBlurEnabled ? 'bg-foreground text-background' : 'text-muted-foreground')} onClick={() => setValue('layerBlurEnabled', !controls.layerBlurEnabled)}>{controls.layerBlurEnabled ? 'On' : 'Off'}</button>
@@ -1280,7 +1458,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     venus.mount(canvas)
     venus.resize({width: logicalWidth, height: logicalHeight})
     const demoNodes: VenusNode[] = [{id: 'card', type: 'rect', x: 80, y: 60, width: 240, height: 60, fill: theme === 'light' ? '#dbeafe' : '#1e3a8a', stroke: theme === 'light' ? '#2563eb' : '#93c5fd', strokeWidth: 3, cornerRadius: 10},
-      {type: 'ellipse', x: 140, y: 140, width: 120, height: 90, fill: theme === 'light' ? '#fef3c7':'#78350f', stroke: theme==='light'?'#f59e0b':'#fbbf24', strokeWidth: 3},
+      {id: 'oval', type: 'ellipse', x: 140, y: 140, width: 120, height: 90, fill: theme === 'light' ? '#fef3c7':'#78350f', stroke: theme==='light'?'#f59e0b':'#fbbf24', strokeWidth: 3},
     ]
     demoNodes.forEach((n) => venus.add(n))
     void venus.render().then(() => {
@@ -1437,6 +1615,25 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           showResult('animate', {methods: ['cancel', 'pause', 'play'], finished: 'Promise<void>'})
           void animation.finished.then(() => pushLog('animation finished'))
         }}><Film className={'size-3.5'}/> Animate</Button>
+      case 'group':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const existing = v.getNodeById('selection-group')
+          if (existing) {
+            showResult('group', 'selection-group already exists')
+            return
+          }
+          const group = v.group(['card', 'oval'], {id: 'selection-group', name: 'Selection'})
+          showResult('group', {id: group.id, cardParent: v.getParentId('card'), ovalParent: v.getParentId('oval')})
+          void v.render()
+        }}><List className={'size-3.5'}/> Group</Button>
+      case 'ungroup':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const children = v.ungroup('selection-group')
+          showResult('ungroup', children.map((child) => ({id: child.id, type: child.type})))
+          void v.render()
+        }}><List className={'size-3.5'}/> Ungroup</Button>
       case 'destroy':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
@@ -1449,39 +1646,45 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     }
   }
 
-  return <div className={'grid gap-4'}>
-    <canvas
-      ref={canvasRef}
-      aria-label={`${api.title} interactive demo`}
-      className={'h-[300px] w-[400px] max-w-full rounded-lg border bg-card shadow-sm'}
-      onClick={handleCanvasClick}
-      onMouseMove={handleCanvasHover}
-      onMouseLeave={() => setHoverHit(null)}
-      style={{cursor: (api.id === 'hitTest' || api.id === 'project' || api.id === 'unproject') ? 'crosshair' : 'default'}}
-    />
-    <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
-    <div className={'flex flex-wrap gap-2 items-center'}>{renderControls()}</div>
-    {api.id === 'hitTest' ? <div className={'grid gap-3 sm:grid-cols-2'}>
-      <div className={'rounded-xl bg-muted/40 p-3'}>
-        <p className={'mb-1 text-xs font-medium'}>Hover</p>
-        <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(hoverHit)}</code></pre>
-      </div>
-      <div className={'rounded-xl bg-muted/40 p-3'}>
-        <p className={'mb-1 text-xs font-medium'}>Clicked</p>
-        <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(clickedHit)}</code></pre>
-      </div>
-    </div> : null}
-    <div className={'flex gap-3'}>
-      {output ? <div className={'flex-1 rounded-xl bg-muted/40 p-3'}>
-        <p className={'mb-1 text-xs font-medium'}>Return value</p>
-        <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{output}</code></pre>
-      </div> : null}
-      {eventLogs.length > 0 ? <div className={'flex-1 rounded-xl bg-muted/40 p-3'}>
-        <p className={'mb-1 text-xs font-medium'}>Events</p>
-        <div className={'max-h-40 overflow-auto'}>
-          {eventLogs.map((log, i) => <p key={i} className={'text-xs text-muted-foreground'}>{log}</p>)}
+  return <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
+    <div className={'grid gap-2'}>
+      <canvas
+        ref={canvasRef}
+        aria-label={`${api.title} interactive demo`}
+        className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'}
+        onClick={handleCanvasClick}
+        onMouseMove={handleCanvasHover}
+        onMouseLeave={() => setHoverHit(null)}
+        style={{cursor: (api.id === 'hitTest' || api.id === 'project' || api.id === 'unproject') ? 'crosshair' : 'default'}}
+      />
+      <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
+    </div>
+    <div className={'flex min-w-0 flex-col gap-4'}>
+      <DemoFormPanel>
+        <div className={'flex flex-wrap items-center gap-2'}>{renderControls()}</div>
+      </DemoFormPanel>
+      {api.id === 'hitTest' ? <div className={'grid gap-3 sm:grid-cols-2'}>
+        <div className={'rounded-md border border-border bg-muted/25 p-3'}>
+          <p className={'mb-1 text-xs font-medium'}>Hover</p>
+          <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(hoverHit)}</code></pre>
+        </div>
+        <div className={'rounded-md border border-border bg-muted/25 p-3'}>
+          <p className={'mb-1 text-xs font-medium'}>Clicked</p>
+          <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(clickedHit)}</code></pre>
         </div>
       </div> : null}
+      <div className={'flex gap-3'}>
+        {output ? <div className={'flex-1 rounded-md border border-border bg-muted/25 p-3'}>
+          <p className={'mb-1 text-xs font-medium'}>Return value</p>
+          <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{output}</code></pre>
+        </div> : null}
+        {eventLogs.length > 0 ? <div className={'flex-1 rounded-md border border-border bg-muted/25 p-3'}>
+          <p className={'mb-1 text-xs font-medium'}>Events</p>
+          <div className={'max-h-40 overflow-auto'}>
+            {eventLogs.map((log, i) => <p key={i} className={'text-xs text-muted-foreground'}>{log}</p>)}
+          </div>
+        </div> : null}
+      </div>
     </div>
   </div>
 }
@@ -1535,17 +1738,671 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
 
   if (!isEditableModel) {
     return <div className={'grid gap-2'}>
-      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border bg-card shadow-sm'} />
+      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'} />
       <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     </div>
   }
 
   return <div className={'grid gap-5 lg:grid-cols-[400px_480px]'}>
     <div className={'grid gap-2'}>
-      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border bg-card shadow-sm'} />
+      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'} />
       <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     </div>
     <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
+  </div>
+}
+
+function ShapeCanvas({
+  ariaLabel,
+  nodes,
+}: {
+  ariaLabel: string
+  nodes: VenusNode[]
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) {
+      return
+    }
+    const logicalWidth = 400
+    const logicalHeight = 300
+    const scale = window.devicePixelRatio || 1
+    canvas.width = Math.round(logicalWidth * scale)
+    canvas.height = Math.round(logicalHeight * scale)
+    canvas.style.width = '400px'
+    canvas.style.height = `${logicalHeight}px`
+
+    const venus = new Venus({
+      culling: false,
+      lod: false,
+      render: {backend: 'canvas2d'},
+    })
+    venus.mount(canvas)
+    venus.resize({width: logicalWidth, height: logicalHeight})
+    nodes.forEach((node) => venus.add(node))
+    void venus.render()
+
+    return () => {
+      venus.destroy()
+    }
+  }, [nodes])
+
+  return <canvas ref={canvasRef} aria-label={ariaLabel} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'} />
+}
+
+function DemoFormPanel({
+  title,
+  description,
+  children,
+}: {
+  title?: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return <div className={'rounded-md border border-border bg-card p-3'}>
+    {title || description ? <div className={'mb-3 flex flex-col gap-1'}>
+      {title ? <p className={'text-sm font-semibold'}>{title}</p> : null}
+      {description ? <p className={'text-xs leading-5 text-muted-foreground'}>{description}</p> : null}
+    </div> : null}
+    {children}
+  </div>
+}
+
+function ShapeModelGuide() {
+  return <div className={'grid gap-4'}>
+    <div className={'grid gap-3 rounded-md border border-border bg-card p-3'}>
+      <h4 className={'text-sm font-semibold'}>Modules and inheritance</h4>
+      <div className={'overflow-x-auto'}>
+        <table className={'w-full min-w-[760px] border-collapse text-left text-xs'}>
+          <thead className={'text-muted-foreground'}>
+            <tr className={'border-b border-border'}>
+              <th className={'px-2 py-2 font-medium'}>Type</th>
+              <th className={'px-2 py-2 font-medium'}>Family</th>
+              <th className={'px-2 py-2 font-medium'}>Proxy</th>
+              <th className={'px-2 py-2 font-medium'}>Files</th>
+              <th className={'px-2 py-2 font-medium'}>Minimum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {VENUS_SHAPE_MODEL_SPECS.map((spec) => <tr key={spec.type} className={'border-b border-border last:border-0'}>
+              <td className={'px-2 py-2 font-mono'}>{spec.type}</td>
+              <td className={'px-2 py-2 text-muted-foreground'}>{spec.family}</td>
+              <td className={'px-2 py-2'}>
+                <code>{spec.proxy}</code>
+                <span className={'ml-1 text-muted-foreground'}>← {spec.inherits.join(' ← ')}</span>
+              </td>
+              <td className={'px-2 py-2 text-muted-foreground'}>{spec.files.join(', ')}</td>
+              <td className={'px-2 py-2 font-mono text-muted-foreground'}>{spec.minimalCreate.join(', ')}</td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div className={'grid gap-3 md:grid-cols-2'}>
+      {VENUS_SHAPE_MODEL_SPECS.map((spec) => <section key={spec.type} className={'rounded-md border border-border bg-card p-3'}>
+        <div className={'mb-2 flex items-center justify-between gap-2'}>
+          <h5 className={'font-mono text-sm font-semibold'}>{spec.type}</h5>
+          <span className={'rounded border border-border bg-muted/25 px-1.5 py-0.5 text-[10px] text-muted-foreground'}>{spec.family}</span>
+        </div>
+        <dl className={'grid gap-2 text-xs leading-5'}>
+          <div>
+            <dt className={'font-medium'}>Bounds</dt>
+            <dd className={'text-muted-foreground'}>{spec.bounds}</dd>
+          </div>
+          <div>
+            <dt className={'font-medium'}>Specific geometry</dt>
+            <dd className={'text-muted-foreground'}>{spec.geometry.join(', ')}</dd>
+          </div>
+          <div>
+            <dt className={'font-medium'}>Path expansion</dt>
+            <dd className={'text-muted-foreground'}>{spec.pathExpansion}</dd>
+          </div>
+          <div>
+            <dt className={'font-medium'}>Common render</dt>
+            <dd className={'text-muted-foreground'}>{spec.commonRender.join(', ')}</dd>
+          </div>
+        </dl>
+      </section>)}
+    </div>
+
+    <div className={'grid gap-3 rounded-md border border-border bg-card p-3'}>
+      <h4 className={'text-sm font-semibold'}>Common render contract</h4>
+      <p className={'text-xs leading-5 text-muted-foreground'}>The structured best-practice surface is appearance.*. Flat fill/stroke/strokeWidth fields remain compatibility shortcuts and proxy conveniences. Prefer {'r.update({appearance: {...}})'} for grouped paint changes instead of nested mutable objects such as r.stroke.enabled.</p>
+      <ul className={'grid gap-1 text-xs leading-5 text-muted-foreground md:grid-cols-2'}>
+        {VENUS_COMMON_RENDER_PROPERTIES.map((property) => <li key={property}>• {property}</li>)}
+      </ul>
+      <CodeBox code={`const r = venus.add({type: 'rect', width: 180, height: 96})
+
+r.update({
+  appearance: {
+    fills: [{type: 'solid', color: '#3b82f6', opacity: 1}],
+    strokes: [{
+      visible: true,
+      width: 3,
+      align: 'center',
+      paints: [{type: 'solid', color: '#1e40af'}],
+    }],
+    effects: [{type: 'dropShadow', color: 'rgba(15,23,42,0.18)', blur: 12}],
+    opacity: 0.92,
+  },
+})`}/>
+    </div>
+  </div>
+}
+
+const createCompactShapeNode = (apiId: string, controls: ModelControlValues, index: number): VenusNode | null => {
+  const col = index % 5
+  const row = Math.floor(index / 5)
+  const x = 28 + col * 72
+  const y = 36 + row * 112
+  const fill = withOpacity(controls.fill, controls.fillOpacity)
+  const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
+  const base = {id: `all-${apiId}`, opacity: controls.opacity / 100}
+
+  if (apiId === 'rect-node') {
+    return controls.cornersLocked
+      ? {...base, type: 'rect', x, y, width: 50, height: 38, fill, stroke, strokeWidth: 2, cornerRadius: Math.min(controls.cornerRadius, 14)}
+      : {...base, type: 'rect', x, y, width: 50, height: 38, fill, stroke, strokeWidth: 2, cornerRadii: {topLeft: Math.min(controls.cornerTopLeft, 14), topRight: Math.min(controls.cornerTopRight, 14), bottomRight: Math.min(controls.cornerBottomRight, 14), bottomLeft: Math.min(controls.cornerBottomLeft, 14)}}
+  }
+  if (apiId === 'ellipse-node') {
+    return {...base, type: 'ellipse', x, y, width: 54, height: 40, fill, stroke, strokeWidth: 2, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine}
+  }
+  if (apiId === 'line-node') {
+    return {...base, type: 'line', x, y: y + 18, width: 54, height: 30, stroke, strokeWidth: Math.max(2, Math.min(controls.strokeWidth, 8))}
+  }
+  if (apiId === 'text-node') {
+    return {...base, type: 'text', x, y: y + 34, width: 58, height: 38, text: controls.text.slice(0, 8) || 'Text', fill, fontSize: 16, fontWeight: controls.fontWeight, lineHeight: 20}
+  }
+  if (apiId === 'group-node') {
+    return {...base, type: 'group', x, y, children: [
+      {type: 'rect', x: 0, y: 0, width: 52, height: 38, fill, stroke, strokeWidth: 2, cornerRadius: 8},
+      {type: 'text', x: 8, y: 24, text: 'G', fill: stroke, fontSize: 16, fontWeight: 700},
+    ]}
+  }
+  if (apiId === 'clip-node' || apiId === 'mask-node') {
+    return {...base, type: apiId === 'clip-node' ? 'clip' : 'mask', clipPath: {type: 'rect', x, y, width: 54, height: 42, cornerRadius: 14}, children: [
+      {type: 'ellipse', x: x - 8, y: y - 4, width: 70, height: 52, fill, stroke, strokeWidth: 2},
+    ]}
+  }
+  if (apiId === 'polygon-node') {
+    return {...base, type: 'polygon', x, y, width: 54, height: 44, points: [{x: x + 27, y}, {x: x + 54, y: y + 18}, {x: x + 42, y: y + 44}, {x: x + 12, y: y + 44}, {x, y: y + 18}], fill, stroke, strokeWidth: 2}
+  }
+  if (apiId === 'path-node') {
+    return controls.pathUseBezier
+      ? {...base, type: 'path', x, y, width: 56, height: 44, bezierPoints: createBezierDemoPoints(x, y, 56, 44), fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: 2, closed: controls.pathClosed}
+      : {...base, type: 'path', x, y, width: 56, height: 44, points: [{x, y: y + 36}, {x: x + 28, y}, {x: x + 56, y: y + 36}, {x: x + 28, y: y + 44}], fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: 2, closed: controls.pathClosed}
+  }
+  if (apiId === 'image-node') {
+    return {...base, type: 'image', x, y, width: 56, height: 40, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing}
+  }
+
+  return null
+}
+
+function ShapeSpecificPanel({
+  apiId,
+  controls,
+  setControls,
+}: {
+  apiId: string
+  controls: ModelControlValues
+  setControls: Dispatch<SetStateAction<ModelControlValues>>
+}) {
+  const setNumber = (key: keyof ModelControlValues, value: string) => {
+    const nextValue = Number(value)
+    setControls((currentControls) => {
+      if (key === 'cornerRadius' && currentControls.cornersLocked) {
+        return {
+          ...currentControls,
+          cornerRadius: nextValue,
+          cornerTopLeft: nextValue,
+          cornerTopRight: nextValue,
+          cornerBottomRight: nextValue,
+          cornerBottomLeft: nextValue,
+        }
+      }
+      return {...currentControls, [key]: nextValue}
+    })
+  }
+  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
+    setControls((currentControls) => ({...currentControls, [key]: value}))
+  }
+  const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
+    const value = controls[key]
+    if (typeof value !== 'number') return null
+    return <label className={'flex min-w-0 items-center gap-1'} key={String(key)}>
+      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
+      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} type={'number'} min={input?.min} max={input?.max} step={input?.step ?? 1} value={value} onChange={(event) => setNumber(key, event.target.value)} />
+    </label>
+  }
+  const toggle = (key: keyof ModelControlValues, label: string) => {
+    const value = controls[key]
+    if (typeof value !== 'boolean') return null
+    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={String(key)}>
+      <input className={'size-3.5'} type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+      <span className={'truncate text-muted-foreground'}>{label}</span>
+    </label>
+  }
+
+  if (apiId === 'rect-node') {
+    return <div className={'grid gap-3'}>
+      <div className={'grid grid-cols-2 gap-2'}>
+        {field('width', 'Width', {min: 20, max: 380})}
+        {field('height', 'Height', {min: 20, max: 260})}
+      </div>
+      <div className={'grid gap-2 rounded-md bg-muted/25 p-2'}>
+        <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2'}>
+          {toggle('cornersLocked', 'Uniform corners')}
+          {controls.cornersLocked ? field('cornerRadius', 'Corner radius', {min: 0, max: 96}) : null}
+        </div>
+        {!controls.cornersLocked ? <div className={'grid grid-cols-2 gap-2'}>
+          {field('cornerTopLeft', 'Top left', {min: 0, max: 96})}
+          {field('cornerTopRight', 'Top right', {min: 0, max: 96})}
+          {field('cornerBottomRight', 'Bottom right', {min: 0, max: 96})}
+          {field('cornerBottomLeft', 'Bottom left', {min: 0, max: 96})}
+        </div> : null}
+      </div>
+    </div>
+  }
+
+  if (apiId === 'ellipse-node') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {field('width', 'Radius X box', {min: 20, max: 380})}
+      {field('height', 'Radius Y box', {min: 20, max: 260})}
+      {field('ellipseStartAngle', 'Start angle', {min: 0, max: 360})}
+      {field('ellipseEndAngle', 'End angle', {min: 0, max: 360})}
+      {toggle('ellipseDrawWedgeLine', 'Draw wedge line')}
+    </div>
+  }
+
+  if (apiId === 'line-node') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {field('x', 'Start X', {min: 0, max: 400})}
+      {field('y', 'Start Y', {min: 0, max: 300})}
+      {field('x2', 'End X', {min: 0, max: 400})}
+      {field('y2', 'End Y', {min: 0, max: 300})}
+      {field('strokeWidth', 'Stroke width', {min: 0, max: 32})}
+    </div>
+  }
+
+  if (apiId === 'text-node') {
+    return <div className={'grid gap-2'}>
+      <label className={'grid gap-1 text-xs'}>
+        <span className={'text-muted-foreground'}>Text</span>
+        <textarea className={'min-h-16 rounded-md border border-border bg-muted/25 px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={controls.text} onChange={(event) => setValue('text', event.target.value)} />
+      </label>
+      <div className={'grid grid-cols-3 gap-2'}>
+        {field('fontSize', 'Font size', {min: 8, max: 96})}
+        {field('fontWeight', 'Weight', {min: 100, max: 900, step: 100})}
+        {field('lineHeight', 'Line height', {min: 8, max: 120})}
+      </div>
+    </div>
+  }
+
+  if (apiId === 'clip-node' || apiId === 'mask-node') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {field('clipPathWidth', 'Clip width', {min: 20, max: 380})}
+      {field('clipPathHeight', 'Clip height', {min: 20, max: 260})}
+      {field('clipPathCornerRadius', 'Clip radius', {min: 0, max: 96})}
+      {toggle('clipIsEllipse', 'Use ellipse clip path')}
+    </div>
+  }
+
+  if (apiId === 'polygon-node' || apiId === 'path-node') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {field('width', 'Width', {min: 20, max: 380})}
+      {field('height', 'Height', {min: 20, max: 260})}
+      {toggle('pathClosed', 'Closed path')}
+      {apiId === 'path-node' ? toggle('pathUseBezier', 'Bezier curve') : null}
+    </div>
+  }
+
+  if (apiId === 'image-node') {
+    return <div className={'grid gap-2'}>
+      <label className={'grid gap-1 text-xs'}>
+        <span className={'text-muted-foreground'}>Asset id</span>
+        <input className={'h-6 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={controls.assetId} onChange={(event) => setValue('assetId', event.target.value)} />
+      </label>
+      {toggle('imageSmoothing', 'Image smoothing')}
+    </div>
+  }
+
+  return <div className={'grid grid-cols-2 gap-2'}>
+    {field('childRectWidth', 'Child rect width', {min: 20, max: 380})}
+    {field('childRectHeight', 'Child rect height', {min: 20, max: 260})}
+    {field('childTextFontSize', 'Child text size', {min: 8, max: 96})}
+  </div>
+}
+
+function CommonPropertiesPanel({
+  apiId,
+  controls,
+  setControls,
+}: {
+  apiId: string
+  controls: ModelControlValues
+  setControls: Dispatch<SetStateAction<ModelControlValues>>
+}) {
+  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
+    setControls((currentControls) => ({...currentControls, [key]: value}))
+  }
+  const setNumber = (key: keyof ModelControlValues, value: string) => {
+    setControls((currentControls) => ({...currentControls, [key]: Number(value)}))
+  }
+  const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
+    const value = controls[key]
+    if (typeof value !== 'number') return null
+    return <label key={String(key)} className={'flex min-w-0 items-center gap-1'}>
+      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
+      <input
+        className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'}
+        type={'number'}
+        min={input?.min}
+        max={input?.max}
+        step={input?.step ?? 1}
+        value={value}
+        onChange={(event) => setNumber(key, event.target.value)}
+      />
+    </label>
+  }
+  const color = (key: keyof ModelControlValues, label: string) => {
+    const value = controls[key]
+    if (typeof value !== 'string') return null
+    return <label key={String(key)} className={'flex min-w-0 items-center gap-1'}>
+      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
+      <input className={'size-6 shrink-0 cursor-pointer rounded border border-border bg-card p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+    </label>
+  }
+  const toggle = (key: keyof ModelControlValues, label: string) => {
+    const value = controls[key]
+    if (typeof value !== 'boolean') return null
+    return <label key={String(key)} className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'}>
+      <input className={'size-3.5'} type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+      <span className={'truncate text-muted-foreground'}>{label}</span>
+    </label>
+  }
+  const isContainerModel = apiId === 'group-node' || apiId === 'clip-node' || apiId === 'mask-node'
+  const showPaint = apiId !== 'line-node' && apiId !== 'image-node' && apiId !== 'group-node' && apiId !== 'clip-node' && apiId !== 'mask-node'
+  const showStroke = apiId !== 'text-node' && apiId !== 'image-node' && apiId !== 'group-node' && apiId !== 'clip-node' && apiId !== 'mask-node'
+  const transformFields = apiId === 'line-node'
+    ? <>
+      {field('x', 'Start X', {min: 0, max: 400})}
+      {field('y', 'Start Y', {min: 0, max: 300})}
+      {field('x2', 'End X', {min: 0, max: 400})}
+      {field('y2', 'End Y', {min: 0, max: 300})}
+    </>
+    : isContainerModel
+      ? <>
+        {field('x', 'X', {min: 0, max: 400})}
+        {field('y', 'Y', {min: 0, max: 300})}
+      </>
+    : <>
+      {field('x', 'X', {min: 0, max: 400})}
+      {field('y', 'Y', {min: 0, max: 300})}
+      {field('width', 'Width', {min: 20, max: 360})}
+      {field('height', 'Height', {min: 20, max: 260})}
+    </>
+
+  return <div className={'grid gap-4'}>
+    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
+      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Identity</h5>
+      <label className={'grid gap-1'}>
+        <span className={'text-[11px] font-medium text-muted-foreground'}>Node id</span>
+        <input className={'h-6 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={controls.id} onChange={(event) => setValue('id', event.target.value)} />
+      </label>
+    </section>
+    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
+      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Transform</h5>
+      <div className={'grid grid-cols-2 gap-2'}>
+        {transformFields}
+        {field('rotation', 'Rotation', {min: -180, max: 180})}
+        {field('originX', 'Origin X %', {min: 0, max: 100})}
+        {field('originY', 'Origin Y %', {min: 0, max: 100})}
+      </div>
+    </section>
+    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
+      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Appearance</h5>
+      <div className={'grid grid-cols-2 gap-2'}>
+        {field('opacity', 'Opacity %', {min: 0, max: 100})}
+        {showStroke ? field('strokeWidth', 'Stroke width', {min: 0, max: 32}) : null}
+        {showPaint ? color('fill', 'Fill') : null}
+        {showStroke ? color('stroke', 'Stroke') : null}
+        {showPaint ? field('fillOpacity', 'Fill opacity %', {min: 0, max: 100}) : null}
+        {showStroke ? field('strokeOpacity', 'Stroke opacity %', {min: 0, max: 100}) : null}
+      </div>
+    </section>
+    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
+      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Effects</h5>
+      <div className={'grid grid-cols-2 gap-2'}>
+        {toggle('shadowEnabled', 'Drop shadow')}
+        {controls.shadowEnabled ? <>
+          {color('shadowColor', 'Shadow color')}
+          {field('shadowBlur', 'Shadow blur', {min: 0, max: 40})}
+          {field('shadowOffsetX', 'Shadow X', {min: -40, max: 40})}
+          {field('shadowOffsetY', 'Shadow Y', {min: -40, max: 40})}
+        </> : null}
+      </div>
+    </section>
+  </div>
+}
+
+function ShapeStoryDemo({api, theme}: {api: EngineApiDoc; theme: ThemeMode}) {
+  const [controls, setControls] = useState(() => createInitialModelControls(api.id, theme))
+  const nodes = useMemo(() => createEditableExampleNodes(api.id, controls) ?? createExampleNodes(api.id, theme), [api.id, controls, theme])
+
+  useEffect(() => {
+    setControls(createInitialModelControls(api.id, theme))
+  }, [api.id, theme])
+
+  return <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
+    <ShapeCanvas ariaLabel={`${api.title} visual demo`} nodes={nodes}/>
+    <div className={'flex min-w-0 flex-col gap-4'}>
+      <DemoFormPanel>
+        <ShapeSpecificPanel apiId={api.id} controls={controls} setControls={setControls}/>
+      </DemoFormPanel>
+      <CodeBox code={createModelCode(api.id, controls)}/>
+    </div>
+  </div>
+}
+
+function AllShapesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
+  const [selectedApiId, setSelectedApiId] = useState(shapeApiIds[0])
+  const [controlsByApiId, setControlsByApiId] = useState<Record<string, ModelControlValues>>(() => Object.fromEntries(
+    shapeApiIds.map((apiId) => [apiId, createInitialModelControls(apiId, theme)]),
+  ))
+  const selectedApi = apis.find((api) => api.id === selectedApiId) ?? apis[0]
+  const selectedControls = controlsByApiId[selectedApiId] ?? createInitialModelControls(selectedApiId, theme)
+  const setSelectedControls: Dispatch<SetStateAction<ModelControlValues>> = (nextControls) => {
+    setControlsByApiId((current) => ({
+      ...current,
+      [selectedApiId]: typeof nextControls === 'function' ? nextControls(current[selectedApiId] ?? selectedControls) : nextControls,
+    }))
+  }
+  const nodes = useMemo(() => {
+    return shapeApiIds.flatMap((apiId, index) => {
+      const controls = controlsByApiId[apiId] ?? createInitialModelControls(apiId, theme)
+      const node = createCompactShapeNode(apiId, controls, index)
+      return node ? [node] : []
+    })
+  }, [controlsByApiId, theme])
+
+  useEffect(() => {
+    setControlsByApiId(Object.fromEntries(shapeApiIds.map((apiId) => [apiId, createInitialModelControls(apiId, theme)])))
+  }, [theme])
+
+  return <div className={'grid gap-5 lg:grid-cols-[400px_minmax(0,560px)]'}>
+    <ShapeCanvas ariaLabel={'All Venus shapes demo'} nodes={nodes}/>
+    <div className={'flex min-w-0 flex-col gap-4'}>
+      <DemoFormPanel
+        title={'Current type'}
+        description={`${selectedApi?.title ?? 'Shape'} specific controls update the selected preview while the other shapes stay visible.`}
+      >
+        <div className={'grid grid-cols-2 gap-2 sm:grid-cols-3'}>
+          {apis.map((api) => <Button
+            key={api.id}
+            variant={api.id === selectedApiId ? 'default' : 'outline'}
+            size={'sm'}
+            onClick={() => setSelectedApiId(api.id as typeof selectedApiId)}
+          >
+            {api.title}
+          </Button>)}
+        </div>
+        <div className={'mt-3'}>
+          <ShapeSpecificPanel apiId={selectedApiId} controls={selectedControls} setControls={setSelectedControls}/>
+        </div>
+      </DemoFormPanel>
+      <DemoFormPanel title={'Common properties'} description={'Shared identity, transform, appearance, and effect fields.'}>
+        <CommonPropertiesPanel apiId={selectedApiId} controls={selectedControls} setControls={setSelectedControls}/>
+      </DemoFormPanel>
+    </div>
+  </div>
+}
+
+type ShapePropertyDemoKind = 'transform' | 'appearance' | 'effects' | 'specific'
+
+interface ShapePropertyDemoRow {
+  id: string
+  title: string
+  description: string
+  apiId: string
+  kind: ShapePropertyDemoKind
+}
+
+function createShapePropertyControls(row: ShapePropertyDemoRow, theme: ThemeMode) {
+  const controls = createInitialModelControls(row.apiId, theme)
+  if (row.kind === 'transform') {
+    return {...controls, rotation: 12, originX: 50, originY: 50}
+  }
+  if (row.kind === 'appearance') {
+    return {...controls, fillOpacity: 85, strokeWidth: 8, opacity: 92}
+  }
+  if (row.kind === 'effects') {
+    return {...controls, shadowEnabled: true, shadowBlur: 18, shadowOffsetX: 12, shadowOffsetY: 10}
+  }
+  return {...controls, pathUseBezier: true, pathClosed: false, strokeWidth: 6}
+}
+
+function ShapePropertyDemoForm({
+  kind,
+  controls,
+  setControls,
+}: {
+  kind: ShapePropertyDemoKind
+  controls: ModelControlValues
+  setControls: Dispatch<SetStateAction<ModelControlValues>>
+}) {
+  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
+    setControls((currentControls) => ({...currentControls, [key]: value}))
+  }
+  const setNumber = (key: keyof ModelControlValues, value: string) => {
+    setControls((currentControls) => ({...currentControls, [key]: Number(value)}))
+  }
+  const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
+    const value = controls[key]
+    if (typeof value !== 'number') return null
+    return <label className={'flex min-w-0 items-center gap-1'} key={String(key)}>
+      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
+      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} type={'number'} min={input?.min} max={input?.max} step={input?.step ?? 1} value={value} onChange={(event) => setNumber(key, event.target.value)} />
+    </label>
+  }
+  const color = (key: keyof ModelControlValues, label: string) => {
+    const value = controls[key]
+    if (typeof value !== 'string') return null
+    return <label className={'flex min-w-0 items-center gap-1'} key={String(key)}>
+      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
+      <input className={'size-6 shrink-0 cursor-pointer rounded border border-border bg-card p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+    </label>
+  }
+  const toggle = (key: keyof ModelControlValues, label: string) => {
+    const value = controls[key]
+    if (typeof value !== 'boolean') return null
+    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={String(key)}>
+      <input className={'size-3.5'} type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+      <span className={'text-muted-foreground'}>{label}</span>
+    </label>
+  }
+
+  if (kind === 'transform') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {field('x', 'X', {min: 0, max: 400})}
+      {field('y', 'Y', {min: 0, max: 300})}
+      {field('width', 'Width', {min: 20, max: 360})}
+      {field('height', 'Height', {min: 20, max: 260})}
+      {field('rotation', 'Rotation', {min: -180, max: 180})}
+      {field('skewX', 'Skew X', {min: -45, max: 45})}
+      {field('skewY', 'Skew Y', {min: -45, max: 45})}
+      {field('originX', 'Origin X %', {min: 0, max: 100})}
+      {field('originY', 'Origin Y %', {min: 0, max: 100})}
+    </div>
+  }
+
+  if (kind === 'appearance') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {color('fill', 'Fill')}
+      {color('stroke', 'Stroke')}
+      {field('fillOpacity', 'Fill opacity %', {min: 0, max: 100})}
+      {field('strokeOpacity', 'Stroke opacity %', {min: 0, max: 100})}
+      {field('strokeWidth', 'Stroke width', {min: 0, max: 32})}
+      {field('opacity', 'Opacity %', {min: 0, max: 100})}
+    </div>
+  }
+
+  if (kind === 'effects') {
+    return <div className={'grid grid-cols-2 gap-2'}>
+      {toggle('shadowEnabled', 'Drop shadow')}
+      {color('shadowColor', 'Shadow color')}
+      {field('shadowBlur', 'Blur', {min: 0, max: 40})}
+      {field('shadowOffsetX', 'Offset X', {min: -40, max: 40})}
+      {field('shadowOffsetY', 'Offset Y', {min: -40, max: 40})}
+    </div>
+  }
+
+  return <div className={'grid grid-cols-2 gap-2'}>
+    {toggle('pathUseBezier', 'Bezier curve')}
+    {toggle('pathClosed', 'Closed path')}
+    {field('width', 'Width', {min: 20, max: 360})}
+    {field('height', 'Height', {min: 20, max: 260})}
+    {field('strokeWidth', 'Stroke width', {min: 0, max: 32})}
+    {color('stroke', 'Stroke')}
+  </div>
+}
+
+function ShapePropertyDemoItem({row, theme}: {row: ShapePropertyDemoRow; theme: ThemeMode}) {
+  const [controls, setControls] = useState(() => createShapePropertyControls(row, theme))
+  const nodes = useMemo(() => createEditableExampleNodes(row.apiId, controls) ?? createExampleNodes(row.apiId, theme), [row.apiId, controls, theme])
+
+  useEffect(() => {
+    setControls(createShapePropertyControls(row, theme))
+  }, [row.apiId, row.kind, theme])
+
+  return <section id={row.id} className={'grid scroll-mt-20 gap-3 rounded-md border border-border bg-card p-4'}>
+    <h4 className={'text-base font-medium'}>{row.title}</h4>
+    <p className={'text-sm leading-6 text-muted-foreground'}>{row.description}</p>
+    <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
+      <ShapeCanvas ariaLabel={`${row.title} shape properties demo`} nodes={nodes}/>
+      <DemoFormPanel>
+        <ShapePropertyDemoForm kind={row.kind} controls={controls} setControls={setControls}/>
+      </DemoFormPanel>
+    </div>
+  </section>
+}
+
+function ShapePropertiesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
+  void apis
+  const propertyRows: ShapePropertyDemoRow[] = [
+    {id: 'document-models-shape-properties-transform', title: 'Transform', description: 'Position, bounds, rotation, skew, and origin fields define where each shape lives in document space.', apiId: 'rect-node', kind: 'transform'},
+    {id: 'document-models-shape-properties-appearance', title: 'Appearance', description: 'Fill, stroke, stroke width, fill opacity, stroke opacity, and layer opacity define the visible paint.', apiId: 'ellipse-node', kind: 'appearance'},
+    {id: 'document-models-shape-properties-effects', title: 'Effects', description: 'Drop shadow fields are render-time effects applied after geometry is resolved.', apiId: 'rect-node', kind: 'effects'},
+    {id: 'document-models-shape-properties-specific', title: 'Shape Specific', description: 'Shape-specific fields expose capabilities such as path bezierPoints without requiring unrelated common properties.', apiId: 'path-node', kind: 'specific'},
+  ]
+
+  return <div className={'flex flex-col gap-6'}>
+    {propertyRows.map((row) => <ShapePropertyDemoItem key={row.id} row={row} theme={theme}/>)}
   </div>
 }
 
@@ -1604,7 +2461,7 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
 
     const unsubscribes = [
       venus.on('mounted', (event) => pushLog('mounted', {canvas: event.canvas.tagName})),
-      venus.on('document:changed', (event) => pushLog('document:changed', {revision: event.revision, nodeId: event.node.id})),
+      venus.on('document:changed', (event) => pushLog('document:changed', {revision: event.revision, nodeId: event.node?.id ?? null})),
       venus.on('backend:fallback', (event) => pushLog('backend:fallback', event)),
       venus.on('resized', (event) => pushLog('resized', event)),
       venus.on('render:before', (event) => pushLog('render:before', event)),
@@ -1682,7 +2539,7 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
   }
 
   return <div className={'flex flex-col gap-3'}>
-    <canvas ref={canvasRef} aria-label={'Venus events interactive demo'} className={'w-full rounded-lg border bg-card shadow-sm'} />
+    <canvas ref={canvasRef} aria-label={'Venus events interactive demo'} className={'w-full rounded-lg border border-border bg-card'} />
     <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     <div className={'flex flex-wrap gap-2'}>
       <Button variant={'outline'} size={'sm'} onClick={() => void addNode()}><Plus className={'size-3.5'}/> Add</Button>
@@ -1690,11 +2547,11 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
       <Button variant={'outline'} size={'sm'} onClick={hitTest}><Crosshair className={'size-3.5'}/> Hit test</Button>
       <Button variant={'outline'} size={'sm'} onClick={resize}><Expand className={'size-3.5'}/> Resize</Button>
     </div>
-    <div className={'max-h-56 overflow-auto rounded-xl bg-muted/40 p-3'}>
+    <div className={'max-h-56 overflow-auto rounded-md border border-border bg-muted/25 p-3'}>
       {logs.length === 0
         ? <p className={'text-xs text-muted-foreground'}>Click a button to see Venus events.</p>
         : logs.map((log) => {
-          return <div key={log.id} className={'border-b border-border/30 py-2 last:border-0'}>
+          return <div key={log.id} className={'border-b border-border py-2 last:border-0'}>
             <p className={'text-xs font-medium'}>{log.name}</p>
             <code className={'block break-all text-xs text-muted-foreground'}>{log.payload}</code>
           </div>
@@ -1703,13 +2560,92 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
   </div>
 }
 
+function ThemeHoverMenu({
+  theme,
+  setTheme,
+}: {
+  theme: ThemeMode
+  setTheme: Dispatch<SetStateAction<ThemeMode>>
+}) {
+  return <div className={'group/theme relative'}>
+    <Button aria-label={'Theme'} aria-haspopup={'menu'} variant={'ghost'} size={'icon'} className={'size-8 rounded-full text-muted-foreground hover:text-foreground'}>
+      <Palette data-icon="inline-start"/>
+    </Button>
+    <div className={'invisible absolute right-0 top-full z-20 pt-2 opacity-0 transition group-hover/theme:visible group-hover/theme:opacity-100 group-focus-within/theme:visible group-focus-within/theme:opacity-100'}>
+      <div role={'menu'} className={'min-w-44 rounded-md border border-border bg-card p-1 text-card-foreground'}>
+        {themeOptions.map((option) => {
+          return <button
+            key={option.name}
+            role={'menuitemradio'}
+            aria-checked={theme === option.name}
+            type={'button'}
+            className={'flex h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none'}
+            onClick={() => setTheme(option.name)}
+          >
+            <span>{option.label}</span>
+            {theme === option.name ? <Check data-icon="inline-end"/> : null}
+          </button>
+        })}
+      </div>
+    </div>
+  </div>
+}
+
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>('light')
   const [copiedApiId, setCopiedApiId] = useState<string | null>(null)
+  const navigationItems = useMemo<CollapsibleNavItem[]>(() => {
+    return engineApiCategories.map((category) => {
+      if (category.id === 'document-models') {
+        const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
+        return {
+          id: category.id,
+          label: category.title,
+          href: `#${category.id}`,
+          defaultOpen: true,
+          items: [
+            {id: 'document-models-all-shapes-nav', label: 'All shapes demo', href: '#document-models-all-shapes'},
+            {id: 'document-models-shape-contract-nav', label: 'Shape model contract', href: '#document-models-shape-contract'},
+            {
+              id: 'document-models-shapes-nav',
+              label: 'Shapes',
+              href: '#document-models-shapes',
+              defaultOpen: true,
+              items: shapeApis.map((api) => ({
+                id: api.id,
+                label: api.title,
+                href: `#${getApiAnchorId(category, api)}`,
+              })),
+            },
+            {
+              id: 'document-models-shape-properties-nav',
+              label: 'Shape Properties',
+              href: '#document-models-shape-properties',
+              defaultOpen: true,
+              items: [
+                {id: 'shape-properties-transform-nav', label: 'Transform', href: '#document-models-shape-properties-transform'},
+                {id: 'shape-properties-appearance-nav', label: 'Appearance', href: '#document-models-shape-properties-appearance'},
+                {id: 'shape-properties-effects-nav', label: 'Effects', href: '#document-models-shape-properties-effects'},
+                {id: 'shape-properties-specific-nav', label: 'Shape Specific', href: '#document-models-shape-properties-specific'},
+              ],
+            },
+          ],
+        }
+      }
 
-  const toggleTheme = () => {
-    setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')
-  }
+      return {
+        id: category.id,
+        label: category.title,
+        href: `#${category.id}`,
+        defaultOpen: true,
+        items: category.apis.map((api) => ({
+          id: api.id,
+          label: api.title,
+          href: `#${getApiAnchorId(category, api)}`,
+        })),
+      }
+    })
+  }, [])
 
   const copyUsage = async (api: EngineApiDoc) => {
     await navigator.clipboard.writeText(createUsageCode(api, theme))
@@ -1717,60 +2653,92 @@ export function App() {
     window.setTimeout(() => setCopiedApiId((currentId) => currentId === api.id ? null : currentId), 1200)
   }
 
-  return <div data-theme={theme} className={'min-h-screen bg-background text-foreground'}>
-    <header className={'sticky top-0 border-b bg-background/95 backdrop-blur'}>
-      <div className={'mx-auto flex h-14 max-w-screen-2xl items-center justify-between gap-4 px-6'}>
-        <a href={'#top'} className={'text-sm font-semibold tracking-tight'}>Venus Engine Docs</a>
-        <div className={'flex items-center gap-2'}>
-          <nav className={'hidden items-center gap-1 md:flex'} aria-label={'Primary'}>
-            {engineApiCategories.map((category) => {
-              return <a
-                key={category.id}
-                href={`#${category.id}`}
-                className={'rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'}
-              >
-                {category.title}
-              </a>
-            })}
-          </nav>
-          <Button variant={'outline'} size={'sm'} onClick={toggleTheme}>
-            {theme === 'light' ? 'Dark' : 'Light'}
-          </Button>
-        </div>
+		return <div data-theme={theme} className={'min-h-screen bg-background text-foreground'}>
+    <header className={'sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur'}>
+      <div className={'mx-auto flex h-12 max-w-screen-2xl items-center justify-between gap-4 px-6'}>
+        <a href={'#top'} className={'flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight'}>
+          <span className={'flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-primary text-[11px] font-semibold text-primary-foreground'}>V</span>
+          <span className={'truncate'}>Venus Engine</span>
+          <span className={'rounded border border-border bg-muted/25 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground'}>Docs</span>
+        </a>
+        <ThemeHoverMenu theme={theme} setTheme={setTheme}/>
       </div>
     </header>
 
     <div id={'top'} className={'mx-auto grid max-w-screen-2xl gap-8 px-6 py-8 lg:grid-cols-[300px_minmax(0,1fr)]'}>
       <aside className={'hidden lg:block'}>
-        <div className={'sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col gap-6 overflow-auto pr-4'}>
-          <div className={'flex flex-col gap-2'}>
-            <h1 className={'text-2xl font-semibold tracking-tight'}>Venus Engine</h1>
+        <div className={'sticky top-16 flex max-h-[calc(100vh-5rem)] flex-col gap-4 overflow-auto rounded-md border border-border bg-card p-3'}>
+          <div className={'border-b border-border pb-3'}>
+            <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Sections</p>
+            <h1 className={'mt-1 text-base font-semibold tracking-tight'}>Engine API</h1>
           </div>
 
-          <nav className={'flex flex-col gap-5'} aria-label={'Engine API navigation'}>
-            {engineApiCategories.map((category) => {
-              return <div key={category.id} className={'flex flex-col gap-2'}>
-                <a href={`#${category.id}`} className={'text-sm font-medium'}>{category.title}</a>
-                <div className={'flex flex-col gap-1 border-l pl-3'}>
-                  {category.apis.map((api) => {
-                    return <a
-                      key={api.id}
-                      href={`#${getApiAnchorId(category, api)}`}
-                      className={'text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground'}
-                    >
-                      {api.title}
-                    </a>
-                  })}
-                </div>
-              </div>
-            })}
-          </nav>
+          <CollapsibleNav items={navigationItems} ariaLabel={'Engine API navigation'} className={'gap-2'}/>
         </div>
       </aside>
 
       <main className={'min-w-0'}>
         <div className={'flex flex-col gap-20'}>
           {engineApiCategories.map((category) => {
+            if (category.id === 'document-models') {
+              const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
+
+              return <section key={category.id} id={category.id} className={'scroll-mt-20'}>
+                <div className={'mb-8 flex flex-col gap-2'}>
+                  <h2 className={'group scroll-mt-20 text-3xl font-semibold tracking-tight'}>
+                    <HeadingAnchor href={`#${category.id}`}/>
+                    <span>{category.title}</span>
+                  </h2>
+                  <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
+                </div>
+
+                <article id={'document-models-all-shapes'} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+                  <header className={'flex flex-col gap-2'}>
+                    <h3 className={'text-2xl font-semibold tracking-tight'}>All shapes demo</h3>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>A single canvas for every shape type and the complete shape property surface. Select a shape on the right to edit its properties; the selected shape updates in place.</p>
+                  </header>
+                  <AllShapesDemo apis={shapeApis} theme={theme}/>
+                </article>
+
+                <article id={'document-models-shape-contract'} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+                  <header className={'flex flex-col gap-2'}>
+                    <h3 className={'text-2xl font-semibold tracking-tight'}>Shape model contract</h3>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>The engine-side contract for module ownership, proxy inheritance, minimal creation fields, editable bounds, path expansion, and shared render properties.</p>
+                  </header>
+                  <ShapeModelGuide/>
+                </article>
+
+                <div id={'document-models-shapes'} className={'scroll-mt-20 py-8'}>
+                  <h3 className={'text-2xl font-semibold tracking-tight'}>Shapes</h3>
+                  <p className={'mt-2 max-w-3xl text-sm leading-6 text-muted-foreground'}>Each shape page focuses on fields unique to that shape. Common position and appearance controls live in All shapes demo.</p>
+                </div>
+
+                <div className={'flex flex-col'}>
+                  {shapeApis.map((api) => {
+                    const apiAnchorId = getApiAnchorId(category, api)
+                    return <article key={api.id} id={apiAnchorId} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+                      <header className={'flex w-full flex-col gap-2'}>
+                        <h4 className={'group block w-full text-xl font-semibold tracking-tight'}>
+                          <HeadingAnchor href={`#${apiAnchorId}`}/>
+                          <span>{api.title}</span>
+                        </h4>
+                        <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{api.summary}</p>
+                      </header>
+                      <ShapeStoryDemo api={api} theme={theme}/>
+                    </article>
+                  })}
+                </div>
+
+                <article id={'document-models-shape-properties'} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+                  <header className={'flex flex-col gap-2'}>
+                    <h3 className={'text-2xl font-semibold tracking-tight'}>Shape Properties</h3>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Property groups shared by shapes, with canvas feedback and a focused form for the current capability.</p>
+                  </header>
+                  <ShapePropertiesDemo apis={shapeApis} theme={theme}/>
+                </article>
+              </section>
+            }
+
             return <section key={category.id} id={category.id} className={'scroll-mt-20'}>
               <div className={'mb-2 flex flex-col gap-2'}>
                 <h2 className={'group scroll-mt-20 text-3xl font-semibold tracking-tight'}>
@@ -1780,8 +2748,13 @@ export function App() {
               </div>
 
               <div className={'flex flex-col'}>
-                {category.apis.map((api) => {
+                {category.apis.map((api, apiIndex) => {
                   const apiAnchorId = getApiAnchorId(category, api)
+                  const isStart = category.id === 'start'
+                  const isDocModel = category.id === 'document-models'
+                  const isLastDocModel = isDocModel && apiIndex === category.apis.length - 1
+                  const isMethods = category.id === 'methods'
+
                   return <article key={api.id} id={apiAnchorId} className={'flex scroll-mt-20 flex-col gap-8 py-10'}>
                     <header className={'flex w-full flex-col gap-2'}>
                       <h3 className={'group block w-full text-2xl font-semibold tracking-tight'}>
@@ -1789,27 +2762,59 @@ export function App() {
                         <span>{api.title}</span>
                       </h3>
                       <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{api.summary}</p>
+                      {isDocModel && !isLastDocModel
+                        ? <div className={'flex items-center gap-1 pt-1'}>
+                          <Tooltip text={copiedApiId === api.id ? 'Copied' : 'Copy'}>
+                            <Button variant={'ghost'} size={'sm'} className={'h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground'} onClick={() => {
+                              void navigator.clipboard.writeText(createCopyCompCode(api.id, theme)).then(() => {
+                                setCopiedApiId(api.id)
+                                window.setTimeout(() => setCopiedApiId((id) => id === api.id ? null : id), 1200)
+                              })
+                            }}>
+                              {copiedApiId === api.id ? '✓ Copied' : '📋 Copy COMP'}
+                            </Button>
+                          </Tooltip>
+                        </div>
+                        : null}
                     </header>
 
                     <div className={'flex flex-col gap-3'}>
-                      {category.id === 'methods'
-                        ? <InteractiveMethodDemo api={api} theme={theme}/>
-                        : api.id === 'events-demo'
-                          ? <EventInspectorDemo theme={theme}/>
-                          : <ApiCanvasDemo api={api} theme={theme}/>}
+                      {isStart
+                        ? <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,400px)]'}>
+                          <ApiCanvasDemo api={api} theme={theme}/>
+                          <CodeBox code={api.demo}/>
+                        </div>
+                        : isMethods
+                          ? <InteractiveMethodDemo api={api} theme={theme}/>
+                          : api.id === 'events-demo'
+                            ? <EventInspectorDemo theme={theme}/>
+                            : <ApiCanvasDemo api={api} theme={theme}/>}
                     </div>
 
-                    <details className={'group rounded-xl bg-muted/50'}>
-                      <summary className={'cursor-pointer px-4 py-3 text-sm font-medium'}>Usage</summary>
-                      <div className={'px-4 pb-4'}>
-                        <div className={'mb-2 flex justify-end'}>
-                          <Button variant={'ghost'} size={'sm'} onClick={() => void copyUsage(api)}>
-                            {copiedApiId === api.id ? 'Copied' : 'Copy'}
-                          </Button>
+                    {/* Document Models: CodeBox instead of Usage */}
+                    {isDocModel && !isLastDocModel
+                      ? <CodeBox code={createCopyCompCode(api.id, theme)}/>
+                      : null}
+
+                    {/* Methods: CodeBox */}
+                    {isMethods
+                      ? <CodeBox code={api.demo}/>
+                      : null}
+
+                    {/* Usage accordion: only for non-Start, non-DocModel, non-Methods */}
+                    {!isStart && !isDocModel && !isMethods
+                      ? <details className={'group rounded-md border border-border bg-muted/25'}>
+                        <summary className={'cursor-pointer px-4 py-3 text-sm font-medium'}>Usage</summary>
+                        <div className={'px-4 pb-4'}>
+                          <div className={'mb-2 flex justify-end'}>
+                            <Button variant={'ghost'} size={'sm'} onClick={() => void copyUsage(api)}>
+                              {copiedApiId === api.id ? 'Copied' : 'Copy'}
+                            </Button>
+                          </div>
+                          <pre className={'max-h-72 overflow-auto rounded-xl bg-background p-4 text-xs leading-6 text-muted-foreground'}><code>{createUsageCode(api, theme)}</code></pre>
                         </div>
-                        <pre className={'max-h-72 overflow-auto rounded-xl bg-background p-4 text-xs leading-6 text-muted-foreground'}><code>{createUsageCode(api, theme)}</code></pre>
-                      </div>
-                    </details>
+                      </details>
+                      : null}
 
                     {api.parameters && api.parameters.length > 0
                       ? <section className={'flex min-w-0 flex-col gap-3'}>
@@ -1824,7 +2829,7 @@ export function App() {
                         {(api.propertyGroups?.length ?? 0) > 0
                           ? <div className={'grid gap-3 md:grid-cols-2'}>
                             {api.propertyGroups?.map((group) => {
-                              return <div key={group.title} className={'rounded-xl bg-muted/30 p-3'}>
+                              return <div key={group.title} className={'rounded-md border border-border bg-muted/25 p-3'}>
                                 <h5 className={'mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground'}>{group.title}</h5>
                                 <ul className={'flex flex-col gap-1 text-sm text-muted-foreground'}>
                                   {group.properties.map((property) => {
@@ -1846,7 +2851,7 @@ export function App() {
                       ? <section className={'flex min-w-0 flex-col gap-4'}>
                         <h4 className={'text-sm font-medium'}>Methods</h4>
                         {api.methods.map((method) => {
-                          return <div key={method.name} className={'flex flex-col gap-2 rounded-xl bg-muted/30 p-4'}>
+                          return <div key={method.name} className={'flex flex-col gap-2 rounded-md border border-border bg-muted/25 p-4'}>
                             <code className={'text-xs'}>{method.name}</code>
                             <p className={'text-sm leading-6 text-muted-foreground'}>{method.description}</p>
                             {method.parameters && method.parameters.length > 0

@@ -18,6 +18,10 @@ import {
   type EngineCanvasViewportState,
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
+import {
+  createVenusNodeProxy,
+  type VenusNodeProxy,
+} from './VenusNodeProxy.ts'
 
 export type VenusBackend = 'canvas2d' | 'webgl' | 'auto'
 
@@ -182,6 +186,12 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'modules',
   'animate',
   'destroy',
+  'update',
+  'remove',
+  'group',
+  'ungroup',
+  'addChild',
+  'removeChild',
 ] as const
 
 /** Declares one public instance method documented for `Venus`. */
@@ -348,7 +358,7 @@ export interface VenusRuntimeInspection {
 
 export interface VenusEventMap {
   mounted: {canvas: HTMLCanvasElement}
-  'document:changed': {revision: number; node: EngineRenderableNode}
+  'document:changed': {revision: number; node?: EngineRenderableNode}
   resized: {width: number; height: number}
   'render:before': {revision: number}
   'render:after': {revision: number}
@@ -385,6 +395,11 @@ export interface VenusAnimationController {
   /** Resumes a paused animation from the current node state. */
   play(): void
 }
+
+export type VenusGroupNode = Extract<VenusNode, {type: 'group'}>
+
+/** Options accepted by `venus.group(...)` for the created group node. */
+export type VenusGroupOptions = Partial<Omit<VenusGroupNode, 'type' | 'children' | 'x' | 'y'>>
 
 /** Declares one gradient colour stop for Venus paint descriptors. */
 export interface VenusGradientStop {
@@ -568,6 +583,7 @@ type VenusNodeBase = {
 
 export type VenusNode =
   | {
+    /** Bounds-authored shape. x/y are local top-left; width/height are the rendered box. */
     type: 'rect' | 'ellipse'
     x?: number
     y?: number
@@ -592,9 +608,11 @@ export type VenusNode =
     cornerRadii?: {topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number}
     ellipseStartAngle?: number
     ellipseEndAngle?: number
+    ellipseDrawWedgeLine?: boolean
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
+    /** Stroke-authored segment. x/y are start point; width/height are end-point delta. */
     type: 'line'
     x?: number
     y?: number
@@ -611,6 +629,7 @@ export type VenusNode =
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
+    /** Text document node. width/height are optional editor/layout bounds. */
     type: 'text'
     x?: number
     y?: number
@@ -627,6 +646,7 @@ export type VenusNode =
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
+    /** Container node. x/y translate the subtree; visual bounds derive from children. */
     type: 'group'
     x?: number
     y?: number
@@ -634,12 +654,13 @@ export type VenusNode =
     children: VenusNode[]
   } & VenusNodeBase
   | {
+    /** Clip/mask container. Bounds derive from clipPath first, then children. */
     type: 'clip' | 'mask'
     clipPath: VenusNode
     children: VenusNode[]
   } & VenusNodeBase
   | {
-    /** Draws closed point-list polygon geometry. */
+    /** Draws closed point-list polygon geometry. Bounds edits rescale points. */
     type: 'polygon'
     x?: number
     y?: number
@@ -661,7 +682,7 @@ export type VenusNode =
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
-    /** Draws custom point or bezier path geometry. */
+    /** Draws custom point or bezier path geometry. Bounds edits rescale authored points. */
     type: 'path'
     x?: number
     y?: number
@@ -689,7 +710,7 @@ export type VenusNode =
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
-    /** Renders an asset-backed raster image. */
+    /** Renders an asset-backed raster image quad. */
     type: 'image'
     x?: number
     y?: number
@@ -817,7 +838,7 @@ function classifyVenusPropertyMutation(root: string, path: string): VenusInvalid
     return 'transformOnly'
   }
 
-  if (['x', 'y', 'width', 'height', 'points', 'bezierPoints', 'closed', 'cornerRadius', 'cornerRadii', 'ellipseStartAngle', 'ellipseEndAngle'].includes(root)) {
+  if (['x', 'y', 'width', 'height', 'points', 'bezierPoints', 'closed', 'cornerRadius', 'cornerRadii', 'ellipseStartAngle', 'ellipseEndAngle', 'ellipseDrawWedgeLine'].includes(root)) {
     return 'geometry'
   }
 
@@ -1042,6 +1063,142 @@ const getChildrenBounds = (children: readonly VenusNode[]) => {
   const maxX = Math.max(...bounds.map((childBounds) => childBounds.x + childBounds.width))
   const maxY = Math.max(...bounds.map((childBounds) => childBounds.y + childBounds.height))
   return {x: minX, y: minY, width: maxX - minX, height: maxY - minY}
+}
+
+const translatePoint = (point: {x: number; y: number}, dx: number, dy: number) => ({
+  ...point,
+  x: point.x + dx,
+  y: point.y + dy,
+})
+
+const translateVenusNode = (node: VenusNode, dx: number, dy: number): void => {
+  if ('x' in node || node.type === 'group') {
+    node.x = (node.x ?? 0) + dx
+  }
+  if ('y' in node || node.type === 'group') {
+    node.y = (node.y ?? 0) + dy
+  }
+
+  if (node.type === 'polygon' || node.type === 'path') {
+    const nodeWithPoints = node as typeof node & {points?: readonly {x: number; y: number}[]}
+    if (nodeWithPoints.points) {
+      nodeWithPoints.points = nodeWithPoints.points.map((point) => translatePoint(point, dx, dy))
+    }
+  }
+
+  if (node.type === 'path' && node.bezierPoints) {
+    node.bezierPoints = node.bezierPoints.map((point) => ({
+      ...point,
+      anchor: translatePoint(point.anchor, dx, dy),
+      cp1: point.cp1 ? translatePoint(point.cp1, dx, dy) : point.cp1,
+      cp2: point.cp2 ? translatePoint(point.cp2, dx, dy) : point.cp2,
+    }))
+  }
+
+  if (node.type === 'clip' || node.type === 'mask') {
+    if ('x' in node || 'y' in node) {
+      return
+    }
+    translateVenusNode(node.clipPath, dx, dy)
+    node.children.forEach((child) => translateVenusNode(child, dx, dy))
+  }
+}
+
+const hasNonTranslationTransform = (node: VenusNode): boolean => {
+  const transform = node.transform
+  return Boolean(
+    node.rotation
+    || node.scaleX !== undefined
+    || node.scaleY !== undefined
+    || node.skewX
+    || node.skewY
+    || transform?.rotation
+    || transform?.scaleX !== undefined
+    || transform?.scaleY !== undefined
+    || transform?.skewX
+    || transform?.skewY
+    || transform?.origin,
+  )
+}
+
+const getNodeTranslation = (node: VenusNode) => ({
+  x: ('x' in node ? node.x ?? 0 : 0) + (node.transform?.x ?? 0),
+  y: ('y' in node ? node.y ?? 0 : 0) + (node.transform?.y ?? 0),
+})
+
+const hasBoundsPatch = (patch: Partial<VenusNode>) => {
+  return 'x' in patch || 'y' in patch || 'width' in patch || 'height' in patch
+}
+
+const getEditableBounds = (node: VenusNode) => {
+  const record = node as Record<string, unknown>
+  return {
+    x: typeof record.x === 'number' ? record.x : 0,
+    y: typeof record.y === 'number' ? record.y : 0,
+    width: typeof record.width === 'number' ? record.width : 0,
+    height: typeof record.height === 'number' ? record.height : 0,
+  }
+}
+
+const resolvePatchedBounds = (node: VenusNode, patch: Partial<VenusNode>) => {
+  const current = getEditableBounds(node)
+  const record = patch as Record<string, unknown>
+  return {
+    x: typeof record.x === 'number' ? record.x : current.x,
+    y: typeof record.y === 'number' ? record.y : current.y,
+    width: typeof record.width === 'number' ? record.width : current.width,
+    height: typeof record.height === 'number' ? record.height : current.height,
+  }
+}
+
+const mapPointBetweenBounds = (
+  point: {x: number; y: number},
+  from: {x: number; y: number; width: number; height: number},
+  to: {x: number; y: number; width: number; height: number},
+) => ({
+  x: from.width === 0 ? point.x + (to.x - from.x) : to.x + ((point.x - from.x) / from.width) * to.width,
+  y: from.height === 0 ? point.y + (to.y - from.y) : to.y + ((point.y - from.y) / from.height) * to.height,
+})
+
+/**
+ * Applies editor-bounds patches to point-authored geometry before the public
+ * x/y/width/height fields are committed. For path-like nodes, those fields are
+ * an editable bounds box; points/bezierPoints remain the render source of truth.
+ */
+const applyBoundsPatchToAuthoredGeometry = (node: VenusNode, patch: Partial<VenusNode>): void => {
+  if (!hasBoundsPatch(patch)) {
+    return
+  }
+
+  const from = getEditableBounds(node)
+  const to = resolvePatchedBounds(node, patch)
+
+  if (node.type === 'line') {
+    const nodeWithPoints = node as typeof node & {points?: readonly {x: number; y: number}[]}
+    if (nodeWithPoints.points) {
+      nodeWithPoints.points = [
+        {x: to.x, y: to.y},
+        {x: to.x + to.width, y: to.y + to.height},
+      ]
+    }
+    return
+  }
+
+  if (node.type === 'polygon' || node.type === 'path') {
+    const nodeWithPoints = node as typeof node & {points?: readonly {x: number; y: number}[]}
+    if (nodeWithPoints.points) {
+      nodeWithPoints.points = nodeWithPoints.points.map((point) => mapPointBetweenBounds(point, from, to))
+    }
+  }
+
+  if (node.type === 'path' && node.bezierPoints) {
+    node.bezierPoints = node.bezierPoints.map((point) => ({
+      ...point,
+      anchor: mapPointBetweenBounds(point.anchor, from, to),
+      cp1: point.cp1 ? mapPointBetweenBounds(point.cp1, from, to) : point.cp1,
+      cp2: point.cp2 ? mapPointBetweenBounds(point.cp2, from, to) : point.cp2,
+    }))
+  }
 }
 
 /**
@@ -1477,6 +1634,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       cornerRadii: node.type === 'rect' ? node.cornerRadii : undefined,
       ellipseStartAngle: node.type === 'ellipse' ? node.ellipseStartAngle : undefined,
       ellipseEndAngle: node.type === 'ellipse' ? node.ellipseEndAngle : undefined,
+      ellipseDrawWedgeLine: node.type === 'ellipse' ? node.ellipseDrawWedgeLine : undefined,
     }
   }
 
@@ -1616,18 +1774,195 @@ export class Venus {
   /** Stores the last pointer used for debug hit-candidate overlays. */
   private lastDebugHitPoint: {x: number; y: number} | null = null
 
-  // -- Document CRUD (flat) --
+  // -- Document CRUD (Figma-style proxy API) --
 
-  /** Adds one document node and returns the engine-facing render node. */
-  add(node: VenusNode): EngineRenderableNode {
-    const engineNode = toEngineNode(node, `node-${this.nodeIndex}`)
-    this.nodeIndex += 1
-    this.documentNodes = [...this.documentNodes, node]
-    this.indexNodeTree(node, engineNode.id, null)
+  /**
+   * Adds one document node and returns a typed mutable proxy.
+   * Use the proxy chainable setters to modify properties after creation.
+   *
+   * @example
+   * const r = venus.add({type:'rect', x:10, y:10, width:100, height:80})
+   * r.setWidth(200).setFill('#ff0000').setCornerRadius(12)
+   */
+  add(node: VenusNode): VenusNodeProxy {
+    const storedNode = this.ensureNodeId(node)
+    const engineNode = toEngineNode(storedNode, storedNode.id ?? `node-${this.nodeIndex}`)
+    this.documentNodes = [...this.documentNodes, storedNode]
+    this.indexNodeTree(storedNode, engineNode.id, null)
     this.nodes = [...this.nodes, engineNode]
     this.revision += 1
     this.emit('document:changed', {revision: this.revision, node: engineNode})
-    return engineNode
+    return createVenusNodeProxy(this, engineNode.id, storedNode.type)
+  }
+
+  /**
+   * Updates one document node by id with a shallow property patch.
+   * Triggers efficient invalidation based on the changed property kinds.
+   * Called internally by VenusNodeProxy setters; also available for direct use.
+   */
+  update(id: string, patch: Partial<VenusNode>): void {
+    const node = this.nodeById.get(id)
+    if (!node) {
+      return
+    }
+
+    applyBoundsPatchToAuthoredGeometry(node, patch)
+    // Mutate the stored VenusNode in place so rebuildRenderNodes picks up changes.
+    Object.assign(node, patch)
+    this.rebuildRenderNodes()
+    this.revision += 1
+
+    const engineNode = this.nodes.find((n) => n.id === id)
+    this.emit('document:changed', {revision: this.revision, node: engineNode})
+  }
+
+  /**
+   * Removes one document node by id.
+   * Handles root-level removal; nested nodes inside groups/clips/masks
+   * should use removeChild instead.
+   */
+  remove(id: string): void {
+    const index = this.documentNodes.findIndex((n) => n.id === id)
+    if (index === -1) {
+      return
+    }
+
+    this.documentNodes.splice(index, 1)
+    this.nodes.splice(index, 1)
+    this.nodeById.delete(id)
+    this.parentById.delete(id)
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+  }
+
+  /**
+   * Groups sibling nodes under a new group while preserving their visual position.
+   */
+  group(ids: readonly string[], options: VenusGroupOptions = {}): VenusNodeProxy {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) {
+      throw new Error('group() requires at least one node id')
+    }
+
+    const parentId = this.parentById.get(uniqueIds[0]) ?? null
+    if (uniqueIds.some((id) => (this.parentById.get(id) ?? null) !== parentId)) {
+      throw new Error('group() requires sibling nodes with the same parent')
+    }
+
+    const siblings = this.resolveSiblingNodes(parentId)
+    if (!siblings) {
+      throw new Error(`Parent "${parentId ?? 'root'}" not found`)
+    }
+
+    const selected = uniqueIds.map((id) => {
+      const node = this.nodeById.get(id)
+      if (!node) {
+        throw new Error(`Node "${id}" not found`)
+      }
+      return node
+    })
+    const selectedSet = new Set(selected)
+    const selectedIndices = selected.map((node) => siblings.indexOf(node))
+    if (selectedIndices.some((index) => index < 0)) {
+      throw new Error('group() can only group direct children of the same parent')
+    }
+
+    const bounds = resolveEngineNodesBounds(selected.map((node, index) => toEngineNode(node, node.id ?? `group-candidate-${index}`)))
+    const groupX = bounds?.x ?? 0
+    const groupY = bounds?.y ?? 0
+    selected.forEach((node) => translateVenusNode(node, -groupX, -groupY))
+
+    const groupNode: VenusGroupNode = {
+      ...options,
+      type: 'group',
+      id: options.id ?? this.createNodeId(),
+      x: groupX,
+      y: groupY,
+      children: selected,
+    }
+    const insertIndex = Math.min(...selectedIndices)
+    const nextSiblings = [
+      ...siblings.slice(0, insertIndex).filter((node) => !selectedSet.has(node)),
+      groupNode,
+      ...siblings.slice(insertIndex).filter((node) => !selectedSet.has(node)),
+    ]
+    this.replaceSiblingNodes(parentId, nextSiblings)
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    return createVenusNodeProxy(this, groupNode.id ?? '', 'group')
+  }
+
+  /**
+   * Ungroups one group node and inserts its children back into the same parent.
+   */
+  ungroup(id: string): VenusNodeProxy[] {
+    const groupNode = this.nodeById.get(id)
+    if (!groupNode || groupNode.type !== 'group') {
+      return []
+    }
+    if (hasNonTranslationTransform(groupNode)) {
+      throw new Error('ungroup() currently supports translation-only groups')
+    }
+
+    const parentId = this.parentById.get(id) ?? null
+    const siblings = this.resolveSiblingNodes(parentId)
+    if (!siblings) {
+      return []
+    }
+
+    const groupIndex = siblings.indexOf(groupNode)
+    if (groupIndex < 0) {
+      return []
+    }
+
+    const translation = getNodeTranslation(groupNode)
+    const children = groupNode.children.map((child) => this.ensureNodeId(child))
+    children.forEach((child) => translateVenusNode(child, translation.x, translation.y))
+
+    const nextSiblings = [
+      ...siblings.slice(0, groupIndex),
+      ...children,
+      ...siblings.slice(groupIndex + 1),
+    ]
+    this.replaceSiblingNodes(parentId, nextSiblings)
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    return children.map((child) => createVenusNodeProxy(this, child.id ?? '', child.type))
+  }
+
+  /**
+   * Adds a child node to a group, clip, or mask container.
+   * Returns a typed proxy for the newly added child.
+   */
+  addChild(parentId: string, child: VenusNode): VenusNodeProxy {
+    const parent = this.nodeById.get(parentId)
+    if (!parent || (parent.type !== 'group' && parent.type !== 'clip' && parent.type !== 'mask')) {
+      throw new Error(`Parent "${parentId}" not found or is not a container (group/clip/mask)`)
+    }
+
+    const storedChild = this.ensureNodeId(child)
+    parent.children = [...(parent.children ?? []), storedChild]
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    return createVenusNodeProxy(this, storedChild.id ?? '', storedChild.type)
+  }
+
+  /**
+   * Removes a child node from a group, clip, or mask container by child id.
+   */
+  removeChild(parentId: string, childId: string): void {
+    const parent = this.nodeById.get(parentId)
+    if (!parent || (parent.type !== 'group' && parent.type !== 'clip' && parent.type !== 'mask')) {
+      return
+    }
+
+    parent.children = (parent.children ?? []).filter((c) => c.id !== childId)
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
   }
 
   /** Returns the union bounding box of the current document. */
@@ -1640,9 +1975,16 @@ export class Venus {
     return this.documentNodes
   }
 
-  /** Looks up a document node by stable id, or null when missing. */
-  getNodeById(id: string): VenusNode | null {
-    return this.nodeById.get(id) ?? null
+  /** Looks up a document node by stable id and returns a mutable proxy, or null when missing. */
+  getNodeById(id: string): VenusNodeProxy | null {
+    const node = this.nodeById.get(id)
+    if (!node) return null
+    return createVenusNodeProxy(this, node.id ?? id, node.type)
+  }
+
+  /** Returns a raw VenusNode from the internal store. Called by VenusNodeProxy getters. */
+  _rawNode(id: string): VenusNode | undefined {
+    return this.nodeById.get(id)
   }
 
   /** Returns the parent node id for a nested node, or null for a root node. */
@@ -1840,6 +2182,48 @@ export class Venus {
     return {scale: viewport.scale, offsetX: viewport.offsetX, offsetY: viewport.offsetY}
   }
 
+  private createNodeId(): string {
+    const id = `node-${this.nodeIndex}`
+    this.nodeIndex += 1
+    return id
+  }
+
+  private ensureNodeId<TNode extends VenusNode>(node: TNode): TNode {
+    if (node.id) {
+      return node
+    }
+
+    node.id = this.createNodeId()
+    return node
+  }
+
+  private resolveSiblingNodes(parentId: string | null): VenusNode[] | null {
+    if (!parentId) {
+      return this.documentNodes
+    }
+
+    const parent = this.nodeById.get(parentId)
+    if (!parent || (parent.type !== 'group' && parent.type !== 'clip' && parent.type !== 'mask')) {
+      return null
+    }
+
+    return parent.children
+  }
+
+  private replaceSiblingNodes(parentId: string | null, nextSiblings: VenusNode[]): void {
+    if (!parentId) {
+      this.documentNodes = nextSiblings
+      return
+    }
+
+    const parent = this.nodeById.get(parentId)
+    if (!parent || (parent.type !== 'group' && parent.type !== 'clip' && parent.type !== 'mask')) {
+      return
+    }
+
+    parent.children = nextSiblings
+  }
+
   /**
    * Rebuilds render-facing nodes after document object mutation.
    */
@@ -1999,7 +2383,7 @@ export class Venus {
     keyframes: readonly [VenusAnimationKeyframe, VenusAnimationKeyframe],
     options: VenusAnimationOptions = {},
   ): VenusAnimationController {
-    const node = this.getNodeById(nodeId)
+    const node = this._rawNode(nodeId)
     let frameHandle: number | null = null
     let startedAt: number | null = null
     let paused = false

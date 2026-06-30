@@ -3,6 +3,7 @@ import {describe, it} from 'node:test'
 import {createVenus, defineVenusModule} from '../../base.ts'
 import {classifyVenusNodeMutation, isVenusModuleName, Venus, VENUS_INTERNAL_SERVICE_NAMES, VENUS_MODULE_NAMES} from './Venus.ts'
 import type {VenusBackend, VenusModule, VenusModuleContext} from './Venus.ts'
+import {VENUS_SHAPE_MODEL_SPECS} from './shapeModel.ts'
 
 function createCanvasWithFailingWebGL() {
   const canvas2dContext = {}
@@ -248,6 +249,33 @@ describe('Venus modules', () => {
   })
 })
 
+describe('Venus shape model specs', () => {
+  it('documents every public model kind and separates engine shapes from renderable nodes', () => {
+    assert.deepEqual(VENUS_SHAPE_MODEL_SPECS.map((spec) => spec.type), [
+      'rect',
+      'ellipse',
+      'line',
+      'text',
+      'group',
+      'clip',
+      'mask',
+      'polygon',
+      'path',
+      'image',
+    ])
+    assert.deepEqual(
+      VENUS_SHAPE_MODEL_SPECS.filter((spec) => spec.family === 'engine-shape').map((spec) => spec.type),
+      ['rect', 'ellipse', 'line', 'polygon', 'path'],
+    )
+    for (const spec of VENUS_SHAPE_MODEL_SPECS) {
+      assert.ok(spec.files.length > 0, `${spec.type} must document owning files`)
+      assert.ok(spec.minimalCreate.length > 0, `${spec.type} must document minimal create fields`)
+      assert.ok(spec.bounds.length > 0, `${spec.type} must document bounds semantics`)
+      assert.ok(spec.pathExpansion.length > 0, `${spec.type} must document path expansion`)
+    }
+  })
+})
+
 describe('Venus events', () => {
   it('subscribes, emits, and unsubscribes document events', () => {
     const venus = new Venus()
@@ -391,6 +419,49 @@ describe('Venus transforms', () => {
     assert.equal(venus.getParentId('rect-a'), 'group-a')
     assert.equal(venus.children()[0]?.type, 'group')
   })
+
+  it('rewrites authored point geometry when editable bounds are patched', () => {
+    const venus = new Venus()
+    const line = venus.add({
+      type: 'line',
+      id: 'line-with-points',
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 40,
+      points: [{x: 10, y: 20}, {x: 40, y: 60}] as never,
+    })
+    const polygon = venus.add({
+      type: 'polygon',
+      id: 'poly',
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 20,
+      points: [{x: 10, y: 10}, {x: 30, y: 10}, {x: 20, y: 30}],
+    })
+    const path = venus.add({
+      type: 'path',
+      id: 'path',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      bezierPoints: [
+        {anchor: {x: 0, y: 100}, cp2: {x: 25, y: 0}},
+        {anchor: {x: 100, y: 100}, cp1: {x: 75, y: 0}},
+      ],
+    })
+
+    line.setSize(60, 80)
+    polygon.setPosition(30, 40)
+    path.setSize(200, 50)
+
+    assert.deepEqual(venus._rawNode('line-with-points')?.points, [{x: 10, y: 20}, {x: 70, y: 100}])
+    assert.deepEqual(venus._rawNode('poly')?.points, [{x: 30, y: 40}, {x: 50, y: 40}, {x: 40, y: 60}])
+    assert.deepEqual(venus._rawNode('path')?.bezierPoints?.[0]?.anchor, {x: 0, y: 50})
+    assert.deepEqual(venus._rawNode('path')?.bezierPoints?.[0]?.cp2, {x: 50, y: 0})
+  })
 })
 
 describe('Venus node conversion', () => {
@@ -433,6 +504,7 @@ describe('Venus node conversion', () => {
       height: 90,
       ellipseStartAngle: 30,
       ellipseEndAngle: 270,
+      ellipseDrawWedgeLine: true,
     })
 
     const [node] = venus.snapshot().nodes
@@ -440,6 +512,7 @@ describe('Venus node conversion', () => {
     assert.equal(node.shape, 'ellipse')
     assert.equal(node.ellipseStartAngle, 30)
     assert.equal(node.ellipseEndAngle, 270)
+    assert.equal(node.ellipseDrawWedgeLine, true)
   })
 
   it('converts line to engine shape node with default stroke', () => {
@@ -671,6 +744,96 @@ describe('Venus bounds', () => {
 })
 
 describe('Venus nested composition', () => {
+  it('groups and ungroups root siblings without moving their bounds', () => {
+    const venus = new Venus()
+    const rect = venus.add({type: 'rect', x: 10, y: 20, width: 30, height: 40})
+    const path = venus.add({
+      type: 'path',
+      x: 60,
+      y: 30,
+      width: 40,
+      height: 30,
+      points: [{x: 60, y: 30}, {x: 100, y: 60}],
+      stroke: '#111827',
+      strokeWidth: 2,
+      closed: false,
+    })
+    const beforeBounds = venus.bounds()
+
+    const group = venus.group([rect.id, path.id], {name: 'Selection'})
+    const [root] = venus.children()
+
+    assert.equal(group.type, 'group')
+    assert.equal(root?.type, 'group')
+    assert.equal(root?.x, 10)
+    assert.equal(root?.y, 20)
+    assert.equal(root?.children.length, 2)
+    assert.equal(root?.children[0]?.x, 0)
+    assert.equal(root?.children[0]?.y, 0)
+    assert.deepEqual(venus.bounds(), beforeBounds)
+    assert.equal(venus.getParentId(rect.id), group.id)
+    assert.equal(venus.getParentId(path.id), group.id)
+
+    const children = venus.ungroup(group.id)
+
+    assert.deepEqual(children.map((child) => child.id), [rect.id, path.id])
+    assert.equal(venus.children().length, 2)
+    assert.deepEqual(venus.bounds(), beforeBounds)
+    assert.equal(venus.getParentId(rect.id), null)
+    assert.equal(venus.getParentId(path.id), null)
+    assert.equal(venus._rawNode(rect.id)?.x, 10)
+    assert.deepEqual(venus._rawNode(path.id)?.points?.[0], {x: 60, y: 30})
+  })
+
+  it('groups direct children inside an existing group', () => {
+    const venus = new Venus()
+
+    venus.add({
+      type: 'group',
+      id: 'parent',
+      x: 20,
+      y: 30,
+      children: [
+        {type: 'rect', id: 'a', x: 10, y: 5, width: 20, height: 20},
+        {type: 'ellipse', id: 'b', x: 50, y: 15, width: 20, height: 20},
+      ],
+    })
+
+    const inner = venus.group(['a', 'b'], {id: 'inner'})
+    const parent = venus.children()[0]
+
+    assert.equal(inner.id, 'inner')
+    assert.equal(venus.getParentId('inner'), 'parent')
+    assert.equal(venus.getParentId('a'), 'inner')
+    assert.equal(parent?.type, 'group')
+    assert.equal(parent?.children[0]?.type, 'group')
+    assert.equal(parent?.children[0]?.x, 10)
+    assert.equal(parent?.children[0]?.y, 5)
+  })
+
+  it('keeps generated proxy ids usable for removal', () => {
+    const venus = new Venus()
+    const rect = venus.add({type: 'rect', width: 20, height: 20})
+
+    rect.remove()
+
+    assert.equal(venus.children().length, 0)
+    assert.equal(venus.getNodeById(rect.id), null)
+  })
+
+  it('rejects grouping nodes from different parents', () => {
+    const venus = new Venus()
+    const root = venus.add({type: 'rect', id: 'root', width: 20, height: 20})
+    void root
+    venus.add({
+      type: 'group',
+      id: 'parent',
+      children: [{type: 'rect', id: 'child', width: 20, height: 20}],
+    })
+
+    assert.throws(() => venus.group(['root', 'child']), /same parent/)
+  })
+
   it('indexes group inside group and resolves parent ids through both levels', () => {
     const venus = new Venus()
 

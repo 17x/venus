@@ -18,7 +18,7 @@ import {
   PreviewSection,
   SchemaSection,
 } from './PropPanelMetaSections.tsx'
-import { Separator } from '../../ui/kit/components/ui/separator.tsx'
+import {Separator} from '../../ui/index.ts'
 
 interface PropPanelShapePropsProps {
   props: SelectedElementProps

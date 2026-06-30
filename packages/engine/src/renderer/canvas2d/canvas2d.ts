@@ -681,6 +681,9 @@ function resolveAlignedStrokeWidth(node: EngineShapeNode): number {
 
 /**
  * Applies a multi-paint fill list to the current path, falling back to legacy fill.
+ * This is the shared fill implementation for rect, ellipse, polygon, and closed path.
+ * Open paths intentionally skip fill so compatibility fill fields cannot paint an
+ * implicitly closed area.
  * @param context Rendering context.
  * @param node Shape node.
  * @param rect Local bounding rect for gradient sizing.
@@ -690,6 +693,10 @@ function applyFills(
   node: EngineShapeNode,
   rect: {x: number; y: number; width: number; height: number},
 ) {
+  if (node.shape === 'path' && node.closed === false) {
+    return
+  }
+
   if (node.fills && node.fills.length > 0) {
     for (const paint of node.fills) {
       const fillValue = resolvePaint(context, paint, rect)
@@ -714,6 +721,7 @@ function applyFills(
  * Applies a multi-paint stroke list to the current path, falling back to legacy stroke.
  * Stroke alignment (inside/outside) is achieved by doubling the physical lineWidth
  * and relying on fill-or-stroke ordering in the caller to mask the unwanted half.
+ * This is the shared stroke implementation for every EngineShapeNode kind.
  * @param context Rendering context.
  * @param node Shape node.
  * @param rect Local bounding rect for gradient sizing.
@@ -758,6 +766,8 @@ function applyStrokes(
 /**
  * Handles drawShapeNode with full gradient, dash, multi-fill/stroke, and
  * stroke-alignment support.
+ * Shape geometry is authored by appendShapePath; paint, opacity, stroke order,
+ * and arrowhead handling are centralized here for all shape kinds.
  * @param context Rendering context.
  * @param node Target node.
  * @param localRect localRect parameter.
@@ -868,12 +878,20 @@ function drawEllipseArcNode(
   // Ellipse arc path (open, for strokes).
   const traceArc = () => {
     context.beginPath()
+    if (node.ellipseDrawWedgeLine) {
+      context.moveTo(cx, cy)
+    }
     context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
+    if (node.ellipseDrawWedgeLine) {
+      context.closePath()
+    }
   }
-  // Closed pie path (for fills).
+  // Closed arc path for fills; optional wedge edges connect endpoints to center.
   const traceClosedArc = () => {
     context.beginPath()
-    context.moveTo(cx, cy)
+    if (node.ellipseDrawWedgeLine) {
+      context.moveTo(cx, cy)
+    }
     context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
     context.closePath()
   }

@@ -130,8 +130,20 @@ export function compileEngineWebGLPacketPlan(
       textCacheKey,
       hasShadow: resolveNodeHasShadow(prepared.node),
       hasExpensiveEffect: resolveNodeHasExpensiveEffect(prepared.node),
-      shapeHasStroke: prepared.node.type === 'shape' && Boolean(prepared.node.stroke) && (prepared.node.strokeWidth ?? 1) > 0,
-      shapeHasFill: prepared.node.type === 'shape' && Boolean(prepared.node.fill),
+      // Check both legacy scalar stroke and structured strokes array (populated
+      // from VenusAppearance.strokes projection) to avoid false negatives for
+      // nodes that only use structured appearance.
+      shapeHasStroke: prepared.node.type === 'shape' && (
+        (Boolean(prepared.node.stroke) && (prepared.node.strokeWidth ?? 1) > 0) ||
+        (prepared.node.strokes?.length ?? 0) > 0
+      ),
+      // Check both legacy scalar fill and structured fills array (populated
+      // from VenusAppearance.fills projection) to avoid false negatives for
+      // nodes that only use structured appearance.
+      shapeHasFill: prepared.node.type === 'shape' && (
+        Boolean(prepared.node.fill) ||
+        (prepared.node.fills?.length ?? 0) > 0
+      ),
       shapeStrokeWidth: prepared.node.type === 'shape' ? prepared.node.strokeWidth : undefined,
       shapeKind: prepared.node.type === 'shape' ? prepared.node.shape : undefined,
       shapePointCount: prepared.node.type === 'shape' ? (prepared.node.pointCount ?? prepared.node.points?.length ?? 0) : undefined,

@@ -7,6 +7,7 @@ import {
   Venus,
   VENUS_DOCUMENT_MODEL_TYPES,
   VENUS_PUBLIC_METHOD_NAMES,
+  VENUS_SHAPE_MODEL_SPECS,
 } from '../../../../packages/engine/src/index.ts'
 import type {VenusHitTestOptions} from '../../../../packages/engine/src/index.ts'
 
@@ -31,7 +32,7 @@ describe('engine docs app contract', () => {
   it('defines categorized API pages with demos', () => {
     assert.deepEqual(
       engineApiCategories.map((category) => category.id),
-      ['start', 'base-modules', 'document-models', 'venus-parameters', 'backend-strategy', 'methods', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa'],
+      ['start', 'document-models', 'venus-parameters', 'backend-strategy', 'methods', 'base-modules', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa'],
     )
 
     for (const category of engineApiCategories) {
@@ -61,6 +62,7 @@ describe('engine docs app contract', () => {
       'fitBounds', 'zoomTo', 'panBy', 'project', 'unproject',
       'enableDebug', 'inspect', 'measureFrame',
       'mount', 'resize', 'render', 'hitTest', 'on', 'off', 'modules', 'animate', 'destroy',
+      'update', 'remove', 'group', 'ungroup', 'addChild', 'removeChild',
     ])
 
     const apiIds = new Set(engineApiCategories.flatMap((category) => category.apis.map((api) => api.id)))
@@ -71,17 +73,23 @@ describe('engine docs app contract', () => {
 
   it('documents every public Venus document model kind', () => {
     const documentModelsCategory = getCategory('document-models')
-    const documentedKinds = documentModelsCategory.apis.map((api) => {
-      assert.ok(api.id.endsWith(documentModelApiIdSuffix), `document model api id must end with ${documentModelApiIdSuffix}`)
-      return api.id.slice(0, -documentModelApiIdSuffix.length)
-    })
+    const documentedKinds = documentModelsCategory.apis
+      .filter((api) => api.id.endsWith(documentModelApiIdSuffix))
+      .map((api) => {
+        assert.ok(api.id.endsWith(documentModelApiIdSuffix), `document model api id must end with ${documentModelApiIdSuffix}`)
+        return api.id.slice(0, -documentModelApiIdSuffix.length)
+      })
 
     assert.deepEqual(documentedKinds, [...VENUS_DOCUMENT_MODEL_TYPES])
 
     for (const api of documentModelsCategory.apis) {
+      if (!api.id.endsWith(documentModelApiIdSuffix)) continue
       const kind = api.id.slice(0, -documentModelApiIdSuffix.length)
       assert.ok(api.properties?.some((property) => property === `type: ${kind}`), `missing type property for ${kind}`)
-      assert.ok(api.properties?.includes('appearance?: VenusAppearance'), `missing structured appearance property for ${kind}`)
+      assert.ok(api.properties?.some((property) => property.startsWith('appearance?: VenusAppearance')), `missing structured appearance property for ${kind}`)
+      assert.ok(api.properties?.some((property) => property.startsWith('constraints?:')), `missing constraints property for ${kind}`)
+      assert.ok(api.properties?.some((property) => property.startsWith('exportSettings?:')), `missing exportSettings property for ${kind}`)
+      assert.ok(api.properties?.some((property) => property.startsWith('data?:')), `missing data metadata property for ${kind}`)
       assert.ok(api.propertyGroups?.some((group) => group.title === 'Identity'), `missing Identity property group for ${kind}`)
       assert.ok(api.propertyGroups?.some((group) => group.title === 'Transform'), `missing Transform property group for ${kind}`)
       assert.ok(api.propertyGroups?.some((group) => group.title === 'Appearance'), `missing Appearance property group for ${kind}`)
@@ -116,7 +124,9 @@ describe('engine docs app contract', () => {
   })
 
   it('keeps every document model backed by an editable Venus canvas demo', () => {
-    const modelApiIds = getCategory('document-models').apis.map((api) => api.id)
+    const modelApiIds = getCategory('document-models').apis
+      .filter((api) => api.id !== 'common-props')
+      .map((api) => api.id)
     const editableSetMatch = appSource.match(/editableModelApiIds = new Set\(\[([^\]]+)\]\)/)
 
     assert.ok(editableSetMatch, 'editableModelApiIds set must be declared')
@@ -132,6 +142,7 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /type: 'path'/)
     assert.match(appSource, /type: 'image'/)
     assert.match(appSource, /pathClosed/)
+    assert.match(appSource, /fill: controls\.pathClosed \? fill : 'transparent'/)
     assert.match(appSource, /imageSmoothing/)
     assert.match(appSource, /assetId/)
   })
@@ -199,7 +210,7 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /editableModelApiIds/)
     assert.match(appSource, /size-5.*items-center.*justify-center.*rounded.*border/)
     assert.match(appSource, /size-6.*cursor-pointer.*rounded.*border/)
-    assert.match(appSource, /bg-muted\/50/)
+    assert.match(appSource, /bg-muted\/25/)
     assert.match(appSource, /type=\{'number'\}/)
     assert.match(appSource, /type=\{'color'\}/)
     assert.match(appSource, /rotation/)
@@ -242,8 +253,9 @@ describe('engine docs app contract', () => {
     assert.match(docsSource, /nested scene tree objects/)
     assert.match(docsSource, /venus\.getNodeById/)
     assert.match(docsSource, /strokeWidth\?: number, 0 means no stroke/)
-    assert.match(docsSource, /same tree shape as clip/)
-    assert.match(docsSource, /scene tree containers/)
+    assert.match(docsSource, /minimal: type \+ width \+ height/)
+    assert.match(docsSource, /editor bounds/)
+    assert.match(docsSource, /container node/)
     assert.match(appSource, /setControls/)
     assert.match(appSource, /<Plus/)
     assert.match(appSource, /Hit test/)
@@ -259,16 +271,38 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /useState<ThemeMode>\('light'\)/)
     assert.match(appSource, /new Venus/)
     assert.match(appSource, /render: \{backend: 'canvas2d'\}/)
-    assert.match(appSource, /BackendDiagnosticsPanel/)
-    assert.match(appSource, /readBackendDiagnostics/)
+    assert.match(appSource, /AllShapesDemo/)
+    assert.match(appSource, /ShapeStoryDemo/)
+    assert.match(appSource, /ShapePropertiesDemo/)
+    assert.match(appSource, /CollapsibleNav/)
+    assert.match(appSource, /document-models-all-shapes-nav/)
+    assert.match(appSource, /document-models-shape-contract-nav/)
+    assert.match(appSource, /ShapeModelGuide/)
+    assert.match(appSource, /VENUS_SHAPE_MODEL_SPECS/)
+    assert.match(appSource, /VENUS_COMMON_RENDER_PROPERTIES/)
+    assert.match(appSource, /document-models-shape-properties-transform/)
+    assert.match(appSource, /document-models-shape-properties-appearance/)
+    assert.match(appSource, /document-models-shape-properties-effects/)
+    assert.match(appSource, /document-models-shape-properties-specific/)
+    assert.match(appSource, /CommonPropertiesPanel/)
+    assert.match(appSource, /Current type/)
+    assert.match(appSource, /Common properties/)
+    assert.match(appSource, /pathUseBezier/)
+    assert.match(appSource, /bezierPoints/)
+    assert.match(appSource, /ellipseDrawWedgeLine/)
+    assert.match(appSource, /Draw wedge line/)
+    assert.match(docsSource, /ellipseDrawWedgeLine\?: boolean/)
+    assert.match(appSource, /ThemeHoverMenu/)
+    assert.match(appSource, /themeOptions/)
+    assert.match(appSource, /engine-code-scroll/)
     assert.match(appSource, /useMemo/)
     assert.match(appSource, /const demoNodes = useMemo/)
     assert.match(appSource, /let cancelled = false/)
     assert.doesNotMatch(appSource, /const editableNodes =/)
     assert.doesNotMatch(appSource, /setBackendDiagnostics\(null\)/)
     assert.doesNotMatch(appSource, /void venus\.render\(\)\.then\(\(\) => setBackendDiagnostics/)
-    assert.match(appSource, /backend: \{diagnostics\.backend\}/)
-    assert.match(appSource, /fallback: none/)
+    assert.doesNotMatch(appSource, /backend: \{diagnostics\.backend\}/)
+    assert.doesNotMatch(appSource, /fallback: none/)
     assert.match(appSource, /venus\.on\('backend:fallback'/)
     assert.match(appSource, /base-entry/)
     assert.match(appSource, /api\.id === 'base-entry'/)
@@ -338,5 +372,70 @@ describe('engine docs app contract', () => {
     assert.ok(demoIndex > descriptionIndex)
     assert.ok(usageIndex > demoIndex)
     assert.ok(parametersIndex > usageIndex)
+  })
+
+  // FM-P0-005: docs cannot regress to one flat string list only.
+  it('groups every documented property into a non-empty taxonomy bucket', () => {
+    for (const category of engineApiCategories) {
+      for (const api of category.apis) {
+        if (!api.properties || api.properties.length === 0) {
+          continue
+        }
+
+        // Every API with properties must also define propertyGroups.
+        assert.ok(api.propertyGroups, `${api.id} has properties but no propertyGroups`)
+        assert.ok(api.propertyGroups.length > 0, `${api.id} has empty propertyGroups`)
+
+        // Every property must appear in exactly one group.
+        const propertyKeys = api.properties.map((property) => property.split(':')[0].split('?')[0])
+        for (const key of propertyKeys) {
+          const groups = api.propertyGroups.filter((group) =>
+            group.properties.some((prop) => prop.split(':')[0].split('?')[0] === key),
+          )
+          assert.equal(
+            groups.length,
+            1,
+            `${api.id} property "${key}" appears in ${groups.length} groups (expected exactly 1)`,
+          )
+        }
+
+        // No group should be empty.
+        for (const group of api.propertyGroups) {
+          assert.ok(group.properties.length > 0, `${api.id} group "${group.title}" is empty`)
+        }
+      }
+    }
+  })
+
+  // FM-P0-004: every document model must include structured identity and metadata fields.
+  it('documents structured metadata fields on every document model kind', () => {
+    const documentModelsCategory = getCategory('document-models')
+
+    for (const api of documentModelsCategory.apis) {
+      if (api.id === 'common-props') continue
+      assert.ok(        api.properties?.some((property) => property.startsWith('data?:')),
+        `${api.id} must document the data host metadata field`,
+      )
+      assert.ok(
+        api.properties?.some((property) => property.startsWith('constraints?:')),
+        `${api.id} must document the constraints field`,
+      )
+      assert.ok(
+        api.properties?.some((property) => property.startsWith('exportSettings?:')),
+        `${api.id} must document the exportSettings field`,
+      )
+    }
+  })
+
+  it('renders the engine shape model contract from shared specs', () => {
+    assert.deepEqual(
+      VENUS_SHAPE_MODEL_SPECS.map((spec) => spec.type),
+      [...VENUS_DOCUMENT_MODEL_TYPES],
+    )
+    assert.match(appSource, /Shape model contract/)
+    assert.match(appSource, /spec\.minimalCreate\.join/)
+    assert.match(appSource, /spec\.pathExpansion/)
+    assert.match(appSource, /spec\.commonRender\.join/)
+    assert.match(appSource, /r\.update\(\{appearance: \{\.\.\.\}\}\)/)
   })
 })

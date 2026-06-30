@@ -71,7 +71,9 @@ export function appendShapePath(
       return true
     }
 
-    context.moveTo(cx, cy)
+    if (node.ellipseDrawWedgeLine) {
+      context.moveTo(cx, cy)
+    }
     context.ellipse(cx, cy, rx, ry, 0, arc.start, arc.end, arc.anticlockwise)
     context.closePath()
     return true

@@ -256,6 +256,10 @@ function isPointInsideNode(
 
 /**
  * Resolves visual stroke-aware hit tolerance for exact shape checks.
+ * Currently uses center-aligned stroke semantics: the hit band straddles
+ * the geometry edge by half the stroke width on each side.
+ * Future: inside/outside alignment should shift the band entirely inside
+ * or outside the geometry edge respectively.
  * @param node Target shape node.
  * @param tolerance Caller-provided pointer tolerance.
  */
@@ -284,6 +288,11 @@ function toEditorHitTestShape(node: EngineShapeNode): EngineEditorHitTestNode {
       height: endpoints.end.y - endpoints.start.y,
       stroke: {enabled: hasStroke(node)},
       fill: {enabled: false},
+      strokeWidth: node.strokeWidth,
+      strokeAlign: node.strokeAlign,
+      strokeDashArray: node.strokeDashArray,
+      strokeCap: node.strokeCap,
+      strokeJoin: node.strokeJoin,
     }
   }
 
@@ -296,6 +305,11 @@ function toEditorHitTestShape(node: EngineShapeNode): EngineEditorHitTestNode {
     height: node.height,
     fill: {enabled: hasFill(node)},
     stroke: {enabled: hasStroke(node)},
+    strokeWidth: node.strokeWidth,
+    strokeAlign: node.strokeAlign,
+    strokeDashArray: node.strokeDashArray,
+    strokeCap: node.strokeCap,
+    strokeJoin: node.strokeJoin,
     cornerRadius: node.cornerRadius,
     cornerRadii: node.cornerRadii,
     points: node.points ? [...node.points] : undefined,
@@ -303,6 +317,7 @@ function toEditorHitTestShape(node: EngineShapeNode): EngineEditorHitTestNode {
     closed: node.closed,
     ellipseStartAngle: node.ellipseStartAngle,
     ellipseEndAngle: node.ellipseEndAngle,
+    ellipseDrawWedgeLine: node.ellipseDrawWedgeLine,
   }
 }
 

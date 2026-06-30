@@ -163,8 +163,23 @@ test('appendShapePath emits render commands for every engine shape kind', () => 
         height: 16,
         ellipseStartAngle: 15,
         ellipseEndAngle: 300,
+        ellipseDrawWedgeLine: true,
       },
       expectedCalls: ['moveTo', 'ellipse', 'closePath'],
+    },
+    {
+      node: {
+        id: 'ellipse-arc-no-wedge',
+        type: 'shape',
+        shape: 'ellipse',
+        x: 0,
+        y: 0,
+        width: 24,
+        height: 16,
+        ellipseStartAngle: 15,
+        ellipseEndAngle: 300,
+      },
+      expectedCalls: ['ellipse', 'closePath'],
     },
     {
       node: {

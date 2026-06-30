@@ -255,6 +255,8 @@ export interface EngineShapeNode extends EngineNodeBase {
   // Ellipse arc controls in degrees. When omitted, the ellipse is full-circle.
   ellipseStartAngle?: number
   ellipseEndAngle?: number
+  // Draw radial wedge edges from the arc endpoints to the ellipse center.
+  ellipseDrawWedgeLine?: boolean
   // Arrowheads for open stroke primitives.
   strokeStartArrowhead?: EngineStrokeArrowhead
   strokeEndArrowhead?: EngineStrokeArrowhead

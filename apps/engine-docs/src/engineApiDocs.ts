@@ -47,15 +47,15 @@ const propertyGroupTitles = [
 const classifyPropertyGroup = (property: string): (typeof propertyGroupTitles)[number] => {
   const name = property.split(':')[0].split('?')[0]
 
-  if (['type', 'id', 'name', 'visible', 'locked'].includes(name)) {
+  if (['type', 'id', 'name', 'visible', 'locked', 'data'].includes(name)) {
     return 'Identity'
   }
 
-  if (['transform', 'rotation', 'x', 'y', 'width', 'height'].includes(name)) {
+  if (['transform', 'rotation', 'x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY'].includes(name)) {
     return 'Transform'
   }
 
-  if (['appearance', 'blendMode', 'fill', 'fills', 'stroke', 'strokes', 'strokeWidth', 'strokeAlign', 'strokeDashArray', 'opacity'].includes(name)) {
+  if (['appearance', 'blendMode', 'fill', 'fills', 'stroke', 'strokes', 'strokeWidth', 'strokeAlign', 'strokeDashArray', 'strokeCap', 'strokeJoin', 'opacity'].includes(name)) {
     return 'Appearance'
   }
 
@@ -76,13 +76,26 @@ const createPropertyGroups = (properties: string[]): EngineApiPropertyGroup[] =>
 }
 
 const withGroupedProperties = (categories: EngineApiCategory[]): EngineApiCategory[] => {
-  return categories.map((category) => ({
+  const processed = categories.map((category) => ({
     ...category,
     apis: category.apis.map((api) => ({
       ...api,
       propertyGroups: api.propertyGroups ?? (api.properties ? createPropertyGroups(api.properties) : undefined),
     })),
   }))
+
+  // Reorder: base-modules moves after methods, right before hittest.
+  const ordered: EngineApiCategory[] = []
+  for (const category of processed) {
+    if (category.id === 'base-modules') continue
+    ordered.push(category)
+    if (category.id === 'methods') {
+      const baseModules = processed.find((c) => c.id === 'base-modules')
+      if (baseModules) ordered.push(baseModules)
+    }
+  }
+
+  return ordered
 }
 
 const rawEngineApiCategories: EngineApiCategory[] = [
@@ -96,18 +109,14 @@ const rawEngineApiCategories: EngineApiCategory[] = [
         title: 'Create and render',
         summary: 'The smallest working path is constructor, mount, add, render.',
         readableDescription: 'Start stays tiny. Import Venus, create one instance, mount a canvas, add one document object with venus.add, and render the scene. Constructor tuning and method details appear after this first path.',
-        parameters: [
-          {name: 'canvas', type: 'HTMLCanvasElement', description: 'The canvas element Venus renders into.'},
-          {name: 'node', type: 'VenusNode', description: 'The first document object to add to the scene.'},
-        ],
         demo: `import {Venus} from '@venus/engine'
 
 const venus = new Venus()
 venus.mount(document.querySelector('canvas')!)
 venus.add({
   type: 'rect',
-  x: 40,
-  y: 32,
+  x: 110,
+  y: 102,
   width: 180,
   height: 96,
   fill: '#2563eb',
@@ -218,8 +227,8 @@ await venus.render()`,
         id: 'rect-node',
         title: 'Rect',
         summary: 'Draws a rectangle or rounded rectangle.',
-        readableDescription: 'Rect is the simplest filled shape. Use it for panels, cards, boxes, handles, and rectangular hit regions. Rounded corners are controlled by cornerRadius.',
-        properties: ['type: rect', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow', 'cornerRadius?: number', 'cornerRadii?: topLeft, topRight, bottomRight, bottomLeft'],
+        readableDescription: 'Rect is a bounds-authored engine shape. Minimal creation is type, width, and height; x/y default to 0 and mean the local top-left of the rendered box. Rounded corners can be represented as path arcs when exporting to path geometry.',
+        properties: ['type: rect', 'minimal: type + width + height', 'pathExpansion: rectangle path with optional rounded-corner arcs', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as local top-left x', 'y?: number as local top-left y', 'width: number as rendered bounds width', 'height: number as rendered bounds height', 'fill?: string as compatibility fill shortcut', 'fills?: VenusPaint[] as ordered fill paint list', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow', 'cornerRadius?: number', 'cornerRadii?: topLeft, topRight, bottomRight, bottomLeft'],
         demo: `venus.add({type: 'rect', x: 64, y: 48, width: 220, height: 132})`,
         demoCaption: 'The preview renders a rounded rectangle with editable fill, stroke, size, and radius.',
       },
@@ -227,8 +236,8 @@ await venus.render()`,
         id: 'ellipse-node',
         title: 'Ellipse',
         summary: 'Draws an ellipse inside a rectangular bounds box.',
-        readableDescription: 'Ellipse uses the same x, y, width, and height box model as rect. Hit testing uses ellipse geometry rather than only its AABB.',
-        properties: ['type: ellipse', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow', 'ellipseStartAngle?: number', 'ellipseEndAngle?: number'],
+        readableDescription: 'Ellipse is a bounds-authored engine shape. Minimal creation is type, width, and height; x/y default to the local top-left of its containing box. Arc fields can turn the ellipse into an open or closed arc path, and ellipseDrawWedgeLine controls radial edges to center.',
+        properties: ['type: ellipse', 'minimal: type + width + height', 'pathExpansion: full ellipse or arc path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as local top-left x', 'y?: number as local top-left y', 'width: number as containing bounds width', 'height: number as containing bounds height', 'fill?: string as compatibility fill shortcut', 'fills?: VenusPaint[] as ordered fill paint list', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow', 'ellipseStartAngle?: number', 'ellipseEndAngle?: number', 'ellipseDrawWedgeLine?: boolean'],
         demo: `venus.add({type: 'ellipse', x: 96, y: 64, width: 240, height: 140})`,
         demoCaption: 'The preview renders an ellipse whose bounds, fill, and stroke are editable.',
       },
@@ -236,8 +245,8 @@ await venus.render()`,
         id: 'line-node',
         title: 'Line',
         summary: 'Draws a stroked line segment.',
-        readableDescription: 'Line is stroke-first. The width and height fields describe the segment delta from x/y, and hit testing expands by strokeWidth plus pointer tolerance.',
-        properties: ['type: line', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number as endX - startX', 'height: number as endY - startY', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow'],
+        readableDescription: 'Line is a stroke-authored engine shape. Minimal creation is type, width, and height; x/y default to the start point. width/height are endpoint deltas, so proxy bounds edits can reverse-derive the line endpoints.',
+        properties: ['type: line', 'minimal: type + width + height', 'pathExpansion: open two-point path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as start x', 'y?: number as start y', 'width: number as endX - startX', 'height: number as endY - startY', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'line', x: 72, y: 92, width: 300, height: 120})`,
         demoCaption: 'The preview renders a line segment with editable position, delta, and stroke.',
       },
@@ -245,8 +254,8 @@ await venus.render()`,
         id: 'text-node',
         title: 'Text',
         summary: 'Draws plain text with basic typography controls.',
-        readableDescription: 'Text is a document object, not a canvas label. It has its own position, content, fill color, and typography fields so editors can select, inspect, and serialize it.',
-        properties: ['type: text', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width?: number', 'height?: number', 'text: string with line breaks', 'runs?: EngineTextRun[] for selected-range styling', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'fontSize?: number', 'fontWeight?: number', 'lineHeight?: number', 'opacity?: number', 'shadow?: EngineShadow'],
+        readableDescription: 'Text is a document node, not an EngineShapeNode path geometry. Minimal creation is type and text. x/y position the text box, while width/height are optional editor/layout bounds used by transforms and future layout.',
+        properties: ['type: text', 'minimal: type + text', 'pathExpansion: not implemented; future text outlining belongs in text/font module', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as text box origin x', 'y?: number as text box origin y', 'width?: number as optional editor/layout width', 'height?: number as optional editor/layout height', 'text: string with line breaks', 'runs?: EngineTextRun[] for selected-range styling', 'fill?: string as compatibility text fill shortcut', 'fills?: VenusPaint[] as ordered text fill paint list', 'fontSize?: number', 'fontWeight?: number', 'lineHeight?: number', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'text', x: 80, y: 150, text: 'Venus Text'})`,
         demoCaption: 'The preview renders editable text content, color, size, and weight.',
       },
@@ -254,8 +263,8 @@ await venus.render()`,
         id: 'group-node',
         title: 'Group',
         summary: 'Groups children so they can move, render, and hit-test as a composed subtree.',
-        readableDescription: 'Groups are scene tree containers. The group stores its own transform, children stay as nested VenusNode objects with stable ids, and Venus keeps an internal id index for lookup. Child coordinates remain group-local; rendering, hit testing, and geometry cache compose parent-to-child matrices in tree order.',
-        properties: ['type: group', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as legacy parent translateX', 'y?: number as legacy parent translateY', 'opacity?: number applied to the subtree', 'shadow?: EngineShadow', 'children: VenusNode[] as nested scene tree objects with stable ids in group-local coordinates'],
+        readableDescription: 'Group is a container node. Minimal creation is type and children. x/y are parent-space translation; visual bounds are derived from children, so group does not own width/height. Use venus.group(ids) and venus.ungroup(id) for selection-level grouping.',
+        properties: ['type: group', 'minimal: type + children', 'pathExpansion: not a path; composes child paths', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured subtree style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as parent translateX', 'y?: number as parent translateY', 'opacity?: number applied to the subtree', 'shadow?: EngineShadow', 'children: VenusNode[] as nested scene tree objects with stable ids in group-local coordinates'],
         demo: `venus.add({type: 'group', x: 32, y: 24, children: [...]})`,
         demoCaption: 'The preview moves a group parent while editing child appearance.',
       },
@@ -263,8 +272,8 @@ await venus.render()`,
         id: 'clip-node',
         title: 'Clip',
         summary: 'Constrains child rendering to a clip path.',
-        readableDescription: 'Clip is group-like composition with a clipPath and nested children. The clip node stores its own transform, clipPath remains an editable child-like shape, and children keep local coordinates inside the clipped subtree.',
-        properties: ['type: clip', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to clipped subtree', 'clipPath: rect or ellipse VenusNode in the current facade', 'children: VenusNode[] as nested scene tree objects clipped by clipPath'],
+        readableDescription: 'Clip is a container node. Minimal creation is type, clipPath, and children. Its visual bounds come from clipPath first and children second; x/y/width/height are not owned by the container itself.',
+        properties: ['type: clip', 'minimal: type + clipPath + children', 'pathExpansion: clipPath can expand if its node type supports it', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured subtree style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to clipped subtree', 'clipPath: rect or ellipse VenusNode in the current facade', 'children: VenusNode[] as nested scene tree objects clipped by clipPath'],
         demo: `venus.add({type: 'clip', clipPath, children})`,
         demoCaption: 'The preview updates the clip path bounds and child colors live.',
       },
@@ -272,8 +281,8 @@ await venus.render()`,
         id: 'mask-node',
         title: 'Mask',
         summary: 'Uses mask-like composition for children.',
-        readableDescription: 'Mask currently uses the same tree shape as clip: a transformed container with a mask path and nested children. It remains separate so alpha or luminance mask semantics can be added without changing document ownership.',
-        properties: ['type: mask', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to masked subtree', 'clipPath: VenusNode currently equivalent to clipPath', 'children: VenusNode[] as nested scene tree objects currently clipped like clip children'],
+        readableDescription: 'Mask is a container node with clip-like behavior today. Minimal creation is type, clipPath, and children. It stays separate from clip so alpha/luminance mask semantics can be added without changing document ownership.',
+        properties: ['type: mask', 'minimal: type + clipPath + children', 'pathExpansion: mask path can expand if its node type supports it', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured subtree style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'opacity?: number applied to masked subtree', 'clipPath: VenusNode currently equivalent to clipPath', 'children: VenusNode[] as nested scene tree objects currently clipped like clip children'],
         demo: `venus.add({type: 'mask', clipPath, children})`,
         demoCaption: 'The preview updates mask-style composition through the current Venus facade.',
       },
@@ -281,8 +290,8 @@ await venus.render()`,
         id: 'polygon-node',
         title: 'Polygon',
         summary: 'Draws closed point-list polygon geometry.',
-        readableDescription: 'Polygon draws ordered points as a closed shape. Fill and stroke apply when present. The closed flag defaults to true for polygon, so omitted closed values still render closed polygons.',
-        properties: ['type: polygon', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'points?: {x: number, y: number}[] as ordered vertices', 'closed?: boolean (defaults to true)', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow'],
+        readableDescription: 'Polygon is a point-authored engine shape. Minimal creation is type, width, height, and points. x/y/width/height are the editable bounds used by transforms and proxy resizing; points are the rendered vertices and are translated/scaled when bounds are patched.',
+        properties: ['type: polygon', 'minimal: type + width + height + points', 'pathExpansion: closed point-list path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as editor bounds x', 'y?: number as editor bounds y', 'width: number as editor bounds width', 'height: number as editor bounds height', 'points?: {x: number, y: number}[] as ordered vertices and render source', 'closed?: boolean (defaults to true)', 'fill?: string as compatibility fill shortcut', 'fills?: VenusPaint[] as ordered fill paint list', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'polygon', x: 72, y: 56, width: 220, height: 168, points: [{x: 182, y: 56}, {x: 292, y: 120}, {x: 254, y: 224}, {x: 110, y: 224}, {x: 72, y: 120}], fill: '#dcfce7', stroke: '#16a34a', strokeWidth: 3})`,
         demoCaption: 'The preview renders an editable polygon with fill, stroke, and vertex controls.',
       },
@@ -290,8 +299,8 @@ await venus.render()`,
         id: 'path-node',
         title: 'Path',
         summary: 'Draws custom point or bezier path geometry.',
-        readableDescription: 'Path supports both straight-line points and bezier curve geometry. Closed and open paths behave differently for fill and hit-test. Arrowheads apply to open paths.',
-        properties: ['type: path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'points?: {x: number, y: number}[] as straight-line vertices', 'bezierPoints?: {anchor: {x,y}, cp1?: {x,y}|null, cp2?: {x,y}|null}[]', 'closed?: boolean', 'strokeStartArrowhead?: none|triangle|diamond|circle|bar', 'strokeEndArrowhead?: none|triangle|diamond|circle|bar', 'fill?: string', 'fills?: VenusPaint[] as ordered paint list (preferred over fill)', 'stroke?: string', 'strokes?: VenusPaint[] as ordered paint list (preferred over stroke)', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'opacity?: number', 'shadow?: EngineShadow'],
+        readableDescription: 'Path is the native point or bezier path form. Minimal creation is type, width, height, and either points or bezierPoints. x/y/width/height are editor bounds; points and bezierPoints are the rendered geometry and are translated/scaled when bounds are patched. Open paths skip fill even if a fill shortcut is present.',
+        properties: ['type: path', 'minimal: type + width + height + points|bezierPoints', 'pathExpansion: native path form', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as editor bounds x', 'y?: number as editor bounds y', 'width: number as editor bounds width', 'height: number as editor bounds height', 'points?: {x: number, y: number}[] as straight-line render vertices', 'bezierPoints?: {anchor: {x,y}, cp1?: {x,y}|null, cp2?: {x,y}|null}[] as bezier render vertices', 'closed?: boolean', 'strokeStartArrowhead?: none|triangle|diamond|circle|bar', 'strokeEndArrowhead?: none|triangle|diamond|circle|bar', 'fill?: string as compatibility fill shortcut for closed paths', 'fills?: VenusPaint[] as ordered fill paint list for closed paths', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow'],
         demo: `venus.add({type: 'path', x: 64, y: 64, width: 280, height: 180, points: [{x: 64, y: 160}, {x: 200, y: 64}, {x: 344, y: 160}, {x: 200, y: 244}], stroke: '#7c3aed', strokeWidth: 5, closed: true})`,
         demoCaption: 'The preview renders an editable path with bezier, arrowhead, and closure controls.',
       },
@@ -299,10 +308,61 @@ await venus.render()`,
         id: 'image-node',
         title: 'Image',
         summary: 'Renders an asset-backed raster image with crop and smoothing controls.',
-        readableDescription: 'Image connects an assetId to a renderable quad. The engine resolves the asset through host-provided resource loading. Source cropping and smoothing are renderer hints.',
-        properties: ['type: image', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'appearance?: VenusAppearance', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number', 'y?: number', 'width: number', 'height: number', 'assetId: string', 'sourceRect?: {x, y, width, height}', 'naturalSize?: {width, height}', 'imageSmoothing?: boolean', 'opacity?: number'],
+        readableDescription: 'Image is an asset-backed renderable node, not a path shape. Minimal creation is type, width, height, and assetId. x/y/width/height define the rendered image quad.',
+        properties: ['type: image', 'minimal: type + width + height + assetId', 'pathExpansion: not path-expandable; renders as image quad', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured opacity/blend/effects style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as image quad top-left x', 'y?: number as image quad top-left y', 'width: number as image quad width', 'height: number as image quad height', 'assetId: string', 'sourceRect?: {x, y, width, height}', 'naturalSize?: {width, height}', 'imageSmoothing?: boolean', 'opacity?: number'],
         demo: `venus.add({type: 'image', x: 80, y: 56, width: 240, height: 160, assetId: 'demo-image'})`,
         demoCaption: 'The preview shows an image placeholder rendered through the engine image node.',
+      },
+      {
+        id: 'common-props',
+        title: 'Common Properties',
+        summary: 'Every Venus node type inherits these properties through the VenusNodeProxy base class. Use direct assignment to modify them.',
+        readableDescription: 'All document model kinds share identity, editable bounds, transform, appearance, and effect properties through VenusNodeProxy. Bounds setters are direct geometry for bounds-authored nodes; for line/path/polygon they rewrite authored endpoints or points. The structured best-practice render surface is appearance.*, while flat fill/stroke/strokeWidth fields remain compatibility shortcuts.',
+        properties: [
+          // Identity
+          'r.id: string (readonly)', 'r.type: string (readonly)',
+          'r.name: string | undefined', 'r.visible: boolean', 'r.locked: boolean',
+          // Geometry
+          'r.x: number (top-left, start point, or container translate depending on node type)', 'r.y: number (top-left, start point, or container translate depending on node type)', 'r.width: number (rendered bounds or editor bounds)', 'r.height: number (rendered bounds or editor bounds)',
+          'r.rotation: number', 'r.transform: VenusTransform2D | undefined',
+          // Appearance
+          'r.appearance: VenusAppearance | undefined via update({appearance})',
+          'r.opacity: number (0–1)', 'r.blendMode: VenusBlendMode | undefined',
+          'appearance.fills: VenusPaint[] structured fill layers',
+          'appearance.strokes: VenusStroke[] structured stroke layers with visible, width, align, dash, cap, join, paints',
+          'r.fill: string | undefined compatibility shortcut', 'r.stroke: string | undefined compatibility shortcut',
+          'r.strokeWidth: number compatibility shortcut', 'r.strokeAlign: center | inside | outside | undefined',
+          'r.strokeDashArray: readonly number[] | undefined',
+          'strokeCap: butt | round | square through update({strokeCap})',
+          'strokeJoin: miter | round | bevel through update({strokeJoin})',
+          // Effects
+          'appearance.effects: dropShadow | innerShadow | layerBlur structured effects',
+          'r.shadow: {color, blur, offsetX, offsetY} | undefined',
+          'r.innerShadow: {color, blur} | undefined',
+          'r.layerBlur: number (0 = off)',
+          // Batch update
+          'r.update(patch): apply multiple properties at once',
+          'r.setPosition(x, y): set both x and y',
+          'r.setSize(w, h): set both width and height',
+          // Mutation
+          'r.remove(): delete this node',
+        ],
+        demo: `const r = venus.add({type: 'rect', x: 64, y: 48, width: 220, height: 132})
+
+// Direct assignment — each setter commits to the store
+r.width = 280
+r.fill = '#3b82f6'
+r.stroke = '#1e40af'
+r.strokeWidth = 3
+r.cornerRadius = 16
+r.opacity = 0.9
+
+// Batch update — one store commit for multiple changes
+r.update({fill: '#ef4444', strokeWidth: 4, opacity: 0.7})
+
+// Remove when done
+r.remove()`,
+        demoCaption: 'Common properties are inherited by all node kinds. Use direct proxy assignment for single changes, or update() for batches.',
       },
     ],
   },
@@ -638,6 +698,76 @@ console.log(venus.inspect().backendFallback)`,
         readableDescription: 'Cleans up the internal engine, removes canvas binding, clears event listeners, and emits the destroyed event. Call when the host component unmounts.',
         demo: `venus.destroy()`,
         demoCaption: 'Releases all engine resources.',
+      },
+      {
+        id: 'update',
+        title: 'update',
+        summary: 'Updates a document node by id with a shallow property patch.',
+        readableDescription: 'Applies a partial VenusNode patch to one node. Triggers a targeted render-node rebuild. VenusNodeProxy setters (r.width = 200) call update() automatically.',
+        parameters: [
+          {name: 'id', type: 'string', description: 'Stable node id to update.'},
+          {name: 'patch', type: 'Partial<VenusNode>', description: 'Properties to shallow-merge into the document node.'},
+        ],
+        demo: `venus.update('card', {width: 280, fill: '#ff0000', opacity: 0.8})\nawait venus.render()`,
+        demoCaption: 'Updates multiple properties in one call with one store rebuild.',
+      },
+      {
+        id: 'remove',
+        title: 'remove',
+        summary: 'Removes a root-level document node by id.',
+        readableDescription: 'Deletes a root node from the document. Emits document:changed. For selection grouping use group()/ungroup(); for low-level container edits use addChild()/removeChild().',
+        parameters: [
+          {name: 'id', type: 'string', description: 'Stable node id to remove.'},
+        ],
+        demo: `venus.add({id: 'temp', type: 'rect', width: 80, height: 40})\nvenus.remove('temp')\nawait venus.render()`,
+        demoCaption: 'Removes a node. Use proxy.remove() for the Figma-style equivalent.',
+      },
+      {
+        id: 'group',
+        title: 'group',
+        summary: 'Groups sibling nodes under a new group.',
+        readableDescription: 'Creates a group from direct siblings under the same parent. The group stores the selection bounds as x/y, children are rewritten into group-local coordinates, and visual bounds stay stable. Cross-parent grouping is rejected.',
+        parameters: [
+          {name: 'ids', type: 'readonly string[]', description: 'Sibling node ids to group.'},
+          {name: 'options', type: 'VenusGroupOptions', defaultValue: '{}', description: 'Optional group metadata such as id, name, appearance, opacity, or shadow.'},
+        ],
+        demo: `const a = venus.add({type: 'rect', x: 40, y: 40, width: 80, height: 60})\nconst b = venus.add({type: 'ellipse', x: 150, y: 52, width: 72, height: 48})\nconst g = venus.group([a.id, b.id], {name: 'Selection'})\nawait venus.render()`,
+        demoCaption: 'Short selection API for creating a group while preserving visual position.',
+      },
+      {
+        id: 'ungroup',
+        title: 'ungroup',
+        summary: 'Lifts a group\'s children back into its parent.',
+        readableDescription: 'Replaces a translation-only group with its children in the same parent. Children are translated back into parent-local coordinates so bounds stay stable. Groups with rotation, scale, skew, or transform origin are rejected until matrix-backed child transforms are available.',
+        parameters: [
+          {name: 'id', type: 'string', description: 'Group node id to ungroup.'},
+        ],
+        demo: `const children = venus.ungroup('selection-group')\nawait venus.render()`,
+        demoCaption: 'Returns proxies for the lifted children.',
+      },
+      {
+        id: 'addChild',
+        title: 'addChild',
+        summary: 'Adds a child node to a group, clip, or mask container.',
+        readableDescription: 'Appends a new VenusNode to the parent\'s children array. The child coordinates are parent-local. Returns a typed proxy for the new child.',
+        parameters: [
+          {name: 'parentId', type: 'string', description: 'Parent group/clip/mask id.'},
+          {name: 'child', type: 'VenusNode', description: 'Child document node to append.'},
+        ],
+        demo: `const g = venus.add({id: 'g', type: 'group', x: 0, y: 0, children: []})\nconst child = venus.addChild('g', {type: 'rect', width: 60, height: 40, fill: '#22c55e'})\nchild.x = 20\nawait venus.render()`,
+        demoCaption: 'Adds a child to a group. Use g.addChild(...) on the proxy for convenience.',
+      },
+      {
+        id: 'removeChild',
+        title: 'removeChild',
+        summary: 'Removes a child node from a group, clip, or mask container.',
+        readableDescription: 'Filters the child out of the parent\'s children array. Use the parent proxy\'s removeChild() for the Figma-style equivalent.',
+        parameters: [
+          {name: 'parentId', type: 'string', description: 'Parent group/clip/mask id.'},
+          {name: 'childId', type: 'string', description: 'Child node id to remove.'},
+        ],
+        demo: `const g = venus.add({id: 'g2', type: 'group', x: 0, y: 0, children: [{id: 'c1', type: 'rect', width: 40, height: 30}]})\nvenus.removeChild('g2', 'c1')\nawait venus.render()`,
+        demoCaption: 'Removes a child from a group.',
       },
     ],
   },
