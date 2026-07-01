@@ -92,7 +92,6 @@ export type {
   VenusStroke,
   VenusStrokeAlign,
   VenusTransform2D,
-  VenusTransformOrigin,
   VenusViewportService,
 } from '../runtime/venus/Venus.ts'
 export {

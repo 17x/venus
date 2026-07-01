@@ -198,34 +198,14 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
 /** Declares one public instance method documented for `Venus`. */
 export type VenusPublicMethodName = (typeof VENUS_PUBLIC_METHOD_NAMES)[number]
 
-/** Declares the pivot used when composing a Venus node transform. */
-export type VenusTransformOrigin = {
-  /** Horizontal pivot position, interpreted as a ratio by default. */
-  x: number
-  /** Vertical pivot position, interpreted as a ratio by default. */
-  y: number
-  /** Unit used by the pivot values. */
-  unit?: 'ratio' | 'px'
-}
-
 /** Declares editable 2D transform fields stored on a Venus document node. */
 export type VenusTransform2D = {
   /** Extra local x translation applied in addition to geometry x. */
   x?: number
   /** Extra local y translation applied in addition to geometry y. */
   y?: number
-  /** Local rotation in degrees. */
+  /** Local rotation in degrees. Rotation is composed around the node bounds center. */
   rotation?: number
-  /** Local horizontal scale. */
-  scaleX?: number
-  /** Local vertical scale. */
-  scaleY?: number
-  /** Local horizontal skew in degrees. */
-  skewX?: number
-  /** Local vertical skew in degrees. */
-  skewY?: number
-  /** Pivot used for rotation, scale, and skew. */
-  origin?: VenusTransformOrigin
 }
 
 export interface VenusParameters {
@@ -573,15 +553,7 @@ type VenusNodeBase = {
   innerShadow?: {color?: string; blur?: number}
   /** Layer blur radius in pixels. */
   layerBlur?: {amount: number}
-  /** Compatibility x-scale applied when `transform.scaleX` is absent. */
-  scaleX?: number
-  /** Compatibility y-scale applied when `transform.scaleY` is absent. */
-  scaleY?: number
-  /** Compatibility horizontal skew in degrees. */
-  skewX?: number
-  /** Compatibility vertical skew in degrees. */
-  skewY?: number
-  /** Rotation in degrees. */
+  /** Rotation in degrees, composed around the node bounds center. */
   rotation?: number
 }
 
@@ -840,7 +812,7 @@ function classifyVenusPropertyMutation(root: string, path: string): VenusInvalid
     return 'opacityOnly'
   }
 
-  if (['transform', 'rotation', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY'].includes(root)) {
+  if (['transform', 'rotation'].includes(root)) {
     return 'transformOnly'
   }
 
@@ -939,18 +911,9 @@ const hasTransformFields = (node: VenusNodeBase): boolean => {
   const transform = node.transform
   return Boolean(
     node.rotation
-    || node.scaleX !== undefined
-    || node.scaleY !== undefined
-    || node.skewX
-    || node.skewY
     || transform?.x
     || transform?.y
     || transform?.rotation
-    || transform?.scaleX !== undefined
-    || transform?.scaleY !== undefined
-    || transform?.skewX
-    || transform?.skewY
-    || transform?.origin
   )
 }
 
@@ -977,7 +940,8 @@ const multiplyTransformMatrices = (
 
 /**
  * Synthesises a 6-element affine matrix from Venus transform properties.
- * Rotation, scale, flip, and skew are applied around the configured origin.
+ * Rotation is applied around the node bounds center; skew/scale are authored
+ * by editing shape geometry instead of by storing extra transform fields.
  * @param node Node with geometry and transform properties.
  * @param bounds Optional pre-computed bounds for center calculation.
  */
@@ -997,31 +961,17 @@ const createVenusTransform = (
     return undefined
   }
 
-  const origin = transform?.origin
-  const originUnit = origin?.unit ?? 'ratio'
-  const originX = bounds
-    ? bounds.x + (originUnit === 'px' ? origin?.x ?? bounds.width * 0.5 : bounds.width * (origin?.x ?? 0.5))
-    : origin?.x ?? 0
-  const originY = bounds
-    ? bounds.y + (originUnit === 'px' ? origin?.y ?? bounds.height * 0.5 : bounds.height * (origin?.y ?? 0.5))
-    : origin?.y ?? 0
+  const originX = bounds ? bounds.x + bounds.width * 0.5 : 0
+  const originY = bounds ? bounds.y + bounds.height * 0.5 : 0
   const rotation = (transform?.rotation ?? node.rotation ?? 0) * DEGREES_TO_RADIANS
-  const scaleX = transform?.scaleX ?? node.scaleX ?? 1
-  const scaleY = transform?.scaleY ?? node.scaleY ?? 1
-  const skewX = Math.tan((transform?.skewX ?? node.skewX ?? 0) * DEGREES_TO_RADIANS)
-  const skewY = Math.tan((transform?.skewY ?? node.skewY ?? 0) * DEGREES_TO_RADIANS)
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
   const translateToOrigin: EngineTransform2D['matrix'] = [1, 0, originX + tx + transformX, 0, 1, originY + ty + transformY]
   const translateFromOrigin: EngineTransform2D['matrix'] = [1, 0, -originX, 0, 1, -originY]
   const rotateMatrix: EngineTransform2D['matrix'] = [cos, -sin, 0, sin, cos, 0]
-  const skewMatrix: EngineTransform2D['matrix'] = [1, skewX, 0, skewY, 1, 0]
-  const scaleMatrix: EngineTransform2D['matrix'] = [scaleX, 0, 0, 0, scaleY, 0]
   const matrix = [
     translateToOrigin,
     rotateMatrix,
-    skewMatrix,
-    scaleMatrix,
     translateFromOrigin,
   ].reduce(multiplyTransformMatrices, IDENTITY_TRANSFORM)
 
@@ -1125,16 +1075,7 @@ const hasNonTranslationTransform = (node: VenusNode): boolean => {
   const transform = node.transform
   return Boolean(
     node.rotation
-    || node.scaleX !== undefined
-    || node.scaleY !== undefined
-    || node.skewX
-    || node.skewY
     || transform?.rotation
-    || transform?.scaleX !== undefined
-    || transform?.scaleY !== undefined
-    || transform?.skewX
-    || transform?.skewY
-    || transform?.origin,
   )
 }
 

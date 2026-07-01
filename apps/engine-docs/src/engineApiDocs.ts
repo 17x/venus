@@ -57,7 +57,7 @@ const classifyPropertyGroup = (property: string): (typeof propertyGroupTitles)[n
     return 'Identity'
   }
 
-  if (['transform', 'rotation', 'x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'cx', 'cy', 'rx', 'ry', 'ellipseGeometry'].includes(name)) {
+  if (['transform', 'rotation', 'x', 'y', 'width', 'height', 'cx', 'cy', 'rx', 'ry', 'ellipseGeometry'].includes(name)) {
     return 'Transform'
   }
 
@@ -437,7 +437,7 @@ console.log(venus.inspect().backendFallback)`,
         summary: 'Animation mutates document properties; invalidation chooses the cheapest render path.',
         readableDescription: 'Animation never calls WebGL or Canvas2D directly. It updates backend-neutral node fields, classifies the mutation, and lets render scheduling decide whether to reuse geometry, reuse texture, rerasterize fidelity content, or rebuild geometry.',
         parameters: [
-          {name: 'transform changes', type: 'x | y | rotation | scale | skew', description: 'Reuse geometry or cached texture and update matrices or packets.'},
+          {name: 'transform changes', type: 'x | y | rotation', description: 'Reuse geometry or cached texture and update matrices or packets. Scale and skew are represented by geometry/path edits.'},
           {name: 'composite changes', type: 'opacity | blendMode', description: 'Reuse geometry or texture and update composition state.'},
           {name: 'paint/effect changes', type: 'fill | stroke | shadow | blur | mask', description: 'Rebuild packets or rerasterize a Canvas2D fidelity texture.'},
           {name: 'geometry/content changes', type: 'size | points | path | text', description: 'Rebuild bounds, geometry, hit data, and affected caches.'},
@@ -736,7 +736,7 @@ console.log(venus.inspect().backendFallback)`,
         id: 'ungroup',
         title: 'ungroup',
         summary: 'Lifts a group\'s children back into its parent.',
-        readableDescription: 'Replaces a translation-only group with its children in the same parent. Children are translated back into parent-local coordinates so bounds stay stable. Groups with rotation, scale, skew, or transform origin are rejected until matrix-backed child transforms are available.',
+        readableDescription: 'Replaces a translation-only group with its children in the same parent. Children are translated back into parent-local coordinates so bounds stay stable. Groups with rotation are rejected until matrix-backed child transforms are available.',
         parameters: [
           {name: 'id', type: 'string', description: 'Group node id to ungroup.'},
         ],

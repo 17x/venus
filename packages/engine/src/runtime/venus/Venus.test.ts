@@ -349,8 +349,6 @@ describe('Venus transforms', () => {
       width: 100,
       height: 80,
       rotation: 30,
-      scaleX: -1,
-      skewY: 10,
     })
 
     const [node] = venus.snapshot().nodes
@@ -360,21 +358,18 @@ describe('Venus transforms', () => {
     assert.notDeepEqual(node.transform.matrix, [1, 0, 0, 0, 1, 0])
   })
 
-  it('maps transform object with origin and scale to engine matrices', () => {
+  it('maps transform object rotation to engine matrices', () => {
     const venus = new Venus()
 
     venus.add({
       type: 'rect',
-      id: 'rect-with-origin',
+      id: 'rect-with-transform',
       x: 10,
       y: 20,
       width: 100,
       height: 80,
       transform: {
         rotation: 45,
-        scaleX: 1.5,
-        scaleY: 0.75,
-        origin: {x: 0, y: 0},
       },
     })
 

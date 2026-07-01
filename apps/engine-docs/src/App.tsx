@@ -510,10 +510,6 @@ interface ModelControlValues {
   width: number
   height: number
   rotation: number
-  skewX: number
-  skewY: number
-  originX: number
-  originY: number
   fill: string
   fillOpacity: number
   stroke: string
@@ -550,10 +546,6 @@ interface ModelControlValues {
   childRectOpacity: number
   childRectCornerRadius: number
   childRectRotation: number
-  childRectSkewX: number
-  childRectSkewY: number
-  childRectOriginX: number
-  childRectOriginY: number
   childEllipseX: number
   childEllipseY: number
   childEllipseWidth: number
@@ -567,10 +559,6 @@ interface ModelControlValues {
   childEllipseStartAngle: number
   childEllipseEndAngle: number
   childEllipseRotation: number
-  childEllipseSkewX: number
-  childEllipseSkewY: number
-  childEllipseOriginX: number
-  childEllipseOriginY: number
   childTextX: number
   childTextY: number
   childTextWidth: number
@@ -582,10 +570,6 @@ interface ModelControlValues {
   childTextFontWeight: number
   childTextLineHeight: number
   childTextRotation: number
-  childTextSkewX: number
-  childTextSkewY: number
-  childTextOriginX: number
-  childTextOriginY: number
   clipPathX: number
   clipPathY: number
   clipPathWidth: number
@@ -693,10 +677,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     width: apiId === 'line' ? 180 : (apiId === 'text' ? 220 : 180),
     height: apiId === 'line' ? 80 : 110,
     rotation: 0,
-    skewX: 0,
-    skewY: 0,
-    originX: 50,
-    originY: 50,
     fill: apiId === 'mask' ? '#a855f7' : (isLight ? '#dbeafe' : '#1e3a8a'),
     fillOpacity: 100,
     stroke: apiId === 'line' ? (isLight ? '#475569' : '#e2e8f0') : (isLight ? '#2563eb' : '#93c5fd'),
@@ -733,10 +713,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childRectOpacity: 100,
     childRectCornerRadius: 18,
     childRectRotation: 0,
-    childRectSkewX: 0,
-    childRectSkewY: 0,
-    childRectOriginX: 50,
-    childRectOriginY: 50,
     childEllipseX: 200,
     childEllipseY: 113,
     childEllipseWidth: 96,
@@ -750,10 +726,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childEllipseStartAngle: 0,
     childEllipseEndAngle: 360,
     childEllipseRotation: 0,
-    childEllipseSkewX: 0,
-    childEllipseSkewY: 0,
-    childEllipseOriginX: 50,
-    childEllipseOriginY: 50,
     childTextX: 132,
     childTextY: 156,
     childTextWidth: 180,
@@ -765,10 +737,6 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childTextFontWeight: 700,
     childTextLineHeight: 52,
     childTextRotation: 0,
-    childTextSkewX: 0,
-    childTextSkewY: 0,
-    childTextOriginX: 50,
-    childTextOriginY: 50,
     clipPathX: 110,
     clipPathY: 82,
     clipPathWidth: 180,
@@ -876,9 +844,6 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     ...(controls.blendMode ? {blendMode: controls.blendMode} : {}),
     transform: {
       rotation: controls.rotation,
-      skewX: controls.skewX,
-      skewY: controls.skewY,
-      origin: {x: controls.originX / 100, y: controls.originY / 100},
     },
   }
   // Stroke style extras propagated to shape nodes.
@@ -925,25 +890,16 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   const childRectTransform = {
     transform: {
       rotation: controls.childRectRotation,
-      skewX: controls.childRectSkewX,
-      skewY: controls.childRectSkewY,
-      origin: {x: controls.childRectOriginX / 100, y: controls.childRectOriginY / 100},
     },
   }
   const childEllipseTransform = {
     transform: {
       rotation: controls.childEllipseRotation,
-      skewX: controls.childEllipseSkewX,
-      skewY: controls.childEllipseSkewY,
-      origin: {x: controls.childEllipseOriginX / 100, y: controls.childEllipseOriginY / 100},
     },
   }
   const childTextTransform = {
     transform: {
       rotation: controls.childTextRotation,
-      skewX: controls.childTextSkewX,
-      skewY: controls.childTextSkewY,
-      origin: {x: controls.childTextOriginX / 100, y: controls.childTextOriginY / 100},
     },
   }
   const cornerRadii = controls.cornersLocked
@@ -1143,7 +1099,6 @@ function ModelControlPanel({
     cornerRadius: 'R', cornerTopLeft: 'Tl', cornerTopRight: 'Tr', cornerBottomRight: 'Br', cornerBottomLeft: 'Bl',
     fontSize: 'Fs', fontWeight: 'Fw', lineHeight: 'Lh',
     ellipseStartAngle: 'As', ellipseEndAngle: 'Ae',
-    originX: 'Ox', originY: 'Oy',
     shadowBlur: 'Bl', shadowOffsetX: 'Sx', shadowOffsetY: 'Sy',
     selectedTextStart: 'Ss', selectedTextEnd: 'Se',
     pathClosed: 'Cl', imageSmoothing: 'Sm',
@@ -1165,11 +1120,7 @@ function ModelControlPanel({
     y: 'Y: vertical position in pixels',
     width: 'Width: bounding box width in pixels',
     height: 'Height: bounding box height in pixels',
-    rotation: 'Rotation: angle in degrees around transform origin',
-    skewX: 'Skew X: horizontal shear angle in degrees',
-    skewY: 'Skew Y: vertical shear angle in degrees',
-    originX: 'Origin X: transform pivot as % of width',
-    originY: 'Origin Y: transform pivot as % of height',
+    rotation: 'Rotation: angle in degrees around bounds center',
     fill: 'Fill: CSS colour for shape interior',
     fillOpacity: 'Fill α: fill transparency (0=clear, 100=solid)',
     stroke: 'Stroke: CSS colour for shape outline',
@@ -1375,10 +1326,6 @@ function ModelControlPanel({
             {numberField('childRectWidth', 'w', '', {min: 20, max: 380})}
             {numberField('childRectHeight', 'h', '', {min: 20, max: 260})}
             {numberField('childRectRotation', 'rotate', '°', {min: -180, max: 180})}
-            {numberField('childRectSkewX', 'skew x', '°', {min: -45, max: 45})}
-            {numberField('childRectSkewY', 'skew y', '°', {min: -45, max: 45})}
-            {numberField('childRectOriginX', 'origin x', '%', {min: 0, max: 100})}
-            {numberField('childRectOriginY', 'origin y', '%', {min: 0, max: 100})}
           </div>
         </section>
         <section className={'grid gap-2'}>
@@ -1409,10 +1356,6 @@ function ModelControlPanel({
             {numberField('childEllipseWidth', 'w', '', {min: 20, max: 380})}
             {numberField('childEllipseHeight', 'h', '', {min: 20, max: 260})}
             {numberField('childEllipseRotation', 'rotate', '°', {min: -180, max: 180})}
-            {numberField('childEllipseSkewX', 'skew x', '°', {min: -45, max: 45})}
-            {numberField('childEllipseSkewY', 'skew y', '°', {min: -45, max: 45})}
-            {numberField('childEllipseOriginX', 'origin x', '%', {min: 0, max: 100})}
-            {numberField('childEllipseOriginY', 'origin y', '%', {min: 0, max: 100})}
           </div>
         </section>
         <section className={'grid gap-2'}>
@@ -1445,10 +1388,6 @@ function ModelControlPanel({
           {numberField('childTextWidth', 'w', '', {min: 20, max: 380})}
           {numberField('childTextHeight', 'h', '', {min: 20, max: 260})}
           {numberField('childTextRotation', 'rotate', '°', {min: -180, max: 180})}
-          {numberField('childTextSkewX', 'skew x', '°', {min: -45, max: 45})}
-          {numberField('childTextSkewY', 'skew y', '°', {min: -45, max: 45})}
-          {numberField('childTextOriginX', 'origin x', '%', {min: 0, max: 100})}
-          {numberField('childTextOriginY', 'origin y', '%', {min: 0, max: 100})}
         </div>
       </section>
       <section className={'grid gap-2'}>
@@ -1498,10 +1437,6 @@ function ModelControlPanel({
               {numberField('height', 'h', '', {min: 20, max: 260})}
             </>}
           {numberField('rotation', 'rotate', '°', {min: -180, max: 180})}
-          {numberField('skewX', 'skew x', '°', {min: -45, max: 45})}
-          {numberField('skewY', 'skew y', '°', {min: -45, max: 45})}
-          {numberField('originX', 'origin x', '%', {min: 0, max: 100})}
-          {numberField('originY', 'origin y', '%', {min: 0, max: 100})}
         </div>
       </div>
 
@@ -2074,7 +2009,7 @@ function ShapeModelGuide() {
         <li>• Rect, ellipse, image, and text use x/y as the local top-left or text-box origin; line uses x/y as its start point and width/height as the end-point delta.</li>
         <li>• Group x/y translates the subtree; clip and mask do not own top-level x/y/width/height, so their bounds come from clipPath and children.</li>
         <li>• Polygon and path keep x/y/width/height as editable bounds, while points or bezierPoints are the rendered geometry.</li>
-        <li>• transform.x/y is an extra local translation layered on top of geometry x/y; transform.origin controls the pivot for rotate, scale, and skew.</li>
+        <li>• transform.x/y is an extra local translation layered on top of geometry x/y; rotation is composed around the bounds center.</li>
       </ul>
     </div>
 
