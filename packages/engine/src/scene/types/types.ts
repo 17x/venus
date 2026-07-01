@@ -38,11 +38,35 @@ export interface EngineBezierPoint {
   cp2?: EnginePoint | null
 }
 
+/** Declares one anchor (knot) point on path geometry with optional control handles. */
+export interface EngineAnchorPoint {
+  /** Horizontal position of the anchor point in local node coordinates. */
+  x: number
+  /** Vertical position of the anchor point in local node coordinates. */
+  y: number
+  /** Incoming control point from the previous segment. When absent, the handle is collapsed onto the anchor. */
+  cp1?: EnginePoint | null
+  /** Outgoing control point to the next segment. When absent, the handle is collapsed onto the anchor. */
+  cp2?: EnginePoint | null
+}
+
 export interface EngineRect {
   x: number
   y: number
   width: number
   height: number
+}
+
+/** Declares ellipse geometry in center+radii form. Prefer this over x/y/width/height for ellipse shapes. */
+export interface EngineEllipseGeometry {
+  /** Center x coordinate in local node space. */
+  cx: number
+  /** Center y coordinate in local node space. */
+  cy: number
+  /** Horizontal radius (half of the ellipse width). */
+  rx: number
+  /** Vertical radius (half of the ellipse height). */
+  ry: number
 }
 
 export interface EngineTransform2D {
@@ -69,6 +93,50 @@ export interface EngineInnerShadow {
 export interface EngineLayerBlur {
   /** Blur radius in pixels. */
   amount: number
+}
+
+/** Declares visual effects applied to a renderable node. */
+export interface EngineVisualEffects {
+  /** Node opacity in the [0, 1] interval. */
+  opacity?: number
+  /** CSS blend mode string. */
+  blendMode?: string
+  /** Drop shadow effect. */
+  shadow?: EngineShadow
+  /** Inner shadow effect clipped to shape interior. */
+  innerShadow?: EngineInnerShadow
+  /** Layer blur applied via CSS filter after rendering. */
+  layerBlur?: EngineLayerBlur
+}
+
+/** Declares stroke rendering configuration for shapes and text. */
+export interface EngineStrokeConfig {
+  /** Ordered paint list for stroke. Takes precedence over `color` when both are present. */
+  paints?: readonly EnginePaint[]
+  /** Single stroke colour shorthand. Backward compatible; prefer `paints`. */
+  color?: string
+  /** Stroke width in local node units. */
+  width?: number
+  /** Stroke alignment relative to path geometry. Defaults to center. */
+  align?: EngineStrokeAlign
+  /** Dash pattern as alternating dash-gap lengths. Empty or absent means solid stroke. */
+  dashArray?: readonly number[]
+  /** Line cap style for open stroke paths. Defaults to round. */
+  cap?: 'butt' | 'round' | 'square'
+  /** Line join style for stroke corners. Defaults to round. */
+  join?: 'miter' | 'round' | 'bevel'
+  /** Arrowhead style rendered at the stroke start. */
+  startArrowhead?: EngineStrokeArrowhead
+  /** Arrowhead style rendered at the stroke end. */
+  endArrowhead?: EngineStrokeArrowhead
+}
+
+/** Declares fill rendering configuration for shapes and text. */
+export interface EngineFillConfig {
+  /** Ordered paint list for fill. Takes precedence over `color` when both are present. */
+  paints?: readonly EnginePaint[]
+  /** Single fill colour shorthand. Backward compatible; prefer `paints`. */
+  color?: string
 }
 
 /** Declares one gradient colour stop used by gradient paints. */
@@ -169,13 +237,18 @@ export interface EngineNodeClip {
 export interface EngineNodeBase {
   id: EngineNodeId
   type: string
+  /** Visual effects applied after geometry rendering. Prefer this over the deprecated flat fields below. */
+  visual?: EngineVisualEffects
+  /** @deprecated Use `visual.opacity` instead. */
   opacity?: number
+  /** @deprecated Use `visual.blendMode` instead. */
   blendMode?: string
   transform?: EngineTransform2D
+  /** @deprecated Use `visual.shadow` instead. */
   shadow?: EngineShadow
-  /** Inner shadow effect clipped to shape interior. */
+  /** @deprecated Use `visual.innerShadow` instead. */
   innerShadow?: EngineInnerShadow
-  /** Layer blur applied via CSS filter after rendering. */
+  /** @deprecated Use `visual.layerBlur` instead. */
   layerBlur?: EngineLayerBlur
   // `clipNodeId` enables graph-level clip reuse, while `clipShape` supports
   // inline clipping for lightweight nodes (for example clipped images).
@@ -189,14 +262,22 @@ export interface EngineTextStyle {
   fontStyle?: 'normal' | 'italic' | 'oblique'
   lineHeight?: number
   letterSpacing?: number
-  fill?: string
-  /** Ordered paint list for text fill (takes precedence over `fill`). */
-  fills?: readonly EnginePaint[]
-  stroke?: string
-  strokeWidth?: number
+  /** Fill rendering configuration. Prefer this over the deprecated flat fill fields below. */
+  fillConfig?: EngineFillConfig
+  /** Stroke rendering configuration. Prefer this over the deprecated flat stroke fields below. */
+  strokeConfig?: EngineStrokeConfig
   align?: 'start' | 'center' | 'end'
   verticalAlign?: 'top' | 'middle' | 'bottom'
   shadow?: EngineShadow
+  // ── Deprecated flat fill / stroke fields ──
+  /** @deprecated Use `fillConfig.color` instead. */
+  fill?: string
+  /** @deprecated Use `fillConfig.paints` instead. */
+  fills?: readonly EnginePaint[]
+  /** @deprecated Use `strokeConfig.color` instead. */
+  stroke?: string
+  /** @deprecated Use `strokeConfig.width` instead. */
+  strokeWidth?: number
 }
 
 export interface EngineTextRun {
@@ -244,10 +325,34 @@ export interface EngineGroupNode extends EngineNodeBase {
 export interface EngineShapeNode extends EngineNodeBase {
   type: 'shape'
   shape: EngineShapeKind
-  x: number
-  y: number
-  width: number
-  height: number
+  /**
+   * Local left coordinate.
+   * - rect: top-left corner of the rectangle.
+   * - ellipse: prefer {@link ellipseGeometry} instead; falls back to top-left of bounding rect.
+   * - line / polygon / path: derived from points/bezierPoints bounds; not an authored truth.
+   */
+  x?: number
+  /**
+   * Local top coordinate. Same semantics as {@link x}.
+   */
+  y?: number
+  /**
+   * Bounding box width.
+   * - rect: intrinsic (the rectangle width).
+   * - ellipse: prefer {@link ellipseGeometry} instead; falls back to bounding rect width.
+   * - line / polygon / path: derived from geometry; saved for editor convenience, not an authored truth.
+   */
+  width?: number
+  /**
+   * Bounding box height. Same semantics as {@link width}.
+   */
+  height?: number
+  /** Ellipse geometry in center+radii form. Preferred over x/y/width/height for ellipse shapes. */
+  ellipseGeometry?: EngineEllipseGeometry
+  /** Fill rendering configuration. Prefer this over the deprecated flat fill fields below. */
+  fillConfig?: EngineFillConfig
+  /** Stroke rendering configuration. Prefer this over the deprecated flat stroke fields below. */
+  strokeConfig?: EngineStrokeConfig
   // Rectangle corner radius controls. `cornerRadii` takes precedence over
   // uniform `cornerRadius` when both are provided.
   cornerRadius?: number
@@ -257,31 +362,36 @@ export interface EngineShapeNode extends EngineNodeBase {
   ellipseEndAngle?: number
   // Draw radial wedge edges from the arc endpoints to the ellipse center.
   ellipseDrawWedgeLine?: boolean
-  // Arrowheads for open stroke primitives.
-  strokeStartArrowhead?: EngineStrokeArrowhead
-  strokeEndArrowhead?: EngineStrokeArrowhead
   points?: readonly EnginePoint[]
   bezierPoints?: readonly EngineBezierPoint[]
   pointCount?: number
   bezierPointCount?: number
+  /** Ordered anchor points for path-like geometry. When present, renderers should prefer this over bezierPoints/points for path shapes. */
+  anchorPoints?: readonly EngineAnchorPoint[]
   closed?: boolean
-  /** Single fill colour (backward compatible; prefer `fills` when present). */
+  // ── Deprecated flat fill / stroke fields ──
+  /** @deprecated Use `fillConfig.color` instead. */
   fill?: string
-  /** Single stroke colour (backward compatible; prefer `strokes` when present). */
-  stroke?: string
-  strokeWidth?: number
-  /** Ordered paint list for fill (takes precedence over `fill`). */
+  /** @deprecated Use `fillConfig.paints` instead. */
   fills?: readonly EnginePaint[]
-  /** Ordered paint list for stroke (takes precedence over `stroke`). */
+  /** @deprecated Use `strokeConfig.color` instead. */
+  stroke?: string
+  /** @deprecated Use `strokeConfig.paints` instead. */
   strokes?: readonly EnginePaint[]
-  /** Stroke alignment relative to path geometry. Defaults to center. */
+  /** @deprecated Use `strokeConfig.width` instead. */
+  strokeWidth?: number
+  /** @deprecated Use `strokeConfig.align` instead. */
   strokeAlign?: EngineStrokeAlign
-  /** Dash pattern as alternating dash-gap lengths. Empty or absent means solid. */
+  /** @deprecated Use `strokeConfig.dashArray` instead. */
   strokeDashArray?: readonly number[]
-  /** Line cap style for open stroke paths. Defaults to round. */
+  /** @deprecated Use `strokeConfig.cap` instead. */
   strokeCap?: 'butt' | 'round' | 'square'
-  /** Line join style for stroke corners. Defaults to round. */
+  /** @deprecated Use `strokeConfig.join` instead. */
   strokeJoin?: 'miter' | 'round' | 'bevel'
+  /** @deprecated Use `strokeConfig.startArrowhead` instead. */
+  strokeStartArrowhead?: EngineStrokeArrowhead
+  /** @deprecated Use `strokeConfig.endArrowhead` instead. */
+  strokeEndArrowhead?: EngineStrokeArrowhead
 }
 
 export type EngineRenderableNode =
