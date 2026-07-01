@@ -10,6 +10,7 @@ import type {
   EngineTextStyle,
   EngineTransform2D,
 } from '../../scene/types/types.ts'
+import type {EngineResourceLoader} from '../../renderer/types/index.ts'
 import {resolveLeafNodeWorldBounds} from '../../scene/worldBounds/worldBounds.ts'
 import {
   panEngineViewportState,
@@ -234,6 +235,9 @@ export interface VenusParameters {
     backend?: VenusBackend
     antialias?: boolean
     quality?: 'interactive' | 'full'
+  }
+  resource?: {
+    loader?: EngineResourceLoader
   }
   /** Optional user capability modules installed during construction. */
   modules?: readonly VenusModule[]
@@ -612,12 +616,14 @@ export type VenusNode =
     shadow?: EngineShadow
   } & VenusNodeBase
   | {
-    /** Stroke-authored segment. x/y are start point; width/height are end-point delta. */
+    /** Stroke-authored segment. Prefer two anchor points; x/y + width/height remain compatibility endpoint fields. */
     type: 'line'
     x?: number
     y?: number
     width: number
     height: number
+    /** Two anchor points. The first point is the start; the last point is the end. */
+    points?: readonly {x: number; y: number}[]
     stroke?: string
     strokeWidth?: number
     /** Ordered paint list for stroke (takes precedence over `stroke`). */
@@ -1040,6 +1046,17 @@ const getNodeBounds = (node: VenusNode): {x: number; y: number; width: number; h
     return getNodeBounds(node.clipPath) ?? getChildrenBounds(node.children)
   }
 
+  if (node.type === 'line' && node.points && node.points.length >= 2) {
+    const start = node.points[0]
+    const end = node.points[node.points.length - 1]
+    return {
+      x: Math.min(start.x, end.x),
+      y: Math.min(start.y, end.y),
+      width: Math.abs(end.x - start.x),
+      height: Math.abs(end.y - start.y),
+    }
+  }
+
   if ('width' in node && typeof node.width === 'number' && 'height' in node && typeof node.height === 'number') {
     return {
       x: 'x' in node ? node.x ?? 0 : 0,
@@ -1079,7 +1096,7 @@ const translateVenusNode = (node: VenusNode, dx: number, dy: number): void => {
     node.y = (node.y ?? 0) + dy
   }
 
-  if (node.type === 'polygon' || node.type === 'path') {
+  if (node.type === 'line' || node.type === 'polygon' || node.type === 'path') {
     const nodeWithPoints = node as typeof node & {points?: readonly {x: number; y: number}[]}
     if (nodeWithPoints.points) {
       nodeWithPoints.points = nodeWithPoints.points.map((point) => translatePoint(point, dx, dy))
@@ -1565,6 +1582,12 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
 
   if (node.type === 'line') {
     const effects = resolveAppearanceEffects(node)
+    const pointStart = node.points && node.points.length >= 2 ? node.points[0] : null
+    const pointEnd = node.points && node.points.length >= 2 ? node.points[node.points.length - 1] : null
+    const lineX = pointStart?.x ?? node.x ?? 0
+    const lineY = pointStart?.y ?? node.y ?? 0
+    const lineWidth = pointEnd ? pointEnd.x - lineX : node.width ?? 0
+    const lineHeight = pointEnd ? pointEnd.y - lineY : node.height ?? 0
     const strokeStyle = resolveAppearanceStroke(node, {
       strokes: node.strokes,
       strokeWidth: node.strokeWidth,
@@ -1577,16 +1600,16 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       id,
       type: 'shape',
       shape: 'line',
-      x: node.x ?? 0,
-      y: node.y ?? 0,
-      width: node.width,
-      height: node.height,
+      x: lineX,
+      y: lineY,
+      width: lineWidth,
+      height: lineHeight,
       opacity: resolveNodeOpacity(node),
       blendMode: resolveNodeBlendMode(node),
       shadow: effects.shadow,
       innerShadow: effects.innerShadow,
       layerBlur: effects.layerBlur,
-      transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
+      transform: createVenusTransform(node, {x: lineX, y: lineY, width: lineWidth, height: lineHeight}),
       stroke: node.stroke ?? '#475569',
       strokeWidth: strokeStyle.strokeWidth ?? 4,
       strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
@@ -1594,6 +1617,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       strokeDashArray: strokeStyle.strokeDashArray,
       strokeCap: strokeStyle.strokeCap,
       strokeJoin: strokeStyle.strokeJoin,
+      points: node.points as EngineShapeNode['points'],
     }
   }
 
@@ -2486,6 +2510,7 @@ export class Venus {
         quality: this.parameters.render?.quality ?? 'full',
         webglAntialias: this.parameters.render?.antialias ?? true,
       },
+      resource: this.parameters.resource,
     })
 
     if (requestedBackend === 'canvas2d') {

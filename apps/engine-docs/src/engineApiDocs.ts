@@ -82,7 +82,7 @@ const createPropertyGroups = (properties: string[]): EngineApiPropertyGroup[] =>
 }
 
 const withGroupedProperties = (categories: EngineApiCategory[]): EngineApiCategory[] => {
-  const processed = categories.map((category) => ({
+  const processed: EngineApiCategory[] = categories.map((category) => ({
     ...category,
     apis: category.apis.map((api) => ({
       ...api,
@@ -90,8 +90,8 @@ const withGroupedProperties = (categories: EngineApiCategory[]): EngineApiCatego
     })),
   }))
 
-  // Target order: start → shapes → common-props → methods → (rest) → advanced
-  const order = ['start', 'shapes', 'common-props', 'methods', 'venus-parameters', 'backend-strategy', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa', 'advanced']
+  // Target order: start → models → methods → (rest) → advanced
+  const order = ['start', 'models', 'methods', 'venus-parameters', 'backend-strategy', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa', 'advanced']
   const byId = new Map(processed.map((c) => [c.id, c]))
   return order.map((id) => byId.get(id)).filter((c): c is EngineApiCategory => c != null)
 }
@@ -217,9 +217,9 @@ await venus.render()`,
     ],
   },
   {
-    id: 'shapes',
-    title: 'Shapes',
-    summary: 'Each shape has its own page with minimal creation and unique property controls.',
+    id: 'models',
+    title: 'Models',
+    summary: 'Each model has its own API page with minimal creation, unique properties, and editable canvas demo.',
     apis: [
       {
         id: 'rect',
@@ -243,10 +243,10 @@ await venus.render()`,
         id: 'line',
         title: 'Line',
         summary: 'Draws a stroked line segment.',
-        readableDescription: 'Line is a stroke-authored engine shape. Minimal creation is type, width, and height; x/y default to the start point. width/height are endpoint deltas, so proxy bounds edits can reverse-derive the line endpoints.',
-        properties: ['type: line', 'minimal: type + width + height', 'pathExpansion: open two-point path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'x?: number as start x', 'y?: number as start y', 'width: number as endX - startX', 'height: number as endY - startY', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow'],
-        demo: `venus.add({type: 'line', x: 72, y: 92, width: 300, height: 120})`,
-        demoCaption: 'The preview renders a line segment with editable position, delta, and stroke.',
+        readableDescription: 'Line is a stroke-authored engine shape with two anchor points. Minimal creation is type and points. x/y plus width/height remain compatibility fields for start point and endpoint delta, but editing the anchor points is the preferred model.',
+        properties: ['type: line', 'minimal: type + points', 'pathExpansion: open two-anchor path', 'id?: string', 'name?: string', 'visible?: boolean', 'locked?: boolean', 'data?: Record<string, unknown> as host metadata', 'appearance?: VenusAppearance as structured render style', 'constraints?: VenusConstraints', 'exportSettings?: readonly VenusExportSetting[]', 'blendMode?: string as multiply|screen|overlay|darken|lighten|colorDodge|colorBurn|hardLight|softLight|difference|exclusion', 'transform?: VenusTransform2D', 'rotation?: number as compatibility transform field', 'points?: [{x,y}, {x,y}] as start and end anchors', 'x?: number as compatibility start x', 'y?: number as compatibility start y', 'width?: number as compatibility endX - startX', 'height?: number as compatibility endY - startY', 'stroke?: string as compatibility stroke shortcut', 'strokes?: VenusPaint[] as ordered stroke paint list', 'strokeWidth?: number, 0 means no stroke', 'strokeAlign?: center|inside|outside', 'strokeDashArray?: number[] as alternating dash-gap lengths', 'strokeCap?: butt|round|square', 'strokeJoin?: miter|round|bevel', 'opacity?: number', 'shadow?: EngineShadow'],
+        demo: `venus.add({type: 'line', points: [{x: 72, y: 92}, {x: 372, y: 212}]})`,
+        demoCaption: 'The preview renders a line segment with editable start and end anchors.',
       },
       {
         id: 'text',
@@ -706,7 +706,7 @@ console.log(venus.inspect().backendFallback)`,
           {name: 'id', type: 'string', description: 'Stable node id to update.'},
           {name: 'patch', type: 'Partial<VenusNode>', description: 'Properties to shallow-merge into the document node.'},
         ],
-        demo: `venus.update('card', {width: 280, fill: '#ff0000', opacity: 0.8})\nawait venus.render()`,
+        demo: `venus.update('card', {width: 280, fill: '#ff0000', opacity: 0.8})`,
         demoCaption: 'Updates multiple properties in one call with one store rebuild.',
       },
       {
@@ -717,7 +717,7 @@ console.log(venus.inspect().backendFallback)`,
         parameters: [
           {name: 'id', type: 'string', description: 'Stable node id to remove.'},
         ],
-        demo: `venus.add({id: 'temp', type: 'rect', width: 80, height: 40})\nvenus.remove('temp')\nawait venus.render()`,
+        demo: `venus.add({id: 'temp', type: 'rect', width: 80, height: 40})\nvenus.remove('temp')`,
         demoCaption: 'Removes a node. Use proxy.remove() for the Figma-style equivalent.',
       },
       {
@@ -729,7 +729,7 @@ console.log(venus.inspect().backendFallback)`,
           {name: 'ids', type: 'readonly string[]', description: 'Sibling node ids to group.'},
           {name: 'options', type: 'VenusGroupOptions', defaultValue: '{}', description: 'Optional group metadata such as id, name, appearance, opacity, or shadow.'},
         ],
-        demo: `const a = venus.add({type: 'rect', x: 40, y: 40, width: 80, height: 60})\nconst b = venus.add({type: 'ellipse', x: 150, y: 52, width: 72, height: 48})\nconst g = venus.group([a.id, b.id], {name: 'Selection'})\nawait venus.render()`,
+        demo: `const a = venus.add({type: 'rect', x: 40, y: 40, width: 80, height: 60})\nconst b = venus.add({type: 'ellipse', x: 150, y: 52, width: 72, height: 48})\nconst g = venus.group([a.id, b.id], {name: 'Selection'})`,
         demoCaption: 'Short selection API for creating a group while preserving visual position.',
       },
       {
@@ -740,7 +740,7 @@ console.log(venus.inspect().backendFallback)`,
         parameters: [
           {name: 'id', type: 'string', description: 'Group node id to ungroup.'},
         ],
-        demo: `const children = venus.ungroup('selection-group')\nawait venus.render()`,
+        demo: `const children = venus.ungroup('selection-group')`,
         demoCaption: 'Returns proxies for the lifted children.',
       },
       {
@@ -752,7 +752,7 @@ console.log(venus.inspect().backendFallback)`,
           {name: 'parentId', type: 'string', description: 'Parent group/clip/mask id.'},
           {name: 'child', type: 'VenusNode', description: 'Child document node to append.'},
         ],
-        demo: `const g = venus.add({id: 'g', type: 'group', x: 0, y: 0, children: []})\nconst child = venus.addChild('g', {type: 'rect', width: 60, height: 40, fill: '#22c55e'})\nchild.x = 20\nawait venus.render()`,
+        demo: `const g = venus.add({id: 'g', type: 'group', x: 0, y: 0, children: []})\nconst child = venus.addChild('g', {type: 'rect', width: 60, height: 40, fill: '#22c55e'})\nchild.x = 20`,
         demoCaption: 'Adds a child to a group. Use g.addChild(...) on the proxy for convenience.',
       },
       {
@@ -764,7 +764,7 @@ console.log(venus.inspect().backendFallback)`,
           {name: 'parentId', type: 'string', description: 'Parent group/clip/mask id.'},
           {name: 'childId', type: 'string', description: 'Child node id to remove.'},
         ],
-        demo: `const g = venus.add({id: 'g2', type: 'group', x: 0, y: 0, children: [{id: 'c1', type: 'rect', width: 40, height: 30}]})\nvenus.removeChild('g2', 'c1')\nawait venus.render()`,
+        demo: `const g = venus.add({id: 'g2', type: 'group', x: 0, y: 0, children: [{id: 'c1', type: 'rect', width: 40, height: 30}]})\nvenus.removeChild('g2', 'c1')`,
         demoCaption: 'Removes a child from a group.',
       },
     ],
@@ -883,7 +883,7 @@ const clicked = venus.hitTest(pointer, {phase: 'click'})`,
         title: 'Events Demo',
         summary: 'Clicks buttons to trigger Venus events and inspect payloads.',
         readableDescription: 'This page demonstrates the event system with a real Venus instance. Each button calls a normal Venus API, and the event panel shows which internal event fired.',
-        demo: `button.onclick = async () => { venus.add({type: 'rect', width: 120, height: 80}); await venus.render() }`,
+        demo: `button.onclick = () => { venus.add({type: 'rect', width: 120, height: 80}) }`,
         demoCaption: 'The interactive panel logs events from the same Venus instance that renders the canvas.',
       },
     ],

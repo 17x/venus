@@ -198,7 +198,39 @@ export class VenusEllipseProxy extends VenusNodeProxy {
 
 // ── Line ──────────────────────────────────────────────────────────────────────
 
-export class VenusLineProxy extends VenusNodeProxy {}
+export class VenusLineProxy extends VenusNodeProxy {
+  get points(): Array<{x: number; y: number}> {
+    const rawPoints = this.raw?.points
+    if (Array.isArray(rawPoints) && rawPoints.length >= 2) {
+      return rawPoints
+    }
+
+    const x = this.raw?.x ?? 0
+    const y = this.raw?.y ?? 0
+    return [
+      {x, y},
+      {x: x + (this.raw?.width ?? 0), y: y + (this.raw?.height ?? 0)},
+    ]
+  }
+  set points(value: Array<{x: number; y: number}>) { this.set('points' as keyof VenusNode, value) }
+
+  get startPoint(): {x: number; y: number} {
+    return this.points[0] ?? {x: 0, y: 0}
+  }
+  set startPoint(value: {x: number; y: number}) {
+    const current = this.points
+    this.points = [value, current[current.length - 1] ?? value]
+  }
+
+  get endPoint(): {x: number; y: number} {
+    const current = this.points
+    return current[current.length - 1] ?? {x: 0, y: 0}
+  }
+  set endPoint(value: {x: number; y: number}) {
+    const current = this.points
+    this.points = [current[0] ?? value, value]
+  }
+}
 
 // ── Text ──────────────────────────────────────────────────────────────────────
 

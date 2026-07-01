@@ -548,10 +548,10 @@ function drawImageNode(
   counters: RenderCounters,
   localRect: {x: number; y: number; width: number; height: number} | null,
 ) {
-  const drawX = localRect?.x ?? node.x
-  const drawY = localRect?.y ?? node.y
-  const drawWidth = localRect?.width ?? node.width
-  const drawHeight = localRect?.height ?? node.height
+  const drawX = localRect?.x ?? node.x ?? 0
+  const drawY = localRect?.y ?? node.y ?? 0
+  const drawWidth = localRect?.width ?? node.width ?? 0
+  const drawHeight = localRect?.height ?? node.height ?? 0
   const source = frame.context.loader?.resolveImage(node.assetId) ?? null
   if (!source) {
     counters.cacheMisses += 1
@@ -783,10 +783,10 @@ function drawShapeNode(
   viewportScale: number,
   counters: RenderCounters,
 ) {
-  const drawX = localRect?.x ?? node.x
-  const drawY = localRect?.y ?? node.y
-  const drawWidth = localRect?.width ?? node.width
-  const drawHeight = localRect?.height ?? node.height
+  const drawX = localRect?.x ?? node.x ?? 0
+  const drawY = localRect?.y ?? node.y ?? 0
+  const drawWidth = localRect?.width ?? node.width ?? 0
+  const drawHeight = localRect?.height ?? node.height ?? 0
   const rect = {x: drawX, y: drawY, width: drawWidth, height: drawHeight}
 
   applyStrokeDash(context, node)
@@ -1080,10 +1080,10 @@ function applyClipByNodeReference(
     context.save()
     applyWorldTransform(context, clipNode.worldMatrix)
     const appended = appendShapePath(context, clipNode.node, {
-      x: clipNode.node.x,
-      y: clipNode.node.y,
-      width: clipNode.node.width,
-      height: clipNode.node.height,
+      x: clipNode.node.x ?? 0,
+      y: clipNode.node.y ?? 0,
+      width: clipNode.node.width ?? 0,
+      height: clipNode.node.height ?? 0,
     }, CLIP_NODE_PATH_SIMPLIFICATION_BUCKET, CLIP_NODE_VIEWPORT_SCALE, NULL_RENDER_COUNTERS)
     context.restore()
     if (appended) {

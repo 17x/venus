@@ -10,7 +10,6 @@ import {
   Bug,
   Camera,
   Check,
-  ChevronRight,
   Copy,
   Crosshair,
   Expand,
@@ -38,6 +37,7 @@ import {
   VENUS_COMMON_RENDER_PROPERTIES,
   VENUS_SHAPE_MODEL_SPECS,
   type VenusNode,
+  type VenusParameters,
 } from '../../../packages/engine/src/index.ts'
 
 type ThemeMode = 'light' | 'dark' | 'cartoon'
@@ -112,23 +112,6 @@ function CodeBox({code, className}: {code: string; className?: string}) {
       </Tooltip>
     </div>
     <pre className={'engine-code-scroll max-h-[min(60vh,32rem)] overflow-auto p-4 font-mono text-xs leading-6 text-muted-foreground'}><code>{code}</code></pre>
-  </div>
-}
-
-/** A disclosure with a rotating chevron arrow. Replaces broken <details>/<summary>. */
-function Disclosure({title, defaultOpen = false, children}: {title: string; defaultOpen?: boolean; children: React.ReactNode}) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return <div className={'engine-docs-panel overflow-hidden'}>
-    <button
-      type={'button'}
-      onClick={() => setOpen(!open)}
-      className={'flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-muted/50'}
-    >
-      <ChevronRight className={`size-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}/>
-      {title}
-    </button>
-    {open && <div className={'px-4 pb-4'}>{children}</div>}
   </div>
 }
 
@@ -324,7 +307,7 @@ venus.mount(canvas)
 const nodes = ${JSON.stringify(nodes, null, 2)}
 
 nodes.forEach((node) => venus.add(node))
-await venus.render()`
+`
 }
 
 const createShapeMinimalCreateCode = (kind: string): string => {
@@ -346,6 +329,10 @@ const createShapeMinimalCreateCode = (kind: string): string => {
   type: 'line',
   width: 220,
   height: 80,
+  points: [
+    {x: 40, y: 80},
+    {x: 260, y: 160},
+  ],
 })`
     case 'text':
       return `const r = venus.add({
@@ -473,7 +460,7 @@ r.height = 160
 r.smoothing = true`,
   }
 
-  return `${base}\n${props[kind] ?? ''}\n\nawait venus.render()`
+  return `${base}\n${props[kind] ?? ''}`
 }
 
 function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
@@ -484,7 +471,7 @@ function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
           <th className={'px-3 py-2 font-medium'}>Name</th>
           <th className={'px-3 py-2 font-medium'}>Type</th>
           <th className={'px-3 py-2 font-medium'}>Default</th>
-          <th className={'px-3 py-2 font-medium'}>Description</th>
+          <th className={'px-3 py-2 font-medium'}>Notes</th>
         </tr>
       </thead>
       <tbody>
@@ -503,14 +490,12 @@ function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
 
 function ApiDescription({api}: {api: EngineApiDoc}) {
   return <section className={'grid max-w-3xl gap-2'}>
-    <h4 className={'text-sm font-medium'}>Description</h4>
     <p className={'text-sm leading-6 text-muted-foreground'}>{api.readableDescription}</p>
   </section>
 }
 
 function ApiUsage({code}: {code: string}) {
   return <section className={'grid min-w-0 gap-2'}>
-    <h4 className={'text-sm font-medium'}>Usage</h4>
     <CodeBox code={code}/>
   </section>
 }
@@ -621,6 +606,16 @@ interface ModelControlValues {
   strokeDashArray: number[]
   strokeCap: string
   strokeJoin: string
+  lineSelectedAnchor: number
+  pathSelectedAnchor: number
+  pathAnchor0X: number
+  pathAnchor0Y: number
+  pathAnchor1X: number
+  pathAnchor1Y: number
+  pathAnchor2X: number
+  pathAnchor2Y: number
+  pathAnchor3X: number
+  pathAnchor3Y: number
   gradientEnabled: boolean
   gradientStartColor: string
   gradientEndColor: string
@@ -636,12 +631,53 @@ interface ModelControlValues {
 }
 
 const editableModelApiIds = new Set(['rect', 'ellipse', 'line', 'text', 'group', 'clip', 'mask', 'polygon', 'path', 'image'])
-const shapeApiIds = ['rect', 'ellipse', 'line', 'text', 'group', 'clip', 'mask', 'polygon', 'path', 'image'] as const
+const shapeApiIds = ['rect', 'ellipse', 'line', 'text', 'path', 'group', 'clip', 'mask', 'polygon', 'image'] as const
 const themeOptions: Array<{name: ThemeMode; label: string}> = [
   {name: 'light', label: 'Classic light'},
   {name: 'dark', label: 'Classic dark'},
   {name: 'cartoon', label: 'Cartoon'},
 ]
+
+const createDemoImageSource = (theme: ThemeMode): HTMLCanvasElement => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 240
+  canvas.height = 160
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return canvas
+  }
+
+  const gradient = context.createLinearGradient(0, 0, 240, 160)
+  gradient.addColorStop(0, theme === 'light' ? '#38bdf8' : '#0f766e')
+  gradient.addColorStop(0.48, theme === 'light' ? '#facc15' : '#a3e635')
+  gradient.addColorStop(1, theme === 'light' ? '#f97316' : '#fb7185')
+  context.fillStyle = gradient
+  context.fillRect(0, 0, 240, 160)
+  context.fillStyle = 'rgba(255,255,255,0.82)'
+  context.fillRect(22, 22, 76, 48)
+  context.fillStyle = 'rgba(15,23,42,0.72)'
+  context.fillRect(118, 40, 92, 14)
+  context.fillRect(118, 66, 62, 14)
+  context.beginPath()
+  context.arc(76, 118, 26, 0, Math.PI * 2)
+  context.fillStyle = theme === 'light' ? '#1d4ed8' : '#f8fafc'
+  context.fill()
+  return canvas
+}
+
+const createDocsVenusParameters = (theme: ThemeMode): VenusParameters => {
+  const demoImageSource = createDemoImageSource(theme)
+  return {
+    culling: false,
+    lod: false,
+    render: {backend: 'canvas2d'},
+    resource: {
+      loader: {
+        resolveImage: (assetId) => assetId === 'demo-image' ? demoImageSource : null,
+      },
+    },
+  }
+}
 
 const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelControlValues => {
   const isLight = theme === 'light'
@@ -753,6 +789,16 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     strokeDashArray: [],
     strokeCap: '',
     strokeJoin: '',
+    lineSelectedAnchor: 0,
+    pathSelectedAnchor: 0,
+    pathAnchor0X: 96,
+    pathAnchor0Y: 214,
+    pathAnchor1X: 190,
+    pathAnchor1Y: 82,
+    pathAnchor2X: 306,
+    pathAnchor2Y: 214,
+    pathAnchor3X: 202,
+    pathAnchor3Y: 238,
     gradientEnabled: false,
     gradientStartColor: '#3b82f6',
     gradientEndColor: '#8b5cf6',
@@ -782,10 +828,25 @@ const resolveShadow = (controls: ModelControlValues) => {
     : undefined
 }
 
-const createBezierDemoPoints = (x: number, y: number, width: number, height: number) => [
-  {anchor: {x, y: y + height * 0.72}, cp2: {x: x + width * 0.16, y: y - height * 0.2}},
-  {anchor: {x: x + width, y: y + height * 0.72}, cp1: {x: x + width * 0.84, y: y - height * 0.2}},
+const createPathAnchorPoints = (controls: ModelControlValues) => [
+  {x: controls.pathAnchor0X, y: controls.pathAnchor0Y},
+  {x: controls.pathAnchor1X, y: controls.pathAnchor1Y},
+  {x: controls.pathAnchor2X, y: controls.pathAnchor2Y},
+  {x: controls.pathAnchor3X, y: controls.pathAnchor3Y},
 ]
+
+const createBezierPointsFromAnchors = (controls: ModelControlValues) => {
+  const anchors = createPathAnchorPoints(controls)
+  return anchors.map((anchor, index) => {
+    const previous = anchors[Math.max(0, index - 1)]
+    const next = anchors[Math.min(anchors.length - 1, index + 1)]
+    return {
+      anchor,
+      cp1: index === 0 ? null : {x: anchor.x - (anchor.x - previous.x) * 0.35, y: anchor.y - (anchor.y - previous.y) * 0.35},
+      cp2: index === anchors.length - 1 ? null : {x: anchor.x + (next.x - anchor.x) * 0.35, y: anchor.y + (next.y - anchor.y) * 0.35},
+    }
+  })
+}
 
 const createTextRuns = (controls: ModelControlValues) => {
   const start = Math.max(0, Math.min(controls.text.length, controls.selectedTextStart))
@@ -903,7 +964,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   if (apiId === 'line') {
-    return [{id: commonId, type: 'line', x: controls.x, y: controls.y, width: controls.x2 - controls.x, height: controls.y2 - controls.y, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ...strokeStyle, ...flatTransform}]
+    return [{id: commonId, type: 'line', width: controls.x2 - controls.x, height: controls.y2 - controls.y, points: [{x: controls.x, y: controls.y}, {x: controls.x2, y: controls.y2}], stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ...strokeStyle, ...flatTransform}]
   }
 
   if (apiId === 'text') {
@@ -949,20 +1010,20 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   if (apiId === 'path') {
-    const pathBase = {id: commonId, type: 'path' as const, x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill: controls.pathClosed ? fill : 'transparent', fills: controls.pathClosed ? gradientFills : undefined, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, closed: controls.pathClosed, ...strokeStyle, ...flatTransform}
+    const pathAnchors = createPathAnchorPoints(controls)
+    const minX = Math.min(...pathAnchors.map((point) => point.x))
+    const minY = Math.min(...pathAnchors.map((point) => point.y))
+    const maxX = Math.max(...pathAnchors.map((point) => point.x))
+    const maxY = Math.max(...pathAnchors.map((point) => point.y))
+    const pathBase = {id: commonId, type: 'path' as const, x: minX, y: minY, width: maxX - minX, height: maxY - minY, fill: controls.pathClosed ? fill : 'transparent', fills: controls.pathClosed ? gradientFills : undefined, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, closed: controls.pathClosed, ...strokeStyle, ...flatTransform}
     return controls.pathUseBezier
       ? [{
         ...pathBase,
-        bezierPoints: createBezierDemoPoints(controls.x, controls.y, controls.width, controls.height),
+        bezierPoints: createBezierPointsFromAnchors(controls),
       }]
       : [{
         ...pathBase,
-        points: [
-          {x: controls.x, y: controls.y + controls.height},
-          {x: controls.x + controls.width * 0.5, y: controls.y},
-          {x: controls.x + controls.width, y: controls.y + controls.height},
-          {x: controls.x + controls.width * 0.5, y: controls.y + controls.height},
-        ],
+        points: pathAnchors,
       }]
   }
 
@@ -983,7 +1044,7 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
   }
 
   if (apiId === 'line') {
-    return {type: 'line', width: controls.x2 - controls.x, height: controls.y2 - controls.y}
+    return {type: 'line', width: controls.x2 - controls.x, height: controls.y2 - controls.y, points: [{x: controls.x, y: controls.y}, {x: controls.x2, y: controls.y2}]}
   }
 
   if (apiId === 'text') {
@@ -1013,8 +1074,8 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
 
   if (apiId === 'path') {
     return controls.pathUseBezier
-      ? {type: 'path', width: controls.width, height: controls.height, bezierPoints: createBezierDemoPoints(0, 0, controls.width, controls.height)}
-      : {type: 'path', width: controls.width, height: controls.height, points: [{x: 0, y: controls.height}, {x: controls.width * 0.5, y: 0}, {x: controls.width, y: controls.height}, {x: controls.width * 0.5, y: controls.height}]}
+      ? {type: 'path', width: controls.width, height: controls.height, bezierPoints: createBezierPointsFromAnchors(controls)}
+      : {type: 'path', width: controls.width, height: controls.height, points: createPathAnchorPoints(controls)}
   }
 
   if (apiId === 'image') {
@@ -1027,8 +1088,7 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
 const createModelCode = (apiId: string, controls: ModelControlValues) => {
   return `const node = ${JSON.stringify(createMinimalModelNode(apiId, controls), null, 2)}
 
-venus.add(node)
-await venus.render()`
+venus.add(node)`
 }
 
 function ModelControlPanel({
@@ -1058,6 +1118,23 @@ function ModelControlPanel({
       }
       return {...currentControls, [key]: nextValue}
     })
+  }
+  const setLineAnchorNumber = (axis: 'x' | 'y', value: string) => {
+    const nextValue = Number(value)
+    setControls((currentControls) => {
+      const isStart = currentControls.lineSelectedAnchor === 0
+      return {
+        ...currentControls,
+        [isStart ? axis : axis === 'x' ? 'x2' : 'y2']: nextValue,
+      }
+    })
+  }
+  const setPathAnchorNumber = (axis: 'x' | 'y', value: string) => {
+    const nextValue = Number(value)
+    setControls((currentControls) => ({
+      ...currentControls,
+      [`pathAnchor${currentControls.pathSelectedAnchor}${axis.toUpperCase()}`]: nextValue,
+    }))
   }
   // Compact single-letter labels with full name as tooltip.
   const fieldLabel: Record<string, string> = {
@@ -1105,6 +1182,7 @@ function ModelControlPanel({
     lineHeight: 'Line H: spacing between text lines in px',
     ellipseStartAngle: 'Start: ellipse arc start angle in degrees',
     ellipseEndAngle: 'End: ellipse arc end angle in degrees',
+    ellipseDrawWedgeLine: 'Wedge: draw the center-to-arc side lines',
     shadowBlur: 'Blur: shadow softness radius in px',
     shadowOffsetX: 'Off X: shadow horizontal shift in px',
     shadowOffsetY: 'Off Y: shadow vertical shift in px',
@@ -1172,6 +1250,69 @@ function ModelControlPanel({
   const showLineEndpoints = apiId === 'line'
   const showPathOptions = apiId === 'path'
   const showImageOptions = apiId === 'image'
+  const anchorNumberField = (
+    value: number,
+    fullLabel: string,
+    onChange: (value: string) => void,
+    input?: {min?: number; max?: number; step?: number},
+  ) => {
+    const label = getFieldLabel(fullLabel, fullLabel)
+    return <Tooltip key={`anchor-number-${fullLabel}`} text={fullLabel}>
+      <label className={'flex items-center gap-1'}>
+        <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>{label}</span>
+        <input
+          className={'h-6 w-full min-w-0 max-w-[88px] rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none'}
+          type={'number'}
+          min={input?.min}
+          max={input?.max}
+          step={input?.step ?? 1}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+    </Tooltip>
+  }
+  const lineAnchorControls = showLineEndpoints ? <div className={'mb-2 grid gap-2 rounded border bg-muted/25 p-2'}>
+    <div className={'grid grid-cols-2 gap-1 rounded-lg bg-background/60 p-1'}>
+      {['Start', 'End'].map((label, index) => <button
+        key={`line-anchor-${label}`}
+        type={'button'}
+        className={controls.lineSelectedAnchor === index ? 'rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background' : 'rounded-md px-2 py-1 text-xs text-muted-foreground'}
+        onClick={() => setValue('lineSelectedAnchor', index)}
+      >
+        {label}
+      </button>)}
+    </div>
+    <div className={'grid grid-cols-2 gap-1'}>
+      {anchorNumberField(controls.lineSelectedAnchor === 0 ? controls.x : controls.x2, 'X', (value) => setLineAnchorNumber('x', value), {min: 0, max: 460})}
+      {anchorNumberField(controls.lineSelectedAnchor === 0 ? controls.y : controls.y2, 'Y', (value) => setLineAnchorNumber('y', value), {min: 0, max: 460})}
+    </div>
+  </div> : null
+  const pathAnchorKeys = [
+    ['pathAnchor0X', 'pathAnchor0Y'],
+    ['pathAnchor1X', 'pathAnchor1Y'],
+    ['pathAnchor2X', 'pathAnchor2Y'],
+    ['pathAnchor3X', 'pathAnchor3Y'],
+  ] as const
+  const selectedPathAnchorKeys = pathAnchorKeys[controls.pathSelectedAnchor] ?? pathAnchorKeys[0]
+  const selectedPathX = controls[selectedPathAnchorKeys[0]]
+  const selectedPathY = controls[selectedPathAnchorKeys[1]]
+  const pathAnchorControls = showPathOptions ? <div className={'mt-2 grid gap-2 rounded border bg-muted/25 p-2'}>
+    <div className={'grid grid-cols-4 gap-1 rounded-lg bg-background/60 p-1'}>
+      {pathAnchorKeys.map((_keys, index) => <button
+        key={`path-anchor-${index}`}
+        type={'button'}
+        className={controls.pathSelectedAnchor === index ? 'rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background' : 'rounded-md px-2 py-1 text-xs text-muted-foreground'}
+        onClick={() => setValue('pathSelectedAnchor', index)}
+      >
+        P{index}
+      </button>)}
+    </div>
+    <div className={'grid grid-cols-2 gap-1'}>
+      {anchorNumberField(selectedPathX, 'X', (value) => setPathAnchorNumber('x', value), {min: 0, max: 460})}
+      {anchorNumberField(selectedPathY, 'Y', (value) => setPathAnchorNumber('y', value), {min: 0, max: 460})}
+    </div>
+  </div> : null
   const compositeTabs = apiId === 'group'
     ? [
       ['parent', 'Group'],
@@ -1346,14 +1487,10 @@ function ModelControlPanel({
       {/* ---- Transform ---- */}
       <div className={'mb-3'}>
         <p className={'mb-1 text-xs font-medium text-muted-foreground'}>Transform</p>
+        {lineAnchorControls}
         <div className={'grid grid-cols-4 gap-1'}>
           {showLineEndpoints
-            ? <>
-              {numberField('x', 'x', '', {min: 0, max: 460})}
-              {numberField('y', 'y', '', {min: 0, max: 460})}
-              {numberField('x2', 'x2', '', {min: 0, max: 460})}
-              {numberField('y2', 'y2', '', {min: 0, max: 460})}
-            </>
+            ? null
             : <>
               {numberField('x', 'x', '', {min: 0, max: 280})}
               {numberField('y', 'y', '', {min: 0, max: 280})}
@@ -1462,6 +1599,7 @@ function ModelControlPanel({
         <div className={'grid grid-cols-4 gap-1'}>
           {numberField('ellipseStartAngle', 'start', '°', {min: 0, max: 360})}
           {numberField('ellipseEndAngle', 'end', '°', {min: 0, max: 360})}
+          {toggleField('ellipseDrawWedgeLine', 'wedge')}
         </div>
       </div> : null}
 
@@ -1484,6 +1622,7 @@ function ModelControlPanel({
         {toggleField('pathClosed', 'closed')}
         {toggleField('pathUseBezier', 'bezier')}
       </div> : null}
+      {pathAnchorControls}
 
       {showImageOptions ? <div className={'mt-2 grid gap-1'}>
         <input className={'h-5 w-full rounded border bg-background px-2 text-[11px]'} value={controls.assetId} onChange={(e) => setValue('assetId', e.target.value)} />
@@ -1577,11 +1716,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     canvas.height = Math.round(logicalHeight * scale)
     canvas.style.width = '400px'
     canvas.style.height = `${logicalHeight}px`
-    const venus = new Venus({
-      culling: false,
-      lod: false,
-      render: {backend: 'canvas2d'},
-    })
+    const venus = new Venus(createDocsVenusParameters(theme))
     venus.mount(canvas)
     venus.resize({width: logicalWidth, height: logicalHeight})
     const demoNodes: VenusNode[] = [{id: 'card', type: 'rect', x: 80, y: 60, width: 240, height: 60, fill: theme === 'light' ? '#dbeafe' : '#1e3a8a', stroke: theme === 'light' ? '#2563eb' : '#93c5fd', strokeWidth: 3, cornerRadius: 10},
@@ -1843,11 +1978,7 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
     canvas.height = Math.round(logicalHeight * scale)
     canvas.style.width = '400px'
     canvas.style.height = `${logicalHeight}px`
-    const venus = new Venus({
-      culling: false,
-      lod: false,
-      render: {backend: 'canvas2d'},
-    })
+    const venus = new Venus(createDocsVenusParameters(theme))
     venus.mount(canvas)
     venus.resize({width: logicalWidth, height: logicalHeight})
     demoNodes.forEach((node) => venus.add(node))
@@ -1864,11 +1995,17 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
   }, [api.id, demoNodes, theme])
 
   if (!isEditableModel) {
-    return <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
+    return <div className={'grid gap-2'}>
+      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
+      <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
+    </div>
   }
 
   return <div className={'grid gap-4 lg:grid-cols-[400px_1fr]'}>
-    <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
+    <div className={'grid gap-2'}>
+      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
+      <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
+    </div>
     <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
   </div>
 }
@@ -1876,9 +2013,11 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
 function ShapeCanvas({
   ariaLabel,
   nodes,
+  theme,
 }: {
   ariaLabel: string
   nodes: VenusNode[]
+  theme: ThemeMode
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -1895,11 +2034,7 @@ function ShapeCanvas({
     canvas.style.width = '400px'
     canvas.style.height = `${logicalHeight}px`
 
-    const venus = new Venus({
-      culling: false,
-      lod: false,
-      render: {backend: 'canvas2d'},
-    })
+    const venus = new Venus(createDocsVenusParameters(theme))
     venus.mount(canvas)
     venus.resize({width: logicalWidth, height: logicalHeight})
     nodes.forEach((node) => venus.add(node))
@@ -1908,7 +2043,7 @@ function ShapeCanvas({
     return () => {
       venus.destroy()
     }
-  }, [nodes])
+  }, [nodes, theme])
 
   return <canvas ref={canvasRef} aria-label={ariaLabel} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
 }
@@ -2024,303 +2159,6 @@ r.update({
   </div>
 }
 
-const createCompactShapeNode = (apiId: string, controls: ModelControlValues, index: number): VenusNode | null => {
-  const col = index % 5
-  const row = Math.floor(index / 5)
-  const x = 28 + col * 72
-  const y = 36 + row * 112
-  const fill = withOpacity(controls.fill, controls.fillOpacity)
-  const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
-  const base = {id: `all-${apiId}`, opacity: controls.opacity / 100}
-
-  if (apiId === 'rect') {
-    return controls.cornersLocked
-      ? {...base, type: 'rect', x, y, width: 50, height: 38, fill, stroke, strokeWidth: 2, cornerRadius: Math.min(controls.cornerRadius, 14)}
-      : {...base, type: 'rect', x, y, width: 50, height: 38, fill, stroke, strokeWidth: 2, cornerRadii: {topLeft: Math.min(controls.cornerTopLeft, 14), topRight: Math.min(controls.cornerTopRight, 14), bottomRight: Math.min(controls.cornerBottomRight, 14), bottomLeft: Math.min(controls.cornerBottomLeft, 14)}}
-  }
-  if (apiId === 'ellipse') {
-    return {...base, type: 'ellipse', x, y, width: 54, height: 40, fill, stroke, strokeWidth: 2, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine}
-  }
-  if (apiId === 'line') {
-    return {...base, type: 'line', x, y: y + 18, width: 54, height: 30, stroke, strokeWidth: Math.max(2, Math.min(controls.strokeWidth, 8))}
-  }
-  if (apiId === 'text') {
-    return {...base, type: 'text', x, y: y + 34, width: 58, height: 38, text: controls.text.slice(0, 8) || 'Text', fill, fontSize: 16, fontWeight: controls.fontWeight, lineHeight: 20}
-  }
-  if (apiId === 'group') {
-    return {...base, type: 'group', x, y, children: [
-      {type: 'rect', x: 0, y: 0, width: 52, height: 38, fill, stroke, strokeWidth: 2, cornerRadius: 8},
-      {type: 'text', x: 8, y: 24, text: 'G', fill: stroke, fontSize: 16, fontWeight: 700},
-    ]}
-  }
-  if (apiId === 'clip' || apiId === 'mask') {
-    return {...base, type: apiId === 'clip' ? 'clip' : 'mask', clipPath: {type: 'rect', x, y, width: 54, height: 42, cornerRadius: 14}, children: [
-      {type: 'ellipse', x: x - 8, y: y - 4, width: 70, height: 52, fill, stroke, strokeWidth: 2},
-    ]}
-  }
-  if (apiId === 'polygon') {
-    return {...base, type: 'polygon', x, y, width: 54, height: 44, points: [{x: x + 27, y}, {x: x + 54, y: y + 18}, {x: x + 42, y: y + 44}, {x: x + 12, y: y + 44}, {x, y: y + 18}], fill, stroke, strokeWidth: 2}
-  }
-  if (apiId === 'path') {
-    return controls.pathUseBezier
-      ? {...base, type: 'path', x, y, width: 56, height: 44, bezierPoints: createBezierDemoPoints(x, y, 56, 44), fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: 2, closed: controls.pathClosed}
-      : {...base, type: 'path', x, y, width: 56, height: 44, points: [{x, y: y + 36}, {x: x + 28, y}, {x: x + 56, y: y + 36}, {x: x + 28, y: y + 44}], fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: 2, closed: controls.pathClosed}
-  }
-  if (apiId === 'image') {
-    return {...base, type: 'image', x, y, width: 56, height: 40, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing}
-  }
-
-  return null
-}
-
-function ShapeSpecificPanel({
-  apiId,
-  controls,
-  setControls,
-}: {
-  apiId: string
-  controls: ModelControlValues
-  setControls: Dispatch<SetStateAction<ModelControlValues>>
-}) {
-  const setNumber = (key: keyof ModelControlValues, value: string) => {
-    const nextValue = Number(value)
-    setControls((currentControls) => {
-      if (key === 'cornerRadius' && currentControls.cornersLocked) {
-        return {
-          ...currentControls,
-          cornerRadius: nextValue,
-          cornerTopLeft: nextValue,
-          cornerTopRight: nextValue,
-          cornerBottomRight: nextValue,
-          cornerBottomLeft: nextValue,
-        }
-      }
-      return {...currentControls, [key]: nextValue}
-    })
-  }
-  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
-    setControls((currentControls) => ({...currentControls, [key]: value}))
-  }
-  const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
-    const value = controls[key]
-    if (typeof value !== 'number') return null
-    return <label className={'flex min-w-0 items-center gap-1'} key={`shape-story-field-${String(key)}`}>
-      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
-      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} type={'number'} min={input?.min} max={input?.max} step={input?.step ?? 1} value={value} onChange={(event) => setNumber(key, event.target.value)} />
-    </label>
-  }
-  const toggle = (key: keyof ModelControlValues, label: string) => {
-    const value = controls[key]
-    if (typeof value !== 'boolean') return null
-    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={`shape-story-toggle-${String(key)}`}>
-      <input data-icon="inline-start" type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
-      <span className={'truncate text-muted-foreground'}>{label}</span>
-    </label>
-  }
-
-  if (apiId === 'rect') {
-    return <div className={'grid gap-3'}>
-      <div className={'grid grid-cols-2 gap-2'}>
-        {field('width', 'Width', {min: 20, max: 380})}
-        {field('height', 'Height', {min: 20, max: 260})}
-      </div>
-      <div className={'grid gap-2 rounded-md bg-muted/25 p-2'}>
-        <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2'}>
-          {toggle('cornersLocked', 'Uniform corners')}
-          {controls.cornersLocked ? field('cornerRadius', 'Corner radius', {min: 0, max: 96}) : null}
-        </div>
-        {!controls.cornersLocked ? <div className={'grid grid-cols-2 gap-2'}>
-          {field('cornerTopLeft', 'Top left', {min: 0, max: 96})}
-          {field('cornerTopRight', 'Top right', {min: 0, max: 96})}
-          {field('cornerBottomRight', 'Bottom right', {min: 0, max: 96})}
-          {field('cornerBottomLeft', 'Bottom left', {min: 0, max: 96})}
-        </div> : null}
-      </div>
-    </div>
-  }
-
-  if (apiId === 'ellipse') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {field('width', 'Radius X box', {min: 20, max: 380})}
-      {field('height', 'Radius Y box', {min: 20, max: 260})}
-      {field('ellipseStartAngle', 'Start angle', {min: 0, max: 360})}
-      {field('ellipseEndAngle', 'End angle', {min: 0, max: 360})}
-      {toggle('ellipseDrawWedgeLine', 'Draw wedge line')}
-    </div>
-  }
-
-  if (apiId === 'line') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {field('x', 'Start X', {min: 0, max: 400})}
-      {field('y', 'Start Y', {min: 0, max: 300})}
-      {field('x2', 'End X', {min: 0, max: 400})}
-      {field('y2', 'End Y', {min: 0, max: 300})}
-      {field('strokeWidth', 'Stroke width', {min: 0, max: 32})}
-    </div>
-  }
-
-  if (apiId === 'text') {
-    return <div className={'grid gap-2'}>
-      <label className={'grid gap-1 text-xs'}>
-        <span className={'text-muted-foreground'}>Text</span>
-        <textarea className={'min-h-16 rounded-md border border-border bg-muted/25 px-2 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={controls.text} onChange={(event) => setValue('text', event.target.value)} />
-      </label>
-      <div className={'grid grid-cols-3 gap-2'}>
-        {field('fontSize', 'Font size', {min: 8, max: 96})}
-        {field('fontWeight', 'Weight', {min: 100, max: 900, step: 100})}
-        {field('lineHeight', 'Line height', {min: 8, max: 120})}
-      </div>
-    </div>
-  }
-
-  if (apiId === 'clip' || apiId === 'mask') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {field('clipPathWidth', 'Clip width', {min: 20, max: 380})}
-      {field('clipPathHeight', 'Clip height', {min: 20, max: 260})}
-      {field('clipPathCornerRadius', 'Clip radius', {min: 0, max: 96})}
-      {toggle('clipIsEllipse', 'Use ellipse clip path')}
-    </div>
-  }
-
-  if (apiId === 'polygon' || apiId === 'path') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {field('width', 'Width', {min: 20, max: 380})}
-      {field('height', 'Height', {min: 20, max: 260})}
-      {toggle('pathClosed', 'Closed path')}
-      {apiId === 'path' ? toggle('pathUseBezier', 'Bezier curve') : null}
-    </div>
-  }
-
-  if (apiId === 'image') {
-    return <div className={'grid gap-2'}>
-      <label className={'grid gap-1 text-xs'}>
-        <span className={'text-muted-foreground'}>Asset id</span>
-        <input className={'h-6 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={controls.assetId} onChange={(event) => setValue('assetId', event.target.value)} />
-      </label>
-      {toggle('imageSmoothing', 'Image smoothing')}
-    </div>
-  }
-
-  return <div className={'grid grid-cols-2 gap-2'}>
-    {field('childRectWidth', 'Child rect width', {min: 20, max: 380})}
-    {field('childRectHeight', 'Child rect height', {min: 20, max: 260})}
-    {field('childTextFontSize', 'Child text size', {min: 8, max: 96})}
-  </div>
-}
-
-function CommonPropertiesPanel({
-  apiId,
-  controls,
-  setControls,
-}: {
-  apiId: string
-  controls: ModelControlValues
-  setControls: Dispatch<SetStateAction<ModelControlValues>>
-}) {
-  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
-    setControls((currentControls) => ({...currentControls, [key]: value}))
-  }
-  const setNumber = (key: keyof ModelControlValues, value: string) => {
-    setControls((currentControls) => ({...currentControls, [key]: Number(value)}))
-  }
-  const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
-    const value = controls[key]
-    if (typeof value !== 'number') return null
-    return <label key={`common-field-${String(key)}`} className={'flex min-w-0 items-center gap-1'}>
-      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
-      <input
-        className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'}
-        type={'number'}
-        min={input?.min}
-        max={input?.max}
-        step={input?.step ?? 1}
-        value={value}
-        onChange={(event) => setNumber(key, event.target.value)}
-      />
-    </label>
-  }
-  const color = (key: keyof ModelControlValues, label: string) => {
-    const value = controls[key]
-    if (typeof value !== 'string') return null
-    return <label key={`common-color-${String(key)}`} className={'flex min-w-0 items-center gap-1'}>
-      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
-      <input className={'size-6 shrink-0 cursor-pointer rounded border border-border bg-card p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
-      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
-    </label>
-  }
-  const toggle = (key: keyof ModelControlValues, label: string) => {
-    const value = controls[key]
-    if (typeof value !== 'boolean') return null
-    return <label key={`common-toggle-${String(key)}`} className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'}>
-      <input data-icon="inline-start" type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
-      <span className={'truncate text-muted-foreground'}>{label}</span>
-    </label>
-  }
-  const isContainerModel = apiId === 'group' || apiId === 'clip' || apiId === 'mask'
-  const showPaint = apiId !== 'line' && apiId !== 'image' && apiId !== 'group' && apiId !== 'clip' && apiId !== 'mask'
-  const showStroke = apiId !== 'text' && apiId !== 'image' && apiId !== 'group' && apiId !== 'clip' && apiId !== 'mask'
-  const transformFields = apiId === 'line'
-    ? <>
-      {field('x', 'Start X', {min: 0, max: 400})}
-      {field('y', 'Start Y', {min: 0, max: 300})}
-      {field('x2', 'End X', {min: 0, max: 400})}
-      {field('y2', 'End Y', {min: 0, max: 300})}
-    </>
-    : isContainerModel
-      ? <>
-        {field('x', 'X', {min: 0, max: 400})}
-        {field('y', 'Y', {min: 0, max: 300})}
-      </>
-    : <>
-      {field('x', 'X', {min: 0, max: 400})}
-      {field('y', 'Y', {min: 0, max: 300})}
-      {field('width', 'Width', {min: 20, max: 360})}
-      {field('height', 'Height', {min: 20, max: 260})}
-    </>
-
-  return <div className={'grid gap-4'}>
-    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
-      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Identity</h5>
-      <label className={'grid gap-1'}>
-        <span className={'text-[11px] font-medium text-muted-foreground'}>Node id</span>
-        <input className={'h-6 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={controls.id} onChange={(event) => setValue('id', event.target.value)} />
-      </label>
-    </section>
-    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
-      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Transform</h5>
-      <div className={'grid grid-cols-2 gap-2'}>
-        {transformFields}
-        {field('rotation', 'Rotation', {min: -180, max: 180})}
-        {field('originX', 'Origin X %', {min: 0, max: 100})}
-        {field('originY', 'Origin Y %', {min: 0, max: 100})}
-      </div>
-    </section>
-    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
-      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Appearance</h5>
-      <div className={'grid grid-cols-2 gap-2'}>
-        {field('opacity', 'Opacity %', {min: 0, max: 100})}
-        {showStroke ? field('strokeWidth', 'Stroke width', {min: 0, max: 32}) : null}
-        {showPaint ? color('fill', 'Fill') : null}
-        {showStroke ? color('stroke', 'Stroke') : null}
-        {showPaint ? field('fillOpacity', 'Fill opacity %', {min: 0, max: 100}) : null}
-        {showStroke ? field('strokeOpacity', 'Stroke opacity %', {min: 0, max: 100}) : null}
-      </div>
-    </section>
-    <section className={'grid gap-3 rounded-md bg-muted/25 p-3'}>
-      <h5 className={'text-xs font-semibold uppercase text-muted-foreground'}>Effects</h5>
-      <div className={'grid grid-cols-2 gap-2'}>
-        {toggle('shadowEnabled', 'Drop shadow')}
-        {controls.shadowEnabled ? <>
-          {color('shadowColor', 'Shadow color')}
-          {field('shadowBlur', 'Shadow blur', {min: 0, max: 40})}
-          {field('shadowOffsetX', 'Shadow X', {min: -40, max: 40})}
-          {field('shadowOffsetY', 'Shadow Y', {min: -40, max: 40})}
-        </> : null}
-      </div>
-    </section>
-  </div>
-}
-
 function ShapeStoryDemo({api, theme}: {api: EngineApiDoc; theme: ThemeMode}) {
   const [controls, setControls] = useState(() => createInitialModelControls(api.id, theme))
   const nodes = useMemo(() => createEditableExampleNodes(api.id, controls) ?? createExampleNodes(api.id, theme), [api.id, controls, theme])
@@ -2330,210 +2168,47 @@ function ShapeStoryDemo({api, theme}: {api: EngineApiDoc; theme: ThemeMode}) {
   }, [api.id, theme])
 
   return <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
-    <ShapeCanvas ariaLabel={`${api.title} visual demo`} nodes={nodes}/>
+    <ShapeCanvas ariaLabel={`${api.title} visual demo`} nodes={nodes} theme={theme}/>
     <div className={'flex min-w-0 flex-col gap-4'}>
-      <DemoFormPanel>
-        <ShapeSpecificPanel apiId={api.id} controls={controls} setControls={setControls}/>
-      </DemoFormPanel>
+      <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
       <ApiUsage code={createModelCode(api.id, controls)}/>
     </div>
   </div>
 }
 
-function AllShapesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
-  const [selectedApiId, setSelectedApiId] = useState(shapeApiIds[0])
-  const [controlsByApiId, setControlsByApiId] = useState<Record<string, ModelControlValues>>(() => Object.fromEntries(
-    shapeApiIds.map((apiId) => [apiId, createInitialModelControls(apiId, theme)]),
-  ))
-  const selectedApi = apis.find((api) => api.id === selectedApiId) ?? apis[0]
-  const selectedControls = controlsByApiId[selectedApiId] ?? createInitialModelControls(selectedApiId, theme)
-  const setSelectedControls: Dispatch<SetStateAction<ModelControlValues>> = (nextControls) => {
-    setControlsByApiId((current) => ({
-      ...current,
-      [selectedApiId]: typeof nextControls === 'function' ? nextControls(current[selectedApiId] ?? selectedControls) : nextControls,
-    }))
-  }
-  const nodes = useMemo(() => {
-    return shapeApiIds.flatMap((apiId, index) => {
-      const controls = controlsByApiId[apiId] ?? createInitialModelControls(apiId, theme)
-      const node = createCompactShapeNode(apiId, controls, index)
-      return node ? [node] : []
-    })
-  }, [controlsByApiId, theme])
+function CommonPropertiesDemo({apis}: {apis: EngineApiDoc[]}) {
+  const apiById = new Map(apis.map((api) => [api.id, api]))
 
-  useEffect(() => {
-    setControlsByApiId(Object.fromEntries(shapeApiIds.map((apiId) => [apiId, createInitialModelControls(apiId, theme)])))
-  }, [theme])
+  return <div className={'grid gap-4'}>
+    {shapeApiIds.map((apiId) => {
+      const api = apiById.get(apiId)
+      const spec = VENUS_SHAPE_MODEL_SPECS.find((candidate) => candidate.type === apiId)
+      if (!api || !spec) {
+        return null
+      }
 
-  return <div className={'grid gap-5 lg:grid-cols-[400px_minmax(0,560px)]'}>
-    <ShapeCanvas ariaLabel={'All Venus shapes demo'} nodes={nodes}/>
-    <div className={'flex min-w-0 flex-col gap-4'}>
-      <DemoFormPanel
-        title={'Current type'}
-        description={`${selectedApi?.title ?? 'Shape'} specific controls update the selected preview while the other shapes stay visible.`}
-      >
-        <div className={'grid grid-cols-2 gap-2 sm:grid-cols-3'}>
-          {apis.map((api) => <Button
-            key={`shape-tab-${api.id}`}
-            variant={api.id === selectedApiId ? 'default' : 'outline'}
-            size={'sm'}
-            onClick={() => setSelectedApiId(api.id as typeof selectedApiId)}
-          >
-            {api.title}
-          </Button>)}
+      return <section key={`common-properties-${apiId}`} id={`models-common-properties-${apiId}`} className={'grid scroll-mt-20 gap-4 engine-docs-panel p-4'}>
+        <div className={'flex flex-wrap items-center justify-between gap-3'}>
+          <div>
+            <h4 className={'font-mono text-base font-semibold'}>{api.title}</h4>
+            <p className={'mt-1 max-w-3xl text-sm leading-6 text-muted-foreground'}>{spec.bounds}</p>
+          </div>
+          <span className={'rounded border border-border bg-muted/25 px-2 py-1 text-[11px] text-muted-foreground'}>{spec.family}</span>
         </div>
-        <div className={'mt-3'}>
-          <ShapeSpecificPanel apiId={selectedApiId} controls={selectedControls} setControls={setSelectedControls}/>
+
+        <div className={'grid gap-3 md:grid-cols-2'}>
+          {api.propertyGroups?.map((group) => <div key={`${apiId}-${group.title}`} className={'rounded-md border border-border bg-background/45 p-3'}>
+            <h5 className={'mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'}>{group.title}</h5>
+            <ul className={'flex flex-col gap-1.5'}>
+              {group.properties.map((property, propertyIndex) => <li key={`${apiId}-${group.title}-${propertyIndex}`} className={'flex items-start gap-2 text-[13px] leading-6'}>
+                <code className={'mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0 text-[11px] font-mono text-foreground/80'}>{property.split(':')[0].split('?')[0]}</code>
+                <span className={'text-muted-foreground'}>{property.includes(':') ? property.slice(property.indexOf(':') + 1).trim() : ''}</span>
+              </li>)}
+            </ul>
+          </div>)}
         </div>
-      </DemoFormPanel>
-      <DemoFormPanel title={'Common properties'} description={'Shared identity, transform, appearance, and effect fields.'}>
-        <CommonPropertiesPanel apiId={selectedApiId} controls={selectedControls} setControls={setSelectedControls}/>
-      </DemoFormPanel>
-    </div>
-  </div>
-}
-
-type ShapePropertyDemoKind = 'transform' | 'appearance' | 'effects' | 'specific'
-
-interface ShapePropertyDemoRow {
-  id: string
-  title: string
-  description: string
-  apiId: string
-  kind: ShapePropertyDemoKind
-}
-
-function createShapePropertyControls(row: ShapePropertyDemoRow, theme: ThemeMode) {
-  const controls = createInitialModelControls(row.apiId, theme)
-  if (row.kind === 'transform') {
-    return {...controls, rotation: 12, originX: 50, originY: 50}
-  }
-  if (row.kind === 'appearance') {
-    return {...controls, fillOpacity: 85, strokeWidth: 8, opacity: 92}
-  }
-  if (row.kind === 'effects') {
-    return {...controls, shadowEnabled: true, shadowBlur: 18, shadowOffsetX: 12, shadowOffsetY: 10}
-  }
-  return {...controls, pathUseBezier: true, pathClosed: false, strokeWidth: 6}
-}
-
-function ShapePropertyDemoForm({
-  kind,
-  controls,
-  setControls,
-}: {
-  kind: ShapePropertyDemoKind
-  controls: ModelControlValues
-  setControls: Dispatch<SetStateAction<ModelControlValues>>
-}) {
-  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
-    setControls((currentControls) => ({...currentControls, [key]: value}))
-  }
-  const setNumber = (key: keyof ModelControlValues, value: string) => {
-    setControls((currentControls) => ({...currentControls, [key]: Number(value)}))
-  }
-  const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
-    const value = controls[key]
-    if (typeof value !== 'number') return null
-    return <label className={'flex min-w-0 items-center gap-1'} key={`property-field-${String(key)}`}>
-      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
-      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} type={'number'} min={input?.min} max={input?.max} step={input?.step ?? 1} value={value} onChange={(event) => setNumber(key, event.target.value)} />
-    </label>
-  }
-  const color = (key: keyof ModelControlValues, label: string) => {
-    const value = controls[key]
-    if (typeof value !== 'string') return null
-    return <label className={'flex min-w-0 items-center gap-1'} key={`property-color-${String(key)}`}>
-      <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
-      <input className={'size-6 shrink-0 cursor-pointer rounded border border-border bg-card p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
-      <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
-    </label>
-  }
-  const toggle = (key: keyof ModelControlValues, label: string) => {
-    const value = controls[key]
-    if (typeof value !== 'boolean') return null
-    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={`property-toggle-${String(key)}`}>
-      <input data-icon="inline-start" type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
-      <span className={'text-muted-foreground'}>{label}</span>
-    </label>
-  }
-
-  if (kind === 'transform') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {field('x', 'X', {min: 0, max: 400})}
-      {field('y', 'Y', {min: 0, max: 300})}
-      {field('width', 'Width', {min: 20, max: 360})}
-      {field('height', 'Height', {min: 20, max: 260})}
-      {field('rotation', 'Rotation', {min: -180, max: 180})}
-      {field('skewX', 'Skew X', {min: -45, max: 45})}
-      {field('skewY', 'Skew Y', {min: -45, max: 45})}
-      {field('originX', 'Origin X %', {min: 0, max: 100})}
-      {field('originY', 'Origin Y %', {min: 0, max: 100})}
-    </div>
-  }
-
-  if (kind === 'appearance') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {color('fill', 'Fill')}
-      {color('stroke', 'Stroke')}
-      {field('fillOpacity', 'Fill opacity %', {min: 0, max: 100})}
-      {field('strokeOpacity', 'Stroke opacity %', {min: 0, max: 100})}
-      {field('strokeWidth', 'Stroke width', {min: 0, max: 32})}
-      {field('opacity', 'Opacity %', {min: 0, max: 100})}
-    </div>
-  }
-
-  if (kind === 'effects') {
-    return <div className={'grid grid-cols-2 gap-2'}>
-      {toggle('shadowEnabled', 'Drop shadow')}
-      {color('shadowColor', 'Shadow color')}
-      {field('shadowBlur', 'Blur', {min: 0, max: 40})}
-      {field('shadowOffsetX', 'Offset X', {min: -40, max: 40})}
-      {field('shadowOffsetY', 'Offset Y', {min: -40, max: 40})}
-    </div>
-  }
-
-  return <div className={'grid grid-cols-2 gap-2'}>
-    {toggle('pathUseBezier', 'Bezier curve')}
-    {toggle('pathClosed', 'Closed path')}
-    {field('width', 'Width', {min: 20, max: 360})}
-    {field('height', 'Height', {min: 20, max: 260})}
-    {field('strokeWidth', 'Stroke width', {min: 0, max: 32})}
-    {color('stroke', 'Stroke')}
-  </div>
-}
-
-function ShapePropertyDemoItem({row, theme}: {row: ShapePropertyDemoRow; theme: ThemeMode}) {
-  const [controls, setControls] = useState(() => createShapePropertyControls(row, theme))
-  const nodes = useMemo(() => createEditableExampleNodes(row.apiId, controls) ?? createExampleNodes(row.apiId, theme), [row.apiId, controls, theme])
-
-  useEffect(() => {
-    setControls(createShapePropertyControls(row, theme))
-  }, [row.apiId, row.kind, theme])
-
-  return <section id={row.id} className={'grid scroll-mt-20 gap-3 engine-docs-panel p-4'}>
-    <h4 className={'text-base font-medium'}>{row.title}</h4>
-    <p className={'text-sm leading-6 text-muted-foreground'}>{row.description}</p>
-    <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
-      <ShapeCanvas ariaLabel={`${row.title} shape properties demo`} nodes={nodes}/>
-      <DemoFormPanel>
-        <ShapePropertyDemoForm kind={row.kind} controls={controls} setControls={setControls}/>
-      </DemoFormPanel>
-    </div>
-  </section>
-}
-
-function ShapePropertiesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
-  void apis
-  const propertyRows: ShapePropertyDemoRow[] = [
-    {id: 'models-shape-properties-transform', title: 'Transform', description: 'Position, bounds, rotation, skew, and origin fields define where each shape lives in document space.', apiId: 'rect', kind: 'transform'},
-    {id: 'models-shape-properties-appearance', title: 'Appearance', description: 'Fill, stroke, stroke width, fill opacity, stroke opacity, and layer opacity define the visible paint.', apiId: 'ellipse', kind: 'appearance'},
-    {id: 'models-shape-properties-effects', title: 'Effects', description: 'Drop shadow fields are render-time effects applied after geometry is resolved.', apiId: 'rect', kind: 'effects'},
-    {id: 'models-shape-properties-specific', title: 'Shape Specific', description: 'Shape-specific fields expose capabilities such as path bezierPoints without requiring unrelated common properties.', apiId: 'path', kind: 'specific'},
-  ]
-
-  return <div className={'flex flex-col gap-6'}>
-    {propertyRows.map((row) => <ShapePropertyDemoItem key={row.id} row={row} theme={theme}/>)}
+      </section>
+    })}
   </div>
 }
 
@@ -2585,11 +2260,7 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
     canvas.style.width = '100%'
     canvas.style.height = `${logicalHeight}px`
 
-    const venus = new Venus({
-      culling: false,
-      lod: false,
-      render: {backend: 'canvas2d'},
-    })
+    const venus = new Venus(createDocsVenusParameters(theme))
 
     const unsubscribes = [
       venus.on('mounted', (event) => pushLog('mounted', {canvas: event.canvas.tagName})),
@@ -2767,18 +2438,20 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const baseNavigationItems = useMemo<CollapsibleNavItem[]>(() => {
     return engineApiCategories.map((category) => {
-      if (category.id === 'shapes') {
-        const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
+      if (category.id === 'models') {
+        const shapeApis = shapeApiIds
+          .map((apiId) => category.apis.find((api) => api.id === apiId))
+          .filter((api): api is EngineApiDoc => Boolean(api))
         return {
-          id: category.id,
-          label: category.title,
-          href: `#${category.id}`,
+          id: 'models-contract-nav',
+          label: 'Shape model contract',
+          href: '#models-shape-contract',
           defaultOpen: true,
           items: [
             {
-              id: 'shapes-list-nav',
-              label: 'All Shapes',
-              href: '#shapes-list',
+              id: 'models-shapes-nav',
+              label: 'Shapes',
+              href: '#models-shapes',
               defaultOpen: true,
               items: shapeApis.map((api) => ({
                 id: api.id,
@@ -2786,21 +2459,17 @@ export function App() {
                 href: `#${getApiAnchorId(category, api)}`,
               })),
             },
-          ],
-        }
-      }
-
-      if (category.id === 'common-props') {
-        return {
-          id: category.id,
-          label: category.title,
-          href: `#${category.id}`,
-          defaultOpen: true,
-          items: [
-            {id: 'common-props-transform-nav', label: 'Transform', href: '#common-props-transform'},
-            {id: 'common-props-appearance-nav', label: 'Appearance', href: '#common-props-appearance'},
-            {id: 'common-props-effects-nav', label: 'Effects', href: '#common-props-effects'},
-            {id: 'common-props-specific-nav', label: 'Type Specific', href: '#common-props-specific'},
+            {
+              id: 'models-common-properties-nav',
+              label: 'Common Properties',
+              href: '#models-common-properties',
+              defaultOpen: true,
+              items: shapeApis.map((api) => ({
+                id: `common-${api.id}`,
+                label: api.title,
+                href: `#models-common-properties-${api.id}`,
+              })),
+            },
           ],
         }
       }
@@ -2820,12 +2489,6 @@ export function App() {
   }, [])
   const navigationItems = useMemo(() => filterNavigationItems(baseNavigationItems, searchQuery), [baseNavigationItems, searchQuery])
   const apiCount = useMemo(() => engineApiCategories.reduce((sum, category) => sum + category.apis.length, 0), [])
-
-  const copyUsage = async (api: EngineApiDoc) => {
-    await navigator.clipboard.writeText(createUsageCode(api, theme))
-    setCopiedApiId(api.id)
-    window.setTimeout(() => setCopiedApiId((currentId) => currentId === api.id ? null : currentId), 1200)
-  }
 
   return <div data-theme={theme} className={'engine-docs-shell bg-background text-foreground'}>
     <header className={'engine-docs-topbar sticky top-0 z-10'}>
@@ -2898,7 +2561,9 @@ export function App() {
         <div className={'flex flex-col gap-12'}>
           {engineApiCategories.map((category) => {
             if (category.id === 'models') {
-              const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
+              const shapeApis = shapeApiIds
+                .map((apiId) => category.apis.find((api) => api.id === apiId))
+                .filter((api): api is EngineApiDoc => Boolean(api))
 
               return <section key={category.id} className={'scroll-mt-20'}>
                 <article id={'models-shape-contract'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
@@ -2909,22 +2574,9 @@ export function App() {
                   <ShapeModelGuide/>
                 </article>
 
-                <div id={category.id} className={'mt-10 mb-5 flex scroll-mt-20 flex-col gap-2'}>
-                  <h2 className={'text-2xl font-semibold tracking-tight'}>{category.title}</h2>
-                  <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
-                </div>
-
-                <article id={'models-all-shapes'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
-                  <header className={'flex flex-col gap-2'}>
-                    <h3 className={'text-xl font-semibold tracking-tight'}>All shapes demo</h3>
-                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>A single canvas for every shape type and the complete shape property surface. Select a shape on the right to edit its properties; the selected shape updates in place.</p>
-                  </header>
-                  <AllShapesDemo apis={shapeApis} theme={theme}/>
-                </article>
-
                 <div id={'models-shapes'} className={'scroll-mt-20 py-6'}>
                   <h3 className={'text-xl font-semibold tracking-tight'}>Shapes</h3>
-                  <p className={'mt-2 max-w-3xl text-sm leading-6 text-muted-foreground'}>Each shape page focuses on fields unique to that shape. Common position and appearance controls live in All shapes demo.</p>
+                  <p className={'mt-2 max-w-3xl text-sm leading-6 text-muted-foreground'}>Each shape page includes the live canvas, model-specific controls, and shared editable fields.</p>
                 </div>
 
                 <div className={'flex flex-col gap-4'}>
@@ -2941,12 +2593,12 @@ export function App() {
                   })}
                 </div>
 
-                <article id={'models-shape-properties'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
+                <article id={'models-common-properties'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
-                    <h3 className={'text-xl font-semibold tracking-tight'}>Shape Properties</h3>
-                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Property groups shared by shapes, with canvas feedback and a focused form for the current capability.</p>
+                    <h3 className={'text-xl font-semibold tracking-tight'}>Common Properties</h3>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Shared fields are grouped by the engine model kind so each surface shows its complete inherited and model-specific property set.</p>
                   </header>
-                  <ShapePropertiesDemo apis={shapeApis} theme={theme}/>
+                  <CommonPropertiesDemo apis={shapeApis}/>
                 </article>
               </section>
             }
@@ -2963,7 +2615,6 @@ export function App() {
                   const isDocModel = category.id === 'models'
                   const isLastDocModel = isDocModel && apiIndex === category.apis.length - 1
                   const isMethods = category.id === 'methods'
-                  const isSandbox = category.id === 'sandbox'
 
                   return <article key={`${category.id}-${api.id}`} id={apiAnchorId} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                     <header className={'flex w-full flex-col gap-2'}>
@@ -2998,9 +2649,7 @@ export function App() {
                           <ApiCanvasDemo api={api} theme={theme}/>
                           <ApiUsage code={api.demo}/>
                         </div>
-                        : isSandbox
-                          ? <AllShapesDemo apis={engineApiCategories.find(c => c.id === 'models')?.apis ?? []} theme={theme}/>
-                          : isMethods
+                        : isMethods
                             ? <InteractiveMethodDemo api={api} theme={theme}/>
                             : api.id === 'events-demo'
                               ? <EventInspectorDemo theme={theme}/>
@@ -3017,16 +2666,8 @@ export function App() {
                       ? <ApiUsage code={api.demo}/>
                       : null}
 
-                    {/* Usage accordion: only for non-Start, non-DocModel, non-Methods */}
                     {!isStart && !isDocModel && !isMethods
-                      ? <Disclosure title={'Usage'}>
-                        <div className={'mb-2 flex justify-end'}>
-                          <Button variant={'ghost'} size={'sm'} onClick={() => void copyUsage(api)}>
-                            {copiedApiId === api.id ? 'Copied' : 'Copy'}
-                          </Button>
-                        </div>
-                        <pre className={'max-h-72 overflow-auto rounded-md bg-background p-4 text-xs leading-6 text-muted-foreground'}><code>{createUsageCode(api, theme)}</code></pre>
-                      </Disclosure>
+                      ? <ApiUsage code={createUsageCode(api, theme)}/>
                       : null}
 
                     {api.parameters && api.parameters.length > 0

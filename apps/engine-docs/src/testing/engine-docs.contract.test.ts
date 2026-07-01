@@ -14,7 +14,6 @@ import type {VenusHitTestOptions} from '../../../../packages/engine/src/index.ts
 const appSource = readFileSync(resolve(import.meta.dirname, '../App.tsx'), 'utf8')
 const docsSource = readFileSync(resolve(import.meta.dirname, '../engineApiDocs.ts'), 'utf8')
 const venusSource = readFileSync(resolve(import.meta.dirname, '../../../../packages/engine/src/runtime/venus/Venus.ts'), 'utf8')
-const documentModelApiIdSuffix = '-node'
 const documentedHitTestOptionNames: Array<keyof VenusHitTestOptions> = ['phase', 'tolerance', 'includeLocked']
 
 /**
@@ -82,7 +81,7 @@ describe('engine docs app contract', () => {
   it('defines categorized API pages with demos', () => {
     assert.deepEqual(
       engineApiCategories.map((category) => category.id),
-      ['start', 'document-models', 'venus-parameters', 'backend-strategy', 'methods', 'base-modules', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa'],
+      ['start', 'models', 'methods', 'venus-parameters', 'backend-strategy', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa', 'advanced'],
     )
 
     for (const category of engineApiCategories) {
@@ -122,19 +121,16 @@ describe('engine docs app contract', () => {
   })
 
   it('documents every public Venus document model kind', () => {
-    const documentModelsCategory = getCategory('document-models')
+    const documentModelsCategory = getCategory('models')
     const documentedKinds = documentModelsCategory.apis
-      .filter((api) => api.id.endsWith(documentModelApiIdSuffix))
-      .map((api) => {
-        assert.ok(api.id.endsWith(documentModelApiIdSuffix), `document model api id must end with ${documentModelApiIdSuffix}`)
-        return api.id.slice(0, -documentModelApiIdSuffix.length)
-      })
+      .filter((api) => api.id !== 'common-props')
+      .map((api) => api.id)
 
     assert.deepEqual(documentedKinds, [...VENUS_DOCUMENT_MODEL_TYPES])
 
     for (const api of documentModelsCategory.apis) {
-      if (!api.id.endsWith(documentModelApiIdSuffix)) continue
-      const kind = api.id.slice(0, -documentModelApiIdSuffix.length)
+      if (api.id === 'common-props') continue
+      const kind = api.id
       assert.ok(api.properties?.some((property) => property === `type: ${kind}`), `missing type property for ${kind}`)
       assert.ok(api.properties?.some((property) => property.startsWith('appearance?: VenusAppearance')), `missing structured appearance property for ${kind}`)
       assert.ok(api.properties?.some((property) => property.startsWith('constraints?:')), `missing constraints property for ${kind}`)
@@ -195,7 +191,7 @@ describe('engine docs app contract', () => {
   })
 
   it('keeps every document model backed by an editable Venus canvas demo', () => {
-    const modelApiIds = getCategory('document-models').apis
+    const modelApiIds = getCategory('models').apis
       .filter((api) => api.id !== 'common-props')
       .map((api) => api.id)
     const editableSetMatch = appSource.match(/editableModelApiIds = new Set\(\[([^\]]+)\]\)/)
@@ -266,7 +262,7 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /group\.title/)
     assert.match(appSource, /Methods/)
     assert.match(appSource, /\{api\.summary\}/)
-    assert.match(appSource, /max-h-72/)
+    assert.match(appSource, /max-h-\[min\(60vh,32rem\)\]/)
     assert.match(appSource, /Copy/)
     assert.match(appSource, /createUsageCode\(api, theme\)/)
     assert.match(appSource, /EventInspectorDemo/)
@@ -274,12 +270,13 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /logicalWidth = 400/)
     assert.match(appSource, /logicalHeight = 300/)
     assert.match(appSource, /h-\[300px\] w-\[400px\]/)
-    assert.match(appSource, /lg:grid-cols-\[400px_480px\]/)
+    assert.match(appSource, /lg:grid-cols-\[400px_minmax\(0,420px\)\]/)
     assert.doesNotMatch(appSource, /HeadingAnchor/)
     assert.doesNotMatch(appSource, /Copy heading link/)
     assert.doesNotMatch(appSource, /group-hover:opacity-100/)
     assert.doesNotMatch(appSource, /engine-docs-overview/)
-    assert.match(appSource, /label: 'Shape model contract'[\s\S]*label: category\.title/)
+    assert.match(appSource, /label: 'Shape model contract'[\s\S]*label: 'Shapes'/)
+    assert.match(appSource, /label: 'Common Properties'/)
     assert.match(appSource, /editableModelApiIds/)
     assert.match(appSource, /size-5.*items-center.*justify-center.*rounded.*border/)
     assert.match(appSource, /size-6.*cursor-pointer.*rounded.*border/)
@@ -339,31 +336,32 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /phase: 'click'/)
     assert.match(appSource, />Hover</)
     assert.match(appSource, />Clicked</)
-    assert.match(appSource, /<details/)
+    assert.doesNotMatch(appSource, /<details/)
     assert.match(appSource, /data-theme=\{theme\}/)
     assert.match(appSource, /useState<ThemeMode>\('light'\)/)
     assert.match(appSource, /new Venus/)
     assert.match(appSource, /render: \{backend: 'canvas2d'\}/)
-    assert.match(appSource, /AllShapesDemo/)
+    assert.doesNotMatch(appSource, /AllShapesDemo/)
     assert.match(appSource, /ShapeStoryDemo/)
-    assert.match(appSource, /ShapePropertiesDemo/)
+    assert.doesNotMatch(appSource, /ShapePropertiesDemo/)
+    assert.match(appSource, /CommonPropertiesDemo/)
     assert.match(appSource, /CollapsibleNav/)
-    assert.match(appSource, /document-models-all-shapes-nav/)
-    assert.match(appSource, /document-models-contract-nav/)
+    assert.doesNotMatch(appSource, /models-all-shapes-nav/)
+    assert.match(appSource, /models-contract-nav/)
     assert.match(appSource, /ShapeModelGuide/)
     assert.match(appSource, /VENUS_SHAPE_MODEL_SPECS/)
     assert.match(appSource, /VENUS_COMMON_RENDER_PROPERTIES/)
-    assert.match(appSource, /document-models-shape-properties-transform/)
-    assert.match(appSource, /document-models-shape-properties-appearance/)
-    assert.match(appSource, /document-models-shape-properties-effects/)
-    assert.match(appSource, /document-models-shape-properties-specific/)
-    assert.match(appSource, /CommonPropertiesPanel/)
-    assert.match(appSource, /Current type/)
-    assert.match(appSource, /Common properties/)
+    assert.doesNotMatch(appSource, /models-shape-properties-transform/)
+    assert.doesNotMatch(appSource, /models-shape-properties-appearance/)
+    assert.doesNotMatch(appSource, /models-shape-properties-effects/)
+    assert.doesNotMatch(appSource, /models-shape-properties-specific/)
+    assert.doesNotMatch(appSource, /CommonPropertiesPanel/)
+    assert.doesNotMatch(appSource, /Current type/)
+    assert.match(appSource, /Common Properties/)
     assert.match(appSource, /pathUseBezier/)
     assert.match(appSource, /bezierPoints/)
     assert.match(appSource, /ellipseDrawWedgeLine/)
-    assert.match(appSource, /Draw wedge line/)
+    assert.match(appSource, /toggleField\('ellipseDrawWedgeLine'/)
     assert.match(docsSource, /ellipseDrawWedgeLine\?: boolean/)
     assert.match(appSource, /ThemeHoverMenu/)
     assert.match(appSource, /themeOptions/)
@@ -380,7 +378,8 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /base-entry/)
     assert.match(appSource, /api\.id === 'base-entry'/)
     assert.match(appSource, /venus\.add/)
-    assert.match(docsSource, /title: 'Base and Modules'/)
+    assert.match(docsSource, /title: 'Advanced'/)
+    assert.match(docsSource, /title: 'Base entry'/)
     assert.match(docsSource, /title: 'Module services'/)
     assert.match(docsSource, /@venus\/engine\/base/)
     assert.match(docsSource, /defineVenusModule/)
@@ -421,7 +420,9 @@ describe('engine docs app contract', () => {
     assert.doesNotMatch(appSource, />Example</)
     assert.doesNotMatch(appSource, /gap-8 border-t py-10/)
     assert.doesNotMatch(appSource, /api\.demoCaption/)
-    assert.doesNotMatch(appSource, /api\.readableDescription/)
+    assert.match(appSource, /api\.readableDescription/)
+    assert.doesNotMatch(appSource, />Description</)
+    assert.doesNotMatch(appSource, />Usage</)
     assert.doesNotMatch(appSource, /<figcaption/)
     assert.doesNotMatch(appSource, /Signature/)
     assert.doesNotMatch(appSource, /TabsTrigger/)
@@ -484,7 +485,7 @@ describe('engine docs app contract', () => {
 
   // FM-P0-004: every document model must include structured identity and metadata fields.
   it('documents structured metadata fields on every document model kind', () => {
-    const documentModelsCategory = getCategory('document-models')
+    const documentModelsCategory = getCategory('models')
 
     for (const api of documentModelsCategory.apis) {
       if (api.id === 'common-props') continue
@@ -540,6 +541,9 @@ describe('engine docs app contract', () => {
     assert.match(line, /type: 'line'/)
     assert.match(line, /width: 220/)
     assert.match(line, /height: 80/)
+    assert.match(line, /points:/)
+    assert.match(line, /\{x: 40, y: 80\}/)
+    assert.match(line, /\{x: 260, y: 160\}/)
     assert.doesNotMatch(line, /\n  x:/)
     assert.doesNotMatch(line, /\n  y:/)
 
@@ -598,7 +602,7 @@ describe('engine docs app contract', () => {
 
     assert.match(minimalModelSource, /return \{type: 'rect', width: controls\.width, height: controls\.height\}/)
     assert.match(minimalModelSource, /return \{type: 'ellipse', width: controls\.width, height: controls\.height\}/)
-    assert.match(minimalModelSource, /return \{type: 'line', width: controls\.x2 - controls\.x, height: controls\.y2 - controls\.y\}/)
+    assert.match(minimalModelSource, /return \{type: 'line', width: controls\.x2 - controls\.x, height: controls\.y2 - controls\.y, points: \[\{x: controls\.x, y: controls\.y\}, \{x: controls\.x2, y: controls\.y2\}\]\}/)
     assert.match(minimalModelSource, /return \{type: 'text', text: controls\.text\}/)
     assert.match(minimalModelSource, /return \{type: 'group', children: \[/)
     assert.match(minimalModelSource, /clipPath: controls\.clipIsEllipse/)

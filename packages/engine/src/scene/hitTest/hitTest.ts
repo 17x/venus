@@ -219,10 +219,10 @@ function isPointInsideNode(
     case 'image':
       return isPointInsideNodeClip(localPoint, node) && isPointInsideRect(
         localPoint,
-        node.x,
-        node.y,
-        node.width,
-        node.height,
+        node.x ?? 0,
+        node.y ?? 0,
+        node.width ?? 0,
+        node.height ?? 0,
         tolerance,
       )
     case 'text': {
@@ -299,10 +299,10 @@ function toEditorHitTestShape(node: EngineShapeNode): EngineEditorHitTestNode {
   return {
     id: node.id,
     type: toEditorShapeType(node),
-    x: node.x,
-    y: node.y,
-    width: node.width,
-    height: node.height,
+    x: node.x ?? 0,
+    y: node.y ?? 0,
+    width: node.width ?? 0,
+    height: node.height ?? 0,
     fill: {enabled: hasFill(node)},
     stroke: {enabled: hasStroke(node)},
     strokeWidth: node.strokeWidth,
@@ -355,8 +355,8 @@ function resolveLineEndpoints(node: EngineShapeNode) {
   }
 
   return {
-    start: {x: node.x, y: node.y},
-    end: {x: node.x + node.width, y: node.y + node.height},
+    start: {x: node.x ?? 0, y: node.y ?? 0},
+    end: {x: (node.x ?? 0) + (node.width ?? 0), y: (node.y ?? 0) + (node.height ?? 0)},
   }
 }
 
