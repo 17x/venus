@@ -66,6 +66,16 @@ export interface EngineEditorHitTestNode {
   clipPathId?: string
   fill?: {enabled?: boolean}
   stroke?: {enabled?: boolean}
+  /** Stroke width in document units. Used by hit-test tolerance resolution. */
+  strokeWidth?: number
+  /** Stroke alignment. Influences hit band positioning (center/inside/outside). */
+  strokeAlign?: 'center' | 'inside' | 'outside'
+  /** Dash pattern. Currently not used by hit-test geometry (solid-stroke assumption). */
+  strokeDashArray?: readonly number[]
+  /** Line cap style. Currently not used by hit-test geometry. */
+  strokeCap?: 'butt' | 'round' | 'square'
+  /** Line join style. Currently not used by hit-test geometry. */
+  strokeJoin?: 'miter' | 'round' | 'bevel'
   cornerRadius?: number
   cornerRadii?: {
     topLeft?: number
@@ -80,6 +90,8 @@ export interface EngineEditorHitTestNode {
   ellipseStartAngle?: number
   // Stores optional ellipse arc end angle in degrees.
   ellipseEndAngle?: number
+  // Draws radial wedge edges from ellipse arc endpoints to the ellipse center.
+  ellipseDrawWedgeLine?: boolean
   // Stores optional plain-text content for text-edge outline approximation.
   text?: string
   // Stores optional rich text runs used by text-edge outline approximation.
@@ -204,6 +216,10 @@ export function isPointInsideEngineShapeHitArea(
   }
 
   if (shape.type === 'lineSegment') {
+    if (!hasShapeStrokeHitArea(shape)) {
+      return false
+    }
+
     return isPointNearLineSegment(testPointer, {
       x1: shape.x,
       y1: shape.y,

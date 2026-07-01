@@ -1,0 +1,38 @@
+{
+  "name": "@venus/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p ./tsconfig.json --noEmit"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./globals.css": "./src/globals.css",
+    "./styles.css": "./src/styles.css",
+    "./vector": "./src/vector/index.ts",
+    "./vector/styles.css": "./src/vector/styles.css",
+    "./components/ui/*": "./src/components/ui/*.tsx",
+    "./components/theme/*": "./src/components/theme/*.tsx",
+    "./lib/*": "./src/lib/*.ts"
+  },
+  "peerDependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  }
+}

@@ -36,10 +36,10 @@ export function resolveRenderableNodeBounds(node: EngineRenderableNode): EngineG
   }
 
   return {
-    x: node.x,
-    y: node.y,
-    width: node.width,
-    height: node.height,
+    x: node.x ?? 0,
+    y: node.y ?? 0,
+    width: node.width ?? 0,
+    height: node.height ?? 0,
   }
 }
 

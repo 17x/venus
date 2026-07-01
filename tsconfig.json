@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/lib" },
+    { "path": "./packages/ui" },
     { "path": "./packages/engine" },
     { "path": "./packages/editor-primitive" },
     { "path": "./apps/vector-editor-web/tsconfig.app.json" },

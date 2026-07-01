@@ -1,0 +1,69 @@
+import {forwardRef, type CSSProperties, type InputHTMLAttributes} from 'react'
+import {Input as ShadcnInput} from '../../../primitives/input.tsx'
+import {cn} from '../../../lib/cn.ts'
+
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  label?: string
+  xs?: boolean
+  s?: boolean
+  m?: boolean
+  l?: boolean
+  number?: boolean
+  primary?: boolean
+  warn?: boolean
+  error?: boolean
+  neutral?: boolean
+  labelStyle?: CSSProperties
+}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  {
+    className,
+    label,
+    labelStyle,
+    number,
+    type = number ? 'number' : 'text',
+    xs,
+    s,
+    l,
+    primary,
+    warn,
+    error,
+    neutral = true,
+    ...props
+  },
+  ref,
+) {
+  const input = (
+    <ShadcnInput
+      ref={ref}
+      type={type}
+      className={cn(
+        'vector-ui-font vector-ui-hover-transition box-border w-full rounded-[var(--vector-ui-radius-md)] border-0 bg-white px-[var(--vector-ui-space-2)] shadow-none',
+        'cursor-text outline-none hover:bg-[var(--vector-ui-hover-bg)] focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
+        'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white dark:disabled:hover:bg-slate-900',
+        xs && 'h-6 text-xs',
+        s && 'h-7 text-xs',
+        !xs && !s && !l && 'h-8',
+        l && 'h-9',
+        neutral && 'text-slate-900 dark:text-slate-100',
+        primary && 'bg-[var(--vector-ui-color-tertiary)]',
+        warn && 'bg-amber-50 focus-visible:ring-amber-300 dark:bg-amber-950/40',
+        error && 'bg-red-50 focus-visible:ring-red-300 dark:bg-red-950/40',
+        className,
+      )}
+      {...props}
+    />
+  )
+
+  if (!label) {
+    return input
+  }
+
+  return (
+    <label className="inline-flex items-center gap-2 text-sm" style={labelStyle}>
+      <span>{label}</span>
+      {input}
+    </label>
+  )
+})

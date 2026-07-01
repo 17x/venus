@@ -5,10 +5,12 @@ import {
   type EngineCanvasViewportState,
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
+import { createCanvas2DEngineRenderer } from '../../renderer/canvas2d/canvas2d.ts'
 import { createWebGLEngineRenderer } from '../../renderer/webgl/index.ts'
 import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
 import { getEngineRenderPlanCacheDiagnostics } from '../../renderer/plan/index.ts'
 import type {
+  EngineBackend,
   EngineCanvasSurfaceFactory,
   EngineFrameBudget,
   EngineInteractionPredictorState,
@@ -75,7 +77,7 @@ import {
 } from '../../animation/index.ts'
 import {
   resolveLayeredRenderBridgeOutput,
-} from '../bridge/index.ts'
+} from './layeredBridge/layeredBridge.ts'
 
 type EnginePerformanceToggle<TOptions> = boolean | TOptions
 
@@ -104,6 +106,9 @@ export interface ResolvedEnginePerformanceOptions {
 }
 
 interface EngineRenderOptions {
+  // Selects the renderer backend. Defaults to WebGL; Canvas2D is intended for
+  // deterministic local demos and fallback-capability validation.
+  backend?: EngineBackend
   quality?: EngineRenderQuality
   webglClearColor?: readonly [number, number, number, number]
   // Short alias for pixel ratio config.
@@ -193,7 +198,7 @@ export interface CreateEngineOptions {
 }
 
 export interface EngineRuntimeDiagnostics {
-  backend: 'webgl'
+  backend: EngineBackend
   renderStats: EngineRenderStats | null
   pixelRatio: number
   outputPixelRatio: number
@@ -215,7 +220,7 @@ export interface EngineRuntimeDiagnostics {
     leaveRatioThreshold: number
     stableFrameCount: number
   }
-  viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight'>
+  viewport: Pick<EngineCanvasViewportState, 'scale' | 'offsetX' | 'offsetY' | 'viewportWidth' | 'viewportHeight' | 'matrix' | 'inverseMatrix'>
   cameraAnimation: EngineCameraAnimationState
   // Reports internal render-strategy state so diagnostics can correlate
   // quality/preview decisions with interaction and fallback behavior.
@@ -310,6 +315,7 @@ export interface Engine {
   prepareHitPlan(point: {x: number; y: number}, tolerance?: number): EngineHitPlan
   query(bounds: EngineRect): EngineNodeId[]
   hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
+  hitTestAll(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult[]
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
   getSnapshot(): EngineSceneSnapshot
   setViewport(next: EngineViewportOptions): EngineCanvasViewportState
@@ -386,18 +392,26 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const store = createEngineSceneStore({
     initialScene: options.initialScene,
   })
-  const renderer = createWebGLEngineRenderer({
-    canvas: options.canvas,
-    createCanvasSurface: options.host?.createCanvasSurface,
-    enableCulling: resolvedPerformance.culling,
-    clearColor: options.render?.webglClearColor,
-    antialias: options.render?.webglAntialias ?? true,
-    modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
-    lod: resolvedPerformance.lodConfig,
-    tileConfig: resolvedPerformance.tileConfig,
-    initialRender: options.render?.initialRender,
-    interactionPreview: options.render?.interactionPreview,
-  })
+  const renderBackend = options.render?.backend ?? 'webgl'
+  const renderer = renderBackend === 'canvas2d'
+    ? createCanvas2DEngineRenderer({
+      canvas: options.canvas,
+      createCanvasSurface: options.host?.createCanvasSurface,
+      enableCulling: resolvedPerformance.culling,
+      interactionPreview: options.render?.interactionPreview,
+    })
+    : createWebGLEngineRenderer({
+      canvas: options.canvas,
+      createCanvasSurface: options.host?.createCanvasSurface,
+      enableCulling: resolvedPerformance.culling,
+      clearColor: options.render?.webglClearColor,
+      antialias: options.render?.webglAntialias ?? true,
+      modelCompleteComposite: options.render?.modelCompleteComposite ?? true,
+      lod: resolvedPerformance.lodConfig,
+      tileConfig: resolvedPerformance.tileConfig,
+      initialRender: options.render?.initialRender,
+      interactionPreview: options.render?.interactionPreview,
+    })
   const renderContext: {
     quality: EngineRenderQuality
     lodEnabled: boolean
@@ -929,6 +943,14 @@ query(bounds) {
      * @param tolerance tolerance parameter.
      */
 hitTest(point, tolerance) {
+      return this.hitTestAll(point, tolerance)[0] ?? null
+    },
+        /**
+     * Handles hitTestAll.
+     * @param point point parameter.
+     * @param tolerance tolerance parameter.
+     */
+hitTestAll(point, tolerance) {
       const resolvedTolerance = tolerance ?? 0
       const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
         budgetPressure: latestBudgetPressure,
@@ -950,7 +972,7 @@ hitTest(point, tolerance) {
         exactBudgetExceeded: hitSummary.exactBudgetExceeded,
         queryPointCandidates: (queryPoint: {x: number; y: number}, queryTolerance?: number) => store.queryPointCandidates(queryPoint, queryTolerance),
       })
-      return hits[0] ?? null
+      return hits
     },
         /**
      * Handles getNode.
@@ -1122,7 +1144,7 @@ markDirtyBounds(bounds, zoomLevel) {
     },
     getDiagnostics() {
       return {
-        backend: 'webgl',
+        backend: renderer.capabilities.backend,
         renderStats: latestRenderStats,
         pixelRatio,
         outputPixelRatio,
@@ -1150,6 +1172,8 @@ markDirtyBounds(bounds, zoomLevel) {
           offsetY: viewport.offsetY,
           viewportWidth: viewport.viewportWidth,
           viewportHeight: viewport.viewportHeight,
+          matrix: viewport.matrix,
+          inverseMatrix: viewport.inverseMatrix,
         },
         cameraAnimation: {
           active: cameraAnimationState.active,
@@ -1238,4 +1262,3 @@ function resolveAdaptiveHitTestExactBudget(options: {
 
   return options.interactionActive ? LOW_PRESSURE_INTERACTION_EXACT_BUDGET : LOW_PRESSURE_IDLE_EXACT_BUDGET
 }
-

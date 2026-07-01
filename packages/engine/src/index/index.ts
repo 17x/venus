@@ -1,3 +1,5 @@
+// Engine public barrel owns stable package exports; implementation details and
+// product/editor semantics must remain in their owning modules.
 export type {
   EngineAnimationController,
   EngineEasingDefinition,
@@ -16,8 +18,14 @@ export {
 } from '../math/matrix/matrix.ts'
 
 export type {
+  EngineRenderableNodeType,
   EngineRenderableNode,
+  EngineShapeKind,
   EngineSceneSnapshot,
+} from '../scene/types/types.ts'
+export {
+  ENGINE_RENDERABLE_NODE_TYPES,
+  ENGINE_SHAPE_TYPES,
 } from '../scene/types/types.ts'
 export type {
   EngineHitTestResult,
@@ -27,12 +35,98 @@ export type {
   EngineRenderScheduler,
 } from '../runtime/renderScheduler/renderScheduler.ts'
 export type {
+  EngineBackend,
+  EngineRenderQuality,
+} from '../renderer/types/index.ts'
+export type {
   CreateEngineOptions,
   Engine,
 } from '../runtime/createEngine/createEngine.ts'
 export {
   createEngine,
 } from '../runtime/createEngine/createEngine.ts'
+export type {
+  VenusEventHandler,
+  VenusEventMap,
+  VenusEventName,
+  VenusBackendFallback,
+  VenusAnimationController,
+  VenusAnimationKeyframe,
+  VenusAnimationOptions,
+  VenusAnimatableProperty,
+  VenusAppearance,
+  VenusBackend,
+  VenusBlendMode,
+  VenusCacheDiagnostics,
+  VenusConstraints,
+  VenusDebugFlags,
+  VenusDocumentModelType,
+  VenusEffect,
+  VenusExportSetting,
+  VenusFrameMeasurement,
+  VenusGradient,
+  VenusGradientPaint,
+  VenusGradientStop,
+  VenusGroupNode,
+  VenusGroupOptions,
+  VenusHitTestOptions,
+  VenusInvalidationKind,
+  VenusDocumentService,
+  VenusInternalServiceName,
+  VenusInvalidationService,
+  VenusModule,
+  VenusModuleContext,
+  VenusModuleDiagnostics,
+  VenusModuleName,
+  VenusLinearGradient,
+  VenusNode,
+  VenusPaint,
+  VenusParameters,
+  VenusRegisteredServiceMap,
+  VenusRegisteredServiceName,
+  VenusPublicMethodName,
+  VenusRadialGradient,
+  VenusRuntimeInspection,
+  VenusServiceRegistry,
+  VenusSolidPaint,
+  VenusStroke,
+  VenusStrokeAlign,
+  VenusTransform2D,
+  VenusViewportService,
+} from '../runtime/venus/Venus.ts'
+export {
+  classifyVenusNodeMutation,
+  defineVenusModule,
+  isVenusModuleName,
+  Venus,
+  VENUS_INTERNAL_SERVICE_NAMES,
+  VENUS_DOCUMENT_MODEL_TYPES,
+  VENUS_MODULE_NAMES,
+  VENUS_PUBLIC_METHOD_NAMES,
+} from '../runtime/venus/Venus.ts'
+
+export {
+  VenusNodeProxy,
+  VenusRectProxy,
+  VenusEllipseProxy,
+  VenusLineProxy,
+  VenusTextProxy,
+  VenusGroupProxy,
+  VenusClipProxy,
+  VenusMaskProxy,
+  VenusPolygonProxy,
+  VenusPathProxy,
+  VenusImageProxy,
+  createVenusNodeProxy,
+} from '../runtime/venus/VenusNodeProxy.ts'
+export type {
+  VenusShapeModelFamily,
+  VenusShapeModelSpec,
+} from '../runtime/venus/shapeModel.ts'
+export {
+  VENUS_COMMON_RENDER_PROPERTIES,
+  VENUS_SHAPE_MODEL_SPECS,
+} from '../runtime/venus/shapeModel.ts'
 
 export type {
   EngineDrawCommand,
@@ -59,21 +153,23 @@ export {
   createRenderCameraProjector,
   projectWorldPoint,
   unprojectScreenPoint,
-} from '../renderer/camera/index.ts'
+} from '../core/camera/index.ts'
 
 export {
   hitTestLayeredCommands,
   hitTestBaseLayer,
   hitTestActiveLayer,
-} from '../renderer/hit/index.ts'
+} from '../core/hit/index.ts'
 
 export type {
   GeometryCacheEntry,
-  GeometryCache,
   LayeredTileCacheKey,
+} from '../core/cache/index.ts'
+export {
+  GeometryCache,
   LayeredTileCache,
   toLayeredTileCacheSignature,
-} from '../renderer/cache/index.ts'
+} from '../core/cache/index.ts'
 
 export {
   querySpatialIndex,

@@ -5,10 +5,13 @@ Venus is a monorepo for a composable canvas editor runtime.
 Current focus is `apps/vector-editor-web` as the product app. `apps/playground`
 is kept as a diagnostics surface.
 
+## Documentation
+
+- [https://enginedoc.pages.dev/](https://enginedoc.pages.dev/)
+
 ## Live demos
 
 - Vector editor: [https://venus-db9.pages.dev/](https://venus-db9.pages.dev/)
-- Playground: [https://venus-pla.pages.dev/](https://venus-pla.pages.dev/)
 
 ## Repo structure
 

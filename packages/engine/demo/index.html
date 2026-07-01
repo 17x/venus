@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@venus/engine rendering demo</title>
+    <style>
+      :root {
+        color: #172033;
+        background: #f6f8fb;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        display: grid;
+        gap: 16px;
+        padding: 24px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(280px, 380px);
+        align-items: end;
+        gap: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      p {
+        margin: 6px 0 0;
+        color: #596780;
+      }
+
+      canvas {
+        width: 100%;
+        height: 560px;
+        border: 1px solid #d7deea;
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow: 0 18px 50px rgb(30 41 59 / 12%);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(520px, 960px) minmax(280px, 360px);
+        align-items: start;
+        gap: 16px;
+      }
+
+      .panels {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        position: sticky;
+        top: 16px;
+      }
+
+      .panel {
+        border: 1px solid #d7deea;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 10px 12px;
+        color: #334155;
+        font-size: 13px;
+      }
+
+      .panel h2 {
+        margin: 0 0 6px;
+        color: #0f172a;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .panel pre {
+        margin: 0;
+        overflow: auto;
+        white-space: pre-wrap;
+        color: #475569;
+        font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      @media (max-width: 760px) {
+        header,
+        .workspace,
+        .panels {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>@venus/engine local rendering demo</h1>
+          <p>Canvas2D backend: shapes, text, clipped image, hit-test, pan, and zoom.</p>
+        </div>
+        <div class="panel">
+          <h2>How to inspect</h2>
+          <pre>Move pointer for hover hit-test.
+Click for clicked hit-test.
+Wheel to zoom.</pre>
+        </div>
+      </header>
+      <section class="workspace" aria-label="Engine demo workspace">
+        <canvas id="engine-canvas" width="960" height="560"></canvas>
+        <aside class="panels" aria-label="Hit-test output">
+          <div class="panel">
+            <h2>Render</h2>
+            <pre id="render-status">Loading engine…</pre>
+          </div>
+          <div class="panel">
+            <h2>Self-Test</h2>
+            <pre id="self-test">Waiting for first frame…</pre>
+          </div>
+          <div class="panel">
+            <h2>Hover Hit-Test</h2>
+            <pre id="hover-hit">Move over the canvas.</pre>
+          </div>
+          <div class="panel">
+            <h2>Clicked Hit-Test</h2>
+            <pre id="click-hit">Click the canvas.</pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

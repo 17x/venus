@@ -7,6 +7,8 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "paths": {
       "@venus/lib": ["packages/lib/src/index.ts"],
+      "@venus/ui": ["packages/ui/src/index.ts"],
+      "@venus/ui/*": ["packages/ui/src/*"],
       "@venus/editor-primitive": ["packages/editor-primitive/src/index.ts"],
       "@venus/editor-primitive/*": ["packages/editor-primitive/src/*/index.ts"],
       "@venus/engine": ["packages/engine/src/index.ts"]
@@ -14,6 +16,7 @@
   },
   "references": [
     { "path": "../../packages/lib/tsconfig.json" },
+    { "path": "../../packages/ui/tsconfig.json" },
     { "path": "../../packages/editor-primitive/tsconfig.json" },
     { "path": "../../packages/engine/tsconfig.json" }
   ],

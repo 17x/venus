@@ -169,10 +169,10 @@ function writeLayoutSlot(
       layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = node.height ?? (node.style.lineHeight ?? node.style.fontSize * TEXT_LINE_HEIGHT_MULTIPLIER)
       break
     case 'image':
-      layout.bounds[boundsOffset] = node.x
-      layout.bounds[boundsOffset + 1] = node.y
-      layout.bounds[boundsOffset + BOUNDS_WIDTH_OFFSET] = node.width
-      layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = node.height
+      layout.bounds[boundsOffset] = node.x ?? 0
+      layout.bounds[boundsOffset + 1] = node.y ?? 0
+      layout.bounds[boundsOffset + BOUNDS_WIDTH_OFFSET] = node.width ?? 0
+      layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = node.height ?? 0
       break
     case 'group':
       layout.bounds[boundsOffset] = 0
@@ -181,10 +181,10 @@ function writeLayoutSlot(
       layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = 0
       break
     case 'shape':
-      layout.bounds[boundsOffset] = node.x
-      layout.bounds[boundsOffset + 1] = node.y
-        layout.bounds[boundsOffset + BOUNDS_WIDTH_OFFSET] = node.width
-        layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = node.height
+      layout.bounds[boundsOffset] = node.x ?? 0
+      layout.bounds[boundsOffset + 1] = node.y ?? 0
+      layout.bounds[boundsOffset + BOUNDS_WIDTH_OFFSET] = node.width ?? 0
+      layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = node.height ?? 0
       break
   }
 

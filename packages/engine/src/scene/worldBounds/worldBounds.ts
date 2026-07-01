@@ -79,16 +79,33 @@ export function toWorldAxisAlignedBounds(
 }
 
 /**
+ * Resolves the authoritative local bounding rect for any shape node.
+ * For points-primary shapes (line/polygon/path), geometry is computed from
+ * points/bezierPoints. For ellipse, prefers {@link EngineEllipseGeometry}.
+ * Falls back to the node's x/y/width/height with zero defaults.
+ * @param node Target shape node.
+ * @returns The resolved local bounding rect (never null).
+ */
+export function resolveShapeBounds(node: EngineShapeNode): EngineRect {
+  const geometryBounds = resolveShapeGeometryLocalBounds(node)
+  if (geometryBounds) {
+    return geometryBounds
+  }
+
+  return {
+    x: node.x ?? 0,
+    y: node.y ?? 0,
+    width: node.width ?? 0,
+    height: node.height ?? 0,
+  }
+}
+
+/**
  * Handles resolveShapeLocalBounds.
  * @param node Target node.
  */
 function resolveShapeLocalBounds(node: EngineShapeNode): EngineRect {
-  const geometryBounds = resolveShapeGeometryLocalBounds(node) ?? {
-    x: node.x,
-    y: node.y,
-    width: node.width,
-    height: node.height,
-  }
+  const geometryBounds = resolveShapeGeometryLocalBounds(node) ?? resolveShapeBounds(node)
   const strokeInset = Math.max(0, node.strokeWidth ?? 0) / STROKE_INSET_DIVISOR
 
   return strokeInset > 0
@@ -101,6 +118,12 @@ function resolveShapeLocalBounds(node: EngineShapeNode): EngineRect {
  * @param node Target node.
  */
 function resolveShapeGeometryLocalBounds(node: EngineShapeNode): EngineRect | null {
+  // Ellipse: prefer center+radii form when available.
+  if (node.shape === 'ellipse' && node.ellipseGeometry) {
+    const { cx, cy, rx, ry } = node.ellipseGeometry
+    return { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 }
+  }
+
   if (node.bezierPoints && node.bezierPoints.length > 0) {
     return getBoundingRectFromBezierPoints(node.bezierPoints)
   }

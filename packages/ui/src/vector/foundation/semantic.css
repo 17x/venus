@@ -1,0 +1,297 @@
+@layer components {
+  .vector-editor-text-body,
+  .vector-editor-text-menu,
+  .vector-editor-text-control,
+  .vector-editor-text-panel-body {
+    font-size: var(--vector-editor-font-body);
+    line-height: var(--vector-editor-line-body);
+  }
+
+  .vector-editor-text-label,
+  .vector-editor-text-status,
+  .vector-editor-text-panel-label,
+  .vector-editor-text-panel-heading {
+    font-size: var(--vector-editor-font-label);
+    line-height: var(--vector-editor-line-label);
+  }
+
+  .vector-editor-text-meta {
+    font-size: var(--vector-editor-font-meta);
+    line-height: var(--vector-editor-line-meta);
+  }
+
+  .vector-editor-text-heading {
+    font-size: var(--vector-editor-font-heading);
+    line-height: var(--vector-editor-line-heading);
+    font-weight: 600;
+  }
+
+  .vector-editor-text-panel-label {
+    font-weight: 500;
+  }
+
+  .vector-editor-text-panel-heading {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  .vector-editor-property-section > div > span:first-child {
+    font-size: var(--vector-editor-font-label);
+    line-height: var(--vector-editor-line-label);
+    font-weight: 500;
+    color: rgb(107 114 128);
+  }
+
+  .vector-editor-property-section input:not([type=color]):not([type=checkbox]) {
+    font-size: var(--vector-editor-font-body);
+    line-height: var(--vector-editor-line-body);
+  }
+
+  .vector-prop-group-title {
+    color: rgb(107 114 128);
+    padding-bottom: 4px;
+    margin-top: 2px;
+  }
+
+  .vector-prop-row {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .vector-prop-grid-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .vector-prop-form-control {
+    width: 100%;
+    min-width: 0;
+    height: 26px !important;
+    font-size: var(--vector-editor-font-body) !important;
+    line-height: var(--vector-editor-line-body) !important;
+  }
+
+  .vector-prop-form-color {
+    width: 100%;
+    min-width: 0;
+    height: 26px;
+    border-radius: var(--vector-ui-radius-md);
+    background: white;
+    padding: 3px;
+    cursor: pointer;
+  }
+
+  .vector-prop-form-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: #334155;
+    justify-self: end;
+    cursor: pointer;
+  }
+
+  .vector-prop-icon-action {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    color: #4b5563;
+  }
+
+  .vector-editor-icon-text {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .vector-shell-root {
+    background: var(--vector-shell-bg);
+    color: var(--vector-shell-text);
+  }
+
+  .vector-shell-topbar,
+  .vector-shell-menu,
+  .vector-shell-toolbar,
+  .vector-shell-status,
+  .vector-shell-panel,
+  .vector-shell-rail,
+  .vector-shell-rail-thin,
+  .vector-shell-canvas-frame {
+    border-color: var(--vector-shell-border);
+  }
+
+  .vector-shell-topbar,
+  .vector-shell-menu,
+  .vector-shell-toolbar,
+  .vector-shell-status,
+  .vector-shell-canvas-frame,
+  .vector-shell-panel {
+    background: var(--vector-shell-surface);
+  }
+
+  .vector-shell-rail,
+  .vector-shell-rail-thin {
+    background: var(--vector-shell-surface-muted);
+  }
+
+  .vector-shell-canvas-stage {
+    background: var(--vector-shell-canvas-bg);
+  }
+
+  .vector-shell-divider {
+    background: var(--vector-shell-divider);
+  }
+
+  .vector-shell-text-muted {
+    color: var(--vector-shell-text-muted);
+  }
+
+  .vector-shell-toolbar-button,
+  .vector-shell-menu-button,
+  .vector-shell-control-chip {
+    color: var(--vector-shell-text);
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color var(--vector-ui-hover-speed) ease,
+      color var(--vector-ui-hover-speed) ease,
+      box-shadow var(--vector-ui-hover-speed) ease,
+      transform var(--vector-ui-hover-speed) ease;
+  }
+
+  .vector-shell-menu-button:hover,
+  .vector-shell-toolbar-button:hover,
+  .vector-shell-control-chip:hover {
+    background: var(--vector-ui-hover-bg);
+    transform: translateY(-1px);
+  }
+
+  .vector-shell-menu-button:active,
+  .vector-shell-toolbar-button:active,
+  .vector-shell-control-chip:active {
+    background: var(--vector-ui-hover-bg-strong);
+    transform: translateY(0);
+  }
+
+  .vector-shell-menu-button-active,
+  .vector-shell-toolbar-button-active,
+  .vector-shell-icon-active {
+    background: var(--vector-shell-active-bg);
+    color: var(--vector-shell-active-text);
+  }
+
+  .vector-shell-tab-active {
+    background: color-mix(in srgb, var(--vector-shell-active-bg) 75%, var(--vector-shell-active-text) 25%);
+  }
+
+  .vector-shell-plain-trigger {
+    background: transparent;
+  }
+
+  .vector-ui-menu-item {
+    height: var(--vector-ui-menu-item-height);
+    color: var(--vector-shell-text);
+    cursor: pointer;
+    transition:
+      background-color var(--vector-ui-hover-speed) ease,
+      color var(--vector-ui-hover-speed) ease,
+      transform var(--vector-ui-hover-speed) ease;
+  }
+
+  .vector-ui-menu-item:hover {
+    background: var(--vector-ui-hover-bg);
+  }
+
+  .vector-ui-menu-item:active {
+    background: var(--vector-ui-hover-bg-strong);
+    color: var(--vector-shell-active-text);
+    transform: translateY(1px);
+  }
+
+  .vector-shell-toolbar-button svg,
+  .vector-shell-menu-button svg,
+  .vector-shell-control-chip svg {
+    width: var(--vector-ui-icon-size);
+    height: var(--vector-ui-icon-size);
+  }
+
+  .vector-shell-focusable:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--vector-shell-focus-ring);
+  }
+
+  .vector-ui-font {
+    font-family: var(--vector-ui-font-family);
+    font-size: var(--vector-ui-font-size-sm);
+    line-height: var(--vector-ui-line-sm);
+  }
+
+  .vector-ui-hover-transition {
+    transition:
+      background-color var(--vector-ui-hover-speed) ease,
+      color var(--vector-ui-hover-speed) ease;
+  }
+
+  .vector-ui-control-border {
+    border-width: var(--vector-ui-border-width);
+    border-color: var(--vector-ui-border-color);
+  }
+
+  .vector-ui-select-item {
+    --vector-ui-select-item-level: 0;
+    padding-left: calc(var(--vector-ui-space-5) + var(--vector-ui-select-item-level) * var(--vector-ui-space-4));
+  }
+
+  [data-vector-ui-root='true'] .border-gray-100,
+  [data-vector-ui-root='true'] .border-slate-100 {
+    border-color: color-mix(in srgb, var(--vector-shell-border-soft) 70%, white) !important;
+  }
+
+  [data-vector-ui-root='true'] .border-gray-200,
+  [data-vector-ui-root='true'] .border-slate-200 {
+    border-color: var(--vector-shell-border) !important;
+  }
+
+  [data-vector-ui-root='true'] .border-gray-300,
+  [data-vector-ui-root='true'] .border-slate-300 {
+    border-color: var(--vector-shell-border-soft) !important;
+  }
+
+  [data-vector-ui-root='true'] .border-gray-400,
+  [data-vector-ui-root='true'] .border-slate-400,
+  [data-vector-ui-root='true'] .border-gray-500,
+  [data-vector-ui-root='true'] .border-slate-500,
+  [data-vector-ui-root='true'] .border-gray-600,
+  [data-vector-ui-root='true'] .border-slate-600,
+  [data-vector-ui-root='true'] .border-gray-700,
+  [data-vector-ui-root='true'] .border-slate-700,
+  [data-vector-ui-root='true'] .border-gray-900,
+  [data-vector-ui-root='true'] .border-slate-900 {
+    border-color: var(--vector-shell-border-soft) !important;
+  }
+
+  [data-vector-ui-root='true'] .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+  [data-vector-ui-root='true'] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--vector-shell-divider) !important;
+  }
+
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-editor-property-section > div > span:first-child,
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-group-title {
+    color: #94a3b8;
+  }
+
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-form-color {
+    background: #0f172a;
+  }
+
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-icon-action {
+    color: #cbd5e1;
+  }
+
+  [data-vector-ui-root='true'][data-theme='dark'] .vector-prop-form-checkbox {
+    accent-color: #93c5fd;
+  }
+}
