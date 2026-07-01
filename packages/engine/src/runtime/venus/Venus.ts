@@ -1777,12 +1777,14 @@ export class Venus {
   // -- Document CRUD (Figma-style proxy API) --
 
   /**
-   * Adds one document node and returns a typed mutable proxy.
-   * Use the proxy chainable setters to modify properties after creation.
-   *
-   * @example
-   * const r = venus.add({type:'rect', x:10, y:10, width:100, height:80})
-   * r.setWidth(200).setFill('#ff0000').setCornerRadius(12)
+   * @name Venus.add
+   * @description Adds one document node to the current scene and returns a typed mutable proxy.
+   * @example Usage
+   * const r = venus.add({type: 'rect', width: 100, height: 80})
+   * r.width = 200
+   * r.fill = '#ff0000'
+   * @param node Document node to append to the current scene.
+   * @returns Typed proxy for the stored node.
    */
   add(node: VenusNode): VenusNodeProxy {
     const storedNode = this.ensureNodeId(node)
@@ -1796,9 +1798,14 @@ export class Venus {
   }
 
   /**
-   * Updates one document node by id with a shallow property patch.
-   * Triggers efficient invalidation based on the changed property kinds.
-   * Called internally by VenusNodeProxy setters; also available for direct use.
+   * @name Venus.update
+   * @description Updates one document node by id with a shallow property patch.
+   * @example Usage
+   * venus.update('card', {width: 280, fill: '#ff0000', opacity: 0.8})
+   * await venus.render()
+   * @param id Stable node id to update.
+   * @param patch Properties to shallow-merge into the document node.
+   * @returns Nothing.
    */
   update(id: string, patch: Partial<VenusNode>): void {
     const node = this.nodeById.get(id)
@@ -1817,9 +1824,13 @@ export class Venus {
   }
 
   /**
-   * Removes one document node by id.
-   * Handles root-level removal; nested nodes inside groups/clips/masks
-   * should use removeChild instead.
+   * @name Venus.remove
+   * @description Removes one root-level document node by id and emits a document change.
+   * @example Usage
+   * venus.add({id: 'temp', type: 'rect', width: 80, height: 40})
+   * venus.remove('temp')
+   * @param id Stable node id to remove.
+   * @returns Nothing.
    */
   remove(id: string): void {
     const index = this.documentNodes.findIndex((n) => n.id === id)
@@ -1836,7 +1847,15 @@ export class Venus {
   }
 
   /**
-   * Groups sibling nodes under a new group while preserving their visual position.
+   * @name Venus.group
+   * @description Groups sibling nodes under a new group while preserving visual position.
+   * @example Usage
+   * const a = venus.add({type: 'rect', x: 40, y: 40, width: 80, height: 60})
+   * const b = venus.add({type: 'ellipse', x: 150, y: 52, width: 72, height: 48})
+   * const g = venus.group([a.id, b.id], {name: 'Selection'})
+   * @param ids Sibling node ids to group.
+   * @param options Optional group metadata such as id, name, appearance, opacity, or shadow.
+   * @returns Typed group proxy.
    */
   group(ids: readonly string[], options: VenusGroupOptions = {}): VenusNodeProxy {
     const uniqueIds = Array.from(new Set(ids))
@@ -1894,7 +1913,13 @@ export class Venus {
   }
 
   /**
-   * Ungroups one group node and inserts its children back into the same parent.
+   * @name Venus.ungroup
+   * @description Lifts a translation-only group's children back into the same parent.
+   * @example Usage
+   * const children = venus.ungroup('selection-group')
+   * await venus.render()
+   * @param id Group node id to ungroup.
+   * @returns Proxies for the lifted children.
    */
   ungroup(id: string): VenusNodeProxy[] {
     const groupNode = this.nodeById.get(id)
@@ -1933,8 +1958,14 @@ export class Venus {
   }
 
   /**
-   * Adds a child node to a group, clip, or mask container.
-   * Returns a typed proxy for the newly added child.
+   * @name Venus.addChild
+   * @description Adds a child node to a group, clip, or mask container.
+   * @example Usage
+   * const child = venus.addChild('group-id', {type: 'rect', width: 60, height: 40})
+   * child.x = 20
+   * @param parentId Parent group, clip, or mask id.
+   * @param child Child document node to append.
+   * @returns Typed proxy for the newly added child.
    */
   addChild(parentId: string, child: VenusNode): VenusNodeProxy {
     const parent = this.nodeById.get(parentId)
@@ -1951,7 +1982,14 @@ export class Venus {
   }
 
   /**
-   * Removes a child node from a group, clip, or mask container by child id.
+   * @name Venus.removeChild
+   * @description Removes a child node from a group, clip, or mask container by child id.
+   * @example Usage
+   * venus.removeChild('group-id', 'child-id')
+   * await venus.render()
+   * @param parentId Parent group, clip, or mask id.
+   * @param childId Child node id to remove.
+   * @returns Nothing.
    */
   removeChild(parentId: string, childId: string): void {
     const parent = this.nodeById.get(parentId)
@@ -1965,17 +2003,36 @@ export class Venus {
     this.emit('document:changed', {revision: this.revision})
   }
 
-  /** Returns the union bounding box of the current document. */
+  /**
+   * @name Venus.bounds
+   * @description Returns the union bounding box of all root document nodes.
+   * @example Usage
+   * const box = venus.bounds()
+   * @returns Axis-aligned document bounds.
+   */
   bounds(): {x: number; y: number; width: number; height: number} {
     return resolveEngineNodesBounds(this.nodes) ?? {x: 0, y: 0, width: 0, height: 0}
   }
 
-  /** Returns all root-level document nodes. */
+  /**
+   * @name Venus.children
+   * @description Returns all root-level document nodes without flattening container children.
+   * @example Usage
+   * const roots = venus.children()
+   * @returns Root-level document nodes.
+   */
   children(): readonly VenusNode[] {
     return this.documentNodes
   }
 
-  /** Looks up a document node by stable id and returns a mutable proxy, or null when missing. */
+  /**
+   * @name Venus.getNodeById
+   * @description Looks up a document node by stable id and returns a mutable proxy, or null when missing.
+   * @example Usage
+   * const node = venus.getNodeById('card')
+   * @param id Stable node id to look up.
+   * @returns Typed node proxy, or null when no node exists for the id.
+   */
   getNodeById(id: string): VenusNodeProxy | null {
     const node = this.nodeById.get(id)
     if (!node) return null
@@ -1987,19 +2044,41 @@ export class Venus {
     return this.nodeById.get(id)
   }
 
-  /** Returns the parent node id for a nested node, or null for a root node. */
+  /**
+   * @name Venus.getParentId
+   * @description Returns the parent node id for a nested node, or null for a root node.
+   * @example Usage
+   * const parentId = venus.getParentId('rect-1')
+   * @param id Child node id.
+   * @returns Parent node id, or null for root nodes.
+   */
   getParentId(id: string): string | null {
     return this.parentById.get(id) ?? null
   }
 
-  /** Returns a render-facing scene snapshot for the current document. */
+  /**
+   * @name Venus.snapshot
+   * @description Returns a render-facing scene snapshot for the current document.
+   * @example Usage
+   * const snap = venus.snapshot()
+   * console.log(snap.revision, snap.nodes.length)
+   * @returns Current engine scene snapshot.
+   */
   snapshot(): EngineSceneSnapshot {
     return this.createSnapshot()
   }
 
   // -- Camera (flat) --
 
-  /** Fits the given document-space bounds into the viewport. */
+  /**
+   * @name Venus.fitBounds
+   * @description Fits the given document-space bounds into the viewport and returns the applied camera state.
+   * @example Usage
+   * venus.fitBounds(venus.bounds(), 32)
+   * @param bounds Document-space bounds to fit.
+   * @param padding Optional viewport padding.
+   * @returns Applied viewport scale and offset.
+   */
   fitBounds(bounds: {x: number; y: number; width: number; height: number}, padding: number | {top: number; right: number; bottom: number; left: number} = 0): {scale: number; offsetX: number; offsetY: number} {
     const resolvedPadding = typeof padding === 'number'
       ? {top: padding, right: padding, bottom: padding, left: padding}
@@ -2021,29 +2100,68 @@ export class Venus {
     }))
   }
 
-  /** Sets the viewport scale around an optional screen anchor. */
+  /**
+   * @name Venus.zoomTo
+   * @description Sets the viewport scale around an optional screen anchor without modifying document geometry.
+   * @example Usage
+   * venus.zoomTo(2.0, {x: 200, y: 150})
+   * @param scale Target zoom scale.
+   * @param anchor Optional screen anchor point.
+   * @returns Applied viewport scale and offset.
+   */
   zoomTo(scale: number, anchor?: {x: number; y: number}): {scale: number; offsetX: number; offsetY: number} {
     return this.applyViewport(zoomEngineViewportState(this.viewport, scale, anchor))
   }
 
-  /** Moves the viewport by a screen-space delta without moving document objects. */
+  /**
+   * @name Venus.panBy
+   * @description Moves the viewport by a screen-space delta without moving document objects.
+   * @example Usage
+   * venus.panBy({x: 50, y: -30})
+   * @param delta Screen-space movement amount.
+   * @returns Applied viewport scale and offset.
+   */
   panBy(delta: {x: number; y: number}): {scale: number; offsetX: number; offsetY: number} {
     return this.applyViewport(panEngineViewportState(this.viewport, delta.x, delta.y))
   }
 
-  /** Converts a document-space point to screen coordinates. */
+  /**
+   * @name Venus.project
+   * @description Converts a document-space point to screen coordinates using the current camera transform.
+   * @example Usage
+   * const screen = venus.project({x: 260, y: 160})
+   * @param point Document-space coordinate.
+   * @returns Screen-space coordinate.
+   */
   project(point: {x: number; y: number}): {x: number; y: number} {
     return applyMatrixToPoint(this.viewport.matrix, point)
   }
 
-  /** Converts a screen-space point back to document coordinates. */
+  /**
+   * @name Venus.unproject
+   * @description Converts a screen-space point back to document coordinates using the inverse camera transform.
+   * @example Usage
+   * const doc = venus.unproject({x: 200, y: 150})
+   * @param point Screen-space coordinate.
+   * @returns Document-space coordinate.
+   */
   unproject(point: {x: number; y: number}): {x: number; y: number} {
     return applyMatrixToPoint(this.viewport.inverseMatrix, point)
   }
 
   // -- Debug (flat) --
 
-  /** Enables selected diagnostics and returns the active debug flags. */
+  /**
+   * @name Venus.enableDebug
+   * @description Enables selected diagnostics and returns the active debug flags.
+   * @example Usage
+   * venus.enableDebug({showBounds: true})
+   * @param options Debug flags to enable or disable.
+   * @param options.showBounds Draws geometry bounds overlays.
+   * @param options.showHitCandidates Displays hit-test candidates.
+   * @param options.showCache Includes normalized cache diagnostics in inspect().cache.
+   * @returns Active debug flags.
+   */
   enableDebug(options: {showBounds?: boolean; showHitCandidates?: boolean; showCache?: boolean}): VenusDebugFlags {
     if (options.showBounds !== undefined) this.debugFlags.showBounds = options.showBounds
     if (options.showHitCandidates !== undefined) this.debugFlags.showHitCandidates = options.showHitCandidates
@@ -2052,7 +2170,13 @@ export class Venus {
     return {...this.debugFlags}
   }
 
-  /** Returns current Venus and engine diagnostics snapshot. */
+  /**
+   * @name Venus.inspect
+   * @description Returns the current Venus and engine diagnostics snapshot.
+   * @example Usage
+   * const diag = venus.inspect()
+   * @returns Current runtime inspection data.
+   */
   inspect(): VenusRuntimeInspection {
     const engine = this.engine?.getDiagnostics() ?? null
 
@@ -2084,7 +2208,13 @@ export class Venus {
     }
   }
 
-  /** Profiles the next render frame and returns frame timing data. */
+  /**
+   * @name Venus.measureFrame
+   * @description Profiles the next render frame and returns timing data.
+   * @example Usage
+   * const timing = await venus.measureFrame()
+   * @returns Frame timing data, or null when the runtime is not mounted.
+   */
   async measureFrame(): Promise<VenusFrameMeasurement | null> {
     if (!this.engine) {
       return null
@@ -2102,6 +2232,13 @@ export class Venus {
     return measurement
   }
 
+  /**
+   * @name Venus.constructor
+   * @description Creates a Venus runtime with optional renderer, debug, and module parameters.
+   * @example Usage
+   * const venus = new Venus({render: {backend: 'canvas2d'}})
+   * @param parameters Optional runtime configuration.
+   */
   constructor(parameters: VenusParameters = {}) {
     this.parameters = parameters
     this.registerInternalServices()
@@ -2109,7 +2246,13 @@ export class Venus {
     this.installModules(parameters.modules ?? [])
   }
 
-  /** Returns the installed user capability module names. */
+  /**
+   * @name Venus.modules
+   * @description Returns the installed user capability module names.
+   * @example Usage
+   * const installed = venus.modules()
+   * @returns Installed module names.
+   */
   modules(): readonly VenusModuleName[] {
     return [...this.installedModules]
   }
@@ -2253,6 +2396,16 @@ export class Venus {
     }
   }
 
+  /**
+   * @name Venus.on
+   * @description Registers a handler for one event channel and returns an unsubscribe function.
+   * @example Usage
+   * const off = venus.on('render:after', () => console.log('frame done'))
+   * off()
+   * @param eventName Event channel to subscribe to.
+   * @param handler Callback invoked when the event fires.
+   * @returns Unsubscribe function.
+   */
   on<TEventName extends VenusEventName>(
     eventName: TEventName,
     handler: VenusEventHandler<TEventName>,
@@ -2264,6 +2417,17 @@ export class Venus {
     return () => this.off(eventName, handler)
   }
 
+  /**
+   * @name Venus.off
+   * @description Removes a previously registered event handler from one event channel.
+   * @example Usage
+   * const handler = () => {}
+   * venus.on('hit', handler)
+   * venus.off('hit', handler)
+   * @param eventName Event channel to unsubscribe from.
+   * @param handler The same function reference passed to on().
+   * @returns Nothing.
+   */
   off<TEventName extends VenusEventName>(
     eventName: TEventName,
     handler: VenusEventHandler<TEventName>,
@@ -2279,6 +2443,16 @@ export class Venus {
     }
   }
 
+  /**
+   * @name Venus.mount
+   * @description Mounts the engine onto an HTML canvas element and creates the internal renderer.
+   * @example Usage
+   * venus.mount(document.querySelector('canvas')!)
+   * venus.add({type: 'rect', width: 200, height: 120})
+   * await venus.render()
+   * @param canvas The canvas element to render into.
+   * @returns Nothing.
+   */
   mount(canvas: HTMLCanvasElement) {
     this.canvas = canvas
     this.engine = this.createMountedEngine(canvas)
@@ -2324,6 +2498,17 @@ export class Venus {
     }
   }
 
+  /**
+   * @name Venus.resize
+   * @description Resizes the canvas output and updates viewport dimensions.
+   * @example Usage
+   * venus.resize({width: 800, height: 600})
+   * await venus.render()
+   * @param size Logical viewport size.
+   * @param size.width New logical width.
+   * @param size.height New logical height.
+   * @returns Nothing.
+   */
   resize(size: {width: number, height: number}) {
     this.applyViewport(resolveEngineViewportState({
       viewportWidth: size.width,
@@ -2349,6 +2534,14 @@ export class Venus {
     this.emit('resized', size)
   }
 
+  /**
+   * @name Venus.render
+   * @description Renders the current document state to the mounted canvas.
+   * @example Usage
+   * venus.add({type: 'rect', width: 160, height: 96})
+   * await venus.render()
+   * @returns Promise that resolves after the frame is rendered.
+   */
   async render() {
     if (!this.engine) {
       return
@@ -2361,6 +2554,18 @@ export class Venus {
     this.emit('render:after', {revision: this.revision})
   }
 
+  /**
+   * @name Venus.hitTest
+   * @description Finds the topmost document node under a screen-space point.
+   * @example Usage
+   * const hit = venus.hitTest({x: 200, y: 150}, {phase: 'click'})
+   * @param point Point to test in screen space.
+   * @param options Hit-test options.
+   * @param options.phase Sets hover or click defaults.
+   * @param options.tolerance Screen-pixel tolerance override.
+   * @param options.includeLocked Returns locked hits only when enabled.
+   * @returns Topmost hit result, or null.
+   */
   hitTest(point: {x: number, y: number}, options: VenusHitTestOptions = {}) {
     const resolvedOptions = resolveVenusHitTestOptions(options)
     const hits = this.engine?.hitTestAll(point, resolvedOptions.tolerance) ?? []
@@ -2378,6 +2583,19 @@ export class Venus {
     return result
   }
 
+  /**
+   * @name Venus.animate
+   * @description Returns an animation controller for numeric document property transitions.
+   * @example Usage
+   * const anim = venus.animate('card', [{x: 40}, {x: 220}], {duration: 600})
+   * anim.cancel()
+   * @param nodeId Document node id to animate.
+   * @param keyframes Start and end property snapshots.
+   * @param options Animation options.
+   * @param options.duration Animation duration in milliseconds.
+   * @param options.easing Timing curve.
+   * @returns Animation controller.
+   */
   animate(
     nodeId: string,
     keyframes: readonly [VenusAnimationKeyframe, VenusAnimationKeyframe],
@@ -2497,6 +2715,13 @@ export class Venus {
     }
   }
 
+  /**
+   * @name Venus.destroy
+   * @description Disposes the engine instance, clears event listeners, and releases canvas resources.
+   * @example Usage
+   * venus.destroy()
+   * @returns Nothing.
+   */
   destroy() {
     this.engine?.dispose()
     this.engine = null

@@ -17,14 +17,20 @@ export interface EngineApiPropertyGroup {
 }
 
 export interface EngineApiDoc {
+  /** Stable docs id; method ids mirror source JSDoc @name without the Venus. prefix. */
   id: string
+  /** Rendered API name; mirrors the source JSDoc name section. */
   title: string
+  /** Short list-card summary. */
   summary: string
+  /** Full description; mirrors source JSDoc @description. */
   readableDescription: string
+  /** Parameter table rows; mirror source JSDoc @param entries. */
   parameters?: EngineApiParameter[]
   properties?: string[]
   propertyGroups?: EngineApiPropertyGroup[]
   methods?: EngineApiMethod[]
+  /** Usage CodeBox; mirrors source JSDoc @example Usage. */
   demo: string
   demoCaption: string
 }
@@ -460,13 +466,13 @@ console.log(venus.inspect().backendFallback)`,
       {
         id: 'add',
         title: 'add',
-        summary: 'Adds one document node and returns the engine-facing render node.',
-        readableDescription: 'Call add after mount. Accepts any supported VenusNode type. Returns the engine node used by rendering, hit testing, events, and diagnostics.',
+        summary: 'Adds one document node and returns a typed mutable proxy.',
+        readableDescription: 'Call add after mount. Accepts any supported VenusNode type. Returns a typed VenusNodeProxy so the node can be edited through direct property assignment.',
         parameters: [
           {name: 'node', type: 'VenusNode', description: 'Document node to append to the current scene.'},
         ],
         demo: `venus.add({type: 'rect', x: 64, y: 48, width: 220, height: 132, fill: '#dbeafe'})`,
-        demoCaption: 'Adds a rectangle and returns the engine render node.',
+        demoCaption: 'Adds a rectangle and returns a typed node proxy.',
       },
       {
         id: 'bounds',
@@ -488,12 +494,12 @@ console.log(venus.inspect().backendFallback)`,
         id: 'getNodeById',
         title: 'getNodeById',
         summary: 'Looks up a document node by its stable id.',
-        readableDescription: 'Venus maintains an internal id index across groups, clips, and masks. Returns null when the id is not found.',
+        readableDescription: 'Venus maintains an internal id index across groups, clips, and masks. Returns a mutable proxy for the node, or null when the id is not found.',
         parameters: [
           {name: 'id', type: 'string', description: 'Stable node id to look up.'},
         ],
         demo: `venus.add({id: 'card', type: 'rect', width: 160, height: 96})\nconst node = venus.getNodeById('card')`,
-        demoCaption: 'Returns the node with matching id, or null.',
+        demoCaption: 'Returns a proxy for the node with matching id, or null.',
       },
       {
         id: 'getParentId',

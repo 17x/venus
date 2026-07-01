@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction} from 'react'
-import {Button, CollapsibleNav, Separator, Badge, type CollapsibleNavItem} from '@venus/ui'
+import {Badge, Button, CollapsibleNav, Input, type CollapsibleNavItem} from '@venus/ui'
 import {
   ArrowLeft,
   ArrowRight,
@@ -58,14 +58,28 @@ const getApiAnchorId = (category: EngineApiCategory, api: EngineApiDoc) => {
   return `${category.id}-${api.id}`
 }
 
-function HeadingAnchor({href}: {href: string}) {
-  return <a
-    href={href}
-    aria-label={'Copy heading link'}
-    className={'-ml-6 mr-2 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100'}
-  >
-    #
-  </a>
+function filterNavigationItems(items: CollapsibleNavItem[], query: string): CollapsibleNavItem[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) {
+    return items
+  }
+
+  const visit = (item: CollapsibleNavItem): CollapsibleNavItem | null => {
+    const children = item.items?.map(visit).filter((child): child is CollapsibleNavItem => Boolean(child))
+    const matches = item.label.toLowerCase().includes(normalizedQuery)
+
+    if (matches || (children && children.length > 0)) {
+      return {
+        ...item,
+        defaultOpen: true,
+        items: children,
+      }
+    }
+
+    return null
+  }
+
+  return items.map(visit).filter((item): item is CollapsibleNavItem => Boolean(item))
 }
 
 /** A lightweight tooltip that appears instantly above the child on hover. */
@@ -88,11 +102,11 @@ function CodeBox({code, className}: {code: string; className?: string}) {
     window.setTimeout(() => setCopied(false), 1200)
   }
 
-  return <div className={`overflow-hidden rounded-md border border-border bg-muted/25 text-card-foreground ${className ?? ''}`}>
-    <div className={'flex h-8 items-center justify-between border-b border-border bg-card px-3'}>
+  return <div className={`engine-docs-code overflow-hidden rounded-lg border border-border text-card-foreground ${className ?? ''}`}>
+    <div className={'flex h-9 items-center justify-between border-b border-border bg-muted/30 px-3'}>
       <span className={'font-mono text-[11px] font-medium text-muted-foreground'}>code</span>
       <Tooltip text={copied ? 'Copied' : 'Copy'}>
-        <Button variant={'ghost'} size={'icon'} aria-label={copied ? 'Copied' : 'Copy code'} className={'size-6 rounded-sm text-muted-foreground hover:text-foreground'} onClick={handleCopy}>
+        <Button variant={'ghost'} size={'icon-sm'} aria-label={copied ? 'Copied' : 'Copy code'} onClick={handleCopy}>
           {copied ? <Check data-icon="inline-start"/> : <Copy data-icon="inline-start"/>}
         </Button>
       </Tooltip>
@@ -105,11 +119,11 @@ function CodeBox({code, className}: {code: string; className?: string}) {
 function Disclosure({title, defaultOpen = false, children}: {title: string; defaultOpen?: boolean; children: React.ReactNode}) {
   const [open, setOpen] = useState(defaultOpen)
 
-  return <div className={'rounded-md border border-border bg-muted/25'}>
+  return <div className={'engine-docs-panel overflow-hidden'}>
     <button
       type={'button'}
       onClick={() => setOpen(!open)}
-      className={'flex w-full items-center gap-2 rounded-md px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-muted/50'}
+      className={'flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-muted/50'}
     >
       <ChevronRight className={`size-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}/>
       {title}
@@ -313,7 +327,89 @@ nodes.forEach((node) => venus.add(node))
 await venus.render()`
 }
 
-/** Generates a short "Copy COMP" code snippet showing creation + proxy-style property changes. */
+const createShapeMinimalCreateCode = (kind: string): string => {
+  switch (kind) {
+    case 'rect':
+      return `const r = venus.add({
+  type: 'rect',
+  width: 220,
+  height: 140,
+})`
+    case 'ellipse':
+      return `const r = venus.add({
+  type: 'ellipse',
+  width: 220,
+  height: 140,
+})`
+    case 'line':
+      return `const r = venus.add({
+  type: 'line',
+  width: 220,
+  height: 80,
+})`
+    case 'text':
+      return `const r = venus.add({
+  type: 'text',
+  text: 'Hello Venus',
+})`
+    case 'group':
+      return `const r = venus.add({
+  type: 'group',
+  children: [],
+})`
+    case 'clip':
+      return `const r = venus.add({
+  type: 'clip',
+  clipPath: {type: 'rect', width: 180, height: 120, cornerRadius: 16},
+  children: [
+    {type: 'ellipse', width: 180, height: 120},
+  ],
+})`
+    case 'mask':
+      return `const r = venus.add({
+  type: 'mask',
+  clipPath: {type: 'rect', width: 180, height: 120, cornerRadius: 16},
+  children: [
+    {type: 'rect', width: 180, height: 120},
+  ],
+})`
+    case 'polygon':
+      return `const r = venus.add({
+  type: 'polygon',
+  width: 220,
+  height: 140,
+  points: [
+    {x: 110, y: 0},
+    {x: 220, y: 56},
+    {x: 176, y: 140},
+    {x: 44, y: 140},
+    {x: 0, y: 56},
+  ],
+})`
+    case 'path':
+      return `const r = venus.add({
+  type: 'path',
+  width: 220,
+  height: 140,
+  points: [
+    {x: 0, y: 140},
+    {x: 110, y: 0},
+    {x: 220, y: 140},
+  ],
+})`
+    case 'image':
+      return `const r = venus.add({
+  type: 'image',
+  width: 220,
+  height: 140,
+  assetId: 'my-image',
+})`
+    default:
+      return ''
+  }
+}
+
+/** Generates a short "Copy COMP" code snippet showing minimal creation + proxy-style property changes. */
 const createCopyCompCode = (apiId: string, theme: ThemeMode): string => {
   const isLight = theme === 'light'
   const kind = apiId.replace('-node', '')
@@ -323,7 +419,7 @@ const createCopyCompCode = (apiId: string, theme: ThemeMode): string => {
 const venus = new Venus()
 venus.mount(document.querySelector('canvas')!)
 
-const r = venus.add({type: '${kind}', x: 60, y: 50, width: 220, height: 140${kind === 'rect' ? ', cornerRadius: 12' : ''}})`
+${createShapeMinimalCreateCode(kind)}`
 
   const props: Record<string, string> = {
     rect: `r.width = 280
@@ -340,21 +436,26 @@ r.endAngle = 330`,
     line: `r.stroke = '#${isLight ? '7c3aed' : 'c4b5fd'}'
 r.strokeWidth = 4
 r.strokeDashArray = [8, 4]`,
-    text: `r.text = 'Hello Venus'
-r.fontSize = 24
+    text: `r.fontSize = 24
 r.fontWeight = 600
 r.fill = '#${isLight ? '0f172a' : 'f8fafc'}'
 r.lineHeight = 1.5`,
-    group: `const g = r
-const child = g.addChild({type: 'rect', x: 20, y: 20, width: 80, height: 60, fill: '#${isLight ? '3b82f6' : '93c5fd'}'})
+    group: `const child = r.addChild({
+  type: 'rect',
+  width: 80,
+  height: 60,
+  fill: '#${isLight ? '3b82f6' : '93c5fd'}',
+  transform: {x: 20, y: 20},
+})
 child.opacity = 0.7
-g.x = 80
-g.rotation = 5`,
+r.x = 80
+r.rotation = 5`,
     clip: `// clipPath defines the visible region
 // children are the clipped content
-r.x = 80
+r.transform = {x: 80, y: 50}
 r.opacity = 0.9`,
     mask: `// Same structure as clip; engine normalizes both
+r.transform = {x: 80, y: 50}
 r.opacity = 0.85`,
     polygon: `r.fill = '#${isLight ? '22c55e' : '86efac'}'
 r.stroke = '#${isLight ? '166534' : 'bbf7d0'}'
@@ -364,11 +465,10 @@ const pts = [{x: 110, y: 50}, {x: 280, y: 80}, {x: 240, y: 190}, {x: 70, y: 170}
 r.points = pts`,
     path: `r.stroke = '#${isLight ? 'dc2626' : 'fca5a5'}'
 r.strokeWidth = 4
-r.closed = true
+r.closed = false
 r.startArrowhead = 'triangle'
 r.endArrowhead = 'circle'`,
-    image: `r.assetId = 'my-image'
-r.width = 240
+    image: `r.width = 240
 r.height = 160
 r.smoothing = true`,
   }
@@ -377,7 +477,7 @@ r.smoothing = true`,
 }
 
 function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
-  return <div className={'overflow-hidden rounded-md border border-border bg-muted/25'}>
+  return <div className={'engine-docs-table overflow-hidden rounded-lg border border-border'}>
     <table className={'w-full border-collapse text-left text-sm'}>
       <thead className={'text-xs text-muted-foreground'}>
         <tr className={'border-b border-border'}>
@@ -388,8 +488,8 @@ function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
         </tr>
       </thead>
       <tbody>
-        {parameters.map((parameter) => {
-          return <tr key={parameter.name} className={'border-b border-border last:border-0'}>
+        {parameters.map((parameter, index) => {
+          return <tr key={`parameter-${parameter.name}-${index}`} className={'border-b border-border last:border-0'}>
             <td className={'px-3 py-2 align-top font-mono text-xs'}>{parameter.name}</td>
             <td className={'px-3 py-2 align-top text-xs text-muted-foreground'}>{parameter.type}</td>
             <td className={'px-3 py-2 align-top text-xs text-muted-foreground'}>{parameter.defaultValue ?? '—'}</td>
@@ -399,6 +499,20 @@ function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
       </tbody>
     </table>
   </div>
+}
+
+function ApiDescription({api}: {api: EngineApiDoc}) {
+  return <section className={'grid max-w-3xl gap-2'}>
+    <h4 className={'text-sm font-medium'}>Description</h4>
+    <p className={'text-sm leading-6 text-muted-foreground'}>{api.readableDescription}</p>
+  </section>
+}
+
+function ApiUsage({code}: {code: string}) {
+  return <section className={'grid min-w-0 gap-2'}>
+    <h4 className={'text-sm font-medium'}>Usage</h4>
+    <CodeBox code={code}/>
+  </section>
 }
 
 interface ModelControlValues {
@@ -860,31 +974,26 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
 }
 
 const createMinimalModelNode = (apiId: string, controls: ModelControlValues): VenusNode => {
-  const fill = withOpacity(controls.fill, controls.fillOpacity)
-  const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
-
   if (apiId === 'rect-node') {
-    return controls.cornersLocked
-      ? {type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, cornerRadius: controls.cornerRadius}
-      : {type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, cornerRadii: {topLeft: controls.cornerTopLeft, topRight: controls.cornerTopRight, bottomRight: controls.cornerBottomRight, bottomLeft: controls.cornerBottomLeft}}
+    return {type: 'rect', width: controls.width, height: controls.height}
   }
 
   if (apiId === 'ellipse-node') {
-    return {type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, stroke, strokeWidth: controls.strokeWidth, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine}
+    return {type: 'ellipse', width: controls.width, height: controls.height}
   }
 
   if (apiId === 'line-node') {
-    return {type: 'line', x: controls.x, y: controls.y, width: controls.x2 - controls.x, height: controls.y2 - controls.y, stroke, strokeWidth: controls.strokeWidth}
+    return {type: 'line', width: controls.x2 - controls.x, height: controls.y2 - controls.y}
   }
 
   if (apiId === 'text-node') {
-    return {type: 'text', x: controls.x, y: controls.y, width: controls.width, text: controls.text, fill, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight}
+    return {type: 'text', text: controls.text}
   }
 
   if (apiId === 'group-node') {
-    return {type: 'group', x: controls.x, y: controls.y, children: [
-      {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: withOpacity(controls.childRectFill, controls.childRectFillOpacity), cornerRadius: controls.childRectCornerRadius},
-      {type: 'text', x: controls.childTextX, y: controls.childTextY, text: controls.childText, fill: controls.childTextFill, fontSize: controls.childTextFontSize},
+    return {type: 'group', children: [
+      {type: 'rect', width: controls.childRectWidth, height: controls.childRectHeight},
+      {type: 'text', text: controls.childText},
     ]}
   }
 
@@ -892,24 +1001,24 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
     return {
       type: apiId === 'clip-node' ? 'clip' : 'mask',
       clipPath: controls.clipIsEllipse
-        ? {type: 'ellipse', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight}
-        : {type: 'rect', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight, cornerRadius: controls.clipPathCornerRadius},
-      children: [{type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: withOpacity(controls.childRectFill, controls.childRectFillOpacity)}],
+        ? {type: 'ellipse', width: controls.clipPathWidth, height: controls.clipPathHeight}
+        : {type: 'rect', width: controls.clipPathWidth, height: controls.clipPathHeight},
+      children: [{type: 'rect', width: controls.childRectWidth, height: controls.childRectHeight}],
     }
   }
 
   if (apiId === 'polygon-node') {
-    return {type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], fill, stroke, strokeWidth: controls.strokeWidth}
+    return {type: 'polygon', width: controls.width, height: controls.height, points: [{x: controls.width / 2, y: 0}, {x: controls.width, y: controls.height * 0.4}, {x: controls.width * 0.8, y: controls.height}, {x: controls.width * 0.2, y: controls.height}, {x: 0, y: controls.height * 0.4}]}
   }
 
   if (apiId === 'path-node') {
     return controls.pathUseBezier
-      ? {type: 'path', x: controls.x, y: controls.y, width: controls.width, height: controls.height, bezierPoints: createBezierDemoPoints(controls.x, controls.y, controls.width, controls.height), fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: controls.strokeWidth, closed: controls.pathClosed}
-      : {type: 'path', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.5, y: controls.y + controls.height}], fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: controls.strokeWidth, closed: controls.pathClosed}
+      ? {type: 'path', width: controls.width, height: controls.height, bezierPoints: createBezierDemoPoints(0, 0, controls.width, controls.height)}
+      : {type: 'path', width: controls.width, height: controls.height, points: [{x: 0, y: controls.height}, {x: controls.width * 0.5, y: 0}, {x: controls.width, y: controls.height}, {x: controls.width * 0.5, y: controls.height}]}
   }
 
   if (apiId === 'image-node') {
-    return {type: 'image', x: controls.x, y: controls.y, width: controls.width, height: controls.height, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing}
+    return {type: 'image', width: controls.width, height: controls.height, assetId: controls.assetId}
   }
 
   return createExampleNodes(apiId, 'light')[0]
@@ -1009,7 +1118,7 @@ function ModelControlPanel({
     if (typeof value !== 'number') return null
     const label = getFieldLabel(String(key), fullLabel)
     const tip = fieldTooltips[key] ?? fullLabel
-    return <Tooltip key={String(key)} text={tip}>
+    return <Tooltip key={`model-number-${String(key)}`} text={tip}>
       <label className={'flex items-center gap-1'}>
         <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>{label}</span>
         <input
@@ -1226,7 +1335,7 @@ function ModelControlPanel({
     </div>
   }
 
-  return <div className={'rounded-md border bg-card p-5'}>
+  return <div className={'engine-docs-panel p-5'}>
     <div className={'mb-4 flex items-center justify-between gap-3'}>
       <p className={'text-sm font-medium'}>properties</p>
     </div>
@@ -1537,62 +1646,62 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
             const node = v.add({type: 'rect', x: 60 + Math.random() * 200, y: 40 + Math.random() * 140, width: 80, height: 48, fill: '#22c55e', cornerRadius: 8})
             showResult('add', {id: node.id, type: node.type})
             void v.render()
-          }}><Plus className={'size-3.5'}/> Add</Button>
+          }}><Plus data-icon="inline-start"/> Add</Button>
         </div>
       case 'bounds':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('bounds', v.bounds()) }}><ScanEye className={'size-3.5'}/> Bounds</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('bounds', v.bounds()) }}><ScanEye data-icon="inline-start"/> Bounds</Button>
       case 'children':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('children', v.children().map((c) => ({type: c.type, id: c.id}))) }}><List className={'size-3.5'}/> Children</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('children', v.children().map((c) => ({type: c.type, id: c.id}))) }}><List data-icon="inline-start"/> Children</Button>
       case 'getNodeById': {
         const [lookupId, setLookupId] = useState('')
         return <div className={'flex gap-2'}>
           <input className={'h-8 w-28 rounded-md border bg-background px-2 text-xs'} placeholder={'node id'} value={lookupId} onChange={(e) => setLookupId(e.target.value)} />
-          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getNodeById', v.getNodeById(lookupId)) }}><Search className={'size-3.5'}/> Find</Button>
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getNodeById', v.getNodeById(lookupId)) }}><Search data-icon="inline-start"/> Find</Button>
         </div>
       }
       case 'getParentId': {
         const [pid, setPid] = useState('')
         return <div className={'flex gap-2'}>
           <input className={'h-8 w-28 rounded-md border bg-background px-2 text-xs'} placeholder={'node id'} value={pid} onChange={(e) => setPid(e.target.value)} />
-          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getParentId', v.getParentId(pid)) }}><Search className={'size-3.5'}/> Find parent</Button>
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getParentId', v.getParentId(pid)) }}><Search data-icon="inline-start"/> Find parent</Button>
         </div>
       }
       case 'snapshot':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const s = v.snapshot(); showResult('snapshot', {revision: s.revision, nodeCount: s.nodes.length}) } }}><Camera className={'size-3.5'}/> Snapshot</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const s = v.snapshot(); showResult('snapshot', {revision: s.revision, nodeCount: s.nodes.length}) } }}><Camera data-icon="inline-start"/> Snapshot</Button>
       case 'fitBounds':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const r = v.fitBounds(v.bounds(), 16); showResult('fitBounds', r) } }}><Maximize className={'size-3.5'}/> Fit</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const r = v.fitBounds(v.bounds(), 16); showResult('fitBounds', r) } }}><Maximize data-icon="inline-start"/> Fit</Button>
       case 'zoomTo': {
         const [z, setZ] = useState('1.5')
         return <div className={'flex gap-2 items-center'}>
           <input className={'h-8 w-20 rounded-md border bg-background px-2 text-xs'} type={'number'} step={0.1} value={z} onChange={(e) => setZ(e.target.value)} />
-          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('zoomTo', v.zoomTo(Number(z), {x: 200, y: 150})) }}><ZoomIn className={'size-3.5'}/> Zoom</Button>
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('zoomTo', v.zoomTo(Number(z), {x: 200, y: 150})) }}><ZoomIn data-icon="inline-start"/> Zoom</Button>
         </div>
       }
       case 'panBy':
         return <div className={'flex gap-1'}>
           {[{Icon: ArrowLeft, dx: -40, dy: 0}, {Icon: ArrowUp, dx: 0, dy: -30}, {Icon: ArrowDown, dx: 0, dy: 30}, {Icon: ArrowRight, dx: 40, dy: 0}].map(({Icon, dx, dy}, i) =>
-            <Button key={i} variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('panBy', v.panBy({x: dx, y: dy})) }}><Icon className={'size-4'}/></Button>
+            <Button key={`pan-${dx}-${dy}-${i}`} variant={'outline'} size={'icon-sm'} onClick={() => { if (v) showResult('panBy', v.panBy({x: dx, y: dy})) }}><Icon data-icon={'inline-start'}/></Button>
           )}
         </div>
       case 'project':
-        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair className={'size-3'}/> Click canvas to project document to screen. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair data-icon="inline-start"/> Click canvas to project document to screen. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
       case 'unproject':
-        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair className={'size-3'}/> Click canvas to unproject screen to document. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair data-icon="inline-start"/> Click canvas to unproject screen to document. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
       case 'enableDebug': {
         const [showBounds, setShowBounds] = useState(false)
         const [showHits, setShowHits] = useState(false)
         return <div className={'flex flex-wrap gap-2 items-center'}>
-          <Bug className={'size-3.5 text-muted-foreground'}/>
+          <Bug data-icon={'inline-start'} className={'text-muted-foreground'}/>
           <label className={'flex items-center gap-1 text-xs'}><input type={'checkbox'} checked={showBounds} onChange={(e) => { setShowBounds(e.target.checked); if (v) showResult('enableDebug', v.enableDebug({showBounds: e.target.checked, showHitCandidates: showHits})) }} />bounds</label>
           <label className={'flex items-center gap-1 text-xs'}><input type={'checkbox'} checked={showHits} onChange={(e) => { setShowHits(e.target.checked); if (v) showResult('enableDebug', v.enableDebug({showBounds, showHitCandidates: e.target.checked})) }} />hit candidates</label>
         </div>
       }
       case 'inspect':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('inspect', v.inspect()) }}><Gauge className={'size-3.5'}/> Inspect</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('inspect', v.inspect()) }}><Gauge data-icon="inline-start"/> Inspect</Button>
       case 'measureFrame':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.measureFrame().then((measurement) => showResult('measureFrame', measurement)) } }}><Timer className={'size-3.5'}/> Profile</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.measureFrame().then((measurement) => showResult('measureFrame', measurement)) } }}><Timer data-icon="inline-start"/> Profile</Button>
       case 'mount':
-        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Play className={'size-3'}/> Mounted and rendering</p>
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Play data-icon="inline-start"/> Mounted and rendering</p>
       case 'resize': {
         const [rw, setRw] = useState('400')
         const [rh, setRh] = useState('300')
@@ -1600,13 +1709,13 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           <input className={'h-8 w-16 rounded-md border bg-background px-2 text-xs'} placeholder={'w'} value={rw} onChange={(e) => setRw(e.target.value)} />
           <span className={'text-xs text-muted-foreground'}>×</span>
           <input className={'h-8 w-16 rounded-md border bg-background px-2 text-xs'} placeholder={'h'} value={rh} onChange={(e) => setRh(e.target.value)} />
-          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.resize({width: Number(rw), height: Number(rh)}); showResult('resized to', {width: Number(rw), height: Number(rh)}); void v.render() } }}><Expand className={'size-3.5'}/> Resize</Button>
+          <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.resize({width: Number(rw), height: Number(rh)}); showResult('resized to', {width: Number(rw), height: Number(rh)}); void v.render() } }}><Expand data-icon="inline-start"/> Resize</Button>
         </div>
       }
       case 'render':
-        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.render(); showResult('render', 'frame rendered') } }}><Play className={'size-3.5'}/> Render</Button>
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.render(); showResult('render', 'frame rendered') } }}><Play data-icon="inline-start"/> Render</Button>
       case 'hitTest':
-        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair className={'size-3'}/> Move and click on the canvas. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+        return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair data-icon="inline-start"/> Move and click on the canvas. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
       case 'on':
         return <div className={'flex flex-wrap gap-2'}>
           <Button variant={'outline'} size={'sm'} onClick={() => {
@@ -1614,7 +1723,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
             const off = v.on('render:after', () => pushLog('render:after fired'))
             showResult('on', 'subscribed render:after (auto-off 8s)')
             setTimeout(() => { off(); pushLog('unsubscribed render:after') }, 8000)
-          }}><Bell className={'size-3.5'}/> Subscribe</Button>
+          }}><Bell data-icon="inline-start"/> Subscribe</Button>
         </div>
       case 'off':
         return <div className={'flex flex-wrap gap-2'}>
@@ -1624,7 +1733,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
             v.on('hit', handler)
             v.off('hit', handler)
             showResult('off', 'handler detached before any event')
-          }}><BellOff className={'size-3.5'}/> Unsubscribe</Button>
+          }}><BellOff data-icon="inline-start"/> Unsubscribe</Button>
         </div>
       case 'animate':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
@@ -1632,7 +1741,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           const animation = v.animate('card', [{x: 80, rotation: 0}, {x: 40 + Math.random() * 180, rotation: 18}], {duration: 600, easing: 'easeOut'})
           showResult('animate', {methods: ['cancel', 'pause', 'play'], finished: 'Promise<void>'})
           void animation.finished.then(() => pushLog('animation finished'))
-        }}><Film className={'size-3.5'}/> Animate</Button>
+        }}><Film data-icon="inline-start"/> Animate</Button>
       case 'group':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
@@ -1644,21 +1753,21 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           const group = v.group(['card', 'oval'], {id: 'selection-group', name: 'Selection'})
           showResult('group', {id: group.id, cardParent: v.getParentId('card'), ovalParent: v.getParentId('oval')})
           void v.render()
-        }}><List className={'size-3.5'}/> Group</Button>
+        }}><List data-icon="inline-start"/> Group</Button>
       case 'ungroup':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
           const children = v.ungroup('selection-group')
           showResult('ungroup', children.map((child) => ({id: child.id, type: child.type})))
           void v.render()
-        }}><List className={'size-3.5'}/> Ungroup</Button>
+        }}><List data-icon="inline-start"/> Ungroup</Button>
       case 'destroy':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
           v.destroy()
           venusRef.current = null
           showResult('destroy', 'engine disposed')
-        }}><Trash2 className={'size-3.5'}/> Destroy</Button>
+        }}><Trash2 data-icon="inline-start"/> Destroy</Button>
       default:
         return null
     }
@@ -1669,7 +1778,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       <canvas
         ref={canvasRef}
         aria-label={`${api.title} interactive demo`}
-        className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'}
+        className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'}
         onClick={handleCanvasClick}
         onMouseMove={handleCanvasHover}
         onMouseLeave={() => setHoverHit(null)}
@@ -1682,24 +1791,24 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
         <div className={'flex flex-wrap items-center gap-2'}>{renderControls()}</div>
       </DemoFormPanel>
       {api.id === 'hitTest' ? <div className={'grid gap-3 sm:grid-cols-2'}>
-        <div className={'rounded-md border border-border bg-muted/25 p-3'}>
+        <div className={'engine-docs-panel p-3'}>
           <p className={'mb-1 text-xs font-medium'}>Hover</p>
           <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(hoverHit)}</code></pre>
         </div>
-        <div className={'rounded-md border border-border bg-muted/25 p-3'}>
+        <div className={'engine-docs-panel p-3'}>
           <p className={'mb-1 text-xs font-medium'}>Clicked</p>
           <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(clickedHit)}</code></pre>
         </div>
       </div> : null}
       <div className={'flex gap-3'}>
-        {output ? <div className={'flex-1 rounded-md border border-border bg-muted/25 p-3'}>
+        {output ? <div className={'flex-1 engine-docs-panel p-3'}>
           <p className={'mb-1 text-xs font-medium'}>Return value</p>
           <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{output}</code></pre>
         </div> : null}
-        {eventLogs.length > 0 ? <div className={'flex-1 rounded-md border border-border bg-muted/25 p-3'}>
+        {eventLogs.length > 0 ? <div className={'flex-1 engine-docs-panel p-3'}>
           <p className={'mb-1 text-xs font-medium'}>Events</p>
           <div className={'max-h-40 overflow-auto'}>
-            {eventLogs.map((log, i) => <p key={i} className={'text-xs text-muted-foreground'}>{log}</p>)}
+            {eventLogs.map((log, i) => <p key={`event-${i}-${log}`} className={'text-xs text-muted-foreground'}>{log}</p>)}
           </div>
         </div> : null}
       </div>
@@ -1756,14 +1865,14 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
 
   if (!isEditableModel) {
     return <div className={'grid gap-2'}>
-      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'} />
+      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
       <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     </div>
   }
 
   return <div className={'grid gap-5 lg:grid-cols-[400px_480px]'}>
     <div className={'grid gap-2'}>
-      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'} />
+      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
       <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     </div>
     <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
@@ -1807,7 +1916,7 @@ function ShapeCanvas({
     }
   }, [nodes])
 
-  return <canvas ref={canvasRef} aria-label={ariaLabel} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border bg-card'} />
+  return <canvas ref={canvasRef} aria-label={ariaLabel} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
 }
 
 function DemoFormPanel({
@@ -1819,7 +1928,7 @@ function DemoFormPanel({
   description?: string
   children: React.ReactNode
 }) {
-  return <div className={'rounded-md border border-border bg-card p-3'}>
+  return <div className={'engine-docs-panel p-3'}>
     {title || description ? <div className={'mb-3 flex flex-col gap-1'}>
       {title ? <p className={'text-sm font-semibold'}>{title}</p> : null}
       {description ? <p className={'text-xs leading-5 text-muted-foreground'}>{description}</p> : null}
@@ -1830,7 +1939,17 @@ function DemoFormPanel({
 
 function ShapeModelGuide() {
   return <div className={'grid gap-4'}>
-    <div className={'grid gap-3 rounded-md border border-border bg-card p-3'}>
+    <div className={'grid gap-3 engine-docs-panel p-3'}>
+      <h4 className={'text-sm font-semibold'}>Coordinate contract</h4>
+      <ul className={'grid gap-1 text-xs leading-5 text-muted-foreground md:grid-cols-2'}>
+        <li>• Rect, ellipse, image, and text use x/y as the local top-left or text-box origin; line uses x/y as its start point and width/height as the end-point delta.</li>
+        <li>• Group x/y translates the subtree; clip and mask do not own top-level x/y/width/height, so their bounds come from clipPath and children.</li>
+        <li>• Polygon and path keep x/y/width/height as editable bounds, while points or bezierPoints are the rendered geometry.</li>
+        <li>• transform.x/y is an extra local translation layered on top of geometry x/y; transform.origin controls the pivot for rotate, scale, and skew.</li>
+      </ul>
+    </div>
+
+    <div className={'grid gap-3 engine-docs-panel p-3'}>
       <h4 className={'text-sm font-semibold'}>Modules and inheritance</h4>
       <div className={'overflow-x-auto'}>
         <table className={'w-full min-w-[760px] border-collapse text-left text-xs'}>
@@ -1860,7 +1979,7 @@ function ShapeModelGuide() {
     </div>
 
     <div className={'grid gap-3 md:grid-cols-2'}>
-      {VENUS_SHAPE_MODEL_SPECS.map((spec) => <section key={spec.type} className={'rounded-md border border-border bg-card p-3'}>
+      {VENUS_SHAPE_MODEL_SPECS.map((spec) => <section key={spec.type} className={'engine-docs-panel p-3'}>
         <div className={'mb-2 flex items-center justify-between gap-2'}>
           <h5 className={'font-mono text-sm font-semibold'}>{spec.type}</h5>
           <span className={'rounded border border-border bg-muted/25 px-1.5 py-0.5 text-[10px] text-muted-foreground'}>{spec.family}</span>
@@ -1886,11 +2005,11 @@ function ShapeModelGuide() {
       </section>)}
     </div>
 
-    <div className={'grid gap-3 rounded-md border border-border bg-card p-3'}>
+    <div className={'grid gap-3 engine-docs-panel p-3'}>
       <h4 className={'text-sm font-semibold'}>Common render contract</h4>
       <p className={'text-xs leading-5 text-muted-foreground'}>The structured best-practice surface is appearance.*. Flat fill/stroke/strokeWidth fields remain compatibility shortcuts and proxy conveniences. Prefer {'r.update({appearance: {...}})'} for grouped paint changes instead of nested mutable objects such as r.stroke.enabled.</p>
       <ul className={'grid gap-1 text-xs leading-5 text-muted-foreground md:grid-cols-2'}>
-        {VENUS_COMMON_RENDER_PROPERTIES.map((property) => <li key={property}>• {property}</li>)}
+        {VENUS_COMMON_RENDER_PROPERTIES.map((property, index) => <li key={`common-render-${property}-${index}`}>• {property}</li>)}
       </ul>
       <CodeBox code={`const r = venus.add({type: 'rect', width: 180, height: 96})
 
@@ -1991,7 +2110,7 @@ function ShapeSpecificPanel({
   const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
     const value = controls[key]
     if (typeof value !== 'number') return null
-    return <label className={'flex min-w-0 items-center gap-1'} key={String(key)}>
+    return <label className={'flex min-w-0 items-center gap-1'} key={`shape-story-field-${String(key)}`}>
       <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
       <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} type={'number'} min={input?.min} max={input?.max} step={input?.step ?? 1} value={value} onChange={(event) => setNumber(key, event.target.value)} />
     </label>
@@ -1999,8 +2118,8 @@ function ShapeSpecificPanel({
   const toggle = (key: keyof ModelControlValues, label: string) => {
     const value = controls[key]
     if (typeof value !== 'boolean') return null
-    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={String(key)}>
-      <input className={'size-3.5'} type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={`shape-story-toggle-${String(key)}`}>
+      <input data-icon="inline-start" type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
       <span className={'truncate text-muted-foreground'}>{label}</span>
     </label>
   }
@@ -2113,7 +2232,7 @@ function CommonPropertiesPanel({
   const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
     const value = controls[key]
     if (typeof value !== 'number') return null
-    return <label key={String(key)} className={'flex min-w-0 items-center gap-1'}>
+    return <label key={`common-field-${String(key)}`} className={'flex min-w-0 items-center gap-1'}>
       <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
       <input
         className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'}
@@ -2129,7 +2248,7 @@ function CommonPropertiesPanel({
   const color = (key: keyof ModelControlValues, label: string) => {
     const value = controls[key]
     if (typeof value !== 'string') return null
-    return <label key={String(key)} className={'flex min-w-0 items-center gap-1'}>
+    return <label key={`common-color-${String(key)}`} className={'flex min-w-0 items-center gap-1'}>
       <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
       <input className={'size-6 shrink-0 cursor-pointer rounded border border-border bg-card p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
       <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
@@ -2138,8 +2257,8 @@ function CommonPropertiesPanel({
   const toggle = (key: keyof ModelControlValues, label: string) => {
     const value = controls[key]
     if (typeof value !== 'boolean') return null
-    return <label key={String(key)} className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'}>
-      <input className={'size-3.5'} type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+    return <label key={`common-toggle-${String(key)}`} className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'}>
+      <input data-icon="inline-start" type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
       <span className={'truncate text-muted-foreground'}>{label}</span>
     </label>
   }
@@ -2222,7 +2341,7 @@ function ShapeStoryDemo({api, theme}: {api: EngineApiDoc; theme: ThemeMode}) {
       <DemoFormPanel>
         <ShapeSpecificPanel apiId={api.id} controls={controls} setControls={setControls}/>
       </DemoFormPanel>
-      <CodeBox code={createModelCode(api.id, controls)}/>
+      <ApiUsage code={createModelCode(api.id, controls)}/>
     </div>
   </div>
 }
@@ -2261,7 +2380,7 @@ function AllShapesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) 
       >
         <div className={'grid grid-cols-2 gap-2 sm:grid-cols-3'}>
           {apis.map((api) => <Button
-            key={api.id}
+            key={`shape-tab-${api.id}`}
             variant={api.id === selectedApiId ? 'default' : 'outline'}
             size={'sm'}
             onClick={() => setSelectedApiId(api.id as typeof selectedApiId)}
@@ -2322,7 +2441,7 @@ function ShapePropertyDemoForm({
   const field = (key: keyof ModelControlValues, label: string, input?: {min?: number; max?: number; step?: number}) => {
     const value = controls[key]
     if (typeof value !== 'number') return null
-    return <label className={'flex min-w-0 items-center gap-1'} key={String(key)}>
+    return <label className={'flex min-w-0 items-center gap-1'} key={`property-field-${String(key)}`}>
       <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
       <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} type={'number'} min={input?.min} max={input?.max} step={input?.step ?? 1} value={value} onChange={(event) => setNumber(key, event.target.value)} />
     </label>
@@ -2330,7 +2449,7 @@ function ShapePropertyDemoForm({
   const color = (key: keyof ModelControlValues, label: string) => {
     const value = controls[key]
     if (typeof value !== 'string') return null
-    return <label className={'flex min-w-0 items-center gap-1'} key={String(key)}>
+    return <label className={'flex min-w-0 items-center gap-1'} key={`property-color-${String(key)}`}>
       <span className={'flex h-6 min-w-12 shrink-0 items-center justify-center rounded border border-border bg-card px-1.5 text-[10px] text-muted-foreground'}>{label}</span>
       <input className={'size-6 shrink-0 cursor-pointer rounded border border-border bg-card p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
       <input className={'h-6 min-w-0 flex-1 rounded bg-muted/25 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
@@ -2339,8 +2458,8 @@ function ShapePropertyDemoForm({
   const toggle = (key: keyof ModelControlValues, label: string) => {
     const value = controls[key]
     if (typeof value !== 'boolean') return null
-    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={String(key)}>
-      <input className={'size-3.5'} type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
+    return <label className={'flex h-6 items-center gap-2 rounded bg-muted/25 px-2 text-xs'} key={`property-toggle-${String(key)}`}>
+      <input data-icon="inline-start" type={'checkbox'} checked={value} onChange={(event) => setValue(key, event.target.checked as never)} />
       <span className={'text-muted-foreground'}>{label}</span>
     </label>
   }
@@ -2398,7 +2517,7 @@ function ShapePropertyDemoItem({row, theme}: {row: ShapePropertyDemoRow; theme: 
     setControls(createShapePropertyControls(row, theme))
   }, [row.apiId, row.kind, theme])
 
-  return <section id={row.id} className={'grid scroll-mt-20 gap-3 rounded-md border border-border bg-card p-4'}>
+  return <section id={row.id} className={'grid scroll-mt-20 gap-3 engine-docs-panel p-4'}>
     <h4 className={'text-base font-medium'}>{row.title}</h4>
     <p className={'text-sm leading-6 text-muted-foreground'}>{row.description}</p>
     <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
@@ -2440,9 +2559,10 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
 
   const pushLog = (name: string, payload: unknown) => {
     eventLogIdRef.current += 1
+    const id = eventLogIdRef.current
     setLogs((currentLogs) => [
       {
-        id: eventLogIdRef.current,
+        id,
         name,
         payload: JSON.stringify(payload, (_key, value) => {
           if (value instanceof HTMLCanvasElement) {
@@ -2557,15 +2677,15 @@ function EventInspectorDemo({theme}: {theme: ThemeMode}) {
   }
 
   return <div className={'flex flex-col gap-3'}>
-    <canvas ref={canvasRef} aria-label={'Venus events interactive demo'} className={'w-full rounded-lg border border-border bg-card'} />
+    <canvas ref={canvasRef} aria-label={'Venus events interactive demo'} className={'w-full rounded-lg border border-border engine-docs-canvas'} />
     <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     <div className={'flex flex-wrap gap-2'}>
-      <Button variant={'outline'} size={'sm'} onClick={() => void addNode()}><Plus className={'size-3.5'}/> Add</Button>
-      <Button variant={'outline'} size={'sm'} onClick={() => void renderNow()}><Play className={'size-3.5'}/> Render</Button>
-      <Button variant={'outline'} size={'sm'} onClick={hitTest}><Crosshair className={'size-3.5'}/> Hit test</Button>
-      <Button variant={'outline'} size={'sm'} onClick={resize}><Expand className={'size-3.5'}/> Resize</Button>
+      <Button variant={'outline'} size={'sm'} onClick={() => void addNode()}><Plus data-icon="inline-start"/> Add</Button>
+      <Button variant={'outline'} size={'sm'} onClick={() => void renderNow()}><Play data-icon="inline-start"/> Render</Button>
+      <Button variant={'outline'} size={'sm'} onClick={hitTest}><Crosshair data-icon="inline-start"/> Hit test</Button>
+      <Button variant={'outline'} size={'sm'} onClick={resize}><Expand data-icon="inline-start"/> Resize</Button>
     </div>
-    <div className={'max-h-56 overflow-auto rounded-md border border-border bg-muted/25 p-3'}>
+    <div className={'max-h-56 overflow-auto engine-docs-panel p-3'}>
       {logs.length === 0
         ? <p className={'text-xs text-muted-foreground'}>Click a button to see Venus events.</p>
         : logs.map((log) => {
@@ -2585,12 +2705,47 @@ function ThemeHoverMenu({
   theme: ThemeMode
   setTheme: Dispatch<SetStateAction<ThemeMode>>
 }) {
-  return <div className={'group/theme relative'}>
-    <Button aria-label={'Theme'} aria-haspopup={'menu'} variant={'ghost'} size={'icon'} className={'size-8 rounded-full text-muted-foreground hover:text-foreground'}>
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  return <div className={'relative'} ref={rootRef}>
+    <Button
+      aria-expanded={open}
+      aria-label={'Theme'}
+      aria-haspopup={'menu'}
+      variant={'outline'}
+      size={'icon'}
+      onClick={() => setOpen((current) => !current)}
+    >
       <Palette data-icon="inline-start"/>
     </Button>
-    <div className={'invisible absolute right-0 top-full z-20 pt-2 opacity-0 transition group-hover/theme:visible group-hover/theme:opacity-100 group-focus-within/theme:visible group-focus-within/theme:opacity-100'}>
-      <div role={'menu'} className={'min-w-44 rounded-md border border-border bg-card p-1 text-card-foreground'}>
+    <div className={open ? 'absolute right-0 top-full z-20 pt-2 opacity-100' : 'invisible absolute right-0 top-full z-20 pt-2 opacity-0'}>
+      <div role={'menu'} className={'min-w-44 rounded-md border border-border bg-card p-1 text-card-foreground shadow-[var(--shadow-popover)]'}>
         {themeOptions.map((option) => {
           return <button
             key={option.name}
@@ -2598,7 +2753,10 @@ function ThemeHoverMenu({
             aria-checked={theme === option.name}
             type={'button'}
             className={'flex h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none'}
-            onClick={() => setTheme(option.name)}
+            onClick={() => {
+              setTheme(option.name)
+              setOpen(false)
+            }}
           >
             <span>{option.label}</span>
             {theme === option.name ? <Check data-icon="inline-end"/> : null}
@@ -2612,39 +2770,47 @@ function ThemeHoverMenu({
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>('light')
   const [copiedApiId, setCopiedApiId] = useState<string | null>(null)
-  const navigationItems = useMemo<CollapsibleNavItem[]>(() => {
+  const [searchQuery, setSearchQuery] = useState('')
+  const baseNavigationItems = useMemo<CollapsibleNavItem[]>(() => {
     return engineApiCategories.map((category) => {
       if (category.id === 'document-models') {
         const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
         return {
-          id: category.id,
-          label: category.title,
-          href: `#${category.id}`,
+          id: 'document-models-contract-nav',
+          label: 'Shape model contract',
+          href: '#document-models-shape-contract',
           defaultOpen: true,
           items: [
-            {id: 'document-models-all-shapes-nav', label: 'All shapes demo', href: '#document-models-all-shapes'},
-            {id: 'document-models-shape-contract-nav', label: 'Shape model contract', href: '#document-models-shape-contract'},
             {
-              id: 'document-models-shapes-nav',
-              label: 'Shapes',
-              href: '#document-models-shapes',
-              defaultOpen: true,
-              items: shapeApis.map((api) => ({
-                id: api.id,
-                label: api.title,
-                href: `#${getApiAnchorId(category, api)}`,
-              })),
-            },
-            {
-              id: 'document-models-shape-properties-nav',
-              label: 'Shape Properties',
-              href: '#document-models-shape-properties',
+              id: category.id,
+              label: category.title,
+              href: `#${category.id}`,
               defaultOpen: true,
               items: [
-                {id: 'shape-properties-transform-nav', label: 'Transform', href: '#document-models-shape-properties-transform'},
-                {id: 'shape-properties-appearance-nav', label: 'Appearance', href: '#document-models-shape-properties-appearance'},
-                {id: 'shape-properties-effects-nav', label: 'Effects', href: '#document-models-shape-properties-effects'},
-                {id: 'shape-properties-specific-nav', label: 'Shape Specific', href: '#document-models-shape-properties-specific'},
+                {id: 'document-models-all-shapes-nav', label: 'All shapes demo', href: '#document-models-all-shapes'},
+                {
+                  id: 'document-models-shapes-nav',
+                  label: 'Shapes',
+                  href: '#document-models-shapes',
+                  defaultOpen: true,
+                  items: shapeApis.map((api) => ({
+                    id: api.id,
+                    label: api.title,
+                    href: `#${getApiAnchorId(category, api)}`,
+                  })),
+                },
+                {
+                  id: 'document-models-shape-properties-nav',
+                  label: 'Shape Properties',
+                  href: '#document-models-shape-properties',
+                  defaultOpen: true,
+                  items: [
+                    {id: 'shape-properties-transform-nav', label: 'Transform', href: '#document-models-shape-properties-transform'},
+                    {id: 'shape-properties-appearance-nav', label: 'Appearance', href: '#document-models-shape-properties-appearance'},
+                    {id: 'shape-properties-effects-nav', label: 'Effects', href: '#document-models-shape-properties-effects'},
+                    {id: 'shape-properties-specific-nav', label: 'Shape Specific', href: '#document-models-shape-properties-specific'},
+                  ],
+                },
               ],
             },
           ],
@@ -2664,6 +2830,8 @@ export function App() {
       }
     })
   }, [])
+  const navigationItems = useMemo(() => filterNavigationItems(baseNavigationItems, searchQuery), [baseNavigationItems, searchQuery])
+  const apiCount = useMemo(() => engineApiCategories.reduce((sum, category) => sum + category.apis.length, 0), [])
 
   const copyUsage = async (api: EngineApiDoc) => {
     await navigator.clipboard.writeText(createUsageCode(api, theme))
@@ -2671,85 +2839,123 @@ export function App() {
     window.setTimeout(() => setCopiedApiId((currentId) => currentId === api.id ? null : currentId), 1200)
   }
 
-		return <div data-theme={theme} className={'min-h-screen bg-background text-foreground'}>
-    <header className={'sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur'}>
-      <div className={'mx-auto flex h-12 max-w-screen-2xl items-center justify-between gap-4 px-6'}>
-        <a href={'#top'} className={'flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight'}>
-          <span className={'flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-primary text-[11px] font-semibold text-primary-foreground'}>V</span>
-          <span className={'truncate'}>Venus Engine</span>
-          <span className={'rounded border border-border bg-muted/25 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground'}>Docs</span>
+  return <div data-theme={theme} className={'engine-docs-shell bg-background text-foreground'}>
+    <header className={'engine-docs-topbar sticky top-0 z-10'}>
+      <div className={'mx-auto flex h-14 max-w-[1680px] items-center justify-between gap-4 px-4 sm:px-6'}>
+        <a href={'#top'} className={'flex min-w-0 items-center gap-2.5 text-sm font-semibold tracking-tight'}>
+          <span className={'engine-docs-brand-mark flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-[13px] font-semibold text-primary-foreground'}>V</span>
+          <span className={'truncate text-[15px]'}>Venus Engine Docs</span>
+          <Badge variant={'info'} size={'sm'}>API</Badge>
         </a>
-        <ThemeHoverMenu theme={theme} setTheme={setTheme}/>
+        <div className={'hidden min-w-0 flex-1 justify-center md:flex'}>
+          <label className={'relative w-full max-w-md'}>
+            <Search data-icon="inline-start" className={'pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground'}/>
+            <Input
+              aria-label={'Search APIs'}
+              className={'h-8 rounded-md bg-background/80 pl-8 text-xs shadow-[0_1px_1px_hsl(var(--foreground)/0.04)]'}
+              placeholder={'Search APIs'}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className={'flex items-center gap-2'}>
+          <Button variant={'outline'} size={'sm'} className={'min-w-14'} onClick={() => { window.location.hash = 'start-new-venus' }}>
+            Start
+          </Button>
+          <ThemeHoverMenu theme={theme} setTheme={setTheme}/>
+        </div>
       </div>
     </header>
 
-    <div id={'top'} className={'mx-auto grid max-w-screen-2xl gap-8 px-6 py-8 lg:grid-cols-[300px_minmax(0,1fr)]'}>
+    <div id={'top'} className={'mx-auto grid max-w-[1500px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)]'}>
       <aside className={'hidden lg:block'}>
-        <div className={'sticky top-16 flex max-h-[calc(100vh-5rem)] flex-col gap-4 overflow-auto rounded-md border border-border bg-card p-3'}>
+        <div className={'engine-docs-sidebar sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col gap-4 overflow-auto rounded-lg p-3'} data-ui-scroll>
           <div className={'border-b border-border pb-3'}>
-            <p className={'text-xs font-medium uppercase tracking-wide text-muted-foreground'}>Sections</p>
-            <h1 className={'mt-1 text-base font-semibold tracking-tight'}>Engine API</h1>
+            <p className={'text-[11px] font-medium uppercase tracking-wide text-muted-foreground'}>Reference</p>
+            <div className={'mt-1 flex items-center justify-between gap-2'}>
+              <h1 className={'text-base font-semibold tracking-tight'}>Engine API</h1>
+              <Badge variant={'secondary'} size={'sm'}>{apiCount}</Badge>
+            </div>
+            <label className={'relative mt-3 block md:hidden'}>
+              <Search data-icon="inline-start" className={'pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground'}/>
+              <Input
+                aria-label={'Search APIs'}
+                className={'h-8 pl-8 text-xs'}
+                placeholder={'Search APIs'}
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </label>
           </div>
 
           <CollapsibleNav items={navigationItems} ariaLabel={'Engine API navigation'} className={'gap-2'}/>
         </div>
       </aside>
 
+      <div className={'engine-docs-panel lg:hidden p-3'}>
+        <label className={'relative block'}>
+          <Search data-icon="inline-start" className={'pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground'}/>
+          <Input
+            aria-label={'Search APIs'}
+            className={'h-8 pl-8 text-xs'}
+            placeholder={'Search APIs'}
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+        </label>
+      </div>
+
       <main className={'min-w-0'}>
-        <div className={'flex flex-col gap-20'}>
+        <div className={'flex flex-col gap-12'}>
           {engineApiCategories.map((category) => {
             if (category.id === 'document-models') {
               const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
 
-              return <section key={category.id} id={category.id} className={'scroll-mt-20'}>
-                <div className={'mb-8 flex flex-col gap-2'}>
-                  <h2 className={'group scroll-mt-20 text-3xl font-semibold tracking-tight'}>
-                    <HeadingAnchor href={`#${category.id}`}/>
-                    <span>{category.title}</span>
-                  </h2>
-                  <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
-                </div>
-
-                <article id={'document-models-all-shapes'} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+              return <section key={category.id} className={'scroll-mt-20'}>
+                <article id={'document-models-shape-contract'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
-                    <h3 className={'text-2xl font-semibold tracking-tight'}>All shapes demo</h3>
-                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>A single canvas for every shape type and the complete shape property surface. Select a shape on the right to edit its properties; the selected shape updates in place.</p>
-                  </header>
-                  <AllShapesDemo apis={shapeApis} theme={theme}/>
-                </article>
-
-                <article id={'document-models-shape-contract'} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
-                  <header className={'flex flex-col gap-2'}>
-                    <h3 className={'text-2xl font-semibold tracking-tight'}>Shape model contract</h3>
+                    <h3 className={'text-xl font-semibold tracking-tight'}>Shape model contract</h3>
                     <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>The engine-side contract for module ownership, proxy inheritance, minimal creation fields, editable bounds, path expansion, and shared render properties.</p>
                   </header>
                   <ShapeModelGuide/>
                 </article>
 
-                <div id={'document-models-shapes'} className={'scroll-mt-20 py-8'}>
-                  <h3 className={'text-2xl font-semibold tracking-tight'}>Shapes</h3>
+                <div id={category.id} className={'mt-10 mb-5 flex scroll-mt-20 flex-col gap-2'}>
+                  <h2 className={'text-2xl font-semibold tracking-tight'}>{category.title}</h2>
+                  <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
+                </div>
+
+                <article id={'document-models-all-shapes'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
+                  <header className={'flex flex-col gap-2'}>
+                    <h3 className={'text-xl font-semibold tracking-tight'}>All shapes demo</h3>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>A single canvas for every shape type and the complete shape property surface. Select a shape on the right to edit its properties; the selected shape updates in place.</p>
+                  </header>
+                  <AllShapesDemo apis={shapeApis} theme={theme}/>
+                </article>
+
+                <div id={'document-models-shapes'} className={'scroll-mt-20 py-6'}>
+                  <h3 className={'text-xl font-semibold tracking-tight'}>Shapes</h3>
                   <p className={'mt-2 max-w-3xl text-sm leading-6 text-muted-foreground'}>Each shape page focuses on fields unique to that shape. Common position and appearance controls live in All shapes demo.</p>
                 </div>
 
-                <div className={'flex flex-col'}>
+                <div className={'flex flex-col gap-4'}>
                   {shapeApis.map((api) => {
                     const apiAnchorId = getApiAnchorId(category, api)
-                    return <article key={api.id} id={apiAnchorId} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+                    return <article key={`shape-api-${api.id}`} id={apiAnchorId} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                       <header className={'flex w-full flex-col gap-2'}>
-                        <h4 className={'group block w-full text-xl font-semibold tracking-tight'}>
-                          <HeadingAnchor href={`#${apiAnchorId}`}/>
-                          <span>{api.title}</span>
-                        </h4>
+                        <h4 className={'block w-full text-lg font-semibold tracking-tight'}>{api.title}</h4>
                         <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{api.summary}</p>
                       </header>
+                      <ApiDescription api={api}/>
                       <ShapeStoryDemo api={api} theme={theme}/>
                     </article>
                   })}
                 </div>
 
-                <article id={'document-models-shape-properties'} className={'flex scroll-mt-20 flex-col gap-6 py-10'}>
+                <article id={'document-models-shape-properties'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
-                    <h3 className={'text-2xl font-semibold tracking-tight'}>Shape Properties</h3>
+                    <h3 className={'text-xl font-semibold tracking-tight'}>Shape Properties</h3>
                     <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Property groups shared by shapes, with canvas feedback and a focused form for the current capability.</p>
                   </header>
                   <ShapePropertiesDemo apis={shapeApis} theme={theme}/>
@@ -2758,14 +2964,11 @@ export function App() {
             }
 
             return <section key={category.id} id={category.id} className={'scroll-mt-20'}>
-              <div className={'mb-2 flex flex-col gap-2'}>
-                <h2 className={'group scroll-mt-20 text-3xl font-semibold tracking-tight'}>
-                  <HeadingAnchor href={`#${category.id}`}/>
-                  <span>{category.title}</span>
-                </h2>
+              <div className={'mb-5 flex flex-col gap-2'}>
+                <h2 className={'scroll-mt-20 text-2xl font-semibold tracking-tight'}>{category.title}</h2>
               </div>
 
-              <div className={'flex flex-col'}>
+              <div className={'flex flex-col gap-4'}>
                 {category.apis.map((api, apiIndex) => {
                   const apiAnchorId = getApiAnchorId(category, api)
                   const isStart = category.id === 'start'
@@ -2773,14 +2976,10 @@ export function App() {
                   const isLastDocModel = isDocModel && apiIndex === category.apis.length - 1
                   const isMethods = category.id === 'methods'
 
-                  return <article key={api.id} id={apiAnchorId} className={'flex scroll-mt-20 flex-col gap-6 py-8'}>
-                    {apiIndex > 0 ? <Separator className={'mb-2'}/> : null}
+                  return <article key={`${category.id}-${api.id}`} id={apiAnchorId} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                     <header className={'flex w-full flex-col gap-2'}>
-                      <div className={'flex items-center gap-2'}>
-                        <h3 className={'group text-xl font-semibold tracking-tight'}>
-                          <HeadingAnchor href={`#${apiAnchorId}`}/>
-                          <span>{api.title}</span>
-                        </h3>
+                      <div className={'flex flex-wrap items-center gap-2'}>
+                        <h3 className={'text-lg font-semibold tracking-tight'}>{api.title}</h3>
                         {isMethods && <Badge variant={'secondary'}>method</Badge>}
                         {isDocModel && !isLastDocModel && <Badge variant={'outline'}>shape</Badge>}
                         {isStart && <Badge variant={'amber'}>start here</Badge>}
@@ -2789,7 +2988,7 @@ export function App() {
                       {isDocModel && !isLastDocModel
                         ? <div className={'flex items-center gap-1 pt-1'}>
                           <Tooltip text={copiedApiId === api.id ? 'Copied' : 'Copy example'}>
-                            <Button variant={'ghost'} size={'sm'} className={'h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground'} onClick={() => {
+                            <Button variant={'ghost'} size={'xs'} onClick={() => {
                               void navigator.clipboard.writeText(createCopyCompCode(api.id, theme)).then(() => {
                                 setCopiedApiId(api.id)
                                 window.setTimeout(() => setCopiedApiId((id) => id === api.id ? null : id), 1200)
@@ -2802,11 +3001,13 @@ export function App() {
                         : null}
                     </header>
 
+                    <ApiDescription api={api}/>
+
                     <div className={'flex flex-col gap-3'}>
                       {isStart
                         ? <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,400px)]'}>
                           <ApiCanvasDemo api={api} theme={theme}/>
-                          <CodeBox code={api.demo}/>
+                          <ApiUsage code={api.demo}/>
                         </div>
                         : isMethods
                           ? <InteractiveMethodDemo api={api} theme={theme}/>
@@ -2815,14 +3016,14 @@ export function App() {
                             : <ApiCanvasDemo api={api} theme={theme}/>}
                     </div>
 
-                    {/* Document Models: CodeBox instead of Usage */}
+                    {/* Document Models: generated create usage */}
                     {isDocModel && !isLastDocModel
-                      ? <CodeBox code={createCopyCompCode(api.id, theme)}/>
+                      ? <ApiUsage code={createCopyCompCode(api.id, theme)}/>
                       : null}
 
-                    {/* Methods: CodeBox */}
+                    {/* Methods: explicit usage */}
                     {isMethods
-                      ? <CodeBox code={api.demo}/>
+                      ? <ApiUsage code={api.demo}/>
                       : null}
 
                     {/* Usage accordion: only for non-Start, non-DocModel, non-Methods */}
@@ -2848,16 +3049,16 @@ export function App() {
                       ? <section className={'flex min-w-0 flex-col gap-3'}>
                         <div className={'flex items-center gap-2'}>
                           <h4 className={'text-sm font-medium'}>Properties</h4>
-                          <Badge variant={'secondary'} className={'text-[10px]'}>{api.properties.length}</Badge>
+                          <Badge variant={'secondary'} className={'text-[10px]'}>{api.properties?.length ?? 0}</Badge>
                         </div>
                         {(api.propertyGroups?.length ?? 0) > 0
                           ? <div className={'grid gap-3 md:grid-cols-2'}>
-                            {api.propertyGroups?.map((group) => {
-                              return <div key={group.title} className={'rounded-md border border-border bg-muted/25 p-4'}>
+                            {api.propertyGroups?.map((group, groupIndex) => {
+                              return <div key={`${api.id}-group-${group.title}-${groupIndex}`} className={'engine-docs-panel p-4'}>
                                 <h5 className={'mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'}>{group.title}</h5>
                                 <ul className={'flex flex-col gap-1.5'}>
-                                  {group.properties.map((property) => {
-                                    return <li key={property} className={'flex items-start gap-2 text-[13px] leading-6'}>
+                                  {group.properties.map((property, propertyIndex) => {
+                                    return <li key={`${api.id}-${group.title}-${property}-${propertyIndex}`} className={'flex items-start gap-2 text-[13px] leading-6'}>
                                       <code className={'mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0 text-[11px] font-mono text-foreground/80'}>{property.split(':')[0].split('?')[0]}</code>
                                       <span className={'text-muted-foreground'}>{property.includes(':') ? property.slice(property.indexOf(':') + 1).trim() : ''}</span>
                                     </li>
@@ -2867,8 +3068,8 @@ export function App() {
                             })}
                           </div>
                           : <ul className={'flex flex-col gap-1 text-sm text-muted-foreground'}>
-                            {api.properties?.map((property) => {
-                              return <li key={property} className={'leading-6'}>• {property}</li>
+                            {api.properties?.map((property, propertyIndex) => {
+                              return <li key={`${api.id}-property-${property}-${propertyIndex}`} className={'leading-6'}>• {property}</li>
                             })}
                           </ul>}
                       </section>
@@ -2877,8 +3078,8 @@ export function App() {
                     {api.methods && api.methods.length > 0
                       ? <section className={'flex min-w-0 flex-col gap-4'}>
                         <h4 className={'text-sm font-medium'}>Methods</h4>
-                        {api.methods.map((method) => {
-                          return <div key={method.name} className={'flex flex-col gap-2 rounded-md border border-border bg-muted/25 p-4'}>
+                        {api.methods.map((method, methodIndex) => {
+                          return <div key={`${api.id}-method-${method.name}-${methodIndex}`} className={'engine-docs-panel flex flex-col gap-2 p-4'}>
                             <code className={'text-xs'}>{method.name}</code>
                             <p className={'text-sm leading-6 text-muted-foreground'}>{method.description}</p>
                             {method.parameters && method.parameters.length > 0

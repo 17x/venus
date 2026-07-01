@@ -18,7 +18,7 @@ Field.displayName = "Field";
 
 const FieldLabel = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttributes<HTMLLabelElement>>(
   ({ className, ...props }, ref) => (
-    <label ref={ref} className={cn("text-xs font-medium leading-none", className)} {...props} />
+    <label ref={ref} className={cn("cursor-default text-xs font-medium leading-none", className)} {...props} />
   )
 );
 FieldLabel.displayName = "FieldLabel";

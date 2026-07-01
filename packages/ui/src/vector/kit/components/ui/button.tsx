@@ -14,10 +14,10 @@ export interface ButtonProps extends ComponentPropsWithoutRef<'button'> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'bg-[var(--vector-ui-color-secondary)] text-[var(--vector-ui-color-secondary-foreground)] hover:bg-[var(--vector-ui-color-secondary-hover)]',
-  primary: 'bg-[var(--vector-ui-color-primary)] text-[var(--vector-ui-color-primary-foreground)] hover:bg-[var(--vector-ui-color-primary-hover)]',
-  ghost: 'bg-transparent text-slate-700 hover:bg-[var(--vector-ui-hover-bg)] hover:text-slate-900 active:text-[var(--vector-shell-active-text)] dark:text-slate-200 dark:hover:bg-[var(--vector-ui-hover-bg)] dark:hover:text-slate-50',
-  outline: 'bg-[var(--vector-ui-color-tertiary)] text-[var(--vector-ui-color-tertiary-foreground)] hover:bg-[var(--vector-ui-color-tertiary-hover)] dark:bg-[var(--vector-ui-color-tertiary)] dark:text-[var(--vector-ui-color-tertiary-foreground)]',
+  default: 'bg-[var(--vector-ui-color-secondary)] text-[var(--vector-ui-color-secondary-foreground)] hover:bg-[var(--vector-ui-color-secondary-hover)] active:bg-[var(--vector-ui-color-secondary-hover)]',
+  primary: 'bg-[var(--vector-ui-color-primary)] text-[var(--vector-ui-color-primary-foreground)] hover:bg-[var(--vector-ui-color-primary-hover)] active:bg-[var(--vector-ui-color-primary-hover)]',
+  ghost: 'bg-transparent text-slate-700 hover:bg-[var(--vector-ui-hover-bg)] hover:text-slate-900 active:bg-[var(--vector-ui-hover-bg-strong)] active:text-[var(--vector-shell-active-text)] dark:text-slate-200 dark:hover:bg-[var(--vector-ui-hover-bg)] dark:hover:text-slate-50',
+  outline: 'bg-[var(--vector-ui-color-tertiary)] text-[var(--vector-ui-color-tertiary-foreground)] hover:bg-[var(--vector-ui-color-tertiary-hover)] active:bg-[var(--vector-ui-color-tertiary-hover)] dark:bg-[var(--vector-ui-color-tertiary)] dark:text-[var(--vector-ui-color-tertiary-foreground)]',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -56,6 +56,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     size={sizeMap[size]}
     className={cn(
       'vector-ui-font vector-ui-hover-transition rounded-[var(--vector-ui-radius-md)] shadow-none',
+      'cursor-pointer active:translate-y-0 focus-visible:ring-2 focus-visible:ring-[var(--vector-shell-focus-ring)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-45',
       variantClasses[usedVariant],
       sizeClasses[size],
       className,
@@ -113,6 +114,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       size={size}
       className={cn(
         'vector-ui-font vector-ui-hover-transition inline-flex items-center justify-center overflow-hidden rounded-md shadow-none [&_svg]:size-[var(--vector-ui-button-icon-size)]',
+        'cursor-pointer active:translate-y-0 focus-visible:ring-2 focus-visible:ring-[var(--vector-shell-focus-ring)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-45',
         variantClasses[usedVariant],
         sizeClass,
         className,

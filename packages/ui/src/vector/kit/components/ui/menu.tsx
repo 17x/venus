@@ -22,7 +22,7 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
     role={'menuitem'}
     className={cn(
       'vector-ui-font vector-ui-hover-transition vector-ui-menu-item inline-flex w-full min-w-25 cursor-pointer select-none items-center justify-start whitespace-nowrap box-border rounded-[var(--vector-ui-radius-sm)] text-left outline-none',
-      'focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
+      'hover:bg-[var(--vector-ui-hover-bg)] active:bg-[var(--vector-ui-hover-bg-strong)] active:text-[var(--vector-shell-active-text)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
       'disabled:cursor-not-allowed disabled:opacity-45',
       xs && 'h-6 px-1 text-[length:var(--vector-ui-font-size-xs)]',
       s && 'h-7 px-2 text-[length:var(--vector-ui-font-size-xs)]',

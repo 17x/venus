@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckIcon, MoonIcon, PaletteIcon, SparklesIcon, SunIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "../ui/button";
 import { resolveThemeName, themeNames, themeStorageKey, type ThemeName } from "../../lib/theme/config";
@@ -24,7 +24,10 @@ const themeIcons = {
 } satisfies Record<ThemeName, typeof SunIcon>;
 
 export function ThemeMenu({ labels, title }: ThemeMenuProps) {
+  const menuId = useId();
   const [theme, setThemeState] = useState<ThemeName>("classic-light");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const nextTheme = resolveThemeName(localStorage.getItem(themeStorageKey));
@@ -32,14 +35,50 @@ export function ThemeMenu({ labels, title }: ThemeMenuProps) {
     setThemeState(nextTheme);
   }, []);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className="group/menu relative">
-      <Button aria-label={title} aria-haspopup="menu" size="icon" type="button" variant="outline">
+    <div className="relative" ref={rootRef}>
+      <Button
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={title}
+        aria-haspopup="menu"
+        size="icon"
+        type="button"
+        variant="outline"
+        onClick={() => setOpen((current) => !current)}
+      >
         <PaletteIcon data-icon="inline-start" />
       </Button>
-      <div className="invisible absolute right-0 top-full z-20 pt-1 opacity-0 transition group-hover/menu:visible group-hover/menu:opacity-100 group-focus-within/menu:visible group-focus-within/menu:opacity-100">
+      <div className={open ? "absolute right-0 top-full z-20 pt-1 opacity-100" : "invisible absolute right-0 top-full z-20 pt-1 opacity-0"}>
         <div
-          className="min-w-40 rounded-md border bg-card p-1 text-card-foreground"
+          className="min-w-44 rounded-md border bg-card p-1 text-card-foreground shadow-[var(--shadow-popover)]"
+          id={menuId}
           role="menu"
         >
           {themeNames.map((item) => {
@@ -47,7 +86,7 @@ export function ThemeMenu({ labels, title }: ThemeMenuProps) {
 
             return (
               <button
-                className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-xs outline-none hover:bg-[hsl(var(--state-hover))] hover:text-accent-foreground active:bg-[hsl(var(--state-active))] focus-visible:bg-[hsl(var(--state-hover))] focus-visible:text-accent-foreground"
+                className="flex w-full cursor-[var(--cursor-action)] items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-xs outline-none transition-[background-color,color,box-shadow,transform] hover:-translate-y-px hover:bg-[hsl(var(--state-hover))] hover:text-accent-foreground active:translate-y-0 active:bg-[hsl(var(--state-active))] focus-visible:bg-[hsl(var(--state-hover))] focus-visible:text-accent-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1 aria-checked:bg-[hsl(var(--state-active))] aria-checked:text-foreground"
                 key={item}
                 role="menuitemradio"
                 aria-checked={theme === item}
@@ -55,6 +94,7 @@ export function ThemeMenu({ labels, title }: ThemeMenuProps) {
                 onClick={() => {
                   applyTheme(item);
                   setThemeState(item);
+                  setOpen(false);
                 }}
               >
                 <span className="flex items-center gap-2">

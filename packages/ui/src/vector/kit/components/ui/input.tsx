@@ -40,8 +40,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       type={type}
       className={cn(
         'vector-ui-font vector-ui-hover-transition box-border w-full rounded-[var(--vector-ui-radius-md)] border-0 bg-white px-[var(--vector-ui-space-2)] shadow-none',
-        'outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
-        'disabled:cursor-not-allowed disabled:opacity-50',
+        'cursor-text outline-none hover:bg-[var(--vector-ui-hover-bg)] focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1',
+        'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white dark:disabled:hover:bg-slate-900',
         xs && 'h-6 text-xs',
         s && 'h-7 text-xs',
         !xs && !s && !l && 'h-8',

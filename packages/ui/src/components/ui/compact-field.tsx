@@ -23,7 +23,10 @@ const CompactInputField = React.forwardRef<HTMLInputElement, CompactInputFieldPr
 
     return (
       <Field data-invalid={Boolean(error) || undefined} className="gap-1">
-        <div className="flex h-8 min-w-0 items-center rounded-md border border-input bg-background transition-colors hover:bg-[hsl(var(--state-hover))] focus-within:ring-2 focus-within:ring-[hsl(var(--state-focus))] focus-within:ring-offset-1">
+        <div
+          data-invalid={Boolean(error) || undefined}
+          className="flex h-8 min-w-0 cursor-text items-center rounded-md border border-input bg-background transition-[background-color,border-color,box-shadow] hover:border-ring/30 hover:bg-[hsl(var(--state-hover))] active:border-ring/35 active:bg-[hsl(var(--state-active))] focus-within:border-ring/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-[hsl(var(--state-focus))] focus-within:ring-offset-1 data-[invalid=true]:border-destructive data-[invalid=true]:bg-[hsl(var(--state-invalid-bg))] data-[invalid=true]:ring-2 data-[invalid=true]:ring-destructive/20"
+        >
           <FieldLabel htmlFor={fieldId} className="max-w-[45%] shrink-0 truncate px-2 text-xs font-medium text-muted-foreground">
             {label}
           </FieldLabel>
@@ -37,7 +40,7 @@ const CompactInputField = React.forwardRef<HTMLInputElement, CompactInputFieldPr
           />
           {suffix ? <label htmlFor={fieldId} className="shrink-0 cursor-pointer px-2 text-xs text-muted-foreground">{suffix}</label> : null}
         </div>
-        {error || description ? <FieldDescription>{error ?? description}</FieldDescription> : null}
+        {error || description ? <FieldDescription className={cn(error && "text-destructive")}>{error ?? description}</FieldDescription> : null}
       </Field>
     );
   }
@@ -52,7 +55,10 @@ const CompactSelectField = React.forwardRef<HTMLSelectElement, CompactSelectFiel
 
     return (
       <Field data-invalid={Boolean(error) || undefined} className="gap-1">
-        <div className="flex h-8 min-w-0 items-center rounded-md border border-input bg-background transition-colors hover:bg-[hsl(var(--state-hover))] focus-within:ring-2 focus-within:ring-[hsl(var(--state-focus))] focus-within:ring-offset-1">
+        <div
+          data-invalid={Boolean(error) || undefined}
+          className="flex h-8 min-w-0 cursor-[var(--cursor-action)] items-center rounded-md border border-input bg-background transition-[background-color,border-color,box-shadow] hover:border-ring/30 hover:bg-[hsl(var(--state-hover))] active:border-ring/35 active:bg-[hsl(var(--state-active))] focus-within:border-ring/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-[hsl(var(--state-focus))] focus-within:ring-offset-1 data-[invalid=true]:border-destructive data-[invalid=true]:bg-[hsl(var(--state-invalid-bg))] data-[invalid=true]:ring-2 data-[invalid=true]:ring-destructive/20"
+        >
           <FieldLabel htmlFor={fieldId} className="max-w-[45%] shrink-0 truncate px-2 text-xs font-medium text-muted-foreground">
             {label}
           </FieldLabel>
@@ -67,7 +73,7 @@ const CompactSelectField = React.forwardRef<HTMLSelectElement, CompactSelectFiel
           </Select>
           {suffix ? <label htmlFor={fieldId} className="shrink-0 cursor-pointer px-2 text-xs text-muted-foreground">{suffix}</label> : null}
         </div>
-        {error || description ? <FieldDescription>{error ?? description}</FieldDescription> : null}
+        {error || description ? <FieldDescription className={cn(error && "text-destructive")}>{error ?? description}</FieldDescription> : null}
       </Field>
     );
   }

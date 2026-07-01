@@ -56,7 +56,7 @@ export function Select({
         <SelectTrigger
           size={size}
           className={cn(
-            'vector-ui-font vector-ui-hover-transition border-0 bg-white text-left text-slate-900 shadow-none hover:bg-[var(--vector-ui-hover-bg)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 dark:bg-slate-900 dark:text-slate-100',
+            'vector-ui-font vector-ui-hover-transition cursor-pointer border-0 bg-white text-left text-slate-900 shadow-none hover:bg-[var(--vector-ui-hover-bg)] active:bg-[var(--vector-ui-hover-bg-strong)] focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 disabled:cursor-not-allowed dark:bg-slate-900 dark:text-slate-100',
             l && 'h-9',
           )}
         >
@@ -89,7 +89,7 @@ export function SelectItem({children, className, level = 0, style, value, ...pro
   return (
     <ShadcnSelectItem
       value={String(value)}
-      className={cn('vector-ui-font vector-ui-hover-transition', className)}
+      className={cn('vector-ui-font vector-ui-hover-transition cursor-pointer hover:bg-[var(--vector-ui-hover-bg)] active:bg-[var(--vector-ui-hover-bg-strong)]', className)}
       style={resolvedStyle}
       {...props}
     >

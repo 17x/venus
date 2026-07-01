@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./globals.css": "./src/globals.css",
+    "./styles.css": "./src/styles.css",
     "./vector": "./src/vector/index.ts",
     "./vector/styles.css": "./src/vector/styles.css",
     "./components/ui/*": "./src/components/ui/*.tsx",

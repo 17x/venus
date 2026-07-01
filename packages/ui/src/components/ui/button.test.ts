@@ -9,4 +9,14 @@ describe("button primitive", () => {
     assert.match(source, /\[&_svg\]:shrink-0/);
     assert.match(source, /\[&_svg:not\(\[class\*='size-'\]\)\]:size-4/);
   });
+
+  it("supports destructive and invalid commercial states", () => {
+    assert.match(source, /destructive:/);
+    assert.match(source, /aria-invalid:border-destructive/);
+  });
+
+  it("implements asChild instead of only marking it as data", () => {
+    assert.match(source, /React\.cloneElement/);
+    assert.match(source, /data-as-child/);
+  });
 });

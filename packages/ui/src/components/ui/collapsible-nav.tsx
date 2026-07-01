@@ -52,7 +52,7 @@ function CollapsibleNavTree({
             <div
               style={{ paddingLeft: rowIndent }}
               className={cn(
-                "group/nav-row flex min-h-8 min-w-0 items-center gap-1 rounded-md text-sm transition-colors hover:bg-muted/50",
+                "group/nav-row flex min-h-8 min-w-0 items-center gap-1 rounded-md text-sm transition-[background-color,color,box-shadow] hover:bg-[hsl(var(--state-hover))] focus-within:bg-[hsl(var(--state-hover))]",
                 depth > 0 && "min-h-7 text-xs",
               )}
             >
@@ -61,7 +61,7 @@ function CollapsibleNavTree({
                   type="button"
                   aria-expanded={isOpen}
                   aria-controls={`${item.id}-items`}
-                  className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="grid size-7 shrink-0 cursor-[var(--cursor-action)] place-items-center rounded-md text-muted-foreground outline-none transition-[background-color,color,box-shadow,transform] hover:-translate-y-px hover:bg-background/70 hover:text-foreground active:translate-y-0 active:bg-[hsl(var(--state-active))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1"
                   onClick={() => toggleItem(item.id)}
                 >
                   <ChevronRight
@@ -76,7 +76,7 @@ function CollapsibleNavTree({
                 <a
                   href={item.href}
                   className={cn(
-                    "min-w-0 flex-1 truncate rounded-md py-1.5 pr-2 text-muted-foreground outline-none transition-colors group-hover/nav-row:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "min-w-0 flex-1 cursor-[var(--cursor-action)] truncate rounded-md py-1.5 pr-2 text-muted-foreground outline-none transition-[background-color,color,box-shadow,transform] group-hover/nav-row:text-foreground hover:text-foreground active:translate-y-px active:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1",
                     hasChildren && "font-medium text-foreground",
                     depth > 0 && "py-1",
                   )}
