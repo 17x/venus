@@ -57,11 +57,11 @@ const classifyPropertyGroup = (property: string): (typeof propertyGroupTitles)[n
     return 'Identity'
   }
 
-  if (['transform', 'rotation', 'x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY'].includes(name)) {
+  if (['transform', 'rotation', 'x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'cx', 'cy', 'rx', 'ry', 'ellipseGeometry'].includes(name)) {
     return 'Transform'
   }
 
-  if (['appearance', 'blendMode', 'fill', 'fills', 'stroke', 'strokes', 'strokeWidth', 'strokeAlign', 'strokeDashArray', 'strokeCap', 'strokeJoin', 'opacity'].includes(name)) {
+  if (['appearance', 'blendMode', 'fill', 'fills', 'stroke', 'strokes', 'strokeWidth', 'strokeAlign', 'strokeDashArray', 'strokeCap', 'strokeJoin', 'opacity', 'visual', 'effects'].includes(name)) {
     return 'Appearance'
   }
 
@@ -90,18 +90,10 @@ const withGroupedProperties = (categories: EngineApiCategory[]): EngineApiCatego
     })),
   }))
 
-  // Reorder: base-modules moves after methods, right before hittest.
-  const ordered: EngineApiCategory[] = []
-  for (const category of processed) {
-    if (category.id === 'base-modules') continue
-    ordered.push(category)
-    if (category.id === 'methods') {
-      const baseModules = processed.find((c) => c.id === 'base-modules')
-      if (baseModules) ordered.push(baseModules)
-    }
-  }
-
-  return ordered
+  // Target order: start → shapes → common-props → methods → (rest) → advanced
+  const order = ['start', 'shapes', 'common-props', 'methods', 'venus-parameters', 'backend-strategy', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa', 'advanced']
+  const byId = new Map(processed.map((c) => [c.id, c]))
+  return order.map((id) => byId.get(id)).filter((c): c is EngineApiCategory => c != null)
 }
 
 const rawEngineApiCategories: EngineApiCategory[] = [
@@ -134,8 +126,8 @@ await venus.render()`,
     ],
   },
   {
-    id: 'base-modules',
-    title: 'Base and Modules',
+    id: 'advanced',
+    title: 'Advanced',
     summary: 'Start from the base runtime and add short capability modules when needed.',
     apis: [
       {
@@ -225,12 +217,12 @@ await venus.render()`,
     ],
   },
   {
-    id: 'document-models',
-    title: 'Document Models',
-    summary: 'Each document object has its own API page and an editable canvas demo.',
+    id: 'shapes',
+    title: 'Shapes',
+    summary: 'Each shape has its own page with minimal creation and unique property controls.',
     apis: [
       {
-        id: 'rect-node',
+        id: 'rect',
         title: 'Rect',
         summary: 'Draws a rectangle or rounded rectangle.',
         readableDescription: 'Rect is a bounds-authored engine shape. Minimal creation is type, width, and height; x/y default to 0 and mean the local top-left of the rendered box. Rounded corners can be represented as path arcs when exporting to path geometry.',
@@ -239,7 +231,7 @@ await venus.render()`,
         demoCaption: 'The preview renders a rounded rectangle with editable fill, stroke, size, and radius.',
       },
       {
-        id: 'ellipse-node',
+        id: 'ellipse',
         title: 'Ellipse',
         summary: 'Draws an ellipse inside a rectangular bounds box.',
         readableDescription: 'Ellipse is a bounds-authored engine shape. Minimal creation is type, width, and height; x/y default to the local top-left of its containing box. Arc fields can turn the ellipse into an open or closed arc path, and ellipseDrawWedgeLine controls radial edges to center.',
@@ -248,7 +240,7 @@ await venus.render()`,
         demoCaption: 'The preview renders an ellipse whose bounds, fill, and stroke are editable.',
       },
       {
-        id: 'line-node',
+        id: 'line',
         title: 'Line',
         summary: 'Draws a stroked line segment.',
         readableDescription: 'Line is a stroke-authored engine shape. Minimal creation is type, width, and height; x/y default to the start point. width/height are endpoint deltas, so proxy bounds edits can reverse-derive the line endpoints.',
@@ -257,7 +249,7 @@ await venus.render()`,
         demoCaption: 'The preview renders a line segment with editable position, delta, and stroke.',
       },
       {
-        id: 'text-node',
+        id: 'text',
         title: 'Text',
         summary: 'Draws plain text with basic typography controls.',
         readableDescription: 'Text is a document node, not an EngineShapeNode path geometry. Minimal creation is type and text. x/y position the text box, while width/height are optional editor/layout bounds used by transforms and future layout.',
@@ -266,7 +258,7 @@ await venus.render()`,
         demoCaption: 'The preview renders editable text content, color, size, and weight.',
       },
       {
-        id: 'group-node',
+        id: 'group',
         title: 'Group',
         summary: 'Groups children so they can move, render, and hit-test as a composed subtree.',
         readableDescription: 'Group is a container node. Minimal creation is type and children. x/y are parent-space translation; visual bounds are derived from children, so group does not own width/height. Use venus.group(ids) and venus.ungroup(id) for selection-level grouping.',
@@ -275,7 +267,7 @@ await venus.render()`,
         demoCaption: 'The preview moves a group parent while editing child appearance.',
       },
       {
-        id: 'clip-node',
+        id: 'clip',
         title: 'Clip',
         summary: 'Constrains child rendering to a clip path.',
         readableDescription: 'Clip is a container node. Minimal creation is type, clipPath, and children. Its visual bounds come from clipPath first and children second; x/y/width/height are not owned by the container itself.',
@@ -284,7 +276,7 @@ await venus.render()`,
         demoCaption: 'The preview updates the clip path bounds and child colors live.',
       },
       {
-        id: 'mask-node',
+        id: 'mask',
         title: 'Mask',
         summary: 'Uses mask-like composition for children.',
         readableDescription: 'Mask is a container node with clip-like behavior today. Minimal creation is type, clipPath, and children. It stays separate from clip so alpha/luminance mask semantics can be added without changing document ownership.',
@@ -293,7 +285,7 @@ await venus.render()`,
         demoCaption: 'The preview updates mask-style composition through the current Venus facade.',
       },
       {
-        id: 'polygon-node',
+        id: 'polygon',
         title: 'Polygon',
         summary: 'Draws closed point-list polygon geometry.',
         readableDescription: 'Polygon is a point-authored engine shape. Minimal creation is type, width, height, and points. x/y/width/height are the editable bounds used by transforms and proxy resizing; points are the rendered vertices and are translated/scaled when bounds are patched.',
@@ -302,7 +294,7 @@ await venus.render()`,
         demoCaption: 'The preview renders an editable polygon with fill, stroke, and vertex controls.',
       },
       {
-        id: 'path-node',
+        id: 'path',
         title: 'Path',
         summary: 'Draws custom point or bezier path geometry.',
         readableDescription: 'Path is the native point or bezier path form. Minimal creation is type, width, height, and either points or bezierPoints. x/y/width/height are editor bounds; points and bezierPoints are the rendered geometry and are translated/scaled when bounds are patched. Open paths skip fill even if a fill shortcut is present.',
@@ -311,7 +303,7 @@ await venus.render()`,
         demoCaption: 'The preview renders an editable path with bezier, arrowhead, and closure controls.',
       },
       {
-        id: 'image-node',
+        id: 'image',
         title: 'Image',
         summary: 'Renders an asset-backed raster image with crop and smoothing controls.',
         readableDescription: 'Image is an asset-backed renderable node, not a path shape. Minimal creation is type, width, height, and assetId. x/y/width/height define the rendered image quad.',

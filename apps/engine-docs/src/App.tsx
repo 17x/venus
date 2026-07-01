@@ -159,23 +159,23 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     return [{type: 'rect', x: 72, y: 56, width: 160, height: 96, fill: panel}]
   }
 
-  if (apiId === 'venus-add' || apiId === 'ellipse-node') {
+  if (apiId === 'venus-add' || apiId === 'ellipse') {
     return [{type: 'ellipse', x: 120, y: 72, width: 260, height: 150, fill: isLight ? '#fed7aa' : '#7c2d12', stroke: isLight ? '#ea580c' : '#fdba74', strokeWidth: 5}]
   }
 
-  if (apiId === 'rect-node') {
+  if (apiId === 'rect') {
     return [{type: 'rect', x: 96, y: 72, width: 300, height: 170, fill: panel, stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 5, cornerRadius: 18}]
   }
 
-  if (apiId === 'line-node') {
+  if (apiId === 'line') {
     return [{type: 'line', x: 86, y: 96, width: 310, height: 128, stroke: isLight ? '#475569' : '#e2e8f0', strokeWidth: 10}]
   }
 
-  if (apiId === 'text-node') {
+  if (apiId === 'text') {
     return [{type: 'text', x: 86, y: 176, text: 'Venus Text', fill: ink, fontSize: 42, fontWeight: 700}]
   }
 
-  if (apiId === 'group-node') {
+  if (apiId === 'group') {
     return [{
       type: 'group',
       x: 40,
@@ -187,7 +187,7 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     }]
   }
 
-  if (apiId === 'mask-node') {
+  if (apiId === 'mask') {
     return [{
       type: 'mask',
       clipPath: {type: 'rect', x: 116, y: 64, width: 260, height: 160, cornerRadius: 32},
@@ -197,7 +197,7 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     }]
   }
 
-  if (apiId === 'clip-node') {
+  if (apiId === 'clip') {
     return [{
       type: 'clip',
       clipPath: {type: 'rect', x: 116, y: 64, width: 260, height: 160, cornerRadius: 999},
@@ -265,15 +265,15 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     ]
   }
 
-  if (apiId === 'polygon-node') {
+  if (apiId === 'polygon') {
     return [{type: 'polygon', x: 72, y: 56, width: 220, height: 168, points: [{x: 182, y: 56}, {x: 292, y: 120}, {x: 254, y: 224}, {x: 110, y: 224}, {x: 72, y: 120}], fill: isLight ? '#dcfce7' : '#14532d', stroke: isLight ? '#16a34a' : '#86efac', strokeWidth: 3}]
   }
 
-  if (apiId === 'path-node') {
+  if (apiId === 'path') {
     return [{type: 'path', x: 64, y: 64, width: 280, height: 180, points: [{x: 64, y: 160}, {x: 200, y: 64}, {x: 344, y: 160}, {x: 200, y: 244}], stroke: isLight ? '#7c3aed' : '#a78bfa', strokeWidth: 5, closed: true}]
   }
 
-  if (apiId === 'image-node') {
+  if (apiId === 'image') {
     return [{type: 'image', x: 80, y: 56, width: 240, height: 160, assetId: 'demo-image'}]
   }
 
@@ -635,8 +635,8 @@ interface ModelControlValues {
   layerBlurAmount: number
 }
 
-const editableModelApiIds = new Set(['rect-node', 'ellipse-node', 'line-node', 'text-node', 'group-node', 'clip-node', 'mask-node', 'polygon-node', 'path-node', 'image-node'])
-const shapeApiIds = ['rect-node', 'ellipse-node', 'line-node', 'text-node', 'group-node', 'clip-node', 'mask-node', 'polygon-node', 'path-node', 'image-node'] as const
+const editableModelApiIds = new Set(['rect', 'ellipse', 'line', 'text', 'group', 'clip', 'mask', 'polygon', 'path', 'image'])
+const shapeApiIds = ['rect', 'ellipse', 'line', 'text', 'group', 'clip', 'mask', 'polygon', 'path', 'image'] as const
 const themeOptions: Array<{name: ThemeMode; label: string}> = [
   {name: 'light', label: 'Classic light'},
   {name: 'dark', label: 'Classic dark'},
@@ -650,33 +650,33 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
   return {
     id: apiId.replace('-node', '-demo'),
     compositeTarget: 'parent',
-    x: apiId === 'group-node' ? 0 : (apiId === 'line-node' ? 110 : (apiId === 'text-node' ? 90 : 110)),
-    y: apiId === 'group-node' ? 0 : (apiId === 'line-node' ? 110 : (apiId === 'text-node' ? 108 : 95)),
+    x: apiId === 'group' ? 0 : (apiId === 'line' ? 110 : (apiId === 'text' ? 90 : 110)),
+    y: apiId === 'group' ? 0 : (apiId === 'line' ? 110 : (apiId === 'text' ? 108 : 95)),
     x2: 290,
     y2: 190,
-    width: apiId === 'line-node' ? 180 : (apiId === 'text-node' ? 220 : 180),
-    height: apiId === 'line-node' ? 80 : 110,
+    width: apiId === 'line' ? 180 : (apiId === 'text' ? 220 : 180),
+    height: apiId === 'line' ? 80 : 110,
     rotation: 0,
     skewX: 0,
     skewY: 0,
     originX: 50,
     originY: 50,
-    fill: apiId === 'mask-node' ? '#a855f7' : (isLight ? '#dbeafe' : '#1e3a8a'),
+    fill: apiId === 'mask' ? '#a855f7' : (isLight ? '#dbeafe' : '#1e3a8a'),
     fillOpacity: 100,
-    stroke: apiId === 'line-node' ? (isLight ? '#475569' : '#e2e8f0') : (isLight ? '#2563eb' : '#93c5fd'),
+    stroke: apiId === 'line' ? (isLight ? '#475569' : '#e2e8f0') : (isLight ? '#2563eb' : '#93c5fd'),
     strokeOpacity: 100,
-    strokeWidth: apiId === 'line-node' ? 10 : 5,
+    strokeWidth: apiId === 'line' ? 10 : 5,
     opacity: 100,
-    cornerRadius: apiId === 'rect-node' || apiId === 'mask-node' ? 18 : 0,
+    cornerRadius: apiId === 'rect' || apiId === 'mask' ? 18 : 0,
     cornerTopLeft: 18,
     cornerTopRight: 18,
     cornerBottomRight: 18,
     cornerBottomLeft: 18,
-    cornersLocked: apiId !== 'rect-node',
+    cornersLocked: apiId !== 'rect',
     ellipseStartAngle: 0,
     ellipseEndAngle: 360,
     ellipseDrawWedgeLine: false,
-    text: apiId === 'group-node' ? 'Grouped' : 'Venus Text\nmulti-line',
+    text: apiId === 'group' ? 'Grouped' : 'Venus Text\nmulti-line',
     selectedTextFill: '#ef4444',
     selectedTextStart: 0,
     selectedTextEnd: 5,
@@ -722,7 +722,7 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     childTextY: 156,
     childTextWidth: 180,
     childTextHeight: 72,
-    childText: apiId === 'group-node' ? 'Grouped' : 'Child',
+    childText: apiId === 'group' ? 'Grouped' : 'Child',
     childTextFill: childStroke,
     childTextOpacity: 100,
     childTextFontSize: 42,
@@ -738,9 +738,9 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     clipPathWidth: 180,
     clipPathHeight: 136,
     clipPathCornerRadius: 18,
-    clipIsEllipse: apiId === 'clip-node',
+    clipIsEllipse: apiId === 'clip',
     pathClosed: true,
-    pathUseBezier: apiId === 'path-node',
+    pathUseBezier: apiId === 'path',
     imageSmoothing: true,
     assetId: 'demo-image',
     shadowEnabled: false,
@@ -894,23 +894,23 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
       bottomLeft: controls.cornerBottomLeft,
     }
 
-  if (apiId === 'rect-node') {
+  if (apiId === 'rect') {
     return [{id: commonId, type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, cornerRadius: controls.cornersLocked ? controls.cornerRadius : undefined, cornerRadii, ...strokeStyle, ...flatTransform}]
   }
 
-  if (apiId === 'ellipse-node') {
+  if (apiId === 'ellipse') {
     return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, ...strokeStyle, ...flatTransform}]
   }
 
-  if (apiId === 'line-node') {
+  if (apiId === 'line') {
     return [{id: commonId, type: 'line', x: controls.x, y: controls.y, width: controls.x2 - controls.x, height: controls.y2 - controls.y, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ...strokeStyle, ...flatTransform}]
   }
 
-  if (apiId === 'text-node') {
+  if (apiId === 'text') {
     return [{id: commonId, type: 'text', x: controls.x, y: controls.y, width: controls.width, height: controls.height, text: controls.text, runs: createTextRuns(controls), fill, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight, opacity, shadow, ...flatTransform}]
   }
 
-  if (apiId === 'group-node') {
+  if (apiId === 'group') {
     return [{
       id: commonId,
       type: 'group',
@@ -926,14 +926,14 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     }]
   }
 
-  if (apiId === 'clip-node' || apiId === 'mask-node') {
+  if (apiId === 'clip' || apiId === 'mask') {
     const clipPath: VenusNode = controls.clipIsEllipse
       ? {type: 'ellipse', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight}
       : {type: 'rect', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight, cornerRadius: controls.clipPathCornerRadius}
 
     return [{
       id: commonId,
-      type: apiId === 'clip-node' ? 'clip' : 'mask',
+      type: apiId === 'clip' ? 'clip' : 'mask',
       opacity,
       ...flatTransform,
       clipPath,
@@ -944,11 +944,11 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     }]
   }
 
-  if (apiId === 'polygon-node') {
+  if (apiId === 'polygon') {
     return [{id: commonId, type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ...strokeStyle, ...flatTransform}]
   }
 
-  if (apiId === 'path-node') {
+  if (apiId === 'path') {
     const pathBase = {id: commonId, type: 'path' as const, x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill: controls.pathClosed ? fill : 'transparent', fills: controls.pathClosed ? gradientFills : undefined, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, closed: controls.pathClosed, ...strokeStyle, ...flatTransform}
     return controls.pathUseBezier
       ? [{
@@ -966,7 +966,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
       }]
   }
 
-  if (apiId === 'image-node') {
+  if (apiId === 'image') {
     return [{id: commonId, type: 'image', x: controls.x, y: controls.y, width: controls.width, height: controls.height, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing, opacity, ...flatTransform}]
   }
 
@@ -974,32 +974,32 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
 }
 
 const createMinimalModelNode = (apiId: string, controls: ModelControlValues): VenusNode => {
-  if (apiId === 'rect-node') {
+  if (apiId === 'rect') {
     return {type: 'rect', width: controls.width, height: controls.height}
   }
 
-  if (apiId === 'ellipse-node') {
+  if (apiId === 'ellipse') {
     return {type: 'ellipse', width: controls.width, height: controls.height}
   }
 
-  if (apiId === 'line-node') {
+  if (apiId === 'line') {
     return {type: 'line', width: controls.x2 - controls.x, height: controls.y2 - controls.y}
   }
 
-  if (apiId === 'text-node') {
+  if (apiId === 'text') {
     return {type: 'text', text: controls.text}
   }
 
-  if (apiId === 'group-node') {
+  if (apiId === 'group') {
     return {type: 'group', children: [
       {type: 'rect', width: controls.childRectWidth, height: controls.childRectHeight},
       {type: 'text', text: controls.childText},
     ]}
   }
 
-  if (apiId === 'clip-node' || apiId === 'mask-node') {
+  if (apiId === 'clip' || apiId === 'mask') {
     return {
-      type: apiId === 'clip-node' ? 'clip' : 'mask',
+      type: apiId === 'clip' ? 'clip' : 'mask',
       clipPath: controls.clipIsEllipse
         ? {type: 'ellipse', width: controls.clipPathWidth, height: controls.clipPathHeight}
         : {type: 'rect', width: controls.clipPathWidth, height: controls.clipPathHeight},
@@ -1007,17 +1007,17 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
     }
   }
 
-  if (apiId === 'polygon-node') {
+  if (apiId === 'polygon') {
     return {type: 'polygon', width: controls.width, height: controls.height, points: [{x: controls.width / 2, y: 0}, {x: controls.width, y: controls.height * 0.4}, {x: controls.width * 0.8, y: controls.height}, {x: controls.width * 0.2, y: controls.height}, {x: 0, y: controls.height * 0.4}]}
   }
 
-  if (apiId === 'path-node') {
+  if (apiId === 'path') {
     return controls.pathUseBezier
       ? {type: 'path', width: controls.width, height: controls.height, bezierPoints: createBezierDemoPoints(0, 0, controls.width, controls.height)}
       : {type: 'path', width: controls.width, height: controls.height, points: [{x: 0, y: controls.height}, {x: controls.width * 0.5, y: 0}, {x: controls.width, y: controls.height}, {x: controls.width * 0.5, y: controls.height}]}
   }
 
-  if (apiId === 'image-node') {
+  if (apiId === 'image') {
     return {type: 'image', width: controls.width, height: controls.height, assetId: controls.assetId}
   }
 
@@ -1162,24 +1162,24 @@ function ModelControlPanel({
       </label>
     </Tooltip>
   }
-  const isCompositeModel = apiId === 'group-node' || apiId === 'clip-node' || apiId === 'mask-node'
-  const showFill = apiId !== 'line-node' && !isCompositeModel && apiId !== 'image-node'
-  const showStroke = apiId !== 'text-node' && !isCompositeModel && apiId !== 'image-node'
-  const showCornerRadius = apiId === 'rect-node'
-  const showText = apiId === 'text-node'
-  const showTypography = apiId === 'text-node'
-  const showEllipseAngles = apiId === 'ellipse-node'
-  const showLineEndpoints = apiId === 'line-node'
-  const showPathOptions = apiId === 'path-node'
-  const showImageOptions = apiId === 'image-node'
-  const compositeTabs = apiId === 'group-node'
+  const isCompositeModel = apiId === 'group' || apiId === 'clip' || apiId === 'mask'
+  const showFill = apiId !== 'line' && !isCompositeModel && apiId !== 'image'
+  const showStroke = apiId !== 'text' && !isCompositeModel && apiId !== 'image'
+  const showCornerRadius = apiId === 'rect'
+  const showText = apiId === 'text'
+  const showTypography = apiId === 'text'
+  const showEllipseAngles = apiId === 'ellipse'
+  const showLineEndpoints = apiId === 'line'
+  const showPathOptions = apiId === 'path'
+  const showImageOptions = apiId === 'image'
+  const compositeTabs = apiId === 'group'
     ? [
       ['parent', 'Group'],
       ['childRect', 'Rect'],
       ['childText', 'Text'],
     ] as const
     : [
-      ['parent', apiId === 'clip-node' ? 'Clip' : 'Mask'],
+      ['parent', apiId === 'clip' ? 'Clip' : 'Mask'],
       ['clipPath', 'Path'],
       ['childRect', 'Rect'],
       ['childEllipse', 'Ellipse'],
@@ -1864,17 +1864,11 @@ function ApiCanvasDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
   }, [api.id, demoNodes, theme])
 
   if (!isEditableModel) {
-    return <div className={'grid gap-2'}>
-      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
-      <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
-    </div>
+    return <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
   }
 
-  return <div className={'grid gap-5 lg:grid-cols-[400px_480px]'}>
-    <div className={'grid gap-2'}>
-      <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
-      <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
-    </div>
+  return <div className={'grid gap-4 lg:grid-cols-[400px_1fr]'}>
+    <canvas ref={canvasRef} aria-label={`${api.title} visual demo`} className={'h-[300px] w-[400px] max-w-full rounded-lg border border-border engine-docs-canvas'} />
     <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
   </div>
 }
@@ -2039,40 +2033,40 @@ const createCompactShapeNode = (apiId: string, controls: ModelControlValues, ind
   const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
   const base = {id: `all-${apiId}`, opacity: controls.opacity / 100}
 
-  if (apiId === 'rect-node') {
+  if (apiId === 'rect') {
     return controls.cornersLocked
       ? {...base, type: 'rect', x, y, width: 50, height: 38, fill, stroke, strokeWidth: 2, cornerRadius: Math.min(controls.cornerRadius, 14)}
       : {...base, type: 'rect', x, y, width: 50, height: 38, fill, stroke, strokeWidth: 2, cornerRadii: {topLeft: Math.min(controls.cornerTopLeft, 14), topRight: Math.min(controls.cornerTopRight, 14), bottomRight: Math.min(controls.cornerBottomRight, 14), bottomLeft: Math.min(controls.cornerBottomLeft, 14)}}
   }
-  if (apiId === 'ellipse-node') {
+  if (apiId === 'ellipse') {
     return {...base, type: 'ellipse', x, y, width: 54, height: 40, fill, stroke, strokeWidth: 2, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine}
   }
-  if (apiId === 'line-node') {
+  if (apiId === 'line') {
     return {...base, type: 'line', x, y: y + 18, width: 54, height: 30, stroke, strokeWidth: Math.max(2, Math.min(controls.strokeWidth, 8))}
   }
-  if (apiId === 'text-node') {
+  if (apiId === 'text') {
     return {...base, type: 'text', x, y: y + 34, width: 58, height: 38, text: controls.text.slice(0, 8) || 'Text', fill, fontSize: 16, fontWeight: controls.fontWeight, lineHeight: 20}
   }
-  if (apiId === 'group-node') {
+  if (apiId === 'group') {
     return {...base, type: 'group', x, y, children: [
       {type: 'rect', x: 0, y: 0, width: 52, height: 38, fill, stroke, strokeWidth: 2, cornerRadius: 8},
       {type: 'text', x: 8, y: 24, text: 'G', fill: stroke, fontSize: 16, fontWeight: 700},
     ]}
   }
-  if (apiId === 'clip-node' || apiId === 'mask-node') {
-    return {...base, type: apiId === 'clip-node' ? 'clip' : 'mask', clipPath: {type: 'rect', x, y, width: 54, height: 42, cornerRadius: 14}, children: [
+  if (apiId === 'clip' || apiId === 'mask') {
+    return {...base, type: apiId === 'clip' ? 'clip' : 'mask', clipPath: {type: 'rect', x, y, width: 54, height: 42, cornerRadius: 14}, children: [
       {type: 'ellipse', x: x - 8, y: y - 4, width: 70, height: 52, fill, stroke, strokeWidth: 2},
     ]}
   }
-  if (apiId === 'polygon-node') {
+  if (apiId === 'polygon') {
     return {...base, type: 'polygon', x, y, width: 54, height: 44, points: [{x: x + 27, y}, {x: x + 54, y: y + 18}, {x: x + 42, y: y + 44}, {x: x + 12, y: y + 44}, {x, y: y + 18}], fill, stroke, strokeWidth: 2}
   }
-  if (apiId === 'path-node') {
+  if (apiId === 'path') {
     return controls.pathUseBezier
       ? {...base, type: 'path', x, y, width: 56, height: 44, bezierPoints: createBezierDemoPoints(x, y, 56, 44), fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: 2, closed: controls.pathClosed}
       : {...base, type: 'path', x, y, width: 56, height: 44, points: [{x, y: y + 36}, {x: x + 28, y}, {x: x + 56, y: y + 36}, {x: x + 28, y: y + 44}], fill: controls.pathClosed ? fill : 'transparent', stroke, strokeWidth: 2, closed: controls.pathClosed}
   }
-  if (apiId === 'image-node') {
+  if (apiId === 'image') {
     return {...base, type: 'image', x, y, width: 56, height: 40, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing}
   }
 
@@ -2124,7 +2118,7 @@ function ShapeSpecificPanel({
     </label>
   }
 
-  if (apiId === 'rect-node') {
+  if (apiId === 'rect') {
     return <div className={'grid gap-3'}>
       <div className={'grid grid-cols-2 gap-2'}>
         {field('width', 'Width', {min: 20, max: 380})}
@@ -2145,7 +2139,7 @@ function ShapeSpecificPanel({
     </div>
   }
 
-  if (apiId === 'ellipse-node') {
+  if (apiId === 'ellipse') {
     return <div className={'grid grid-cols-2 gap-2'}>
       {field('width', 'Radius X box', {min: 20, max: 380})}
       {field('height', 'Radius Y box', {min: 20, max: 260})}
@@ -2155,7 +2149,7 @@ function ShapeSpecificPanel({
     </div>
   }
 
-  if (apiId === 'line-node') {
+  if (apiId === 'line') {
     return <div className={'grid grid-cols-2 gap-2'}>
       {field('x', 'Start X', {min: 0, max: 400})}
       {field('y', 'Start Y', {min: 0, max: 300})}
@@ -2165,7 +2159,7 @@ function ShapeSpecificPanel({
     </div>
   }
 
-  if (apiId === 'text-node') {
+  if (apiId === 'text') {
     return <div className={'grid gap-2'}>
       <label className={'grid gap-1 text-xs'}>
         <span className={'text-muted-foreground'}>Text</span>
@@ -2179,7 +2173,7 @@ function ShapeSpecificPanel({
     </div>
   }
 
-  if (apiId === 'clip-node' || apiId === 'mask-node') {
+  if (apiId === 'clip' || apiId === 'mask') {
     return <div className={'grid grid-cols-2 gap-2'}>
       {field('clipPathWidth', 'Clip width', {min: 20, max: 380})}
       {field('clipPathHeight', 'Clip height', {min: 20, max: 260})}
@@ -2188,16 +2182,16 @@ function ShapeSpecificPanel({
     </div>
   }
 
-  if (apiId === 'polygon-node' || apiId === 'path-node') {
+  if (apiId === 'polygon' || apiId === 'path') {
     return <div className={'grid grid-cols-2 gap-2'}>
       {field('width', 'Width', {min: 20, max: 380})}
       {field('height', 'Height', {min: 20, max: 260})}
       {toggle('pathClosed', 'Closed path')}
-      {apiId === 'path-node' ? toggle('pathUseBezier', 'Bezier curve') : null}
+      {apiId === 'path' ? toggle('pathUseBezier', 'Bezier curve') : null}
     </div>
   }
 
-  if (apiId === 'image-node') {
+  if (apiId === 'image') {
     return <div className={'grid gap-2'}>
       <label className={'grid gap-1 text-xs'}>
         <span className={'text-muted-foreground'}>Asset id</span>
@@ -2262,10 +2256,10 @@ function CommonPropertiesPanel({
       <span className={'truncate text-muted-foreground'}>{label}</span>
     </label>
   }
-  const isContainerModel = apiId === 'group-node' || apiId === 'clip-node' || apiId === 'mask-node'
-  const showPaint = apiId !== 'line-node' && apiId !== 'image-node' && apiId !== 'group-node' && apiId !== 'clip-node' && apiId !== 'mask-node'
-  const showStroke = apiId !== 'text-node' && apiId !== 'image-node' && apiId !== 'group-node' && apiId !== 'clip-node' && apiId !== 'mask-node'
-  const transformFields = apiId === 'line-node'
+  const isContainerModel = apiId === 'group' || apiId === 'clip' || apiId === 'mask'
+  const showPaint = apiId !== 'line' && apiId !== 'image' && apiId !== 'group' && apiId !== 'clip' && apiId !== 'mask'
+  const showStroke = apiId !== 'text' && apiId !== 'image' && apiId !== 'group' && apiId !== 'clip' && apiId !== 'mask'
+  const transformFields = apiId === 'line'
     ? <>
       {field('x', 'Start X', {min: 0, max: 400})}
       {field('y', 'Start Y', {min: 0, max: 300})}
@@ -2532,10 +2526,10 @@ function ShapePropertyDemoItem({row, theme}: {row: ShapePropertyDemoRow; theme: 
 function ShapePropertiesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
   void apis
   const propertyRows: ShapePropertyDemoRow[] = [
-    {id: 'document-models-shape-properties-transform', title: 'Transform', description: 'Position, bounds, rotation, skew, and origin fields define where each shape lives in document space.', apiId: 'rect-node', kind: 'transform'},
-    {id: 'document-models-shape-properties-appearance', title: 'Appearance', description: 'Fill, stroke, stroke width, fill opacity, stroke opacity, and layer opacity define the visible paint.', apiId: 'ellipse-node', kind: 'appearance'},
-    {id: 'document-models-shape-properties-effects', title: 'Effects', description: 'Drop shadow fields are render-time effects applied after geometry is resolved.', apiId: 'rect-node', kind: 'effects'},
-    {id: 'document-models-shape-properties-specific', title: 'Shape Specific', description: 'Shape-specific fields expose capabilities such as path bezierPoints without requiring unrelated common properties.', apiId: 'path-node', kind: 'specific'},
+    {id: 'models-shape-properties-transform', title: 'Transform', description: 'Position, bounds, rotation, skew, and origin fields define where each shape lives in document space.', apiId: 'rect', kind: 'transform'},
+    {id: 'models-shape-properties-appearance', title: 'Appearance', description: 'Fill, stroke, stroke width, fill opacity, stroke opacity, and layer opacity define the visible paint.', apiId: 'ellipse', kind: 'appearance'},
+    {id: 'models-shape-properties-effects', title: 'Effects', description: 'Drop shadow fields are render-time effects applied after geometry is resolved.', apiId: 'rect', kind: 'effects'},
+    {id: 'models-shape-properties-specific', title: 'Shape Specific', description: 'Shape-specific fields expose capabilities such as path bezierPoints without requiring unrelated common properties.', apiId: 'path', kind: 'specific'},
   ]
 
   return <div className={'flex flex-col gap-6'}>
@@ -2773,46 +2767,40 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const baseNavigationItems = useMemo<CollapsibleNavItem[]>(() => {
     return engineApiCategories.map((category) => {
-      if (category.id === 'document-models') {
+      if (category.id === 'shapes') {
         const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
         return {
-          id: 'document-models-contract-nav',
-          label: 'Shape model contract',
-          href: '#document-models-shape-contract',
+          id: category.id,
+          label: category.title,
+          href: `#${category.id}`,
           defaultOpen: true,
           items: [
             {
-              id: category.id,
-              label: category.title,
-              href: `#${category.id}`,
+              id: 'shapes-list-nav',
+              label: 'All Shapes',
+              href: '#shapes-list',
               defaultOpen: true,
-              items: [
-                {id: 'document-models-all-shapes-nav', label: 'All shapes demo', href: '#document-models-all-shapes'},
-                {
-                  id: 'document-models-shapes-nav',
-                  label: 'Shapes',
-                  href: '#document-models-shapes',
-                  defaultOpen: true,
-                  items: shapeApis.map((api) => ({
-                    id: api.id,
-                    label: api.title,
-                    href: `#${getApiAnchorId(category, api)}`,
-                  })),
-                },
-                {
-                  id: 'document-models-shape-properties-nav',
-                  label: 'Shape Properties',
-                  href: '#document-models-shape-properties',
-                  defaultOpen: true,
-                  items: [
-                    {id: 'shape-properties-transform-nav', label: 'Transform', href: '#document-models-shape-properties-transform'},
-                    {id: 'shape-properties-appearance-nav', label: 'Appearance', href: '#document-models-shape-properties-appearance'},
-                    {id: 'shape-properties-effects-nav', label: 'Effects', href: '#document-models-shape-properties-effects'},
-                    {id: 'shape-properties-specific-nav', label: 'Shape Specific', href: '#document-models-shape-properties-specific'},
-                  ],
-                },
-              ],
+              items: shapeApis.map((api) => ({
+                id: api.id,
+                label: api.title,
+                href: `#${getApiAnchorId(category, api)}`,
+              })),
             },
+          ],
+        }
+      }
+
+      if (category.id === 'common-props') {
+        return {
+          id: category.id,
+          label: category.title,
+          href: `#${category.id}`,
+          defaultOpen: true,
+          items: [
+            {id: 'common-props-transform-nav', label: 'Transform', href: '#common-props-transform'},
+            {id: 'common-props-appearance-nav', label: 'Appearance', href: '#common-props-appearance'},
+            {id: 'common-props-effects-nav', label: 'Effects', href: '#common-props-effects'},
+            {id: 'common-props-specific-nav', label: 'Type Specific', href: '#common-props-specific'},
           ],
         }
       }
@@ -2909,11 +2897,11 @@ export function App() {
       <main className={'min-w-0'}>
         <div className={'flex flex-col gap-12'}>
           {engineApiCategories.map((category) => {
-            if (category.id === 'document-models') {
+            if (category.id === 'models') {
               const shapeApis = category.apis.filter((api) => shapeApiIds.includes(api.id as typeof shapeApiIds[number]))
 
               return <section key={category.id} className={'scroll-mt-20'}>
-                <article id={'document-models-shape-contract'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
+                <article id={'models-shape-contract'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
                     <h3 className={'text-xl font-semibold tracking-tight'}>Shape model contract</h3>
                     <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>The engine-side contract for module ownership, proxy inheritance, minimal creation fields, editable bounds, path expansion, and shared render properties.</p>
@@ -2926,7 +2914,7 @@ export function App() {
                   <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
                 </div>
 
-                <article id={'document-models-all-shapes'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
+                <article id={'models-all-shapes'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
                     <h3 className={'text-xl font-semibold tracking-tight'}>All shapes demo</h3>
                     <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>A single canvas for every shape type and the complete shape property surface. Select a shape on the right to edit its properties; the selected shape updates in place.</p>
@@ -2934,7 +2922,7 @@ export function App() {
                   <AllShapesDemo apis={shapeApis} theme={theme}/>
                 </article>
 
-                <div id={'document-models-shapes'} className={'scroll-mt-20 py-6'}>
+                <div id={'models-shapes'} className={'scroll-mt-20 py-6'}>
                   <h3 className={'text-xl font-semibold tracking-tight'}>Shapes</h3>
                   <p className={'mt-2 max-w-3xl text-sm leading-6 text-muted-foreground'}>Each shape page focuses on fields unique to that shape. Common position and appearance controls live in All shapes demo.</p>
                 </div>
@@ -2953,7 +2941,7 @@ export function App() {
                   })}
                 </div>
 
-                <article id={'document-models-shape-properties'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
+                <article id={'models-shape-properties'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
                     <h3 className={'text-xl font-semibold tracking-tight'}>Shape Properties</h3>
                     <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Property groups shared by shapes, with canvas feedback and a focused form for the current capability.</p>
@@ -2972,9 +2960,10 @@ export function App() {
                 {category.apis.map((api, apiIndex) => {
                   const apiAnchorId = getApiAnchorId(category, api)
                   const isStart = category.id === 'start'
-                  const isDocModel = category.id === 'document-models'
+                  const isDocModel = category.id === 'models'
                   const isLastDocModel = isDocModel && apiIndex === category.apis.length - 1
                   const isMethods = category.id === 'methods'
+                  const isSandbox = category.id === 'sandbox'
 
                   return <article key={`${category.id}-${api.id}`} id={apiAnchorId} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
                     <header className={'flex w-full flex-col gap-2'}>
@@ -3009,11 +2998,13 @@ export function App() {
                           <ApiCanvasDemo api={api} theme={theme}/>
                           <ApiUsage code={api.demo}/>
                         </div>
-                        : isMethods
-                          ? <InteractiveMethodDemo api={api} theme={theme}/>
-                          : api.id === 'events-demo'
-                            ? <EventInspectorDemo theme={theme}/>
-                            : <ApiCanvasDemo api={api} theme={theme}/>}
+                        : isSandbox
+                          ? <AllShapesDemo apis={engineApiCategories.find(c => c.id === 'models')?.apis ?? []} theme={theme}/>
+                          : isMethods
+                            ? <InteractiveMethodDemo api={api} theme={theme}/>
+                            : api.id === 'events-demo'
+                              ? <EventInspectorDemo theme={theme}/>
+                              : <ApiCanvasDemo api={api} theme={theme}/>}
                     </div>
 
                     {/* Document Models: generated create usage */}

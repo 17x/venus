@@ -1773,6 +1773,13 @@ export class Venus {
   private lastBackendFallback: VenusBackendFallback | null = null
   /** Stores the last pointer used for debug hit-candidate overlays. */
   private lastDebugHitPoint: {x: number; y: number} | null = null
+  /**
+   * Guard flag for {@link scheduleRender}.  True while a render microtask is
+   * pending; cleared by {@link render} when the microtask executes.
+   * Prevents redundant queuing of multiple renders for mutations within the
+   * same synchronous block.
+   */
+  private renderScheduled = false
 
   // -- Document CRUD (Figma-style proxy API) --
 
@@ -1794,6 +1801,7 @@ export class Venus {
     this.nodes = [...this.nodes, engineNode]
     this.revision += 1
     this.emit('document:changed', {revision: this.revision, node: engineNode})
+    this.scheduleRender()
     return createVenusNodeProxy(this, engineNode.id, storedNode.type)
   }
 
@@ -1821,6 +1829,7 @@ export class Venus {
 
     const engineNode = this.nodes.find((n) => n.id === id)
     this.emit('document:changed', {revision: this.revision, node: engineNode})
+    this.scheduleRender()
   }
 
   /**
@@ -1844,6 +1853,7 @@ export class Venus {
     this.parentById.delete(id)
     this.revision += 1
     this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
   }
 
   /**
@@ -1909,6 +1919,7 @@ export class Venus {
     this.rebuildRenderNodes()
     this.revision += 1
     this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
     return createVenusNodeProxy(this, groupNode.id ?? '', 'group')
   }
 
@@ -1954,6 +1965,7 @@ export class Venus {
     this.rebuildRenderNodes()
     this.revision += 1
     this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
     return children.map((child) => createVenusNodeProxy(this, child.id ?? '', child.type))
   }
 
@@ -1978,6 +1990,7 @@ export class Venus {
     this.rebuildRenderNodes()
     this.revision += 1
     this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
     return createVenusNodeProxy(this, storedChild.id ?? '', storedChild.type)
   }
 
@@ -2001,6 +2014,7 @@ export class Venus {
     this.rebuildRenderNodes()
     this.revision += 1
     this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
   }
 
   /**
@@ -2543,6 +2557,7 @@ export class Venus {
    * @returns Promise that resolves after the frame is rendered.
    */
   async render() {
+    this.renderScheduled = false
     if (!this.engine) {
       return
     }
@@ -2552,6 +2567,39 @@ export class Venus {
     this.refreshDebugOverlay()
     await this.engine.renderFrame()
     this.emit('render:after', {revision: this.revision})
+  }
+
+  /**
+   * Coalesces multiple synchronous mutations into a single deferred render.
+   *
+   * Uses `queueMicrotask` (not `requestAnimationFrame`) so the render fires
+   * at the microtask checkpoint immediately after the current synchronous
+   * block completes — perceived as zero-delay by the caller.  The
+   * {@link renderScheduled} guard prevents redundant queuing: if a render is
+   * already pending in the microtask queue, subsequent mutations update the
+   * store but skip re-enqueuing.
+   *
+   * Example:
+   * ```
+   * r.x = 200        // queueMicrotask → pending
+   * r.fill = '#f00'  // guard blocks re-enqueue
+   * r.width = 160    // guard blocks re-enqueue
+   * // ← synchronous block ends, microtask fires, single render executes
+   * ```
+   *
+   * Contrast with `requestAnimationFrame`: rAF defers to the next vsync
+   * (~16ms), introducing visible flicker for rapid mutations.
+   * `queueMicrotask` guarantees near-instant feedback.
+   */
+  private scheduleRender(): void {
+    if (this.renderScheduled) {
+      return
+    }
+    this.renderScheduled = true
+    queueMicrotask(() => {
+      this.renderScheduled = false
+      void this.render()
+    })
   }
 
   /**

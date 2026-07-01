@@ -27,14 +27,21 @@ export type EngineShapeKind = (typeof ENGINE_SHAPE_TYPES)[number]
 
 export type EngineNodeId = string
 
+/** Declares a two-dimensional point in local node coordinates. */
 export interface EnginePoint {
+  /** Horizontal axis coordinate. */
   x: number
+  /** Vertical axis coordinate. */
   y: number
 }
 
+/** Declares one bezier knot point with optional in/out control handles. */
 export interface EngineBezierPoint {
+  /** The knot (anchor) point of this bezier segment. */
   anchor: EnginePoint
+  /** Incoming control point from the previous segment. */
   cp1?: EnginePoint | null
+  /** Outgoing control point to the next segment. */
   cp2?: EnginePoint | null
 }
 
@@ -50,10 +57,15 @@ export interface EngineAnchorPoint {
   cp2?: EnginePoint | null
 }
 
+/** Declares an axis-aligned rectangle in local node coordinates. */
 export interface EngineRect {
+  /** Left coordinate. */
   x: number
+  /** Top coordinate. */
   y: number
+  /** Width of the rectangle. */
   width: number
+  /** Height of the rectangle. */
   height: number
 }
 
@@ -69,15 +81,21 @@ export interface EngineEllipseGeometry {
   ry: number
 }
 
+/** Declares a 2D affine transformation encoded as a 6-element row-major matrix [a, b, c, d, tx, ty]. */
 export interface EngineTransform2D {
+  /** Affine matrix in row-major order: [a, b, c, d, tx, ty]. */
   matrix: readonly [number, number, number, number, number, number]
 }
 
 /** Declares one shadow hint accepted by renderable engine nodes. */
 export interface EngineShadow {
+  /** CSS colour string for the shadow. */
   color?: string
+  /** Horizontal shadow offset in pixels. */
   offsetX?: number
+  /** Vertical shadow offset in pixels. */
   offsetY?: number
+  /** Shadow blur radius in pixels. */
   blur?: number
 }
 
@@ -206,36 +224,53 @@ export type EngineStrokeAlign = 'center' | 'inside' | 'outside'
 
 /** Declares per-corner rectangle radii for rounded rectangle rendering. */
 export interface EngineRectangleCornerRadii {
+  /** Top-left corner radius in pixels. */
   topLeft?: number
+  /** Top-right corner radius in pixels. */
   topRight?: number
+  /** Bottom-right corner radius in pixels. */
   bottomRight?: number
+  /** Bottom-left corner radius in pixels. */
   bottomLeft?: number
 }
 
 /** Declares arrowhead styles for open stroke primitives. */
 export type EngineStrokeArrowhead = 'none' | 'triangle' | 'diamond' | 'circle' | 'bar'
 
+/** Declares one inline clip shape. Supports rectangle clips with optional radius and path clips. */
 export type EngineClipShape =
   | {
+    /** Discriminant for rectangle clip shape. */
     kind: 'rect'
+    /** Clip rectangle in local node coordinates. */
     rect: EngineRect
+    /** Optional uniform corner radius for rounded clip corners. */
     radius?: number
   }
   | {
+    /** Discriminant for path clip shape. */
     kind: 'path'
+    /** Ordered clip path vertices in local node coordinates. */
     points: readonly EnginePoint[]
+    /** Whether the clip path is closed. */
     closed?: boolean
   }
 
 /** Declares clipping metadata that can be attached to renderable engine nodes. */
 export interface EngineNodeClip {
+  /** References another node by id for graph-level clip reuse. */
   clipNodeId?: EngineNodeId
+  /** Inline clip shape definition for lightweight nodes. */
   clipShape?: EngineClipShape
+  /** Fill rule for the clip path: 'nonzero' (default) or 'evenodd'. */
   rule?: 'nonzero' | 'evenodd'
 }
 
+/** Base interface for all renderable engine nodes. */
 export interface EngineNodeBase {
+  /** Unique node identifier within the scene. */
   id: EngineNodeId
+  /** Node family discriminator ('group' | 'shape' | 'text' | 'image'). */
   type: string
   /** Visual effects applied after geometry rendering. Prefer this over the deprecated flat fields below. */
   visual?: EngineVisualEffects
@@ -243,6 +278,7 @@ export interface EngineNodeBase {
   opacity?: number
   /** @deprecated Use `visual.blendMode` instead. */
   blendMode?: string
+  /** 2D affine transform applied to this node's local coordinate space. */
   transform?: EngineTransform2D
   /** @deprecated Use `visual.shadow` instead. */
   shadow?: EngineShadow
@@ -250,24 +286,33 @@ export interface EngineNodeBase {
   innerShadow?: EngineInnerShadow
   /** @deprecated Use `visual.layerBlur` instead. */
   layerBlur?: EngineLayerBlur
-  // `clipNodeId` enables graph-level clip reuse, while `clipShape` supports
-  // inline clipping for lightweight nodes (for example clipped images).
+  /** Clipping metadata; supports both node-reference and inline clip shapes. */
   clip?: EngineNodeClip
 }
 
+/** Declares text rendering style applied to a text node or text run. */
 export interface EngineTextStyle {
+  /** Font family name (e.g. 'Inter', 'Arial'). */
   fontFamily: string
+  /** Font size in local node units. */
   fontSize: number
+  /** Font weight as a number (100–900) or string ('bold'). */
   fontWeight?: number | string
+  /** Font style variant. */
   fontStyle?: 'normal' | 'italic' | 'oblique'
+  /** Line height multiplier or absolute value. */
   lineHeight?: number
+  /** Letter spacing in local node units. */
   letterSpacing?: number
   /** Fill rendering configuration. Prefer this over the deprecated flat fill fields below. */
   fillConfig?: EngineFillConfig
   /** Stroke rendering configuration. Prefer this over the deprecated flat stroke fields below. */
   strokeConfig?: EngineStrokeConfig
+  /** Horizontal text alignment. */
   align?: 'start' | 'center' | 'end'
+  /** Vertical text alignment within the text box. */
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  /** Text-specific drop shadow (independent of node-level shadow). */
   shadow?: EngineShadow
   // ── Deprecated flat fill / stroke fields ──
   /** @deprecated Use `fillConfig.color` instead. */
@@ -280,45 +325,71 @@ export interface EngineTextStyle {
   strokeWidth?: number
 }
 
+/** Declares one rich-text run with optional style override. */
 export interface EngineTextRun {
+  /** Plain text content for this run. */
   text: string
+  /** Optional per-run style overrides merged on top of the parent text style. */
   style?: Partial<EngineTextStyle>
 }
 
+/** Declares a text leaf node in the render tree. */
 export interface EngineTextNode extends EngineNodeBase {
   type: 'text'
+  /** Local left coordinate of the text box. */
   x: number
+  /** Local top coordinate of the text box. */
   y: number
+  /** Text box width. When absent, the renderer uses auto-width. */
   width?: number
+  /** Text box height. When absent, the renderer uses auto-height. */
   height?: number
+  /** Primary text rendering style. */
   style: EngineTextStyle
   // `text` is the fast plain-string path. `runs` is the rich-text path.
   // Renderers should prefer `runs` when both are present.
+  /** Plain text content (fast path). */
   text?: string
+  /** Rich-text runs. Renderers prefer this over `text` when present. */
   runs?: readonly EngineTextRun[]
+  /** Text wrapping mode. */
   wrap?: 'none' | 'word' | 'char'
+  /** Renderer-managed cache key for text layout invalidation. */
   cacheKey?: string
+  /** Cached line count computed by the text layout engine. */
   lineCount?: number
+  /** Cached maximum line height computed by the text layout engine. */
   maxLineHeight?: number
 }
 
+/** Declares an image leaf node in the render tree. */
 export interface EngineImageNode extends EngineNodeBase {
   type: 'image'
+  /** Local left coordinate. */
   x: number
+  /** Local top coordinate. */
   y: number
+  /** Rendered image width in local node units. */
   width: number
+  /** Rendered image height in local node units. */
   height: number
+  /** Asset identifier used to resolve the image source. */
   assetId: string
+  /** Optional sub-rect of the source image to render. */
   sourceRect?: EngineRect
+  /** Original image dimensions before any scaling. */
   naturalSize?: {
     width: number
     height: number
   }
+  /** Whether to apply image smoothing (bilinear filtering). */
   imageSmoothing?: boolean
 }
 
+/** Container node that groups child renderable nodes. */
 export interface EngineGroupNode extends EngineNodeBase {
   type: 'group'
+  /** Ordered list of child renderable nodes. */
   children: readonly EngineRenderableNode[]
 }
 
@@ -353,18 +424,23 @@ export interface EngineShapeNode extends EngineNodeBase {
   fillConfig?: EngineFillConfig
   /** Stroke rendering configuration. Prefer this over the deprecated flat stroke fields below. */
   strokeConfig?: EngineStrokeConfig
-  // Rectangle corner radius controls. `cornerRadii` takes precedence over
-  // uniform `cornerRadius` when both are provided.
+  /** Uniform corner radius for rounded rectangles. `cornerRadii` takes precedence when both are provided. */
   cornerRadius?: number
+  /** Per-corner radii for rounded rectangles. Takes precedence over uniform `cornerRadius`. */
   cornerRadii?: EngineRectangleCornerRadii
-  // Ellipse arc controls in degrees. When omitted, the ellipse is full-circle.
+  /** Ellipse arc start angle in degrees. When omitted, the ellipse is a full circle. */
   ellipseStartAngle?: number
+  /** Ellipse arc end angle in degrees. Defaults to 360 (full circle). */
   ellipseEndAngle?: number
-  // Draw radial wedge edges from the arc endpoints to the ellipse center.
+  /** When true, draws radial edges from arc endpoints to the ellipse center, forming a wedge. */
   ellipseDrawWedgeLine?: boolean
+  /** Straight-line vertices for line, polygon, and path shapes. */
   points?: readonly EnginePoint[]
+  /** Bezier vertices for line and path shapes. Preferred over `points` by renderers. */
   bezierPoints?: readonly EngineBezierPoint[]
+  /** Cached point count for geometry payload resolution. */
   pointCount?: number
+  /** Cached bezier point count for geometry payload resolution. */
   bezierPointCount?: number
   /** Ordered anchor points for path-like geometry. When present, renderers should prefer this over bezierPoints/points for path shapes. */
   anchorPoints?: readonly EngineAnchorPoint[]
@@ -394,19 +470,24 @@ export interface EngineShapeNode extends EngineNodeBase {
   strokeEndArrowhead?: EngineStrokeArrowhead
 }
 
+/** Union of all renderable node families accepted by the engine scene contract. */
 export type EngineRenderableNode =
   | EngineTextNode
   | EngineImageNode
   | EngineShapeNode
   | EngineGroupNode
 
+/** Complete scene descriptor passed to the engine for rendering. */
 export interface EngineSceneSnapshot {
-  // Revision is used by render adapters for cache invalidation and should
-  // change whenever render-relevant scene content changes.
+  /** Monotonic revision used by render adapters for cache invalidation. */
   revision: string | number
+  /** Scene viewport width in pixels. */
   width: number
+  /** Scene viewport height in pixels. */
   height: number
+  /** Ordered list of root-level renderable nodes. */
   nodes: readonly EngineRenderableNode[]
+  /** Optional metadata for incremental updates and buffer management. */
   metadata?: {
     planVersion?: number
     bufferVersion?: number

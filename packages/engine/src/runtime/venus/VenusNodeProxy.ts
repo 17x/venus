@@ -19,6 +19,7 @@ import type {
   VenusNode,
   VenusTransform2D,
 } from './Venus.ts'
+import type { EngineFillConfig, EngineStrokeConfig, EngineVisualEffects } from '../../scene/types/types.ts'
 
 // ── Base proxy ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,12 @@ export class VenusNodeProxy {
   get fill(): string | undefined { return this.raw?.fill }
   set fill(value: string | undefined) { this.set('fill', value) }
 
+  get fillConfig(): EngineFillConfig | undefined { return this.raw?.fillConfig }
+  set fillConfig(value: EngineFillConfig | undefined) { this.set('fillConfig', value) }
+
+  get strokeConfig(): EngineStrokeConfig | undefined { return this.raw?.strokeConfig }
+  set strokeConfig(value: EngineStrokeConfig | undefined) { this.set('strokeConfig', value) }
+
   get stroke(): string | undefined { return this.raw?.stroke }
   set stroke(value: string | undefined) { this.set('stroke', value) }
 
@@ -122,6 +129,13 @@ export class VenusNodeProxy {
   }
   set layerBlur(value: number) {
     this.set('layerBlur', value > 0 ? {amount: value} : undefined)
+  }
+
+  get visual(): EngineVisualEffects | undefined {
+    return this.raw?.visual
+  }
+  set visual(value: EngineVisualEffects | undefined) {
+    this.set('visual', value)
   }
 
   // ── Mutation ─────────────────────────────────────────────────────────
@@ -172,6 +186,14 @@ export class VenusEllipseProxy extends VenusNodeProxy {
 
   get drawWedgeLine(): boolean { return this.raw?.ellipseDrawWedgeLine ?? false }
   set drawWedgeLine(value: boolean) { this.set('ellipseDrawWedgeLine' as keyof VenusNode, value) }
+
+  /** Ellipse geometry in center+radii form. Preferred over x/y/width/height. */
+  get ellipseGeometry(): { cx: number; cy: number; rx: number; ry: number } | undefined {
+    return this.raw?.ellipseGeometry
+  }
+  set ellipseGeometry(value: { cx: number; cy: number; rx: number; ry: number } | undefined) {
+    this.set('ellipseGeometry' as keyof VenusNode, value)
+  }
 }
 
 // ── Line ──────────────────────────────────────────────────────────────────────
@@ -253,6 +275,14 @@ export class VenusPathProxy extends VenusNodeProxy {
   }
   set endArrowhead(value: 'none' | 'triangle' | 'diamond' | 'circle' | 'bar' | undefined) {
     this.set('strokeEndArrowhead' as keyof VenusNode, value)
+  }
+
+  /** Anchor points for path geometry. Preferred over bezierPoints/points. */
+  get anchorPoints(): Array<{ x: number; y: number; cp1?: { x: number; y: number } | null; cp2?: { x: number; y: number } | null }> | undefined {
+    return this.raw?.anchorPoints
+  }
+  set anchorPoints(value: Array<{ x: number; y: number; cp1?: { x: number; y: number } | null; cp2?: { x: number; y: number } | null }> | undefined) {
+    this.set('anchorPoints' as keyof VenusNode, value)
   }
 }
 
