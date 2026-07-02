@@ -132,6 +132,17 @@ export {
   VENUS_SHAPE_MODEL_SPECS,
 } from '../runtime/venus/shapeModel.ts'
 
+export {
+  createVenusAnimateModule,
+  createVenusCameraModule,
+  createVenusDebugModule,
+  createVenusEffectsModule,
+  createVenusExportModule,
+  createVenusHistoryModule,
+  createVenusHitTestModule,
+  createVenusInteractionModule,
+} from '../runtime/venus/modules/index.ts'
+
 export type {
   EngineDrawCommand,
   EngineLayeredRenderInput,

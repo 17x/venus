@@ -46,6 +46,11 @@ import {
   type VenusModuleName,
   type VenusRenderDefaults,
 } from './modules/index.ts'
+import {
+  createVenusSpatialService,
+  createVenusGeometryCacheService,
+  createVenusSchedulerService,
+} from './modules/_infra/index.ts'
 
 export type VenusBackend = 'canvas2d' | 'webgl' | 'auto'
 export {
@@ -80,11 +85,48 @@ export interface VenusInvalidationService {
   classify(changedProperties: readonly string[]): VenusInvalidationKind
 }
 
+/** Spatial index service providing coarse AABB-based spatial queries. */
+export interface VenusSpatialService {
+  /** Inserts or replaces a spatial item indexed by id. */
+  upsert(id: string, bounds: { minX: number; minY: number; maxX: number; maxY: number }): void
+  /** Removes one item from the spatial index. */
+  remove(id: string): void
+  /** Returns all item ids whose AABB intersects the query bounds. */
+  search(bounds: { minX: number; minY: number; maxX: number; maxY: number }): readonly string[]
+  /** Clears all items from the index. */
+  clear(): void
+}
+
+/** Multi-tier geometry cache service for hit-test and rendering. */
+export interface VenusGeometryCacheService {
+  /** Invalidates cached geometry for a set of node ids. */
+  invalidate(ids: readonly string[]): void
+  /** Returns the cached AABB for a node, or null on miss. */
+  getAABB(id: string): { x: number; y: number; width: number; height: number } | null
+  /** Stores a computed AABB for a node. */
+  setAABB(id: string, aabb: { x: number; y: number; width: number; height: number }): void
+  /** Clears the entire geometry cache. */
+  clear(): void
+}
+
+/** Frame scheduler service providing coalesced rAF-based render scheduling. */
+export interface VenusSchedulerService {
+  /** Requests a render frame. Multiple calls in the same frame are coalesced. */
+  requestRender(): void
+  /** Cancels a pending render request. */
+  cancelRender(): void
+  /** Returns whether a render is currently scheduled. */
+  isPending(): boolean
+}
+
 /** Maps registered internal service names to their typed service contracts. */
 export interface VenusRegisteredServiceMap {
   document: VenusDocumentService
   viewport: VenusViewportService
   invalidation: VenusInvalidationService
+  spatial: VenusSpatialService
+  geometryCache: VenusGeometryCacheService
+  scheduler: VenusSchedulerService
 }
 
 /** Declares one registered service name with a known public service contract. */
@@ -124,8 +166,8 @@ export interface VenusModule {
   dependsOn?: readonly VenusModuleName[]
   /** Internal services this module requires before installation can run. */
   requires?: readonly VenusInternalServiceName[]
-  /** Installs module behavior on one Venus instance. */
-  install(context: VenusModuleContext): void
+  /** Installs module behavior on one Venus instance and may return a module API object. */
+  install(context: VenusModuleContext): unknown
 }
 
 /**
@@ -202,6 +244,22 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'ungroup',
   'addChild',
   'removeChild',
+  'select',
+  'deselect',
+  'selectAll',
+  'clearSelection',
+  'isSelected',
+  'onSelectionChange',
+  'applyDropShadow',
+  'removeDropShadow',
+  'applyInnerShadow',
+  'removeInnerShadow',
+  'applyLayerBlur',
+  'removeLayerBlur',
+  'clearEffects',
+  'toPNG',
+  'toJPEG',
+  'toSVG',
 ] as const
 
 /** Declares one public instance method documented for `Venus`. */
@@ -628,6 +686,8 @@ export type VenusNode =
     ellipseStartAngle?: number
     ellipseEndAngle?: number
     ellipseDrawWedgeLine?: boolean
+    /** Ellipse geometry in center+radii form. Preferred over x/y/width/height for ellipse shapes. */
+    ellipseGeometry?: { cx: number; cy: number; rx: number; ry: number }
     shadow?: EngineShadow
   } & VenusTransformableNodeBase
   | {
@@ -1468,6 +1528,7 @@ const toEngineNode = (
       ellipseStartAngle: node.type === 'ellipse' ? node.ellipseStartAngle : undefined,
       ellipseEndAngle: node.type === 'ellipse' ? node.ellipseEndAngle : undefined,
       ellipseDrawWedgeLine: node.type === 'ellipse' ? node.ellipseDrawWedgeLine : undefined,
+      ellipseGeometry: node.type === 'ellipse' ? node.ellipseGeometry : undefined,
     }
   }
 
@@ -1591,7 +1652,10 @@ export class Venus {
   private revision = 1
   private nodeIndex = 0
   private readonly listeners = new Map<VenusEventName, Set<VenusEventHandler>>()
+  /** Tracks installed user-facing module names for diagnostics. */
   private readonly installedModules = new Set<VenusModuleName>()
+  /** Stores the API object returned by each installed module's install callback. */
+  private readonly moduleApis = new Map<VenusModuleName, unknown>()
   private lastModuleError: VenusModuleDiagnostics['lastError'] = null
   private readonly services = new Map<VenusInternalServiceName, unknown>()
   private readonly serviceRegistry: VenusServiceRegistry
@@ -1939,6 +2003,11 @@ export class Venus {
     return this.nodeById.get(id)
   }
 
+  /** Internal bridge used by the optional export module. */
+  _getMountedCanvas(): HTMLCanvasElement | null {
+    return this.canvas
+  }
+
   /**
    * @name Venus.getParentId
    * @description Returns the parent node id for a nested node, or null for a root node.
@@ -2065,13 +2134,8 @@ export class Venus {
    * @returns True when a history entry was applied.
    */
   undo(): boolean {
-    const previous = this.history.undo(this.documentNodes)
-    if (!previous) {
-      return false
-    }
-
-    this.restoreDocumentNodes(previous)
-    return true
+    const history = this._requireModuleApi<{undo(): boolean}>('history')
+    return history.undo()
   }
 
   /**
@@ -2082,13 +2146,8 @@ export class Venus {
    * @returns True when a history entry was applied.
    */
   redo(): boolean {
-    const next = this.history.redo(this.documentNodes)
-    if (!next) {
-      return false
-    }
-
-    this.restoreDocumentNodes(next)
-    return true
+    const history = this._requireModuleApi<{redo(): boolean}>('history')
+    return history.redo()
   }
 
   /**
@@ -2099,7 +2158,8 @@ export class Venus {
    * @returns True when undo is available.
    */
   canUndo(): boolean {
-    return this.history.canUndo()
+    const history = this._getModuleApi<{canUndo(): boolean}>('history')
+    return history?.canUndo() ?? false
   }
 
   /**
@@ -2110,7 +2170,8 @@ export class Venus {
    * @returns True when redo is available.
    */
   canRedo(): boolean {
-    return this.history.canRedo()
+    const history = this._getModuleApi<{canRedo(): boolean}>('history')
+    return history?.canRedo() ?? false
   }
 
   /**
@@ -2121,7 +2182,8 @@ export class Venus {
    * @returns Nothing.
    */
   clearHistory(): void {
-    this.history.clear()
+    const history = this._requireModuleApi<{clear(): void}>('history')
+    history.clear()
   }
 
   /**
@@ -2148,6 +2210,7 @@ export class Venus {
    * @returns Applied viewport scale and offset.
    */
   fitBounds(bounds: {x: number; y: number; width: number; height: number}, padding: number | {top: number; right: number; bottom: number; left: number} = 0): {scale: number; offsetX: number; offsetY: number} {
+    this.requireModuleInstalled('camera')
     return this.applyViewport(resolveVenusCameraFitBounds(this.viewport, bounds, padding))
   }
 
@@ -2161,6 +2224,7 @@ export class Venus {
    * @returns Applied viewport scale and offset.
    */
   zoomTo(scale: number, anchor?: {x: number; y: number}): {scale: number; offsetX: number; offsetY: number} {
+    this.requireModuleInstalled('camera')
     return this.applyViewport(resolveVenusCameraZoom(this.viewport, scale, anchor))
   }
 
@@ -2173,6 +2237,7 @@ export class Venus {
    * @returns Applied viewport scale and offset.
    */
   panBy(delta: {x: number; y: number}): {scale: number; offsetX: number; offsetY: number} {
+    this.requireModuleInstalled('camera')
     return this.applyViewport(resolveVenusCameraPan(this.viewport, delta))
   }
 
@@ -2185,6 +2250,7 @@ export class Venus {
    * @returns Screen-space coordinate.
    */
   project(point: {x: number; y: number}): {x: number; y: number} {
+    this.requireModuleInstalled('camera')
     return projectVenusCameraPoint(this.viewport, point)
   }
 
@@ -2197,6 +2263,7 @@ export class Venus {
    * @returns Document-space coordinate.
    */
   unproject(point: {x: number; y: number}): {x: number; y: number} {
+    this.requireModuleInstalled('camera')
     return unprojectVenusCameraPoint(this.viewport, point)
   }
 
@@ -2214,6 +2281,7 @@ export class Venus {
    * @returns Active debug flags.
    */
   enableDebug(options: {showBounds?: boolean; showHitCandidates?: boolean; showCache?: boolean}): VenusDebugFlags {
+    this.requireModuleInstalled('debug')
     if (options.showBounds !== undefined) this.debugFlags.showBounds = options.showBounds
     if (options.showHitCandidates !== undefined) this.debugFlags.showHitCandidates = options.showHitCandidates
     if (options.showCache !== undefined) this.debugFlags.showCache = options.showCache
@@ -2267,6 +2335,7 @@ export class Venus {
    * @returns Frame timing data, or null when the runtime is not mounted.
    */
   async measureFrame(): Promise<VenusFrameMeasurement | null> {
+    this.requireModuleInstalled('debug')
     if (!this.engine) {
       return null
     }
@@ -2318,12 +2387,16 @@ export class Venus {
       bounds: () => this.bounds(),
     })
     this.services.set('viewport', {
-      project: (point: {x: number; y: number}) => this.project(point),
-      unproject: (point: {x: number; y: number}) => this.unproject(point),
+      project: (point: {x: number; y: number}) => projectVenusCameraPoint(this.viewport, point),
+      unproject: (point: {x: number; y: number}) => unprojectVenusCameraPoint(this.viewport, point),
     })
     this.services.set('invalidation', {
       classify: (changedProperties: readonly string[]) => classifyVenusNodeMutation(changedProperties),
     })
+    // Layer 0 infrastructure services.
+    this.services.set('spatial', createVenusSpatialService())
+    this.services.set('geometryCache', createVenusGeometryCacheService())
+    this.services.set('scheduler', createVenusSchedulerService())
   }
 
   private installModules(modules: readonly VenusModule[]): void {
@@ -2347,11 +2420,55 @@ export class Venus {
       }
 
       this.installedModules.add(module.name)
-      module.install({
+      const api = module.install({
         venus: this,
         parameters: this.parameters,
         services: this.serviceRegistry,
       })
+      // Capture the module's returned API so it can be accessed later.
+      if (api !== undefined) {
+        this.moduleApis.set(module.name, api)
+      }
+    }
+  }
+
+  /**
+   * Returns the typed API object installed by a module, or throws if the
+   * module is not installed.  Use this inside Venus methods that belong to
+   * optional modules so the error message is clear when a consumer omits
+   * a required module.
+   * @param moduleName The short module name to look up.
+   */
+  private _requireModuleApi<T>(moduleName: VenusModuleName): T {
+    const api = this.moduleApis.get(moduleName)
+    if (api === undefined) {
+      throw new Error(
+        `Venus module "${moduleName}" is not installed. ` +
+        `Add it to the modules array in the Venus constructor: ` +
+        `new Venus({ modules: [/* ... */] })`,
+      )
+    }
+    return api as T
+  }
+
+  /**
+   * Returns the typed API object installed by a module, or null when the
+   * module is not installed.  Use this for optional capabilities that
+   * degrade gracefully.
+   * @param moduleName The short module name to look up.
+   */
+  private _getModuleApi<T>(moduleName: VenusModuleName): T | null {
+    return (this.moduleApis.get(moduleName) as T) ?? null
+  }
+
+  /** Throws when an optional module API is used without installing that module. */
+  private requireModuleInstalled(moduleName: VenusModuleName): void {
+    if (!this.installedModules.has(moduleName)) {
+      throw new Error(
+        `Venus module "${moduleName}" is not installed. ` +
+        `Add it to the modules array in the Venus constructor: ` +
+        `new Venus({ modules: [/* ... */] })`,
+      )
     }
   }
 
@@ -2402,7 +2519,48 @@ export class Venus {
   }
 
   private recordHistory(): void {
+    if (!this.installedModules.has('history')) {
+      return
+    }
+
     this.history.record(this.documentNodes)
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyUndo(): boolean {
+    const previous = this.history.undo(this.documentNodes)
+    if (!previous) {
+      return false
+    }
+
+    this.restoreDocumentNodes(previous)
+    return true
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyRedo(): boolean {
+    const next = this.history.redo(this.documentNodes)
+    if (!next) {
+      return false
+    }
+
+    this.restoreDocumentNodes(next)
+    return true
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyCanUndo(): boolean {
+    return this.history.canUndo()
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyCanRedo(): boolean {
+    return this.history.canRedo()
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyClear(): void {
+    this.history.clear()
   }
 
   private restoreDocumentNodes(nodes: VenusNode[]): void {
@@ -2602,6 +2760,50 @@ export class Venus {
     this.emit('render:after', {revision: this.revision})
   }
 
+  // ── Export (delegates to export module) ──────────────────────────────────
+
+  /**
+   * @name Venus.toPNG
+   * @description Exports the current canvas as a PNG data URL.
+   * @example Usage
+   * const url = await venus.toPNG({ scale: 2 })
+   * @param options.scale Output scale factor (default 1).
+   * @param options.background Background color (default transparent).
+   * @returns PNG data URL.
+   */
+  async toPNG(options?: { scale?: number; background?: string }): Promise<string> {
+    const exp = this._requireModuleApi<{ toPNG(o?: { scale?: number; background?: string }): Promise<string> }>('export')
+    return exp.toPNG(options)
+  }
+
+  /**
+   * @name Venus.toJPEG
+   * @description Exports the current canvas as a JPEG data URL.
+   * @example Usage
+   * const url = await venus.toJPEG({ quality: 0.9, background: '#ffffff' })
+   * @param options.scale Output scale factor (default 1).
+   * @param options.quality JPEG quality 0–1 (default 0.92).
+   * @param options.background Background color (default white).
+   * @returns JPEG data URL.
+   */
+  async toJPEG(options?: { scale?: number; quality?: number; background?: string }): Promise<string> {
+    const exp = this._requireModuleApi<{ toJPEG(o?: { scale?: number; quality?: number; background?: string }): Promise<string> }>('export')
+    return exp.toJPEG(options)
+  }
+
+  /**
+   * @name Venus.toSVG
+   * @description Exports the current document as an SVG string.
+   * @example Usage
+   * const svg = await venus.toSVG({ embedImages: true })
+   * @param options.embedImages Whether to embed images as data URIs (default false).
+   * @returns SVG string.
+   */
+  async toSVG(options?: { embedImages?: boolean }): Promise<string> {
+    const exp = this._requireModuleApi<{ toSVG(o?: { embedImages?: boolean }): Promise<string> }>('export')
+    return exp.toSVG(options)
+  }
+
   /**
    * Coalesces multiple synchronous mutations into a single deferred render.
    *
@@ -2648,6 +2850,7 @@ export class Venus {
    * @returns Topmost hit result, or null.
    */
   hitTest(point: {x: number, y: number}, options: VenusHitTestOptions = {}): VenusDetailedHitTestResult | null {
+    this.requireModuleInstalled('hitTest')
     const resolvedOptions = resolveVenusHitTestOptions(options)
     const hits = this.resolveDetailedHits(point, resolvedOptions)
     const result = hits[0] ?? null
@@ -2675,6 +2878,7 @@ export class Venus {
    * @returns Ordered hit results with target, region, anchor, center, and bounds metadata.
    */
   hitTestAll(point: {x: number, y: number}, options: VenusHitTestOptions = {}): VenusDetailedHitTestResult[] {
+    this.requireModuleInstalled('hitTest')
     return this.resolveDetailedHits(point, resolveVenusHitTestOptions(options))
   }
 
@@ -2689,6 +2893,170 @@ export class Venus {
       resolveNode: (id) => this._rawNode(id),
       resolveBounds: getNodeBounds,
     })
+  }
+
+  // ── Selection (delegates to interaction module) ──────────────────────────
+
+  /**
+   * @name Venus.select
+   * @description Selects one or more document node ids.
+   * @example Usage
+   * venus.select('rect-1')
+   * venus.select(['rect-1', 'ellipse-2'])
+   * @param ids A single node id or an array of node ids to select.
+   */
+  select(ids: string | readonly string[]): void {
+    const interaction = this._requireModuleApi<{ select(ids: string | readonly string[]): void }>('interaction')
+    interaction.select(ids)
+  }
+
+  /**
+   * @name Venus.deselect
+   * @description Deselects one or more document node ids.
+   * @example Usage
+   * venus.deselect('rect-1')
+   * @param ids A single node id or an array of node ids to deselect.
+   */
+  deselect(ids: string | readonly string[]): void {
+    const interaction = this._requireModuleApi<{ deselect(ids: string | readonly string[]): void }>('interaction')
+    interaction.deselect(ids)
+  }
+
+  /**
+   * @name Venus.selectAll
+   * @description Selects every root-level document node.
+   * @example Usage
+   * venus.selectAll()
+   */
+  selectAll(): void {
+    const interaction = this._requireModuleApi<{ selectAll(): void }>('interaction')
+    interaction.selectAll()
+  }
+
+  /**
+   * @name Venus.clearSelection
+   * @description Clears the current selection.
+   * @example Usage
+   * venus.clearSelection()
+   */
+  clearSelection(): void {
+    const interaction = this._requireModuleApi<{ clearSelection(): void }>('interaction')
+    interaction.clearSelection()
+  }
+
+  /**
+   * @name Venus.isSelected
+   * @description Returns whether a node id is currently selected.
+   * @example Usage
+   * if (venus.isSelected('rect-1')) { ... }
+   * @param id The node id to check.
+   * @returns True when the node is in the current selection.
+   */
+  isSelected(id: string): boolean {
+    const interaction = this._requireModuleApi<{ isSelected(id: string): boolean }>('interaction')
+    return interaction.isSelected(id)
+  }
+
+  /**
+   * @name Venus.onSelectionChange
+   * @description Registers a callback that fires when the selection changes.
+   * @example Usage
+   * const off = venus.onSelectionChange((sel) => console.log([...sel]))
+   * @param handler Callback receiving a read-only snapshot of selected ids.
+   * @returns Unsubscribe function.
+   */
+  onSelectionChange(handler: (selection: ReadonlySet<string>) => void): () => void {
+    const interaction = this._requireModuleApi<{ onSelectionChange(h: (s: ReadonlySet<string>) => void): () => void }>('interaction')
+    return interaction.onSelectionChange(handler)
+  }
+
+  // ── Effects (delegates to effects module) ────────────────────────────────
+
+  /**
+   * @name Venus.applyDropShadow
+   * @description Applies a drop shadow effect to a node by id.
+   * @example Usage
+   * venus.applyDropShadow('rect-1', { color: '#00000040', offsetX: 4, offsetY: 4, blur: 8 })
+   * @param nodeId Target node id.
+   * @param shadow Shadow parameters.
+   */
+  applyDropShadow(nodeId: string, shadow: { color?: string; offsetX?: number; offsetY?: number; blur?: number }): void {
+    const effects = this._requireModuleApi<{ applyDropShadow(id: string, s: typeof shadow): void }>('effects')
+    effects.applyDropShadow(nodeId, shadow)
+  }
+
+  /**
+   * @name Venus.removeDropShadow
+   * @description Removes the drop shadow from a node.
+   * @example Usage
+   * venus.removeDropShadow('rect-1')
+   * @param nodeId Target node id.
+   */
+  removeDropShadow(nodeId: string): void {
+    const effects = this._requireModuleApi<{ removeDropShadow(id: string): void }>('effects')
+    effects.removeDropShadow(nodeId)
+  }
+
+  /**
+   * @name Venus.applyInnerShadow
+   * @description Applies an inner shadow effect to a node by id.
+   * @example Usage
+   * venus.applyInnerShadow('rect-1', { color: '#00000030', blur: 4 })
+   * @param nodeId Target node id.
+   * @param shadow Inner shadow parameters.
+   */
+  applyInnerShadow(nodeId: string, shadow: { color?: string; blur?: number }): void {
+    const effects = this._requireModuleApi<{ applyInnerShadow(id: string, s: typeof shadow): void }>('effects')
+    effects.applyInnerShadow(nodeId, shadow)
+  }
+
+  /**
+   * @name Venus.removeInnerShadow
+   * @description Removes the inner shadow from a node.
+   * @example Usage
+   * venus.removeInnerShadow('rect-1')
+   * @param nodeId Target node id.
+   */
+  removeInnerShadow(nodeId: string): void {
+    const effects = this._requireModuleApi<{ removeInnerShadow(id: string): void }>('effects')
+    effects.removeInnerShadow(nodeId)
+  }
+
+  /**
+   * @name Venus.applyLayerBlur
+   * @description Applies a layer blur effect to a node by id.
+   * @example Usage
+   * venus.applyLayerBlur('rect-1', { amount: 4 })
+   * @param nodeId Target node id.
+   * @param blur Blur parameters.
+   */
+  applyLayerBlur(nodeId: string, blur: { amount: number }): void {
+    const effects = this._requireModuleApi<{ applyLayerBlur(id: string, b: typeof blur): void }>('effects')
+    effects.applyLayerBlur(nodeId, blur)
+  }
+
+  /**
+   * @name Venus.removeLayerBlur
+   * @description Removes the layer blur from a node.
+   * @example Usage
+   * venus.removeLayerBlur('rect-1')
+   * @param nodeId Target node id.
+   */
+  removeLayerBlur(nodeId: string): void {
+    const effects = this._requireModuleApi<{ removeLayerBlur(id: string): void }>('effects')
+    effects.removeLayerBlur(nodeId)
+  }
+
+  /**
+   * @name Venus.clearEffects
+   * @description Clears all visual effects from a node.
+   * @example Usage
+   * venus.clearEffects('rect-1')
+   * @param nodeId Target node id.
+   */
+  clearEffects(nodeId: string): void {
+    const effects = this._requireModuleApi<{ clearAll(id: string): void }>('effects')
+    effects.clearAll(nodeId)
   }
 
   /**
@@ -2709,6 +3077,7 @@ export class Venus {
     keyframes: readonly [VenusAnimationKeyframe, VenusAnimationKeyframe],
     options: VenusAnimationOptions = {},
   ): VenusAnimationController {
+    this.requireModuleInstalled('animate')
     return createVenusAnimationController({
       node: this._rawNode(nodeId),
       keyframes,

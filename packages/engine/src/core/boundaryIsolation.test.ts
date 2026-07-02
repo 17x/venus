@@ -92,7 +92,7 @@ test('Venus module contract uses short instance-level modules without a global r
   const servicesSource = readSource(resolve(SOURCE_ROOT, 'runtime/venus/modules/services.ts'))
   const baseSource = readSource(resolve(SOURCE_ROOT, 'base.ts'))
 
-  for (const moduleName of ['render', 'camera', 'hitTest', 'select', 'snap', 'animate', 'debug', 'scale', 'effects', 'history', 'export']) {
+  for (const moduleName of ['render', 'camera', 'hitTest', 'interaction', 'animate', 'debug', 'effects', 'history', 'export']) {
     assert.equal(catalogSource.includes(`'${moduleName}'`), true, `missing module name ${moduleName}`)
   }
 
@@ -100,7 +100,8 @@ test('Venus module contract uses short instance-level modules without a global r
   assert.equal(catalogSource.includes('VENUS_MODULE_CATALOG'), true)
   assert.equal(catalogSource.includes("status: 'core-module'"), true)
   assert.equal(catalogSource.includes("| 'core-facade'"), true)
-  assert.equal(catalogSource.includes("status: 'reserved'"), true)
+  // The 'reserved' status exists in the type union even if no entry currently uses it.
+  assert.equal(catalogSource.includes("'reserved'"), true)
   assert.equal(servicesSource.includes('VENUS_INTERNAL_SERVICE_NAMES'), true)
   assert.equal(venusSource.includes('largeScenePerformance'), false)
   assert.equal(venusSource.includes('Venus.use'), false)
@@ -124,13 +125,21 @@ test('internal foundations do not import user-facing Venus module layer', () => 
   }
 })
 
-test('package exports expose default compatibility and explicit base entry only', () => {
+test('package exports expose base runtime and optional module entrypoints', () => {
   const packageJson = JSON.parse(readSource(resolve(SOURCE_ROOT, '../package.json'))) as {
     exports: Record<string, string>
   }
 
   assert.equal(packageJson.exports['.'], './src/index.ts')
   assert.equal(packageJson.exports['./base'], './src/base.ts')
+  assert.equal(packageJson.exports['./camera'], './src/runtime/venus/modules/camera/index.ts')
+  assert.equal(packageJson.exports['./hit-test'], './src/runtime/venus/modules/hitTest/index.ts')
+  assert.equal(packageJson.exports['./interaction'], './src/runtime/venus/modules/interaction/index.ts')
+  assert.equal(packageJson.exports['./animate'], './src/runtime/venus/modules/animate/index.ts')
+  assert.equal(packageJson.exports['./history'], './src/runtime/venus/modules/history/index.ts')
+  assert.equal(packageJson.exports['./effects'], './src/runtime/venus/modules/effects/index.ts')
+  assert.equal(packageJson.exports['./export'], './src/runtime/venus/modules/export/index.ts')
+  assert.equal(packageJson.exports['./debug'], './src/runtime/venus/modules/debug/index.ts')
   assert.equal(packageJson.exports['./largeScenePerformance'], undefined)
   assert.equal(packageJson.exports['./preset'], undefined)
 })

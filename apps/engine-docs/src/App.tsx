@@ -315,8 +315,7 @@ const createShapeMinimalCreateCode = (kind: string): string => {
     case 'ellipse':
       return `const r = venus.add({
   type: 'ellipse',
-  width: 220,
-  height: 140,
+  ellipseGeometry: { cx: 150, cy: 100, rx: 80, ry: 50 },
 })`
     case 'line':
       return `const r = venus.add({
@@ -370,12 +369,10 @@ const createShapeMinimalCreateCode = (kind: string): string => {
     case 'path':
       return `const r = venus.add({
   type: 'path',
-  width: 220,
-  height: 140,
-  points: [
-    {x: 0, y: 140},
-    {x: 110, y: 0},
-    {x: 220, y: 140},
+  anchorPoints: [
+    { x: 0, y: 140 },
+    { x: 110, y: 0, cp1: { x: 40, y: 100 }, cp2: { x: 80, y: 20 } },
+    { x: 220, y: 140 },
   ],
 })`
     case 'image':
@@ -409,7 +406,8 @@ r.stroke = '#${isLight ? '1e40af' : 'bfdbfe'}'
 r.strokeWidth = 3
 r.cornerRadius = 16
 r.opacity = 0.9`,
-    ellipse: `r.fill = '#${isLight ? 'f59e0b' : 'fcd34d'}'
+    ellipse: `r.ellipseGeometry = { cx: 150, cy: 100, rx: 80, ry: 50 }
+r.fill = '#${isLight ? 'f59e0b' : 'fcd34d'}'
 r.stroke = '#${isLight ? 'b45309' : 'fde68a'}'
 r.strokeWidth = 2
 r.startAngle = 30
@@ -626,6 +624,14 @@ interface ModelControlValues {
   ellipseStartAngle: number
   ellipseEndAngle: number
   ellipseDrawWedgeLine: boolean
+  /** Ellipse center x (computed from x + width/2). */
+  cx: number
+  /** Ellipse center y (computed from y + height/2). */
+  cy: number
+  /** Ellipse horizontal radius (half of width). */
+  rx: number
+  /** Ellipse vertical radius (half of height). */
+  ry: number
   text: string
   selectedTextFill: string
   selectedTextStart: number
@@ -793,6 +799,11 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     ellipseStartAngle: 0,
     ellipseEndAngle: 360,
     ellipseDrawWedgeLine: false,
+    // Ellipse center+radii geometry (computed from x/y/width/height).
+    cx: 200,
+    cy: 150,
+    rx: 90,
+    ry: 55,
     text: apiId === 'group' ? 'Grouped' : 'Venus Text\nmulti-line',
     selectedTextFill: '#ef4444',
     selectedTextStart: 0,
@@ -1009,7 +1020,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   if (apiId === 'ellipse') {
-    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, ...strokeStyle, ...flatTransform}]
+    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, ellipseGeometry: { cx: controls.cx, cy: controls.cy, rx: controls.rx, ry: controls.ry }, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, ...strokeStyle, ...flatTransform}]
   }
 
   if (apiId === 'line') {
@@ -1608,10 +1619,19 @@ function ModelControlPanel({
           </button>
         </div> : null}
 
-        {showEllipseAngles ? <div className={'mt-2 grid grid-cols-4 gap-1'}>
-          {numberField('ellipseStartAngle', 'start', '°', {min: 0, max: 360})}
-          {numberField('ellipseEndAngle', 'end', '°', {min: 0, max: 360})}
-          {toggleField('ellipseDrawWedgeLine', 'wedge')}
+        {showEllipseAngles ? <div className={'mt-2 grid gap-2'}>
+          <p className={'text-[10px] font-medium uppercase tracking-wide text-muted-foreground'}>Ellipse Geometry (center + radii)</p>
+          <div className={'grid grid-cols-4 gap-1'}>
+            {numberField('cx', 'cx', '', {min: 0, max: 460})}
+            {numberField('cy', 'cy', '', {min: 0, max: 320})}
+            {numberField('rx', 'rx', '', {min: 10, max: 230})}
+            {numberField('ry', 'ry', '', {min: 10, max: 160})}
+          </div>
+          <div className={'grid grid-cols-4 gap-1'}>
+            {numberField('ellipseStartAngle', 'start', '°', {min: 0, max: 360})}
+            {numberField('ellipseEndAngle', 'end', '°', {min: 0, max: 360})}
+            {toggleField('ellipseDrawWedgeLine', 'wedge')}
+          </div>
         </div> : null}
 
         {showText ? <textarea className={'mt-2 min-h-16 w-full rounded-md border bg-background px-2 py-1.5 text-xs'} value={controls.text} onChange={(e) => setValue('text', e.target.value)} /> : null}

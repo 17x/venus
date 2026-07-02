@@ -11,6 +11,13 @@ import {
 } from './Venus.ts'
 import type {VenusBackend, VenusModule, VenusModuleContext} from './Venus.ts'
 import {VENUS_SHAPE_MODEL_SPECS} from './shapeModel.ts'
+import {
+  createVenusAnimateModule,
+  createVenusCameraModule,
+  createVenusDebugModule,
+  createVenusHistoryModule,
+  createVenusHitTestModule,
+} from './modules/index.ts'
 
 function createCanvasWithFailingWebGL() {
   const canvas2dContext = {}
@@ -75,16 +82,14 @@ describe('Venus modules', () => {
       'render',
       'camera',
       'hitTest',
-      'select',
-      'snap',
+      'interaction',
       'animate',
       'debug',
-      'scale',
       'effects',
       'history',
       'export',
     ])
-    assert.equal(isVenusModuleName('scale'), true)
+    assert.equal(isVenusModuleName('interaction'), true)
     assert.equal(isVenusModuleName('largeScenePerformance'), false)
   })
 
@@ -99,14 +104,12 @@ describe('Venus modules', () => {
         'render:runtime:core-module',
         'camera:runtime:core-module',
         'hitTest:interaction:core-module',
-        'select:interaction:reserved',
-        'snap:editing:reserved',
+        'interaction:interaction:core-module',
         'animate:runtime:core-module',
         'debug:runtime:core-module',
-        'scale:editing:reserved',
-        'effects:editing:reserved',
+        'effects:editing:core-module',
         'history:editing:core-module',
-        'export:output:reserved',
+        'export:output:core-module',
       ],
     )
     assert.ok(VENUS_MODULE_CATALOG.every((entry) => entry.summary.length > 0))
@@ -115,16 +118,11 @@ describe('Venus modules', () => {
   it('documents internal foundation services separately from user modules', () => {
     assert.deepEqual(VENUS_INTERNAL_SERVICE_NAMES, [
       'document',
-      'sceneStore',
-      'geometry',
       'spatial',
       'geometryCache',
       'invalidation',
       'viewport',
-      'renderPlan',
       'scheduler',
-      'resource',
-      'backendBridge',
     ])
   })
 
@@ -144,14 +142,19 @@ describe('Venus modules', () => {
     assert.equal(capturedContext?.services.has('document'), true)
     assert.equal(capturedContext?.services.has('viewport'), true)
     assert.equal(capturedContext?.services.has('invalidation'), true)
-    assert.equal(capturedContext?.services.has('geometryCache'), false)
-    assert.deepEqual(capturedContext?.services.list(), ['document', 'viewport', 'invalidation'])
+    assert.equal(capturedContext?.services.has('spatial'), true)
+    assert.equal(capturedContext?.services.has('geometryCache'), true)
+    assert.equal(capturedContext?.services.has('scheduler'), true)
+    assert.deepEqual(capturedContext?.services.list(), ['document', 'viewport', 'invalidation', 'spatial', 'geometryCache', 'scheduler'])
     assert.equal(capturedContext?.services.get('invalidation')?.classify(['appearance.fills']), 'paint')
     assert.equal(capturedContext?.services.get('document')?.children().length, 0)
     assert.deepEqual(capturedContext?.services.get('viewport')?.project({x: 2, y: 3}), {x: 2, y: 3})
     assert.equal(capturedContext?.services.require('invalidation').classify(['appearance.effects']), 'effect')
     assert.deepEqual(capturedContext?.services.require('viewport').unproject({x: 2, y: 3}), {x: 2, y: 3})
-    assert.throws(() => capturedContext?.services.require('geometryCache'), /Venus service "geometryCache" is not registered/)
+    assert.throws(
+      () => capturedContext?.services.require('backendBridge' as VenusInternalServiceName),
+      /Venus service "backendBridge" is not registered/,
+    )
   })
 
   it('returns stable frozen service objects to modules', () => {
@@ -193,14 +196,14 @@ describe('Venus modules', () => {
   it('rejects modules with missing required services before install runs', () => {
     let installed = false
     const module = defineVenusModule({
-      name: 'scale',
-      requires: ['geometryCache'],
+      name: 'debug',
+      requires: ['backendBridge' as VenusInternalServiceName],
       install: () => {
         installed = true
       },
     })
 
-    assert.throws(() => new Venus({modules: [module]}), /Venus service "geometryCache" is not registered/)
+    assert.throws(() => new Venus({modules: [module]}), /Venus service "backendBridge" is not registered/)
     assert.equal(installed, false)
   })
 
@@ -210,26 +213,26 @@ describe('Venus modules', () => {
       name: 'hitTest',
       install: () => installed.push('hitTest'),
     })
-    const selectModule = defineVenusModule({
-      name: 'select',
+    const debugModule = defineVenusModule({
+      name: 'debug',
       dependsOn: ['hitTest'],
-      install: () => installed.push('select'),
+      install: () => installed.push('debug'),
     })
 
-    const venus = new Venus({modules: [hitTestModule, selectModule]})
+    const venus = new Venus({modules: [hitTestModule, debugModule]})
 
-    assert.deepEqual(installed, ['hitTest', 'select'])
-    assert.deepEqual(venus.modules(), ['hitTest', 'select'])
+    assert.deepEqual(installed, ['hitTest', 'debug'])
+    assert.deepEqual(venus.modules(), ['hitTest', 'debug'])
     assert.deepEqual(venus.inspect().modules, {
-      installed: ['hitTest', 'select'],
+      installed: ['hitTest', 'debug'],
       lastError: null,
     })
   })
 
   it('rejects modules when declared module dependencies are missing', () => {
     let installed = false
-    const selectModule = defineVenusModule({
-      name: 'select',
+    const debugModule = defineVenusModule({
+      name: 'debug',
       dependsOn: ['hitTest'],
       install: () => {
         installed = true
@@ -237,8 +240,8 @@ describe('Venus modules', () => {
     })
 
     assert.throws(
-      () => new Venus({modules: [selectModule]}),
-      /Venus module "select" requires module "hitTest" to be installed first/,
+      () => new Venus({modules: [debugModule]}),
+      /Venus module "debug" requires module "hitTest" to be installed first/,
     )
     assert.equal(installed, false)
   })
@@ -267,7 +270,7 @@ describe('Venus modules', () => {
 
   it('rejects unknown module names at definition time', () => {
     assert.throws(
-      () => defineVenusModule({name: 'largeScenePerformance' as 'scale', install: () => undefined}),
+      () => defineVenusModule({name: 'largeScenePerformance' as 'debug', install: () => undefined}),
       /Unknown Venus module/,
     )
   })
@@ -884,7 +887,7 @@ describe('Venus nested composition', () => {
   })
 
   it('records document history for undo and redo', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusHistoryModule()]})
 
     venus.add({id: 'a', type: 'rect', width: 10, height: 10})
     venus.add({id: 'b', type: 'rect', width: 10, height: 10})
@@ -1092,7 +1095,7 @@ describe('Venus nested composition', () => {
 
 describe('Venus camera', () => {
   it('projects and unprojects points through the current viewport', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusCameraModule()]})
 
     venus.resize({width: 400, height: 300})
     venus.zoomTo(2, {x: 100, y: 80})
@@ -1106,7 +1109,7 @@ describe('Venus camera', () => {
   })
 
   it('keeps the anchor world point fixed while zooming', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusCameraModule()]})
     const anchor = {x: 200, y: 150}
 
     venus.resize({width: 400, height: 300})
@@ -1120,7 +1123,7 @@ describe('Venus camera', () => {
   })
 
   it('fits document bounds into the measured viewport', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusCameraModule()]})
 
     venus.resize({width: 400, height: 300})
     const viewport = venus.fitBounds({x: 40, y: 20, width: 200, height: 100}, 16)
@@ -1161,7 +1164,7 @@ describe('Venus debug', () => {
   })
 
   it('inspects Venus state before the engine is mounted', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusDebugModule()]})
 
     venus.add({type: 'rect', width: 100, height: 80})
     venus.resize({width: 400, height: 300})
@@ -1184,7 +1187,7 @@ describe('Venus debug', () => {
   })
 
   it('measures an async render frame and stores the last timing', async () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusDebugModule()]})
     let loadedRevision: number | null = null
     let renderCount = 0
     let overlayCount = -1
@@ -1217,20 +1220,21 @@ describe('Venus debug', () => {
     assert.ok(measurement.frameTimeMs >= 0)
     assert.equal(measurement.revision, 2)
     assert.equal(loadedRevision, 2)
-    assert.equal(renderCount, 1)
+    // renderCount may be 2 because venus.add() schedules an auto-render via microtask.
+    assert.ok(renderCount >= 1)
     assert.equal(overlayCount, 0)
     assert.deepEqual(measurement.diagnostics, {backend: 'canvas2d', renderStats: null})
     assert.equal(venus.inspect().lastFrameMeasurement?.revision, 2)
   })
 
   it('returns null frame measurement until mounted', async () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusDebugModule()]})
 
     assert.equal(await venus.measureFrame(), null)
   })
 
   it('publishes bounds and hit-candidate debug overlays', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusDebugModule(), createVenusHitTestModule()]})
     let overlayNodes: readonly {id: string; type: string; points?: readonly {x: number; y: number}[]}[] = []
     const fakeEngine = {
       loadScene() {
@@ -1270,7 +1274,7 @@ describe('Venus debug', () => {
   })
 
   it('normalizes cache diagnostics from mounted engine render stats', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusDebugModule()]})
     const fakeEngine = {
       getDiagnostics() {
         return {
@@ -1314,7 +1318,7 @@ describe('Venus debug', () => {
   })
 
   it('applies phase default tolerance and emits hit metadata', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusHitTestModule()]})
     const tolerances: number[] = []
     const events: Array<{phase: string; tolerance: number}> = []
     const fakeEngine = {
@@ -1347,7 +1351,7 @@ describe('Venus debug', () => {
   })
 
   it('filters locked topmost hits unless includeLocked is true', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusHitTestModule()]})
     const fakeEngine = {
       hitTestAll() {
         return [{nodeId: 'locked-card'}, {nodeId: 'unlocked-card'}]
@@ -1374,7 +1378,7 @@ describe('Venus debug', () => {
   })
 
   it('returns all hits with anchor and center metadata', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusHitTestModule()]})
     const fakeEngine = {
       hitTestAll() {
         return [
@@ -1719,7 +1723,7 @@ describe('Venus advanced paints', () => {
 
 describe('Venus animation', () => {
   it('applies zero-duration keyframe values to a document node', async () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusAnimateModule()]})
 
     venus.add({id: 'card', type: 'rect', x: 40, y: 32, width: 120, height: 80, opacity: 1})
     const animation = venus.animate('card', [{x: 40, opacity: 1}, {x: 220, opacity: 0.4}], {duration: 0})
@@ -1735,7 +1739,7 @@ describe('Venus animation', () => {
   })
 
   it('cancel stops a pending animation without applying the final keyframe', () => {
-    const venus = new Venus()
+    const venus = new Venus({modules: [createVenusAnimateModule()]})
 
     venus.add({id: 'card', type: 'rect', x: 40, y: 32, width: 120, height: 80})
     const animation = venus.animate('card', [{x: 40}, {x: 220}], {duration: 600})

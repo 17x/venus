@@ -2,11 +2,9 @@ export const VENUS_MODULE_NAMES = [
   'render',
   'camera',
   'hitTest',
-  'select',
-  'snap',
+  'interaction',
   'animate',
   'debug',
-  'scale',
   'effects',
   'history',
   'export',
@@ -33,17 +31,15 @@ export interface VenusModuleCatalogEntry {
 }
 
 export const VENUS_MODULE_CATALOG: readonly VenusModuleCatalogEntry[] = [
-  {name: 'render', category: 'runtime', status: 'core-module', summary: 'Mount, resize, render, renderer defaults, and backend diagnostics.'},
+  {name: 'render', category: 'runtime', status: 'core-module', summary: 'Mount, resize, render, renderer defaults, backend diagnostics, LOD, and culling.'},
   {name: 'camera', category: 'runtime', status: 'core-module', summary: 'Viewport projection, pan, zoom, and fit-bounds controls.'},
   {name: 'hitTest', category: 'interaction', status: 'core-module', summary: 'Pointer hit testing, multi-hit results, and target metadata.'},
-  {name: 'select', category: 'interaction', status: 'reserved', summary: 'Selection state and selection commands.'},
-  {name: 'snap', category: 'editing', status: 'reserved', summary: 'Guide, point, edge, and anchor snapping.'},
+  {name: 'interaction', category: 'interaction', status: 'core-module', summary: 'Selection state, selection commands, guide snapping, and pointer-driven editing.'},
   {name: 'animate', category: 'runtime', status: 'core-module', summary: 'Document property animation controller.'},
   {name: 'debug', category: 'runtime', status: 'core-module', summary: 'Debug overlays, cache diagnostics, and frame measurement.'},
-  {name: 'scale', category: 'editing', status: 'reserved', summary: 'Scaling and resize policy helpers.'},
-  {name: 'effects', category: 'editing', status: 'reserved', summary: 'Advanced appearance/effect helpers beyond base node fields.'},
+  {name: 'effects', category: 'editing', status: 'core-module', summary: 'Structured visual effect application: drop shadow, inner shadow, and layer blur.'},
   {name: 'history', category: 'editing', status: 'core-module', summary: 'Undo and redo snapshot history backed by an internal module controller.'},
-  {name: 'export', category: 'output', status: 'reserved', summary: 'Export surfaces for images, SVG, PDF, and host-specific formats.'},
+  {name: 'export', category: 'output', status: 'core-module', summary: 'Document export to PNG, JPEG, and SVG formats.'},
 ]
 
 export function isVenusModuleName(name: string): name is VenusModuleName {
