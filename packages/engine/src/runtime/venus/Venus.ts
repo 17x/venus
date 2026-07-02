@@ -44,6 +44,9 @@ import {
   type VenusHistoryController,
   type VenusInternalServiceName,
   type VenusModuleName,
+  type VenusPngExportOptions,
+  type VenusJpegExportOptions,
+  type VenusSvgExportOptions,
   type VenusRenderDefaults,
 } from './modules/index.ts'
 import {
@@ -2771,8 +2774,8 @@ export class Venus {
    * @param options.background Background color (default transparent).
    * @returns PNG data URL.
    */
-  async toPNG(options?: { scale?: number; background?: string }): Promise<string> {
-    const exp = this._requireModuleApi<{ toPNG(o?: { scale?: number; background?: string }): Promise<string> }>('export')
+  async toPNG(options?: VenusPngExportOptions): Promise<string> {
+    const exp = this._requireModuleApi<{ toPNG(o?: VenusPngExportOptions): Promise<string> }>('export')
     return exp.toPNG(options)
   }
 
@@ -2786,8 +2789,8 @@ export class Venus {
    * @param options.background Background color (default white).
    * @returns JPEG data URL.
    */
-  async toJPEG(options?: { scale?: number; quality?: number; background?: string }): Promise<string> {
-    const exp = this._requireModuleApi<{ toJPEG(o?: { scale?: number; quality?: number; background?: string }): Promise<string> }>('export')
+  async toJPEG(options?: VenusJpegExportOptions): Promise<string> {
+    const exp = this._requireModuleApi<{ toJPEG(o?: VenusJpegExportOptions): Promise<string> }>('export')
     return exp.toJPEG(options)
   }
 
@@ -2796,11 +2799,12 @@ export class Venus {
    * @description Exports the current document as an SVG string.
    * @example Usage
    * const svg = await venus.toSVG({ embedImages: true })
-   * @param options.embedImages Whether to embed images as data URIs (default false).
+   * @param options.embedImages Writes image asset ids to href even when they are not URLs.
+   * @param options.pretty Whether to emit line breaks between top-level SVG nodes.
    * @returns SVG string.
    */
-  async toSVG(options?: { embedImages?: boolean }): Promise<string> {
-    const exp = this._requireModuleApi<{ toSVG(o?: { embedImages?: boolean }): Promise<string> }>('export')
+  async toSVG(options?: VenusSvgExportOptions): Promise<string> {
+    const exp = this._requireModuleApi<{ toSVG(o?: VenusSvgExportOptions): Promise<string> }>('export')
     return exp.toSVG(options)
   }
 

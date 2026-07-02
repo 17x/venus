@@ -99,7 +99,7 @@ describe('engine docs app contract', () => {
     }
   })
 
-  it('keeps Venus Parameters independent and lists all methods flat', () => {
+  it('keeps Venus Parameters independent and groups all methods by module', () => {
     const venusParametersCategory = engineApiCategories.find((category) => category.id === 'venus-parameters')
     assert.ok(venusParametersCategory)
     assert.deepEqual(venusParametersCategory.apis.map((api) => api.id), ['constructor-parameters'])
@@ -107,6 +107,11 @@ describe('engine docs app contract', () => {
     const methodsCategory = engineApiCategories.find((category) => category.id === 'methods')
     assert.ok(methodsCategory)
     assert.deepEqual(methodsCategory.apis.map((api) => api.id), [...VENUS_PUBLIC_METHOD_NAMES])
+    assert.ok(methodsCategory.apis.every((api) => api.moduleName), 'every method API must declare its owning module')
+    assert.deepEqual(
+      new Set(methodsCategory.apis.map((api) => api.moduleName)),
+      new Set(['render', 'camera', 'hitTest', 'interaction', 'animate', 'debug', 'effects', 'history', 'export']),
+    )
 
     const apiIds = new Set(engineApiCategories.flatMap((category) => category.apis.map((api) => api.id)))
     for (const removedId of ['venus-instance', 'instance-methods', 'object-model', 'document-add', 'venus-add', 'document-index']) {
@@ -263,6 +268,11 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /max-h-\[min\(60vh,32rem\)\]/)
     assert.match(appSource, /Copy/)
     assert.match(appSource, /createUsageCode\(api, theme\)/)
+    assert.match(appSource, /engineApiModuleGroups/)
+    assert.match(appSource, /methods-\$\{group\.id\}/)
+    assert.match(appSource, /api\.moduleName === group\.id/)
+    assert.match(appSource, /<InteractiveMethodDemo api=\{api\} theme=\{theme\}\/>/)
+    assert.match(appSource, /createDocsModulesForApi/)
     assert.match(appSource, /EventInspectorDemo/)
     assert.match(appSource, /ModelControlPanel/)
     assert.match(appSource, /logicalWidth = 400/)

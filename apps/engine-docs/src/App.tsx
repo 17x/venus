@@ -28,12 +28,22 @@ import {
 } from 'lucide-react'
 import {
   engineApiCategories,
+  engineApiModuleGroups,
   type EngineApiCategory,
   type EngineApiDoc,
   type EngineApiParameter,
 } from './engineApiDocs.ts'
 import {
+  createVenusAnimateModule,
+  createVenusCameraModule,
+  createVenusDebugModule,
+  createVenusEffectsModule,
+  createVenusExportModule,
+  createVenusHistoryModule,
+  createVenusHitTestModule,
+  createVenusInteractionModule,
   Venus,
+  type VenusModule,
   type VenusNode,
   type VenusParameters,
 } from '../../../packages/engine/src/index.ts'
@@ -756,9 +766,22 @@ const createDemoImageSource = (theme: ThemeMode): HTMLCanvasElement => {
   return canvas
 }
 
-const createDocsVenusParameters = (theme: ThemeMode): VenusParameters => {
+const createDocsModulesForApi = (api: EngineApiDoc): VenusModule[] => {
+  if (api.moduleName === 'camera') return [createVenusCameraModule()]
+  if (api.moduleName === 'hitTest') return [createVenusHitTestModule()]
+  if (api.moduleName === 'interaction') return [createVenusInteractionModule()]
+  if (api.moduleName === 'animate') return [createVenusAnimateModule()]
+  if (api.moduleName === 'debug') return [createVenusDebugModule(), createVenusHitTestModule()]
+  if (api.moduleName === 'effects') return [createVenusEffectsModule()]
+  if (api.moduleName === 'history') return [createVenusHistoryModule()]
+  if (api.moduleName === 'export') return [createVenusExportModule()]
+  return []
+}
+
+const createDocsVenusParameters = (theme: ThemeMode, modules: VenusModule[] = []): VenusParameters => {
   const demoImageSource = createDemoImageSource(theme)
   return {
+    modules,
     culling: false,
     lod: false,
     render: {backend: 'canvas2d'},
@@ -1795,6 +1818,7 @@ function ModelControlPanel({
 function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const venusRef = useRef<Venus | null>(null)
+  const modules = useMemo(() => createDocsModulesForApi(api), [api.id, api.moduleName])
   const [output, setOutput] = useState<string>('')
   const [clickPoint, setClickPoint] = useState<{x: number; y: number} | null>(null)
   const [hoverHit, setHoverHit] = useState<HitTestPanelState | null>(null)
@@ -1837,7 +1861,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     canvas.height = Math.round(logicalHeight * scale)
     canvas.style.width = '400px'
     canvas.style.height = `${logicalHeight}px`
-    const venus = new Venus(createDocsVenusParameters(theme))
+    const venus = new Venus(createDocsVenusParameters(theme, modules))
     venus.mount(canvas)
     venus.resize({width: logicalWidth, height: logicalHeight})
     const demoNodes: VenusNode[] = [{id: 'card', type: 'rect', x: 80, y: 60, width: 240, height: 60, fill: theme === 'light' ? '#dbeafe' : '#1e3a8a', stroke: theme === 'light' ? '#2563eb' : '#93c5fd', strokeWidth: 3, cornerRadius: 10},
@@ -1858,7 +1882,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       venus.destroy()
       venusRef.current = null
     }
-  }, [api.id, theme])
+  }, [api.id, modules, theme])
 
   const venus = () => venusRef.current
 
@@ -1924,6 +1948,32 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       }
       case 'snapshot':
         return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const s = v.snapshot(); showResult('snapshot', {revision: s.revision, nodeCount: s.nodes.length}) } }}><Camera data-icon="inline-start"/> Snapshot</Button>
+      case 'setDefaultFillColor': {
+        const [color, setColor] = useState('#22c55e')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-12 rounded-md border bg-background p-1'} type={'color'} value={color} onChange={(e) => setColor(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            v.setDefaultFillColor(color)
+            v.add({type: 'rect', x: 260, y: 60, width: 80, height: 60})
+            showResult('setDefaultFillColor', {color})
+            void v.render()
+          }}>Apply default fill</Button>
+        </div>
+      }
+      case 'setDefaultStrokeColor': {
+        const [color, setColor] = useState('#ef4444')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-12 rounded-md border bg-background p-1'} type={'color'} value={color} onChange={(e) => setColor(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            v.setDefaultStrokeColor(color)
+            v.add({type: 'rect', x: 260, y: 150, width: 80, height: 60, strokeWidth: 5, fill: 'transparent'})
+            showResult('setDefaultStrokeColor', {color})
+            void v.render()
+          }}>Apply default stroke</Button>
+        </div>
+      }
       case 'fitBounds':
         return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const r = v.fitBounds(v.bounds(), 16); showResult('fitBounds', r) } }}><Maximize data-icon="inline-start"/> Fit</Button>
       case 'zoomTo': {
@@ -1973,6 +2023,12 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       case 'hitTest':
       case 'hit-test':
         return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair data-icon="inline-start"/> Move and click on the canvas. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+      case 'hitTestAll':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const hits = v.hitTestAll({x: 260, y: 150}, {phase: 'hover'})
+          showResult('hitTestAll', hits.map((hit) => ({nodeId: hit.nodeId, hitType: hit.hitType, target: hit.target})))
+        }}><Crosshair data-icon="inline-start"/> Query all hits</Button>
       case 'on':
         return <div className={'flex flex-wrap gap-2'}>
           <Button variant={'outline'} size={'sm'} onClick={() => {
@@ -1999,6 +2055,50 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           showResult('animate', {methods: ['cancel', 'pause', 'play'], finished: 'Promise<void>'})
           void animation.finished.then(() => pushLog('animation finished'))
         }}><Film data-icon="inline-start"/> Animate</Button>
+      case 'modules':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('modules', v.modules()) }}><List data-icon="inline-start"/> List modules</Button>
+      case 'update': {
+        const [width, setWidth] = useState('280')
+        const [fill, setFill] = useState('#ef4444')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-20 rounded-md border bg-background px-2 text-xs'} type={'number'} value={width} onChange={(e) => setWidth(e.target.value)} />
+          <input className={'h-8 w-12 rounded-md border bg-background p-1'} type={'color'} value={fill} onChange={(e) => setFill(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            v.update('card', {width: Number(width), fill})
+            showResult('update', {id: 'card', width: Number(width), fill})
+            void v.render()
+          }}>Update card</Button>
+        </div>
+      }
+      case 'remove':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          v.remove('oval')
+          showResult('remove', {removed: 'oval', remaining: v.children().map((child) => child.id)})
+          void v.render()
+        }}><Trash2 data-icon="inline-start"/> Remove oval</Button>
+      case 'getLayerIndex':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getLayerIndex', v.getLayerIndex('oval')) }}><List data-icon="inline-start"/> Read oval index</Button>
+      case 'moveLayer': {
+        const [index, setIndex] = useState('0')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-16 rounded-md border bg-background px-2 text-xs'} type={'number'} value={index} onChange={(e) => setIndex(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            showResult('moveLayer', v.moveLayer('oval', Number(index)))
+            void v.render()
+          }}>Move oval</Button>
+        </div>
+      }
+      case 'bringForward':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('bringForward', v.bringForward('card')); void v.render() } }}><ArrowUp data-icon="inline-start"/> Bring card forward</Button>
+      case 'sendBackward':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('sendBackward', v.sendBackward('oval')); void v.render() } }}><ArrowDown data-icon="inline-start"/> Send oval backward</Button>
+      case 'bringToFront':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('bringToFront', v.bringToFront('card')); void v.render() } }}><ArrowUp data-icon="inline-start"/> Card to front</Button>
+      case 'sendToBack':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('sendToBack', v.sendToBack('oval')); void v.render() } }}><ArrowDown data-icon="inline-start"/> Oval to back</Button>
       case 'group':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
@@ -2018,6 +2118,73 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           showResult('ungroup', children.map((child) => ({id: child.id, type: child.type})))
           void v.render()
         }}><List data-icon="inline-start"/> Ungroup</Button>
+      case 'addChild':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const group = v.getNodeById('selection-group') ?? v.group(['card', 'oval'], {id: 'selection-group'})
+          const child = v.addChild(group.id, {type: 'rect', id: 'child-added', x: 210, y: 90, width: 56, height: 40, fill: '#22c55e'})
+          showResult('addChild', {parentId: group.id, childId: child.id})
+          void v.render()
+        }}><Plus data-icon="inline-start"/> Add child</Button>
+      case 'removeChild':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          if (!v.getNodeById('selection-group')) {
+            v.group(['card', 'oval'], {id: 'selection-group'})
+            v.addChild('selection-group', {type: 'rect', id: 'child-added', x: 210, y: 90, width: 56, height: 40, fill: '#22c55e'})
+          }
+          v.removeChild('selection-group', 'child-added')
+          showResult('removeChild', {parentId: 'selection-group', childId: 'child-added'})
+          void v.render()
+        }}><Trash2 data-icon="inline-start"/> Remove child</Button>
+      case 'select':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.select(['card', 'oval']); showResult('select', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Select card + oval</Button>
+      case 'deselect':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.select(['card', 'oval']); v.deselect('card'); showResult('deselect', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Deselect card</Button>
+      case 'selectAll':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.selectAll(); showResult('selectAll', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Select all</Button>
+      case 'clearSelection':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.selectAll(); v.clearSelection(); showResult('clearSelection', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Clear selection</Button>
+      case 'isSelected':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.select('card'); showResult('isSelected', v.isSelected('card')) } }}><Check data-icon="inline-start"/> Check card</Button>
+      case 'onSelectionChange':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const off = v.onSelectionChange((selection) => pushLog(`selection: ${[...selection].join(',') || 'empty'}`))
+          v.select('card')
+          showResult('onSelectionChange', 'subscribed and selected card')
+          setTimeout(off, 6000)
+        }}><Bell data-icon="inline-start"/> Watch selection</Button>
+      case 'applyDropShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyDropShadow('card', {color: '#00000055', offsetX: 8, offsetY: 8, blur: 14}); showResult('applyDropShadow', 'card'); void v.render() } }}>Apply drop shadow</Button>
+      case 'removeDropShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyDropShadow('card', {color: '#00000055', offsetX: 8, offsetY: 8, blur: 14}); v.removeDropShadow('card'); showResult('removeDropShadow', 'card'); void v.render() } }}>Remove drop shadow</Button>
+      case 'applyInnerShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyInnerShadow('card', {color: '#00000044', blur: 8}); showResult('applyInnerShadow', 'card'); void v.render() } }}>Apply inner shadow</Button>
+      case 'removeInnerShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyInnerShadow('card', {color: '#00000044', blur: 8}); v.removeInnerShadow('card'); showResult('removeInnerShadow', 'card'); void v.render() } }}>Remove inner shadow</Button>
+      case 'applyLayerBlur':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyLayerBlur('card', {amount: 4}); showResult('applyLayerBlur', 'card'); void v.render() } }}>Apply blur</Button>
+      case 'removeLayerBlur':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyLayerBlur('card', {amount: 4}); v.removeLayerBlur('card'); showResult('removeLayerBlur', 'card'); void v.render() } }}>Remove blur</Button>
+      case 'clearEffects':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyDropShadow('card', {blur: 10}); v.applyLayerBlur('card', {amount: 3}); v.clearEffects('card'); showResult('clearEffects', 'card'); void v.render() } }}>Clear effects</Button>
+      case 'undo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); const ok = v.undo(); showResult('undo', {ok, card: v.getNodeById('card')?.id}); void v.render() } }}>Undo update</Button>
+      case 'redo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); v.undo(); const ok = v.redo(); showResult('redo', {ok}); void v.render() } }}>Redo update</Button>
+      case 'canUndo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); showResult('canUndo', v.canUndo()) } }}>Check undo</Button>
+      case 'canRedo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); v.undo(); showResult('canRedo', v.canRedo()) } }}>Check redo</Button>
+      case 'clearHistory':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); v.clearHistory(); showResult('clearHistory', {canUndo: v.canUndo(), canRedo: v.canRedo()}) } }}>Clear history</Button>
+      case 'toPNG':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.toPNG({scale: 1, background: '#ffffff'}).then((url) => showResult('toPNG', `${url.slice(0, 48)}...`)) } }}>Export PNG</Button>
+      case 'toJPEG':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.toJPEG({quality: 0.86, background: '#ffffff'}).then((url) => showResult('toJPEG', `${url.slice(0, 48)}...`)) } }}>Export JPEG</Button>
+      case 'toSVG':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.toSVG({pretty: true}).then((svg) => showResult('toSVG', `${svg.slice(0, 220)}...`)) } }}>Export SVG</Button>
       case 'destroy':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
@@ -2044,7 +2211,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     </div>
     <div className={'flex min-w-0 flex-col gap-4'}>
-      <DemoFormPanel>
+      <DemoFormPanel title={'API Controls'} description={'Change parameters, call the API, and inspect the returned value.'}>
         <div className={'flex flex-wrap items-center gap-2'}>{renderControls()}</div>
       </DemoFormPanel>
       {(api.id === 'hitTest' || api.id === 'hit-test') ? <div className={'grid gap-3 sm:grid-cols-2'}>
@@ -2699,6 +2866,29 @@ export function App() {
         }
       }
 
+      if (category.id === 'methods') {
+        return {
+          id: category.id,
+          label: category.title,
+          href: `#${category.id}`,
+          defaultOpen: true,
+          items: engineApiModuleGroups.map((group) => {
+            const apis = category.apis.filter((api) => api.moduleName === group.id)
+            return {
+              id: `methods-${group.id}`,
+              label: group.title,
+              href: `#methods-${group.id}`,
+              defaultOpen: group.id === 'render',
+              items: apis.map((api) => ({
+                id: api.id,
+                label: api.title,
+                href: `#${getApiAnchorId(category, api)}`,
+              })),
+            }
+          }).filter((item) => item.items.length > 0),
+        }
+      }
+
       return {
         id: category.id,
         label: category.title,
@@ -2826,6 +3016,75 @@ export function App() {
                   </header>
                   <AllShapesPlayground apis={shapeApis} theme={theme}/>
                 </article>
+              </section>
+            }
+
+            if (category.id === 'methods') {
+              return <section key={category.id} id={category.id} className={'scroll-mt-20'}>
+                <div className={'mb-5 flex flex-col gap-2'}>
+                  <h2 className={'scroll-mt-20 text-2xl font-semibold tracking-tight'}>{category.title}</h2>
+                  <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
+                </div>
+
+                <div className={'flex flex-col gap-8'}>
+                  {engineApiModuleGroups.map((group) => {
+                    const apis = category.apis.filter((api) => api.moduleName === group.id)
+                    if (apis.length === 0) return null
+
+                    return <section key={`methods-${group.id}`} id={`methods-${group.id}`} className={'scroll-mt-20'}>
+                      <header className={'mb-3 flex flex-col gap-1'}>
+                        <div className={'flex flex-wrap items-center gap-2'}>
+                          <h3 className={'text-lg font-semibold tracking-tight'}>{group.title}</h3>
+                          <Badge variant={'secondary'}>{group.id}</Badge>
+                        </div>
+                        <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{group.summary}</p>
+                      </header>
+
+                      <div className={'flex flex-col gap-4'}>
+                        {apis.map((api) => {
+                          const apiAnchorId = getApiAnchorId(category, api)
+
+                          return <article key={`${category.id}-${api.id}`} id={apiAnchorId} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
+                            <header className={'flex w-full flex-col gap-2'}>
+                              <div className={'flex flex-wrap items-center gap-2'}>
+                                <h4 className={'text-lg font-semibold tracking-tight'}>{api.title}</h4>
+                                <Badge variant={'outline'}>{group.id}</Badge>
+                              </div>
+                              <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{api.summary}</p>
+                            </header>
+
+                            <ApiDescription api={api}/>
+
+                            <InteractiveMethodDemo api={api} theme={theme}/>
+                            <ApiUsage code={api.demo}/>
+
+                            {api.parameters && api.parameters.length > 0
+                              ? <section className={'flex min-w-0 flex-col gap-3'}>
+                                <h5 className={'text-sm font-medium'}>Parameters</h5>
+                                <ParameterTable parameters={api.parameters}/>
+                              </section>
+                              : null}
+
+                            {api.methods && api.methods.length > 0
+                              ? <section className={'flex min-w-0 flex-col gap-4'}>
+                                <h5 className={'text-sm font-medium'}>Methods</h5>
+                                {api.methods.map((method, methodIndex) => {
+                                  return <div key={`${api.id}-method-${method.name}-${methodIndex}`} className={'engine-docs-panel flex flex-col gap-2 p-4'}>
+                                    <code className={'text-xs'}>{method.name}</code>
+                                    <p className={'text-sm leading-6 text-muted-foreground'}>{method.description}</p>
+                                    {method.parameters && method.parameters.length > 0
+                                      ? <ParameterTable parameters={method.parameters}/>
+                                      : null}
+                                  </div>
+                                })}
+                              </section>
+                              : null}
+                          </article>
+                        })}
+                      </div>
+                    </section>
+                  })}
+                </div>
               </section>
             }
 

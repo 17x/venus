@@ -16,6 +16,23 @@ export interface EngineApiPropertyGroup {
   properties: string[]
 }
 
+export type EngineApiModuleName =
+  | 'render'
+  | 'camera'
+  | 'hitTest'
+  | 'interaction'
+  | 'animate'
+  | 'debug'
+  | 'effects'
+  | 'history'
+  | 'export'
+
+export interface EngineApiModuleGroup {
+  id: EngineApiModuleName
+  title: string
+  summary: string
+}
+
 export interface EngineApiDoc {
   /** Stable docs id; method ids mirror source JSDoc @name without the Venus. prefix. */
   id: string
@@ -30,6 +47,7 @@ export interface EngineApiDoc {
   properties?: string[]
   propertyGroups?: EngineApiPropertyGroup[]
   methods?: EngineApiMethod[]
+  moduleName?: EngineApiModuleName
   /** Usage CodeBox; mirrors source JSDoc @example Usage. */
   demo: string
   demoCaption: string
@@ -81,16 +99,91 @@ const createPropertyGroups = (properties: string[]): EngineApiPropertyGroup[] =>
     .filter((group) => group.properties.length > 0)
 }
 
+export const engineApiModuleGroups: EngineApiModuleGroup[] = [
+  {id: 'render', title: 'Render', summary: 'Base runtime, document tree, layers, events, defaults, mount, resize, render, and snapshots.'},
+  {id: 'camera', title: 'Camera', summary: 'Viewport fitting, pan, zoom, projection, and unprojection.'},
+  {id: 'hitTest', title: 'Hit Test', summary: 'Topmost and all-hit pointer queries with detailed target metadata.'},
+  {id: 'interaction', title: 'Interaction', summary: 'Selection state and selection change subscriptions.'},
+  {id: 'animate', title: 'Animate', summary: 'Time-based property transitions and animation controllers.'},
+  {id: 'debug', title: 'Debug', summary: 'Diagnostics, overlays, cache inspection, and frame measurement.'},
+  {id: 'effects', title: 'Effects', summary: 'Drop shadow, inner shadow, layer blur, and effect clearing.'},
+  {id: 'history', title: 'History', summary: 'Undo, redo, and document history stack control.'},
+  {id: 'export', title: 'Export', summary: 'PNG, JPEG, and SVG serialization.'},
+]
+
+const methodModuleNameById: Record<string, EngineApiModuleName> = {
+  add: 'render',
+  bounds: 'render',
+  children: 'render',
+  getNodeById: 'render',
+  getParentId: 'render',
+  snapshot: 'render',
+  mount: 'render',
+  resize: 'render',
+  render: 'render',
+  setDefaultFillColor: 'render',
+  setDefaultStrokeColor: 'render',
+  on: 'render',
+  off: 'render',
+  modules: 'render',
+  destroy: 'render',
+  update: 'render',
+  remove: 'render',
+  getLayerIndex: 'render',
+  moveLayer: 'render',
+  bringForward: 'render',
+  sendBackward: 'render',
+  bringToFront: 'render',
+  sendToBack: 'render',
+  group: 'render',
+  ungroup: 'render',
+  addChild: 'render',
+  removeChild: 'render',
+  fitBounds: 'camera',
+  zoomTo: 'camera',
+  panBy: 'camera',
+  project: 'camera',
+  unproject: 'camera',
+  hitTest: 'hitTest',
+  hitTestAll: 'hitTest',
+  select: 'interaction',
+  deselect: 'interaction',
+  selectAll: 'interaction',
+  clearSelection: 'interaction',
+  isSelected: 'interaction',
+  onSelectionChange: 'interaction',
+  animate: 'animate',
+  enableDebug: 'debug',
+  inspect: 'debug',
+  measureFrame: 'debug',
+  applyDropShadow: 'effects',
+  removeDropShadow: 'effects',
+  applyInnerShadow: 'effects',
+  removeInnerShadow: 'effects',
+  applyLayerBlur: 'effects',
+  removeLayerBlur: 'effects',
+  clearEffects: 'effects',
+  undo: 'history',
+  redo: 'history',
+  canUndo: 'history',
+  canRedo: 'history',
+  clearHistory: 'history',
+  toPNG: 'export',
+  toJPEG: 'export',
+  toSVG: 'export',
+}
+
 const withGroupedProperties = (categories: EngineApiCategory[]): EngineApiCategory[] => {
   const processed: EngineApiCategory[] = categories.map((category) => ({
     ...category,
     apis: category.apis.map((api) => ({
       ...api,
+      moduleName: api.moduleName ?? (category.id === 'methods' ? methodModuleNameById[api.id] : undefined),
       propertyGroups: api.propertyGroups ?? (api.properties ? createPropertyGroups(api.properties) : undefined),
     })),
   }))
 
-  // Target order: start → models → modules → methods → (rest)
+  // Target order: start -> models -> modules -> methods -> (rest)
   const order = ['start', 'models', 'modules', 'methods', 'venus-parameters', 'backend-strategy', 'events', 'debug', 'qa']
   const byId = new Map(processed.map((c) => [c.id, c]))
   return order.map((id) => byId.get(id)).filter((c): c is EngineApiCategory => c != null)
@@ -227,9 +320,9 @@ venus.add({type: 'rect', x: 72, y: 56, width: 160, height: 96})`,
           {name: 'options.includeLocked', type: 'boolean', defaultValue: 'false', description: 'Returns locked hits only when enabled; otherwise they are skipped.'},
         ],
         demo: `import {createVenus} from '@venus/engine/base'
-import {hitTestModule} from '@venus/engine/hit-test'
+import {createVenusHitTestModule} from '@venus/engine/hit-test'
 
-const venus = createVenus({modules: [hitTestModule]})
+const venus = createVenus({modules: [createVenusHitTestModule()]})
 const hover = venus.hitTest(pointer, {phase: 'hover'})
 const clicked = venus.hitTest(pointer, {phase: 'click'})`,
         demoCaption: 'The module demo separates hover feedback from clicked selection.',
@@ -247,18 +340,18 @@ const clicked = venus.hitTest(pointer, {phase: 'click'})`,
           {name: 'venus.unproject', description: 'Converts screen coordinates back to document coordinates.', parameters: [{name: 'point', type: '{x: number, y: number}', description: 'Screen-space point.'}]},
         ],
         demo: `import {createVenus} from '@venus/engine/base'
-import {cameraModule} from '@venus/engine/camera'
+import {createVenusCameraModule} from '@venus/engine/camera'
 
-const venus = createVenus({modules: [cameraModule]})
+const venus = createVenus({modules: [createVenusCameraModule()]})
 venus.fitBounds(venus.bounds(), 32)
 venus.zoomTo(2, {x: 200, y: 150})`,
         demoCaption: 'The preview shows document space projected through a camera viewport.',
       },
       {
         id: 'performance-options',
-        title: 'Performance Module',
-        summary: 'Adds large-scene switches such as culling, LOD, and render quality tuning.',
-        readableDescription: 'Performance settings are optional capability boundaries. Turn them on after the document model is correct, then tune renderer work for large scenes and high-frequency interactions.',
+        title: 'Render Performance Settings',
+        summary: 'Configures large-scene switches such as culling, LOD, and render quality tuning.',
+        readableDescription: 'Performance settings live on render parameters instead of a separate public module. Turn them on after the document model is correct, then tune renderer work for large scenes and high-frequency interactions.',
         parameters: [
           {name: 'culling', type: 'boolean', defaultValue: 'false', description: 'Skips offscreen objects when enabled.'},
           {name: 'lod', type: 'boolean', defaultValue: 'false', description: 'Enables level-of-detail behavior.'},
@@ -266,12 +359,11 @@ venus.zoomTo(2, {x: 200, y: 150})`,
           {name: 'render.quality', type: 'interactive | full', defaultValue: 'full', description: 'Render quality lane.'},
         ],
         demo: `import {createVenus} from '@venus/engine/base'
-import {performanceModule} from '@venus/engine/performance'
 
 const venus = createVenus({
-  modules: [performanceModule],
   culling: true,
   lod: true,
+  render: {backend: 'auto', quality: 'interactive'},
 })`,
         demoCaption: 'The preview shows optional performance switches layered on top of the default engine.',
       },
@@ -292,9 +384,9 @@ const venus = createVenus({
           {name: 'animation.play', description: 'Resumes a paused animation.'},
         ],
         demo: `import {createVenus} from '@venus/engine/base'
-import {animationModule} from '@venus/engine/animation'
+import {createVenusAnimateModule} from '@venus/engine/animate'
 
-const venus = createVenus({modules: [animationModule]})
+const venus = createVenus({modules: [createVenusAnimateModule()]})
 venus.animate('card', [{x: 40}, {x: 220}], {duration: 600})`,
         demoCaption: 'The preview shows a document object moving across frames.',
       },
@@ -539,8 +631,8 @@ console.log(venus.inspect().backendFallback)`,
   },
   {
     id: 'methods',
-    title: 'Methods',
-    summary: 'All instance methods, flat with no namespace prefixes.',
+    title: 'API by Module',
+    summary: 'Public instance APIs grouped by the module that provides or gates each capability.',
     apis: [
       {
         id: 'add',
@@ -1158,11 +1250,12 @@ console.log(venus.inspect().backendFallback)`,
         id: 'toSVG',
         title: 'toSVG',
         summary: 'Exports the current document as an SVG string.',
-        readableDescription: 'Delegates to the export module and serializes the current document model to SVG markup.',
+        readableDescription: 'Delegates to the export module and serializes the current engine snapshot to standalone SVG markup. Shapes, text, image placeholders, groups, transforms, clipping, gradients, stroke styles, opacity, drop shadow, and layer blur are represented when SVG has an equivalent.',
         parameters: [
-          {name: 'options.embedImages', type: 'boolean', defaultValue: 'false', description: 'Whether to embed images as data URIs.'},
+          {name: 'options.embedImages', type: 'boolean', defaultValue: 'false', description: 'Writes image asset ids to href even when they are not URLs.'},
+          {name: 'options.pretty', type: 'boolean', defaultValue: 'true', description: 'Whether to emit line breaks between top-level SVG nodes.'},
         ],
-        demo: `const svg = await venus.toSVG({ embedImages: true })`,
+        demo: `const svg = await venus.toSVG({ pretty: true })`,
         demoCaption: 'Exports document to SVG.',
       },
     ],
