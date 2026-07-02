@@ -88,12 +88,20 @@ test('public engine barrel exports backend-neutral APIs from core instead of ren
 
 test('Venus module contract uses short instance-level modules without a global registry', () => {
   const venusSource = readSource(resolve(SOURCE_ROOT, 'runtime/venus/Venus.ts'))
+  const catalogSource = readSource(resolve(SOURCE_ROOT, 'runtime/venus/modules/catalog.ts'))
+  const servicesSource = readSource(resolve(SOURCE_ROOT, 'runtime/venus/modules/services.ts'))
   const baseSource = readSource(resolve(SOURCE_ROOT, 'base.ts'))
 
   for (const moduleName of ['render', 'camera', 'hitTest', 'select', 'snap', 'animate', 'debug', 'scale', 'effects', 'history', 'export']) {
-    assert.equal(venusSource.includes(`'${moduleName}'`), true, `missing module name ${moduleName}`)
+    assert.equal(catalogSource.includes(`'${moduleName}'`), true, `missing module name ${moduleName}`)
   }
 
+  assert.equal(venusSource.includes("from './modules/index.ts'"), true)
+  assert.equal(catalogSource.includes('VENUS_MODULE_CATALOG'), true)
+  assert.equal(catalogSource.includes("status: 'core-module'"), true)
+  assert.equal(catalogSource.includes("| 'core-facade'"), true)
+  assert.equal(catalogSource.includes("status: 'reserved'"), true)
+  assert.equal(servicesSource.includes('VENUS_INTERNAL_SERVICE_NAMES'), true)
   assert.equal(venusSource.includes('largeScenePerformance'), false)
   assert.equal(venusSource.includes('Venus.use'), false)
   assert.equal(venusSource.includes('static use'), false)

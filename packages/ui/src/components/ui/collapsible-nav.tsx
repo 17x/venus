@@ -45,7 +45,10 @@ function CollapsibleNavTree({
       {items.map((item) => {
         const hasChildren = Boolean(item.items?.length);
         const isOpen = openState[item.id] ?? true;
-        const rowIndent = depth * 14;
+        // Indent so child's left edge aligns with its parent's text left edge.
+        // Parent text starts at: parentIndent + chevron(28px) + gap(4px) = parentIndent + 32px.
+        const INDENT_PER_LEVEL = 32;
+        const rowIndent = depth * INDENT_PER_LEVEL;
 
         return (
           <li key={item.id} role="treeitem" aria-expanded={hasChildren ? isOpen : undefined} className="min-w-0">
@@ -61,17 +64,17 @@ function CollapsibleNavTree({
                   type="button"
                   aria-expanded={isOpen}
                   aria-controls={`${item.id}-items`}
-                  className="grid size-7 shrink-0 cursor-[var(--cursor-action)] place-items-center rounded-md text-muted-foreground outline-none transition-[background-color,color,box-shadow,transform] hover:-translate-y-px hover:bg-background/70 hover:text-foreground active:translate-y-0 active:bg-[hsl(var(--state-active))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1"
+                  data-state={isOpen ? "open" : "closed"}
+                  className="flex size-7 shrink-0 cursor-[var(--cursor-action)] items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color,box-shadow] hover:bg-background/70 hover:text-foreground active:bg-[hsl(var(--state-active))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1"
                   onClick={() => toggleItem(item.id)}
                 >
                   <ChevronRight
-                    data-icon="inline-start"
-                    className={cn("transition-transform", isOpen && "rotate-90")}
+                    aria-hidden="true"
+                    className="size-4 transition-transform duration-150"
+                    style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transformOrigin: "center" }}
                   />
                 </button>
-              ) : (
-                <span className="size-7 shrink-0" aria-hidden="true" />
-              )}
+              ) : null}
               {item.href ? (
                 <a
                   href={item.href}
@@ -79,6 +82,8 @@ function CollapsibleNavTree({
                     "min-w-0 flex-1 cursor-[var(--cursor-action)] truncate rounded-md py-1.5 pr-2 text-muted-foreground outline-none transition-[background-color,color,box-shadow,transform] group-hover/nav-row:text-foreground hover:text-foreground active:translate-y-px active:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1",
                     hasChildren && "font-medium text-foreground",
                     depth > 0 && "py-1",
+                    // Leaf items at depth > 0: ml-8 (32px = chevron + gap) so text aligns with items that have chevrons.
+                    !hasChildren && depth > 0 && "ml-8",
                   )}
                 >
                   {item.label}
@@ -89,6 +94,7 @@ function CollapsibleNavTree({
                     "min-w-0 flex-1 truncate py-1.5 pr-2 text-muted-foreground",
                     hasChildren && "font-medium text-foreground",
                     depth > 0 && "py-1",
+                    !hasChildren && depth > 0 && "ml-8",
                   )}
                 >
                   {item.label}
@@ -96,7 +102,7 @@ function CollapsibleNavTree({
               )}
             </div>
             {hasChildren && isOpen ? (
-              <div id={`${item.id}-items`} className="mt-1">
+              <div id={`${item.id}-items`} role="region" aria-label={`${item.label} sub-navigation`} className="mt-1">
                 <CollapsibleNavTree
                   items={item.items ?? []}
                   depth={depth + 1}
@@ -134,3 +140,4 @@ export function CollapsibleNav({
     </nav>
   );
 }
+CollapsibleNav.displayName = 'CollapsibleNav';

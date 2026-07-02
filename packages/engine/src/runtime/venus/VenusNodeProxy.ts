@@ -21,6 +21,60 @@ import type {
 } from './Venus.ts'
 import type { EngineFillConfig, EngineStrokeConfig, EngineVisualEffects } from '../../scene/types/types.ts'
 
+interface ProxyBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+const unionProxyBounds = (left: ProxyBounds | null, right: ProxyBounds | null): ProxyBounds | null => {
+  if (!left) return right
+  if (!right) return left
+  const minX = Math.min(left.x, right.x)
+  const minY = Math.min(left.y, right.y)
+  const maxX = Math.max(left.x + left.width, right.x + right.width)
+  const maxY = Math.max(left.y + left.height, right.y + right.height)
+  return {x: minX, y: minY, width: maxX - minX, height: maxY - minY}
+}
+
+const getProxyNodeBounds = (node: VenusNode | undefined): ProxyBounds | null => {
+  if (!node) {
+    return null
+  }
+
+  if (node.type === 'group') {
+    return node.children.reduce<ProxyBounds | null>((bounds, child) => unionProxyBounds(bounds, getProxyNodeBounds(child)), null)
+  }
+
+  if (node.type === 'clip' || node.type === 'mask') {
+    return getProxyNodeBounds(node.clipPath)
+      ?? node.children.reduce<ProxyBounds | null>((bounds, child) => unionProxyBounds(bounds, getProxyNodeBounds(child)), null)
+  }
+
+  if (node.type === 'line' && node.points && node.points.length >= 2) {
+    const start = node.points[0]
+    const end = node.points[node.points.length - 1]
+    return {
+      x: Math.min(start.x, end.x),
+      y: Math.min(start.y, end.y),
+      width: Math.abs(end.x - start.x),
+      height: Math.abs(end.y - start.y),
+    }
+  }
+
+  if ('width' in node && typeof node.width === 'number' && 'height' in node && typeof node.height === 'number') {
+    return {
+      x: 'x' in node ? node.x ?? 0 : 0,
+      y: 'y' in node ? node.y ?? 0 : 0,
+      width: node.width,
+      height: node.height,
+    }
+  }
+
+  return null
+}
+
 // ── Base proxy ────────────────────────────────────────────────────────────────
 
 /** Base class for all Venus node proxies with Figma-style getter/setter pairs. */
@@ -251,6 +305,22 @@ export class VenusTextProxy extends VenusNodeProxy {
 // ── Group ─────────────────────────────────────────────────────────────────────
 
 export class VenusGroupProxy extends VenusNodeProxy {
+  private get derivedBounds(): ProxyBounds {
+    return getProxyNodeBounds(this.raw) ?? {x: 0, y: 0, width: 0, height: 0}
+  }
+
+  get x(): number { return this.derivedBounds.x }
+  set x(value: number) { this.set('x', value) }
+
+  get y(): number { return this.derivedBounds.y }
+  set y(value: number) { this.set('y', value) }
+
+  get width(): number { return this.derivedBounds.width }
+  set width(_value: number) { throw new Error('Group width is derived from children') }
+
+  get height(): number { return this.derivedBounds.height }
+  set height(_value: number) { throw new Error('Group height is derived from children') }
+
   addChild(child: VenusNode): VenusNodeProxy {
     return this.venus.addChild(this.id, child)
   }

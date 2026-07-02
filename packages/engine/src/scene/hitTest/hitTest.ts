@@ -369,7 +369,7 @@ function hasFill(node: EngineShapeNode) {
     return false
   }
 
-  return Boolean(node.fill || node.closed)
+  return Boolean((node.fill && node.fill !== 'transparent') || (node.fills?.length ?? 0) > 0)
 }
 
 /**

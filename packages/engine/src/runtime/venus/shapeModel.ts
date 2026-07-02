@@ -80,7 +80,7 @@ export const VENUS_SHAPE_MODEL_SPECS: readonly VenusShapeModelSpec[] = [
     proxy: 'VenusGroupProxy',
     inherits: ['VenusNodeProxy'],
     minimalCreate: ['type', 'children'],
-    bounds: 'x/y are parent transform translation. The visual bounds are derived from children; width/height are not group-owned geometry.',
+    bounds: 'Visual bounds are derived from children; x/y/width/height are not group-owned geometry.',
     geometry: ['children'],
     pathExpansion: 'Not a shape path. It is a scene tree container that composes child paths.',
     commonRender: ['subtree opacity', 'blend/effects on composed children'],

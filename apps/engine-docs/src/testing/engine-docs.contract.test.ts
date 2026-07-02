@@ -81,7 +81,7 @@ describe('engine docs app contract', () => {
   it('defines categorized API pages with demos', () => {
     assert.deepEqual(
       engineApiCategories.map((category) => category.id),
-      ['start', 'models', 'methods', 'venus-parameters', 'backend-strategy', 'hittest', 'camera', 'performance', 'animation', 'events', 'debug', 'qa', 'advanced'],
+      ['start', 'models', 'modules', 'methods', 'venus-parameters', 'backend-strategy', 'events', 'debug', 'qa'],
     )
 
     for (const category of engineApiCategories) {
@@ -106,13 +106,7 @@ describe('engine docs app contract', () => {
 
     const methodsCategory = engineApiCategories.find((category) => category.id === 'methods')
     assert.ok(methodsCategory)
-    assert.deepEqual(methodsCategory.apis.map((api) => api.id), [
-      'add', 'bounds', 'children', 'getNodeById', 'getParentId', 'snapshot',
-      'fitBounds', 'zoomTo', 'panBy', 'project', 'unproject',
-      'enableDebug', 'inspect', 'measureFrame',
-      'mount', 'resize', 'render', 'hitTest', 'on', 'off', 'modules', 'animate', 'destroy',
-      'update', 'remove', 'group', 'ungroup', 'addChild', 'removeChild',
-    ])
+    assert.deepEqual(methodsCategory.apis.map((api) => api.id), [...VENUS_PUBLIC_METHOD_NAMES])
 
     const apiIds = new Set(engineApiCategories.flatMap((category) => category.apis.map((api) => api.id)))
     for (const removedId of ['venus-instance', 'instance-methods', 'object-model', 'document-add', 'venus-add', 'document-index']) {
@@ -137,7 +131,11 @@ describe('engine docs app contract', () => {
       assert.ok(api.properties?.some((property) => property.startsWith('exportSettings?:')), `missing exportSettings property for ${kind}`)
       assert.ok(api.properties?.some((property) => property.startsWith('data?:')), `missing data metadata property for ${kind}`)
       assert.ok(api.propertyGroups?.some((group) => group.title === 'Identity'), `missing Identity property group for ${kind}`)
-      assert.ok(api.propertyGroups?.some((group) => group.title === 'Transform'), `missing Transform property group for ${kind}`)
+      if (kind === 'group') {
+        assert.equal(api.propertyGroups?.some((group) => group.title === 'Transform'), false, 'group must stay structure-only without a Transform property group')
+      } else {
+        assert.ok(api.propertyGroups?.some((group) => group.title === 'Transform'), `missing Transform property group for ${kind}`)
+      }
       assert.ok(api.propertyGroups?.some((group) => group.title === 'Appearance'), `missing Appearance property group for ${kind}`)
       assert.match(api.demo, new RegExp(`type:\\s*['"]${kind}['"]|type:\\s*${kind}\\b`), `demo must add a ${kind} node`)
     }
@@ -237,7 +235,7 @@ describe('engine docs app contract', () => {
   })
 
   it('keeps documented APIs aligned with current implementation', () => {
-    const hitApi = getCategory('hittest').apis.find((api) => api.id === 'hit-test')
+    const hitApi = getCategory('modules').apis.find((api) => api.id === 'hit-test')
 
     assert.ok(hitApi)
     assert.deepEqual(hitApi.parameters?.map((parameter) => parameter.name), ['point', 'options.phase', 'options.tolerance', 'options.includeLocked'])
@@ -275,7 +273,8 @@ describe('engine docs app contract', () => {
     assert.doesNotMatch(appSource, /Copy heading link/)
     assert.doesNotMatch(appSource, /group-hover:opacity-100/)
     assert.doesNotMatch(appSource, /engine-docs-overview/)
-    assert.match(appSource, /label: 'Shape model contract'[\s\S]*label: 'Shapes'/)
+    assert.doesNotMatch(appSource, /label: 'Shape model contract'/)
+    assert.match(appSource, /label: 'Shapes'/)
     assert.match(appSource, /label: 'Common Properties'/)
     assert.match(appSource, /editableModelApiIds/)
     assert.match(appSource, /size-5.*items-center.*justify-center.*rounded.*border/)
@@ -341,16 +340,18 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /useState<ThemeMode>\('light'\)/)
     assert.match(appSource, /new Venus/)
     assert.match(appSource, /render: \{backend: 'canvas2d'\}/)
-    assert.doesNotMatch(appSource, /AllShapesDemo/)
+    assert.match(appSource, /AllShapesPlayground/)
     assert.match(appSource, /ShapeStoryDemo/)
     assert.doesNotMatch(appSource, /ShapePropertiesDemo/)
     assert.match(appSource, /CommonPropertiesDemo/)
     assert.match(appSource, /CollapsibleNav/)
-    assert.doesNotMatch(appSource, /models-all-shapes-nav/)
-    assert.match(appSource, /models-contract-nav/)
-    assert.match(appSource, /ShapeModelGuide/)
-    assert.match(appSource, /VENUS_SHAPE_MODEL_SPECS/)
-    assert.match(appSource, /VENUS_COMMON_RENDER_PROPERTIES/)
+    assert.match(appSource, /models-all-shapes-nav/)
+    assert.doesNotMatch(appSource, /models-contract-nav/)
+    assert.doesNotMatch(appSource, /ShapeModelGuide/)
+    assert.match(appSource, /BasePropertyTable/)
+    assert.match(appSource, /CommonPropertyPage/)
+    assert.match(appSource, /commonPropertyOrder/)
+    assert.match(appSource, /models-common-properties-\$\{field\}/)
     assert.doesNotMatch(appSource, /models-shape-properties-transform/)
     assert.doesNotMatch(appSource, /models-shape-properties-appearance/)
     assert.doesNotMatch(appSource, /models-shape-properties-effects/)
@@ -378,12 +379,16 @@ describe('engine docs app contract', () => {
     assert.match(appSource, /base-entry/)
     assert.match(appSource, /api\.id === 'base-entry'/)
     assert.match(appSource, /venus\.add/)
-    assert.match(docsSource, /title: 'Advanced'/)
+    assert.match(docsSource, /title: 'Modules'/)
     assert.match(docsSource, /title: 'Base entry'/)
     assert.match(docsSource, /title: 'Module services'/)
     assert.match(docsSource, /@venus\/engine\/base/)
     assert.match(docsSource, /defineVenusModule/)
     assert.match(docsSource, /VENUS_MODULE_NAMES/)
+    assert.match(docsSource, /VENUS_MODULE_CATALOG/)
+    assert.match(docsSource, /core-module files: render, camera, hitTest, animate, debug, history/)
+    assert.match(docsSource, /core-facade modules: none/)
+    assert.match(docsSource, /reserved modules: select, snap, scale, effects, export/)
     assert.match(docsSource, /falls back to Canvas2D/)
     assert.match(docsSource, /registered services: document, viewport, invalidation/)
     assert.match(docsSource, /VenusRegisteredServiceMap/)
@@ -503,19 +508,16 @@ describe('engine docs app contract', () => {
     }
   })
 
-  it('renders the engine shape model contract from shared specs', () => {
+  it('removes the shape model contract wrapper while keeping model metadata available', () => {
     assert.deepEqual(
       VENUS_SHAPE_MODEL_SPECS.map((spec) => spec.type),
       [...VENUS_DOCUMENT_MODEL_TYPES],
     )
-    assert.match(appSource, /Shape model contract/)
-    assert.match(appSource, /Coordinate contract/)
-    assert.match(appSource, /transform\.x\/y is an extra local translation/)
-    assert.match(appSource, /clip and mask do not own top-level x\/y\/width\/height/)
-    assert.match(appSource, /spec\.minimalCreate\.join/)
-    assert.match(appSource, /spec\.pathExpansion/)
-    assert.match(appSource, /spec\.commonRender\.join/)
-    assert.match(appSource, /r\.update\(\{appearance: \{\.\.\.\}\}\)/)
+    assert.doesNotMatch(appSource, /Shape model contract/)
+    assert.match(appSource, /BasePropertyTable/)
+    assert.match(appSource, /basePropertyRowsByShape/)
+    assert.match(appSource, /CommonPropertyPage/)
+    assert.doesNotMatch(appSource, /models-common-properties-rect/)
   })
 
   it('generates per-shape create codeboxes from minimal model fields', () => {
@@ -598,7 +600,7 @@ describe('engine docs app contract', () => {
   })
 
   it('keeps visible shape model codeboxes minimal instead of echoing preview-only fields', () => {
-    const minimalModelSource = getSourceBetween('const createMinimalModelNode =', 'const createModelCode =')
+    const minimalModelSource = getSourceBetween('const createMinimalModelNode =', 'const createBaseModelNode =')
 
     assert.match(minimalModelSource, /return \{type: 'rect', width: controls\.width, height: controls\.height\}/)
     assert.match(minimalModelSource, /return \{type: 'ellipse', width: controls\.width, height: controls\.height\}/)
@@ -615,5 +617,14 @@ describe('engine docs app contract', () => {
     assert.doesNotMatch(minimalModelSource, /type: apiId === 'clip-node' \? 'clip' : 'mask',\n\s+x:/)
     assert.doesNotMatch(minimalModelSource, /type: 'image', x: controls\.x/)
     assert.doesNotMatch(minimalModelSource, /imageSmoothing: controls\.imageSmoothing/)
+
+    const baseModelSource = getSourceBetween('const createBaseModelNode =', 'const createModelCode =')
+    assert.match(baseModelSource, /type: 'rect', x: controls\.x, y: controls\.y, width: controls\.width, height: controls\.height/)
+    assert.match(baseModelSource, /type: 'ellipse', x: controls\.x, y: controls\.y, width: controls\.width, height: controls\.height/)
+    assert.match(baseModelSource, /rotation: controls\.rotation/)
+    assert.doesNotMatch(baseModelSource, /transform: \{rotation/)
+    assert.match(appSource, /BasePropertyTable/)
+    assert.match(appSource, /CommonPropertyStoryDemo/)
+    assert.match(appSource, /CommonFieldControlPanel/)
   })
 })
