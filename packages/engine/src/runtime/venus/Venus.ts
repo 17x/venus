@@ -1,5 +1,4 @@
-import {createEngine, type Engine, type EngineRuntimeDiagnostics} from '../createEngine/createEngine.ts'
-import {applyMatrixToPoint} from '../../math/matrix/matrix.ts'
+import type {Engine, EngineRuntimeDiagnostics} from '../createEngine/createEngine.ts'
 import type {
   EngineRect,
   EngineShadow,
@@ -13,54 +12,63 @@ import type {
 import type {EngineResourceLoader} from '../../renderer/types/index.ts'
 import {resolveLeafNodeWorldBounds} from '../../scene/worldBounds/worldBounds.ts'
 import {
-  panEngineViewportState,
   resolveEngineViewportState,
-  zoomEngineViewportState,
   type EngineCanvasViewportState,
 } from '../../interaction/viewport/viewport.ts'
-import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
 import {
   createVenusNodeProxy,
   type VenusNodeProxy,
 } from './VenusNodeProxy.ts'
+import {
+  createEmptyVenusSceneSnapshot,
+  createVenusAnimationController,
+  createVenusCacheDiagnostics,
+  createVenusDebugOverlayNodes,
+  createVenusMountedEngine,
+  isVenusModuleName,
+  projectVenusCameraPoint,
+  resolveVenusCameraFitBounds,
+  resolveVenusCameraPan,
+  resolveVenusCameraZoom,
+  resolveVenusDetailedHits,
+  resolveVenusHitTestOptions,
+  resolveVenusRenderDefaults,
+  unprojectVenusCameraPoint,
+  DEFAULT_VENUS_FILL_COLOR,
+  DEFAULT_VENUS_STROKE_COLOR,
+  VENUS_DEBUG_HIT_TOLERANCE,
+  VENUS_INTERNAL_SERVICE_NAMES,
+  VENUS_MODULE_CATALOG,
+  VENUS_MODULE_NAMES,
+  createVenusHistoryController,
+  type VenusHistoryController,
+  type VenusInternalServiceName,
+  type VenusModuleName,
+  type VenusPngExportOptions,
+  type VenusJpegExportOptions,
+  type VenusSvgExportOptions,
+  type VenusRenderDefaults,
+} from './modules/index.ts'
+import {
+  createVenusSpatialService,
+  createVenusGeometryCacheService,
+  createVenusSchedulerService,
+} from './modules/_infra/index.ts'
 
 export type VenusBackend = 'canvas2d' | 'webgl' | 'auto'
-
-/** Lists short user-facing capability module names reserved by Venus. */
-export const VENUS_MODULE_NAMES = [
-  'render',
-  'camera',
-  'hitTest',
-  'select',
-  'snap',
-  'animate',
-  'debug',
-  'scale',
-  'effects',
-  'history',
-  'export',
-] as const
-
-/** Declares one short public Venus capability module name. */
-export type VenusModuleName = (typeof VENUS_MODULE_NAMES)[number]
-
-/** Lists internal foundation services available to installed modules. */
-export const VENUS_INTERNAL_SERVICE_NAMES = [
-  'document',
-  'sceneStore',
-  'geometry',
-  'spatial',
-  'geometryCache',
-  'invalidation',
-  'viewport',
-  'renderPlan',
-  'scheduler',
-  'resource',
-  'backendBridge',
-] as const
-
-/** Declares one internal foundation service name. */
-export type VenusInternalServiceName = (typeof VENUS_INTERNAL_SERVICE_NAMES)[number]
+export {
+  isVenusModuleName,
+  VENUS_INTERNAL_SERVICE_NAMES,
+  VENUS_MODULE_CATALOG,
+  VENUS_MODULE_NAMES,
+}
+export type {
+  VenusInternalServiceName,
+  VenusModuleCatalogEntry,
+  VenusModuleCategory,
+  VenusModuleName,
+  VenusModuleStatus,
+} from './modules/index.ts'
 
 /** Document service exposed to installed modules without exposing private stores. */
 export interface VenusDocumentService {
@@ -80,11 +88,48 @@ export interface VenusInvalidationService {
   classify(changedProperties: readonly string[]): VenusInvalidationKind
 }
 
+/** Spatial index service providing coarse AABB-based spatial queries. */
+export interface VenusSpatialService {
+  /** Inserts or replaces a spatial item indexed by id. */
+  upsert(id: string, bounds: { minX: number; minY: number; maxX: number; maxY: number }): void
+  /** Removes one item from the spatial index. */
+  remove(id: string): void
+  /** Returns all item ids whose AABB intersects the query bounds. */
+  search(bounds: { minX: number; minY: number; maxX: number; maxY: number }): readonly string[]
+  /** Clears all items from the index. */
+  clear(): void
+}
+
+/** Multi-tier geometry cache service for hit-test and rendering. */
+export interface VenusGeometryCacheService {
+  /** Invalidates cached geometry for a set of node ids. */
+  invalidate(ids: readonly string[]): void
+  /** Returns the cached AABB for a node, or null on miss. */
+  getAABB(id: string): { x: number; y: number; width: number; height: number } | null
+  /** Stores a computed AABB for a node. */
+  setAABB(id: string, aabb: { x: number; y: number; width: number; height: number }): void
+  /** Clears the entire geometry cache. */
+  clear(): void
+}
+
+/** Frame scheduler service providing coalesced rAF-based render scheduling. */
+export interface VenusSchedulerService {
+  /** Requests a render frame. Multiple calls in the same frame are coalesced. */
+  requestRender(): void
+  /** Cancels a pending render request. */
+  cancelRender(): void
+  /** Returns whether a render is currently scheduled. */
+  isPending(): boolean
+}
+
 /** Maps registered internal service names to their typed service contracts. */
 export interface VenusRegisteredServiceMap {
   document: VenusDocumentService
   viewport: VenusViewportService
   invalidation: VenusInvalidationService
+  spatial: VenusSpatialService
+  geometryCache: VenusGeometryCacheService
+  scheduler: VenusSchedulerService
 }
 
 /** Declares one registered service name with a known public service contract. */
@@ -124,13 +169,8 @@ export interface VenusModule {
   dependsOn?: readonly VenusModuleName[]
   /** Internal services this module requires before installation can run. */
   requires?: readonly VenusInternalServiceName[]
-  /** Installs module behavior on one Venus instance. */
-  install(context: VenusModuleContext): void
-}
-
-/** Returns whether a string is one reserved Venus user capability module name. */
-export function isVenusModuleName(name: string): name is VenusModuleName {
-  return (VENUS_MODULE_NAMES as readonly string[]).includes(name)
+  /** Installs module behavior on one Venus instance and may return a module API object. */
+  install(context: VenusModuleContext): unknown
 }
 
 /**
@@ -181,7 +221,10 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'mount',
   'resize',
   'render',
+  'setDefaultFillColor',
+  'setDefaultStrokeColor',
   'hitTest',
+  'hitTestAll',
   'on',
   'off',
   'modules',
@@ -189,10 +232,37 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'destroy',
   'update',
   'remove',
+  'getLayerIndex',
+  'moveLayer',
+  'bringForward',
+  'sendBackward',
+  'bringToFront',
+  'sendToBack',
+  'undo',
+  'redo',
+  'canUndo',
+  'canRedo',
+  'clearHistory',
   'group',
   'ungroup',
   'addChild',
   'removeChild',
+  'select',
+  'deselect',
+  'selectAll',
+  'clearSelection',
+  'isSelected',
+  'onSelectionChange',
+  'applyDropShadow',
+  'removeDropShadow',
+  'applyInnerShadow',
+  'removeInnerShadow',
+  'applyLayerBlur',
+  'removeLayerBlur',
+  'clearEffects',
+  'toPNG',
+  'toJPEG',
+  'toSVG',
 ] as const
 
 /** Declares one public instance method documented for `Venus`. */
@@ -204,11 +274,13 @@ export type VenusTransform2D = {
   x?: number
   /** Extra local y translation applied in addition to geometry y. */
   y?: number
-  /** Local rotation in degrees. Rotation is composed around the node bounds center. */
-  rotation?: number
 }
 
 export interface VenusParameters {
+  /** Default fill used when a node has no explicit fill/fills. Defaults to transparent. */
+  defaultFillColor?: string
+  /** Default stroke used when a node has stroke width but no explicit stroke/strokes. Defaults to transparent. */
+  defaultStrokeColor?: string
   culling?: boolean
   lod?: boolean
   render?: {
@@ -316,6 +388,35 @@ export interface VenusHitTestOptions {
   includeLocked?: boolean
 }
 
+export type VenusHitTargetKind =
+  | 'shape.anchor'
+  | 'shape.center'
+  | 'shape.stroke'
+  | 'shape.fill'
+  | 'shape.bounds'
+
+export interface VenusHitAnchor {
+  index: number
+  x: number
+  y: number
+}
+
+export interface VenusDetailedHitTestResult {
+  nodeId: string
+  nodeType?: EngineRenderableNode['type']
+  documentType?: VenusDocumentModelType
+  hitType?: string
+  index?: number
+  score?: number
+  zOrder?: number
+  hitPoint: {x: number; y: number}
+  bounds: {x: number; y: number; width: number; height: number} | null
+  center: {x: number; y: number} | null
+  anchors: VenusHitAnchor[]
+  target: {kind: VenusHitTargetKind; anchorIndex?: number}
+  regions: VenusHitTargetKind[]
+}
+
 /** Describes public runtime state returned by `venus.inspect`. */
 export interface VenusRuntimeInspection {
   /** Current document revision. */
@@ -347,7 +448,7 @@ export interface VenusEventMap {
   'render:before': {revision: number}
   'render:after': {revision: number}
   'backend:fallback': VenusBackendFallback
-  hit: {point: {x: number; y: number}; phase: 'hover' | 'click'; tolerance: number; result: ReturnType<Engine['hitTest']>}
+  hit: {point: {x: number; y: number}; phase: 'hover' | 'click'; tolerance: number; result: VenusDetailedHitTestResult | null}
   destroyed: {}
 }
 
@@ -383,7 +484,7 @@ export interface VenusAnimationController {
 export type VenusGroupNode = Extract<VenusNode, {type: 'group'}>
 
 /** Options accepted by `venus.group(...)` for the created group node. */
-export type VenusGroupOptions = Partial<Omit<VenusGroupNode, 'type' | 'children' | 'x' | 'y'>>
+export type VenusGroupOptions = Partial<Omit<VenusGroupNode, 'type' | 'children'>>
 
 /** Declares one gradient colour stop for Venus paint descriptors. */
 export interface VenusGradientStop {
@@ -547,12 +648,15 @@ type VenusNodeBase = {
   exportSettings?: readonly VenusExportSetting[]
   /** Arbitrary host metadata not interpreted by the engine. */
   data?: Record<string, unknown>
-  /** Preferred transform object for editable local transforms. */
-  transform?: VenusTransform2D
   /** Inner shadow effect (clipped to shape interior). */
   innerShadow?: {color?: string; blur?: number}
   /** Layer blur radius in pixels. */
   layerBlur?: {amount: number}
+}
+
+type VenusTransformableNodeBase = VenusNodeBase & {
+  /** Reserved local transform object. Rotation is a top-level node field. */
+  transform?: VenusTransform2D
   /** Rotation in degrees, composed around the node bounds center. */
   rotation?: number
 }
@@ -585,8 +689,10 @@ export type VenusNode =
     ellipseStartAngle?: number
     ellipseEndAngle?: number
     ellipseDrawWedgeLine?: boolean
+    /** Ellipse geometry in center+radii form. Preferred over x/y/width/height for ellipse shapes. */
+    ellipseGeometry?: { cx: number; cy: number; rx: number; ry: number }
     shadow?: EngineShadow
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
   | {
     /** Stroke-authored segment. Prefer two anchor points; x/y + width/height remain compatibility endpoint fields. */
     type: 'line'
@@ -605,7 +711,7 @@ export type VenusNode =
     strokeCap?: 'butt' | 'round' | 'square'
     strokeJoin?: 'miter' | 'round' | 'bevel'
     shadow?: EngineShadow
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
   | {
     /** Text document node. width/height are optional editor/layout bounds. */
     type: 'text'
@@ -622,12 +728,10 @@ export type VenusNode =
     fontWeight?: number
     lineHeight?: number
     shadow?: EngineShadow
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
   | {
-    /** Container node. x/y translate the subtree; visual bounds derive from children. */
+    /** Structure-only container node. Visual bounds derive from children. */
     type: 'group'
-    x?: number
-    y?: number
     shadow?: EngineShadow
     children: VenusNode[]
   } & VenusNodeBase
@@ -636,7 +740,7 @@ export type VenusNode =
     type: 'clip' | 'mask'
     clipPath: VenusNode
     children: VenusNode[]
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
   | {
     /** Draws closed point-list polygon geometry. Bounds edits rescale points. */
     type: 'polygon'
@@ -658,7 +762,7 @@ export type VenusNode =
     strokeCap?: 'butt' | 'round' | 'square'
     strokeJoin?: 'miter' | 'round' | 'bevel'
     shadow?: EngineShadow
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
   | {
     /** Draws custom point or bezier path geometry. Bounds edits rescale authored points. */
     type: 'path'
@@ -686,7 +790,7 @@ export type VenusNode =
     strokeCap?: 'butt' | 'round' | 'square'
     strokeJoin?: 'miter' | 'round' | 'bevel'
     shadow?: EngineShadow
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
   | {
     /** Renders an asset-backed raster image quad. */
     type: 'image'
@@ -702,21 +806,13 @@ export type VenusNode =
     naturalSize?: {width: number; height: number}
     /** Backend image smoothing hint. */
     imageSmoothing?: boolean
-  } & VenusNodeBase
+  } & VenusTransformableNodeBase
 
 const DEGREES_TO_RADIANS = Math.PI / 180
 const IDENTITY_TRANSFORM: EngineTransform2D['matrix'] = [1, 0, 0, 0, 1, 0]
 const DEFAULT_VENUS_VIEWPORT_WIDTH = 520
 const DEFAULT_VENUS_VIEWPORT_HEIGHT = 320
-const DEFAULT_VENUS_ANIMATION_DURATION_MS = 300
-const FALLBACK_FRAME_DELAY_MS = 16
-const DEBUG_BOUNDS_STROKE = '#2563eb'
-const DEBUG_HIT_CANDIDATE_STROKE = '#f97316'
-const DEBUG_HIT_CANDIDATE_FILL = '#f97316'
-const DEBUG_OVERLAY_STROKE_WIDTH = 1
-const DEBUG_HIT_TOLERANCE = 6
-const DEFAULT_CLICK_HIT_TOLERANCE = 0
-const DEFAULT_HOVER_HIT_TOLERANCE = 6
+const DEFAULT_HISTORY_LIMIT = 100
 
 class VenusReadonlyServiceRegistry implements VenusServiceRegistry {
   private readonly services: ReadonlyMap<VenusInternalServiceName, unknown>
@@ -853,67 +949,15 @@ const getVenusNow = (): number => {
 }
 
 /**
- * Normalizes engine cache counters into the stable Venus inspection shape.
- * @param enabled Whether cache diagnostics are enabled.
- * @param engine Engine diagnostics snapshot, when mounted.
- */
-const createVenusCacheDiagnostics = (
-  enabled: boolean,
-  engine: EngineRuntimeDiagnostics | null,
-): VenusCacheDiagnostics => {
-  const stats = engine?.renderStats
-
-  return {
-    enabled,
-    available: Boolean(stats),
-    geometry: {
-      hitCount: stats?.geometryCacheHitCount ?? 0,
-      missCount: stats?.geometryCacheMissCount ?? 0,
-      hitRate: stats?.geometryCacheHitRate ?? 0,
-    },
-    render: {
-      hitCount: stats?.cacheHits ?? 0,
-      missCount: stats?.cacheMisses ?? 0,
-    },
-    frameReuse: {
-      hitCount: stats?.frameReuseHits ?? 0,
-      missCount: stats?.frameReuseMisses ?? 0,
-    },
-    tile: {
-      size: stats?.tileCacheSize ?? 0,
-      dirtyCount: stats?.tileDirtyCount ?? 0,
-      totalBytes: stats?.tileCacheTotalBytes ?? 0,
-    },
-    fallbackReason: stats?.cacheFallbackReason ?? engine?.strategySnapshot?.fallbackReason ?? null,
-  }
-}
-
-/**
- * Resolves public hit-test options into execution values.
- * @param options Public hit-test options.
- */
-const resolveVenusHitTestOptions = (options: VenusHitTestOptions = {}) => {
-  const phase = options.phase ?? 'click'
-  const defaultTolerance = phase === 'hover' ? DEFAULT_HOVER_HIT_TOLERANCE : DEFAULT_CLICK_HIT_TOLERANCE
-
-  return {
-    phase,
-    tolerance: Math.max(0, options.tolerance ?? defaultTolerance),
-    includeLocked: options.includeLocked ?? false,
-  }
-}
-
-/**
  * Detects whether a document node carries transform fields beyond geometry x/y.
  * @param node Document node base fields to inspect.
  */
-const hasTransformFields = (node: VenusNodeBase): boolean => {
+const hasTransformFields = (node: VenusTransformableNodeBase): boolean => {
   const transform = node.transform
   return Boolean(
     node.rotation
     || transform?.x
     || transform?.y
-    || transform?.rotation
   )
 }
 
@@ -946,45 +990,31 @@ const multiplyTransformMatrices = (
  * @param bounds Optional pre-computed bounds for center calculation.
  */
 const createVenusTransform = (
-  node: VenusNodeBase,
+  node: VenusTransformableNodeBase,
   bounds?: {x: number; y: number; width: number; height: number},
 ): EngineTransform2D | undefined => {
-  // Group x/y is a legacy parent translation; leaf x/y remains geometry.
-  const nodeType = 'type' in node ? (node as {type?: string}).type : undefined
-  const usesGeometryTranslation = nodeType === 'group'
-  const tx = usesGeometryTranslation && 'x' in node && typeof (node as Record<string, unknown>).x === 'number' ? (node as Record<string, unknown>).x as number : 0
-  const ty = usesGeometryTranslation && 'y' in node && typeof (node as Record<string, unknown>).y === 'number' ? (node as Record<string, unknown>).y as number : 0
   const transform = node.transform
   const transformX = transform?.x ?? 0
   const transformY = transform?.y ?? 0
-  if (!hasTransformFields(node) && tx === 0 && ty === 0 && transformX === 0 && transformY === 0) {
+  if (!hasTransformFields(node) && transformX === 0 && transformY === 0) {
     return undefined
   }
 
-  const originX = bounds ? bounds.x + bounds.width * 0.5 : 0
-  const originY = bounds ? bounds.y + bounds.height * 0.5 : 0
-  const rotation = (transform?.rotation ?? node.rotation ?? 0) * DEGREES_TO_RADIANS
+  const centerX = bounds ? bounds.x + bounds.width * 0.5 : 0
+  const centerY = bounds ? bounds.y + bounds.height * 0.5 : 0
+  const rotation = (node.rotation ?? 0) * DEGREES_TO_RADIANS
   const cos = Math.cos(rotation)
   const sin = Math.sin(rotation)
-  const translateToOrigin: EngineTransform2D['matrix'] = [1, 0, originX + tx + transformX, 0, 1, originY + ty + transformY]
-  const translateFromOrigin: EngineTransform2D['matrix'] = [1, 0, -originX, 0, 1, -originY]
+  const translateToCenter: EngineTransform2D['matrix'] = [1, 0, centerX + transformX, 0, 1, centerY + transformY]
+  const translateFromCenter: EngineTransform2D['matrix'] = [1, 0, -centerX, 0, 1, -centerY]
   const rotateMatrix: EngineTransform2D['matrix'] = [cos, -sin, 0, sin, cos, 0]
   const matrix = [
-    translateToOrigin,
+    translateToCenter,
     rotateMatrix,
-    translateFromOrigin,
+    translateFromCenter,
   ].reduce(multiplyTransformMatrices, IDENTITY_TRANSFORM)
 
   return {matrix}
-}
-
-const createEmptySnapshot = (revision: number): EngineSceneSnapshot => {
-  return {
-    revision,
-    width: 520,
-    height: 320,
-    nodes: [],
-  }
 }
 
 const getNodeBounds = (node: VenusNode): {x: number; y: number; width: number; height: number} | null => {
@@ -1039,10 +1069,15 @@ const translatePoint = (point: {x: number; y: number}, dx: number, dy: number) =
 })
 
 const translateVenusNode = (node: VenusNode, dx: number, dy: number): void => {
-  if ('x' in node || node.type === 'group') {
+  if (node.type === 'group') {
+    node.children.forEach((child) => translateVenusNode(child, dx, dy))
+    return
+  }
+
+  if ('x' in node) {
     node.x = (node.x ?? 0) + dx
   }
-  if ('y' in node || node.type === 'group') {
+  if ('y' in node) {
     node.y = (node.y ?? 0) + dy
   }
 
@@ -1071,18 +1106,47 @@ const translateVenusNode = (node: VenusNode, dx: number, dy: number): void => {
   }
 }
 
-const hasNonTranslationTransform = (node: VenusNode): boolean => {
-  const transform = node.transform
-  return Boolean(
-    node.rotation
-    || transform?.rotation
-  )
+const sanitizeStructureGroupNode = (node: VenusNode): void => {
+  if (node.type === 'group') {
+    const record = node as unknown as Record<string, unknown>
+    delete record.x
+    delete record.y
+    delete record.width
+    delete record.height
+    delete record.rotation
+    delete record.transform
+    node.children.forEach(sanitizeStructureGroupNode)
+    return
+  }
+
+  if (node.type === 'clip' || node.type === 'mask') {
+    sanitizeStructureGroupNode(node.clipPath)
+    node.children.forEach(sanitizeStructureGroupNode)
+  }
 }
 
-const getNodeTranslation = (node: VenusNode) => ({
-  x: ('x' in node ? node.x ?? 0 : 0) + (node.transform?.x ?? 0),
-  y: ('y' in node ? node.y ?? 0 : 0) + (node.transform?.y ?? 0),
-})
+const applyStructureGroupGeometryPatch = (node: VenusNode, patch: Partial<VenusNode>): void => {
+  if (node.type !== 'group') {
+    return
+  }
+
+  const record = patch as Record<string, unknown>
+  const bounds = getNodeBounds(node) ?? {x: 0, y: 0, width: 0, height: 0}
+  const nextX = typeof record.x === 'number' ? record.x : bounds.x
+  const nextY = typeof record.y === 'number' ? record.y : bounds.y
+  const dx = nextX - bounds.x
+  const dy = nextY - bounds.y
+  if (dx !== 0 || dy !== 0) {
+    node.children.forEach((child) => translateVenusNode(child, dx, dy))
+  }
+
+  delete record.x
+  delete record.y
+  delete record.width
+  delete record.height
+  delete record.rotation
+  delete record.transform
+}
 
 const hasBoundsPatch = (patch: Partial<VenusNode>) => {
   return 'x' in patch || 'y' in patch || 'width' in patch || 'height' in patch
@@ -1205,58 +1269,6 @@ const resolveEngineNodesBounds = (
   return aggregate
 }
 
-/**
- * Collects world-space bounds for each render-facing node.
- * @param nodes Root or child render nodes to inspect.
- * @param parentMatrix Parent world matrix composed before each node matrix.
- */
-const collectEngineNodeBounds = (
-  nodes: readonly EngineRenderableNode[],
-  parentMatrix: EngineTransform2D['matrix'] = IDENTITY_TRANSFORM,
-): {id: string; bounds: EngineRect}[] => {
-  const entries: {id: string; bounds: EngineRect}[] = []
-
-  for (const node of nodes) {
-    const nodeMatrix = multiplyTransformMatrices(parentMatrix, node.transform?.matrix ?? IDENTITY_TRANSFORM)
-    const bounds = node.type === 'group'
-      ? resolveEngineNodesBounds(node.children, nodeMatrix)
-      : resolveLeafNodeWorldBounds(node, nodeMatrix)
-
-    if (bounds) {
-      entries.push({id: node.id, bounds})
-    }
-
-    if (node.type === 'group') {
-      entries.push(...collectEngineNodeBounds(node.children, nodeMatrix))
-    }
-  }
-
-  return entries
-}
-
-/**
- * Creates one world-space rectangle overlay from node bounds.
- * @param id Overlay id.
- * @param bounds World-space bounds to draw.
- * @param style Overlay style.
- */
-const createBoundsOverlayNode = (
-  id: string,
-  bounds: EngineRect,
-  style: NonNullable<EngineOverlayDrawNode['style']>,
-): EngineOverlayDrawNode => {
-  return {
-    id,
-    type: 'rect',
-    coordinate: 'world',
-    points: [
-      {x: bounds.x, y: bounds.y},
-      {x: bounds.x + bounds.width, y: bounds.y + bounds.height},
-    ],
-    style,
-  }
-}
-
 const resolveNodeOpacity = (node: VenusNodeBase) => {
   return node.visible === false ? 0 : node.appearance?.opacity ?? node.opacity
 }
@@ -1353,92 +1365,11 @@ const resolveAppearanceStroke = (
   }
 }
 
-/**
- * Resolves one easing curve for the public Venus animation API.
- * @param easing Easing name selected by the caller.
- */
-const resolveVenusEasing = (easing: VenusAnimationOptions['easing']): (progress: number) => number => {
-  switch (easing) {
-    case 'easeIn':
-      return (progress) => progress * progress
-    case 'easeOut':
-      return (progress) => 1 - (1 - progress) * (1 - progress)
-    case 'easeInOut':
-      return (progress) => progress < 0.5 ? 2 * progress * progress : 1 - ((-2 * progress + 2) ** 2) / 2
-    case 'linear':
-    default:
-      return (progress) => progress
-  }
-}
-
-/**
- * Schedules one animation frame with a timeout fallback for non-browser tests.
- * @param callback Frame callback receiving a timestamp.
- */
-const requestVenusAnimationFrame = (callback: (now: number) => void): number => {
-  if (typeof globalThis.requestAnimationFrame === 'function') {
-    return globalThis.requestAnimationFrame(callback)
-  }
-
-  return Number(globalThis.setTimeout(() => callback(Date.now()), FALLBACK_FRAME_DELAY_MS))
-}
-
-/**
- * Cancels one animation frame scheduled by `requestVenusAnimationFrame`.
- * @param handle Frame handle returned by the scheduler.
- */
-const cancelVenusAnimationFrame = (handle: number): void => {
-  if (typeof globalThis.cancelAnimationFrame === 'function') {
-    globalThis.cancelAnimationFrame(handle)
-    return
-  }
-
-  globalThis.clearTimeout(handle)
-}
-
-/**
- * Reads an animatable numeric property from a document node.
- * @param node Target document node.
- * @param property Animatable property name.
- */
-const getVenusAnimationProperty = (node: VenusNode, property: VenusAnimatableProperty): number => {
-  const value = (node as Partial<Record<VenusAnimatableProperty, number>>)[property]
-  return typeof value === 'number' ? value : 0
-}
-
-/**
- * Writes an animatable numeric property onto a document node.
- * @param node Target document node.
- * @param property Animatable property name.
- * @param value Next numeric value.
- */
-const setVenusAnimationProperty = (
+const toEngineNode = (
   node: VenusNode,
-  property: VenusAnimatableProperty,
-  value: number,
-): void => {
-  ;(node as Partial<Record<VenusAnimatableProperty, number>>)[property] = value
-}
-
-/**
- * Lists all numeric properties mentioned by the final keyframe.
- * @param keyframe Final keyframe requested by the caller.
- */
-const getAnimatableProperties = (keyframe: VenusAnimationKeyframe): VenusAnimatableProperty[] => {
-  return (['x', 'y', 'opacity', 'rotation'] as const).filter((property) => typeof keyframe[property] === 'number')
-}
-
-/**
- * Interpolates one scalar value between two keyframes.
- * @param from Start value.
- * @param to End value.
- * @param progress Eased progress in the [0, 1] interval.
- */
-const interpolateScalar = (from: number, to: number, progress: number): number => {
-  return from + (to - from) * progress
-}
-
-const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode => {
+  fallbackId: string,
+  defaults: VenusRenderDefaults = {fillColor: DEFAULT_VENUS_FILL_COLOR, strokeColor: DEFAULT_VENUS_STROKE_COLOR},
+): EngineRenderableNode => {
   const id = node.id ?? fallbackId
 
   if (node.type === 'group') {
@@ -1451,8 +1382,8 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       shadow: effects.shadow,
       innerShadow: effects.innerShadow,
       layerBlur: effects.layerBlur,
-      transform: createVenusTransform(node, getNodeBounds(node) ?? undefined),
-      children: node.children.map((child, index) => toEngineNode(child, `${id}-child-${index}`)),
+      transform: undefined,
+      children: node.children.map((child, index) => toEngineNode(child, `${id}-child-${index}`, defaults)),
     }
   }
 
@@ -1488,7 +1419,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
               : undefined,
         },
       },
-      children: node.children.map((child, index) => toEngineNode(child, `${id}-clip-child-${index}`)),
+      children: node.children.map((child, index) => toEngineNode(child, `${id}-clip-child-${index}`, defaults)),
     }
   }
 
@@ -1512,7 +1443,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
         fontSize: node.fontSize ?? 24,
         fontWeight: node.fontWeight ?? 700,
         lineHeight: node.lineHeight,
-        fill: node.fill ?? '#0f172a',
+        fill: node.fill ?? defaults.fillColor,
         fills: resolveAppearanceFills(node, node.fills) as EngineTextStyle['fills'],
         shadow: effects.shadow,
       },
@@ -1551,7 +1482,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       innerShadow: effects.innerShadow,
       layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: lineX, y: lineY, width: lineWidth, height: lineHeight}),
-      stroke: node.stroke ?? '#475569',
+      stroke: node.stroke ?? defaults.strokeColor,
       strokeWidth: strokeStyle.strokeWidth ?? 4,
       strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
       strokeAlign: strokeStyle.strokeAlign,
@@ -1586,8 +1517,8 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       innerShadow: effects.innerShadow,
       layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
-      fill: node.fill,
-      stroke: node.stroke,
+      fill: node.fill ?? defaults.fillColor,
+      stroke: node.stroke ?? defaults.strokeColor,
       strokeWidth: strokeStyle.strokeWidth,
       fills: resolveAppearanceFills(node, node.fills) as EngineShapeNode['fills'],
       strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
@@ -1600,6 +1531,7 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       ellipseStartAngle: node.type === 'ellipse' ? node.ellipseStartAngle : undefined,
       ellipseEndAngle: node.type === 'ellipse' ? node.ellipseEndAngle : undefined,
       ellipseDrawWedgeLine: node.type === 'ellipse' ? node.ellipseDrawWedgeLine : undefined,
+      ellipseGeometry: node.type === 'ellipse' ? node.ellipseGeometry : undefined,
     }
   }
 
@@ -1627,8 +1559,8 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       innerShadow: effects.innerShadow,
       layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
-      fill: node.fill,
-      stroke: node.stroke,
+      fill: node.fill ?? defaults.fillColor,
+      stroke: node.stroke ?? defaults.strokeColor,
       strokeWidth: strokeStyle.strokeWidth,
       fills: resolveAppearanceFills(node, node.fills) as EngineShapeNode['fills'],
       strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
@@ -1665,8 +1597,8 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
       innerShadow: effects.innerShadow,
       layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
-      fill: node.fill,
-      stroke: node.stroke,
+      fill: node.fill ?? defaults.fillColor,
+      stroke: node.stroke ?? defaults.strokeColor,
       strokeWidth: strokeStyle.strokeWidth,
       fills: resolveAppearanceFills(node, node.fills) as EngineShapeNode['fills'],
       strokes: strokeStyle.strokes as EngineShapeNode['strokes'],
@@ -1709,16 +1641,24 @@ const toEngineNode = (node: VenusNode, fallbackId: string): EngineRenderableNode
 
 export class Venus {
   private readonly parameters: VenusParameters
+  private defaultFillColor: string
+  private defaultStrokeColor: string
   private canvas: HTMLCanvasElement | null = null
   private engine: Engine | null = null
   private nodes: EngineRenderableNode[] = []
   private documentNodes: VenusNode[] = []
+  private readonly history: VenusHistoryController<VenusNode[]> = createVenusHistoryController({
+    limit: DEFAULT_HISTORY_LIMIT,
+  })
   private readonly nodeById = new Map<string, VenusNode>()
   private readonly parentById = new Map<string, string | null>()
   private revision = 1
   private nodeIndex = 0
   private readonly listeners = new Map<VenusEventName, Set<VenusEventHandler>>()
+  /** Tracks installed user-facing module names for diagnostics. */
   private readonly installedModules = new Set<VenusModuleName>()
+  /** Stores the API object returned by each installed module's install callback. */
+  private readonly moduleApis = new Map<VenusModuleName, unknown>()
   private lastModuleError: VenusModuleDiagnostics['lastError'] = null
   private readonly services = new Map<VenusInternalServiceName, unknown>()
   private readonly serviceRegistry: VenusServiceRegistry
@@ -1759,8 +1699,10 @@ export class Venus {
    * @returns Typed proxy for the stored node.
    */
   add(node: VenusNode): VenusNodeProxy {
+    sanitizeStructureGroupNode(node)
+    this.recordHistory()
     const storedNode = this.ensureNodeId(node)
-    const engineNode = toEngineNode(storedNode, storedNode.id ?? `node-${this.nodeIndex}`)
+    const engineNode = toEngineNode(storedNode, storedNode.id ?? `node-${this.nodeIndex}`, this.getRenderDefaults())
     this.documentNodes = [...this.documentNodes, storedNode]
     this.indexNodeTree(storedNode, engineNode.id, null)
     this.nodes = [...this.nodes, engineNode]
@@ -1786,9 +1728,13 @@ export class Venus {
       return
     }
 
-    applyBoundsPatchToAuthoredGeometry(node, patch)
+    this.recordHistory()
+    const normalizedPatch = {...patch}
+    applyStructureGroupGeometryPatch(node, normalizedPatch)
+    applyBoundsPatchToAuthoredGeometry(node, normalizedPatch)
     // Mutate the stored VenusNode in place so rebuildRenderNodes picks up changes.
-    Object.assign(node, patch)
+    Object.assign(node, normalizedPatch)
+    sanitizeStructureGroupNode(node)
     this.rebuildRenderNodes()
     this.revision += 1
 
@@ -1812,6 +1758,7 @@ export class Venus {
       return
     }
 
+    this.recordHistory()
     this.documentNodes.splice(index, 1)
     this.nodes.splice(index, 1)
     this.nodeById.delete(id)
@@ -1822,8 +1769,48 @@ export class Venus {
   }
 
   /**
+   * @name Venus.setDefaultFillColor
+   * @description Sets the runtime fill colour used only when a node has no explicit fill or fills.
+   * @example Usage
+   * venus.setDefaultFillColor('transparent')
+   * @param color CSS colour used as the runtime default fill.
+   * @returns Nothing.
+   */
+  setDefaultFillColor(color: string): void {
+    if (this.defaultFillColor === color) {
+      return
+    }
+
+    this.defaultFillColor = color
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
+  }
+
+  /**
+   * @name Venus.setDefaultStrokeColor
+   * @description Sets the runtime stroke colour used only when a node has stroke width but no explicit stroke or strokes.
+   * @example Usage
+   * venus.setDefaultStrokeColor('#111827')
+   * @param color CSS colour used as the runtime default stroke.
+   * @returns Nothing.
+   */
+  setDefaultStrokeColor(color: string): void {
+    if (this.defaultStrokeColor === color) {
+      return
+    }
+
+    this.defaultStrokeColor = color
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
+  }
+
+  /**
    * @name Venus.group
-   * @description Groups sibling nodes under a new group while preserving visual position.
+   * @description Wraps sibling nodes under a structure-only group while preserving child geometry.
    * @example Usage
    * const a = venus.add({type: 'rect', x: 40, y: 40, width: 80, height: 60})
    * const b = venus.add({type: 'ellipse', x: 150, y: 52, width: 72, height: 48})
@@ -1861,17 +1848,11 @@ export class Venus {
       throw new Error('group() can only group direct children of the same parent')
     }
 
-    const bounds = resolveEngineNodesBounds(selected.map((node, index) => toEngineNode(node, node.id ?? `group-candidate-${index}`)))
-    const groupX = bounds?.x ?? 0
-    const groupY = bounds?.y ?? 0
-    selected.forEach((node) => translateVenusNode(node, -groupX, -groupY))
-
+    this.recordHistory()
     const groupNode: VenusGroupNode = {
       ...options,
       type: 'group',
       id: options.id ?? this.createNodeId(),
-      x: groupX,
-      y: groupY,
       children: selected,
     }
     const insertIndex = Math.min(...selectedIndices)
@@ -1890,7 +1871,7 @@ export class Venus {
 
   /**
    * @name Venus.ungroup
-   * @description Lifts a translation-only group's children back into the same parent.
+   * @description Lifts a structure-only group's children back into the same parent.
    * @example Usage
    * const children = venus.ungroup('selection-group')
    * await venus.render()
@@ -1902,10 +1883,6 @@ export class Venus {
     if (!groupNode || groupNode.type !== 'group') {
       return []
     }
-    if (hasNonTranslationTransform(groupNode)) {
-      throw new Error('ungroup() currently supports translation-only groups')
-    }
-
     const parentId = this.parentById.get(id) ?? null
     const siblings = this.resolveSiblingNodes(parentId)
     if (!siblings) {
@@ -1917,9 +1894,8 @@ export class Venus {
       return []
     }
 
-    const translation = getNodeTranslation(groupNode)
+    this.recordHistory()
     const children = groupNode.children.map((child) => this.ensureNodeId(child))
-    children.forEach((child) => translateVenusNode(child, translation.x, translation.y))
 
     const nextSiblings = [
       ...siblings.slice(0, groupIndex),
@@ -1950,6 +1926,8 @@ export class Venus {
       throw new Error(`Parent "${parentId}" not found or is not a container (group/clip/mask)`)
     }
 
+    sanitizeStructureGroupNode(child)
+    this.recordHistory()
     const storedChild = this.ensureNodeId(child)
     parent.children = [...(parent.children ?? []), storedChild]
     this.rebuildRenderNodes()
@@ -1975,6 +1953,11 @@ export class Venus {
       return
     }
 
+    if (!(parent.children ?? []).some((child) => child.id === childId)) {
+      return
+    }
+
+    this.recordHistory()
     parent.children = (parent.children ?? []).filter((c) => c.id !== childId)
     this.rebuildRenderNodes()
     this.revision += 1
@@ -2023,6 +2006,11 @@ export class Venus {
     return this.nodeById.get(id)
   }
 
+  /** Internal bridge used by the optional export module. */
+  _getMountedCanvas(): HTMLCanvasElement | null {
+    return this.canvas
+  }
+
   /**
    * @name Venus.getParentId
    * @description Returns the parent node id for a nested node, or null for a root node.
@@ -2033,6 +2021,172 @@ export class Venus {
    */
   getParentId(id: string): string | null {
     return this.parentById.get(id) ?? null
+  }
+
+  /**
+   * @name Venus.getLayerIndex
+   * @description Returns one node's index among its siblings. Larger indexes render above smaller indexes.
+   * @example Usage
+   * const index = venus.getLayerIndex('card')
+   * @param id Document node id.
+   * @returns Sibling index, or -1 when the node cannot be found.
+   */
+  getLayerIndex(id: string): number {
+    const node = this.nodeById.get(id)
+    if (!node) {
+      return -1
+    }
+
+    const siblings = this.resolveSiblingNodes(this.parentById.get(id) ?? null)
+    return siblings?.indexOf(node) ?? -1
+  }
+
+  /**
+   * @name Venus.moveLayer
+   * @description Moves one node to a sibling index within its current parent.
+   * @example Usage
+   * venus.moveLayer('card', 0)
+   * @param id Document node id.
+   * @param index Target sibling index. Values are clamped.
+   * @returns Applied sibling index, or -1 when the node cannot be found.
+   */
+  moveLayer(id: string, index: number): number {
+    const node = this.nodeById.get(id)
+    if (!node) {
+      return -1
+    }
+
+    const parentId = this.parentById.get(id) ?? null
+    const siblings = this.resolveSiblingNodes(parentId)
+    const currentIndex = siblings?.indexOf(node) ?? -1
+    if (!siblings || currentIndex < 0) {
+      return -1
+    }
+
+    const targetIndex = Math.max(0, Math.min(siblings.length - 1, Math.trunc(index)))
+    if (targetIndex === currentIndex) {
+      return currentIndex
+    }
+
+    this.recordHistory()
+    const nextSiblings = [...siblings]
+    nextSiblings.splice(currentIndex, 1)
+    nextSiblings.splice(targetIndex, 0, node)
+    this.replaceSiblingNodes(parentId, nextSiblings)
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
+    return targetIndex
+  }
+
+  /**
+   * @name Venus.bringForward
+   * @description Moves one node one sibling step toward the front.
+   * @example Usage
+   * venus.bringForward('card')
+   * @param id Document node id.
+   * @returns Applied sibling index, or -1 when the node cannot be found.
+   */
+  bringForward(id: string): number {
+    return this.moveLayer(id, this.getLayerIndex(id) + 1)
+  }
+
+  /**
+   * @name Venus.sendBackward
+   * @description Moves one node one sibling step toward the back.
+   * @example Usage
+   * venus.sendBackward('card')
+   * @param id Document node id.
+   * @returns Applied sibling index, or -1 when the node cannot be found.
+   */
+  sendBackward(id: string): number {
+    return this.moveLayer(id, this.getLayerIndex(id) - 1)
+  }
+
+  /**
+   * @name Venus.bringToFront
+   * @description Moves one node above all current siblings.
+   * @example Usage
+   * venus.bringToFront('card')
+   * @param id Document node id.
+   * @returns Applied sibling index, or -1 when the node cannot be found.
+   */
+  bringToFront(id: string): number {
+    const siblings = this.resolveSiblingNodes(this.parentById.get(id) ?? null)
+    return this.moveLayer(id, (siblings?.length ?? 1) - 1)
+  }
+
+  /**
+   * @name Venus.sendToBack
+   * @description Moves one node below all current siblings.
+   * @example Usage
+   * venus.sendToBack('card')
+   * @param id Document node id.
+   * @returns Applied sibling index, or -1 when the node cannot be found.
+   */
+  sendToBack(id: string): number {
+    return this.moveLayer(id, 0)
+  }
+
+  /**
+   * @name Venus.undo
+   * @description Restores the previous document snapshot from command history.
+   * @example Usage
+   * venus.undo()
+   * @returns True when a history entry was applied.
+   */
+  undo(): boolean {
+    const history = this._requireModuleApi<{undo(): boolean}>('history')
+    return history.undo()
+  }
+
+  /**
+   * @name Venus.redo
+   * @description Reapplies the next document snapshot from command history.
+   * @example Usage
+   * venus.redo()
+   * @returns True when a history entry was applied.
+   */
+  redo(): boolean {
+    const history = this._requireModuleApi<{redo(): boolean}>('history')
+    return history.redo()
+  }
+
+  /**
+   * @name Venus.canUndo
+   * @description Reports whether undo has a previous document snapshot.
+   * @example Usage
+   * if (venus.canUndo()) venus.undo()
+   * @returns True when undo is available.
+   */
+  canUndo(): boolean {
+    const history = this._getModuleApi<{canUndo(): boolean}>('history')
+    return history?.canUndo() ?? false
+  }
+
+  /**
+   * @name Venus.canRedo
+   * @description Reports whether redo has a future document snapshot.
+   * @example Usage
+   * if (venus.canRedo()) venus.redo()
+   * @returns True when redo is available.
+   */
+  canRedo(): boolean {
+    const history = this._getModuleApi<{canRedo(): boolean}>('history')
+    return history?.canRedo() ?? false
+  }
+
+  /**
+   * @name Venus.clearHistory
+   * @description Clears undo and redo stacks without modifying the document.
+   * @example Usage
+   * venus.clearHistory()
+   * @returns Nothing.
+   */
+  clearHistory(): void {
+    const history = this._requireModuleApi<{clear(): void}>('history')
+    history.clear()
   }
 
   /**
@@ -2059,24 +2213,8 @@ export class Venus {
    * @returns Applied viewport scale and offset.
    */
   fitBounds(bounds: {x: number; y: number; width: number; height: number}, padding: number | {top: number; right: number; bottom: number; left: number} = 0): {scale: number; offsetX: number; offsetY: number} {
-    const resolvedPadding = typeof padding === 'number'
-      ? {top: padding, right: padding, bottom: padding, left: padding}
-      : padding
-    const availableWidth = Math.max(1, this.viewport.viewportWidth - resolvedPadding.left - resolvedPadding.right)
-    const availableHeight = Math.max(1, this.viewport.viewportHeight - resolvedPadding.top - resolvedPadding.bottom)
-    const targetWidth = Math.max(1, Math.abs(bounds.width))
-    const targetHeight = Math.max(1, Math.abs(bounds.height))
-    const scale = Math.min(availableWidth / targetWidth, availableHeight / targetHeight)
-    const offsetX = resolvedPadding.left + (availableWidth - targetWidth * scale) / 2 - bounds.x * scale
-    const offsetY = resolvedPadding.top + (availableHeight - targetHeight * scale) / 2 - bounds.y * scale
-
-    return this.applyViewport(resolveEngineViewportState({
-      viewportWidth: this.viewport.viewportWidth,
-      viewportHeight: this.viewport.viewportHeight,
-      scale,
-      offsetX,
-      offsetY,
-    }))
+    this.requireModuleInstalled('camera')
+    return this.applyViewport(resolveVenusCameraFitBounds(this.viewport, bounds, padding))
   }
 
   /**
@@ -2089,7 +2227,8 @@ export class Venus {
    * @returns Applied viewport scale and offset.
    */
   zoomTo(scale: number, anchor?: {x: number; y: number}): {scale: number; offsetX: number; offsetY: number} {
-    return this.applyViewport(zoomEngineViewportState(this.viewport, scale, anchor))
+    this.requireModuleInstalled('camera')
+    return this.applyViewport(resolveVenusCameraZoom(this.viewport, scale, anchor))
   }
 
   /**
@@ -2101,7 +2240,8 @@ export class Venus {
    * @returns Applied viewport scale and offset.
    */
   panBy(delta: {x: number; y: number}): {scale: number; offsetX: number; offsetY: number} {
-    return this.applyViewport(panEngineViewportState(this.viewport, delta.x, delta.y))
+    this.requireModuleInstalled('camera')
+    return this.applyViewport(resolveVenusCameraPan(this.viewport, delta))
   }
 
   /**
@@ -2113,7 +2253,8 @@ export class Venus {
    * @returns Screen-space coordinate.
    */
   project(point: {x: number; y: number}): {x: number; y: number} {
-    return applyMatrixToPoint(this.viewport.matrix, point)
+    this.requireModuleInstalled('camera')
+    return projectVenusCameraPoint(this.viewport, point)
   }
 
   /**
@@ -2125,7 +2266,8 @@ export class Venus {
    * @returns Document-space coordinate.
    */
   unproject(point: {x: number; y: number}): {x: number; y: number} {
-    return applyMatrixToPoint(this.viewport.inverseMatrix, point)
+    this.requireModuleInstalled('camera')
+    return unprojectVenusCameraPoint(this.viewport, point)
   }
 
   // -- Debug (flat) --
@@ -2142,6 +2284,7 @@ export class Venus {
    * @returns Active debug flags.
    */
   enableDebug(options: {showBounds?: boolean; showHitCandidates?: boolean; showCache?: boolean}): VenusDebugFlags {
+    this.requireModuleInstalled('debug')
     if (options.showBounds !== undefined) this.debugFlags.showBounds = options.showBounds
     if (options.showHitCandidates !== undefined) this.debugFlags.showHitCandidates = options.showHitCandidates
     if (options.showCache !== undefined) this.debugFlags.showCache = options.showCache
@@ -2195,6 +2338,7 @@ export class Venus {
    * @returns Frame timing data, or null when the runtime is not mounted.
    */
   async measureFrame(): Promise<VenusFrameMeasurement | null> {
+    this.requireModuleInstalled('debug')
     if (!this.engine) {
       return null
     }
@@ -2220,6 +2364,9 @@ export class Venus {
    */
   constructor(parameters: VenusParameters = {}) {
     this.parameters = parameters
+    const renderDefaults = resolveVenusRenderDefaults(parameters)
+    this.defaultFillColor = renderDefaults.fillColor
+    this.defaultStrokeColor = renderDefaults.strokeColor
     this.registerInternalServices()
     this.serviceRegistry = new VenusReadonlyServiceRegistry(this.services)
     this.installModules(parameters.modules ?? [])
@@ -2243,12 +2390,16 @@ export class Venus {
       bounds: () => this.bounds(),
     })
     this.services.set('viewport', {
-      project: (point: {x: number; y: number}) => this.project(point),
-      unproject: (point: {x: number; y: number}) => this.unproject(point),
+      project: (point: {x: number; y: number}) => projectVenusCameraPoint(this.viewport, point),
+      unproject: (point: {x: number; y: number}) => unprojectVenusCameraPoint(this.viewport, point),
     })
     this.services.set('invalidation', {
       classify: (changedProperties: readonly string[]) => classifyVenusNodeMutation(changedProperties),
     })
+    // Layer 0 infrastructure services.
+    this.services.set('spatial', createVenusSpatialService())
+    this.services.set('geometryCache', createVenusGeometryCacheService())
+    this.services.set('scheduler', createVenusSchedulerService())
   }
 
   private installModules(modules: readonly VenusModule[]): void {
@@ -2272,11 +2423,55 @@ export class Venus {
       }
 
       this.installedModules.add(module.name)
-      module.install({
+      const api = module.install({
         venus: this,
         parameters: this.parameters,
         services: this.serviceRegistry,
       })
+      // Capture the module's returned API so it can be accessed later.
+      if (api !== undefined) {
+        this.moduleApis.set(module.name, api)
+      }
+    }
+  }
+
+  /**
+   * Returns the typed API object installed by a module, or throws if the
+   * module is not installed.  Use this inside Venus methods that belong to
+   * optional modules so the error message is clear when a consumer omits
+   * a required module.
+   * @param moduleName The short module name to look up.
+   */
+  private _requireModuleApi<T>(moduleName: VenusModuleName): T {
+    const api = this.moduleApis.get(moduleName)
+    if (api === undefined) {
+      throw new Error(
+        `Venus module "${moduleName}" is not installed. ` +
+        `Add it to the modules array in the Venus constructor: ` +
+        `new Venus({ modules: [/* ... */] })`,
+      )
+    }
+    return api as T
+  }
+
+  /**
+   * Returns the typed API object installed by a module, or null when the
+   * module is not installed.  Use this for optional capabilities that
+   * degrade gracefully.
+   * @param moduleName The short module name to look up.
+   */
+  private _getModuleApi<T>(moduleName: VenusModuleName): T | null {
+    return (this.moduleApis.get(moduleName) as T) ?? null
+  }
+
+  /** Throws when an optional module API is used without installing that module. */
+  private requireModuleInstalled(moduleName: VenusModuleName): void {
+    if (!this.installedModules.has(moduleName)) {
+      throw new Error(
+        `Venus module "${moduleName}" is not installed. ` +
+        `Add it to the modules array in the Venus constructor: ` +
+        `new Venus({ modules: [/* ... */] })`,
+      )
     }
   }
 
@@ -2319,6 +2514,66 @@ export class Venus {
     return node
   }
 
+  private getRenderDefaults(): VenusRenderDefaults {
+    return {
+      fillColor: this.defaultFillColor,
+      strokeColor: this.defaultStrokeColor,
+    }
+  }
+
+  private recordHistory(): void {
+    if (!this.installedModules.has('history')) {
+      return
+    }
+
+    this.history.record(this.documentNodes)
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyUndo(): boolean {
+    const previous = this.history.undo(this.documentNodes)
+    if (!previous) {
+      return false
+    }
+
+    this.restoreDocumentNodes(previous)
+    return true
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyRedo(): boolean {
+    const next = this.history.redo(this.documentNodes)
+    if (!next) {
+      return false
+    }
+
+    this.restoreDocumentNodes(next)
+    return true
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyCanUndo(): boolean {
+    return this.history.canUndo()
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyCanRedo(): boolean {
+    return this.history.canRedo()
+  }
+
+  /** Internal bridge used by the optional history module. */
+  _historyClear(): void {
+    this.history.clear()
+  }
+
+  private restoreDocumentNodes(nodes: VenusNode[]): void {
+    this.documentNodes = nodes
+    this.rebuildRenderNodes()
+    this.revision += 1
+    this.emit('document:changed', {revision: this.revision})
+    this.scheduleRender()
+  }
+
   private resolveSiblingNodes(parentId: string | null): VenusNode[] | null {
     if (!parentId) {
       return this.documentNodes
@@ -2353,7 +2608,8 @@ export class Venus {
     this.nodeById.clear()
     this.parentById.clear()
     this.nodes = this.documentNodes.map((node, index) => {
-      const engineNode = toEngineNode(node, node.id ?? `node-${index}`)
+      sanitizeStructureGroupNode(node)
+      const engineNode = toEngineNode(node, node.id ?? `node-${index}`, this.getRenderDefaults())
       this.indexNodeTree(node, engineNode.id, null)
       return engineNode
     })
@@ -2440,42 +2696,14 @@ export class Venus {
   }
 
   private createMountedEngine(canvas: HTMLCanvasElement): Engine {
-    const requestedBackend = this.parameters.render?.backend ?? 'auto'
-    const createWithBackend = (backend: 'canvas2d' | 'webgl') => createEngine({
+    const result = createVenusMountedEngine({
       canvas,
-      initialScene: this.createSnapshot(),
-      culling: this.parameters.culling ?? false,
-      lod: this.parameters.lod ? {enabled: true} : {enabled: false},
-      render: {
-        backend,
-        quality: this.parameters.render?.quality ?? 'full',
-        webglAntialias: this.parameters.render?.antialias ?? true,
-      },
-      resource: this.parameters.resource,
+      parameters: this.parameters,
+      snapshot: this.createSnapshot(),
+      emitBackendFallback: (fallback) => this.emit('backend:fallback', fallback),
     })
-
-    if (requestedBackend === 'canvas2d') {
-      this.lastBackendFallback = null
-      return createWithBackend('canvas2d')
-    }
-
-    try {
-      this.lastBackendFallback = null
-      return createWithBackend('webgl')
-    } catch (error) {
-      if (requestedBackend === 'webgl') {
-        throw error
-      }
-
-      const fallback: VenusBackendFallback = {
-        from: 'webgl',
-        to: 'canvas2d',
-        reason: error instanceof Error ? error.message : String(error),
-      }
-      this.lastBackendFallback = fallback
-      this.emit('backend:fallback', fallback)
-      return createWithBackend('canvas2d')
-    }
+    this.lastBackendFallback = result.backendFallback
+    return result.engine
   }
 
   /**
@@ -2535,6 +2763,51 @@ export class Venus {
     this.emit('render:after', {revision: this.revision})
   }
 
+  // ── Export (delegates to export module) ──────────────────────────────────
+
+  /**
+   * @name Venus.toPNG
+   * @description Exports the current canvas as a PNG data URL.
+   * @example Usage
+   * const url = await venus.toPNG({ scale: 2 })
+   * @param options.scale Output scale factor (default 1).
+   * @param options.background Background color (default transparent).
+   * @returns PNG data URL.
+   */
+  async toPNG(options?: VenusPngExportOptions): Promise<string> {
+    const exp = this._requireModuleApi<{ toPNG(o?: VenusPngExportOptions): Promise<string> }>('export')
+    return exp.toPNG(options)
+  }
+
+  /**
+   * @name Venus.toJPEG
+   * @description Exports the current canvas as a JPEG data URL.
+   * @example Usage
+   * const url = await venus.toJPEG({ quality: 0.9, background: '#ffffff' })
+   * @param options.scale Output scale factor (default 1).
+   * @param options.quality JPEG quality 0–1 (default 0.92).
+   * @param options.background Background color (default white).
+   * @returns JPEG data URL.
+   */
+  async toJPEG(options?: VenusJpegExportOptions): Promise<string> {
+    const exp = this._requireModuleApi<{ toJPEG(o?: VenusJpegExportOptions): Promise<string> }>('export')
+    return exp.toJPEG(options)
+  }
+
+  /**
+   * @name Venus.toSVG
+   * @description Exports the current document as an SVG string.
+   * @example Usage
+   * const svg = await venus.toSVG({ embedImages: true })
+   * @param options.embedImages Writes image asset ids to href even when they are not URLs.
+   * @param options.pretty Whether to emit line breaks between top-level SVG nodes.
+   * @returns SVG string.
+   */
+  async toSVG(options?: VenusSvgExportOptions): Promise<string> {
+    const exp = this._requireModuleApi<{ toSVG(o?: VenusSvgExportOptions): Promise<string> }>('export')
+    return exp.toSVG(options)
+  }
+
   /**
    * Coalesces multiple synchronous mutations into a single deferred render.
    *
@@ -2580,12 +2853,11 @@ export class Venus {
    * @param options.includeLocked Returns locked hits only when enabled.
    * @returns Topmost hit result, or null.
    */
-  hitTest(point: {x: number, y: number}, options: VenusHitTestOptions = {}) {
+  hitTest(point: {x: number, y: number}, options: VenusHitTestOptions = {}): VenusDetailedHitTestResult | null {
+    this.requireModuleInstalled('hitTest')
     const resolvedOptions = resolveVenusHitTestOptions(options)
-    const hits = this.engine?.hitTestAll(point, resolvedOptions.tolerance) ?? []
-    const result = resolvedOptions.includeLocked
-      ? hits[0] ?? null
-      : hits.find((hit) => !this.getNodeById(hit.nodeId)?.locked) ?? null
+    const hits = this.resolveDetailedHits(point, resolvedOptions)
+    const result = hits[0] ?? null
     this.lastDebugHitPoint = point
     this.refreshDebugOverlay()
     this.emit('hit', {
@@ -2595,6 +2867,200 @@ export class Venus {
       result,
     })
     return result
+  }
+
+  /**
+   * @name Venus.hitTestAll
+   * @description Returns all document nodes under a screen-space point in topmost-first paint order.
+   * @example Usage
+   * const hits = venus.hitTestAll({x: 200, y: 150}, {phase: 'hover'})
+   * @param point Point to test in screen space.
+   * @param options Hit-test options.
+   * @param options.phase Sets hover or click defaults.
+   * @param options.tolerance Screen-pixel tolerance override.
+   * @param options.includeLocked Returns locked hits only when enabled.
+   * @returns Ordered hit results with target, region, anchor, center, and bounds metadata.
+   */
+  hitTestAll(point: {x: number, y: number}, options: VenusHitTestOptions = {}): VenusDetailedHitTestResult[] {
+    this.requireModuleInstalled('hitTest')
+    return this.resolveDetailedHits(point, resolveVenusHitTestOptions(options))
+  }
+
+  private resolveDetailedHits(
+    point: {x: number; y: number},
+    options: ReturnType<typeof resolveVenusHitTestOptions>,
+  ): VenusDetailedHitTestResult[] {
+    return resolveVenusDetailedHits({
+      point,
+      options,
+      hits: this.engine?.hitTestAll(point, options.tolerance) ?? [],
+      resolveNode: (id) => this._rawNode(id),
+      resolveBounds: getNodeBounds,
+    })
+  }
+
+  // ── Selection (delegates to interaction module) ──────────────────────────
+
+  /**
+   * @name Venus.select
+   * @description Selects one or more document node ids.
+   * @example Usage
+   * venus.select('rect-1')
+   * venus.select(['rect-1', 'ellipse-2'])
+   * @param ids A single node id or an array of node ids to select.
+   */
+  select(ids: string | readonly string[]): void {
+    const interaction = this._requireModuleApi<{ select(ids: string | readonly string[]): void }>('interaction')
+    interaction.select(ids)
+  }
+
+  /**
+   * @name Venus.deselect
+   * @description Deselects one or more document node ids.
+   * @example Usage
+   * venus.deselect('rect-1')
+   * @param ids A single node id or an array of node ids to deselect.
+   */
+  deselect(ids: string | readonly string[]): void {
+    const interaction = this._requireModuleApi<{ deselect(ids: string | readonly string[]): void }>('interaction')
+    interaction.deselect(ids)
+  }
+
+  /**
+   * @name Venus.selectAll
+   * @description Selects every root-level document node.
+   * @example Usage
+   * venus.selectAll()
+   */
+  selectAll(): void {
+    const interaction = this._requireModuleApi<{ selectAll(): void }>('interaction')
+    interaction.selectAll()
+  }
+
+  /**
+   * @name Venus.clearSelection
+   * @description Clears the current selection.
+   * @example Usage
+   * venus.clearSelection()
+   */
+  clearSelection(): void {
+    const interaction = this._requireModuleApi<{ clearSelection(): void }>('interaction')
+    interaction.clearSelection()
+  }
+
+  /**
+   * @name Venus.isSelected
+   * @description Returns whether a node id is currently selected.
+   * @example Usage
+   * if (venus.isSelected('rect-1')) { ... }
+   * @param id The node id to check.
+   * @returns True when the node is in the current selection.
+   */
+  isSelected(id: string): boolean {
+    const interaction = this._requireModuleApi<{ isSelected(id: string): boolean }>('interaction')
+    return interaction.isSelected(id)
+  }
+
+  /**
+   * @name Venus.onSelectionChange
+   * @description Registers a callback that fires when the selection changes.
+   * @example Usage
+   * const off = venus.onSelectionChange((sel) => console.log([...sel]))
+   * @param handler Callback receiving a read-only snapshot of selected ids.
+   * @returns Unsubscribe function.
+   */
+  onSelectionChange(handler: (selection: ReadonlySet<string>) => void): () => void {
+    const interaction = this._requireModuleApi<{ onSelectionChange(h: (s: ReadonlySet<string>) => void): () => void }>('interaction')
+    return interaction.onSelectionChange(handler)
+  }
+
+  // ── Effects (delegates to effects module) ────────────────────────────────
+
+  /**
+   * @name Venus.applyDropShadow
+   * @description Applies a drop shadow effect to a node by id.
+   * @example Usage
+   * venus.applyDropShadow('rect-1', { color: '#00000040', offsetX: 4, offsetY: 4, blur: 8 })
+   * @param nodeId Target node id.
+   * @param shadow Shadow parameters.
+   */
+  applyDropShadow(nodeId: string, shadow: { color?: string; offsetX?: number; offsetY?: number; blur?: number }): void {
+    const effects = this._requireModuleApi<{ applyDropShadow(id: string, s: typeof shadow): void }>('effects')
+    effects.applyDropShadow(nodeId, shadow)
+  }
+
+  /**
+   * @name Venus.removeDropShadow
+   * @description Removes the drop shadow from a node.
+   * @example Usage
+   * venus.removeDropShadow('rect-1')
+   * @param nodeId Target node id.
+   */
+  removeDropShadow(nodeId: string): void {
+    const effects = this._requireModuleApi<{ removeDropShadow(id: string): void }>('effects')
+    effects.removeDropShadow(nodeId)
+  }
+
+  /**
+   * @name Venus.applyInnerShadow
+   * @description Applies an inner shadow effect to a node by id.
+   * @example Usage
+   * venus.applyInnerShadow('rect-1', { color: '#00000030', blur: 4 })
+   * @param nodeId Target node id.
+   * @param shadow Inner shadow parameters.
+   */
+  applyInnerShadow(nodeId: string, shadow: { color?: string; blur?: number }): void {
+    const effects = this._requireModuleApi<{ applyInnerShadow(id: string, s: typeof shadow): void }>('effects')
+    effects.applyInnerShadow(nodeId, shadow)
+  }
+
+  /**
+   * @name Venus.removeInnerShadow
+   * @description Removes the inner shadow from a node.
+   * @example Usage
+   * venus.removeInnerShadow('rect-1')
+   * @param nodeId Target node id.
+   */
+  removeInnerShadow(nodeId: string): void {
+    const effects = this._requireModuleApi<{ removeInnerShadow(id: string): void }>('effects')
+    effects.removeInnerShadow(nodeId)
+  }
+
+  /**
+   * @name Venus.applyLayerBlur
+   * @description Applies a layer blur effect to a node by id.
+   * @example Usage
+   * venus.applyLayerBlur('rect-1', { amount: 4 })
+   * @param nodeId Target node id.
+   * @param blur Blur parameters.
+   */
+  applyLayerBlur(nodeId: string, blur: { amount: number }): void {
+    const effects = this._requireModuleApi<{ applyLayerBlur(id: string, b: typeof blur): void }>('effects')
+    effects.applyLayerBlur(nodeId, blur)
+  }
+
+  /**
+   * @name Venus.removeLayerBlur
+   * @description Removes the layer blur from a node.
+   * @example Usage
+   * venus.removeLayerBlur('rect-1')
+   * @param nodeId Target node id.
+   */
+  removeLayerBlur(nodeId: string): void {
+    const effects = this._requireModuleApi<{ removeLayerBlur(id: string): void }>('effects')
+    effects.removeLayerBlur(nodeId)
+  }
+
+  /**
+   * @name Venus.clearEffects
+   * @description Clears all visual effects from a node.
+   * @example Usage
+   * venus.clearEffects('rect-1')
+   * @param nodeId Target node id.
+   */
+  clearEffects(nodeId: string): void {
+    const effects = this._requireModuleApi<{ clearAll(id: string): void }>('effects')
+    effects.clearAll(nodeId)
   }
 
   /**
@@ -2615,118 +3081,17 @@ export class Venus {
     keyframes: readonly [VenusAnimationKeyframe, VenusAnimationKeyframe],
     options: VenusAnimationOptions = {},
   ): VenusAnimationController {
-    const node = this._rawNode(nodeId)
-    let frameHandle: number | null = null
-    let startedAt: number | null = null
-    let paused = false
-    let settled = false
-    let resolveFinished: () => void = () => undefined
-    const finished = new Promise<void>((resolve) => {
-      resolveFinished = resolve
+    this.requireModuleInstalled('animate')
+    return createVenusAnimationController({
+      node: this._rawNode(nodeId),
+      keyframes,
+      options,
+      onFrame: () => {
+        this.rebuildRenderNodes()
+        this.revision += 1
+        void this.render()
+      },
     })
-
-    const [, to] = keyframes
-    const properties = node ? getAnimatableProperties(to) : []
-    const fromValues = new Map<VenusAnimatableProperty, number>()
-    const toValues = new Map<VenusAnimatableProperty, number>()
-    const duration = Math.max(0, options.duration ?? DEFAULT_VENUS_ANIMATION_DURATION_MS)
-    const ease = resolveVenusEasing(options.easing)
-
-    if (node) {
-      for (const property of properties) {
-        fromValues.set(property, keyframes[0][property] ?? getVenusAnimationProperty(node, property))
-        toValues.set(property, to[property] ?? getVenusAnimationProperty(node, property))
-      }
-    }
-
-    const settle = () => {
-      if (settled) {
-        return
-      }
-      settled = true
-      if (frameHandle !== null) {
-        cancelVenusAnimationFrame(frameHandle)
-        frameHandle = null
-      }
-      resolveFinished()
-    }
-
-    const applyProgress = (progress: number) => {
-      if (!node) {
-        return
-      }
-
-      for (const property of properties) {
-        const start = fromValues.get(property) ?? getVenusAnimationProperty(node, property)
-        const end = toValues.get(property) ?? start
-        setVenusAnimationProperty(node, property, interpolateScalar(start, end, progress))
-      }
-      this.rebuildRenderNodes()
-      this.revision += 1
-      void this.render()
-    }
-
-    const tick = (now: number) => {
-      if (settled || paused) {
-        return
-      }
-
-      if (startedAt === null) {
-        startedAt = now
-      }
-
-      const progress = duration === 0 ? 1 : Math.max(0, Math.min(1, (now - startedAt) / duration))
-      applyProgress(ease(progress))
-
-      if (progress >= 1) {
-        settle()
-        return
-      }
-
-      frameHandle = requestVenusAnimationFrame(tick)
-    }
-
-    if (!node || properties.length === 0) {
-      settle()
-      return {
-        finished,
-        cancel: settle,
-        pause: () => { paused = true },
-        play: () => undefined,
-      }
-    }
-
-    if (duration === 0) {
-      applyProgress(1)
-      settle()
-    } else {
-      frameHandle = requestVenusAnimationFrame(tick)
-    }
-
-    return {
-      finished,
-      cancel: settle,
-      pause: () => {
-        paused = true
-        if (frameHandle !== null) {
-          cancelVenusAnimationFrame(frameHandle)
-          frameHandle = null
-        }
-      },
-      play: () => {
-        if (settled || !paused) {
-          return
-        }
-        if (node) {
-          for (const property of properties) {
-            fromValues.set(property, getVenusAnimationProperty(node, property))
-          }
-        }
-        paused = false
-        startedAt = null
-        frameHandle = requestVenusAnimationFrame(tick)
-      },
-    }
   }
 
   /**
@@ -2746,7 +3111,7 @@ export class Venus {
 
   private createSnapshot(): EngineSceneSnapshot {
     return {
-      ...createEmptySnapshot(this.revision),
+      ...createEmptyVenusSceneSnapshot(this.revision),
       nodes: this.nodes,
     }
   }
@@ -2759,39 +3124,10 @@ export class Venus {
       return
     }
 
-    const overlays: EngineOverlayDrawNode[] = []
-
-    if (this.debugFlags.showBounds) {
-      for (const entry of collectEngineNodeBounds(this.nodes)) {
-        overlays.push(createBoundsOverlayNode(`debug-bounds-${entry.id}`, entry.bounds, {
-          strokeColor: DEBUG_BOUNDS_STROKE,
-          strokeWidth: DEBUG_OVERLAY_STROKE_WIDTH,
-          strokeDash: [4, 4],
-          zIndex: 20,
-        }))
-      }
-    }
-
-    if (this.debugFlags.showHitCandidates && this.lastDebugHitPoint) {
-      const hitPlan = this.engine.prepareHitPlan(this.lastDebugHitPoint, DEBUG_HIT_TOLERANCE)
-      const candidateIds = new Set(hitPlan.candidateNodeIds)
-      const boundsById = new Map(collectEngineNodeBounds(this.nodes).map((entry) => [entry.id, entry.bounds]))
-      for (const candidateId of candidateIds) {
-        const candidateBounds = boundsById.get(candidateId)
-        if (!candidateBounds) {
-          continue
-        }
-        overlays.push(createBoundsOverlayNode(`debug-hit-candidate-${candidateId}`, candidateBounds, {
-          strokeColor: DEBUG_HIT_CANDIDATE_STROKE,
-          strokeWidth: DEBUG_OVERLAY_STROKE_WIDTH,
-          fillColor: DEBUG_HIT_CANDIDATE_FILL,
-          fillOpacity: 0.08,
-          zIndex: 30,
-        }))
-      }
-    }
-
-    this.engine.setOverlayNodes(overlays)
+    const hitCandidateNodeIds = this.debugFlags.showHitCandidates && this.lastDebugHitPoint
+      ? this.engine.prepareHitPlan(this.lastDebugHitPoint, VENUS_DEBUG_HIT_TOLERANCE).candidateNodeIds
+      : []
+    this.engine.setOverlayNodes(createVenusDebugOverlayNodes(this.nodes, this.debugFlags, hitCandidateNodeIds))
   }
 
   private emit<TEventName extends VenusEventName>(

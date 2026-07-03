@@ -710,7 +710,7 @@ function applyFills(
   }
 
   // Legacy single fill.
-  const fill = node.fill ?? 'rgba(17,24,39,0.05)'
+  const fill = node.fill ?? 'transparent'
   if (fill !== 'transparent') {
     context.fillStyle = fill
     context.fill()
@@ -935,7 +935,7 @@ function drawEllipseArcNode(
       }
       return
     }
-    const legacyFill = node.fill ?? 'rgba(17,24,39,0.05)'
+    const legacyFill = node.fill ?? 'transparent'
     if (legacyFill !== 'transparent') {
       traceClosedArc()
       context.fillStyle = legacyFill

@@ -10,7 +10,15 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./base": "./src/base.ts"
+    "./base": "./src/base.ts",
+    "./camera": "./src/runtime/venus/modules/camera/index.ts",
+    "./hit-test": "./src/runtime/venus/modules/hitTest/index.ts",
+    "./interaction": "./src/runtime/venus/modules/interaction/index.ts",
+    "./animate": "./src/runtime/venus/modules/animate/index.ts",
+    "./history": "./src/runtime/venus/modules/history/index.ts",
+    "./effects": "./src/runtime/venus/modules/effects/index.ts",
+    "./export": "./src/runtime/venus/modules/export/index.ts",
+    "./debug": "./src/runtime/venus/modules/debug/index.ts"
   },
   "dependencies": {
     "@venus/lib": "workspace:*",

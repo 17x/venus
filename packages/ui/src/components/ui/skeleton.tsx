@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
-import type * as React from "react";
+import * as React from "react";
 
 const skeletonVariants = cva("animate-pulse bg-muted", {
   variants: {
@@ -21,9 +21,10 @@ export interface SkeletonProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof skeletonVariants> {}
 
-function Skeleton({ className, variant, ...props }: SkeletonProps) {
+function Skeleton({ className, variant, ...props }: SkeletonProps, ref: React.ForwardedRef<HTMLDivElement>) {
   return (
     <div
+      ref={ref}
       aria-hidden="true"
       className={cn(skeletonVariants({ variant }), className)}
       data-slot="skeleton"
@@ -31,5 +32,8 @@ function Skeleton({ className, variant, ...props }: SkeletonProps) {
     />
   );
 }
+Skeleton.displayName = 'Skeleton';
 
-export { Skeleton, skeletonVariants };
+const ForwardedSkeleton = React.forwardRef(Skeleton);
+
+export { ForwardedSkeleton as Skeleton, skeletonVariants };

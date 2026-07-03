@@ -75,9 +75,12 @@ export type {
   VenusInternalServiceName,
   VenusInvalidationService,
   VenusModule,
+  VenusModuleCatalogEntry,
+  VenusModuleCategory,
   VenusModuleContext,
   VenusModuleDiagnostics,
   VenusModuleName,
+  VenusModuleStatus,
   VenusLinearGradient,
   VenusNode,
   VenusPaint,
@@ -100,6 +103,7 @@ export {
   isVenusModuleName,
   Venus,
   VENUS_INTERNAL_SERVICE_NAMES,
+  VENUS_MODULE_CATALOG,
   VENUS_DOCUMENT_MODEL_TYPES,
   VENUS_MODULE_NAMES,
   VENUS_PUBLIC_METHOD_NAMES,
@@ -127,6 +131,17 @@ export {
   VENUS_COMMON_RENDER_PROPERTIES,
   VENUS_SHAPE_MODEL_SPECS,
 } from '../runtime/venus/shapeModel.ts'
+
+export {
+  createVenusAnimateModule,
+  createVenusCameraModule,
+  createVenusDebugModule,
+  createVenusEffectsModule,
+  createVenusExportModule,
+  createVenusHistoryModule,
+  createVenusHitTestModule,
+  createVenusInteractionModule,
+} from '../runtime/venus/modules/index.ts'
 
 export type {
   EngineDrawCommand,

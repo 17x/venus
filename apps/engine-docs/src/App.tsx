@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction} from 'react'
-import {Badge, Button, CollapsibleNav, Input, type CollapsibleNavItem} from '@venus/ui'
+import {Badge, Button, Checkbox, CollapsibleNav, Input, type CollapsibleNavItem} from '@venus/ui'
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,14 +28,22 @@ import {
 } from 'lucide-react'
 import {
   engineApiCategories,
+  engineApiModuleGroups,
   type EngineApiCategory,
   type EngineApiDoc,
   type EngineApiParameter,
 } from './engineApiDocs.ts'
 import {
+  createVenusAnimateModule,
+  createVenusCameraModule,
+  createVenusDebugModule,
+  createVenusEffectsModule,
+  createVenusExportModule,
+  createVenusHistoryModule,
+  createVenusHitTestModule,
+  createVenusInteractionModule,
   Venus,
-  VENUS_COMMON_RENDER_PROPERTIES,
-  VENUS_SHAPE_MODEL_SPECS,
+  type VenusModule,
   type VenusNode,
   type VenusParameters,
 } from '../../../packages/engine/src/index.ts'
@@ -161,8 +169,6 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
   if (apiId === 'group') {
     return [{
       type: 'group',
-      x: 40,
-      y: 38,
       children: [
         {type: 'rect', x: 40, y: 40, width: 310, height: 170, fill: panel, stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 4, cornerRadius: 18},
         {type: 'ellipse', x: 84, y: 76, width: 84, height: 70, fill: isLight ? '#fef3c7' : '#78350f', stroke: isLight ? '#f59e0b' : '#fbbf24', strokeWidth: 3},
@@ -278,8 +284,6 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
   if (apiId === 'getNodeById' || apiId === 'getParentId') {
     return [{
       type: 'group',
-      x: 40,
-      y: 38,
       children: [
         {type: 'rect', x: 40, y: 40, width: 310, height: 170, fill: isLight ? '#dbeafe' : '#1e3a8a', stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 4, cornerRadius: 18},
         {type: 'ellipse', x: 84, y: 76, width: 84, height: 70, fill: isLight ? '#fef3c7' : '#78350f', stroke: isLight ? '#f59e0b' : '#fbbf24', strokeWidth: 3},
@@ -321,8 +325,7 @@ const createShapeMinimalCreateCode = (kind: string): string => {
     case 'ellipse':
       return `const r = venus.add({
   type: 'ellipse',
-  width: 220,
-  height: 140,
+  ellipseGeometry: { cx: 150, cy: 100, rx: 80, ry: 50 },
 })`
     case 'line':
       return `const r = venus.add({
@@ -376,12 +379,10 @@ const createShapeMinimalCreateCode = (kind: string): string => {
     case 'path':
       return `const r = venus.add({
   type: 'path',
-  width: 220,
-  height: 140,
-  points: [
-    {x: 0, y: 140},
-    {x: 110, y: 0},
-    {x: 220, y: 140},
+  anchorPoints: [
+    { x: 0, y: 140 },
+    { x: 110, y: 0, cp1: { x: 40, y: 100 }, cp2: { x: 80, y: 20 } },
+    { x: 220, y: 140 },
   ],
 })`
     case 'image':
@@ -415,7 +416,8 @@ r.stroke = '#${isLight ? '1e40af' : 'bfdbfe'}'
 r.strokeWidth = 3
 r.cornerRadius = 16
 r.opacity = 0.9`,
-    ellipse: `r.fill = '#${isLight ? 'f59e0b' : 'fcd34d'}'
+    ellipse: `r.ellipseGeometry = { cx: 150, cy: 100, rx: 80, ry: 50 }
+r.fill = '#${isLight ? 'f59e0b' : 'fcd34d'}'
 r.stroke = '#${isLight ? 'b45309' : 'fde68a'}'
 r.strokeWidth = 2
 r.startAngle = 30
@@ -435,8 +437,7 @@ r.lineHeight = 1.5`,
   transform: {x: 20, y: 20},
 })
 child.opacity = 0.7
-r.x = 80
-r.rotation = 5`,
+r.x = 80`,
     clip: `// clipPath defines the visible region
 // children are the clipped content
 r.transform = {x: 80, y: 50}
@@ -488,6 +489,114 @@ function ParameterTable({parameters}: {parameters: EngineApiParameter[]}) {
   </div>
 }
 
+interface BasePropertyRow {
+  name: string
+  kind: 'required' | 'geometry' | 'content' | 'asset'
+  description: string
+}
+
+const basePropertyRowsByShape: Record<string, BasePropertyRow[]> = {
+  rect: [
+    {name: 'type', kind: 'required', description: '"rect"'},
+    {name: 'width', kind: 'required', description: 'Rendered bounds width.'},
+    {name: 'height', kind: 'required', description: 'Rendered bounds height.'},
+    {name: 'x', kind: 'geometry', description: 'Local top-left x.'},
+    {name: 'y', kind: 'geometry', description: 'Local top-left y.'},
+    {name: 'cornerRadius', kind: 'geometry', description: 'Uniform rounded corner radius.'},
+    {name: 'cornerRadii', kind: 'geometry', description: 'Per-corner radius override.'},
+  ],
+  ellipse: [
+    {name: 'type', kind: 'required', description: '"ellipse"'},
+    {name: 'width', kind: 'required', description: 'Containing bounds width.'},
+    {name: 'height', kind: 'required', description: 'Containing bounds height.'},
+    {name: 'x', kind: 'geometry', description: 'Containing bounds x.'},
+    {name: 'y', kind: 'geometry', description: 'Containing bounds y.'},
+    {name: 'ellipseStartAngle', kind: 'geometry', description: 'Arc start angle.'},
+    {name: 'ellipseEndAngle', kind: 'geometry', description: 'Arc end angle.'},
+    {name: 'ellipseDrawWedgeLine', kind: 'geometry', description: 'Draws radial wedge edges for arc sectors.'},
+  ],
+  line: [
+    {name: 'type', kind: 'required', description: '"line"'},
+    {name: 'points', kind: 'required', description: 'Two anchor points: start and end.'},
+    {name: 'width', kind: 'geometry', description: 'Compatibility endpoint delta x.'},
+    {name: 'height', kind: 'geometry', description: 'Compatibility endpoint delta y.'},
+  ],
+  text: [
+    {name: 'type', kind: 'required', description: '"text"'},
+    {name: 'text', kind: 'content', description: 'Text content.'},
+    {name: 'x', kind: 'geometry', description: 'Text box origin x.'},
+    {name: 'y', kind: 'geometry', description: 'Text box origin y.'},
+    {name: 'width', kind: 'geometry', description: 'Optional editor/layout width.'},
+    {name: 'height', kind: 'geometry', description: 'Optional editor/layout height.'},
+    {name: 'fontSize', kind: 'geometry', description: 'Typography size.'},
+    {name: 'fontWeight', kind: 'geometry', description: 'Typography weight.'},
+    {name: 'lineHeight', kind: 'geometry', description: 'Line spacing.'},
+  ],
+  group: [
+    {name: 'type', kind: 'required', description: '"group"'},
+    {name: 'children', kind: 'required', description: 'Nested scene tree objects; group bounds are derived.'},
+  ],
+  clip: [
+    {name: 'type', kind: 'required', description: '"clip"'},
+    {name: 'clipPath', kind: 'required', description: 'Node defining visible region.'},
+    {name: 'children', kind: 'required', description: 'Nested clipped content.'},
+  ],
+  mask: [
+    {name: 'type', kind: 'required', description: '"mask"'},
+    {name: 'clipPath', kind: 'required', description: 'Node defining current mask region.'},
+    {name: 'children', kind: 'required', description: 'Nested masked content.'},
+  ],
+  polygon: [
+    {name: 'type', kind: 'required', description: '"polygon"'},
+    {name: 'width', kind: 'required', description: 'Editor bounds width.'},
+    {name: 'height', kind: 'required', description: 'Editor bounds height.'},
+    {name: 'points', kind: 'required', description: 'Ordered vertex list.'},
+    {name: 'x', kind: 'geometry', description: 'Editor bounds x.'},
+    {name: 'y', kind: 'geometry', description: 'Editor bounds y.'},
+  ],
+  path: [
+    {name: 'type', kind: 'required', description: '"path"'},
+    {name: 'width', kind: 'required', description: 'Editor bounds width.'},
+    {name: 'height', kind: 'required', description: 'Editor bounds height.'},
+    {name: 'points | bezierPoints', kind: 'required', description: 'Rendered path geometry.'},
+    {name: 'x', kind: 'geometry', description: 'Editor bounds x.'},
+    {name: 'y', kind: 'geometry', description: 'Editor bounds y.'},
+    {name: 'closed', kind: 'geometry', description: 'Connects the path back to its first anchor.'},
+  ],
+  image: [
+    {name: 'type', kind: 'required', description: '"image"'},
+    {name: 'width', kind: 'required', description: 'Image quad width.'},
+    {name: 'height', kind: 'required', description: 'Image quad height.'},
+    {name: 'assetId', kind: 'asset', description: 'Resource id resolved by the image loader.'},
+    {name: 'x', kind: 'geometry', description: 'Image quad x.'},
+    {name: 'y', kind: 'geometry', description: 'Image quad y.'},
+    {name: 'imageSmoothing', kind: 'geometry', description: 'Image interpolation mode.'},
+  ],
+}
+
+function BasePropertyTable({apiId}: {apiId: string}) {
+  const rows = basePropertyRowsByShape[apiId] ?? []
+
+  return <div className={'engine-docs-table overflow-hidden rounded-lg border border-border'}>
+    <table className={'w-full border-collapse text-left text-sm'}>
+      <thead className={'text-xs text-muted-foreground'}>
+        <tr className={'border-b border-border'}>
+          <th className={'px-3 py-2 font-medium'}>Base Field</th>
+          <th className={'px-3 py-2 font-medium'}>Kind</th>
+          <th className={'px-3 py-2 font-medium'}>Capability</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => <tr key={`${apiId}-${row.name}`} className={'border-b border-border last:border-0'}>
+          <td className={'px-3 py-2 align-top font-mono text-xs'}>{row.name}</td>
+          <td className={'px-3 py-2 align-top text-xs text-muted-foreground'}>{row.kind}</td>
+          <td className={'px-3 py-2 align-top text-xs leading-5 text-muted-foreground'}>{row.description}</td>
+        </tr>)}
+      </tbody>
+    </table>
+  </div>
+}
+
 function ApiDescription({api}: {api: EngineApiDoc}) {
   return <section className={'grid max-w-3xl gap-2'}>
     <p className={'text-sm leading-6 text-muted-foreground'}>{api.readableDescription}</p>
@@ -525,6 +634,14 @@ interface ModelControlValues {
   ellipseStartAngle: number
   ellipseEndAngle: number
   ellipseDrawWedgeLine: boolean
+  /** Ellipse center x (computed from x + width/2). */
+  cx: number
+  /** Ellipse center y (computed from y + height/2). */
+  cy: number
+  /** Ellipse horizontal radius (half of width). */
+  rx: number
+  /** Ellipse vertical radius (half of height). */
+  ry: number
   text: string
   selectedTextFill: string
   selectedTextStart: number
@@ -649,9 +766,22 @@ const createDemoImageSource = (theme: ThemeMode): HTMLCanvasElement => {
   return canvas
 }
 
-const createDocsVenusParameters = (theme: ThemeMode): VenusParameters => {
+const createDocsModulesForApi = (api: EngineApiDoc): VenusModule[] => {
+  if (api.moduleName === 'camera') return [createVenusCameraModule()]
+  if (api.moduleName === 'hitTest') return [createVenusHitTestModule()]
+  if (api.moduleName === 'interaction') return [createVenusInteractionModule()]
+  if (api.moduleName === 'animate') return [createVenusAnimateModule()]
+  if (api.moduleName === 'debug') return [createVenusDebugModule(), createVenusHitTestModule()]
+  if (api.moduleName === 'effects') return [createVenusEffectsModule()]
+  if (api.moduleName === 'history') return [createVenusHistoryModule()]
+  if (api.moduleName === 'export') return [createVenusExportModule()]
+  return []
+}
+
+const createDocsVenusParameters = (theme: ThemeMode, modules: VenusModule[] = []): VenusParameters => {
   const demoImageSource = createDemoImageSource(theme)
   return {
+    modules,
     culling: false,
     lod: false,
     render: {backend: 'canvas2d'},
@@ -692,6 +822,11 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     ellipseStartAngle: 0,
     ellipseEndAngle: 360,
     ellipseDrawWedgeLine: false,
+    // Ellipse center+radii geometry (computed from x/y/width/height).
+    cx: 200,
+    cy: 150,
+    rx: 90,
+    ry: 55,
     text: apiId === 'group' ? 'Grouped' : 'Venus Text\nmulti-line',
     selectedTextFill: '#ef4444',
     selectedTextStart: 0,
@@ -842,9 +977,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   const shadow = resolveShadow(controls)
   const flatTransform = {
     ...(controls.blendMode ? {blendMode: controls.blendMode} : {}),
-    transform: {
-      rotation: controls.rotation,
-    },
+    rotation: controls.rotation,
   }
   // Stroke style extras propagated to shape nodes.
   const strokeStyle = {
@@ -888,19 +1021,13 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     },
   }] : undefined
   const childRectTransform = {
-    transform: {
-      rotation: controls.childRectRotation,
-    },
+    rotation: controls.childRectRotation,
   }
   const childEllipseTransform = {
-    transform: {
-      rotation: controls.childEllipseRotation,
-    },
+    rotation: controls.childEllipseRotation,
   }
   const childTextTransform = {
-    transform: {
-      rotation: controls.childTextRotation,
-    },
+    rotation: controls.childTextRotation,
   }
   const cornerRadii = controls.cornersLocked
     ? undefined
@@ -916,7 +1043,7 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
   }
 
   if (apiId === 'ellipse') {
-    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, ...strokeStyle, ...flatTransform}]
+    return [{id: commonId, type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, ellipseGeometry: { cx: controls.cx, cy: controls.cy, rx: controls.rx, ry: controls.ry }, fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, ...strokeStyle, ...flatTransform}]
   }
 
   if (apiId === 'line') {
@@ -931,11 +1058,8 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     return [{
       id: commonId,
       type: 'group',
-      x: controls.x,
-      y: controls.y,
       opacity,
       shadow,
-      ...flatTransform,
       children: [
         {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: childRectFill, stroke: childRectStroke, strokeWidth: controls.childRectStrokeWidth, opacity: controls.childRectOpacity / 100, cornerRadius: controls.childRectCornerRadius, ...childRectTransform},
         {type: 'text', x: controls.childTextX, y: controls.childTextY, width: controls.childTextWidth, height: controls.childTextHeight, text: controls.childText, fill: controls.childTextFill, fontSize: controls.childTextFontSize, fontWeight: controls.childTextFontWeight, lineHeight: controls.childTextLineHeight, opacity: controls.childTextOpacity / 100, ...childTextTransform},
@@ -1041,8 +1165,79 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
   return createExampleNodes(apiId, 'light')[0]
 }
 
+const createBaseModelNode = (apiId: string, controls: ModelControlValues): VenusNode => {
+  const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
+  const cornerRadii = controls.cornersLocked
+    ? undefined
+    : {topLeft: controls.cornerTopLeft, topRight: controls.cornerTopRight, bottomRight: controls.cornerBottomRight, bottomLeft: controls.cornerBottomLeft}
+
+  if (apiId === 'rect') {
+    return {type: 'rect', x: controls.x, y: controls.y, width: controls.width, height: controls.height, stroke, strokeWidth: controls.strokeWidth, cornerRadius: controls.cornersLocked ? controls.cornerRadius : undefined, cornerRadii, rotation: controls.rotation}
+  }
+
+  if (apiId === 'ellipse') {
+    return {type: 'ellipse', x: controls.x, y: controls.y, width: controls.width, height: controls.height, stroke, strokeWidth: controls.strokeWidth, ellipseStartAngle: controls.ellipseStartAngle, ellipseEndAngle: controls.ellipseEndAngle, ellipseDrawWedgeLine: controls.ellipseDrawWedgeLine, rotation: controls.rotation}
+  }
+
+  if (apiId === 'line') {
+    return {type: 'line', width: controls.x2 - controls.x, height: controls.y2 - controls.y, points: [{x: controls.x, y: controls.y}, {x: controls.x2, y: controls.y2}], stroke, strokeWidth: controls.strokeWidth, rotation: controls.rotation}
+  }
+
+  if (apiId === 'text') {
+    return {type: 'text', x: controls.x, y: controls.y, width: controls.width, height: controls.height, text: controls.text, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight, rotation: controls.rotation}
+  }
+
+  if (apiId === 'group') {
+    return {type: 'group', children: [
+      {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, cornerRadius: controls.childRectCornerRadius},
+      {type: 'text', x: controls.childTextX, y: controls.childTextY, width: controls.childTextWidth, height: controls.childTextHeight, text: controls.childText},
+    ]}
+  }
+
+  if (apiId === 'clip' || apiId === 'mask') {
+    return {
+      type: apiId === 'clip' ? 'clip' : 'mask',
+      rotation: controls.rotation,
+      clipPath: controls.clipIsEllipse
+        ? {type: 'ellipse', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight}
+        : {type: 'rect', x: controls.clipPathX, y: controls.clipPathY, width: controls.clipPathWidth, height: controls.clipPathHeight, cornerRadius: controls.clipPathCornerRadius},
+      children: [{type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight}],
+    }
+  }
+
+  if (apiId === 'polygon') {
+    return {type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], stroke, strokeWidth: controls.strokeWidth, rotation: controls.rotation}
+  }
+
+  if (apiId === 'path') {
+    const pathAnchors = createPathAnchorPoints(controls)
+    const minX = Math.min(...pathAnchors.map((point) => point.x))
+    const minY = Math.min(...pathAnchors.map((point) => point.y))
+    const maxX = Math.max(...pathAnchors.map((point) => point.x))
+    const maxY = Math.max(...pathAnchors.map((point) => point.y))
+    return controls.pathUseBezier
+      ? {type: 'path', x: minX, y: minY, width: maxX - minX, height: maxY - minY, bezierPoints: createBezierPointsFromAnchors(controls), closed: controls.pathClosed, stroke, strokeWidth: controls.strokeWidth, rotation: controls.rotation}
+      : {type: 'path', x: minX, y: minY, width: maxX - minX, height: maxY - minY, points: pathAnchors, closed: controls.pathClosed, stroke, strokeWidth: controls.strokeWidth, rotation: controls.rotation}
+  }
+
+  if (apiId === 'image') {
+    return {type: 'image', x: controls.x, y: controls.y, width: controls.width, height: controls.height, assetId: controls.assetId, imageSmoothing: controls.imageSmoothing, rotation: controls.rotation}
+  }
+
+  return createMinimalModelNode(apiId, controls)
+}
+
 const createModelCode = (apiId: string, controls: ModelControlValues) => {
-  return `const node = ${JSON.stringify(createMinimalModelNode(apiId, controls), null, 2)}
+  const nodes = createEditableExampleNodes(apiId, controls)
+  const node = nodes?.[0] ?? createMinimalModelNode(apiId, controls)
+
+  return `const node = ${JSON.stringify(node, null, 2)}
+
+venus.add(node)`
+}
+
+const createBaseModelCode = (apiId: string, controls: ModelControlValues) => {
+  return `const node = ${JSON.stringify(createBaseModelNode(apiId, controls), null, 2)}
 
 venus.add(node)`
 }
@@ -1051,10 +1246,12 @@ function ModelControlPanel({
   apiId,
   controls,
   setControls,
+  mode = 'full',
 }: {
   apiId: string
   controls: ModelControlValues
   setControls: Dispatch<SetStateAction<ModelControlValues>>
+  mode?: 'full' | 'base'
 }) {
   const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
     setControls((currentControls) => ({...currentControls, [key]: value}))
@@ -1186,12 +1383,13 @@ function ModelControlPanel({
     return <Tooltip text={tip}>
       <label className={'flex items-center gap-1'}>
         <span className={'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'}>{label}</span>
-        <input className={'size-4'} type={'checkbox'} checked={value} onChange={(e) => setValue(key, e.target.checked as never)} />
+        <Checkbox size={'sm'} checked={value} onChange={(e) => setValue(key, (e.target as HTMLInputElement).checked as never)} />
         <span className={'text-[11px] text-muted-foreground'}>{value ? 'on' : 'off'}</span>
       </label>
     </Tooltip>
   }
   const isCompositeModel = apiId === 'group' || apiId === 'clip' || apiId === 'mask'
+  const isBaseMode = mode === 'base'
   const showFill = apiId !== 'line' && !isCompositeModel && apiId !== 'image'
   const showStroke = apiId !== 'text' && !isCompositeModel && apiId !== 'image'
   const showCornerRadius = apiId === 'rect'
@@ -1416,16 +1614,13 @@ function ModelControlPanel({
   }
 
   return <div className={'engine-docs-panel p-5'}>
-    <div className={'mb-4 flex items-center justify-between gap-3'}>
-      <p className={'text-sm font-medium'}>properties</p>
-    </div>
     {compositeTabList}
     {isCompositeModel && controls.compositeTarget !== 'parent' ? compositeElementProperties() : null}
 
     {isCompositeModel && controls.compositeTarget !== 'parent' ? null : <>
-      {/* ---- Transform ---- */}
-      <div className={'mb-3'}>
-        <p className={'mb-1 text-xs font-medium text-muted-foreground'}>Transform</p>
+      {/* ---- Base ---- */}
+      {!isCompositeModel ? <div className={'mb-3'}>
+        <p className={'mb-1 text-xs font-medium text-muted-foreground'}>Base</p>
         {lineAnchorControls}
         <div className={'grid grid-cols-4 gap-1'}>
           {showLineEndpoints
@@ -1436,12 +1631,69 @@ function ModelControlPanel({
               {numberField('width', 'w', '', {min: 20, max: 380})}
               {numberField('height', 'h', '', {min: 20, max: 260})}
             </>}
+        </div>
+
+        {showCornerRadius ? <div className={'mt-2 flex flex-wrap items-center gap-1.5'}>
+          {controls.cornersLocked
+            ? numberField('cornerRadius', 'borderRadius', '', {min: 0, max: 90})
+            : <>{numberField('cornerTopLeft', 'topLeft', '', {min: 0, max: 90})}{numberField('cornerTopRight', 'topRight', '', {min: 0, max: 90})}{numberField('cornerBottomRight', 'bottomRight', '', {min: 0, max: 90})}{numberField('cornerBottomLeft', 'bottomLeft', '', {min: 0, max: 90})}</>}
+          <button type={'button'} className={'text-[10px] text-muted-foreground hover:text-foreground'} onClick={() => setValue('cornersLocked', !controls.cornersLocked)}>
+            {controls.cornersLocked ? 'split' : 'lock'}
+          </button>
+        </div> : null}
+
+        {showEllipseAngles ? <div className={'mt-2 grid gap-2'}>
+          <p className={'text-[10px] font-medium uppercase tracking-wide text-muted-foreground'}>Ellipse Geometry (center + radii)</p>
+          <div className={'grid grid-cols-4 gap-1'}>
+            {numberField('cx', 'cx', '', {min: 0, max: 460})}
+            {numberField('cy', 'cy', '', {min: 0, max: 320})}
+            {numberField('rx', 'rx', '', {min: 10, max: 230})}
+            {numberField('ry', 'ry', '', {min: 10, max: 160})}
+          </div>
+          <div className={'grid grid-cols-4 gap-1'}>
+            {numberField('ellipseStartAngle', 'start', '°', {min: 0, max: 360})}
+            {numberField('ellipseEndAngle', 'end', '°', {min: 0, max: 360})}
+            {toggleField('ellipseDrawWedgeLine', 'wedge')}
+          </div>
+        </div> : null}
+
+        {showText ? <textarea className={'mt-2 min-h-16 w-full rounded-md border bg-background px-2 py-1.5 text-xs'} value={controls.text} onChange={(e) => setValue('text', e.target.value)} /> : null}
+
+        {showTypography ? <div className={'mt-2 grid grid-cols-4 gap-1'}>
+          {numberField('fontSize', 'fontSize', '', {min: 12, max: 72})}
+          {numberField('fontWeight', 'weight', '', {min: 100, max: 900, step: 100})}
+          {numberField('lineHeight', 'lineH', '', {min: 16, max: 96})}
+        </div> : null}
+
+        {showPathOptions ? <div className={'mt-2 flex flex-wrap gap-2'}>
+          {toggleField('pathClosed', 'closed')}
+          {toggleField('pathUseBezier', 'bezier')}
+        </div> : null}
+        {pathAnchorControls}
+
+        {showImageOptions ? <div className={'mt-2 grid gap-1'}>
+          <input className={'h-5 w-full rounded border bg-background px-2 text-[11px]'} value={controls.assetId} onChange={(e) => setValue('assetId', e.target.value)} />
+          {toggleField('imageSmoothing', 'smoothing')}
+        </div> : null}
+      </div> : null}
+
+      {isBaseMode && showStroke ? <div className={'mb-3'}>
+        <p className={'mb-1 text-xs font-medium text-muted-foreground'}>Preview stroke</p>
+        <div className={'flex flex-wrap items-center gap-1.5'}>
+          {colorField('stroke', 'stroke')}
+          {numberField('strokeWidth', 'stroke', '', {min: 0, max: 24})}
+        </div>
+      </div> : null}
+
+      {!isCompositeModel ? <div className={'mb-3'}>
+        <p className={'mb-1 text-xs font-medium text-muted-foreground'}>Transform</p>
+        <div className={'grid grid-cols-4 gap-1'}>
           {numberField('rotation', 'rotate', '°', {min: -180, max: 180})}
         </div>
-      </div>
+      </div> : null}
 
       {/* ---- Appearance ---- */}
-      <div className={'rounded border bg-muted/25 px-3 py-2'}>
+      {!isBaseMode ? <div className={'rounded border bg-muted/25 px-3 py-2'}>
         <p className={'mb-1.5 text-xs font-medium text-muted-foreground'}>Appearance</p>
 
         {/* Fill row */}
@@ -1481,14 +1733,6 @@ function ModelControlPanel({
               <option value={'overlay'}>overlay</option><option value={'darken'}>darken</option><option value={'lighten'}>lighten</option>
             </select>
           </label> : null}
-          {showCornerRadius ? <>
-            {controls.cornersLocked
-              ? numberField('cornerRadius', 'radius', '', {min: 0, max: 90})
-              : <>{numberField('cornerTopLeft', '↖', '', {min: 0, max: 90})}{numberField('cornerTopRight', '↗', '', {min: 0, max: 90})}{numberField('cornerBottomRight', '↘', '', {min: 0, max: 90})}{numberField('cornerBottomLeft', '↙', '', {min: 0, max: 90})}</>}
-            <button type={'button'} className={'text-[10px] text-muted-foreground hover:text-foreground'} onClick={() => setValue('cornersLocked', !controls.cornersLocked)}>
-              {controls.cornersLocked ? 'split' : 'lock'}
-            </button>
-          </> : null}
         </div>
 
         {/* Dash + Align + Cap + Join row */}
@@ -1526,46 +1770,11 @@ function ModelControlPanel({
             </select>
           </label>
         </div>
-      </div>
-
-      {/* ---- Shape-specific ---- */}
-      {showEllipseAngles ? <div className={'mt-2'}>
-        <p className={'mb-1 text-xs font-medium text-muted-foreground'}>Ellipse Arc</p>
-        <div className={'grid grid-cols-4 gap-1'}>
-          {numberField('ellipseStartAngle', 'start', '°', {min: 0, max: 360})}
-          {numberField('ellipseEndAngle', 'end', '°', {min: 0, max: 360})}
-          {toggleField('ellipseDrawWedgeLine', 'wedge')}
-        </div>
       </div> : null}
 
-      {showText ? <div className={'mt-2'}>
-        <textarea className={'mb-1 min-h-16 w-full rounded-md border bg-background px-2 py-1.5 text-xs'} value={controls.text} onChange={(e) => setValue('text', e.target.value)} />
-        <div className={'grid grid-cols-4 gap-1'}>
-          {numberField('selectedTextStart', 'sel start', '', {min: 0, max: Math.max(1, controls.text.length)})}
-          {numberField('selectedTextEnd', 'sel end', '', {min: 0, max: Math.max(1, controls.text.length)})}
-        </div>
-        {colorField('selectedTextFill', 'sel fill')}
-      </div> : null}
-
-      {showTypography ? <div className={'mt-2 grid grid-cols-4 gap-1'}>
-        {numberField('fontSize', 'fontSize', '', {min: 12, max: 72})}
-        {numberField('fontWeight', 'weight', '', {min: 100, max: 900, step: 100})}
-        {numberField('lineHeight', 'lineH', '', {min: 16, max: 96})}
-      </div> : null}
-
-      {showPathOptions ? <div className={'mt-2 flex flex-wrap gap-2'}>
-        {toggleField('pathClosed', 'closed')}
-        {toggleField('pathUseBezier', 'bezier')}
-      </div> : null}
-      {pathAnchorControls}
-
-      {showImageOptions ? <div className={'mt-2 grid gap-1'}>
-        <input className={'h-5 w-full rounded border bg-background px-2 text-[11px]'} value={controls.assetId} onChange={(e) => setValue('assetId', e.target.value)} />
-        {toggleField('imageSmoothing', 'smoothing')}
-      </div> : null}
 
       {/* ---- Effects ---- */}
-      <div className={'mt-3 border-t pt-2'}>
+      {!isBaseMode ? <div className={'mt-3 border-t pt-2'}>
         <p className={'mb-1.5 text-xs font-medium text-muted-foreground'}>Effects</p>
 
         <div className={'rounded border bg-muted/25 px-2 py-1.5 mb-1'}>
@@ -1601,7 +1810,7 @@ function ModelControlPanel({
           </div>
           {controls.layerBlurEnabled ? numberField('layerBlurAmount', 'amount', 'px', {min: 1, max: 20}) : null}
         </div>
-      </div>
+      </div> : null}
     </>}
   </div>
 }
@@ -1609,6 +1818,7 @@ function ModelControlPanel({
 function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMode}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const venusRef = useRef<Venus | null>(null)
+  const modules = useMemo(() => createDocsModulesForApi(api), [api.id, api.moduleName])
   const [output, setOutput] = useState<string>('')
   const [clickPoint, setClickPoint] = useState<{x: number; y: number} | null>(null)
   const [hoverHit, setHoverHit] = useState<HitTestPanelState | null>(null)
@@ -1651,7 +1861,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     canvas.height = Math.round(logicalHeight * scale)
     canvas.style.width = '400px'
     canvas.style.height = `${logicalHeight}px`
-    const venus = new Venus(createDocsVenusParameters(theme))
+    const venus = new Venus(createDocsVenusParameters(theme, modules))
     venus.mount(canvas)
     venus.resize({width: logicalWidth, height: logicalHeight})
     const demoNodes: VenusNode[] = [{id: 'card', type: 'rect', x: 80, y: 60, width: 240, height: 60, fill: theme === 'light' ? '#dbeafe' : '#1e3a8a', stroke: theme === 'light' ? '#2563eb' : '#93c5fd', strokeWidth: 3, cornerRadius: 10},
@@ -1672,7 +1882,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       venus.destroy()
       venusRef.current = null
     }
-  }, [api.id, theme])
+  }, [api.id, modules, theme])
 
   const venus = () => venusRef.current
 
@@ -1683,7 +1893,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     setClickPoint({x: Math.round(x), y: Math.round(y)})
     const v = venus()
     if (!v) return
-    if (api.id === 'hitTest') {
+    if (api.id === 'hitTest' || api.id === 'hit-test') {
       const hit = v.hitTest({x, y}, {phase: 'click'})
       setClickedHit({point: {x: Math.round(x), y: Math.round(y)}, result: hit})
     } else if (api.id === 'project') {
@@ -1695,7 +1905,7 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
     }
   }
   const handleCanvasHover = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (api.id !== 'hitTest') {
+    if (api.id !== 'hitTest' && api.id !== 'hit-test') {
       return
     }
 
@@ -1738,6 +1948,32 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       }
       case 'snapshot':
         return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const s = v.snapshot(); showResult('snapshot', {revision: s.revision, nodeCount: s.nodes.length}) } }}><Camera data-icon="inline-start"/> Snapshot</Button>
+      case 'setDefaultFillColor': {
+        const [color, setColor] = useState('#22c55e')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-12 rounded-md border bg-background p-1'} type={'color'} value={color} onChange={(e) => setColor(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            v.setDefaultFillColor(color)
+            v.add({type: 'rect', x: 260, y: 60, width: 80, height: 60})
+            showResult('setDefaultFillColor', {color})
+            void v.render()
+          }}>Apply default fill</Button>
+        </div>
+      }
+      case 'setDefaultStrokeColor': {
+        const [color, setColor] = useState('#ef4444')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-12 rounded-md border bg-background p-1'} type={'color'} value={color} onChange={(e) => setColor(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            v.setDefaultStrokeColor(color)
+            v.add({type: 'rect', x: 260, y: 150, width: 80, height: 60, strokeWidth: 5, fill: 'transparent'})
+            showResult('setDefaultStrokeColor', {color})
+            void v.render()
+          }}>Apply default stroke</Button>
+        </div>
+      }
       case 'fitBounds':
         return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { const r = v.fitBounds(v.bounds(), 16); showResult('fitBounds', r) } }}><Maximize data-icon="inline-start"/> Fit</Button>
       case 'zoomTo': {
@@ -1785,7 +2021,14 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       case 'render':
         return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.render(); showResult('render', 'frame rendered') } }}><Play data-icon="inline-start"/> Render</Button>
       case 'hitTest':
+      case 'hit-test':
         return <p className={'flex items-center gap-1 text-xs text-muted-foreground'}><Crosshair data-icon="inline-start"/> Move and click on the canvas. {clickPoint ? ` (${clickPoint.x}, ${clickPoint.y})` : ''}</p>
+      case 'hitTestAll':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const hits = v.hitTestAll({x: 260, y: 150}, {phase: 'hover'})
+          showResult('hitTestAll', hits.map((hit) => ({nodeId: hit.nodeId, hitType: hit.hitType, target: hit.target})))
+        }}><Crosshair data-icon="inline-start"/> Query all hits</Button>
       case 'on':
         return <div className={'flex flex-wrap gap-2'}>
           <Button variant={'outline'} size={'sm'} onClick={() => {
@@ -1812,6 +2055,50 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           showResult('animate', {methods: ['cancel', 'pause', 'play'], finished: 'Promise<void>'})
           void animation.finished.then(() => pushLog('animation finished'))
         }}><Film data-icon="inline-start"/> Animate</Button>
+      case 'modules':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('modules', v.modules()) }}><List data-icon="inline-start"/> List modules</Button>
+      case 'update': {
+        const [width, setWidth] = useState('280')
+        const [fill, setFill] = useState('#ef4444')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-20 rounded-md border bg-background px-2 text-xs'} type={'number'} value={width} onChange={(e) => setWidth(e.target.value)} />
+          <input className={'h-8 w-12 rounded-md border bg-background p-1'} type={'color'} value={fill} onChange={(e) => setFill(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            v.update('card', {width: Number(width), fill})
+            showResult('update', {id: 'card', width: Number(width), fill})
+            void v.render()
+          }}>Update card</Button>
+        </div>
+      }
+      case 'remove':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          v.remove('oval')
+          showResult('remove', {removed: 'oval', remaining: v.children().map((child) => child.id)})
+          void v.render()
+        }}><Trash2 data-icon="inline-start"/> Remove oval</Button>
+      case 'getLayerIndex':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) showResult('getLayerIndex', v.getLayerIndex('oval')) }}><List data-icon="inline-start"/> Read oval index</Button>
+      case 'moveLayer': {
+        const [index, setIndex] = useState('0')
+        return <div className={'flex flex-wrap items-center gap-2'}>
+          <input className={'h-8 w-16 rounded-md border bg-background px-2 text-xs'} type={'number'} value={index} onChange={(e) => setIndex(e.target.value)} />
+          <Button variant={'outline'} size={'sm'} onClick={() => {
+            if (!v) return
+            showResult('moveLayer', v.moveLayer('oval', Number(index)))
+            void v.render()
+          }}>Move oval</Button>
+        </div>
+      }
+      case 'bringForward':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('bringForward', v.bringForward('card')); void v.render() } }}><ArrowUp data-icon="inline-start"/> Bring card forward</Button>
+      case 'sendBackward':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('sendBackward', v.sendBackward('oval')); void v.render() } }}><ArrowDown data-icon="inline-start"/> Send oval backward</Button>
+      case 'bringToFront':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('bringToFront', v.bringToFront('card')); void v.render() } }}><ArrowUp data-icon="inline-start"/> Card to front</Button>
+      case 'sendToBack':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { showResult('sendToBack', v.sendToBack('oval')); void v.render() } }}><ArrowDown data-icon="inline-start"/> Oval to back</Button>
       case 'group':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
@@ -1831,6 +2118,73 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
           showResult('ungroup', children.map((child) => ({id: child.id, type: child.type})))
           void v.render()
         }}><List data-icon="inline-start"/> Ungroup</Button>
+      case 'addChild':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const group = v.getNodeById('selection-group') ?? v.group(['card', 'oval'], {id: 'selection-group'})
+          const child = v.addChild(group.id, {type: 'rect', id: 'child-added', x: 210, y: 90, width: 56, height: 40, fill: '#22c55e'})
+          showResult('addChild', {parentId: group.id, childId: child.id})
+          void v.render()
+        }}><Plus data-icon="inline-start"/> Add child</Button>
+      case 'removeChild':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          if (!v.getNodeById('selection-group')) {
+            v.group(['card', 'oval'], {id: 'selection-group'})
+            v.addChild('selection-group', {type: 'rect', id: 'child-added', x: 210, y: 90, width: 56, height: 40, fill: '#22c55e'})
+          }
+          v.removeChild('selection-group', 'child-added')
+          showResult('removeChild', {parentId: 'selection-group', childId: 'child-added'})
+          void v.render()
+        }}><Trash2 data-icon="inline-start"/> Remove child</Button>
+      case 'select':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.select(['card', 'oval']); showResult('select', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Select card + oval</Button>
+      case 'deselect':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.select(['card', 'oval']); v.deselect('card'); showResult('deselect', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Deselect card</Button>
+      case 'selectAll':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.selectAll(); showResult('selectAll', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Select all</Button>
+      case 'clearSelection':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.selectAll(); v.clearSelection(); showResult('clearSelection', {card: v.isSelected('card'), oval: v.isSelected('oval')}) } }}><Check data-icon="inline-start"/> Clear selection</Button>
+      case 'isSelected':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.select('card'); showResult('isSelected', v.isSelected('card')) } }}><Check data-icon="inline-start"/> Check card</Button>
+      case 'onSelectionChange':
+        return <Button variant={'outline'} size={'sm'} onClick={() => {
+          if (!v) return
+          const off = v.onSelectionChange((selection) => pushLog(`selection: ${[...selection].join(',') || 'empty'}`))
+          v.select('card')
+          showResult('onSelectionChange', 'subscribed and selected card')
+          setTimeout(off, 6000)
+        }}><Bell data-icon="inline-start"/> Watch selection</Button>
+      case 'applyDropShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyDropShadow('card', {color: '#00000055', offsetX: 8, offsetY: 8, blur: 14}); showResult('applyDropShadow', 'card'); void v.render() } }}>Apply drop shadow</Button>
+      case 'removeDropShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyDropShadow('card', {color: '#00000055', offsetX: 8, offsetY: 8, blur: 14}); v.removeDropShadow('card'); showResult('removeDropShadow', 'card'); void v.render() } }}>Remove drop shadow</Button>
+      case 'applyInnerShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyInnerShadow('card', {color: '#00000044', blur: 8}); showResult('applyInnerShadow', 'card'); void v.render() } }}>Apply inner shadow</Button>
+      case 'removeInnerShadow':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyInnerShadow('card', {color: '#00000044', blur: 8}); v.removeInnerShadow('card'); showResult('removeInnerShadow', 'card'); void v.render() } }}>Remove inner shadow</Button>
+      case 'applyLayerBlur':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyLayerBlur('card', {amount: 4}); showResult('applyLayerBlur', 'card'); void v.render() } }}>Apply blur</Button>
+      case 'removeLayerBlur':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyLayerBlur('card', {amount: 4}); v.removeLayerBlur('card'); showResult('removeLayerBlur', 'card'); void v.render() } }}>Remove blur</Button>
+      case 'clearEffects':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.applyDropShadow('card', {blur: 10}); v.applyLayerBlur('card', {amount: 3}); v.clearEffects('card'); showResult('clearEffects', 'card'); void v.render() } }}>Clear effects</Button>
+      case 'undo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); const ok = v.undo(); showResult('undo', {ok, card: v.getNodeById('card')?.id}); void v.render() } }}>Undo update</Button>
+      case 'redo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); v.undo(); const ok = v.redo(); showResult('redo', {ok}); void v.render() } }}>Redo update</Button>
+      case 'canUndo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); showResult('canUndo', v.canUndo()) } }}>Check undo</Button>
+      case 'canRedo':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); v.undo(); showResult('canRedo', v.canRedo()) } }}>Check redo</Button>
+      case 'clearHistory':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { v.update('card', {x: 160}); v.clearHistory(); showResult('clearHistory', {canUndo: v.canUndo(), canRedo: v.canRedo()}) } }}>Clear history</Button>
+      case 'toPNG':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.toPNG({scale: 1, background: '#ffffff'}).then((url) => showResult('toPNG', `${url.slice(0, 48)}...`)) } }}>Export PNG</Button>
+      case 'toJPEG':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.toJPEG({quality: 0.86, background: '#ffffff'}).then((url) => showResult('toJPEG', `${url.slice(0, 48)}...`)) } }}>Export JPEG</Button>
+      case 'toSVG':
+        return <Button variant={'outline'} size={'sm'} onClick={() => { if (v) { void v.toSVG({pretty: true}).then((svg) => showResult('toSVG', `${svg.slice(0, 220)}...`)) } }}>Export SVG</Button>
       case 'destroy':
         return <Button variant={'outline'} size={'sm'} onClick={() => {
           if (!v) return
@@ -1857,10 +2211,10 @@ function InteractiveMethodDemo({api, theme}: {api: EngineApiDoc, theme: ThemeMod
       <BackendDiagnosticsPanel diagnostics={backendDiagnostics}/>
     </div>
     <div className={'flex min-w-0 flex-col gap-4'}>
-      <DemoFormPanel>
+      <DemoFormPanel title={'API Controls'} description={'Change parameters, call the API, and inspect the returned value.'}>
         <div className={'flex flex-wrap items-center gap-2'}>{renderControls()}</div>
       </DemoFormPanel>
-      {api.id === 'hitTest' ? <div className={'grid gap-3 sm:grid-cols-2'}>
+      {(api.id === 'hitTest' || api.id === 'hit-test') ? <div className={'grid gap-3 sm:grid-cols-2'}>
         <div className={'engine-docs-panel p-3'}>
           <p className={'mb-1 text-xs font-medium'}>Hover</p>
           <pre className={'max-h-40 overflow-auto text-xs text-muted-foreground'}><code>{stringifyHitPanel(hoverHit)}</code></pre>
@@ -2001,102 +2355,9 @@ function DemoFormPanel({
   </div>
 }
 
-function ShapeModelGuide() {
-  return <div className={'grid gap-4'}>
-    <div className={'grid gap-3 engine-docs-panel p-3'}>
-      <h4 className={'text-sm font-semibold'}>Coordinate contract</h4>
-      <ul className={'grid gap-1 text-xs leading-5 text-muted-foreground md:grid-cols-2'}>
-        <li>• Rect, ellipse, image, and text use x/y as the local top-left or text-box origin; line uses x/y as its start point and width/height as the end-point delta.</li>
-        <li>• Group x/y translates the subtree; clip and mask do not own top-level x/y/width/height, so their bounds come from clipPath and children.</li>
-        <li>• Polygon and path keep x/y/width/height as editable bounds, while points or bezierPoints are the rendered geometry.</li>
-        <li>• transform.x/y is an extra local translation layered on top of geometry x/y; rotation is composed around the bounds center.</li>
-      </ul>
-    </div>
-
-    <div className={'grid gap-3 engine-docs-panel p-3'}>
-      <h4 className={'text-sm font-semibold'}>Modules and inheritance</h4>
-      <div className={'overflow-x-auto'}>
-        <table className={'w-full min-w-[760px] border-collapse text-left text-xs'}>
-          <thead className={'text-muted-foreground'}>
-            <tr className={'border-b border-border'}>
-              <th className={'px-2 py-2 font-medium'}>Type</th>
-              <th className={'px-2 py-2 font-medium'}>Family</th>
-              <th className={'px-2 py-2 font-medium'}>Proxy</th>
-              <th className={'px-2 py-2 font-medium'}>Files</th>
-              <th className={'px-2 py-2 font-medium'}>Minimum</th>
-            </tr>
-          </thead>
-          <tbody>
-            {VENUS_SHAPE_MODEL_SPECS.map((spec) => <tr key={spec.type} className={'border-b border-border last:border-0'}>
-              <td className={'px-2 py-2 font-mono'}>{spec.type}</td>
-              <td className={'px-2 py-2 text-muted-foreground'}>{spec.family}</td>
-              <td className={'px-2 py-2'}>
-                <code>{spec.proxy}</code>
-                <span className={'ml-1 text-muted-foreground'}>← {spec.inherits.join(' ← ')}</span>
-              </td>
-              <td className={'px-2 py-2 text-muted-foreground'}>{spec.files.join(', ')}</td>
-              <td className={'px-2 py-2 font-mono text-muted-foreground'}>{spec.minimalCreate.join(', ')}</td>
-            </tr>)}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div className={'grid gap-3 md:grid-cols-2'}>
-      {VENUS_SHAPE_MODEL_SPECS.map((spec) => <section key={spec.type} className={'engine-docs-panel p-3'}>
-        <div className={'mb-2 flex items-center justify-between gap-2'}>
-          <h5 className={'font-mono text-sm font-semibold'}>{spec.type}</h5>
-          <span className={'rounded border border-border bg-muted/25 px-1.5 py-0.5 text-[10px] text-muted-foreground'}>{spec.family}</span>
-        </div>
-        <dl className={'grid gap-2 text-xs leading-5'}>
-          <div>
-            <dt className={'font-medium'}>Bounds</dt>
-            <dd className={'text-muted-foreground'}>{spec.bounds}</dd>
-          </div>
-          <div>
-            <dt className={'font-medium'}>Specific geometry</dt>
-            <dd className={'text-muted-foreground'}>{spec.geometry.join(', ')}</dd>
-          </div>
-          <div>
-            <dt className={'font-medium'}>Path expansion</dt>
-            <dd className={'text-muted-foreground'}>{spec.pathExpansion}</dd>
-          </div>
-          <div>
-            <dt className={'font-medium'}>Common render</dt>
-            <dd className={'text-muted-foreground'}>{spec.commonRender.join(', ')}</dd>
-          </div>
-        </dl>
-      </section>)}
-    </div>
-
-    <div className={'grid gap-3 engine-docs-panel p-3'}>
-      <h4 className={'text-sm font-semibold'}>Common render contract</h4>
-      <p className={'text-xs leading-5 text-muted-foreground'}>The structured best-practice surface is appearance.*. Flat fill/stroke/strokeWidth fields remain compatibility shortcuts and proxy conveniences. Prefer {'r.update({appearance: {...}})'} for grouped paint changes instead of nested mutable objects such as r.stroke.enabled.</p>
-      <ul className={'grid gap-1 text-xs leading-5 text-muted-foreground md:grid-cols-2'}>
-        {VENUS_COMMON_RENDER_PROPERTIES.map((property, index) => <li key={`common-render-${property}-${index}`}>• {property}</li>)}
-      </ul>
-      <CodeBox code={`const r = venus.add({type: 'rect', width: 180, height: 96})
-
-r.update({
-  appearance: {
-    fills: [{type: 'solid', color: '#3b82f6', opacity: 1}],
-    strokes: [{
-      visible: true,
-      width: 3,
-      align: 'center',
-      paints: [{type: 'solid', color: '#1e40af'}],
-    }],
-    effects: [{type: 'dropShadow', color: 'rgba(15,23,42,0.18)', blur: 12}],
-    opacity: 0.92,
-  },
-})`}/>
-    </div>
-  </div>
-}
-
-function ShapeStoryDemo({api, theme}: {api: EngineApiDoc; theme: ThemeMode}) {
+function ShapeStoryDemo({api, theme, mode = 'base'}: {api: EngineApiDoc; theme: ThemeMode; mode?: 'base' | 'full'}) {
   const [controls, setControls] = useState(() => createInitialModelControls(api.id, theme))
-  const nodes = useMemo(() => createEditableExampleNodes(api.id, controls) ?? createExampleNodes(api.id, theme), [api.id, controls, theme])
+  const nodes = useMemo(() => mode === 'base' ? [createBaseModelNode(api.id, controls)] : (createEditableExampleNodes(api.id, controls) ?? createExampleNodes(api.id, theme)), [api.id, controls, mode, theme])
 
   useEffect(() => {
     setControls(createInitialModelControls(api.id, theme))
@@ -2105,45 +2366,236 @@ function ShapeStoryDemo({api, theme}: {api: EngineApiDoc; theme: ThemeMode}) {
   return <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
     <ShapeCanvas ariaLabel={`${api.title} visual demo`} nodes={nodes} theme={theme}/>
     <div className={'flex min-w-0 flex-col gap-4'}>
-      <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls}/>
-      <ApiUsage code={createModelCode(api.id, controls)}/>
+      <ModelControlPanel apiId={api.id} controls={controls} setControls={setControls} mode={mode}/>
+      <ApiUsage code={mode === 'base' ? createBaseModelCode(api.id, controls) : createModelCode(api.id, controls)}/>
     </div>
   </div>
 }
 
-function CommonPropertiesDemo({apis}: {apis: EngineApiDoc[]}) {
-  const apiById = new Map(apis.map((api) => [api.id, api]))
+function ShapeFieldReference({api}: {api: EngineApiDoc}) {
+  return <section className={'grid gap-3'}>
+    <BasePropertyTable apiId={api.id}/>
+    {(api.methods?.length ?? 0) > 0 ? <div className={'grid gap-3 md:grid-cols-2'}>
+      {api.methods?.map((method) => <div key={`${api.id}-${method.name}`} className={'rounded-md border border-border bg-background/45 p-3'}>
+        <code className={'text-xs'}>{method.name}</code>
+        <p className={'mt-2 text-xs leading-5 text-muted-foreground'}>{method.description}</p>
+      </div>)}
+    </div> : null}
+  </section>
+}
 
+function AllShapesPlayground({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
+  return <div className={'grid gap-6'}>
+    {apis.map((api) => <section key={`all-shapes-${api.id}`} className={'grid gap-3 border-b border-border pb-6 last:border-0 last:pb-0'}>
+      <div className={'flex flex-wrap items-center justify-between gap-2'}>
+        <h4 className={'font-mono text-base font-semibold'}>{api.title}</h4>
+        <Badge variant={'secondary'} size={'sm'}>{api.id}</Badge>
+      </div>
+      <ShapeStoryDemo api={api} theme={theme}/>
+    </section>)}
+  </div>
+}
+
+type CommonPropertyField = 'opacity' | 'fill' | 'stroke' | 'strokeWidth' | 'blendMode' | 'shadow'
+
+const commonPropertyOrder: CommonPropertyField[] = ['opacity', 'fill', 'stroke', 'strokeWidth', 'blendMode', 'shadow']
+
+const commonPropertyLabels: Record<CommonPropertyField, string> = {
+  opacity: 'Opacity',
+  fill: 'Fill',
+  stroke: 'Stroke',
+  strokeWidth: 'Stroke Width',
+  blendMode: 'Blend Mode',
+  shadow: 'Shadow',
+}
+
+const getCommonFieldsForShape = (apiId: string): CommonPropertyField[] => {
+  if (apiId === 'line') {
+    return ['opacity', 'stroke', 'strokeWidth', 'blendMode', 'shadow']
+  }
+
+  if (apiId === 'image' || apiId === 'group' || apiId === 'clip' || apiId === 'mask') {
+    return ['opacity', 'blendMode', 'shadow']
+  }
+
+  if (apiId === 'text') {
+    return ['opacity', 'fill', 'blendMode', 'shadow']
+  }
+
+  return ['opacity', 'fill', 'stroke', 'strokeWidth', 'blendMode', 'shadow']
+}
+
+const shapeSupportsCommonField = (apiId: string, field: CommonPropertyField) => {
+  return getCommonFieldsForShape(apiId).includes(field)
+}
+
+function CommonFieldControlPanel({
+  field,
+  controls,
+  setControls,
+}: {
+  field: CommonPropertyField
+  controls: ModelControlValues
+  setControls: Dispatch<SetStateAction<ModelControlValues>>
+}) {
+  const setValue = <TKey extends keyof ModelControlValues>(key: TKey, value: ModelControlValues[TKey]) => {
+    setControls((currentControls) => ({...currentControls, [key]: value}))
+  }
+  const setNumber = (key: keyof ModelControlValues, value: string) => {
+    setControls((currentControls) => ({...currentControls, [key]: Number(value)}))
+  }
+
+  const numberField = (key: keyof ModelControlValues, label: string, unit = '', input?: {min?: number; max?: number; step?: number}) => {
+    const value = controls[key]
+    if (typeof value !== 'number') return null
+    return <label className={'flex items-center gap-2'}>
+      <span className={'w-24 shrink-0 text-xs text-muted-foreground'}>{label}</span>
+      <input
+        className={'h-7 w-28 rounded bg-muted/25 px-2 text-xs tabular-nums outline-none'}
+        type={'number'}
+        min={input?.min}
+        max={input?.max}
+        step={input?.step ?? 1}
+        value={value}
+        onChange={(event) => setNumber(key, event.target.value)}
+      />
+      {unit ? <span className={'text-xs text-muted-foreground'}>{unit}</span> : null}
+    </label>
+  }
+  const colorField = (key: keyof ModelControlValues, label: string) => {
+    const value = controls[key]
+    if (typeof value !== 'string') return null
+    return <label className={'flex items-center gap-2'}>
+      <span className={'w-24 shrink-0 text-xs text-muted-foreground'}>{label}</span>
+      <input className={'size-7 shrink-0 cursor-pointer rounded border p-0'} type={'color'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+      <input className={'h-7 w-28 rounded bg-muted/25 px-2 text-xs outline-none'} value={value} onChange={(event) => setValue(key, event.target.value as never)} />
+    </label>
+  }
+
+  return <div className={'engine-docs-panel grid gap-3 p-4'}>
+    <div className={'flex items-center justify-between gap-2'}>
+      <p className={'text-sm font-medium'}>{commonPropertyLabels[field]}</p>
+      <Badge variant={'secondary'} size={'sm'}>common</Badge>
+    </div>
+    {field === 'opacity' ? numberField('opacity', 'opacity', '%', {min: 0, max: 100}) : null}
+    {field === 'fill' ? <>{colorField('fill', 'fill')}{numberField('fillOpacity', 'fill opacity', '%', {min: 0, max: 100})}</> : null}
+    {field === 'stroke' ? <>{colorField('stroke', 'stroke')}{numberField('strokeOpacity', 'stroke opacity', '%', {min: 0, max: 100})}</> : null}
+    {field === 'strokeWidth' ? numberField('strokeWidth', 'stroke width', '', {min: 0, max: 24}) : null}
+    {field === 'blendMode' ? <label className={'flex items-center gap-2'}>
+      <span className={'w-24 shrink-0 text-xs text-muted-foreground'}>blend mode</span>
+      <select className={'h-7 w-32 rounded bg-muted/25 px-2 text-xs outline-none'} value={controls.blendMode} onChange={(event) => setValue('blendMode', event.target.value as never)}>
+        <option value={''}>normal</option>
+        <option value={'multiply'}>multiply</option>
+        <option value={'screen'}>screen</option>
+        <option value={'overlay'}>overlay</option>
+        <option value={'darken'}>darken</option>
+        <option value={'lighten'}>lighten</option>
+      </select>
+    </label> : null}
+    {field === 'shadow' ? <>
+      <label className={'flex items-center gap-2'}>
+        <span className={'w-24 shrink-0 text-xs text-muted-foreground'}>enabled</span>
+        <input className={'size-4'} type={'checkbox'} checked={controls.shadowEnabled} onChange={(event) => setValue('shadowEnabled', event.target.checked as never)} />
+      </label>
+      {controls.shadowEnabled ? <>
+        {colorField('shadowColor', 'color')}
+        {numberField('shadowBlur', 'blur', '', {min: 0, max: 40})}
+        {numberField('shadowOffsetX', 'offset x', '', {min: -40, max: 40})}
+        {numberField('shadowOffsetY', 'offset y', '', {min: -40, max: 40})}
+      </> : null}
+    </> : null}
+  </div>
+}
+
+const createCommonPropertyPatch = (controls: ModelControlValues, field: CommonPropertyField) => {
+  const fill = withOpacity(controls.fill, controls.fillOpacity)
+  const stroke = withOpacity(controls.stroke, controls.strokeOpacity)
+
+  return {
+    ...(field === 'opacity' ? {opacity: controls.opacity / 100} : {}),
+    ...(field === 'fill' ? {fill} : {}),
+    ...(field === 'stroke' ? {stroke} : {}),
+    ...(field === 'strokeWidth' ? {strokeWidth: controls.strokeWidth} : {}),
+    ...(field === 'blendMode' && controls.blendMode ? {blendMode: controls.blendMode} : {}),
+    ...(field === 'shadow' ? {shadow: resolveShadow(controls)} : {}),
+  }
+}
+
+const createCommonPropertyNode = (apiId: string, controls: ModelControlValues, field: CommonPropertyField): VenusNode => {
+  return {
+    ...createBaseModelNode(apiId, controls),
+    ...createCommonPropertyPatch(controls, field),
+  } as VenusNode
+}
+
+const createCommonPropertyCode = (apiId: string, controls: ModelControlValues, field: CommonPropertyField) => {
+  const node = createBaseModelNode(apiId, controls)
+  const commonPatch = createCommonPropertyPatch(controls, field)
+
+  return `const node = venus.add(${JSON.stringify(node, null, 2)})
+
+node.update(${JSON.stringify(commonPatch, null, 2)})`
+}
+
+function CommonPropertyStoryDemo({api, theme, field}: {api: EngineApiDoc; theme: ThemeMode; field: CommonPropertyField}) {
+  const [controls, setControls] = useState(() => createInitialModelControls(api.id, theme))
+  const nodes = useMemo(() => {
+    return [createCommonPropertyNode(api.id, controls, field)]
+  }, [api.id, controls, field])
+
+  useEffect(() => {
+    setControls(createInitialModelControls(api.id, theme))
+  }, [api.id, theme])
+
+  return <div className={'grid gap-4 lg:grid-cols-[400px_minmax(0,420px)]'}>
+    <ShapeCanvas ariaLabel={`${api.title} common property demo`} nodes={nodes} theme={theme}/>
+    <div className={'flex min-w-0 flex-col gap-4'}>
+      <CommonFieldControlPanel field={field} controls={controls} setControls={setControls}/>
+      <ApiUsage code={createCommonPropertyCode(api.id, controls, field)}/>
+    </div>
+  </div>
+}
+
+function CommonPropertyPage({field, apis, theme}: {field: CommonPropertyField; apis: EngineApiDoc[]; theme: ThemeMode}) {
+  const supportedApis = useMemo(() => apis.filter((api) => shapeSupportsCommonField(api.id, field)), [apis, field])
+  const [apiId, setApiId] = useState(supportedApis[0]?.id ?? 'rect')
+  const activeApi = supportedApis.find((api) => api.id === apiId) ?? supportedApis[0]
+
+  useEffect(() => {
+    if (!supportedApis.some((api) => api.id === apiId)) {
+      setApiId(supportedApis[0]?.id ?? 'rect')
+    }
+  }, [apiId, supportedApis])
+
+  if (!activeApi) {
+    return null
+  }
+
+  return <section id={`models-common-properties-${field}`} className={'grid scroll-mt-20 gap-4 engine-docs-panel p-4'}>
+    <div className={'flex flex-wrap items-center justify-between gap-3'}>
+      <div>
+        <h4 className={'text-base font-semibold'}>{commonPropertyLabels[field]}</h4>
+        <p className={'mt-1 max-w-3xl text-sm leading-6 text-muted-foreground'}>{field} across supported shape models.</p>
+      </div>
+      <Badge variant={'secondary'} size={'sm'}>common property</Badge>
+    </div>
+    <div className={'flex flex-wrap gap-1 rounded-lg bg-muted/25 p-1'}>
+      {supportedApis.map((api) => <button
+        key={`${field}-${api.id}`}
+        className={activeApi.id === api.id ? 'rounded-md bg-background px-2 py-1.5 text-xs font-medium' : 'rounded-md px-2 py-1.5 text-xs text-muted-foreground'}
+        type={'button'}
+        onClick={() => setApiId(api.id)}
+      >
+        {api.title}
+      </button>)}
+    </div>
+    <CommonPropertyStoryDemo api={activeApi} theme={theme} field={field}/>
+  </section>
+}
+
+function CommonPropertiesDemo({apis, theme}: {apis: EngineApiDoc[]; theme: ThemeMode}) {
   return <div className={'grid gap-4'}>
-    {shapeApiIds.map((apiId) => {
-      const api = apiById.get(apiId)
-      const spec = VENUS_SHAPE_MODEL_SPECS.find((candidate) => candidate.type === apiId)
-      if (!api || !spec) {
-        return null
-      }
-
-      return <section key={`common-properties-${apiId}`} id={`models-common-properties-${apiId}`} className={'grid scroll-mt-20 gap-4 engine-docs-panel p-4'}>
-        <div className={'flex flex-wrap items-center justify-between gap-3'}>
-          <div>
-            <h4 className={'font-mono text-base font-semibold'}>{api.title}</h4>
-            <p className={'mt-1 max-w-3xl text-sm leading-6 text-muted-foreground'}>{spec.bounds}</p>
-          </div>
-          <span className={'rounded border border-border bg-muted/25 px-2 py-1 text-[11px] text-muted-foreground'}>{spec.family}</span>
-        </div>
-
-        <div className={'grid gap-3 md:grid-cols-2'}>
-          {api.propertyGroups?.map((group) => <div key={`${apiId}-${group.title}`} className={'rounded-md border border-border bg-background/45 p-3'}>
-            <h5 className={'mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'}>{group.title}</h5>
-            <ul className={'flex flex-col gap-1.5'}>
-              {group.properties.map((property, propertyIndex) => <li key={`${apiId}-${group.title}-${propertyIndex}`} className={'flex items-start gap-2 text-[13px] leading-6'}>
-                <code className={'mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0 text-[11px] font-mono text-foreground/80'}>{property.split(':')[0].split('?')[0]}</code>
-                <span className={'text-muted-foreground'}>{property.includes(':') ? property.slice(property.indexOf(':') + 1).trim() : ''}</span>
-              </li>)}
-            </ul>
-          </div>)}
-        </div>
-      </section>
-    })}
+    {commonPropertyOrder.map((field) => <CommonPropertyPage key={`common-property-${field}`} field={field} apis={apis} theme={theme}/>)}
   </div>
 }
 
@@ -2378,9 +2830,9 @@ export function App() {
           .map((apiId) => category.apis.find((api) => api.id === apiId))
           .filter((api): api is EngineApiDoc => Boolean(api))
         return {
-          id: 'models-contract-nav',
-          label: 'Shape model contract',
-          href: '#models-shape-contract',
+          id: 'models-nav',
+          label: category.title,
+          href: '#models',
           defaultOpen: true,
           items: [
             {
@@ -2399,13 +2851,41 @@ export function App() {
               label: 'Common Properties',
               href: '#models-common-properties',
               defaultOpen: true,
-              items: shapeApis.map((api) => ({
-                id: `common-${api.id}`,
-                label: api.title,
-                href: `#models-common-properties-${api.id}`,
+              items: commonPropertyOrder.map((field) => ({
+                id: `common-${field}`,
+                label: commonPropertyLabels[field],
+                href: `#models-common-properties-${field}`,
               })),
             },
+            {
+              id: 'models-all-shapes-nav',
+              label: 'All Shapes Playground',
+              href: '#models-all-shapes',
+            },
           ],
+        }
+      }
+
+      if (category.id === 'methods') {
+        return {
+          id: category.id,
+          label: category.title,
+          href: `#${category.id}`,
+          defaultOpen: true,
+          items: engineApiModuleGroups.map((group) => {
+            const apis = category.apis.filter((api) => api.moduleName === group.id)
+            return {
+              id: `methods-${group.id}`,
+              label: group.title,
+              href: `#methods-${group.id}`,
+              defaultOpen: group.id === 'render',
+              items: apis.map((api) => ({
+                id: api.id,
+                label: api.title,
+                href: `#${getApiAnchorId(category, api)}`,
+              })),
+            }
+          }).filter((item) => item.items.length > 0),
         }
       }
 
@@ -2500,15 +2980,7 @@ export function App() {
                 .map((apiId) => category.apis.find((api) => api.id === apiId))
                 .filter((api): api is EngineApiDoc => Boolean(api))
 
-              return <section key={category.id} className={'scroll-mt-20'}>
-                <article id={'models-shape-contract'} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
-                  <header className={'flex flex-col gap-2'}>
-                    <h3 className={'text-xl font-semibold tracking-tight'}>Shape model contract</h3>
-                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>The engine-side contract for module ownership, proxy inheritance, minimal creation fields, editable bounds, path expansion, and shared render properties.</p>
-                  </header>
-                  <ShapeModelGuide/>
-                </article>
-
+              return <section key={category.id} id={'models'} className={'scroll-mt-20'}>
                 <div id={'models-shapes'} className={'scroll-mt-20 py-6'}>
                   <h3 className={'text-xl font-semibold tracking-tight'}>Shapes</h3>
                   <p className={'mt-2 max-w-3xl text-sm leading-6 text-muted-foreground'}>Each shape page includes the live canvas, model-specific controls, and shared editable fields.</p>
@@ -2524,6 +2996,7 @@ export function App() {
                       </header>
                       <ApiDescription api={api}/>
                       <ShapeStoryDemo api={api} theme={theme}/>
+                      <ShapeFieldReference api={api}/>
                     </article>
                   })}
                 </div>
@@ -2531,10 +3004,87 @@ export function App() {
                 <article id={'models-common-properties'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
                   <header className={'flex flex-col gap-2'}>
                     <h3 className={'text-xl font-semibold tracking-tight'}>Common Properties</h3>
-                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Shared fields are grouped by the engine model kind so each surface shows its complete inherited and model-specific property set.</p>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Shared fields are documented one property at a time, with a focused canvas, form, and generated patch for the selected field.</p>
                   </header>
-                  <CommonPropertiesDemo apis={shapeApis}/>
+                  <CommonPropertiesDemo apis={shapeApis} theme={theme}/>
                 </article>
+
+                <article id={'models-all-shapes'} className={'engine-docs-article mt-4 flex scroll-mt-20 flex-col gap-6 p-6'}>
+                  <header className={'flex flex-col gap-2'}>
+                    <h3 className={'text-xl font-semibold tracking-tight'}>All Shapes Playground</h3>
+                    <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>Every shape model appears with its own canvas, form, and generated node data so all editable fields can be exercised in one place.</p>
+                  </header>
+                  <AllShapesPlayground apis={shapeApis} theme={theme}/>
+                </article>
+              </section>
+            }
+
+            if (category.id === 'methods') {
+              return <section key={category.id} id={category.id} className={'scroll-mt-20'}>
+                <div className={'mb-5 flex flex-col gap-2'}>
+                  <h2 className={'scroll-mt-20 text-2xl font-semibold tracking-tight'}>{category.title}</h2>
+                  <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{category.summary}</p>
+                </div>
+
+                <div className={'flex flex-col gap-8'}>
+                  {engineApiModuleGroups.map((group) => {
+                    const apis = category.apis.filter((api) => api.moduleName === group.id)
+                    if (apis.length === 0) return null
+
+                    return <section key={`methods-${group.id}`} id={`methods-${group.id}`} className={'scroll-mt-20'}>
+                      <header className={'mb-3 flex flex-col gap-1'}>
+                        <div className={'flex flex-wrap items-center gap-2'}>
+                          <h3 className={'text-lg font-semibold tracking-tight'}>{group.title}</h3>
+                          <Badge variant={'secondary'}>{group.id}</Badge>
+                        </div>
+                        <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{group.summary}</p>
+                      </header>
+
+                      <div className={'flex flex-col gap-4'}>
+                        {apis.map((api) => {
+                          const apiAnchorId = getApiAnchorId(category, api)
+
+                          return <article key={`${category.id}-${api.id}`} id={apiAnchorId} className={'engine-docs-article flex scroll-mt-20 flex-col gap-6 p-6'}>
+                            <header className={'flex w-full flex-col gap-2'}>
+                              <div className={'flex flex-wrap items-center gap-2'}>
+                                <h4 className={'text-lg font-semibold tracking-tight'}>{api.title}</h4>
+                                <Badge variant={'outline'}>{group.id}</Badge>
+                              </div>
+                              <p className={'max-w-3xl text-sm leading-6 text-muted-foreground'}>{api.summary}</p>
+                            </header>
+
+                            <ApiDescription api={api}/>
+
+                            <InteractiveMethodDemo api={api} theme={theme}/>
+                            <ApiUsage code={api.demo}/>
+
+                            {api.parameters && api.parameters.length > 0
+                              ? <section className={'flex min-w-0 flex-col gap-3'}>
+                                <h5 className={'text-sm font-medium'}>Parameters</h5>
+                                <ParameterTable parameters={api.parameters}/>
+                              </section>
+                              : null}
+
+                            {api.methods && api.methods.length > 0
+                              ? <section className={'flex min-w-0 flex-col gap-4'}>
+                                <h5 className={'text-sm font-medium'}>Methods</h5>
+                                {api.methods.map((method, methodIndex) => {
+                                  return <div key={`${api.id}-method-${method.name}-${methodIndex}`} className={'engine-docs-panel flex flex-col gap-2 p-4'}>
+                                    <code className={'text-xs'}>{method.name}</code>
+                                    <p className={'text-sm leading-6 text-muted-foreground'}>{method.description}</p>
+                                    {method.parameters && method.parameters.length > 0
+                                      ? <ParameterTable parameters={method.parameters}/>
+                                      : null}
+                                  </div>
+                                })}
+                              </section>
+                              : null}
+                          </article>
+                        })}
+                      </div>
+                    </section>
+                  })}
+                </div>
               </section>
             }
 
@@ -2585,8 +3135,10 @@ export function App() {
                           <ApiUsage code={api.demo}/>
                         </div>
                         : isMethods
-                            ? <InteractiveMethodDemo api={api} theme={theme}/>
-                            : api.id === 'events-demo'
+                            ? null
+                            : category.id === 'modules'
+                              ? <InteractiveMethodDemo api={api} theme={theme}/>
+                              : api.id === 'events-demo'
                               ? <EventInspectorDemo theme={theme}/>
                               : <ApiCanvasDemo api={api} theme={theme}/>}
                     </div>
@@ -2597,12 +3149,8 @@ export function App() {
                       : null}
 
                     {/* Methods: explicit usage */}
-                    {isMethods
-                      ? <ApiUsage code={api.demo}/>
-                      : null}
-
                     {!isStart && !isDocModel && !isMethods
-                      ? <ApiUsage code={createUsageCode(api, theme)}/>
+                      ? <ApiUsage code={category.id === 'modules' ? api.demo : createUsageCode(api, theme)}/>
                       : null}
 
                     {api.parameters && api.parameters.length > 0

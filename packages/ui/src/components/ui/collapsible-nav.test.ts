@@ -16,6 +16,9 @@ describe("collapsible nav primitive", () => {
     assert.match(source, /role="treeitem"/);
     assert.match(source, /type="button"/);
     assert.match(source, /CollapsibleNavItem/);
+    assert.match(source, /style=\{\{ transform: isOpen \? "rotate\(90deg\)" : "rotate\(0deg\)" \}\}/);
+    assert.match(source, /absolute inset-0 flex items-center justify-center/);
+    assert.doesNotMatch(source, /<ChevronRight\s+data-icon/);
   });
 
   it("sets action cursors for common interactive elements", () => {

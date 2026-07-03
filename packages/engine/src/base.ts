@@ -2,6 +2,7 @@ export {
   defineVenusModule,
   isVenusModuleName,
   VENUS_INTERNAL_SERVICE_NAMES,
+  VENUS_MODULE_CATALOG,
   VENUS_MODULE_NAMES,
   Venus,
 } from './runtime/venus/Venus.ts'
@@ -12,15 +13,28 @@ export type {
   VenusDocumentService,
   VenusInvalidationService,
   VenusModule,
+  VenusModuleCatalogEntry,
+  VenusModuleCategory,
   VenusModuleContext,
   VenusModuleDiagnostics,
   VenusModuleName,
+  VenusModuleStatus,
   VenusParameters,
   VenusRegisteredServiceMap,
   VenusRegisteredServiceName,
   VenusServiceRegistry,
   VenusViewportService,
 } from './runtime/venus/Venus.ts'
+export {
+  createVenusAnimateModule,
+  createVenusCameraModule,
+  createVenusDebugModule,
+  createVenusEffectsModule,
+  createVenusExportModule,
+  createVenusHistoryModule,
+  createVenusHitTestModule,
+  createVenusInteractionModule,
+} from './runtime/venus/modules/index.ts'
 
 import {Venus} from './runtime/venus/Venus.ts'
 import type {VenusParameters} from './runtime/venus/Venus.ts'

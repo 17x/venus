@@ -1,7 +1,2 @@
-import {type ClassValue, clsx} from 'clsx'
-import {twMerge} from 'tailwind-merge'
-
-// Normalize className composition so all UI layers share one merge behavior.
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
+// Re-exports the canonical cn() from the shared lib to avoid duplication.
+export { cn } from '../../lib/utils'

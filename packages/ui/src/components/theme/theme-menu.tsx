@@ -110,6 +110,7 @@ export function ThemeMenu({ labels, title }: ThemeMenuProps) {
     </div>
   );
 }
+ThemeMenu.displayName = 'ThemeMenu';
 
 function applyTheme(theme: ThemeName) {
   document.documentElement.dataset.theme = theme;

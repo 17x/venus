@@ -40,6 +40,7 @@ function Badge({ className, size, variant, ...props }: BadgeProps) {
 
   return (
     <div
+      role="status"
       className={cn(badgeVariants({ variant: resolvedVariant, size: resolvedSize }), className)}
       data-size={resolvedSize}
       data-slot="badge"
@@ -48,5 +49,6 @@ function Badge({ className, size, variant, ...props }: BadgeProps) {
     />
   );
 }
+Badge.displayName = 'Badge';
 
 export { Badge, badgeVariants };
