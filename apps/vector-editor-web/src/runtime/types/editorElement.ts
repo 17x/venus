@@ -103,6 +103,8 @@ export interface TextStyle {
   fontSize?: number
   // Stores font weight.
   fontWeight?: number
+  // Stores font style.
+  fontStyle?: 'normal' | 'italic' | 'oblique'
   // Stores letter spacing.
   letterSpacing?: number
   // Stores line height.

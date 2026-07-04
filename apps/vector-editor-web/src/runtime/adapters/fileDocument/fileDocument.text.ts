@@ -55,6 +55,7 @@ function toTextRun(value: unknown): ElementTextRun | null {
       fontFamily?: unknown
       fontSize?: unknown
       fontWeight?: unknown
+      fontStyle?: unknown
       letterSpacing?: unknown
       lineHeight?: unknown
       textAlign?: unknown
@@ -72,6 +73,7 @@ function toTextRun(value: unknown): ElementTextRun | null {
         fontFamily: typeof run.style.fontFamily === 'string' ? run.style.fontFamily : undefined,
         fontSize: typeof run.style.fontSize === 'number' ? run.style.fontSize : undefined,
         fontWeight: typeof run.style.fontWeight === 'number' ? run.style.fontWeight : undefined,
+        fontStyle: resolveFontStyle(run.style.fontStyle),
         letterSpacing: typeof run.style.letterSpacing === 'number' ? run.style.letterSpacing : undefined,
         lineHeight: typeof run.style.lineHeight === 'number' ? run.style.lineHeight : undefined,
         textAlign: resolveTextAlign(run.style.textAlign),
@@ -84,6 +86,17 @@ function toTextRun(value: unknown): ElementTextRun | null {
     end: Math.max(0, Math.floor(run.end)),
     style,
   }
+}
+
+/**
+ * Validates font style literals shared with the engine text contract.
+ * @param value Candidate font style value.
+ */
+function resolveFontStyle(value: unknown): 'normal' | 'italic' | 'oblique' | undefined {
+  if (value === 'normal' || value === 'italic' || value === 'oblique') {
+    return value
+  }
+  return undefined
 }
 
 /**

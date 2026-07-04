@@ -17,6 +17,37 @@ export function createVenusBaseModule(): VenusModule {
       const document = context.services.require<VenusDocumentService>('document')
       return {
         /**
+         * Groups sibling document nodes through the document service.
+         * @param ids Sibling node ids to group.
+         * @param options Optional group metadata.
+         */
+        group(ids, options) {
+          return document.group(ids, options)
+        },
+        /**
+         * Ungroups a structure-only group through the document service.
+         * @param id Group node id to ungroup.
+         */
+        ungroup(id) {
+          return document.ungroup(id)
+        },
+        /**
+         * Adds a child node through the document service.
+         * @param parentId Frame, group, clip, or mask id.
+         * @param child Child document node to append.
+         */
+        addChild(parentId, child) {
+          return document.addChild(parentId, child)
+        },
+        /**
+         * Removes a child node through the document service.
+         * @param parentId Frame, group, clip, or mask id.
+         * @param childId Child document node id to remove.
+         */
+        removeChild(parentId, childId) {
+          document.removeChild(parentId, childId)
+        },
+        /**
          * Reads one node's current sibling index.
          * @param id Node id to inspect.
          */
@@ -81,6 +112,21 @@ export function createVenusBaseModule(): VenusModule {
          */
         sendToBack(id) {
           return document.sendToBack(id)
+        },
+        /**
+         * Validates clip graph metadata through the document service.
+         * @param snapshot Optional render-facing snapshot.
+         */
+        validateClipGraph(snapshot) {
+          return document.validateClipGraph(snapshot)
+        },
+        /**
+         * Resolves clip dependencies through the document service.
+         * @param nodeId Node id to inspect.
+         * @param snapshot Optional render-facing snapshot.
+         */
+        resolveClipDependencies(nodeId, snapshot) {
+          return document.resolveClipDependencies(nodeId, snapshot)
         },
       }
     },

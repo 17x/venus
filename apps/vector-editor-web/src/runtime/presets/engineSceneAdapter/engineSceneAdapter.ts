@@ -357,6 +357,7 @@ function createEngineNodeFromRuntimeShape(input: {
       transform: sourceTransform,
       shadow: resolveNodeShadow(sourceShape),
       assetId: sourceShape?.assetId ?? sourceShape?.id ?? snapshotShape.id,
+      assetUrl: sourceShape?.assetUrl,
       clip,
     }
   }
@@ -383,6 +384,7 @@ function createEngineNodeFromRuntimeShape(input: {
           fontFamily: run.style?.fontFamily,
           fontSize: run.style?.fontSize,
           fontWeight: run.style?.fontWeight,
+          fontStyle: run.style?.fontStyle,
           lineHeight: run.style?.lineHeight,
           letterSpacing: run.style?.letterSpacing,
           align: resolveEngineTextAlign(run.style?.textAlign),
@@ -405,6 +407,7 @@ function createEngineNodeFromRuntimeShape(input: {
           fontFamily: firstRun?.style?.fontFamily ?? 'Arial, sans-serif',
           fontSize: firstRun?.style?.fontSize ?? 16,
           fontWeight: firstRun?.style?.fontWeight,
+          fontStyle: firstRun?.style?.fontStyle,
           lineHeight: firstRun?.style?.lineHeight,
           letterSpacing: firstRun?.style?.letterSpacing,
           fill: firstRun?.style?.color ?? '#111111',

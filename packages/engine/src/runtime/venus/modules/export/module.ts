@@ -468,10 +468,14 @@ function textToSvg(node: EngineTextNode, context: SvgExportContext): string {
   return `<text${commonAttrs(node, context)}${attr('x', node.x)}${attr('y', node.y + fontSize)}${attr('font-family', style.fontFamily)}${attr('font-size', fontSize)}${attr('font-weight', style.fontWeight)}${attr('font-style', style.fontStyle)}${attr('letter-spacing', style.letterSpacing)}${fill}${stroke}>${tspans}</text>`
 }
 
-/** Serializes an image node into an SVG image element. */
+/**
+ * Serializes an image node into an SVG image element.
+ * @param node Image node to serialize.
+ * @param context SVG serialization context and options.
+ */
 function imageToSvg(node: EngineImageNode, context: SvgExportContext): string {
-  const href = context.options.embedImages || /^(data:|https?:|blob:)/.test(node.assetId) ? node.assetId : ''
-  return `<image${commonAttrs(node, context)}${attr('x', node.x)}${attr('y', node.y)}${attr('width', node.width)}${attr('height', node.height)}${attr('href', href)}${attr('data-asset-id', node.assetId)}/>`
+  const href = node.assetUrl ?? (context.options.embedImages || /^(data:|https?:|blob:)/.test(node.assetId) ? node.assetId : '')
+  return `<image${commonAttrs(node, context)}${attr('x', node.x)}${attr('y', node.y)}${attr('width', node.width)}${attr('height', node.height)}${attr('href', href)}${attr('data-asset-id', node.assetId)}${attr('data-asset-url', node.assetUrl)}/>`
 }
 
 /** Serializes a group node and its children. */

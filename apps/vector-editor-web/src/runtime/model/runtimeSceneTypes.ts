@@ -56,6 +56,7 @@ export interface RuntimeTextRun {
   fontSize: number
   fontFamily: string
   fontWeight: number
+  fontStyle?: 'normal' | 'italic' | 'oblique'
   color: unknown
   letterSpacing: number
   lineHeight: number

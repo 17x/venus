@@ -14,16 +14,20 @@ import {
 } from './engineSceneAdapter.tree.ts'
 import {resolveNodeTransform} from '@venus/engine'
 
-const baseNode = (node: Partial<DocumentNode> & Pick<DocumentNode, 'id' | 'type'>): DocumentNode => ({
-  id: node.id,
-  type: node.type,
-  name: node.name ?? node.id,
-  x: node.x ?? 0,
-  y: node.y ?? 0,
-  width: node.width ?? 100,
-  height: node.height ?? 80,
-  ...node,
-})
+const baseNode = (node: Partial<DocumentNode> & Pick<DocumentNode, 'id' | 'type'>): DocumentNode => {
+  const {id, type, ...rest} = node
+
+  return {
+    id,
+    type,
+    name: rest.name ?? id,
+    x: rest.x ?? 0,
+    y: rest.y ?? 0,
+    width: rest.width ?? 100,
+    height: rest.height ?? 80,
+    ...rest,
+  }
+}
 
 const snapshotFor = (node: DocumentNode): SceneShapeSnapshot => ({
   id: node.id,
@@ -212,7 +216,7 @@ describe('engine scene adapter model parity', () => {
         id: 'text',
         type: 'text',
         text: 'Hello',
-        textRuns: [{start: 0, end: 5, style: {fontFamily: 'Inter', fontSize: 18, color: '#111827'}}],
+        textRuns: [{start: 0, end: 5, style: {fontFamily: 'Inter', fontSize: 18, fontStyle: 'italic', color: '#111827'}}],
       }),
       baseNode({id: 'image', type: 'image', assetId: 'asset-1', assetUrl: 'https://example.test/image.png'}),
     ]
@@ -220,7 +224,7 @@ describe('engine scene adapter model parity', () => {
     const scene = createScene(nodes)
 
     assert.equal(scene.nodes.length, nodes.length)
-    assert.deepEqual(scene.nodes.map((node) => node.id), nodes.map((node) => node.id))
+    assert.deepEqual(scene.nodes.map((node: EngineRenderableNode) => node.id), nodes.map((node) => node.id))
 
     const frame = nodeById(scene.nodes, 'frame')
     assert.equal(frame.type, 'shape')
@@ -261,11 +265,14 @@ describe('engine scene adapter model parity', () => {
     assert.equal(text.type, 'text')
     assert.equal(text.type === 'text' ? text.text : null, 'Hello')
     assert.equal(text.type === 'text' ? text.runs?.[0]?.style?.fontSize : null, 18)
+    assert.equal(text.type === 'text' ? text.runs?.[0]?.style?.fontStyle : null, 'italic')
+    assert.equal(text.type === 'text' ? text.style.fontStyle : null, 'italic')
     assert.equal(text.type === 'text' ? text.style.fillConfig?.color : null, '#111827')
 
     const image = nodeById(scene.nodes, 'image')
     assert.equal(image.type, 'image')
     assert.equal(image.type === 'image' ? image.assetId : null, 'asset-1')
+    assert.equal(image.type === 'image' ? image.assetUrl : null, 'https://example.test/image.png')
   })
 
   it('resolves parent-local transforms that preserve child world transforms', () => {
@@ -350,7 +357,7 @@ describe('engine scene adapter model parity', () => {
     assert.equal(frameNode?.type, 'group')
     assert.equal(frameNode?.id, 'frame')
     assert.deepEqual(
-      frameNode?.type === 'group' ? frameNode.children.map((node) => node.id) : [],
+      frameNode?.type === 'group' ? frameNode.children.map((node: EngineRenderableNode) => node.id) : [],
       ['frame__frame_background', 'rect-b', 'rect-a'],
     )
 
@@ -489,7 +496,7 @@ describe('engine scene adapter model parity', () => {
     const patch = result.batch.patches[0]
     assert.equal(patch?.upsertParentId, 'frame')
     assert.equal(patch?.upsertIndex, 2)
-    assert.deepEqual(patch?.upsertNodes?.map((node) => node.id), ['rect-a'])
+    assert.deepEqual(patch?.upsertNodes?.map((node: EngineRenderableNode) => node.id), ['rect-a'])
 
     const parentWorld = vectorAffineToEngineMatrix(resolveNodeTransform(frame).matrix)
     const childWorld = vectorAffineToEngineMatrix(resolveNodeTransform(rectA).matrix)
@@ -537,7 +544,7 @@ describe('engine scene adapter model parity', () => {
     assert.equal(frameNode?.id, 'frame')
     assert.equal(frameNode?.type, 'group')
     assert.deepEqual(
-      frameNode?.type === 'group' ? frameNode.children.map((node) => node.id) : [],
+      frameNode?.type === 'group' ? frameNode.children.map((node: EngineRenderableNode) => node.id) : [],
       ['frame__frame_background', 'rect-a'],
     )
   })
@@ -571,6 +578,9 @@ describe('engine scene adapter model parity', () => {
     })
 
     assert.equal(result.requiresFullLoad, false)
-    assert.deepEqual(result.batch.patches.map((patch) => patch.upsertNodes?.[0]?.id), ['frame'])
+    assert.deepEqual(
+      result.batch.patches.map((patch: {upsertNodes?: readonly EngineRenderableNode[]}) => patch.upsertNodes?.[0]?.id),
+      ['frame'],
+    )
   })
 })

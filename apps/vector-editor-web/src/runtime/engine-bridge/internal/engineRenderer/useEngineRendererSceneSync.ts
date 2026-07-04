@@ -325,10 +325,11 @@ export function useEngineRendererSceneSync(params: {
           // stay local even when many nodes are updated in one patch burst.
           // Include both previous and next positions so moved nodes invalidate
           // the tiles they vacated as well as the tiles they now occupy.
+          const previousDocument = previous?.document
           const mergedDirtyBounds = resolveMergedNodeBounds({
             nodes: upsertNodes,
             currentDocument: params.document,
-            previousDocument: previous.document,
+            previousDocument,
             changedIds,
           })
           if (mergedDirtyBounds) {

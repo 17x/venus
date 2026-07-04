@@ -215,6 +215,7 @@ export interface EngineImageNode extends EngineNodeBase {
     width: number;
     height: number;
     assetId: string;
+    assetUrl?: string;
     sourceRect?: EngineRect;
     naturalSize?: {
         width: number;

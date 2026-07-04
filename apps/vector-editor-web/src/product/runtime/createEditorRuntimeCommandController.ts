@@ -140,7 +140,7 @@ export function createEditorRuntimeCommandController(options: EditorRuntimeComma
         return
       }
 
-      const currentIndex = hitShapeIds.findIndex((shapeId) => {
+      const currentIndex = hitShapeIds.findIndex((shapeId: string) => {
         return resolveMaskLinkedShapeIds(options.interactionDocument, shapeId)
           .some((linkedShapeId) => options.selectedShapeIds.includes(linkedShapeId))
       })

@@ -126,13 +126,45 @@ describe('export module', () => {
       y: 32,
       text: 'Exported',
       fill: '#111827',
+      fontFamily: 'Geist',
       fontSize: 18,
+      fontStyle: 'italic',
+      letterSpacing: 0.75,
     })
     venus.add({
       type: 'group',
       id: 'grouped',
       children: [
         { type: 'ellipse', id: 'dot', ellipseGeometry: { cx: 180, cy: 80, rx: 24, ry: 18 }, fill: '#3b82f6' },
+      ],
+    })
+    venus.add({
+      type: 'image',
+      id: 'photo',
+      x: 220,
+      y: 24,
+      width: 64,
+      height: 48,
+      assetId: 'asset-photo',
+      assetUrl: 'https://cdn.example.test/photo.png',
+    })
+    venus.add({
+      type: 'clip',
+      id: 'path-clip',
+      clipPath: {
+        type: 'polygon',
+        x: 300,
+        y: 20,
+        width: 80,
+        height: 70,
+        points: [
+          {x: 300, y: 20},
+          {x: 380, y: 20},
+          {x: 340, y: 90},
+        ],
+      },
+      children: [
+        {type: 'rect', id: 'clipped-card', x: 300, y: 20, width: 80, height: 70, fill: '#f97316'},
       ],
     })
 
@@ -142,7 +174,14 @@ describe('export module', () => {
     assert.match(svg, /viewBox="0 0 \d+ \d+"/)
     assert.match(svg, /<rect[^>]+id="card"[^>]+fill="#22c55e"[^>]+stroke="#14532d"/)
     assert.match(svg, /<text[^>]+id="label"[^>]*>.*Exported.*<\/text>/s)
+    assert.match(svg, /<text[^>]+font-family="Geist"/)
+    assert.match(svg, /<text[^>]+font-style="italic"/)
+    assert.match(svg, /<text[^>]+letter-spacing="0.75"/)
     assert.match(svg, /<g[^>]+id="grouped"/)
+    assert.match(svg, /<image[^>]+id="photo"[^>]+href="https:\/\/cdn\.example\.test\/photo\.png"/)
+    assert.match(svg, /<image[^>]+data-asset-id="asset-photo"[^>]+data-asset-url="https:\/\/cdn\.example\.test\/photo\.png"/)
+    assert.match(svg, /<g[^>]+id="path-clip"[^>]+clip-path="url\(#venus-clip-\d+\)"/)
+    assert.match(svg, /<clipPath[^>]*><path[^>]+d="M 300 20 L 380 20 L 340 90 Z"/)
     assert.match(svg, /<ellipse[^>]+id="dot"[^>]+cx="180"[^>]+rx="24"/)
     assert.doesNotMatch(svg, /full SVG export not yet implemented/)
   })

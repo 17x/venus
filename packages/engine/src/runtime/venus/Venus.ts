@@ -10,6 +10,7 @@ import type {
   EngineTextRun,
   EngineTextStyle,
   EngineTransform2D,
+  EngineClipShape,
 } from '../../scene/types/types.ts'
 import type {EngineResourceLoader} from '../../renderer/types/index.ts'
 import {resolveLeafNodeWorldBounds} from '../../scene/worldBounds/worldBounds.ts'
@@ -79,6 +80,29 @@ export interface VenusDocumentService {
   snapshot(): EngineSceneSnapshot
   children(): readonly VenusNode[]
   bounds(): {x: number; y: number; width: number; height: number}
+  /**
+   * Wraps sibling nodes in a structure-only group while preserving child geometry.
+   * @param ids Sibling document ids to group.
+   * @param options Optional group metadata for the created group.
+   */
+  group(ids: readonly string[], options?: VenusGroupOptions): VenusNodeProxy
+  /**
+   * Lifts a structure-only group's children into the same parent.
+   * @param id Group node id to ungroup.
+   */
+  ungroup(id: string): VenusNodeProxy[]
+  /**
+   * Adds one child to a document container.
+   * @param parentId Frame, group, clip, or mask id.
+   * @param child Child document node to append.
+   */
+  addChild(parentId: string, child: VenusNode): VenusNodeProxy
+  /**
+   * Removes one child from a document container.
+   * @param parentId Frame, group, clip, or mask id.
+   * @param childId Child document node id to remove.
+   */
+  removeChild(parentId: string, childId: string): void
   getLayerIndex(id: string): number
   getLayerOrder(parentId?: string | null): string[]
   /**
@@ -119,6 +143,17 @@ export interface VenusDocumentService {
    * @param id Node id to move.
    */
   sendToBack(id: string): VenusLayerMutationResult
+  /**
+   * Validates clip references and inline clip geometry in a snapshot.
+   * @param snapshot Optional render-facing snapshot; defaults to the current document.
+   */
+  validateClipGraph(snapshot?: EngineSceneSnapshot): VenusClipGraphValidation
+  /**
+   * Resolves direct and transitive clip node ids for one node.
+   * @param nodeId Node id whose clip chain should be inspected.
+   * @param snapshot Optional render-facing snapshot; defaults to the current document.
+   */
+  resolveClipDependencies(nodeId: string, snapshot?: EngineSceneSnapshot): string[]
 }
 
 /** Viewport service exposed to modules that need coordinate conversion. */
@@ -494,6 +529,82 @@ export interface VenusLayerMutationResult {
   order: readonly string[]
 }
 
+/** Broad document mutation reasons carried by the compatibility `document:changed` event. */
+export type VenusDocumentChangedReason =
+  | 'node-added'
+  | 'node-updated'
+  | 'node-removed'
+  | 'structure-changed'
+  | 'layer-changed'
+  | 'defaults-changed'
+  | 'history-restored'
+
+/** Compatibility payload emitted after any public document revision change. */
+export interface VenusDocumentChangedEvent {
+  /** Document revision after the mutation. */
+  revision: number
+  /** Render-facing node when a single changed node is available. */
+  node?: EngineRenderableNode
+  /** Public document ids affected by this mutation. */
+  affectedNodeIds?: readonly string[]
+  /** Broad mutation reason used by app adapters and diagnostics. */
+  reason?: VenusDocumentChangedReason
+}
+
+/** Payload emitted after one or more public document nodes are added. */
+export interface VenusDocumentNodeAddedEvent {
+  /** Document revision after the mutation. */
+  revision: number
+  /** Added public document node ids. */
+  nodeIds: readonly string[]
+  /** Parent receiving the added ids; null represents the root layer. */
+  parentId: string | null
+}
+
+/** Payload emitted after one public document node receives a property patch. */
+export interface VenusDocumentNodeUpdatedEvent {
+  /** Document revision after the mutation. */
+  revision: number
+  /** Updated public document node id. */
+  nodeId: string
+  /** Public property names supplied by the accepted patch. */
+  changedProperties: readonly string[]
+  /** Highest-cost invalidation class derived from changedProperties. */
+  invalidation: VenusInvalidationKind
+}
+
+/** Payload emitted after one or more public document nodes are removed. */
+export interface VenusDocumentNodeRemovedEvent {
+  /** Document revision after the mutation. */
+  revision: number
+  /** Removed public document node ids. */
+  nodeIds: readonly string[]
+  /** Parent that previously owned the removed ids; null represents the root layer. */
+  parentId: string | null
+}
+
+/** Document structure mutation kinds that change parent/child relationships or sibling order. */
+export type VenusDocumentStructureChangeReason =
+  | 'group'
+  | 'ungroup'
+  | 'addChild'
+  | 'removeChild'
+  | 'layer'
+
+/** Payload emitted after a parent-local child list changes. */
+export interface VenusDocumentStructureChangedEvent {
+  /** Document revision after the mutation. */
+  revision: number
+  /** Parent whose child order changed; null represents the root layer. */
+  parentId: string | null
+  /** Public document ids affected by the structure mutation. */
+  affectedNodeIds: readonly string[]
+  /** Parent-local order after the mutation. */
+  order: readonly string[]
+  /** Specific structure mutation kind. */
+  reason: VenusDocumentStructureChangeReason
+}
+
 /** Clip graph validation issue categories returned by `venus.validateClipGraph`. */
 export type VenusClipGraphIssueCode =
   | 'duplicate-node-id'
@@ -588,7 +699,11 @@ export interface VenusRuntimeInspection {
 
 export interface VenusEventMap {
   mounted: {canvas: HTMLCanvasElement}
-  'document:changed': {revision: number; node?: EngineRenderableNode}
+  'document:changed': VenusDocumentChangedEvent
+  'document:node-added': VenusDocumentNodeAddedEvent
+  'document:node-updated': VenusDocumentNodeUpdatedEvent
+  'document:node-removed': VenusDocumentNodeRemovedEvent
+  'document:structure-changed': VenusDocumentStructureChangedEvent
   'layer:changed': VenusLayerMutationResult
   resized: {width: number; height: number}
   'render:before': {revision: number}
@@ -871,9 +986,19 @@ export type VenusNode =
     fill?: string
     /** Ordered paint list for text fill (takes precedence over `fill`). */
     fills?: readonly VenusPaint[]
+    /** Font family name used for the primary text style. */
+    fontFamily?: string
     fontSize?: number
     fontWeight?: number
+    /** Font style variant used for the primary text style. */
+    fontStyle?: EngineTextStyle['fontStyle']
     lineHeight?: number
+    /** Letter spacing in local node units. */
+    letterSpacing?: number
+    /** Horizontal text alignment inside the text box. */
+    align?: EngineTextStyle['align']
+    /** Vertical text alignment inside the text box. */
+    verticalAlign?: EngineTextStyle['verticalAlign']
     shadow?: EngineShadow
   } & VenusTransformableNodeBase
   | {
@@ -968,6 +1093,8 @@ export type VenusNode =
     height: number
     /** Asset/resource id resolved by the host app. */
     assetId: string
+    /** Optional resolved external URI preserved for export and adapters. */
+    assetUrl?: string
     /** Optional source crop rectangle. */
     sourceRect?: {x: number; y: number; width: number; height: number}
     /** Intrinsic asset dimensions. */
@@ -981,6 +1108,12 @@ const IDENTITY_TRANSFORM: EngineTransform2D['matrix'] = [1, 0, 0, 0, 1, 0]
 const DEFAULT_VENUS_VIEWPORT_WIDTH = 520
 const DEFAULT_VENUS_VIEWPORT_HEIGHT = 320
 const DEFAULT_HISTORY_LIMIT = 100
+const DEFAULT_VENUS_TEXT_FONT_FAMILY = 'Inter, ui-sans-serif, system-ui'
+const DEFAULT_VENUS_TEXT_FONT_SIZE = 24
+const DEFAULT_VENUS_TEXT_FONT_WEIGHT = 700
+const DEFAULT_VENUS_CLIP_WIDTH = 160
+const DEFAULT_VENUS_CLIP_HEIGHT = 120
+const ELLIPSE_CLIP_RADIUS_APPROXIMATION = 999
 
 class VenusReadonlyServiceRegistry implements VenusServiceRegistry {
   private readonly services: ReadonlyMap<VenusInternalServiceName, unknown>
@@ -1084,8 +1217,12 @@ function classifyVenusPropertyMutation(root: string, path: string): VenusInvalid
     return 'geometry'
   }
 
-  if (['text', 'runs', 'fontSize', 'fontWeight', 'lineHeight'].includes(root)) {
+  if (['text', 'runs', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'align', 'verticalAlign'].includes(root)) {
     return 'text'
+  }
+
+  if (['assetId', 'assetUrl', 'sourceRect', 'naturalSize', 'imageSmoothing'].includes(root)) {
+    return 'paint'
   }
 
   if (['shadow', 'innerShadow', 'layerBlur'].includes(root) || path.startsWith('appearance.effects')) {
@@ -1274,6 +1411,31 @@ const translateVenusNode = (node: VenusNode, dx: number, dy: number): void => {
   }
 }
 
+/**
+ * Collects assigned public ids from a Venus document subtree for event payloads.
+ * @param node Root document node to inspect.
+ */
+const collectVenusDocumentNodeIds = (node: VenusNode): string[] => {
+  const ids = node.id ? [node.id] : []
+
+  if (node.type === 'frame' || node.type === 'group') {
+    return [
+      ...ids,
+      ...node.children.flatMap(collectVenusDocumentNodeIds),
+    ]
+  }
+
+  if (node.type === 'clip' || node.type === 'mask') {
+    return [
+      ...ids,
+      ...collectVenusDocumentNodeIds(node.clipPath),
+      ...node.children.flatMap(collectVenusDocumentNodeIds),
+    ]
+  }
+
+  return ids
+}
+
 const sanitizeStructureGroupNode = (node: VenusNode): void => {
   if (node.type === 'group') {
     const record = node as unknown as Record<string, unknown>
@@ -1359,6 +1521,8 @@ const mapPointBetweenBounds = (
  * Applies editor-bounds patches to point-authored geometry before the public
  * x/y/width/height fields are committed. For path-like nodes, those fields are
  * an editable bounds box; points/bezierPoints remain the render source of truth.
+ * @param node Stored document node whose authored geometry may be rescaled.
+ * @param patch Public geometry patch being applied to the node.
  */
 const applyBoundsPatchToAuthoredGeometry = (node: VenusNode, patch: Partial<VenusNode>): void => {
   if (!hasBoundsPatch(patch)) {
@@ -1415,7 +1579,10 @@ const unionEngineBounds = (left: EngineRect, right: EngineRect): EngineRect => {
   }
 }
 
-/** Normalizes rectangle dimensions so overlap tests can accept dragged negative widths/heights. */
+/**
+ * Normalizes rectangle dimensions so overlap tests can accept dragged negative widths/heights.
+ * @param rect Rectangle that may contain negative dimensions.
+ */
 const normalizeSelectionRect = (rect: VenusSelectionRect): EngineRect => {
   const x = rect.width < 0 ? rect.x + rect.width : rect.x
   const y = rect.height < 0 ? rect.y + rect.height : rect.y
@@ -1427,7 +1594,11 @@ const normalizeSelectionRect = (rect: VenusSelectionRect): EngineRect => {
   }
 }
 
-/** Returns whether two axis-aligned rectangles overlap. */
+/**
+ * Returns whether two axis-aligned rectangles overlap.
+ * @param left First rectangle to compare.
+ * @param right Second rectangle to compare.
+ */
 const rectsIntersect = (left: EngineRect, right: EngineRect): boolean => {
   return left.x <= right.x + right.width
     && left.x + left.width >= right.x
@@ -1435,7 +1606,11 @@ const rectsIntersect = (left: EngineRect, right: EngineRect): boolean => {
     && left.y + left.height >= right.y
 }
 
-/** Returns whether the outer rectangle fully contains the inner rectangle. */
+/**
+ * Returns whether the outer rectangle fully contains the inner rectangle.
+ * @param outer Candidate containing rectangle.
+ * @param inner Candidate contained rectangle.
+ */
 const rectContains = (outer: EngineRect, inner: EngineRect): boolean => {
   return inner.x >= outer.x
     && inner.y >= outer.y
@@ -1594,6 +1769,80 @@ const createVenusLayerMutationResult = (
   order: [...order],
 })
 
+/**
+ * Resolves point geometry from clipPath nodes that can be represented by the current EngineClipShape path form.
+ * @param clipPath Venus document node used as a clip source.
+ */
+const resolveVenusClipPathPoints = (clipPath: VenusNode): readonly {x: number; y: number}[] | null => {
+  if (
+    (clipPath.type === 'line'
+      || clipPath.type === 'polygon'
+      || clipPath.type === 'star'
+      || clipPath.type === 'path')
+    && clipPath.points
+    && clipPath.points.length >= 2
+  ) {
+    return clipPath.points.map((point) => ({x: point.x, y: point.y}))
+  }
+
+  if (clipPath.type === 'path' && clipPath.bezierPoints && clipPath.bezierPoints.length >= 2) {
+    return clipPath.bezierPoints.map((point) => ({x: point.anchor.x, y: point.anchor.y}))
+  }
+
+  return null
+}
+
+/**
+ * Resolves closed/open semantics for point-authored clip paths.
+ * @param clipPath Venus document node used as a clip source.
+ */
+const resolveVenusClipPathClosed = (clipPath: VenusNode): boolean => {
+  if (clipPath.type === 'line') {
+    return false
+  }
+
+  if (clipPath.type === 'path') {
+    return clipPath.closed !== false
+  }
+
+  return true
+}
+
+/**
+ * Converts a Venus clipPath document node to inline engine clip geometry.
+ * @param clipPath Venus document node used as a clip source.
+ */
+const createVenusInlineClipShape = (clipPath: VenusNode): EngineClipShape => {
+  const points = resolveVenusClipPathPoints(clipPath)
+  if (points) {
+    return {
+      kind: 'path',
+      points,
+      closed: resolveVenusClipPathClosed(clipPath),
+    }
+  }
+
+  const clipPathX = 'x' in clipPath ? clipPath.x ?? 0 : 0
+  const clipPathY = 'y' in clipPath ? clipPath.y ?? 0 : 0
+  const clipPathWidth = 'width' in clipPath && typeof clipPath.width === 'number' ? clipPath.width : DEFAULT_VENUS_CLIP_WIDTH
+  const clipPathHeight = 'height' in clipPath && typeof clipPath.height === 'number' ? clipPath.height : DEFAULT_VENUS_CLIP_HEIGHT
+
+  return {
+    kind: 'rect',
+    rect: {
+      x: clipPathX,
+      y: clipPathY,
+      width: clipPathWidth,
+      height: clipPathHeight,
+    },
+    radius: clipPath.type === 'ellipse'
+      ? ELLIPSE_CLIP_RADIUS_APPROXIMATION
+      : clipPath.type === 'rect'
+        ? clipPath.cornerRadius
+        : undefined,
+  }
+}
+
 const toEngineNode = (
   node: VenusNode,
   fallbackId: string,
@@ -1668,10 +1917,6 @@ const toEngineNode = (
 
   if (node.type === 'clip' || node.type === 'mask') {
     const effects = resolveAppearanceEffects(node)
-    const clipPathX = 'x' in node.clipPath ? node.clipPath.x ?? 0 : 0
-    const clipPathY = 'y' in node.clipPath ? node.clipPath.y ?? 0 : 0
-    const clipPathWidth = 'width' in node.clipPath && typeof node.clipPath.width === 'number' ? node.clipPath.width : 160
-    const clipPathHeight = 'height' in node.clipPath && typeof node.clipPath.height === 'number' ? node.clipPath.height : 120
 
     return {
       id,
@@ -1683,20 +1928,7 @@ const toEngineNode = (
       layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, getNodeBounds(node) ?? undefined),
       clip: {
-        clipShape: {
-          kind: 'rect',
-          rect: {
-            x: clipPathX,
-            y: clipPathY,
-            width: clipPathWidth,
-            height: clipPathHeight,
-          },
-          radius: node.clipPath.type === 'ellipse'
-            ? 999
-            : node.clipPath.type === 'rect'
-              ? node.clipPath.cornerRadius
-              : undefined,
-        },
+        clipShape: createVenusInlineClipShape(node.clipPath),
       },
       children: node.children.map((child, index) => toEngineNode(child, `${id}-clip-child-${index}`, defaults)),
     }
@@ -1718,10 +1950,14 @@ const toEngineNode = (
       runs: node.runs,
       lineCount: node.text.split('\n').length,
       style: {
-        fontFamily: 'Inter, ui-sans-serif, system-ui',
-        fontSize: node.fontSize ?? 24,
-        fontWeight: node.fontWeight ?? 700,
+        fontFamily: node.fontFamily ?? DEFAULT_VENUS_TEXT_FONT_FAMILY,
+        fontSize: node.fontSize ?? DEFAULT_VENUS_TEXT_FONT_SIZE,
+        fontWeight: node.fontWeight ?? DEFAULT_VENUS_TEXT_FONT_WEIGHT,
+        fontStyle: node.fontStyle,
         lineHeight: node.lineHeight,
+        letterSpacing: node.letterSpacing,
+        align: node.align,
+        verticalAlign: node.verticalAlign,
         fill: node.fill ?? defaults.fillColor,
         fills: resolveAppearanceFills(node, node.fills) as EngineTextStyle['fills'],
         shadow: effects.shadow,
@@ -1909,6 +2145,7 @@ const toEngineNode = (
       layerBlur: effects.layerBlur,
       transform: createVenusTransform(node, {x: node.x ?? 0, y: node.y ?? 0, width: node.width, height: node.height}),
       assetId: node.assetId,
+      assetUrl: node.assetUrl,
       sourceRect: node.sourceRect,
       naturalSize: node.naturalSize,
       imageSmoothing: node.imageSmoothing,
@@ -1986,7 +2223,14 @@ export class Venus {
     this.indexNodeTree(storedNode, engineNode.id, null)
     this.nodes = [...this.nodes, engineNode]
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision, node: engineNode})
+    const addedNodeIds = collectVenusDocumentNodeIds(storedNode)
+    this.emit('document:node-added', {revision: this.revision, nodeIds: addedNodeIds, parentId: null})
+    this.emit('document:changed', {
+      revision: this.revision,
+      node: engineNode,
+      affectedNodeIds: addedNodeIds,
+      reason: 'node-added',
+    })
     this.scheduleRender()
     return createVenusNodeProxy(this, engineNode.id, storedNode.type)
   }
@@ -2007,6 +2251,11 @@ export class Venus {
       return
     }
 
+    const changedProperties = Object.keys(patch)
+    if (changedProperties.length === 0) {
+      return
+    }
+
     this.recordHistory()
     const normalizedPatch = {...patch}
     applyStructureGroupGeometryPatch(node, normalizedPatch)
@@ -2018,7 +2267,18 @@ export class Venus {
     this.revision += 1
 
     const engineNode = this.nodes.find((n) => n.id === id)
-    this.emit('document:changed', {revision: this.revision, node: engineNode})
+    this.emit('document:node-updated', {
+      revision: this.revision,
+      nodeId: id,
+      changedProperties,
+      invalidation: classifyVenusNodeMutation(changedProperties),
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      node: engineNode,
+      affectedNodeIds: [id],
+      reason: 'node-updated',
+    })
     this.scheduleRender()
   }
 
@@ -2038,12 +2298,17 @@ export class Venus {
     }
 
     this.recordHistory()
+    const removedNode = this.documentNodes[index]
+    const removedNodeIds = collectVenusDocumentNodeIds(removedNode)
     this.documentNodes.splice(index, 1)
-    this.nodes.splice(index, 1)
-    this.nodeById.delete(id)
-    this.parentById.delete(id)
+    this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    this.emit('document:node-removed', {revision: this.revision, nodeIds: removedNodeIds, parentId: null})
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds: removedNodeIds,
+      reason: 'node-removed',
+    })
     this.scheduleRender()
   }
 
@@ -2063,7 +2328,7 @@ export class Venus {
     this.defaultFillColor = color
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    this.emit('document:changed', {revision: this.revision, reason: 'defaults-changed'})
     this.scheduleRender()
   }
 
@@ -2083,7 +2348,7 @@ export class Venus {
     this.defaultStrokeColor = color
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    this.emit('document:changed', {revision: this.revision, reason: 'defaults-changed'})
     this.scheduleRender()
   }
 
@@ -2143,7 +2408,20 @@ export class Venus {
     this.replaceSiblingNodes(parentId, nextSiblings)
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    const affectedNodeIds = [groupNode.id ?? '', ...uniqueIds].filter((nodeId) => nodeId.length > 0)
+    this.emit('document:node-added', {revision: this.revision, nodeIds: [groupNode.id ?? ''].filter((nodeId) => nodeId.length > 0), parentId})
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId,
+      affectedNodeIds,
+      order: this.getDocumentLayerOrder(parentId),
+      reason: 'group',
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds,
+      reason: 'structure-changed',
+    })
     this.scheduleRender()
     return createVenusNodeProxy(this, groupNode.id ?? '', 'group')
   }
@@ -2184,7 +2462,21 @@ export class Venus {
     this.replaceSiblingNodes(parentId, nextSiblings)
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    const childIds = children.map((child) => child.id).filter((childId): childId is string => Boolean(childId))
+    const affectedNodeIds = [id, ...childIds]
+    this.emit('document:node-removed', {revision: this.revision, nodeIds: [id], parentId})
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId,
+      affectedNodeIds,
+      order: this.getDocumentLayerOrder(parentId),
+      reason: 'ungroup',
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds,
+      reason: 'structure-changed',
+    })
     this.scheduleRender()
     return children.map((child) => createVenusNodeProxy(this, child.id ?? '', child.type))
   }
@@ -2211,7 +2503,20 @@ export class Venus {
     parent.children = [...(parent.children ?? []), storedChild]
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    const addedNodeIds = collectVenusDocumentNodeIds(storedChild)
+    this.emit('document:node-added', {revision: this.revision, nodeIds: addedNodeIds, parentId})
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId,
+      affectedNodeIds: addedNodeIds,
+      order: this.getDocumentLayerOrder(parentId),
+      reason: 'addChild',
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds: addedNodeIds,
+      reason: 'structure-changed',
+    })
     this.scheduleRender()
     return createVenusNodeProxy(this, storedChild.id ?? '', storedChild.type)
   }
@@ -2237,10 +2542,24 @@ export class Venus {
     }
 
     this.recordHistory()
+    const removedChild = (parent.children ?? []).find((child) => child.id === childId)
+    const removedNodeIds = removedChild ? collectVenusDocumentNodeIds(removedChild) : [childId]
     parent.children = (parent.children ?? []).filter((c) => c.id !== childId)
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    this.emit('document:node-removed', {revision: this.revision, nodeIds: removedNodeIds, parentId})
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId,
+      affectedNodeIds: removedNodeIds,
+      order: this.getDocumentLayerOrder(parentId),
+      reason: 'removeChild',
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds: removedNodeIds,
+      reason: 'structure-changed',
+    })
     this.scheduleRender()
   }
 
@@ -2280,7 +2599,10 @@ export class Venus {
     return createVenusNodeProxy(this, node.id ?? id, node.type)
   }
 
-  /** Returns a raw VenusNode from the internal store. Called by VenusNodeProxy getters. */
+  /**
+   * Returns a raw VenusNode from the internal store. Called by VenusNodeProxy getters.
+   * @param id Stable node id to inspect.
+   */
   _rawNode(id: string): VenusNode | undefined {
     return this.nodeById.get(id)
   }
@@ -2770,6 +3092,10 @@ export class Venus {
       snapshot: () => this.snapshot(),
       children: () => this.children(),
       bounds: () => this.bounds(),
+      group: (ids: readonly string[], options?: VenusGroupOptions) => this.group(ids, options),
+      ungroup: (id: string) => this.ungroup(id),
+      addChild: (parentId: string, child: VenusNode) => this.addChild(parentId, child),
+      removeChild: (parentId: string, childId: string) => this.removeChild(parentId, childId),
       getLayerIndex: (id: string) => this.getDocumentLayerIndex(id),
       getLayerOrder: (parentId: string | null = null) => this.getDocumentLayerOrder(parentId),
       moveLayer: (id: string, index: number) => this.moveDocumentLayer(id, index),
@@ -2779,6 +3105,8 @@ export class Venus {
       sendBackward: (id: string) => this.moveDocumentLayer(id, this.getDocumentLayerIndex(id) - 1),
       bringToFront: (id: string) => this.moveDocumentLayer(id, this.getDocumentSiblingCount(id) - 1),
       sendToBack: (id: string) => this.moveDocumentLayer(id, 0),
+      validateClipGraph: (snapshot?: EngineSceneSnapshot) => this.validateClipGraph(snapshot),
+      resolveClipDependencies: (nodeId: string, snapshot?: EngineSceneSnapshot) => this.resolveClipDependencies(nodeId, snapshot),
     })
     this.services.set('viewport', {
       project: (point: {x: number; y: number}) => projectVenusCameraPoint(this.viewport, point),
@@ -2855,7 +3183,10 @@ export class Venus {
     return (this.moduleApis.get(moduleName) as T) ?? null
   }
 
-  /** Throws when an optional module API is used without installing that module. */
+  /**
+   * Throws when an optional module API is used without installing that module.
+   * @param moduleName Optional module name required by the caller.
+   */
   private requireModuleInstalled(moduleName: VenusModuleName): void {
     if (!this.installedModules.has(moduleName)) {
       throw new Error(
@@ -2961,7 +3292,7 @@ export class Venus {
     this.documentNodes = nodes
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
+    this.emit('document:changed', {revision: this.revision, reason: 'history-restored'})
     this.scheduleRender()
   }
 
@@ -3032,7 +3363,18 @@ export class Venus {
     this.revision += 1
     const result = createVenusLayerMutationResult(id, parentId, currentIndex, targetIndex, true, this.revision, this.getDocumentLayerOrder(parentId))
     this.emit('layer:changed', result)
-    this.emit('document:changed', {revision: this.revision})
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId,
+      affectedNodeIds: [id],
+      order: result.order,
+      reason: 'layer',
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds: [id],
+      reason: 'layer-changed',
+    })
     this.scheduleRender()
     return result
   }
@@ -3382,6 +3724,7 @@ export class Venus {
    * @description Exports the current canvas as a PNG data URL.
    * @example Usage
    * const url = await venus.exportPNG({ scale: 2 })
+   * @param options Optional PNG export settings.
    * @param options.scale Output scale factor (default 1).
    * @param options.background Background color (default transparent).
    * @returns PNG data URL.
@@ -3396,6 +3739,7 @@ export class Venus {
    * @description Exports the current canvas as a JPEG data URL.
    * @example Usage
    * const url = await venus.exportJPEG({ quality: 0.9, background: '#ffffff' })
+   * @param options Optional JPEG export settings.
    * @param options.scale Output scale factor (default 1).
    * @param options.quality JPEG quality 0–1 (default 0.92).
    * @param options.background Background color (default white).
@@ -3411,6 +3755,7 @@ export class Venus {
    * @description Exports the current document as an SVG string.
    * @example Usage
    * const svg = await venus.exportSVG({ embedImages: true })
+   * @param options Optional SVG export settings.
    * @param options.embedImages Writes image asset ids to href even when they are not URLs.
    * @param options.pretty Whether to emit line breaks between top-level SVG nodes.
    * @returns SVG string.
@@ -3459,6 +3804,7 @@ export class Venus {
    * @description Backward-compatible alias for `venus.exportPNG`.
    * @example Usage
    * const url = await venus.exportPNG({ scale: 2 })
+   * @param options Optional PNG export settings.
    * @param options.scale Output scale factor (default 1).
    * @param options.background Background color (default transparent).
    * @returns PNG data URL.
@@ -3472,6 +3818,7 @@ export class Venus {
    * @description Backward-compatible alias for `venus.exportJPEG`.
    * @example Usage
    * const url = await venus.exportJPEG({ quality: 0.9, background: '#ffffff' })
+   * @param options Optional JPEG export settings.
    * @param options.scale Output scale factor (default 1).
    * @param options.quality JPEG quality 0–1 (default 0.92).
    * @param options.background Background color (default white).
@@ -3486,6 +3833,7 @@ export class Venus {
    * @description Backward-compatible alias for `venus.exportSVG`.
    * @example Usage
    * const svg = await venus.exportSVG({ embedImages: true })
+   * @param options Optional SVG export settings.
    * @param options.embedImages Writes image asset ids to href even when they are not URLs.
    * @param options.pretty Whether to emit line breaks between top-level SVG nodes.
    * @returns SVG string.

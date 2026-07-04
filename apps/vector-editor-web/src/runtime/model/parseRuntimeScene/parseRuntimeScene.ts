@@ -99,6 +99,7 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
         fontFamily: run.fontFamily,
         fontSize: run.fontSize,
         fontWeight: run.fontWeight,
+        fontStyle: run.fontStyle,
         letterSpacing: run.letterSpacing,
         lineHeight: run.lineHeight,
         shadow:

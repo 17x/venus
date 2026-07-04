@@ -53,6 +53,7 @@ function normalizeTextRun(value: unknown, textLength: number) {
     fontFamily: typeof style?.fontFamily === 'string' ? style.fontFamily : 'Arial, sans-serif',
     fontSize: typeof style?.fontSize === 'number' ? style.fontSize : 16,
     fontWeight: typeof style?.fontWeight === 'number' ? style.fontWeight : 400,
+    fontStyle: resolveFontStyle(style?.fontStyle),
     letterSpacing: typeof style?.letterSpacing === 'number' ? style.letterSpacing : 0,
     lineHeight: typeof style?.lineHeight === 'number' ? style.lineHeight : 20,
     shadowColor: typeof shadow?.color === 'string' ? shadow.color : undefined,
@@ -60,4 +61,12 @@ function normalizeTextRun(value: unknown, textLength: number) {
     shadowOffsetY: typeof shadow?.offsetY === 'number' ? shadow.offsetY : undefined,
     shadowBlur: typeof shadow?.blur === 'number' ? shadow.blur : undefined,
   }
+}
+
+// Validates font style literals before exporting runtime TEXT features.
+function resolveFontStyle(value: unknown): 'normal' | 'italic' | 'oblique' | undefined {
+  if (value === 'normal' || value === 'italic' || value === 'oblique') {
+    return value
+  }
+  return undefined
 }
