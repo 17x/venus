@@ -29,6 +29,7 @@ export function EngineRenderer({
   protectedNodeIds,
   overlayDiagnostics,
   interactionPhase = 'settled',
+  sceneStructureMode = 'flat',
 }: EngineRendererProps) {
   const INTERACTION_SETTLE_MS = 120
   const OVERSCAN_PX = 0
@@ -163,8 +164,9 @@ export function EngineRenderer({
       revision: stats.version,
       backgroundFill: '#ffffff',
       backgroundStroke: '#d0d7de',
+      structureMode: sceneStructureMode,
     }),
-    [document, shapes, stats.version],
+    [document, sceneStructureMode, shapes, stats.version],
   )
 
   const effectiveInteractionPhase = React.useMemo<RuntimeRenderPhase>(() => {
@@ -390,6 +392,7 @@ export function EngineRenderer({
     transformPreviewActive,
     interactionPhase,
     effectiveInteractionPhase,
+    sceneStructureMode,
     engineRef,
     previousRenderPrepRef,
     hasLoadedSceneInEngineRef,

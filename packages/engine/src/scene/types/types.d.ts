@@ -163,6 +163,7 @@ export interface EngineNodeBase {
     /** @deprecated Use `visual.layerBlur` instead. */
     layerBlur?: EngineLayerBlur;
     clip?: EngineNodeClip;
+    hitTargetId?: EngineNodeId;
 }
 
 export interface EngineTextStyle {

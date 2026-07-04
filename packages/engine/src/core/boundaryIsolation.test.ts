@@ -92,7 +92,7 @@ test('Venus module contract uses short instance-level modules without a global r
   const servicesSource = readSource(resolve(SOURCE_ROOT, 'runtime/venus/modules/services.ts'))
   const baseSource = readSource(resolve(SOURCE_ROOT, 'base.ts'))
 
-  for (const moduleName of ['render', 'camera', 'hitTest', 'interaction', 'animate', 'debug', 'effects', 'history', 'export']) {
+  for (const moduleName of ['base', 'camera', 'hitTest', 'interaction', 'animate', 'debug', 'effects', 'history', 'export']) {
     assert.equal(catalogSource.includes(`'${moduleName}'`), true, `missing module name ${moduleName}`)
   }
 

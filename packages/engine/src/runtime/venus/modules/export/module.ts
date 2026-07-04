@@ -12,6 +12,7 @@ import type {
   EngineImageNode,
   EnginePaint,
   EnginePoint,
+  EngineRect,
   EngineRenderableNode,
   EngineSceneSnapshot,
   EngineShapeNode,
@@ -38,7 +39,11 @@ interface ExportVenus {
 interface SvgExportContext {
   defs: string[]
   nextId: number
-  options: Required<VenusSvgExportOptions>
+  options: {
+    embedImages: boolean
+    pretty: boolean
+    viewBox?: EngineRect
+  }
 }
 
 /** Normalizes raster scale and rejects values that would create invalid output canvases. */
@@ -497,6 +502,7 @@ function sceneToSvg(snapshot: EngineSceneSnapshot, options: VenusSvgExportOption
     options: {
       embedImages: options.embedImages ?? false,
       pretty: options.pretty ?? true,
+      viewBox: options.viewBox,
     },
   }
   const body = snapshot.nodes.map((node) => nodeToSvg(node, context)).filter(Boolean)
@@ -504,8 +510,9 @@ function sceneToSvg(snapshot: EngineSceneSnapshot, options: VenusSvgExportOption
   const content = [...defs, ...body]
   const separator = context.options.pretty ? '\n  ' : ''
   const inner = content.length > 0 ? `${separator}${content.join(separator)}${context.options.pretty ? '\n' : ''}` : ''
+  const viewBox = options.viewBox ?? {x: 0, y: 0, width: snapshot.width, height: snapshot.height}
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${num(snapshot.width)}" height="${num(snapshot.height)}" viewBox="0 0 ${num(snapshot.width)} ${num(snapshot.height)}">${inner}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${num(viewBox.width)}" height="${num(viewBox.height)}" viewBox="${num(viewBox.x)} ${num(viewBox.y)} ${num(viewBox.width)} ${num(viewBox.height)}">${inner}</svg>`
 }
 
 /** Creates the export module definition. */
@@ -537,6 +544,10 @@ export function createVenusExportModule(): VenusModule {
 
         async toSVG(options: VenusSvgExportOptions = {}) {
           return sceneToSvg(venus.snapshot(), options)
+        },
+
+        async toSVGSnapshot(snapshot: EngineSceneSnapshot, options: VenusSvgExportOptions = {}) {
+          return sceneToSvg(snapshot, options)
         },
       }
     },

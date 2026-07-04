@@ -6,6 +6,8 @@ export interface EngineScenePatch {
     revision: string | number;
     replaceAll?: boolean;
     upsertNodes?: readonly EngineRenderableNode[];
+    upsertParentId?: EngineNodeId | null;
+    upsertIndex?: number;
     removeNodeIds?: readonly EngineNodeId[];
     sceneSize?: {
         width: number;

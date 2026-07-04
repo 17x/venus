@@ -3,6 +3,7 @@ import * as assert from 'node:assert'
 
 import { Venus } from '../../Venus.ts'
 import type { VenusExportApi } from './api.ts'
+import { createVenusInteractionModule } from '../interaction/module.ts'
 import { createVenusExportModule } from './module.ts'
 
 /** Creates the export API with a small fake Venus runtime. */
@@ -19,6 +20,19 @@ function createApiForCanvas(canvas: unknown): VenusExportApi {
 
 describe('export module', () => {
   it('keeps export APIs unavailable until the export module is installed', async () => {
+    const venus = new Venus()
+
+    await assert.rejects(
+      () => venus.exportSVG(),
+      /module "export" is not installed/,
+    )
+    await assert.rejects(
+      () => venus.exportNode('card'),
+      /module "export" is not installed/,
+    )
+  })
+
+  it('keeps backward-compatible export aliases gated by the export module', async () => {
     const venus = new Venus()
 
     await assert.rejects(
@@ -122,7 +136,7 @@ describe('export module', () => {
       ],
     })
 
-    const svg = await venus.toSVG()
+    const svg = await venus.exportSVG()
 
     assert.match(svg, /^<svg /)
     assert.match(svg, /viewBox="0 0 \d+ \d+"/)
@@ -131,5 +145,61 @@ describe('export module', () => {
     assert.match(svg, /<g[^>]+id="grouped"/)
     assert.match(svg, /<ellipse[^>]+id="dot"[^>]+cx="180"[^>]+rx="24"/)
     assert.doesNotMatch(svg, /full SVG export not yet implemented/)
+  })
+
+  it('keeps legacy toSVG as an alias for exportSVG', async () => {
+    const venus = new Venus({ modules: [createVenusExportModule()] })
+    venus.add({ type: 'rect', id: 'card', width: 120, height: 80, fill: '#22c55e' })
+
+    const direct = await venus.exportSVG()
+    const alias = await venus.toSVG()
+
+    assert.equal(alias, direct)
+  })
+
+  it('exports a single node as a cropped SVG', async () => {
+    const venus = new Venus({ modules: [createVenusExportModule()] })
+    venus.add({ type: 'rect', id: 'card', x: 12, y: 16, width: 120, height: 80, fill: '#22c55e' })
+    venus.add({ type: 'text', id: 'label', x: 200, y: 32, text: 'Other' })
+
+    const svg = await venus.exportNode('card')
+
+    assert.match(svg, /viewBox="12 16 120 80"/)
+    assert.match(svg, /id="card"/)
+    assert.doesNotMatch(svg, /id="label"/)
+
+    await assert.rejects(
+      () => venus.exportNode('missing'),
+      /node not found/,
+    )
+  })
+
+  it('exports the current selection while preserving ancestor group wrappers', async () => {
+    const venus = new Venus({ modules: [createVenusInteractionModule(), createVenusExportModule()] })
+    venus.add({
+      type: 'group',
+      id: 'grouped',
+      children: [
+        { type: 'rect', id: 'selected', x: 20, y: 30, width: 40, height: 50, fill: '#3b82f6' },
+        { type: 'rect', id: 'sibling', x: 120, y: 30, width: 40, height: 50, fill: '#ef4444' },
+      ],
+    })
+    venus.setSelection(['selected'])
+
+    const svg = await venus.exportSelection()
+
+    assert.match(svg, /viewBox="20 30 40 50"/)
+    assert.match(svg, /<g[^>]+id="grouped"/)
+    assert.match(svg, /id="selected"/)
+    assert.doesNotMatch(svg, /id="sibling"/)
+  })
+
+  it('rejects selection export when no nodes are selected', async () => {
+    const venus = new Venus({ modules: [createVenusInteractionModule(), createVenusExportModule()] })
+
+    await assert.rejects(
+      () => venus.exportSelection(),
+      /selection is empty/,
+    )
   })
 })

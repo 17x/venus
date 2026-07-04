@@ -53,7 +53,7 @@ export function resolveVenusNodeAnchors(node: VenusNode): VenusHitAnchor[] {
     return points.map((point, index) => ({index, x: point.x, y: point.y}))
   }
 
-  if (node.type === 'polygon') {
+  if (node.type === 'polygon' || node.type === 'star') {
     return (node.points ?? []).map((point, index) => ({index, x: point.x, y: point.y}))
   }
 
@@ -112,6 +112,7 @@ function hasVenusNodeStroke(node: VenusNode | undefined) {
     case 'ellipse':
     case 'line':
     case 'polygon':
+    case 'star':
     case 'path':
       return (
         ((node.strokes?.length ?? 0) > 0) ||
@@ -130,6 +131,7 @@ function hasVenusNodeFill(node: VenusNode | undefined) {
     case 'rect':
     case 'ellipse':
     case 'polygon':
+    case 'star':
     case 'path':
       return ((node.fills?.length ?? 0) > 0) || isVisibleColor(node.fill)
     default:

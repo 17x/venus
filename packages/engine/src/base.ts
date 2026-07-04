@@ -12,6 +12,7 @@ export type {
   VenusBackend,
   VenusDocumentService,
   VenusInvalidationService,
+  VenusLayerMutationResult,
   VenusModule,
   VenusModuleCatalogEntry,
   VenusModuleCategory,

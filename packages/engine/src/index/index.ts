@@ -30,6 +30,12 @@ export {
 export type {
   EngineHitTestResult,
 } from '../scene/hitTest/hitTest.ts'
+export type {
+  EngineScenePatch,
+  EngineScenePatchApplyResult,
+  EngineScenePatchBatch,
+  EngineSceneDirtyKind,
+} from '../scene/patch/patch.ts'
 
 export type {
   EngineRenderScheduler,
@@ -74,6 +80,7 @@ export type {
   VenusDocumentService,
   VenusInternalServiceName,
   VenusInvalidationService,
+  VenusLayerMutationResult,
   VenusModule,
   VenusModuleCatalogEntry,
   VenusModuleCategory,
@@ -141,6 +148,7 @@ export {
   createVenusHistoryModule,
   createVenusHitTestModule,
   createVenusInteractionModule,
+  createVenusBaseModule,
 } from '../runtime/venus/modules/index.ts'
 
 export type {

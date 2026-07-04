@@ -22,6 +22,12 @@ export type {
 export type {
   EngineHitTestResult,
 } from '../scene/hitTest/hitTest.ts'
+export type {
+  EngineScenePatch,
+  EngineScenePatchApplyResult,
+  EngineScenePatchBatch,
+  EngineSceneDirtyKind,
+} from '../scene/patch/patch.ts'
 
 export type {
   EngineRenderScheduler,

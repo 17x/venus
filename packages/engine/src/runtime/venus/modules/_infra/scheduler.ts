@@ -13,7 +13,7 @@ import type { VenusSchedulerService } from '../../Venus.ts'
  */
 export function createVenusSchedulerService(): VenusSchedulerService {
   let pending = false
-  // The render callback is set by the render module after mount.
+  // The render callback is set by the base module after mount.
   let renderCallback: (() => void) | null = null
 
   return {
@@ -36,7 +36,7 @@ export function createVenusSchedulerService(): VenusSchedulerService {
       return pending
     },
 
-    // Internal: allows the render module to register its callback.
+    // Internal: allows the base module to register its callback.
     _setRenderCallback(callback: () => void) {
       renderCallback = callback
     },

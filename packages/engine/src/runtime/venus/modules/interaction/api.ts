@@ -9,6 +9,12 @@ export interface VenusInteractionApi {
   /** Returns a read-only snapshot of the currently selected node ids. */
   readonly selection: ReadonlySet<string>
 
+  /** Returns a stable read-only snapshot of the currently selected node ids. */
+  getSelection(): ReadonlySet<string>
+
+  /** Replaces the current selection with the provided node ids. */
+  setSelection(ids: readonly string[]): void
+
   /** Selects one or more node ids. Adds to the existing selection. */
   select(ids: string | readonly string[]): void
 

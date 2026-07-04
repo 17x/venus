@@ -35,6 +35,18 @@ import {
 } from './derivedState.shared.ts'
 import {useEditorRuntimeDerivedStateOverlays} from './derivedState.overlays.ts'
 
+const ENGINE_SCENE_STRUCTURE_MODE_STORAGE_KEY = 'venus.vector.engine.sceneStructureMode'
+
+function readEngineSceneStructureMode(): 'flat' | 'tree' {
+  if (typeof window === 'undefined') {
+    return 'flat'
+  }
+
+  return window.localStorage.getItem(ENGINE_SCENE_STRUCTURE_MODE_STORAGE_KEY) === 'tree'
+    ? 'tree'
+    : 'flat'
+}
+
 // Derives renderer/overlay interaction state from runtime snapshots for editor product hooks.
 export function useEditorRuntimeDerivedState(options: {
   document: EditorDocument
@@ -96,7 +108,10 @@ export function useEditorRuntimeDerivedState(options: {
   const RuntimeRenderer = useMemo(() => {
     // Wrap runtime renderer so hook consumers stay decoupled from adapter internals.
     return function RuntimeEngineRenderer(props: Parameters<typeof EngineRenderer>[0]) {
-      return createElement(EngineRenderer, props)
+      return createElement(EngineRenderer, {
+        ...props,
+        sceneStructureMode: readEngineSceneStructureMode(),
+      })
     }
   }, [])
 

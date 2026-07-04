@@ -288,6 +288,8 @@ export interface EngineNodeBase {
   layerBlur?: EngineLayerBlur
   /** Clipping metadata; supports both node-reference and inline clip shapes. */
   clip?: EngineNodeClip
+  /** Optional public target id returned by hit-test when this render node is hit. */
+  hitTargetId?: EngineNodeId
 }
 
 /** Declares text rendering style applied to a text node or text run. */

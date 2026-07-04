@@ -151,10 +151,12 @@ export function hitTestEngineSceneStateAllWithSummary(
         continue
       }
 
+      const hitNodeId = node.hitTargetId ?? node.id
+      const hitNode = state.nodeMap.get(hitNodeId)
       hits.push({
         index: flattenedIndex,
-        nodeId: node.id,
-        nodeType: node.type,
+        nodeId: hitNodeId,
+        nodeType: hitNode?.type ?? node.type,
         hitType: 'shape-body',
         score: totalNodeCount - flattenedIndex,
         zOrder: flattenedIndex,

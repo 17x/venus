@@ -5,6 +5,7 @@ import type {
   RuntimeEngine as Engine,
 } from '../../engine.ts'
 import {
+  createEngineScenePatchBatchFromRuntimeSnapshot,
   createEngineSceneFromRuntimeSnapshot,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
 } from '../../../presets/index.ts'
@@ -15,6 +16,7 @@ import {resolveExpandedChangedIds, resolveMergedNodeBounds} from '../scenePatch.
 import {type RuntimeRenderPhase} from '../engineTypes.ts'
 import {resolveSceneDirtyRenderPolicy} from '../sceneDirtyRenderPolicy/sceneDirtyRenderPolicy.ts'
 import {resolveInteractionActiveNodeIds} from './resolveInteractionActiveNodeIds.ts'
+import {shouldUseFullSceneLoad} from './sceneSyncMode.ts'
 
 const DIRTY_BOUNDS_SMALL_AREA_PX2 =
   DEFAULT_RUNTIME_DIRTY_REGION_DIAGNOSTICS_POLICY.dirtyBoundsSmallAreaPx2
@@ -37,6 +39,7 @@ export function useEngineRendererSceneSync(params: {
   transformPreviewActive: boolean
   interactionPhase: RuntimeRenderPhase
   effectiveInteractionPhase: RuntimeRenderPhase
+  sceneStructureMode?: 'flat' | 'tree'
   engineRef: React.MutableRefObject<Engine | null>
   previousRenderPrepRef: React.MutableRefObject<{
     revision: number
@@ -239,7 +242,12 @@ export function useEngineRendererSceneSync(params: {
       const shouldRenderSceneDirtyNow = sceneDirtyRenderPolicy.shouldRenderSceneDirtyNow
       const shouldForceOffscreenSceneDirtyRender =
         sceneDirtyRenderPolicy.shouldForceOffscreenSceneDirtyRender
-      if (shouldBootstrapScene || preparedFrame.dirtyState.sceneStructureDirty || !previous || shouldForcePreviewOnlySceneReload) {
+      if (shouldUseFullSceneLoad({
+        shouldBootstrapScene,
+        sceneStructureDirty: preparedFrame.dirtyState.sceneStructureDirty,
+        hasPreviousFrame: Boolean(previous),
+        shouldForcePreviewOnlySceneReload,
+      })) {
         const isPreviewLoad = shouldForcePreviewOnlySceneReload
         const debugRevision = isPreviewLoad
           ? `${params.statsVersion}:preview:${params.previewSceneRevisionRef.current + 1}`
@@ -262,22 +270,49 @@ export function useEngineRendererSceneSync(params: {
         params.sceneApplyDebugRef.current.lastScenePatchUpsertCount = 0
         params.sceneApplyDebugRef.current.sceneLoadCount += 1
       } else {
-        const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
+        const changedIds = params.sceneStructureMode === 'tree'
+          ? preparedFrame.dirtyState.sceneInstanceIds
+          : resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
         incrementalChangedNodeIds = changedIds
-        const incrementalScene = createEngineSceneFromRuntimeSnapshot({
-          ...params.replayScenePayload,
-          includeShapeIds: changedIds,
-          includeDocumentBackground: false,
-        })
-        const upsertNodes = incrementalScene.nodes
-
-        if (upsertNodes.length > 0) {
-          engine.applyScenePatchBatch({
-            patches: [{
+        const treePatchResult = params.sceneStructureMode === 'tree'
+          ? createEngineScenePatchBatchFromRuntimeSnapshot({
+              ...params.replayScenePayload,
               revision: params.statsVersion,
-              upsertNodes,
-            }],
-          })
+              changedShapeIds: changedIds,
+            })
+          : null
+        const incrementalScene = treePatchResult
+          ? null
+          : createEngineSceneFromRuntimeSnapshot({
+              ...params.replayScenePayload,
+              includeShapeIds: changedIds,
+              includeDocumentBackground: false,
+            })
+        const upsertNodes = treePatchResult?.upsertNodes ?? incrementalScene?.nodes ?? []
+        const patchCount = treePatchResult
+          ? treePatchResult.batch.patches.length
+          : upsertNodes.length > 0
+            ? 1
+            : 0
+
+        if (treePatchResult?.requiresFullLoad) {
+          const nextEngineScene = createEngineSceneFromRuntimeSnapshot(params.replayScenePayload)
+          engine.loadScene(nextEngineScene)
+          params.hasLoadedSceneInEngineRef.current = true
+          params.sceneApplyDebugRef.current.lastSceneApplyMode = 'full-load'
+          params.sceneApplyDebugRef.current.lastSceneApplyRevision = String(params.statsVersion)
+          params.sceneApplyDebugRef.current.lastSceneShapeCount = params.replayScenePayload.shapes.length
+          params.sceneApplyDebugRef.current.lastScenePatchUpsertCount = 0
+          params.sceneApplyDebugRef.current.sceneLoadCount += 1
+        } else if (patchCount > 0) {
+          engine.applyScenePatchBatch(
+            treePatchResult?.batch ?? {
+              patches: [{
+                revision: params.statsVersion,
+                upsertNodes,
+              }],
+            },
+          )
           params.hasLoadedSceneInEngineRef.current = true
           // Keep incremental patch telemetry so event-entry debugging can
           // confirm whether the scene was patched or fully replaced.
