@@ -828,35 +828,6 @@ export interface VenusDetailedHitTestResult {
   regions: VenusHitTargetKind[]
 }
 
-export type VenusHitTargetKind =
-  | 'shape.anchor'
-  | 'shape.center'
-  | 'shape.stroke'
-  | 'shape.fill'
-  | 'shape.bounds'
-
-export interface VenusHitAnchor {
-  index: number
-  x: number
-  y: number
-}
-
-export interface VenusDetailedHitTestResult {
-  nodeId: string
-  nodeType?: EngineRenderableNode['type']
-  documentType?: VenusDocumentModelType
-  hitType?: string
-  index?: number
-  score?: number
-  zOrder?: number
-  hitPoint: {x: number; y: number}
-  bounds: {x: number; y: number; width: number; height: number} | null
-  center: {x: number; y: number} | null
-  anchors: VenusHitAnchor[]
-  target: {kind: VenusHitTargetKind; anchorIndex?: number}
-  regions: VenusHitTargetKind[]
-}
-
 /** Describes public runtime state returned by `venus.inspect`. */
 export interface VenusRuntimeInspection {
   /** Current document revision. */
@@ -2590,46 +2561,6 @@ export class Venus {
     this.rebuildRenderNodes()
     this.revision += 1
     this.emit('document:changed', {revision: this.revision, reason: 'defaults-changed'})
-    this.scheduleRender()
-  }
-
-  /**
-   * @name Venus.setDefaultFillColor
-   * @description Sets the runtime fill colour used only when a node has no explicit fill or fills.
-   * @example Usage
-   * venus.setDefaultFillColor('transparent')
-   * @param color CSS colour used as the runtime default fill.
-   * @returns Nothing.
-   */
-  setDefaultFillColor(color: string): void {
-    if (this.defaultFillColor === color) {
-      return
-    }
-
-    this.defaultFillColor = color
-    this.rebuildRenderNodes()
-    this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
-    this.scheduleRender()
-  }
-
-  /**
-   * @name Venus.setDefaultStrokeColor
-   * @description Sets the runtime stroke colour used only when a node has stroke width but no explicit stroke or strokes.
-   * @example Usage
-   * venus.setDefaultStrokeColor('#111827')
-   * @param color CSS colour used as the runtime default stroke.
-   * @returns Nothing.
-   */
-  setDefaultStrokeColor(color: string): void {
-    if (this.defaultStrokeColor === color) {
-      return
-    }
-
-    this.defaultStrokeColor = color
-    this.rebuildRenderNodes()
-    this.revision += 1
-    this.emit('document:changed', {revision: this.revision})
     this.scheduleRender()
   }
 
@@ -4443,51 +4374,6 @@ export class Venus {
     }
 
     return result
-  }
-
-  // ── Export (delegates to export module) ──────────────────────────────────
-
-  /**
-   * @name Venus.toPNG
-   * @description Exports the current canvas as a PNG data URL.
-   * @example Usage
-   * const url = await venus.toPNG({ scale: 2 })
-   * @param options.scale Output scale factor (default 1).
-   * @param options.background Background color (default transparent).
-   * @returns PNG data URL.
-   */
-  async toPNG(options?: VenusPngExportOptions): Promise<string> {
-    const exp = this._requireModuleApi<{ toPNG(o?: VenusPngExportOptions): Promise<string> }>('export')
-    return exp.toPNG(options)
-  }
-
-  /**
-   * @name Venus.toJPEG
-   * @description Exports the current canvas as a JPEG data URL.
-   * @example Usage
-   * const url = await venus.toJPEG({ quality: 0.9, background: '#ffffff' })
-   * @param options.scale Output scale factor (default 1).
-   * @param options.quality JPEG quality 0–1 (default 0.92).
-   * @param options.background Background color (default white).
-   * @returns JPEG data URL.
-   */
-  async toJPEG(options?: VenusJpegExportOptions): Promise<string> {
-    const exp = this._requireModuleApi<{ toJPEG(o?: VenusJpegExportOptions): Promise<string> }>('export')
-    return exp.toJPEG(options)
-  }
-
-  /**
-   * @name Venus.toSVG
-   * @description Exports the current document as an SVG string.
-   * @example Usage
-   * const svg = await venus.toSVG({ embedImages: true })
-   * @param options.embedImages Writes image asset ids to href even when they are not URLs.
-   * @param options.pretty Whether to emit line breaks between top-level SVG nodes.
-   * @returns SVG string.
-   */
-  async toSVG(options?: VenusSvgExportOptions): Promise<string> {
-    const exp = this._requireModuleApi<{ toSVG(o?: VenusSvgExportOptions): Promise<string> }>('export')
-    return exp.toSVG(options)
   }
 
   /**
