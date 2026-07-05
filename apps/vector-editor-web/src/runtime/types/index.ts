@@ -6,6 +6,24 @@ export type RuntimeModifiers = {
   altKey?: boolean
 }
 
+// Re-export Venus engine types as the canonical document model.
+export type {
+  Appearance,
+  BlendMode,
+  VenusStroke,
+  VenusEffect,
+  VenusPaint,
+  VenusSolidPaint,
+  VenusGradientPaint,
+  VenusGradient,
+  VenusLinearGradient,
+  VenusRadialGradient,
+  VenusGradientStop,
+  VenusStrokeAlign,
+  VenusConstraints,
+  VenusExportSetting,
+} from './editorElement.ts'
+
 export type {
   CornerRadii,
   EditorEventData,

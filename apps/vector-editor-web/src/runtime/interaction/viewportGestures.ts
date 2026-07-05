@@ -28,6 +28,13 @@ export interface ViewportZoomDiagnostic {
   viewportHeight: number
 }
 
+export interface ViewportPointerMetadata {
+  /** Stores pointer position in viewport-local screen coordinates. */
+  screen: PointerState
+  /** Stores native pointer id so app-level pan paths can reuse engine pointer-pan accumulation. */
+  pointerId: number
+}
+
 // Runtime-owned contract for wiring browser gesture input into viewport and pointer handlers.
 export interface ViewportGestureBindingOptions {
   element: HTMLElement
@@ -35,10 +42,11 @@ export interface ViewportGestureBindingOptions {
   // Keep native wheel zoom clamped to the same runtime zoom envelope as command-driven zoom paths.
   scaleRange?: EngineViewportScaleRange
   coalescePointerMove?: boolean
-  onPointerMove?: (pointer: PointerState) => void
+  onPointerMove?: (pointer: PointerState, metadata?: ViewportPointerMetadata) => void
   onPointerDown?: (
     pointer: PointerState,
     modifiers?: {shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean},
+    metadata?: ViewportPointerMetadata,
   ) => void
   onPointerUp?: VoidFunction
   onPointerLeave?: VoidFunction
@@ -115,6 +123,13 @@ export function bindViewportGestures({
       x: clientX - rect.left,
       y: clientY - rect.top,
     })
+  }
+  const resolveScreenPointer = (clientX: number, clientY: number) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    }
   }
 
   const handleWheel = (event: WheelEvent) => {
@@ -276,12 +291,19 @@ export function bindViewportGestures({
       return
     }
 
-    onPointerDown?.(resolveWorldPointer(event.clientX, event.clientY), {
-      shiftKey: event.shiftKey,
-      metaKey: event.metaKey,
-      ctrlKey: event.ctrlKey,
-      altKey: event.altKey,
-    })
+    onPointerDown?.(
+      resolveWorldPointer(event.clientX, event.clientY),
+      {
+        shiftKey: event.shiftKey,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+      },
+      {
+        screen: resolveScreenPointer(event.clientX, event.clientY),
+        pointerId: event.pointerId,
+      },
+    )
   }
 
   const handlePointerMoveEvent = (event: PointerEvent) => {
@@ -307,7 +329,13 @@ export function bindViewportGestures({
     }
 
     if (!coalescePointerMove) {
-      onPointerMove?.(resolveWorldPointer(latestPointerClient.x, latestPointerClient.y))
+      onPointerMove?.(
+        resolveWorldPointer(latestPointerClient.x, latestPointerClient.y),
+        {
+          screen: resolveScreenPointer(latestPointerClient.x, latestPointerClient.y),
+          pointerId: event.pointerId,
+        },
+      )
       return
     }
 
@@ -319,7 +347,13 @@ export function bindViewportGestures({
           return
         }
 
-        onPointerMove(resolveWorldPointer(nextPointer.x, nextPointer.y))
+        onPointerMove(
+          resolveWorldPointer(nextPointer.x, nextPointer.y),
+          {
+            screen: resolveScreenPointer(nextPointer.x, nextPointer.y),
+            pointerId: event.pointerId,
+          },
+        )
       })
     }
   }

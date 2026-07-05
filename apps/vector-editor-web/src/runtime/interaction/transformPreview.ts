@@ -1,5 +1,9 @@
 import type {DocumentNode, EditorDocument} from '../model/index.ts'
 import {buildMaskLinkedShapeIdsBySource} from '../../runtime/interaction/maskGroup.ts'
+import {
+  createNormalizedRuntimeDocument,
+  deriveGroupBoundsFromNormalizedRuntime,
+} from '../model/document-runtime/index.ts'
 
 export interface TransformPreviewGeometry {
   shapeId: string
@@ -217,24 +221,32 @@ export function resolveTransformPreviewRuntimeState<
     runtimeShapes,
   })
 
+  const previewDocument: EditorDocument = {
+    ...document,
+    shapes: document.shapes.map((shape) => {
+      const preview = previewById.get(shape.id)
+      if (!preview) {
+        return shape.type === 'group'
+          ? {...shape, childIds: shape.childIds?.slice()}
+          : shape
+      }
+
+      return applyTransformPreviewGeometryToShape(shape, {
+        x: preview.x,
+        y: preview.y,
+        width: preview.width,
+        height: preview.height,
+        rotation: preview.rotation,
+        flipX: preview.flipX,
+        flipY: preview.flipY,
+      })
+    }),
+  }
+  deriveGroupBoundsFromNormalizedRuntime(createNormalizedRuntimeDocument(previewDocument))
+
   return {
     previewById,
-    previewDocument: {
-      ...document,
-      shapes: document.shapes.map((shape) =>
-        previewById.has(shape.id)
-          ? applyTransformPreviewGeometryToShape(shape, {
-              x: previewById.get(shape.id)?.x ?? shape.x,
-              y: previewById.get(shape.id)?.y ?? shape.y,
-              width: previewById.get(shape.id)?.width ?? shape.width,
-              height: previewById.get(shape.id)?.height ?? shape.height,
-              rotation: previewById.get(shape.id)?.rotation,
-              flipX: previewById.get(shape.id)?.flipX,
-              flipY: previewById.get(shape.id)?.flipY,
-            })
-          : shape,
-      ),
-    },
+    previewDocument,
     previewShapes: runtimeShapes.map((shape) => (
       previewById.has(shape.id)
         ? {

@@ -9,6 +9,7 @@ import {
 
 /**
  * Syncs derived group bounds via normalized runtime traversal and writes changed groups back to scene memory.
+ * @returns Group ids whose runtime geometry was written back to scene memory.
  */
 export function syncDerivedGroupBounds(
   scene: SceneMemory,
@@ -19,9 +20,10 @@ export function syncDerivedGroupBounds(
   const normalizedDocument = createNormalizedRuntimeDocument(document)
   const changedIds = deriveGroupBoundsFromNormalizedRuntime(normalizedDocument)
   if (changedIds.length === 0) {
-    return
+    return []
   }
 
+  const syncedIds: string[] = []
   changedIds.forEach((shapeId) => {
     const index = document.shapes.findIndex((shape) => shape.id === shapeId)
     if (index < 0) {
@@ -30,7 +32,12 @@ export function syncDerivedGroupBounds(
 
     writeRuntimeShapeToScene(scene, document, index, document.shapes[index])
     updateSpatialShape(spatialIndex, document, shapeId)
+    syncedIds.push(shapeId)
   })
 
-  incrementSceneVersion(scene)
+  if (syncedIds.length > 0) {
+    incrementSceneVersion(scene)
+  }
+
+  return syncedIds
 }

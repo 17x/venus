@@ -1,319 +1,177 @@
-import {Select, SelectItem} from '../../ui/index.ts'
-import {useTranslation} from 'react-i18next'
-import {
-  LuCircle,
-  LuSettings2,
-  LuSpline,
-} from 'react-icons/lu'
-import type {SelectedElementProps} from '../../product/useEditorRuntime/types.ts'
-import {
-  EDITOR_TEXT_CONTROL_CLASS,
-  EDITOR_TEXT_PANEL_LABEL_CLASS,
-} from '../editorChrome/editorTypography.ts'
-import {IconInputField} from './IconInputField.tsx'
-import {ProtectedInput} from './protectedInput.tsx'
-import {PropPanelFontFamilyPicker} from './PropPanelFontFamilyPicker.tsx'
-import {FieldRow, InlineIconAction, PaintRow, SectionBlock} from './PropPanelShared.tsx'
+/**
+ * PropPanel Sections — engine-docs aligned form controls.
+ *
+ * Uses raw HTML inputs with Tailwind styling (matching engine-docs ModelControlPanel pattern).
+ * No custom component wrappers — direct <input>, <select>, <textarea>, <input type="color">.
+ *
+ * AI-TEMP: Compact badge labels ("X", "Y", "W", "H", "R", "O", "C", "Bm", "Al", "Ca", "Jo");
+ * full labels are in title attributes for accessibility.
+ */
+
+import type {SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
+
+// ---- Shared Tailwind input classes (engine-docs compact pattern) ----
+
+const INPUT_NUMBER = 'h-6 w-full min-w-0 max-w-[88px] rounded bg-muted/25 px-1.5 text-xs tabular-nums outline-none'
+const INPUT_TEXT = 'h-6 w-full min-w-0 rounded bg-muted/25 px-1.5 text-xs outline-none'
+const INPUT_COLOR_SWATCH = 'size-6 shrink-0 cursor-pointer rounded border p-0'
+const INPUT_COLOR_HEX = 'h-6 w-full min-w-0 max-w-[76px] rounded bg-muted/25 px-1.5 text-xs outline-none'
+const SELECT_CLASS = 'h-6 rounded bg-muted/25 px-1 text-[11px] outline-none'
+const BADGE_LABEL = 'flex size-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground'
+const SECTION_TITLE = 'mb-1 text-[11px] font-medium text-muted-foreground'
+const FIELD_ROW = 'flex items-center gap-1'
+const UNIT_LABEL = 'shrink-0 text-[10px] text-muted-foreground'
+
+// ---- Section Props ----
 
 interface SectionProps {
   props: SelectedElementProps
-  patchNumericField: (field: keyof SelectedElementProps, nextValue: number) => void
   patchElementProps: (nextProps: Partial<SelectedElementProps>) => void
 }
 
-export function LayoutSection({props, patchNumericField}: SectionProps) {
-  const {t} = useTranslation()
+// ---- Helpers ----
 
+/** Patches a single numeric field on the selected element. */
+function setNum(key: string, raw: string, patch: (p: Partial<SelectedElementProps>) => void) {
+  const v = parseFloat(raw)
+  if (!isNaN(v)) patch({[key]: v} as Partial<SelectedElementProps>)
+}
+
+/** Resolves text style from the first text run, or empty object. */
+function getTextStyle(props: SelectedElementProps): Record<string, unknown> {
+  if (props.type !== 'text') return {}
+  const runs = Array.isArray((props as any).textRuns) ? (props as any).textRuns : []
+  return runs[0]?.style ?? {}
+}
+
+/** Applies a style update to all text runs. */
+function patchTextStyle(props: SelectedElementProps, patchFn: (p: Partial<SelectedElementProps>) => void, stylePatch: Record<string, unknown>) {
+  if (props.type !== 'text') return
+  const runs = Array.isArray((props as any).textRuns) ? [...(props as any).textRuns] as any[] : []
+  const textLen = typeof props.text === 'string' ? props.text.length : 0
+  const base = runs.length > 0 ? runs : [{start: 0, end: Math.max(0, textLen), style: {}}]
+  patchFn({
+    textRuns: base.map((r: any) => ({
+      start: r.start ?? 0,
+      end: r.end ?? Math.max(0, textLen),
+      style: {...(r.style ?? {}), ...stylePatch},
+    })),
+  } as Partial<SelectedElementProps>)
+}
+
+// ---- Section Components ----
+
+/** Identity: name only. Visible/Locked are layer-level icons in LayerPanel. */
+export function IdentitySection({props, patchElementProps}: SectionProps) {
   return (
-    <SectionBlock title={t('inspector.properties.sections.layout', 'Layout')}>
-      <div className={'grid grid-cols-2 gap-2'}>
-        <IconInputField
-          value={Number(props.x ?? props.cx ?? 0)}
-          title={t('inspector.properties.fields.x', 'X')}
-          leading={<span className={'text-[10px] font-semibold'}>X</span>}
-          onChange={(nextValue: number) => patchNumericField('x', nextValue)}
-        />
-        <IconInputField
-          value={Number(props.y ?? props.cy ?? 0)}
-          title={t('inspector.properties.fields.y', 'Y')}
-          leading={<span className={'text-[10px] font-semibold'}>Y</span>}
-          onChange={(nextValue: number) => patchNumericField('y', nextValue)}
-        />
-      </div>
-
-      <div className={'grid grid-cols-2 gap-2'}>
-        <IconInputField
-          value={Number(props.width ?? 0)}
-          min={0}
-          title={t('inspector.properties.fields.width', 'Width')}
-          leading={<span className={'text-[10px] font-semibold'}>W</span>}
-          onChange={(nextValue: number) => patchNumericField('width', nextValue)}
-        />
-        <IconInputField
-          value={Number(props.height ?? 0)}
-          min={0}
-          title={t('inspector.properties.fields.height', 'Height')}
-          leading={<span className={'text-[10px] font-semibold'}>H</span>}
-          onChange={(nextValue: number) => patchNumericField('height', nextValue)}
-        />
-      </div>
-      <div className={'grid grid-cols-[minmax(0,1fr)_24px] items-center gap-2'}>
-        <IconInputField
-          value={Number(props.rotation ?? 0)}
-          step={0.5}
-          title={t('inspector.properties.fields.rotation', 'Rotation')}
-          leading={<span className={'text-[10px] font-semibold'}>R</span>}
-          unit={'°'}
-          onChange={(nextValue: number) => patchNumericField('rotation', nextValue)}
-        />
-        <InlineIconAction
-          label={t('inspector.properties.layout.constraint', {defaultValue: 'Aspect ratio constraint'})}
-          icon={<LuSettings2 size={14}/>}
-        />
-      </div>
-
-      {props.type === 'ellipse' &&
-        <div className={'grid grid-cols-2 gap-2'}>
-          <IconInputField
-            value={Number(props.ellipseStartAngle ?? 0)}
-            step={0.5}
-            title={t('inspector.properties.fields.startAngle', 'Start Angle')}
-            leading={<span className={'text-[10px] font-semibold'}>S</span>}
-            unit={'°'}
-            onChange={(nextValue: number) => patchNumericField('ellipseStartAngle', nextValue)}
-          />
-          <IconInputField
-            value={Number(props.ellipseEndAngle ?? 360)}
-            step={0.5}
-            title={t('inspector.properties.fields.endAngle', 'End Angle')}
-            leading={<span className={'text-[10px] font-semibold'}>E</span>}
-            unit={'°'}
-            onChange={(nextValue: number) => patchNumericField('ellipseEndAngle', nextValue)}
-          />
-        </div>}
-    </SectionBlock>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Identity</div>
+      <label className={FIELD_ROW}>
+        <span className={BADGE_LABEL} title="Name">Nm</span>
+        <input className={INPUT_TEXT} type="text" value={props.name ?? ''} placeholder={props.type ?? ''} onChange={(e) => patchElementProps({name: e.target.value})} />
+      </label>
+    </section>
   )
 }
 
-export function AppearanceSection(props: SectionProps & {
-  currentFontFamily: string
-  onChangeFontFamily: (nextFontFamily: string) => void
-}) {
-  const {t} = useTranslation()
-
+/** Layout: x, y, width, height, rotation, ellipse arc angles. */
+export function LayoutSection({props, patchElementProps}: SectionProps) {
+  const patch = (p: Partial<SelectedElementProps>) => patchElementProps(p)
   return (
-    <SectionBlock title={t('inspector.properties.sections.appearance', 'Appearance')}>
-      {props.props.type === 'text' &&
-        <FieldRow label={t('inspector.properties.fields.fontFamily', {defaultValue: 'Font'})}>
-          <PropPanelFontFamilyPicker
-            value={props.currentFontFamily}
-            onChange={props.onChangeFontFamily}
-          />
-        </FieldRow>}
-      <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px] items-center gap-2'}>
-        <IconInputField
-          value={Number(props.props.opacity ?? 1)}
-          min={0}
-          max={1}
-          step={0.01}
-          title={t('inspector.properties.fields.opacity', 'Opacity')}
-          leading={<span className={'text-[10px] font-semibold'}>O</span>}
-          onChange={(nextValue: number) => props.patchNumericField('opacity', nextValue)}
-        />
-        <IconInputField
-          value={Number(props.props.cornerRadius ?? 0)}
-          min={0}
-          step={0.5}
-          title={t('inspector.properties.fields.cornerRadius', 'Corner Radius')}
-          leading={<span className={'text-[10px] font-semibold'}>C</span>}
-          onChange={(nextValue: number) => props.patchNumericField('cornerRadius', nextValue)}
-        />
-        <InlineIconAction
-          label={t('inspector.properties.appearance.radiusMode', {defaultValue: 'Radius mode'})}
-          icon={<LuCircle size={14}/>}
-        />
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Layout</div>
+      <div className={'grid grid-cols-2 gap-1'}>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="X">X</span><input className={INPUT_NUMBER} type="number" value={props.x ?? props.cx ?? 0} onChange={(e) => setNum('x', e.target.value, patch)} /></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Y">Y</span><input className={INPUT_NUMBER} type="number" value={props.y ?? props.cy ?? 0} onChange={(e) => setNum('y', e.target.value, patch)} /></label>
       </div>
-    </SectionBlock>
+      <div className={'grid grid-cols-2 gap-1'}>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Width">W</span><input className={INPUT_NUMBER} type="number" min={0} value={props.width ?? 0} onChange={(e) => setNum('width', e.target.value, patch)} /></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Height">H</span><input className={INPUT_NUMBER} type="number" min={0} value={props.height ?? 0} onChange={(e) => setNum('height', e.target.value, patch)} /></label>
+      </div>
+      <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Rotation">R</span><input className={INPUT_NUMBER} type="number" step={0.5} value={props.rotation ?? 0} onChange={(e) => setNum('rotation', e.target.value, patch)} /><span className={UNIT_LABEL}>°</span></label>
+      {props.type === 'ellipse' && (
+        <div className={'grid grid-cols-2 gap-1'}>
+          <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Start Angle">Sa</span><input className={INPUT_NUMBER} type="number" step={0.5} value={props.ellipseStartAngle ?? 0} onChange={(e) => setNum('ellipseStartAngle', e.target.value, patch)} /><span className={UNIT_LABEL}>°</span></label>
+          <label className={FIELD_ROW}><span className={BADGE_LABEL} title="End Angle">Ea</span><input className={INPUT_NUMBER} type="number" step={0.5} value={props.ellipseEndAngle ?? 360} onChange={(e) => setNum('ellipseEndAngle', e.target.value, patch)} /><span className={UNIT_LABEL}>°</span></label>
+        </div>
+      )}
+    </section>
   )
 }
 
+/** Appearance: font family, font size, font weight, blend mode, opacity, corner radius. */
+export function AppearanceSection({props, patchElementProps}: SectionProps) {
+  const patch = (p: Partial<SelectedElementProps>) => patchElementProps(p)
+  const isText = props.type === 'text'
+  const ts = getTextStyle(props)
+  return (
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Appearance</div>
+      {isText && (
+        <>
+          <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Font">Fn</span><input className={INPUT_TEXT} type="text" value={String(ts.fontFamily ?? 'Arial')} placeholder="Arial" onChange={(e) => patchTextStyle(props, patch, {fontFamily: e.target.value})} /></label>
+          <div className={'grid grid-cols-2 gap-1'}>
+            <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Font Size">Sz</span><input className={INPUT_NUMBER} type="number" min={1} max={999} step={1} value={Number(ts.fontSize ?? 16)} onChange={(e) => patchTextStyle(props, patch, {fontSize: parseFloat(e.target.value) || 16})} /></label>
+            <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Font Weight">Wt</span><input className={INPUT_NUMBER} type="number" min={100} max={900} step={100} value={Number(ts.fontWeight ?? 400)} onChange={(e) => patchTextStyle(props, patch, {fontWeight: parseFloat(e.target.value) || 400})} /></label>
+          </div>
+        </>
+      )}
+      <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Blend">Bm</span><select className={SELECT_CLASS + ' w-24'} value={props.blendMode ?? 'pass-through'} onChange={(e) => patch({blendMode: e.target.value || undefined})}><option value="pass-through">Pass Through</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option></select></label>
+      <div className={'grid grid-cols-2 gap-1'}>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Opacity">O</span><input className={INPUT_NUMBER} type="number" min={0} max={1} step={0.01} value={props.opacity ?? 1} onChange={(e) => setNum('opacity', e.target.value, patch)} /></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Corner Radius">C</span><input className={INPUT_NUMBER} type="number" min={0} step={0.5} value={props.cornerRadius ?? 0} onChange={(e) => setNum('cornerRadius', e.target.value, patch)} /></label>
+      </div>
+    </section>
+  )
+}
+
+/** Fill: color swatch + hex input, enabled toggle. */
 export function FillSection({props, patchElementProps}: SectionProps) {
-  const {t} = useTranslation()
-  const fill = {
-    enabled: props.fill?.enabled ?? true,
-    color: props.fill?.color ?? '#000000',
-  }
-
+  const patch = (p: Partial<SelectedElementProps>) => patchElementProps(p)
+  const fill = props.fill; const enabled = fill?.enabled !== false; const color = fill?.color ?? '#000000'
   return (
-    <SectionBlock title={t('inspector.properties.sections.fill', 'Fill')}>
-      <PaintRow
-        label={t('inspector.properties.fields.fillColor', 'Fill')}
-        enabled={fill.enabled}
-        color={fill.color}
-        onChangeEnabled={(enabled) => {
-          patchElementProps({fill: {enabled, color: fill.color}})
-        }}
-        onChangeColor={(color) => {
-          patchElementProps({fill: {color, enabled: fill.enabled}})
-        }}
-      />
-    </SectionBlock>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Fill</div>
+      <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Fill">Fl</span><input className={'size-4'} type="checkbox" checked={enabled} onChange={(e) => patch({fill: {enabled: e.target.checked, color}})} /><input className={INPUT_COLOR_SWATCH} type="color" value={color} onChange={(e) => patch({fill: {enabled, color: e.target.value}})} /><input className={INPUT_COLOR_HEX} type="text" value={color} onChange={(e) => patch({fill: {enabled, color: e.target.value}})} /></label>
+    </section>
   )
 }
 
-export function StrokeSection(props: SectionProps & {
-  strokePosition: string
-  onChangeStrokePosition: (nextPosition: string) => void
-}) {
-  const {t} = useTranslation()
-  const stroke = {
-    enabled: props.props.stroke?.enabled ?? true,
-    color: props.props.stroke?.color ?? '#000000',
-    weight: props.props.stroke?.weight ?? 1,
-    cap: props.props.stroke?.cap ?? 'butt',
-    join: props.props.stroke?.join ?? 'miter',
-    dashed: props.props.stroke?.dashed ?? false,
-  }
-
+/** Stroke: color, width, align, cap, join, enabled toggle. */
+export function StrokeSection({props, patchElementProps}: SectionProps) {
+  const patch = (p: Partial<SelectedElementProps>) => patchElementProps(p)
+  const s = props.stroke; const enabled = s?.enabled !== false; const color = s?.color ?? '#000000'; const weight = s?.weight ?? 1; const cap = s?.cap ?? 'butt'; const join = s?.join ?? 'miter'; const align = props.strokeAlign ?? 'center'
+  const ps = (o: Record<string, unknown>) => patch({stroke: {enabled, color, weight, cap, join, ...o}})
   return (
-    <SectionBlock title={t('inspector.properties.sections.stroke', 'Stroke')}>
-      <PaintRow
-        label={t('inspector.properties.fields.lineColor', 'Stroke')}
-        enabled={stroke.enabled}
-        color={stroke.color}
-        onChangeEnabled={(enabled) => {
-          props.patchElementProps({stroke: {enabled, color: stroke.color, weight: stroke.weight, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
-        }}
-        onChangeColor={(color) => {
-          props.patchElementProps({stroke: {enabled: stroke.enabled, color, weight: stroke.weight, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
-        }}
-      >
-        <div className={'grid grid-cols-[minmax(0,1fr)_70px] gap-2'}>
-          <Select
-            className={EDITOR_TEXT_CONTROL_CLASS}
-            selectValue={props.strokePosition}
-            onSelectChange={(nextPosition) => {
-              props.onChangeStrokePosition(String(nextPosition))
-            }}
-            placeholderResolver={(value) => String(value)}
-          >
-            <SelectItem value={'inside'}>Inside</SelectItem>
-            <SelectItem value={'center'}>Center</SelectItem>
-            <SelectItem value={'outside'}>Outside</SelectItem>
-          </Select>
-          <IconInputField
-            value={Number(stroke.weight)}
-            min={0}
-            step={0.25}
-            title={t('inspector.properties.fields.lineWidth', 'Line Width')}
-            leading={<span className={'text-[10px] font-semibold'}>W</span>}
-            onChange={(nextValue: number) => {
-              props.patchElementProps({stroke: {weight: Number(nextValue), enabled: stroke.enabled, color: stroke.color, cap: stroke.cap, join: stroke.join, dashed: stroke.dashed}})
-            }}
-          />
-        </div>
-        <div className={'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_24px_24px] items-center gap-2'}>
-          <Select
-            className={EDITOR_TEXT_CONTROL_CLASS}
-            selectValue={stroke.cap}
-            onSelectChange={(nextCap) => {
-              props.patchElementProps({stroke: {...stroke, cap: String(nextCap)}})
-            }}
-            placeholderResolver={(value) => String(value)}
-          >
-            <SelectItem value={'butt'}>butt</SelectItem>
-            <SelectItem value={'round'}>round</SelectItem>
-            <SelectItem value={'square'}>square</SelectItem>
-          </Select>
-          <Select
-            className={EDITOR_TEXT_CONTROL_CLASS}
-            selectValue={stroke.join}
-            onSelectChange={(nextJoin) => {
-              props.patchElementProps({stroke: {...stroke, join: String(nextJoin)}})
-            }}
-            placeholderResolver={(value) => String(value)}
-          >
-            <SelectItem value={'miter'}>miter</SelectItem>
-            <SelectItem value={'round'}>round</SelectItem>
-            <SelectItem value={'bevel'}>bevel</SelectItem>
-          </Select>
-          <InlineIconAction
-            label={t('inspector.properties.stroke.options', {defaultValue: 'Stroke options'})}
-            icon={<LuSettings2 size={14}/>}
-          />
-          <InlineIconAction
-            label={t('inspector.properties.stroke.align', {defaultValue: 'Stroke alignment'})}
-            icon={<LuSpline size={14}/>}
-          />
-        </div>
-      </PaintRow>
-    </SectionBlock>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Stroke</div>
+      <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Stroke">St</span><input className={'size-4'} type="checkbox" checked={enabled} onChange={(e) => ps({enabled: e.target.checked})} /><input className={INPUT_COLOR_SWATCH} type="color" value={color} onChange={(e) => ps({color: e.target.value})} /><input className={INPUT_COLOR_HEX} type="text" value={color} onChange={(e) => ps({color: e.target.value})} /></label>
+      <div className={'grid grid-cols-2 gap-1'}>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Width">Sw</span><input className={INPUT_NUMBER} type="number" min={0} step={0.25} value={weight} onChange={(e) => ps({weight: parseFloat(e.target.value) || 0})} /></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Align">Al</span><select className={SELECT_CLASS + ' w-20'} value={align} onChange={(e) => patchElementProps({strokeAlign: e.target.value})}><option value="center">Center</option><option value="inside">Inside</option><option value="outside">Outside</option></select></label>
+      </div>
+      <div className={'grid grid-cols-2 gap-1'}>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Cap">Ca</span><select className={SELECT_CLASS + ' w-20'} value={cap} onChange={(e) => ps({cap: e.target.value})}><option value="butt">Butt</option><option value="round">Round</option><option value="square">Square</option></select></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Join">Jo</span><select className={SELECT_CLASS + ' w-20'} value={join} onChange={(e) => ps({join: e.target.value})}><option value="miter">Miter</option><option value="round">Round</option><option value="bevel">Bevel</option></select></label>
+      </div>
+    </section>
   )
 }
 
+/** Effects: drop shadow (enabled, color, x, y, blur). */
 export function EffectsSection({props, patchElementProps}: SectionProps) {
-  const {t} = useTranslation()
-  const shadow = {
-    enabled: props.shadow?.enabled ?? false,
-    color: props.shadow?.color ?? '#000000',
-    offsetX: props.shadow?.offsetX ?? 0,
-    offsetY: props.shadow?.offsetY ?? 0,
-    blur: props.shadow?.blur ?? 8,
-  }
-
+  const patch = (p: Partial<SelectedElementProps>) => patchElementProps(p)
+  const sh = props.shadow; const enabled = sh?.enabled ?? false; const color = sh?.color ?? '#000000'; const ox = sh?.offsetX ?? 0; const oy = sh?.offsetY ?? 0; const blur = sh?.blur ?? 8
+  const psh = (o: Record<string, unknown>) => patch({shadow: {enabled, color, offsetX: ox, offsetY: oy, blur, ...o}})
   return (
-    <SectionBlock title={t('inspector.properties.sections.effects', 'Effects')}>
-      <FieldRow label={t('inspector.properties.effects.dropShadow', {defaultValue: 'Drop shadow'})}>
-        <ProtectedInput
-          type={'checkbox'}
-          checked={shadow.enabled}
-          title={t('inspector.properties.effects.toggleDropShadow', {defaultValue: 'Toggle drop shadow'})}
-          onChange={(event) => {
-            patchElementProps({shadow: {enabled: event.target.checked, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: shadow.blur}})
-          }}
-        />
-      </FieldRow>
-      <div className={'grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2'}>
-        <span className={EDITOR_TEXT_PANEL_LABEL_CLASS}>Color</span>
-        <ProtectedInput
-          type={'color'}
-          value={shadow.color}
-          title={t('inspector.properties.fields.shadowColor', 'Shadow Color')}
-          onChange={(event) => {
-            patchElementProps({shadow: {enabled: shadow.enabled, color: event.target.value, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: shadow.blur}})
-          }}
-        />
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Effects</div>
+      <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Shadow">Ds</span><input className={'size-4'} type="checkbox" checked={enabled} onChange={(e) => psh({enabled: e.target.checked})} /><input className={INPUT_COLOR_SWATCH} type="color" value={color} onChange={(e) => psh({color: e.target.value})} /><input className={INPUT_COLOR_HEX} type="text" value={color} onChange={(e) => psh({color: e.target.value})} /></label>
+      <div className={'grid grid-cols-3 gap-1'}>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Shadow X">Sx</span><input className={INPUT_NUMBER} type="number" step={0.5} value={ox} onChange={(e) => psh({offsetX: parseFloat(e.target.value) || 0})} /></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Shadow Y">Sy</span><input className={INPUT_NUMBER} type="number" step={0.5} value={oy} onChange={(e) => psh({offsetY: parseFloat(e.target.value) || 0})} /></label>
+        <label className={FIELD_ROW}><span className={BADGE_LABEL} title="Blur">Sb</span><input className={INPUT_NUMBER} type="number" min={0} step={1} value={blur} onChange={(e) => psh({blur: parseFloat(e.target.value) || 0})} /></label>
       </div>
-      <div className={'grid grid-cols-2 gap-2'}>
-        <IconInputField
-          value={Number(shadow.offsetX)}
-          step={0.5}
-          title={t('inspector.properties.fields.shadowX', 'Shadow X')}
-          leading={<span className={'text-[10px] font-semibold'}>X</span>}
-          onChange={(nextValue: number) => {
-            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: Number(nextValue), offsetY: shadow.offsetY, blur: shadow.blur}})
-          }}
-        />
-        <IconInputField
-          value={Number(shadow.offsetY)}
-          step={0.5}
-          title={t('inspector.properties.fields.shadowY', 'Shadow Y')}
-          leading={<span className={'text-[10px] font-semibold'}>Y</span>}
-          onChange={(nextValue: number) => {
-            patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: Number(nextValue), blur: shadow.blur}})
-          }}
-        />
-      </div>
-      <IconInputField
-        value={Number(shadow.blur)}
-        min={0}
-        step={0.5}
-        title={t('inspector.properties.fields.shadowBlur', 'Shadow Blur')}
-        leading={<span className={'text-[10px] font-semibold'}>B</span>}
-        onChange={(nextValue: number) => {
-          patchElementProps({shadow: {enabled: shadow.enabled, color: shadow.color, offsetX: shadow.offsetX, offsetY: shadow.offsetY, blur: Number(nextValue)}})
-        }}
-      />
-    </SectionBlock>
+    </section>
   )
 }

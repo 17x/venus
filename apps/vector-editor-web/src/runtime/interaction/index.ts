@@ -2,7 +2,10 @@
 export {
   resolveEngineCanvasLodProfile as resolveCanvasLodProfile,
 } from '@venus/engine'
-export { collectResizeTransformTargets } from './transformTargets.ts'
+export {
+  collectResizeTransformTargets,
+  collectTransformLeafTargets,
+} from './transformTargets.ts'
 // Snapping
 export {
   type SnapGuide,

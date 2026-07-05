@@ -5,9 +5,12 @@ import type {EditorDocument} from '../../../model/index.ts'
 import {
   attachSceneMemory,
   createSceneMemory,
+  readSceneSnapshot,
+  readSceneStats,
   writeDocumentToScene,
 } from '../../../shared-memory/index.ts'
 import {applyPatches} from './scenePatches.ts'
+import {syncDerivedGroupBounds} from '../sceneGroupBounds.ts'
 import type {WorkerSpatialIndex} from '../types.ts'
 
 /**
@@ -111,4 +114,33 @@ test('applyPatches remove-shape clears parent childIds references via normalized
 
   const group = document.shapes.find((shape) => shape.id === 'group-a')
   assert.deepEqual(group?.childIds, [])
+})
+
+test('syncDerivedGroupBounds returns changed group ids and writes derived geometry to scene', () => {
+  const document = createPatchFixture()
+  const scene = attachSceneMemory(createSceneMemory(16), 16)
+  writeDocumentToScene(scene, document)
+  const initialVersion = readSceneStats(scene).version
+
+  const rect = document.shapes.find((shape) => shape.id === 'rect-1')
+  assert.ok(rect)
+  rect.x = 50
+  rect.y = 70
+  rect.width = 20
+  rect.height = 10
+
+  const changedIds = syncDerivedGroupBounds(scene, document, createSpatialIndexMock())
+  const group = document.shapes.find((shape) => shape.id === 'group-a')
+  const groupSceneShape = readSceneSnapshot(scene, document).find((shape) => shape.id === 'group-a')
+
+  assert.deepEqual(changedIds, ['group-a'])
+  assert.equal(group?.x, 50)
+  assert.equal(group?.y, 70)
+  assert.equal(group?.width, 20)
+  assert.equal(group?.height, 10)
+  assert.equal(groupSceneShape?.x, 50)
+  assert.equal(groupSceneShape?.y, 70)
+  assert.equal(groupSceneShape?.width, 20)
+  assert.equal(groupSceneShape?.height, 10)
+  assert.equal(readSceneStats(scene).version, initialVersion + 1)
 })

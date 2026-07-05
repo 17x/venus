@@ -1,6 +1,6 @@
 import {memo} from 'react'
 import {Button, Tabs, TabsList, TabsTrigger, Tooltip} from '../../ui/index.ts'
-import type {EditorExecutor, SelectedElementProps} from '../../product/useEditorRuntime/types.ts'
+import type {EditorExecutor, SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
 import type {InspectorContext} from '../../runtime/shell/state/inspectorState.ts'
 import type {ShellCommandMeta} from '../../runtime/shell/commands/shellCommandRegistry.ts'
 import {PageInspectorSection} from '../inspector/sections/PageInspectorSection.tsx'

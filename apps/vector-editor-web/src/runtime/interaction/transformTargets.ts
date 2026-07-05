@@ -1,11 +1,11 @@
 import type {DocumentNode, EditorDocument} from '../model/index.ts'
 
 /**
- * Resolve leaf shape targets for resize handles from a mixed single/multi/group
+ * Resolve leaf shape targets for transform handles from a mixed single/multi/group
  * selection. Group selections expand to non-group descendants, while direct
  * child duplicates under selected parents are skipped.
  */
-export function collectResizeTransformTargets(
+export function collectTransformLeafTargets(
   selectedNodes: DocumentNode[],
   document: EditorDocument,
 ) {
@@ -51,6 +51,16 @@ export function collectResizeTransformTargets(
   })
 
   return Array.from(targets.values())
+}
+
+/**
+ * Compatibility alias for resize callers that predate shared leaf-target resolution.
+ */
+export function collectResizeTransformTargets(
+  selectedNodes: DocumentNode[],
+  document: EditorDocument,
+) {
+  return collectTransformLeafTargets(selectedNodes, document)
 }
 
 function hasSelectedAncestor(

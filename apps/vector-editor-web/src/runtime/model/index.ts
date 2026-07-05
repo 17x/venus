@@ -13,7 +13,7 @@ export {
   multiplyAffineMatrices,
   convertDrawPointsToBezierPoints,
 } from './geometry/geometry.ts'
-export {nid} from './nid.ts'
+export {createNid as nid} from '@venus/lib/ids'
 export {parseRuntimeSceneToEditorDocument} from './parseRuntimeScene/parseRuntimeScene.ts'
 export type {
   RuntimeFeatureKindV4,
@@ -33,7 +33,17 @@ export type {
   RuntimeSceneV5,
 } from './runtimeSceneTypes.ts'
 export {type ToolDefinition, type ToolId, type ToolName} from './tool.ts'
-export {Unit, type UnitType} from './unit.ts'
+
+/** Length unit used by document coordinate metadata. */
+export enum Unit {
+  MM = 'mm',
+  INCHES = 'inches',
+  PX = 'px',
+  CM = 'cm',
+}
+
+/** String literal union of length unit values. */
+export type UnitType = `${Unit}`
 export type {
   DocumentNode,
   DocumentObjectType,

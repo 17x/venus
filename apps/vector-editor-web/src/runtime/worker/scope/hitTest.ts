@@ -207,8 +207,9 @@ function isPointInsideClipSource(
 }
 
 
-function resolveSelectableShape(shape: DocumentNode, shapeById: Map<string, DocumentNode>) {
+export function resolveSelectableShape(shape: DocumentNode, shapeById: Map<string, DocumentNode>) {
   let current: DocumentNode = shape
+  let resolvedShape = shape
 
   while (current.parentId) {
     const parent = shapeById.get(current.parentId)
@@ -216,10 +217,10 @@ function resolveSelectableShape(shape: DocumentNode, shapeById: Map<string, Docu
       break
     }
     if (parent.type === 'group') {
-      return parent
+      resolvedShape = parent
     }
     current = parent
   }
 
-  return shape
+  return resolvedShape
 }

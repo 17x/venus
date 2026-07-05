@@ -1,26 +1,23 @@
-import {FC, useEffect, useState} from 'react'
+import {FC, Fragment, useMemo} from 'react'
 import {useTranslation} from 'react-i18next'
 import {I18nHistoryDataItem} from '../../i18n/type'
 import type {MenuItemType} from '../header/menu/type'
 // Keep context menu contracts type-only to avoid hard dependency on editor hook implementation modules.
-import type {EditorExecutor} from '../../product/useEditorRuntime/types.ts'
+import type {EditorExecutor} from '../../runtime/useEditorRuntime/types.ts'
 import type {ElementProps} from '../../runtime/types/index.ts'
-import {Point} from '../../runtime/model/index.ts'
+import type {Point} from '../../runtime/model/index.ts'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
 } from '../../ui/index.ts'
 import {EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 
 export interface ContextMenuProps {
-  position: Point
   pastePosition?: Point
   onClose: () => void
   executeAction: EditorExecutor
@@ -34,7 +31,6 @@ export interface ContextMenuProps {
 }
 
 export const ContextMenu: FC<ContextMenuProps> = ({
-  position,
   pastePosition,
   executeAction,
   onClose,
@@ -43,9 +39,8 @@ export const ContextMenu: FC<ContextMenuProps> = ({
   historyStatus,
 }) => {
   const {t} = useTranslation()
-  const [menuItems, setMenuItems] = useState<MenuItemType[]>([])
 
-  useEffect(() => {
+  const menuItems = useMemo<MenuItemType[]>(() => {
     const noSelectedElement = selectedIds.length === 0
     const canGroup = selectedIds.length >= 2
     const canUngroup = selectedIds.length >= 1
@@ -95,14 +90,14 @@ export const ContextMenu: FC<ContextMenuProps> = ({
         ],
       },
     ]
-    setMenuItems(ITEMS)
-  }, [selectedIds, position, copiedItems])
+    return ITEMS
+  }, [copiedItems.length, historyStatus.hasNext, historyStatus.hasPrev, selectedIds.length])
 
   const handleContextAction = (item: MenuItemType) => {
     const {editorActionCode} = item
 
     if (editorActionCode === 'element-paste') {
-      executeAction('element-paste', pastePosition ?? position)
+      executeAction('element-paste', pastePosition ?? {x: 0, y: 0})
     } else if (editorActionCode && item.editorActionData) {
       executeAction(editorActionCode, item.editorActionData)
     } else {
@@ -116,22 +111,22 @@ export const ContextMenu: FC<ContextMenuProps> = ({
     const icon = resolveContextIcon(item.icon ?? item.id)
 
     if (hasChildren) {
-      return <DropdownMenuSub key={item.id}>
-        <DropdownMenuSubTrigger disabled={item.disabled} className={EDITOR_TEXT_MENU_CLASS} title={menuText.tooltip}>
+      return <ContextMenuSub key={item.id}>
+        <ContextMenuSubTrigger disabled={item.disabled} className={EDITOR_TEXT_MENU_CLASS} title={menuText.tooltip}>
           <span className={'inline-flex items-center gap-2'}>
             {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
             <span>{menuText.label}</span>
           </span>
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className={'min-w-40'}>
+        </ContextMenuSubTrigger>
+        <ContextMenuSubContent className={'min-w-44'}>
           {item.children?.map((childItem) => {
             return renderContextMenuItem(childItem)
           })}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+        </ContextMenuSubContent>
+      </ContextMenuSub>
     }
 
-    return <DropdownMenuItem
+    return <ContextMenuItem
       key={item.id}
       disabled={item.disabled}
       title={menuText.tooltip}
@@ -145,40 +140,26 @@ export const ContextMenu: FC<ContextMenuProps> = ({
         {icon && <span className={'inline-flex opacity-80'}>{icon}</span>}
         <span>{menuText.label}</span>
       </span>
-    </DropdownMenuItem>
+    </ContextMenuItem>
   }
 
   return (
-    <div
-         className={'absolute z-50'}
-         onClick={(e) => {
-           e.preventDefault()
-           e.stopPropagation()
-         }}
-         style={{
-           top: position.y,
-           left: position.x,
-         }}>
-
-      <DropdownMenu open onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          onClose()
-        }
-      }}>
-        {/* Anchor popup at pointer position while keeping menu fully keyboard accessible. */}
-        <DropdownMenuTrigger className={'size-px opacity-0 pointer-events-none'} aria-label={t('shell.variantB.nav.mainMenu', {defaultValue: 'Context menu'})}>
-          <span className={'sr-only'}>{t('shell.variantB.nav.mainMenu', {defaultValue: 'Context menu'})}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={'start'} sideOffset={4} className={'min-w-40'}>
-          {menuItems.map((item) => {
-            return <div key={item.id}>
-              {item.divide && <DropdownMenuSeparator/>}
-              {renderContextMenuItem(item)}
-            </div>
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <ContextMenuContent
+      align={'start'}
+      sideOffset={4}
+      className={'min-w-44 border border-slate-200/80 shadow-xl dark:border-slate-700/80'}
+      aria-label={t('shell.variantB.nav.mainMenu', {defaultValue: 'Context menu'})}
+      onClick={(event) => {
+        event.stopPropagation()
+      }}
+    >
+      {menuItems.map((item) => (
+        <Fragment key={item.id}>
+          {item.divide && <ContextMenuSeparator/>}
+          {renderContextMenuItem(item)}
+        </Fragment>
+      ))}
+    </ContextMenuContent>
   )
 }
 

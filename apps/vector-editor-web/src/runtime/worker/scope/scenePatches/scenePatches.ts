@@ -193,6 +193,7 @@ export function applyPatches(
       incrementSceneVersion(scene)
       updateSpatialShape(spatialIndex, document, shape.id)
       changedShapeIds.add(shape.id)
+      needsGroupBoundsSync = true
       return
     }
 
@@ -217,6 +218,14 @@ export function applyPatches(
       incrementSceneVersion(scene)
       updateSpatialShape(spatialIndex, document, shape.id)
       changedShapeIds.add(shape.id)
+      if (
+        patch.prevEllipseStartAngle !== patch.nextEllipseStartAngle ||
+        patch.prevEllipseEndAngle !== patch.nextEllipseEndAngle ||
+        patch.prevFlipX !== patch.nextFlipX ||
+        patch.prevFlipY !== patch.nextFlipY
+      ) {
+        needsGroupBoundsSync = true
+      }
       return
     }
 
@@ -375,7 +384,8 @@ export function applyPatches(
   })
 
   if (needsGroupBoundsSync) {
-    syncDerivedGroupBounds(scene, document, spatialIndex)
+    const syncedGroupIds = syncDerivedGroupBounds(scene, document, spatialIndex)
+    syncedGroupIds.forEach((shapeId) => changedShapeIds.add(shapeId))
   }
 
   if (changedShapeIds.size > 0) {

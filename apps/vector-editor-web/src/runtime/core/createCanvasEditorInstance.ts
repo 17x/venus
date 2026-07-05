@@ -1,7 +1,7 @@
 import type {EditorDocument} from '../model/index.ts'
 import type {EditorRuntimeCommand} from '../worker/index.ts'
 import type {PointerState} from '../shared-memory/index.ts'
-import {createCanvasElementRegistry, type CanvasElementBehavior, type CanvasElementRegistry} from '../extensibility.ts'
+import {createCanvasElementRegistry, type CanvasElementBehavior, type CanvasElementRegistry} from '../extensibility/extensibility.ts'
 import {
   createCanvasRuntimeController,
   type CanvasRuntimeController,

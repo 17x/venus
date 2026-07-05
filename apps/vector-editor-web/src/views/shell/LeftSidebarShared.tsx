@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react'
 import type {TFunction} from 'i18next'
-import type {LayerItem} from '../../product/useEditorRuntime/types.ts'
-import type {EditorExecutor} from '../../product/useEditorRuntime/types.ts'
+import type {LayerItem} from '../../runtime/useEditorRuntime/types.ts'
+import type {EditorExecutor} from '../../runtime/useEditorRuntime/types.ts'
 import type {ShellCommandMeta} from '../../runtime/shell/commands/shellCommandRegistry.ts'
 import {LuBug, LuFile, LuHistory, LuShapes} from 'react-icons/lu'
 

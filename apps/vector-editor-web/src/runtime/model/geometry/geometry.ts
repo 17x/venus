@@ -9,8 +9,11 @@ import {
   multiplyAffineMatrices as multiplyAffineMatricesFromLib,
 } from '@venus/lib/math'
 import {getNormalizedBoundsFromBox as getNormalizedBoundsFromBoxFromLib} from '@venus/lib/geometry'
-import {getBoundingRectFromBezierPoints as getEngineBoundingRectFromBezierPoints} from '@venus/engine'
-export {cubicBezier} from './geometry.curves.ts'
+import {
+  getBoundingRectFromBezierPoints as getEngineBoundingRectFromBezierPoints,
+  cubicBezierPoint,
+  getCubicExtrema as getEngineCubicExtrema,
+} from '@venus/engine'
 
 export interface Point {
   x: number
@@ -213,4 +216,29 @@ export function convertDrawPointsToBezierPoints(points: Point[], tension = 0.3):
     points: bezierPoints,
     closed,
   }
+}
+
+/**
+ * Computes one cubic bezier point for parameter t.
+ * Delegates to @venus/engine for deterministic bezier sampling.
+ * @param t Curve parameter in [0, 1].
+ * @param p0 First control point.
+ * @param p1 Second control point.
+ * @param p2 Third control point.
+ * @param p3 Fourth control point.
+ */
+export function cubicBezier(t: number, p0: Point, p1: Point, p2: Point, p3: Point): Point {
+  return cubicBezierPoint(t, p0, p1, p2, p3)
+}
+
+/**
+ * Solves normalized cubic derivative roots for extrema discovery.
+ * Delegates to @venus/engine for shared extrema computation.
+ * @param p0 Cubic first point axis value.
+ * @param p1 Cubic second point axis value.
+ * @param p2 Cubic third point axis value.
+ * @param p3 Cubic fourth point axis value.
+ */
+export function getCubicExtrema(p0: number, p1: number, p2: number, p3: number): number[] {
+  return getEngineCubicExtrema(p0, p1, p2, p3)
 }
