@@ -10,14 +10,15 @@ describe("collapsible nav primitive", () => {
     assert.match(source, /collectOpenState/);
     assert.match(source, /aria-expanded/);
     assert.match(source, /item\.defaultOpen \?\? true/);
-    assert.match(source, /depth \* 14/);
+    assert.match(source, /const INDENT_PER_LEVEL = 32;/);
+    assert.match(source, /const rowIndent = depth \* INDENT_PER_LEVEL/);
     assert.match(source, /paddingLeft: rowIndent/);
     assert.match(source, /role=\{depth === 0 \? "tree" : "group"\}/);
     assert.match(source, /role="treeitem"/);
     assert.match(source, /type="button"/);
     assert.match(source, /CollapsibleNavItem/);
-    assert.match(source, /style=\{\{ transform: isOpen \? "rotate\(90deg\)" : "rotate\(0deg\)" \}\}/);
-    assert.match(source, /absolute inset-0 flex items-center justify-center/);
+    assert.match(source, /style=\{\{ transform: isOpen \? "rotate\(90deg\)" : "rotate\(0deg\)", transformOrigin: "center" \}\}/);
+    assert.match(source, /className="size-4 transition-transform duration-150"/);
     assert.doesNotMatch(source, /<ChevronRight\s+data-icon/);
   });
 

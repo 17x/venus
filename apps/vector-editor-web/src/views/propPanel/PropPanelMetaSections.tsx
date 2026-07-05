@@ -1,75 +1,67 @@
-import {Button, Select, SelectItem} from '../../ui/index.ts'
+/**
+ * PropPanel Meta Sections — engine-docs aligned (Image, Schema, Export, Preview).
+ *
+ * Uses raw HTML inputs with Tailwind styling, matching engine-docs pattern.
+ * No custom component wrappers — direct <input>, <select>, <button>.
+ */
+
 import {useTranslation} from 'react-i18next'
-import {LuChevronRight} from 'react-icons/lu'
-import type {SelectedElementProps} from '../../product/useEditorRuntime/types.ts'
-import {EDITOR_TEXT_CONTROL_CLASS} from '../editorChrome/editorTypography.ts'
-import {
-  FieldRow,
-  SectionBlock,
-} from './PropPanelShared.tsx'
+import type {SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
 
-export function ImageSection(props: {props: SelectedElementProps, onExecuteAction: (action: 'image-mask-with-shape' | 'image-clear-mask') => void}) {
+// ---- Shared Tailwind constants (engine-docs compact pattern) ----
+
+const SECTION_TITLE = 'mb-1 text-[11px] font-medium text-muted-foreground'
+const SELECT_CLASS = 'h-6 rounded bg-muted/25 px-1 text-[11px] outline-none'
+const BTN_OUTLINE = 'h-6 rounded border border-border px-2 text-[11px] text-muted-foreground hover:bg-muted/50 cursor-pointer'
+const READONLY_TEXT = 'truncate text-[11px] text-muted-foreground'
+const FIELD_LABEL = 'w-[74px] shrink-0 text-[11px] text-muted-foreground'
+
+// ---- Image Section ----
+
+export function ImageSection(props: {
+  props: SelectedElementProps
+  onExecuteAction: (action: 'image-mask-with-shape' | 'image-clear-mask') => void
+}) {
   const {t} = useTranslation()
-
-  if (props.props.type !== 'image') {
-    return null
-  }
+  if (props.props.type !== 'image') return null
 
   return (
-    <SectionBlock title={t('inspector.properties.sections.image', {defaultValue: 'Image'})}>
-      <FieldRow label={t('inspector.properties.fields.asset', 'Asset')}>
-        <span className={'truncate text-gray-600'}>
-          {props.props.imageMeta?.assetName ?? props.props.asset ?? t('inspector.properties.values.linkedImage', 'Linked image')}
-        </span>
-      </FieldRow>
-      <FieldRow label={t('inspector.properties.fields.source', 'Source')}>
-        <span className={'truncate text-gray-600'}>
-          {props.props.imageMeta?.mimeType ?? t('inspector.properties.values.imageMimeFallback', 'image/*')}
-        </span>
-      </FieldRow>
-      <div className={'grid grid-cols-2 gap-2'}>
-        <Button
-          type={'button'}
-          variant={'outline'}
-          className={'h-6 text-xs'}
-          onClick={() => props.onExecuteAction('image-mask-with-shape')}
-        >
-          {t('inspector.properties.actions.maskWithShape', 'Mask with Shape')}
-        </Button>
-        <Button
-          type={'button'}
-          variant={'outline'}
-          className={'h-6 text-xs'}
-          onClick={() => props.onExecuteAction('image-clear-mask')}
-        >
-          {t('inspector.properties.actions.clearMask', 'Clear Mask')}
-        </Button>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>{t('inspector.properties.sections.image', 'Image')}</div>
+      <div className={'flex items-center gap-1'}>
+        <span className={FIELD_LABEL}>{t('inspector.properties.fields.asset', 'Asset')}</span>
+        <span className={READONLY_TEXT}>{props.props.imageMeta?.assetName ?? props.props.asset ?? '-'}</span>
       </div>
-    </SectionBlock>
+      <div className={'flex items-center gap-1'}>
+        <span className={FIELD_LABEL}>{t('inspector.properties.fields.source', 'Source')}</span>
+        <span className={READONLY_TEXT}>{props.props.imageMeta?.mimeType ?? 'image/*'}</span>
+      </div>
+      <div className={'flex gap-1'}>
+        <button type="button" className={BTN_OUTLINE} onClick={() => props.onExecuteAction('image-mask-with-shape')}>Mask</button>
+        <button type="button" className={BTN_OUTLINE} onClick={() => props.onExecuteAction('image-clear-mask')}>Clear Mask</button>
+      </div>
+    </section>
   )
 }
+
+// ---- Schema Section ----
 
 export function SchemaSection(props: {props: SelectedElementProps}) {
   const {t} = useTranslation()
-
-  if (!props.props.schemaMeta) {
-    return null
-  }
+  const meta = props.props.schemaMeta
+  if (!meta) return null
 
   return (
-    <SectionBlock title={t('inspector.properties.sections.schema', {defaultValue: 'Schema'})}>
-      <FieldRow label={t('inspector.properties.fields.schemaNode', 'Schema Node')}>
-        <span className={'truncate text-gray-600'}>{props.props.schemaMeta.sourceNodeType ?? '-'}</span>
-      </FieldRow>
-      <FieldRow label={t('inspector.properties.fields.nodeKind', 'Node Kind')}>
-        <span className={'truncate text-gray-600'}>{props.props.schemaMeta.sourceNodeKind ?? '-'}</span>
-      </FieldRow>
-      <FieldRow label={t('inspector.properties.fields.features', 'Features')}>
-        <span className={'truncate text-gray-600'}>{props.props.schemaMeta.sourceFeatureKinds?.join(', ') ?? '-'}</span>
-      </FieldRow>
-    </SectionBlock>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>{t('inspector.properties.sections.schema', 'Schema')}</div>
+      <div className={'flex items-center gap-1'}><span className={FIELD_LABEL}>Node</span><span className={READONLY_TEXT}>{meta.sourceNodeType ?? '-'}</span></div>
+      <div className={'flex items-center gap-1'}><span className={FIELD_LABEL}>Kind</span><span className={READONLY_TEXT}>{meta.sourceNodeKind ?? '-'}</span></div>
+      <div className={'flex items-center gap-1'}><span className={FIELD_LABEL}>Features</span><span className={READONLY_TEXT}>{meta.sourceFeatureKinds?.join(', ') ?? '-'}</span></div>
+    </section>
   )
 }
+
+// ---- Export Section ----
 
 export function ExportSection(props: {
   exportScale: string
@@ -79,62 +71,25 @@ export function ExportSection(props: {
   onPrint: VoidFunction
 }) {
   const {t} = useTranslation()
-
   return (
-    <SectionBlock title={t('inspector.properties.sections.export', 'Export')}>
-      <div className={'grid grid-cols-2 gap-2'}>
-        <Select
-          className={EDITOR_TEXT_CONTROL_CLASS}
-          selectValue={props.exportScale}
-          onSelectChange={(nextScale) => {
-            props.onChangeExportScale(String(nextScale))
-          }}
-          placeholderResolver={(value) => String(value)}
-        >
-          <SelectItem value={'1x'}>1x</SelectItem>
-          <SelectItem value={'2x'}>2x</SelectItem>
-          <SelectItem value={'3x'}>3x</SelectItem>
-        </Select>
-        <Select
-          className={EDITOR_TEXT_CONTROL_CLASS}
-          selectValue={props.exportFormat}
-          onSelectChange={(nextFormat) => {
-            props.onChangeExportFormat(String(nextFormat))
-          }}
-          placeholderResolver={(value) => String(value)}
-        >
-          <SelectItem value={'PNG'}>PNG</SelectItem>
-          <SelectItem value={'JPG'}>JPG</SelectItem>
-          <SelectItem value={'SVG'}>SVG</SelectItem>
-        </Select>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Export</div>
+      <div className={'flex gap-1'}>
+        <select className={SELECT_CLASS + ' w-14'} value={props.exportScale} onChange={(e) => props.onChangeExportScale(e.target.value)}><option value="1x">1x</option><option value="2x">2x</option><option value="3x">3x</option></select>
+        <select className={SELECT_CLASS + ' w-14'} value={props.exportFormat} onChange={(e) => props.onChangeExportFormat(e.target.value)}><option value="PNG">PNG</option><option value="JPG">JPG</option><option value="SVG">SVG</option></select>
+        <button type="button" className={BTN_OUTLINE} onClick={props.onPrint}>{t('inspector.properties.export.action', 'Export')}</button>
       </div>
-      <Button
-        type={'button'}
-        variant={'outline'}
-        className={'h-7 w-full justify-start text-xs'}
-        title={t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
-        onClick={props.onPrint}
-      >
-        {t('inspector.properties.export.action', {defaultValue: 'Export Rectangle 3'})}
-      </Button>
-    </SectionBlock>
+    </section>
   )
 }
 
-export function PreviewSection() {
-  const {t} = useTranslation()
+// ---- Preview Section (placeholder) ----
 
+export function PreviewSection() {
   return (
-    <SectionBlock title={t('inspector.properties.sections.preview', 'Preview')}>
-      <Button
-        type={'button'}
-        variant={'ghost'}
-        className={'h-7 w-full justify-between px-1 text-xs'}
-        title={t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}
-      >
-        <span>{t('inspector.properties.preview.collapsed', {defaultValue: 'Preview (collapsed)'})}</span>
-        <LuChevronRight size={14}/>
-      </Button>
-    </SectionBlock>
+    <section className={'space-y-1.5 px-2'}>
+      <div className={SECTION_TITLE}>Preview</div>
+      <div className={'text-[11px] text-muted-foreground'}>Coming soon</div>
+    </section>
   )
 }

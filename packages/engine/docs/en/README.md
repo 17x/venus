@@ -13,6 +13,7 @@ This folder stores English, human-readable documentation for `@venus/engine`.
 - `architecture/module-boundaries.md`: module ownership and dependency boundaries.
 - `architecture/render-backends.md`: WebGL-first, Canvas2D fallback, and Canvas2D-to-texture strategy.
 - `architecture/source-outline.md`: source-module responsibility map.
+- `architecture/tree-structure-operations.md`: engine-owned group, ungroup, layer, reparent, clip/mask, history, and render invalidation rules.
 
 ## Language Policy
 

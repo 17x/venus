@@ -32,6 +32,7 @@ export interface SelectionDragSession {
   start: {x: number; y: number}
   current: {x: number; y: number}
   bounds: {minX: number; minY: number; maxX: number; maxY: number}
+  selectionShapeIds: string[]
   shapes: SelectionDragShapeState[]
 }
 
@@ -162,16 +163,18 @@ export function createSelectionDragController(options?: {
         // Drag follows the selected set when hit shape is selected; otherwise
         // it drags the hit shape only (single-shape takeover).
         const selectedIdSet = selectedExpandedSet
-        const dragIds = (
-          selectedIdSet.has(pending.shapeId) ||
+        const followsSelection = selectedIdSet.has(pending.shapeId) ||
           hasSelectedAncestorInDocument(
             shapeById,
             pending.shapeId,
             selectedIdSet,
           )
-        )
+        const dragIds = followsSelection
           ? Array.from(selectedIdSet)
           : resolveSingleDragIds(shapeById, pending.shapeId)
+        const selectionShapeIds = followsSelection && selectedIds.length > 0
+          ? selectedIds
+          : [pending.shapeId]
         const dragShapes = dragIds
           .map((id) => snapshot.document.shapes.find((shape) => shape.id === id))
           .filter((shape): shape is NonNullable<typeof shape> => Boolean(shape))
@@ -214,6 +217,7 @@ export function createSelectionDragController(options?: {
           start: pending.start,
           current: pointer,
           bounds,
+          selectionShapeIds,
           shapes: dragShapes.map((shape) => ({
             shapeId: shape.shapeId,
             x: shape.x,

@@ -122,6 +122,112 @@ function asCornerRadii(value: unknown): DocumentNode['cornerRadii'] {
   }
 }
 
+function asImageSourceRect(value: unknown): DocumentNode['sourceRect'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (
+    typeof record.x !== 'number' ||
+    typeof record.y !== 'number' ||
+    typeof record.width !== 'number' ||
+    typeof record.height !== 'number'
+  ) {
+    return undefined
+  }
+
+  return {
+    x: record.x,
+    y: record.y,
+    width: record.width,
+    height: record.height,
+  }
+}
+
+function asImageNaturalSize(value: unknown): DocumentNode['naturalSize'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (typeof record.width !== 'number' || typeof record.height !== 'number') {
+    return undefined
+  }
+
+  return {
+    width: record.width,
+    height: record.height,
+  }
+}
+
+function asFontStyle(value: unknown): NonNullable<NonNullable<DocumentNode['textRuns']>[number]['style']>['fontStyle'] {
+  if (value === 'normal' || value === 'italic' || value === 'oblique') {
+    return value
+  }
+  return undefined
+}
+
+function asTextAlign(value: unknown): NonNullable<NonNullable<DocumentNode['textRuns']>[number]['style']>['textAlign'] {
+  if (value === 'left' || value === 'center' || value === 'right') {
+    return value
+  }
+  return undefined
+}
+
+function asVerticalAlign(value: unknown): NonNullable<NonNullable<DocumentNode['textRuns']>[number]['style']>['verticalAlign'] {
+  if (value === 'top' || value === 'middle' || value === 'bottom') {
+    return value
+  }
+  return undefined
+}
+
+function asTextRuns(value: unknown): DocumentNode['textRuns'] {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const runs: NonNullable<DocumentNode['textRuns']> = []
+  value.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return
+    }
+
+    const record = item as Record<string, unknown>
+    const start = asNumber(record.start)
+    const end = asNumber(record.end)
+    if (start === null || end === null) {
+      return
+    }
+
+    const styleRecord = record.style && typeof record.style === 'object'
+      ? record.style as Record<string, unknown>
+      : null
+    const style: NonNullable<DocumentNode['textRuns']>[number]['style'] = styleRecord
+      ? {
+          color: asOptionalString(styleRecord.color),
+          fontFamily: asOptionalString(styleRecord.fontFamily),
+          fontSize: asOptionalNumber(styleRecord.fontSize),
+          fontWeight: asOptionalNumber(styleRecord.fontWeight),
+          fontStyle: asFontStyle(styleRecord.fontStyle),
+          letterSpacing: asOptionalNumber(styleRecord.letterSpacing),
+          lineHeight: asOptionalNumber(styleRecord.lineHeight),
+          textAlign: asTextAlign(styleRecord.textAlign),
+          verticalAlign: asVerticalAlign(styleRecord.verticalAlign),
+          shadow: asShadow(styleRecord.shadow),
+        }
+      : undefined
+
+    runs.push({
+      start: Math.max(0, Math.floor(start)),
+      end: Math.max(0, Math.floor(end)),
+      style,
+    })
+  })
+
+  return runs.length > 0 ? runs : undefined
+}
+
 export function asRotateBatch(value: unknown) {
   if (!Array.isArray(value)) {
     return []
@@ -162,8 +268,12 @@ function asDocumentNode(value: unknown): DocumentNode | null {
   const type = asString(record.type)
   const name = asString(record.name)
   const text = asOptionalString(record.text)
+  const textRuns = asTextRuns(record.textRuns)
   const assetId = asOptionalString(record.assetId)
   const assetUrl = asOptionalString(record.assetUrl)
+  const sourceRect = asImageSourceRect(record.sourceRect)
+  const naturalSize = asImageNaturalSize(record.naturalSize)
+  const imageSmoothing = asBoolean(record.imageSmoothing)
   const clipPathId = asOptionalString(record.clipPathId)
   const clipRule = asClipRule(record.clipRule)
   const rotation = asNumber(record.rotation)
@@ -217,8 +327,12 @@ function asDocumentNode(value: unknown): DocumentNode | null {
     type: type as DocumentNode['type'],
     name,
     text,
+    textRuns,
     assetId,
     assetUrl,
+    sourceRect,
+    naturalSize,
+    imageSmoothing: imageSmoothing ?? undefined,
     clipPathId,
     clipRule,
     rotation: rotation === null ? undefined : rotation,

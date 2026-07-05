@@ -1,11 +1,23 @@
 import {
   applyAffineMatrixToPoint,
-  getBoundingRectFromBezierPoints,
   type EditorDocument,
 } from '../../model/index.ts'
-import {resolveNodeTransform, type EngineRenderableNode, type EngineSceneSnapshot} from '@venus/engine'
+import {
+  getBoundingRectFromBezierPoints,
+  isGeometryPathClosed,
+  resolveNodeTransform,
+  type EngineBezierPoint,
+  type EngineRenderableNode,
+  type EngineShapeNode,
+  type EngineScenePatch,
+  type EngineScenePatchBatch,
+  type EngineSceneSnapshot,
+} from '@venus/engine'
 import type {SceneShapeSnapshot} from '../../shared-memory/index.ts'
 import {readRunShadow, resolveEngineShapeKind, resolveEngineTextAlign} from './engineSceneAdapter.text.ts'
+import {resolveParentLocalEngineTransform} from './engineSceneAdapter.tree.ts'
+
+type RuntimeDocumentShape = EditorDocument['shapes'][number]
 
 export interface CreateEngineSceneFromRuntimeSnapshotOptions {
   document: EditorDocument
@@ -15,6 +27,22 @@ export interface CreateEngineSceneFromRuntimeSnapshotOptions {
   backgroundStroke?: string
   includeShapeIds?: readonly string[]
   includeDocumentBackground?: boolean
+  /**
+   * `flat` preserves the current top-level render snapshot contract.
+   * `tree` emits group/frame hierarchy with parent-local transforms.
+   */
+  structureMode?: 'flat' | 'tree'
+}
+
+export interface CreateEngineScenePatchBatchFromRuntimeSnapshotOptions
+  extends Omit<CreateEngineSceneFromRuntimeSnapshotOptions, 'includeShapeIds'> {
+  changedShapeIds: readonly string[]
+}
+
+export interface CreateEngineScenePatchBatchFromRuntimeSnapshotResult {
+  requiresFullLoad: boolean
+  batch: EngineScenePatchBatch
+  upsertNodes: readonly EngineRenderableNode[]
 }
 
 /**
@@ -31,21 +59,28 @@ export function createEngineSceneFromRuntimeSnapshot(
     ? new Set(options.includeShapeIds)
     : null
   const documentShapeById = new Map(options.document.shapes.map((shape) => [shape.id, shape]))
+  const snapshotShapeById = new Map(options.shapes.map((shape) => [shape.id, shape]))
   const nodes: EngineRenderableNode[] = []
 
   if (options.includeDocumentBackground !== false) {
-    nodes.push({
-      id: '__doc_background__',
-      type: 'shape',
-      shape: 'rect',
-      x: 0,
-      y: 0,
+    nodes.push(createDocumentBackgroundNode(options))
+  }
+
+  if (options.structureMode === 'tree') {
+    nodes.push(...createTreeEngineNodes({
+      document: options.document,
+      includeShapeIdSet,
+      documentShapeById,
+      snapshotShapeById,
+      shapeOrder: options.shapes.map((shape) => shape.id),
+    }))
+
+    return {
+      revision: options.revision,
       width: options.document.width,
       height: options.document.height,
-      fill: options.backgroundFill ?? '#ffffff',
-      stroke: options.backgroundStroke ?? '#d0d7de',
-      strokeWidth: 1,
-    })
+      nodes,
+    }
   }
 
   options.shapes.forEach((shape) => {
@@ -54,123 +89,226 @@ export function createEngineSceneFromRuntimeSnapshot(
     }
 
     const sourceShape = documentShapeById.get(shape.id)
-    const sourceBounds = resolveSourceShapeBounds(sourceShape)
-    const sourceTransform = resolveSourceShapeTransform(sourceShape)
-    const paint = resolveShapePaint(sourceShape)
-    const sourceType = sourceShape?.type ?? shape.type
-    const clip = resolveNodeClip(sourceShape, documentShapeById)
+    nodes.push(createEngineNodeFromRuntimeShape({
+      snapshotShape: shape,
+      sourceShape,
+      parentShape: undefined,
+      children: [],
+      documentShapeById,
+      structureMode: 'flat',
+    }))
+  })
 
-    if (sourceType === 'group') {
-      nodes.push({
-        id: shape.id,
-        type: 'group',
-        children: [],
-        transform: sourceTransform,
-      })
-      return
+  return {
+    revision: options.revision,
+    width: options.document.width,
+    height: options.document.height,
+    nodes,
+  }
+}
+
+export function createEngineScenePatchBatchFromRuntimeSnapshot(
+  options: CreateEngineScenePatchBatchFromRuntimeSnapshotOptions,
+): CreateEngineScenePatchBatchFromRuntimeSnapshotResult {
+  if (options.structureMode !== 'tree') {
+    const incrementalScene = createEngineSceneFromRuntimeSnapshot({
+      ...options,
+      includeShapeIds: options.changedShapeIds,
+      includeDocumentBackground: false,
+    })
+    const patch: EngineScenePatch = {
+      revision: options.revision,
+      upsertNodes: incrementalScene.nodes,
     }
+    return {
+      requiresFullLoad: false,
+      batch: {patches: incrementalScene.nodes.length > 0 ? [patch] : []},
+      upsertNodes: incrementalScene.nodes,
+    }
+  }
 
-    if (sourceType === 'image') {
-      const hasImageSource = Boolean(sourceShape?.assetId || sourceShape?.assetUrl)
-      if (!hasImageSource) {
-        nodes.push({
-          id: shape.id,
-          type: 'shape',
-          shape: 'rect',
-          x: sourceBounds?.x ?? shape.x,
-          y: sourceBounds?.y ?? shape.y,
-          width: sourceBounds?.width ?? shape.width,
-          height: sourceBounds?.height ?? shape.height,
-          transform: sourceTransform,
-          clip,
-          fill: paint.fill,
-          stroke: paint.stroke,
-          strokeWidth: paint.strokeWidth,
-        })
-        return
+  const documentShapeById = new Map(options.document.shapes.map((shape) => [shape.id, shape]))
+  const snapshotShapeById = new Map(options.shapes.map((shape) => [shape.id, shape]))
+  const shapeOrder = options.shapes.map((shape) => shape.id)
+  const childrenByParentId = resolveOrderedChildrenByParentId(options.document, shapeOrder)
+  const rootShapeIds = shapeOrder.filter((shapeId) => {
+    const shape = documentShapeById.get(shapeId)
+    if (!shape) {
+      return false
+    }
+    const parentId = shape.parentId ?? null
+    return parentId === null || !documentShapeById.has(parentId)
+  })
+  const uniqueChangedIds = filterTreePatchRootIds(
+    Array.from(new Set(options.changedShapeIds)),
+    documentShapeById,
+  )
+  const patches: EngineScenePatch[] = []
+  const upsertNodes: EngineRenderableNode[] = []
+
+  for (const changedId of uniqueChangedIds) {
+    const sourceShape = documentShapeById.get(changedId)
+    if (!sourceShape) {
+      return {
+        requiresFullLoad: true,
+        batch: {patches: []},
+        upsertNodes: [],
       }
-
-      nodes.push({
-        id: shape.id,
-        type: 'image',
-        x: sourceBounds?.x ?? shape.x,
-        y: sourceBounds?.y ?? shape.y,
-        width: sourceBounds?.width ?? shape.width,
-        height: sourceBounds?.height ?? shape.height,
-        transform: sourceTransform,
-        shadow: resolveNodeShadow(sourceShape),
-        assetId: sourceShape?.assetId ?? sourceShape?.id ?? shape.id,
-        clip,
-      })
-      return
     }
 
-    if (sourceType === 'text') {
-      nodes.push({
-        id: shape.id,
-        type: 'text',
-        x: sourceBounds?.x ?? shape.x,
-        y: sourceBounds?.y ?? shape.y,
-        width: sourceBounds?.width ?? shape.width,
-        height: sourceBounds?.height ?? shape.height,
-        transform: sourceTransform,
-        shadow: resolveNodeShadow(sourceShape),
-        clip,
-        cacheKey: shape.textRenderHash ? `worker:${shape.textRenderHash}` : undefined,
-        lineCount: shape.textLineCount,
-        maxLineHeight: shape.textMaxLineHeight,
-        text: sourceShape?.text ?? shape.name ?? 'Text',
-        runs: sourceShape?.textRuns?.map((run) => {
-          const style = {
-            fill: run.style?.color,
-            fontFamily: run.style?.fontFamily,
-            fontSize: run.style?.fontSize,
-            fontWeight: run.style?.fontWeight,
-            lineHeight: run.style?.lineHeight,
-            letterSpacing: run.style?.letterSpacing,
-            align: resolveEngineTextAlign(run.style?.textAlign),
-            verticalAlign: run.style?.verticalAlign,
-          }
-          const shadow = readRunShadow(run.style)
-          if (shadow) {
-            // Keep shadow transport compatible even before all type surfaces are refreshed.
-            ;(style as Record<string, unknown>).shadow = shadow
-          }
+    const parentShape = sourceShape.parentId
+      ? documentShapeById.get(sourceShape.parentId) ?? null
+      : null
+    const node = createTreeEngineNodeSubtree({
+      sourceShape,
+      parentShape,
+      includeShapeIdSet: null,
+      childrenByParentId,
+      snapshotShapeById,
+      documentShapeById,
+    })
+    const upsertParentId = parentShape?.id ?? null
+    const upsertIndex = resolveTreeNodeUpsertIndex({
+      sourceShape,
+      parentShape,
+      childrenByParentId,
+      rootShapeIds,
+      includeDocumentBackground: options.includeDocumentBackground,
+    })
 
-          return {
-            text: (sourceShape.text ?? '').slice(run.start, run.end),
-            style,
-          }
-        }),
-        style: (() => {
-          const firstRun = sourceShape?.textRuns?.[0]
-          const style = {
-            fontFamily: firstRun?.style?.fontFamily ?? 'Arial, sans-serif',
-            fontSize: firstRun?.style?.fontSize ?? 16,
-            fontWeight: firstRun?.style?.fontWeight,
-            lineHeight: firstRun?.style?.lineHeight,
-            letterSpacing: firstRun?.style?.letterSpacing,
-            fill: firstRun?.style?.color ?? '#111111',
-            align: resolveEngineTextAlign(firstRun?.style?.textAlign) ?? 'start',
-            verticalAlign: firstRun?.style?.verticalAlign,
-          }
-          const shadow = readRunShadow(firstRun?.style)
-          if (shadow) {
-            ;(style as Record<string, unknown>).shadow = shadow
-          }
-          return style
-        })(),
-      })
-      return
+    upsertNodes.push(node)
+    patches.push({
+      revision: options.revision,
+      upsertNodes: [node],
+      upsertParentId,
+      upsertIndex,
+    })
+  }
+
+  return {
+    requiresFullLoad: false,
+    batch: {patches},
+    upsertNodes,
+  }
+}
+
+function createDocumentBackgroundNode(
+  options: Pick<CreateEngineSceneFromRuntimeSnapshotOptions, 'document' | 'backgroundFill' | 'backgroundStroke'>,
+): EngineRenderableNode {
+  return {
+    id: '__doc_background__',
+    type: 'shape',
+    shape: 'rect',
+    x: 0,
+    y: 0,
+    width: options.document.width,
+    height: options.document.height,
+    fill: options.backgroundFill ?? '#ffffff',
+    stroke: options.backgroundStroke ?? '#d0d7de',
+    strokeWidth: 1,
+  }
+}
+
+function createTreeEngineNodes(input: {
+  document: EditorDocument
+  includeShapeIdSet: Set<string> | null
+  documentShapeById: Map<string, RuntimeDocumentShape>
+  snapshotShapeById: Map<string, SceneShapeSnapshot>
+  shapeOrder: readonly string[]
+}): EngineRenderableNode[] {
+  const childrenByParentId = resolveOrderedChildrenByParentId(input.document, input.shapeOrder)
+  const rootShapes = input.shapeOrder
+    .map((id) => input.documentShapeById.get(id))
+    .filter((shape): shape is RuntimeDocumentShape => Boolean(shape))
+    .filter((shape) => shouldIncludeTreeNode(shape.id, input.includeShapeIdSet, childrenByParentId))
+    .filter((shape) => {
+      const parentId = shape.parentId ?? null
+      return parentId === null ||
+        !input.documentShapeById.has(parentId) ||
+        !shouldIncludeTreeNode(parentId, input.includeShapeIdSet, childrenByParentId)
+    })
+
+  return rootShapes.map((shape) => createTreeEngineNodeSubtree({
+    sourceShape: shape,
+    parentShape: null,
+    includeShapeIdSet: input.includeShapeIdSet,
+    childrenByParentId,
+    snapshotShapeById: input.snapshotShapeById,
+    documentShapeById: input.documentShapeById,
+  }))
+}
+
+function createTreeEngineNodeSubtree(input: {
+  sourceShape: RuntimeDocumentShape
+  parentShape: RuntimeDocumentShape | null
+  includeShapeIdSet: Set<string> | null
+  childrenByParentId: Map<string, RuntimeDocumentShape[]>
+  snapshotShapeById: Map<string, SceneShapeSnapshot>
+  documentShapeById: Map<string, RuntimeDocumentShape>
+}): EngineRenderableNode {
+  const childNodes = (input.childrenByParentId.get(input.sourceShape.id) ?? [])
+    .filter((child) => shouldIncludeTreeNode(child.id, input.includeShapeIdSet, input.childrenByParentId))
+    .map((child) => createTreeEngineNodeSubtree({
+      sourceShape: child,
+      parentShape: input.sourceShape,
+      includeShapeIdSet: input.includeShapeIdSet,
+      childrenByParentId: input.childrenByParentId,
+      snapshotShapeById: input.snapshotShapeById,
+      documentShapeById: input.documentShapeById,
+    }))
+  const snapshotShape = input.snapshotShapeById.get(input.sourceShape.id) ??
+    snapshotFromDocumentShape(input.sourceShape)
+
+  return createEngineNodeFromRuntimeShape({
+    snapshotShape,
+    sourceShape: input.sourceShape,
+    parentShape: input.parentShape,
+    children: childNodes,
+    documentShapeById: input.documentShapeById,
+    structureMode: 'tree',
+  })
+}
+
+function createEngineNodeFromRuntimeShape(input: {
+  snapshotShape: SceneShapeSnapshot
+  sourceShape: RuntimeDocumentShape | undefined
+  parentShape: RuntimeDocumentShape | null | undefined
+  children: EngineRenderableNode[]
+  documentShapeById: Map<string, RuntimeDocumentShape>
+  structureMode: 'flat' | 'tree'
+}): EngineRenderableNode {
+  const {snapshotShape, sourceShape, documentShapeById, structureMode} = input
+  const sourceBounds = resolveSourceShapeBounds(sourceShape)
+  const sourceTransform = resolveSourceShapeTransform(sourceShape, input.parentShape)
+  const paint = resolveShapePaint(sourceShape)
+  const sourceType = sourceShape?.type ?? snapshotShape.type
+  const clip = resolveNodeClip(sourceShape, documentShapeById)
+
+  if (sourceType === 'group') {
+    return {
+      id: snapshotShape.id,
+      type: 'group',
+      children: structureMode === 'tree' ? input.children : [],
+      transform: sourceTransform,
     }
+  }
 
-    nodes.push({
-      id: shape.id,
+  if (sourceType === 'frame' && structureMode === 'tree') {
+    const background: EngineRenderableNode = {
+      id: `${snapshotShape.id}__frame_background`,
       type: 'shape',
-      shape: resolveEngineShapeKind(sourceType),
-      ...resolveEngineShapeGeometry(shape, sourceShape, sourceBounds),
-      pointCount: shape.pathPointCount,
-      bezierPointCount: shape.pathBezierPointCount,
+      shape: 'rect',
+      x: sourceBounds?.x ?? snapshotShape.x,
+      y: sourceBounds?.y ?? snapshotShape.y,
+      width: sourceBounds?.width ?? snapshotShape.width,
+      height: sourceBounds?.height ?? snapshotShape.height,
+      clip,
+      fillConfig: paint.fillConfig,
+      strokeConfig: paint.strokeConfig,
+      fill: paint.fill,
+      stroke: paint.stroke,
+      strokeWidth: paint.strokeWidth,
+      hitTargetId: snapshotShape.id,
       cornerRadius: sourceShape?.cornerRadius,
       cornerRadii: sourceShape?.cornerRadii
         ? {
@@ -180,24 +318,146 @@ export function createEngineSceneFromRuntimeSnapshot(
           bottomLeft: sourceShape.cornerRadii.bottomLeft,
         }
         : undefined,
-      ellipseStartAngle: sourceShape?.ellipseStartAngle,
-      ellipseEndAngle: sourceShape?.ellipseEndAngle,
-      strokeStartArrowhead: sourceShape?.strokeStartArrowhead,
-      strokeEndArrowhead: sourceShape?.strokeEndArrowhead,
+    }
+
+    return {
+      id: snapshotShape.id,
+      type: 'group',
+      children: [background, ...input.children],
+      transform: sourceTransform,
+      shadow: resolveNodeShadow(sourceShape),
+    }
+  }
+
+  if (sourceType === 'image') {
+    const hasImageSource = Boolean(sourceShape?.assetId || sourceShape?.assetUrl)
+    if (!hasImageSource) {
+      return {
+        id: snapshotShape.id,
+        type: 'shape',
+        shape: 'rect',
+        x: sourceBounds?.x ?? snapshotShape.x,
+        y: sourceBounds?.y ?? snapshotShape.y,
+        width: sourceBounds?.width ?? snapshotShape.width,
+        height: sourceBounds?.height ?? snapshotShape.height,
+        transform: sourceTransform,
+        clip,
+        fillConfig: paint.fillConfig,
+        strokeConfig: paint.strokeConfig,
+        fill: paint.fill,
+        stroke: paint.stroke,
+        strokeWidth: paint.strokeWidth,
+      }
+    }
+
+    return {
+      id: snapshotShape.id,
+      type: 'image',
+      x: sourceBounds?.x ?? snapshotShape.x,
+      y: sourceBounds?.y ?? snapshotShape.y,
+      width: sourceBounds?.width ?? snapshotShape.width,
+      height: sourceBounds?.height ?? snapshotShape.height,
+      transform: sourceTransform,
+      shadow: resolveNodeShadow(sourceShape),
+      assetId: sourceShape?.assetId ?? sourceShape?.id ?? snapshotShape.id,
+      assetUrl: sourceShape?.assetUrl,
+      sourceRect: sourceShape?.sourceRect ? {...sourceShape.sourceRect} : undefined,
+      naturalSize: sourceShape?.naturalSize ? {...sourceShape.naturalSize} : undefined,
+      imageSmoothing: sourceShape?.imageSmoothing,
+      clip,
+    }
+  }
+
+  if (sourceType === 'text') {
+    return {
+      id: snapshotShape.id,
+      type: 'text',
+      x: sourceBounds?.x ?? snapshotShape.x,
+      y: sourceBounds?.y ?? snapshotShape.y,
+      width: sourceBounds?.width ?? snapshotShape.width,
+      height: sourceBounds?.height ?? snapshotShape.height,
+      transform: sourceTransform,
       shadow: resolveNodeShadow(sourceShape),
       clip,
-      transform: sourceTransform,
-      fill: paint.fill,
-      stroke: paint.stroke,
-      strokeWidth: paint.strokeWidth,
-    })
-  })
+      cacheKey: snapshotShape.textRenderHash ? `worker:${snapshotShape.textRenderHash}` : undefined,
+      lineCount: snapshotShape.textLineCount,
+      maxLineHeight: snapshotShape.textMaxLineHeight,
+      text: sourceShape?.text ?? snapshotShape.name ?? 'Text',
+      runs: sourceShape?.textRuns?.map((run) => {
+        const style = {
+          fill: run.style?.color,
+          fillConfig: run.style?.color ? {color: run.style.color} : undefined,
+          fontFamily: run.style?.fontFamily,
+          fontSize: run.style?.fontSize,
+          fontWeight: run.style?.fontWeight,
+          fontStyle: run.style?.fontStyle,
+          lineHeight: run.style?.lineHeight,
+          letterSpacing: run.style?.letterSpacing,
+          align: resolveEngineTextAlign(run.style?.textAlign),
+          verticalAlign: run.style?.verticalAlign,
+        }
+        const shadow = readRunShadow(run.style)
+        if (shadow) {
+          // Keep shadow transport compatible even before all type surfaces are refreshed.
+          ;(style as Record<string, unknown>).shadow = shadow
+        }
+
+        return {
+          text: (sourceShape.text ?? '').slice(run.start, run.end),
+          style,
+        }
+      }),
+      style: (() => {
+        const firstRun = sourceShape?.textRuns?.[0]
+        const style = {
+          fontFamily: firstRun?.style?.fontFamily ?? 'Arial, sans-serif',
+          fontSize: firstRun?.style?.fontSize ?? 16,
+          fontWeight: firstRun?.style?.fontWeight,
+          fontStyle: firstRun?.style?.fontStyle,
+          lineHeight: firstRun?.style?.lineHeight,
+          letterSpacing: firstRun?.style?.letterSpacing,
+          fill: firstRun?.style?.color ?? '#111111',
+          fillConfig: {color: firstRun?.style?.color ?? '#111111'},
+          align: resolveEngineTextAlign(firstRun?.style?.textAlign) ?? 'start',
+          verticalAlign: firstRun?.style?.verticalAlign,
+        }
+        const shadow = readRunShadow(firstRun?.style)
+        if (shadow) {
+          ;(style as Record<string, unknown>).shadow = shadow
+        }
+        return style
+      })(),
+    }
+  }
 
   return {
-    revision: options.revision,
-    width: options.document.width,
-    height: options.document.height,
-    nodes,
+    id: snapshotShape.id,
+    type: 'shape',
+    shape: resolveEngineShapeKind(sourceType),
+    ...resolveEngineShapeGeometry(snapshotShape, sourceShape, sourceBounds),
+    pointCount: snapshotShape.pathPointCount,
+    bezierPointCount: snapshotShape.pathBezierPointCount,
+    cornerRadius: sourceShape?.cornerRadius,
+    cornerRadii: sourceShape?.cornerRadii
+      ? {
+        topLeft: sourceShape.cornerRadii.topLeft,
+        topRight: sourceShape.cornerRadii.topRight,
+        bottomRight: sourceShape.cornerRadii.bottomRight,
+        bottomLeft: sourceShape.cornerRadii.bottomLeft,
+      }
+      : undefined,
+    ellipseStartAngle: sourceShape?.ellipseStartAngle,
+    ellipseEndAngle: sourceShape?.ellipseEndAngle,
+    strokeStartArrowhead: sourceShape?.strokeStartArrowhead,
+    strokeEndArrowhead: sourceShape?.strokeEndArrowhead,
+    shadow: resolveNodeShadow(sourceShape),
+    clip,
+    transform: sourceTransform,
+    fillConfig: paint.fillConfig,
+    strokeConfig: paint.strokeConfig,
+    fill: paint.fill,
+    stroke: paint.stroke,
+    strokeWidth: paint.strokeWidth,
   }
 }
 
@@ -294,7 +554,7 @@ function resolveShapePointBounds(
   }[],
 ) {
   if (bezierPoints && bezierPoints.length > 0) {
-    const bounds = getBoundingRectFromBezierPoints(bezierPoints.map((point) => ({
+    const bounds = getBoundingRectFromBezierPoints(bezierPoints.map((point): EngineBezierPoint => ({
       anchor: point.anchor,
       cp1: point.cp1 ?? null,
       cp2: point.cp2 ?? null,
@@ -339,8 +599,136 @@ function resolveShapePaint(
   return {
     // Hover highlight is rendered by overlay chrome; keep node paint stable.
     fill: baseFill,
+    fillConfig: {
+      color: baseFill,
+    },
     stroke: baseStroke,
     strokeWidth: baseStrokeWidth,
+    strokeConfig: {
+      color: baseStroke,
+      width: baseStrokeWidth,
+    },
+  }
+}
+
+function resolveOrderedChildrenByParentId(
+  document: EditorDocument,
+  shapeOrder: readonly string[],
+) {
+  const shapeById = new Map(document.shapes.map((shape) => [shape.id, shape]))
+  const childrenByParentId = new Map<string, RuntimeDocumentShape[]>()
+
+  shapeOrder.forEach((shapeId) => {
+    const shape = shapeById.get(shapeId)
+    if (!shape) {
+      return
+    }
+
+    const parentId = shape.parentId ?? null
+    if (!parentId || !shapeById.has(parentId)) {
+      return
+    }
+
+    const siblings = childrenByParentId.get(parentId)
+    if (siblings) {
+      siblings.push(shape)
+      return
+    }
+
+    childrenByParentId.set(parentId, [shape])
+  })
+
+  document.shapes.forEach((shape) => {
+    if ((shape.type !== 'group' && shape.type !== 'frame') || !shape.childIds) {
+      return
+    }
+
+    const orderedChildren = shape.childIds
+      .map((childId) => shapeById.get(childId))
+      .filter((child): child is RuntimeDocumentShape => Boolean(child))
+    const existingChildren = childrenByParentId.get(shape.id) ?? []
+    existingChildren.forEach((child) => {
+      if (!orderedChildren.some((candidate) => candidate.id === child.id)) {
+        orderedChildren.push(child)
+      }
+    })
+    childrenByParentId.set(shape.id, orderedChildren)
+  })
+
+  return childrenByParentId
+}
+
+function resolveTreeNodeUpsertIndex(input: {
+  sourceShape: RuntimeDocumentShape
+  parentShape: RuntimeDocumentShape | null
+  childrenByParentId: Map<string, RuntimeDocumentShape[]>
+  rootShapeIds: readonly string[]
+  includeDocumentBackground?: boolean
+}) {
+  if (!input.parentShape) {
+    const rootIndex = input.rootShapeIds.indexOf(input.sourceShape.id)
+    if (rootIndex < 0) {
+      return undefined
+    }
+    return rootIndex + (input.includeDocumentBackground === false ? 0 : 1)
+  }
+
+  const siblingIndex = (input.childrenByParentId.get(input.parentShape.id) ?? [])
+    .findIndex((shape) => shape.id === input.sourceShape.id)
+  if (siblingIndex < 0) {
+    return undefined
+  }
+
+  return siblingIndex + (input.parentShape.type === 'frame' ? 1 : 0)
+}
+
+function filterTreePatchRootIds(
+  changedIds: readonly string[],
+  documentShapeById: Map<string, RuntimeDocumentShape>,
+) {
+  const changedIdSet = new Set(changedIds)
+  return changedIds.filter((shapeId) => {
+    let parentId = documentShapeById.get(shapeId)?.parentId ?? null
+    while (parentId) {
+      if (changedIdSet.has(parentId)) {
+        return false
+      }
+      parentId = documentShapeById.get(parentId)?.parentId ?? null
+    }
+    return true
+  })
+}
+
+function shouldIncludeTreeNode(
+  id: string,
+  includeShapeIdSet: Set<string> | null,
+  childrenByParentId: Map<string, RuntimeDocumentShape[]>,
+): boolean {
+  if (!includeShapeIdSet) {
+    return true
+  }
+  if (includeShapeIdSet.has(id)) {
+    return true
+  }
+
+  return (childrenByParentId.get(id) ?? []).some((child) => (
+    shouldIncludeTreeNode(child.id, includeShapeIdSet, childrenByParentId)
+  ))
+}
+
+function snapshotFromDocumentShape(shape: RuntimeDocumentShape): SceneShapeSnapshot {
+  return {
+    id: shape.id,
+    name: shape.name,
+    type: shape.type,
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+    pathPointCount: shape.points?.length,
+    pathBezierPointCount: shape.bezierPoints?.length,
+    isHovered: false,
+    isSelected: false,
   }
 }
 
@@ -357,18 +745,13 @@ function resolveShapeClosed(
     return true
   }
 
-  const compare = (a: {x: number; y: number}, b: {x: number; y: number}) => {
-    return Math.hypot(a.x - b.x, a.y - b.y) <= 1e-3
-  }
-
-  if (bezierPoints && bezierPoints.length >= 3) {
-    return compare(bezierPoints[0].anchor, bezierPoints[bezierPoints.length - 1].anchor)
-  }
-  if (points && points.length >= 3) {
-    return compare(points[0], points[points.length - 1])
-  }
-
-  return false
+  return isGeometryPathClosed({
+    id: sourceShape?.id ?? '__shape__',
+    type: 'shape',
+    shape: resolveEngineShapeKind(sourceShape?.type ?? 'rectangle'),
+    points,
+    bezierPoints,
+  } as EngineShapeNode)
 }
 
 function resolveNodeShadow(
@@ -424,10 +807,15 @@ function resolveSourceShapeBounds(
 }
 
 function resolveSourceShapeTransform(
-  sourceShape: EditorDocument['shapes'][number] | undefined,
+  sourceShape: RuntimeDocumentShape | undefined,
+  parentShape?: RuntimeDocumentShape | null,
 ) {
   if (!sourceShape) {
     return undefined
+  }
+
+  if (parentShape !== undefined) {
+    return resolveParentLocalEngineTransform(sourceShape, parentShape)
   }
 
   const resolved = resolveNodeTransform(sourceShape)

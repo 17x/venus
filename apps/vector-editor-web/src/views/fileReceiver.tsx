@@ -3,7 +3,7 @@ import readImageHelper from '../runtime/readImage.ts'
 import {FC, ReactNode, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 // Keep FileReceiver decoupled from hook runtime code by importing the action contract type only.
-import type {EditorExecutor} from '../product/useEditorRuntime/types.ts'
+import type {EditorExecutor} from '../runtime/useEditorRuntime/types.ts'
 
 const FileReceiver: FC<{
   children: ReactNode

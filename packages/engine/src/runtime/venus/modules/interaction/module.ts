@@ -37,6 +37,23 @@ export function createVenusInteractionModule(): VenusModule {
           return new Set(selectedIds)
         },
 
+        getSelection() {
+          return new Set(selectedIds)
+        },
+
+        setSelection(ids: readonly string[]) {
+          const nextIds = new Set(ids)
+          if (nextIds.size === selectedIds.size && [...nextIds].every((id) => selectedIds.has(id))) {
+            return
+          }
+
+          selectedIds.clear()
+          for (const id of nextIds) {
+            selectedIds.add(id)
+          }
+          emitSelectionChange()
+        },
+
         select(ids: string | readonly string[]) {
           const idList = typeof ids === 'string' ? [ids] : ids
           let changed = false

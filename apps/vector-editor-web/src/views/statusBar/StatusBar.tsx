@@ -1,7 +1,7 @@
 import ZoomSelect from './ZoomSelect.tsx'
 import {FC, Ref, useImperativeHandle, useState} from 'react'
 // Keep status bar on type contracts so it remains independent from hook runtime module loading.
-import type {EditorExecutor} from '../../product/useEditorRuntime/types.ts'
+import type {EditorExecutor} from '../../runtime/useEditorRuntime/types.ts'
 import {EDITOR_TEXT_STATUS_CLASS} from '../editorChrome/editorTypography.ts'
 
 export interface PointRef {

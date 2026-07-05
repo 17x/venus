@@ -11,7 +11,15 @@ export type {
   VenusBackendFallback,
   VenusBackend,
   VenusDocumentService,
+  VenusDocumentChangedEvent,
+  VenusDocumentChangedReason,
+  VenusDocumentNodeAddedEvent,
+  VenusDocumentNodeRemovedEvent,
+  VenusDocumentNodeUpdatedEvent,
+  VenusDocumentStructureChangedEvent,
+  VenusDocumentStructureChangeReason,
   VenusInvalidationService,
+  VenusLayerMutationResult,
   VenusModule,
   VenusModuleCatalogEntry,
   VenusModuleCategory,
@@ -39,7 +47,10 @@ export {
 import {Venus} from './runtime/venus/Venus.ts'
 import type {VenusParameters} from './runtime/venus/Venus.ts'
 
-/** Creates a Venus base runtime with optional capability modules. */
+/**
+ * Creates a Venus base runtime with optional capability modules.
+ * @param parameters Optional runtime configuration.
+ */
 export function createVenus(parameters?: VenusParameters): Venus {
   return new Venus(parameters)
 }

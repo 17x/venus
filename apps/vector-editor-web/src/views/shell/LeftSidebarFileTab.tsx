@@ -7,6 +7,15 @@ import type {TreeLayerItem} from './LeftSidebarShared.tsx'
 import {SIDEBAR_GLYPH_SIZE} from './LeftSidebarShared.tsx'
 import {EDITOR_TEXT_LABEL_CLASS} from '../editorChrome/editorTypography.ts'
 
+const TREE_TOGGLE_COLUMN_WIDTH = 16
+const TREE_ICON_COLUMN_WIDTH = 16
+const TREE_COLUMN_GAP = 8
+const TREE_INDENT_BASE = 8
+/** Aligns each child row's toggle column to the left edge of its parent type icon. */
+const TREE_INDENT_PER_LEVEL = TREE_TOGGLE_COLUMN_WIDTH + TREE_COLUMN_GAP
+const TREE_LABEL_MIN_WIDTH = 132
+const TREE_ACTIONS_WIDTH = 52
+
 interface LeftSidebarFileTabProps {
   layerFilter: string
   layersCollapsed: boolean
@@ -32,6 +41,17 @@ export const LeftSidebarFileTab = memo(function LeftSidebarFileTab(props: LeftSi
   const selectedIdSet = useMemo(() => new Set(props.selectedIds), [props.selectedIds])
   const expandTooltip = t('ui.shell.variantB.layers.expandGroup', {defaultValue: 'Expand group'})
   const collapseTooltip = t('ui.shell.variantB.layers.collapseGroup', {defaultValue: 'Collapse group'})
+  const maxTreeDepth = useMemo(() => {
+    return props.treeLayerItems.reduce((maxDepth, item) => Math.max(maxDepth, item.depth), 0)
+  }, [props.treeLayerItems])
+  const treeMinWidth = TREE_INDENT_BASE +
+    maxTreeDepth * TREE_INDENT_PER_LEVEL +
+    TREE_TOGGLE_COLUMN_WIDTH +
+    TREE_COLUMN_GAP +
+    TREE_ICON_COLUMN_WIDTH +
+    TREE_COLUMN_GAP +
+    TREE_LABEL_MIN_WIDTH +
+    TREE_ACTIONS_WIDTH
 
   return <div id={'variant-b-tabpanel-file'} role={'tabpanel'} className={'border-t border-slate-200 flex min-h-0 flex-1 flex-col'}>
     <section className={'flex min-h-0 flex-1 flex-col p-2.5'}>
@@ -101,13 +121,18 @@ export const LeftSidebarFileTab = memo(function LeftSidebarFileTab(props: LeftSi
         </div>} */}
 
       {!props.layersCollapsed &&
-        <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded p-1'}>
+        <div className={'scrollbar-custom min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded p-1'}>
           {props.visibleLayerItems.length === 0 &&
             <div className={'px-2 py-3 text-xs text-slate-500 dark:text-slate-400'}>
               {t('shell.variantB.layers.empty', 'No matching layers')}
             </div>}
 
-          <ul role={'tree'} aria-label={t('shell.variantB.layers.title', 'Layers')} className={'flex min-w-0 flex-col gap-1'}>
+          <ul
+            role={'tree'}
+            aria-label={t('shell.variantB.layers.title', 'Layers')}
+            className={'flex min-w-full flex-col gap-1'}
+            style={{minWidth: `max(100%, ${treeMinWidth}px)`}}
+          >
             {props.treeLayerItems.map((item) => {
               return (
                 <SemanticTreeRow
@@ -234,9 +259,8 @@ const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProp
         }}
       >
         <span
-          className={'grid min-w-0 w-full grid-cols-[16px_16px_minmax(0,1fr)] items-center gap-2'}
-          // Keep first-level subitems text-aligned with parent label instead of parent icon.
-          style={{paddingLeft: 8 + Math.max(0, (props.depth ?? 0) - 1) * 14}}
+          className={'grid min-w-0 flex-1 grid-cols-[16px_16px_minmax(0,1fr)] items-center gap-2'}
+          style={{paddingLeft: TREE_INDENT_BASE + Math.max(0, props.depth ?? 0) * TREE_INDENT_PER_LEVEL}}
         >
           {props.hasChildren
             ? <Tooltip placement='r' title={props.expanded ? props.collapseTooltip : props.expandTooltip} asChild>
@@ -260,7 +284,10 @@ const SemanticTreeRow = memo(function SemanticTreeRow(props: SemanticTreeRowProp
             {props.label}
           </span>
         </span>
-        <span className={'sticky right-0 ml-auto inline-flex items-center gap-1 bg-inherit pr-1 pl-2'}>
+        <span
+          className={'sticky right-0 z-10 ml-auto inline-flex h-full shrink-0 items-center justify-end gap-1 bg-inherit pr-1 pl-2'}
+          style={{width: TREE_ACTIONS_WIDTH}}
+        >
           <Tooltip
             placement={'r'}
             title={props.isLocked ? 'Unlock layer' : 'Lock layer'}

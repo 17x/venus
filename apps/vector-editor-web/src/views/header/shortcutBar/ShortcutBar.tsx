@@ -2,10 +2,10 @@ import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from './Icons/LayerIcons.
 import {Fragment, ReactNode} from 'react'
 import {I18nHistoryDataItem} from '../../../i18n/type'
 // Keep shortcut bar contracts type-only to avoid UI -> hook implementation coupling.
-import type {EditorExecutor} from '../../../product/useEditorRuntime/types.ts'
+import type {EditorExecutor} from '../../../runtime/useEditorRuntime/types.ts'
 import {Button, cn, IconButton, Select, SelectItem} from '../../../ui/index.ts'
 import {useTranslation} from 'react-i18next'
-import type {SelectedElementProps} from '../../../product/useEditorRuntime/types.ts'
+import type {SelectedElementProps} from '../../../runtime/useEditorRuntime/types.ts'
 import {
   CHROME_ICON_BUTTON_DISABLED_CLASS,
   CHROME_ICON_SIZE,

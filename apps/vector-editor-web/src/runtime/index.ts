@@ -39,7 +39,7 @@ export {
 } from './overlay/index.ts'
 export {
 	type RuntimePreviewInstruction,
-} from './preview/index.ts'
+} from './preview.ts'
 
 export {
 	resolveRuntimeCursor,

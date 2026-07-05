@@ -1,3 +1,5 @@
+import type {DocumentNode} from '../model/index.ts'
+
 /**
  * Patch vocabulary for local undo/redo.
  *
@@ -144,8 +146,12 @@ export type HistoryPatch =
         parentId?: string | null
         childIds?: string[]
         text?: string
+        textRuns?: DocumentNode['textRuns']
         assetId?: string
         assetUrl?: string
+        sourceRect?: {x: number; y: number; width: number; height: number}
+        naturalSize?: {width: number; height: number}
+        imageSmoothing?: boolean
         clipPathId?: string
         clipRule?: 'nonzero' | 'evenodd'
         schema?: {
@@ -205,8 +211,12 @@ export type HistoryPatch =
         parentId?: string | null
         childIds?: string[]
         text?: string
+        textRuns?: DocumentNode['textRuns']
         assetId?: string
         assetUrl?: string
+        sourceRect?: {x: number; y: number; width: number; height: number}
+        naturalSize?: {width: number; height: number}
+        imageSmoothing?: boolean
         clipPathId?: string
         clipRule?: 'nonzero' | 'evenodd'
         schema?: {

@@ -166,6 +166,24 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     return [{type: 'text', x: 86, y: 176, text: 'Venus Text', fill: ink, fontSize: 42, fontWeight: 700}]
   }
 
+  if (apiId === 'frame') {
+    return [{
+      type: 'frame',
+      x: 72,
+      y: 48,
+      width: 300,
+      height: 200,
+      fill: isLight ? '#f8fafc' : '#0f172a',
+      stroke: isLight ? '#94a3b8' : '#64748b',
+      strokeWidth: 4,
+      cornerRadius: 18,
+      children: [
+        {type: 'rect', x: 116, y: 92, width: 112, height: 78, fill: panel, stroke: isLight ? '#2563eb' : '#93c5fd', strokeWidth: 3, cornerRadius: 12},
+        {type: 'text', x: 142, y: 196, width: 180, height: 44, text: 'Frame', fill: ink, fontSize: 30, fontWeight: 700},
+      ],
+    }]
+  }
+
   if (apiId === 'group') {
     return [{
       type: 'group',
@@ -258,6 +276,10 @@ const createExampleNodes = (apiId: string, theme: ThemeMode): VenusNode[] => {
     return [{type: 'polygon', x: 72, y: 56, width: 220, height: 168, points: [{x: 182, y: 56}, {x: 292, y: 120}, {x: 254, y: 224}, {x: 110, y: 224}, {x: 72, y: 120}], fill: isLight ? '#dcfce7' : '#14532d', stroke: isLight ? '#16a34a' : '#86efac', strokeWidth: 3}]
   }
 
+  if (apiId === 'star') {
+    return [{type: 'star', x: 86, y: 50, width: 220, height: 200, points: createStarPoints(86, 50, 220, 200), fill: isLight ? '#fde047' : '#854d0e', stroke: isLight ? '#ca8a04' : '#facc15', strokeWidth: 3}]
+  }
+
   if (apiId === 'path') {
     return [{type: 'path', x: 64, y: 64, width: 280, height: 180, points: [{x: 64, y: 160}, {x: 200, y: 64}, {x: 344, y: 160}, {x: 200, y: 244}], stroke: isLight ? '#7c3aed' : '#a78bfa', strokeWidth: 5, closed: true}]
   }
@@ -342,6 +364,13 @@ const createShapeMinimalCreateCode = (kind: string): string => {
   type: 'text',
   text: 'Hello Venus',
 })`
+    case 'frame':
+      return `const r = venus.add({
+  type: 'frame',
+  width: 220,
+  height: 140,
+  children: [],
+})`
     case 'group':
       return `const r = venus.add({
   type: 'group',
@@ -374,6 +403,24 @@ const createShapeMinimalCreateCode = (kind: string): string => {
     {x: 176, y: 140},
     {x: 44, y: 140},
     {x: 0, y: 56},
+  ],
+})`
+    case 'star':
+      return `const r = venus.add({
+  type: 'star',
+  width: 220,
+  height: 140,
+  points: [
+    {x: 110, y: 0},
+    {x: 135, y: 50},
+    {x: 220, y: 50},
+    {x: 150, y: 82},
+    {x: 176, y: 140},
+    {x: 110, y: 104},
+    {x: 44, y: 140},
+    {x: 70, y: 82},
+    {x: 0, y: 50},
+    {x: 85, y: 50},
   ],
 })`
     case 'path':
@@ -429,6 +476,11 @@ r.strokeDashArray = [8, 4]`,
 r.fontWeight = 600
 r.fill = '#${isLight ? '0f172a' : 'f8fafc'}'
 r.lineHeight = 1.5`,
+    frame: `r.fill = '#${isLight ? 'f8fafc' : '0f172a'}'
+r.stroke = '#${isLight ? '94a3b8' : '64748b'}'
+r.strokeWidth = 2
+r.cornerRadius = 16
+r.addChild({type: 'rect', width: 80, height: 60, fill: '#${isLight ? '3b82f6' : '93c5fd'}'})`,
     group: `const child = r.addChild({
   type: 'rect',
   width: 80,
@@ -451,6 +503,10 @@ r.strokeWidth = 2
 r.closed = true
 const pts = [{x: 110, y: 50}, {x: 280, y: 80}, {x: 240, y: 190}, {x: 70, y: 170}]
 r.points = pts`,
+    star: `r.fill = '#${isLight ? 'fde047' : 'facc15'}'
+r.stroke = '#${isLight ? 'ca8a04' : 'fde68a'}'
+r.strokeWidth = 2
+r.closed = true`,
     path: `r.stroke = '#${isLight ? 'dc2626' : 'fca5a5'}'
 r.strokeWidth = 4
 r.closed = false
@@ -731,8 +787,8 @@ interface ModelControlValues {
   layerBlurAmount: number
 }
 
-const editableModelApiIds = new Set(['rect', 'ellipse', 'line', 'text', 'group', 'clip', 'mask', 'polygon', 'path', 'image'])
-const shapeApiIds = ['rect', 'ellipse', 'line', 'text', 'path', 'group', 'clip', 'mask', 'polygon', 'image'] as const
+const editableModelApiIds = new Set(['rect', 'ellipse', 'line', 'text', 'frame', 'group', 'clip', 'mask', 'polygon', 'star', 'path', 'image'])
+const shapeApiIds = ['rect', 'ellipse', 'line', 'text', 'frame', 'path', 'group', 'clip', 'mask', 'polygon', 'star', 'image'] as const
 const themeOptions: Array<{name: ThemeMode; label: string}> = [
   {name: 'light', label: 'Classic light'},
   {name: 'dark', label: 'Classic dark'},
@@ -813,12 +869,12 @@ const createInitialModelControls = (apiId: string, theme: ThemeMode): ModelContr
     strokeOpacity: 100,
     strokeWidth: apiId === 'line' ? 10 : 5,
     opacity: 100,
-    cornerRadius: apiId === 'rect' || apiId === 'mask' ? 18 : 0,
+    cornerRadius: apiId === 'rect' || apiId === 'frame' || apiId === 'mask' ? 18 : 0,
     cornerTopLeft: 18,
     cornerTopRight: 18,
     cornerBottomRight: 18,
     cornerBottomLeft: 18,
-    cornersLocked: apiId !== 'rect',
+    cornersLocked: apiId !== 'rect' && apiId !== 'frame',
     ellipseStartAngle: 0,
     ellipseEndAngle: 360,
     ellipseDrawWedgeLine: false,
@@ -938,6 +994,25 @@ const createPathAnchorPoints = (controls: ModelControlValues) => [
   {x: controls.pathAnchor3X, y: controls.pathAnchor3Y},
 ]
 
+const createStarPoints = (x: number, y: number, width: number, height: number) => {
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const outerX = width / 2
+  const outerY = height / 2
+  const innerX = outerX * 0.45
+  const innerY = outerY * 0.45
+
+  return Array.from({length: 10}, (_, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI / 5
+    const radiusX = index % 2 === 0 ? outerX : innerX
+    const radiusY = index % 2 === 0 ? outerY : innerY
+    return {
+      x: Math.round(centerX + Math.cos(angle) * radiusX),
+      y: Math.round(centerY + Math.sin(angle) * radiusY),
+    }
+  })
+}
+
 const createBezierPointsFromAnchors = (controls: ModelControlValues) => {
   const anchors = createPathAnchorPoints(controls)
   return anchors.map((anchor, index) => {
@@ -1054,6 +1129,32 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
     return [{id: commonId, type: 'text', x: controls.x, y: controls.y, width: controls.width, height: controls.height, text: controls.text, runs: createTextRuns(controls), fill, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight, opacity, shadow, ...flatTransform}]
   }
 
+  if (apiId === 'frame') {
+    return [{
+      id: commonId,
+      type: 'frame',
+      x: controls.x,
+      y: controls.y,
+      width: controls.width,
+      height: controls.height,
+      fill,
+      fills: gradientFills,
+      stroke,
+      strokes: strokeGradientStrokes,
+      strokeWidth: controls.strokeWidth,
+      opacity,
+      shadow,
+      cornerRadius: controls.cornersLocked ? controls.cornerRadius : undefined,
+      cornerRadii,
+      ...strokeStyle,
+      ...flatTransform,
+      children: [
+        {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, fill: childRectFill, stroke: childRectStroke, strokeWidth: controls.childRectStrokeWidth, opacity: controls.childRectOpacity / 100, cornerRadius: controls.childRectCornerRadius, ...childRectTransform},
+        {type: 'text', x: controls.childTextX, y: controls.childTextY, width: controls.childTextWidth, height: controls.childTextHeight, text: controls.childText, fill: controls.childTextFill, fontSize: controls.childTextFontSize, fontWeight: controls.childTextFontWeight, lineHeight: controls.childTextLineHeight, opacity: controls.childTextOpacity / 100, ...childTextTransform},
+      ],
+    }]
+  }
+
   if (apiId === 'group') {
     return [{
       id: commonId,
@@ -1087,6 +1188,10 @@ const createEditableExampleNodes = (apiId: string, controls: ModelControlValues)
 
   if (apiId === 'polygon') {
     return [{id: commonId, type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, ...strokeStyle, ...flatTransform}]
+  }
+
+  if (apiId === 'star') {
+    return [{id: commonId, type: 'star', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: createStarPoints(controls.x, controls.y, controls.width, controls.height), fill, fills: gradientFills, stroke, strokes: strokeGradientStrokes, strokeWidth: controls.strokeWidth, opacity, shadow, closed: true, ...strokeStyle, ...flatTransform}]
   }
 
   if (apiId === 'path') {
@@ -1131,6 +1236,10 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
     return {type: 'text', text: controls.text}
   }
 
+  if (apiId === 'frame') {
+    return {type: 'frame', width: controls.width, height: controls.height, children: []}
+  }
+
   if (apiId === 'group') {
     return {type: 'group', children: [
       {type: 'rect', width: controls.childRectWidth, height: controls.childRectHeight},
@@ -1150,6 +1259,10 @@ const createMinimalModelNode = (apiId: string, controls: ModelControlValues): Ve
 
   if (apiId === 'polygon') {
     return {type: 'polygon', width: controls.width, height: controls.height, points: [{x: controls.width / 2, y: 0}, {x: controls.width, y: controls.height * 0.4}, {x: controls.width * 0.8, y: controls.height}, {x: controls.width * 0.2, y: controls.height}, {x: 0, y: controls.height * 0.4}]}
+  }
+
+  if (apiId === 'star') {
+    return {type: 'star', width: controls.width, height: controls.height, points: createStarPoints(0, 0, controls.width, controls.height)}
   }
 
   if (apiId === 'path') {
@@ -1187,6 +1300,24 @@ const createBaseModelNode = (apiId: string, controls: ModelControlValues): Venus
     return {type: 'text', x: controls.x, y: controls.y, width: controls.width, height: controls.height, text: controls.text, fontSize: controls.fontSize, fontWeight: controls.fontWeight, lineHeight: controls.lineHeight, rotation: controls.rotation}
   }
 
+  if (apiId === 'frame') {
+    return {
+      type: 'frame',
+      x: controls.x,
+      y: controls.y,
+      width: controls.width,
+      height: controls.height,
+      stroke,
+      strokeWidth: controls.strokeWidth,
+      cornerRadius: controls.cornersLocked ? controls.cornerRadius : undefined,
+      cornerRadii,
+      rotation: controls.rotation,
+      children: [
+        {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight},
+      ],
+    }
+  }
+
   if (apiId === 'group') {
     return {type: 'group', children: [
       {type: 'rect', x: controls.childRectX, y: controls.childRectY, width: controls.childRectWidth, height: controls.childRectHeight, cornerRadius: controls.childRectCornerRadius},
@@ -1207,6 +1338,10 @@ const createBaseModelNode = (apiId: string, controls: ModelControlValues): Venus
 
   if (apiId === 'polygon') {
     return {type: 'polygon', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: [{x: controls.x + controls.width / 2, y: controls.y}, {x: controls.x + controls.width, y: controls.y + controls.height * 0.4}, {x: controls.x + controls.width * 0.8, y: controls.y + controls.height}, {x: controls.x + controls.width * 0.2, y: controls.y + controls.height}, {x: controls.x, y: controls.y + controls.height * 0.4}], stroke, strokeWidth: controls.strokeWidth, rotation: controls.rotation}
+  }
+
+  if (apiId === 'star') {
+    return {type: 'star', x: controls.x, y: controls.y, width: controls.width, height: controls.height, points: createStarPoints(controls.x, controls.y, controls.width, controls.height), stroke, strokeWidth: controls.strokeWidth, rotation: controls.rotation}
   }
 
   if (apiId === 'path') {
@@ -1392,7 +1527,7 @@ function ModelControlPanel({
   const isBaseMode = mode === 'base'
   const showFill = apiId !== 'line' && !isCompositeModel && apiId !== 'image'
   const showStroke = apiId !== 'text' && !isCompositeModel && apiId !== 'image'
-  const showCornerRadius = apiId === 'rect'
+  const showCornerRadius = apiId === 'rect' || apiId === 'frame'
   const showText = apiId === 'text'
   const showTypography = apiId === 'text'
   const showEllipseAngles = apiId === 'ellipse'

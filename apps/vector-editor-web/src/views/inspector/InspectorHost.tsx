@@ -1,6 +1,6 @@
 import {Tooltip, cn} from '../../ui/index.ts'
 import {LuLayers, LuSettings} from 'react-icons/lu'
-import type {EditorExecutor, LayerItem, SelectedElementProps} from '../../product/useEditorRuntime/types.ts'
+import type {EditorExecutor, LayerItem, SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
 import {LayerPanel} from '../layerPanel/LayerPanel.tsx'
 import PropPanel from '../propPanel/PropPanel.tsx'
 import type {InspectorContext, InspectorPanelId} from '../../runtime/shell/state/inspectorState.ts'

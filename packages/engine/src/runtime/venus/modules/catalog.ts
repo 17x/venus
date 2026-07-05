@@ -1,5 +1,5 @@
 export const VENUS_MODULE_NAMES = [
-  'render',
+  'base',
   'camera',
   'hitTest',
   'interaction',
@@ -31,7 +31,7 @@ export interface VenusModuleCatalogEntry {
 }
 
 export const VENUS_MODULE_CATALOG: readonly VenusModuleCatalogEntry[] = [
-  {name: 'render', category: 'runtime', status: 'core-module', summary: 'Mount, resize, render, renderer defaults, backend diagnostics, LOD, and culling.'},
+  {name: 'base', category: 'runtime', status: 'core-module', summary: 'Base rendering, layer ordering, renderer defaults, backend diagnostics, LOD, and culling.'},
   {name: 'camera', category: 'runtime', status: 'core-module', summary: 'Viewport projection, pan, zoom, and fit-bounds controls.'},
   {name: 'hitTest', category: 'interaction', status: 'core-module', summary: 'Pointer hit testing, multi-hit results, and target metadata.'},
   {name: 'interaction', category: 'interaction', status: 'core-module', summary: 'Selection state, selection commands, guide snapping, and pointer-driven editing.'},

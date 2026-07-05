@@ -288,6 +288,8 @@ export interface EngineNodeBase {
   layerBlur?: EngineLayerBlur
   /** Clipping metadata; supports both node-reference and inline clip shapes. */
   clip?: EngineNodeClip
+  /** Optional public target id returned by hit-test when this render node is hit. */
+  hitTargetId?: EngineNodeId
 }
 
 /** Declares text rendering style applied to a text node or text run. */
@@ -375,6 +377,8 @@ export interface EngineImageNode extends EngineNodeBase {
   height: number
   /** Asset identifier used to resolve the image source. */
   assetId: string
+  /** Optional resolved external URI used by export/adapters while assetId remains the loader key. */
+  assetUrl?: string
   /** Optional sub-rect of the source image to render. */
   sourceRect?: EngineRect
   /** Original image dimensions before any scaling. */

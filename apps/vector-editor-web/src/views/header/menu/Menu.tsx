@@ -2,7 +2,7 @@ import React from 'react'
 import {useTranslation} from 'react-i18next'
 import {createHeaderMenuData} from './menuData.ts'
 // Keep menu UI on runtime type contracts, not hook implementation modules.
-import type {EditorExecutor} from '../../../product/useEditorRuntime/types.ts'
+import type {EditorExecutor} from '../../../runtime/useEditorRuntime/types.ts'
 import {
   cn,
   DropdownMenu,

@@ -150,6 +150,7 @@ function enrichElementsForDocumentModel(elements: ElementProps[]): ElementProps[
             fontFamily: 'Arial, sans-serif',
             fontSize: 16,
             fontWeight: 500,
+            fontStyle: 'normal',
             lineHeight: 22,
             letterSpacing: 0,
           },
@@ -381,6 +382,8 @@ export function createImageElement(
     width: input.width,
     height: input.height,
     asset: input.assetId,
+    naturalSize: {width: input.width, height: input.height},
+    imageSmoothing: true,
     opacity: 1,
   }
 }

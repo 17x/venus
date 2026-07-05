@@ -31,8 +31,10 @@ export interface EngineHitExecutionSummary {
 }
 
 export interface EngineHitExecutionOptions {
-  // Optional cap for exact geometry checks during one hit-test execution.
+  /** Optional cap for exact geometry checks during one hit-test execution. */
   maxExactCandidateCount?: number
+  /** When false, exact hit testing ignores inline clip shapes for debug/export parity checks. */
+  respectClip?: boolean
 }
 
 type Matrix2D = readonly [number, number, number, number, number, number]
@@ -112,6 +114,7 @@ export function hitTestEngineSceneStateAllWithSummary(
   let traversalIndex = totalNodeCount
   let exactCheckCount = 0
   let exactBudgetExceeded = false
+  const respectClip = options.respectClip ?? true
 
   // Walk the scene in reverse paint order and prune subtrees that have no
   // coarse point candidates so hit execution does not rebuild a full flattened
@@ -129,7 +132,7 @@ export function hitTestEngineSceneStateAllWithSummary(
       const worldMatrix = multiplyMatrix(parentMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
 
       if (node.type === 'group') {
-        if (!candidateIdSet || candidateIdSet.has(node.id)) {
+        if ((!candidateIdSet || candidateIdSet.has(node.id)) && isPointInsideNodeClipInWorld(point, node, worldMatrix, respectClip)) {
           visitReverse(node.children, worldMatrix)
         }
       }
@@ -147,14 +150,16 @@ export function hitTestEngineSceneStateAllWithSummary(
       }
 
       exactCheckCount += 1
-      if (!isPointInsideNode(point, node, worldMatrix, tolerance)) {
+      if (!isPointInsideNode(point, node, worldMatrix, tolerance, respectClip)) {
         continue
       }
 
+      const hitNodeId = node.hitTargetId ?? node.id
+      const hitNode = state.nodeMap.get(hitNodeId)
       hits.push({
         index: flattenedIndex,
-        nodeId: node.id,
-        nodeType: node.type,
+        nodeId: hitNodeId,
+        nodeType: hitNode?.type ?? node.type,
         hitType: 'shape-body',
         score: totalNodeCount - flattenedIndex,
         zOrder: flattenedIndex,
@@ -209,6 +214,7 @@ function isPointInsideNode(
   node: EngineRenderableNode,
   worldMatrix: Matrix2D,
   tolerance: number,
+  respectClip: boolean,
 ): boolean {
   const localPoint = projectPointToLocalSpace(point, worldMatrix)
   if (!localPoint) {
@@ -217,7 +223,7 @@ function isPointInsideNode(
 
   switch (node.type) {
     case 'image':
-      return isPointInsideNodeClip(localPoint, node) && isPointInsideRect(
+      return isPointInsideNodeClip(localPoint, node, respectClip) && isPointInsideRect(
         localPoint,
         node.x ?? 0,
         node.y ?? 0,
@@ -229,7 +235,7 @@ function isPointInsideNode(
       const width = node.width ?? estimateTextWidth(node)
       const lineHeight = node.style.lineHeight ?? node.style.fontSize * TEXT_LINE_HEIGHT_MULTIPLIER
       const height = node.height ?? lineHeight
-      return isPointInsideNodeClip(localPoint, node) && isPointInsideRect(
+      return isPointInsideNodeClip(localPoint, node, respectClip) && isPointInsideRect(
         localPoint,
         node.x,
         node.y,
@@ -241,7 +247,7 @@ function isPointInsideNode(
     case 'group':
       return false
     case 'shape':
-      return isPointInsideNodeClip(localPoint, node) && isPointInsideEngineShapeHitArea(
+      return isPointInsideNodeClip(localPoint, node, respectClip) && isPointInsideEngineShapeHitArea(
         localPoint,
         toEditorHitTestShape(node),
         {
@@ -252,6 +258,16 @@ function isPointInsideNode(
     default:
       return false
   }
+}
+
+function isPointInsideNodeClipInWorld(
+  point: EnginePoint,
+  node: EngineRenderableNode,
+  worldMatrix: Matrix2D,
+  respectClip: boolean,
+): boolean {
+  const localPoint = projectPointToLocalSpace(point, worldMatrix)
+  return Boolean(localPoint && isPointInsideNodeClip(localPoint, node, respectClip))
 }
 
 /**
@@ -388,7 +404,12 @@ function hasStroke(node: EngineShapeNode) {
 function isPointInsideNodeClip(
   point: EnginePoint,
   node: EngineRenderableNode,
+  respectClip: boolean,
 ): boolean {
+  if (!respectClip) {
+    return true
+  }
+
   const clipShape = node.clip?.clipShape
   if (!clipShape) {
     return true

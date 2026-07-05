@@ -16,10 +16,28 @@ export type {
 export {
   applyMatrixToPoint,
 } from '../math/matrix/matrix.ts'
+export type {
+  EngineGeometryBounds as EngineRenderableGeometryBounds,
+} from '../scene/geometry/index.ts'
+export {
+  doBoundsOverlap,
+  closePolylinePoints,
+  cubicBezierPoint,
+  getBoundingRectFromBezierPoints,
+  getCubicExtrema,
+  resolveGroupBounds,
+  resolveRenderableNodeBounds,
+  sampleBezierCurve,
+  rectBoundsToPolyline,
+  unionBounds,
+  isGeometryPathClosed,
+} from '../scene/geometry/index.ts'
 
 export type {
   EngineRenderableNodeType,
   EngineRenderableNode,
+  EngineBezierPoint,
+  EngineShapeNode,
   EngineShapeKind,
   EngineSceneSnapshot,
 } from '../scene/types/types.ts'
@@ -30,6 +48,12 @@ export {
 export type {
   EngineHitTestResult,
 } from '../scene/hitTest/hitTest.ts'
+export type {
+  EngineScenePatch,
+  EngineScenePatchApplyResult,
+  EngineScenePatchBatch,
+  EngineSceneDirtyKind,
+} from '../scene/patch/patch.ts'
 
 export type {
   EngineRenderScheduler,
@@ -61,6 +85,13 @@ export type {
   VenusConstraints,
   VenusDebugFlags,
   VenusDocumentModelType,
+  VenusDocumentChangedEvent,
+  VenusDocumentChangedReason,
+  VenusDocumentNodeAddedEvent,
+  VenusDocumentNodeRemovedEvent,
+  VenusDocumentNodeUpdatedEvent,
+  VenusDocumentStructureChangedEvent,
+  VenusDocumentStructureChangeReason,
   VenusEffect,
   VenusExportSetting,
   VenusFrameMeasurement,
@@ -70,10 +101,14 @@ export type {
   VenusGroupNode,
   VenusGroupOptions,
   VenusHitTestOptions,
+  VenusImageResourceDiagnostic,
+  VenusImageResourceInspection,
+  VenusImageResourceStatus,
   VenusInvalidationKind,
   VenusDocumentService,
   VenusInternalServiceName,
   VenusInvalidationService,
+  VenusLayerMutationResult,
   VenusModule,
   VenusModuleCatalogEntry,
   VenusModuleCategory,
@@ -81,15 +116,24 @@ export type {
   VenusModuleDiagnostics,
   VenusModuleName,
   VenusModuleStatus,
+  VenusHoverOverlay,
+  VenusHoverOverlayOptions,
   VenusLinearGradient,
   VenusNode,
+  VenusOverlayGeometry,
+  VenusOverlayPoint,
+  VenusOverlayRectBounds,
   VenusPaint,
   VenusParameters,
   VenusRegisteredServiceMap,
   VenusRegisteredServiceName,
   VenusPublicMethodName,
   VenusRadialGradient,
+  VenusReparentMutationResult,
   VenusRuntimeInspection,
+  VenusSelectionOverlay,
+  VenusSelectionOverlayOptions,
+  VenusSelectionChangedEvent,
   VenusServiceRegistry,
   VenusSolidPaint,
   VenusStroke,
@@ -141,6 +185,7 @@ export {
   createVenusHistoryModule,
   createVenusHitTestModule,
   createVenusInteractionModule,
+  createVenusBaseModule,
 } from '../runtime/venus/modules/index.ts'
 
 export type {
@@ -251,10 +296,12 @@ export {
 export type {
   EngineGeometryBounds,
   EngineGeometryHint,
+  EngineGeometryHoverOverlay,
   EngineGeometryMarqueeBounds,
   EngineGeometryNodePayload,
   EngineGeometryOutline,
   EngineGeometryPayload,
+  EngineGeometrySelectionOverlay,
   ResolveEngineGeometryPayloadOptions,
 } from '../interaction/geometryPayload/geometryPayload.ts'
 export {
@@ -273,12 +320,18 @@ export type {
 export {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
+  createIdentityAffineMatrix,
   createMatrixFirstNodeTransform,
+  createRotationAffineMatrix,
+  createScaleAffineMatrix,
   createShapeTransformRecord,
+  createTranslationAffineMatrix,
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
   intersectNormalizedBounds,
+  invertAffineMatrix,
   isPointInsideRotatedBounds,
+  multiplyAffineMatrices,
   resolveNodeTransform,
   resolveShapeTransformRecord,
   toLegacyShapeTransformRecord,

@@ -2,7 +2,7 @@ import {Button, Tabs, TabsList, TabsTrigger, Tooltip, useTheme, cn} from '../../
 import {memo, useCallback, useMemo, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuPanelLeftClose, LuPanelLeftOpen} from 'react-icons/lu'
-import type {LayerItem} from '../../product/useEditorRuntime/types.ts'
+import type {LayerItem} from '../../runtime/useEditorRuntime/types.ts'
 import {createHeaderMenuData} from '../header/menu/menuData.ts'
 import {HistoryPanel} from '../historyPanel/HistoryPanel.tsx'
 import {TEST_IDS} from '../../testing/testIds.ts'

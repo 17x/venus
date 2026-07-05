@@ -27,15 +27,17 @@ const ALLOWED_RUNTIME_TOP_LEVEL_DIRS = new Set([
   "core",
   "cursor",
   "editing-modes",
+  "editorRuntimeHelpers",
   "engine-bridge",
   "events",
+  "extensibility",
   "hittest",
   "interaction",
   "model",
   "overlay",
   "presets",
-  "preview",
   "primitive",
+  "product",
   "protocol",
   "render-prep",
   "shared-memory",
@@ -44,9 +46,9 @@ const ALLOWED_RUNTIME_TOP_LEVEL_DIRS = new Set([
   "templatePresets",
   "tools",
   "types",
+  "useEditorRuntime",
   "viewport",
   "worker",
-  "zoom",
 ]);
 
 const RUNTIME_FOUNDATION_FORBIDDEN_TARGETS = new Set([
@@ -81,7 +83,6 @@ const ALLOWED_VECTOR_TOP_LEVEL_DIRS = new Set([
   "app",
   "assets",
   "i18n",
-  "product",
   "runtime",
   "testing",
   "ui",
@@ -179,6 +180,12 @@ function resolveRelativeImportTarget(filePath, specifier) {
 
 function checkVectorLayerOneWayGovernance(issues) {
   const files = walkTsFiles(VECTOR_SRC_ROOT);
+  // Runtime product modules (merged from former product/) are allowed to import from views and ui.
+  const RUNTIME_PRODUCT_MODULES = new Set([
+    "useEditorRuntime",
+    "product",
+    "editorRuntimeHelpers",
+  ]);
   for (const file of files) {
     const relFrom = toPosix(path.relative(VECTOR_SRC_ROOT, file));
     const fromTop = resolveVectorTopLevelModule(relFrom);
@@ -193,27 +200,34 @@ function checkVectorLayerOneWayGovernance(issues) {
       const toTop = resolveVectorTopLevelModule(relTo);
       if (
         fromTop === "runtime" &&
-        ["app", "product", "views", "ui", "testing"].includes(toTop)
+        !RUNTIME_PRODUCT_MODULES.has(resolveRuntimeSubModule(relFrom)) &&
+        ["app", "views", "ui", "testing"].includes(toTop)
       ) {
         issues.push(`vector runtime one-way violation: ${relFrom}=>${relTo}`);
       }
       if (
         fromTop === "ui" &&
-        ["app", "product", "views", "runtime", "testing"].includes(toTop)
+        ["app", "views", "runtime", "testing"].includes(toTop)
       ) {
         issues.push(`vector ui one-way violation: ${relFrom}=>${relTo}`);
       }
       if (fromTop === "views" && toTop === "app") {
         issues.push(`vector views one-way violation: ${relFrom}=>${relTo}`);
       }
-      if (fromTop === "product" && toTop === "app") {
-        issues.push(`vector product one-way violation: ${relFrom}=>${relTo}`);
-      }
-      if (fromTop === "app" && toTop === "product") {
+      if (fromTop === "app" && toTop === "views") {
         issues.push(`vector app one-way violation: ${relFrom}=>${relTo}`);
       }
     }
   }
+}
+
+/**
+ * Resolves the runtime sub-module (first path segment under runtime/) for a
+ * relative path inside the runtime directory.
+ */
+function resolveRuntimeSubModule(relPath) {
+  const parts = relPath.split("/");
+  return parts.length > 1 ? parts[1] : parts[0];
 }
 
 function resolveFamilyStem(fileName) {

@@ -1,11 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import TemplatePresetPicker from '../createFile/TemplatePresetPicker.tsx'
 import Toolbelt from '../toolbelt/Toolbelt.tsx'
-import {ContextMenu} from '../contextMenu/ContextMenu.tsx'
+import {ContextMenu as EditorContextMenu} from '../contextMenu/ContextMenu.tsx'
 import {Print} from '../print/print.tsx'
 import FileReceiver from '../fileReceiver.tsx'
-import {Button, Col, useTheme} from '../../ui/index.ts'
-import useEditorRuntime from '../../product/useEditorRuntime/useEditorRuntime.ts'
+import {Button, Col, ContextMenu, ContextMenuTrigger, useTheme} from '../../ui/index.ts'
+import useEditorRuntime from '../../runtime/useEditorRuntime/useEditorRuntime.ts'
 import {applyMatrixToPoint} from '../../runtime/index.ts'
 import {EngineViewport} from '../../runtime/engine-bridge/index.tsx'
 import {generateTemplateFile} from '../../runtime/templatePresets/generators/generators.ts'
@@ -39,7 +39,6 @@ interface StageCanvasLayerProps {
   focused: boolean
   executeAction: ReturnType<typeof useEditorRuntime>['commands']['executeAction']
   stageHostRef: React.RefObject<HTMLDivElement | null>
-  onContextMenu: (event: React.MouseEvent<HTMLDivElement>) => void
   currentTool: ReturnType<typeof useEditorRuntime>['runtimeState']['currentTool']
   onSelectTool: ReturnType<typeof useEditorFrameShell>['onSelectTool']
   isolationTrail?: string[]
@@ -70,7 +69,6 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
           <div
             ref={props.stageHostRef}
             className={'relative flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950'}
-            onContextMenu={props.onContextMenu}
           >
             {props.canvas.isolationGroupId && (
               <div className={'pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/90'}>
@@ -143,7 +141,6 @@ function EditorFrameRuntime() {
   ), [])
   const [showTemplatePresetPicker, setShowTemplatePresetPicker] = useState(false)
   const [showContextMenu, setShowContextMenu] = useState(false)
-  const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0})
   const [contextMenuPastePosition, setContextMenuPastePosition] = useState({x: 0, y: 0})
   const [leftPanelMinimized, setLeftPanelMinimized] = useState(initialLayoutState.leftPanelMinimized)
   const [rightPanelMinimized, setRightPanelMinimized] = useState(initialLayoutState.rightPanelMinimized)
@@ -264,14 +261,11 @@ function EditorFrameRuntime() {
   }, [])
 
   const handleStageContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setShowContextMenu(true)
     const viewportRect = stageHostRef.current?.getBoundingClientRect()
     const viewportPoint = viewportRect
       ? {x: event.clientX - viewportRect.left, y: event.clientY - viewportRect.top}
       : {x: event.clientX, y: event.clientY}
     const worldPoint = resolveWorldPoint(viewportPoint)
-    setContextMenuPosition(viewportPoint)
     setContextMenuPastePosition(worldPoint)
     canvas.onContextMenu({
       x: viewportPoint.x,
@@ -315,17 +309,34 @@ function EditorFrameRuntime() {
     <div className={'flex-1 overflow-hidden min-h-[600px] relative'}>
       {file && <>
         <div className={'relative flex h-full w-full'}>
-          <StageCanvasLayer
-            canvas={canvas}
-            contextRootRef={contextRootRef}
-            focused={focused}
-            executeAction={executeAction}
-            stageHostRef={stageHostRef}
-            onContextMenu={handleStageContextMenu}
-            currentTool={currentTool}
-            onSelectTool={shell.onSelectTool}
-            isolationTrail={isolationTrail}
-          />
+          <ContextMenu open={showContextMenu} onOpenChange={(nextOpen) => {
+            setShowContextMenu(nextOpen)
+          }}>
+            <ContextMenuTrigger
+              className={'flex h-full min-h-0 min-w-0 flex-1'}
+              onContextMenu={handleStageContextMenu}
+            >
+              <StageCanvasLayer
+                canvas={canvas}
+                contextRootRef={contextRootRef}
+                focused={focused}
+                executeAction={executeAction}
+                stageHostRef={stageHostRef}
+                currentTool={currentTool}
+                onSelectTool={shell.onSelectTool}
+                isolationTrail={isolationTrail}
+              />
+            </ContextMenuTrigger>
+            <EditorContextMenu
+              pastePosition={contextMenuPastePosition}
+              executeAction={executeAction}
+              selectedIds={selectedIds}
+              copiedItems={copiedItems}
+              historyStatus={historyStatus}
+              onClose={() => {
+                setShowContextMenu(false)
+              }}/>
+          </ContextMenu>
 
           <EditorFrameSidePanels
             fileName={file?.name}
@@ -338,16 +349,6 @@ function EditorFrameRuntime() {
             rightSidebarProps={shell.rightSidebarProps}
           />
 
-          {showContextMenu &&
-            <ContextMenu position={contextMenuPosition}
-                         pastePosition={contextMenuPastePosition}
-                         executeAction={executeAction}
-                         selectedIds={selectedIds}
-                         copiedItems={copiedItems}
-                         historyStatus={historyStatus}
-                         onClose={() => {
-                           setShowContextMenu(false)
-                         }}/>} 
         </div>
       </>}
     </div>

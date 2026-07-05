@@ -12,11 +12,13 @@ import type {
   EngineImageNode,
   EnginePaint,
   EnginePoint,
+  EngineRect,
   EngineRenderableNode,
   EngineSceneSnapshot,
   EngineShapeNode,
   EngineStrokeConfig,
   EngineTextNode,
+  EngineTextRun,
   EngineTransform2D,
   EngineVisualEffects,
 } from '../../../../scene/types/types.ts'
@@ -38,7 +40,11 @@ interface ExportVenus {
 interface SvgExportContext {
   defs: string[]
   nextId: number
-  options: Required<VenusSvgExportOptions>
+  options: {
+    embedImages: boolean
+    pretty: boolean
+    viewBox?: EngineRect
+  }
 }
 
 /** Normalizes raster scale and rejects values that would create invalid output canvases. */
@@ -454,19 +460,95 @@ function textToSvg(node: EngineTextNode, context: SvgExportContext): string {
   const fontSize = style.fontSize ?? 16
   const fill = fillAttrs(style.fillConfig, style.fills, style.fill, context, '#000000')
   const stroke = strokeAttrs(style.strokeConfig, undefined, style.stroke, style.strokeWidth, {}, context)
-  const text = node.runs?.map((run) => run.text).join('') ?? node.text ?? ''
-  const lines = text.split('\n')
-  const tspans = lines.map((line, index) => (
-    `<tspan${attr('x', node.x)}${attr('dy', index === 0 ? 0 : fontSize * (style.lineHeight ?? 1.2))}>${escapeXmlText(line)}</tspan>`
-  )).join('')
+  const tspans = node.runs && node.runs.length > 0
+    ? textRunsToSvgTspans(node, context)
+    : plainTextToSvgTspans(node)
 
   return `<text${commonAttrs(node, context)}${attr('x', node.x)}${attr('y', node.y + fontSize)}${attr('font-family', style.fontFamily)}${attr('font-size', fontSize)}${attr('font-weight', style.fontWeight)}${attr('font-style', style.fontStyle)}${attr('letter-spacing', style.letterSpacing)}${fill}${stroke}>${tspans}</text>`
 }
 
-/** Serializes an image node into an SVG image element. */
+function plainTextToSvgTspans(node: EngineTextNode): string {
+  const style = node.style
+  const fontSize = style.fontSize ?? 16
+  const text = node.text ?? ''
+  const lines = text.split('\n')
+  return lines.map((line, index) => (
+    `<tspan${attr('x', node.x)}${attr('dy', index === 0 ? 0 : fontSize * (style.lineHeight ?? 1.2))}>${escapeXmlText(line)}</tspan>`
+  )).join('')
+}
+
+function textRunsToSvgTspans(node: EngineTextNode, context: SvgExportContext): string {
+  const style = node.style
+  const lineAdvance = (style.fontSize ?? 16) * (style.lineHeight ?? 1.2)
+  const tspans: string[] = []
+  let wroteAnyTspan = false
+  let pendingLineBreaks = 0
+
+  node.runs?.forEach((run) => {
+    const parts = run.text.split('\n')
+    parts.forEach((part, index) => {
+      if (index > 0) {
+        pendingLineBreaks += 1
+      }
+      if (part.length === 0) {
+        return
+      }
+
+      const position = !wroteAnyTspan || pendingLineBreaks > 0
+        ? attr('x', node.x) + attr('dy', wroteAnyTspan ? pendingLineBreaks * lineAdvance : 0)
+        : ''
+      tspans.push(`<tspan${position}${textRunStyleAttrs(run.style, context)}>${escapeXmlText(part)}</tspan>`)
+      wroteAnyTspan = true
+      pendingLineBreaks = 0
+    })
+  })
+
+  return tspans.join('')
+}
+
+function textRunStyleAttrs(style: EngineTextRun['style'], context: SvgExportContext): string {
+  if (!style) {
+    return ''
+  }
+
+  return attr('font-family', style.fontFamily)
+    + attr('font-size', style.fontSize)
+    + attr('font-weight', style.fontWeight)
+    + attr('font-style', style.fontStyle)
+    + attr('letter-spacing', style.letterSpacing)
+    + textRunFillAttrs(style, context)
+    + textRunStrokeAttrs(style, context)
+}
+
+function textRunFillAttrs(style: EngineTextRun['style'], context: SvgExportContext): string {
+  return fillAttrs(style?.fillConfig, style?.fills, style?.fill, context, undefined)
+}
+
+function textRunStrokeAttrs(style: EngineTextRun['style'], context: SvgExportContext): string {
+  if (!style) {
+    return ''
+  }
+
+  const strokeWidth = style.strokeConfig?.width ?? style.strokeWidth
+  const stroke = paintValue(style.strokeConfig?.paints, style.strokeConfig?.color ?? style.stroke, context, 'stroke')
+  if (!stroke && strokeWidth === undefined) {
+    return ''
+  }
+  if (!stroke || strokeWidth === 0) {
+    return attr('stroke', 'none')
+  }
+
+  return attr('stroke', stroke) + attr('stroke-width', strokeWidth)
+}
+
+/**
+ * Serializes an image node into an SVG image element.
+ * @param node Image node to serialize.
+ * @param context SVG serialization context and options.
+ */
 function imageToSvg(node: EngineImageNode, context: SvgExportContext): string {
-  const href = context.options.embedImages || /^(data:|https?:|blob:)/.test(node.assetId) ? node.assetId : ''
-  return `<image${commonAttrs(node, context)}${attr('x', node.x)}${attr('y', node.y)}${attr('width', node.width)}${attr('height', node.height)}${attr('href', href)}${attr('data-asset-id', node.assetId)}/>`
+  const href = node.assetUrl ?? (context.options.embedImages || /^(data:|https?:|blob:)/.test(node.assetId) ? node.assetId : '')
+  return `<image${commonAttrs(node, context)}${attr('x', node.x)}${attr('y', node.y)}${attr('width', node.width)}${attr('height', node.height)}${attr('href', href)}${attr('data-asset-id', node.assetId)}${attr('data-asset-url', node.assetUrl)}/>`
 }
 
 /** Serializes a group node and its children. */
@@ -497,6 +579,7 @@ function sceneToSvg(snapshot: EngineSceneSnapshot, options: VenusSvgExportOption
     options: {
       embedImages: options.embedImages ?? false,
       pretty: options.pretty ?? true,
+      viewBox: options.viewBox,
     },
   }
   const body = snapshot.nodes.map((node) => nodeToSvg(node, context)).filter(Boolean)
@@ -504,8 +587,9 @@ function sceneToSvg(snapshot: EngineSceneSnapshot, options: VenusSvgExportOption
   const content = [...defs, ...body]
   const separator = context.options.pretty ? '\n  ' : ''
   const inner = content.length > 0 ? `${separator}${content.join(separator)}${context.options.pretty ? '\n' : ''}` : ''
+  const viewBox = options.viewBox ?? {x: 0, y: 0, width: snapshot.width, height: snapshot.height}
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${num(snapshot.width)}" height="${num(snapshot.height)}" viewBox="0 0 ${num(snapshot.width)} ${num(snapshot.height)}">${inner}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${num(viewBox.width)}" height="${num(viewBox.height)}" viewBox="${num(viewBox.x)} ${num(viewBox.y)} ${num(viewBox.width)} ${num(viewBox.height)}">${inner}</svg>`
 }
 
 /** Creates the export module definition. */
@@ -537,6 +621,10 @@ export function createVenusExportModule(): VenusModule {
 
         async toSVG(options: VenusSvgExportOptions = {}) {
           return sceneToSvg(venus.snapshot(), options)
+        },
+
+        async toSVGSnapshot(snapshot: EngineSceneSnapshot, options: VenusSvgExportOptions = {}) {
+          return sceneToSvg(snapshot, options)
         },
       }
     },

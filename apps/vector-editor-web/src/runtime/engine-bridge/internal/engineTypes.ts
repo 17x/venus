@@ -36,6 +36,7 @@ export interface EngineRendererProps {
   overlayDiagnostics?: OverlayDiagnostics
   interactionPhase?: RuntimeRenderPhase
   viewportInteractionType?: 'pan' | 'zoom' | 'other'
+  sceneStructureMode?: 'flat' | 'tree'
 }
 
 export interface EngineOverlayProps {

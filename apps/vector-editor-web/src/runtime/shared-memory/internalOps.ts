@@ -299,6 +299,7 @@ function resolveTextRenderMeta(shape: EditorDocument['shapes'][number]) {
     hash = hashString(run.style?.fontFamily ?? '', hash)
     hash = hashString(String(run.style?.fontSize ?? ''), hash)
     hash = hashString(String(run.style?.fontWeight ?? ''), hash)
+    hash = hashString(run.style?.fontStyle ?? '', hash)
     hash = hashString(String(run.style?.lineHeight ?? ''), hash)
     hash = hashString(String(run.style?.letterSpacing ?? ''), hash)
     hash = hashString(run.style?.textAlign ?? '', hash)

@@ -304,6 +304,16 @@ export class VenusTextProxy extends VenusNodeProxy {
 
 // ── Group ─────────────────────────────────────────────────────────────────────
 
+export class VenusFrameProxy extends VenusNodeProxy {
+  addChild(child: VenusNode): VenusNodeProxy {
+    return this.venus.addChild(this.id, child)
+  }
+
+  removeChild(childId: string): void {
+    this.venus.removeChild(this.id, childId)
+  }
+}
+
 export class VenusGroupProxy extends VenusNodeProxy {
   private get derivedBounds(): ProxyBounds {
     return getProxyNodeBounds(this.raw) ?? {x: 0, y: 0, width: 0, height: 0}
@@ -407,10 +417,13 @@ export function createVenusNodeProxy(venus: Venus, id: string, type: VenusDocume
     case 'ellipse': return new VenusEllipseProxy(venus, id, type)
     case 'line': return new VenusLineProxy(venus, id, type)
     case 'text': return new VenusTextProxy(venus, id, type)
+    case 'frame': return new VenusFrameProxy(venus, id, type)
     case 'group': return new VenusGroupProxy(venus, id, type)
     case 'clip': return new VenusClipProxy(venus, id, type)
     case 'mask': return new VenusMaskProxy(venus, id, type)
-    case 'polygon': return new VenusPolygonProxy(venus, id, type)
+    case 'polygon':
+    case 'star':
+      return new VenusPolygonProxy(venus, id, type)
     case 'path': return new VenusPathProxy(venus, id, type)
     case 'image': return new VenusImageProxy(venus, id, type)
     default: return new VenusNodeProxy(venus, id, type)

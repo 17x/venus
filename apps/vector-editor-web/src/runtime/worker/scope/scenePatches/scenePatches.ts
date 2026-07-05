@@ -17,6 +17,7 @@ import {
   clonePoints,
   cloneShadow,
   cloneStroke,
+  cloneTextRuns,
 } from '../model.ts'
 import {applyMaskSchemaPatch} from '../maskGroupSemantics.ts'
 import {
@@ -192,6 +193,7 @@ export function applyPatches(
       incrementSceneVersion(scene)
       updateSpatialShape(spatialIndex, document, shape.id)
       changedShapeIds.add(shape.id)
+      needsGroupBoundsSync = true
       return
     }
 
@@ -216,6 +218,14 @@ export function applyPatches(
       incrementSceneVersion(scene)
       updateSpatialShape(spatialIndex, document, shape.id)
       changedShapeIds.add(shape.id)
+      if (
+        patch.prevEllipseStartAngle !== patch.nextEllipseStartAngle ||
+        patch.prevEllipseEndAngle !== patch.nextEllipseEndAngle ||
+        patch.prevFlipX !== patch.nextFlipX ||
+        patch.prevFlipY !== patch.nextFlipY
+      ) {
+        needsGroupBoundsSync = true
+      }
       return
     }
 
@@ -297,8 +307,12 @@ export function applyPatches(
         parentId: patch.shape.parentId,
         childIds: patch.shape.childIds?.slice(),
         text: patch.shape.text,
+        textRuns: cloneTextRuns(patch.shape.textRuns),
         assetId: patch.shape.assetId,
         assetUrl: patch.shape.assetUrl,
+        sourceRect: patch.shape.sourceRect ? {...patch.shape.sourceRect} : undefined,
+        naturalSize: patch.shape.naturalSize ? {...patch.shape.naturalSize} : undefined,
+        imageSmoothing: patch.shape.imageSmoothing,
         clipPathId: patch.shape.clipPathId,
         clipRule: patch.shape.clipRule,
         rotation: patch.shape.rotation,
@@ -370,7 +384,8 @@ export function applyPatches(
   })
 
   if (needsGroupBoundsSync) {
-    syncDerivedGroupBounds(scene, document, spatialIndex)
+    const syncedGroupIds = syncDerivedGroupBounds(scene, document, spatialIndex)
+    syncedGroupIds.forEach((shapeId) => changedShapeIds.add(shapeId))
   }
 
   if (changedShapeIds.size > 0) {

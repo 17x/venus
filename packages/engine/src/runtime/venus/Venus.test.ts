@@ -9,7 +9,18 @@ import {
   VENUS_MODULE_CATALOG,
   VENUS_MODULE_NAMES,
 } from './Venus.ts'
-import type {VenusBackend, VenusModule, VenusModuleContext} from './Venus.ts'
+import type {
+  VenusBackend,
+  VenusDocumentNodeAddedEvent,
+  VenusDocumentNodeRemovedEvent,
+  VenusDocumentNodeUpdatedEvent,
+  VenusDocumentService,
+  VenusDocumentStructureChangedEvent,
+  VenusLayerMutationResult,
+  VenusModule,
+  VenusModuleContext,
+  VenusReparentMutationResult,
+} from './Venus.ts'
 import {VENUS_SHAPE_MODEL_SPECS} from './shapeModel.ts'
 import {
   createVenusAnimateModule,
@@ -18,6 +29,7 @@ import {
   createVenusHistoryModule,
   createVenusHitTestModule,
 } from './modules/index.ts'
+import type {EngineSceneSnapshot} from '../../scene/types/types.ts'
 
 function createCanvasWithFailingWebGL() {
   const canvas2dContext = {}
@@ -63,6 +75,8 @@ describe('Venus invalidation', () => {
     assert.equal(classifyVenusNodeMutation(['appearance.fills']), 'paint')
     assert.equal(classifyVenusNodeMutation(['appearance.effects.0.blur']), 'effect')
     assert.equal(classifyVenusNodeMutation(['fontSize']), 'text')
+    assert.equal(classifyVenusNodeMutation(['fontFamily', 'letterSpacing', 'verticalAlign']), 'text')
+    assert.equal(classifyVenusNodeMutation(['assetUrl', 'sourceRect', 'imageSmoothing']), 'paint')
     assert.equal(classifyVenusNodeMutation(['points']), 'geometry')
     assert.equal(classifyVenusNodeMutation(['clipPath']), 'clipMask')
     assert.equal(classifyVenusNodeMutation(['children']), 'structural')
@@ -79,7 +93,7 @@ describe('Venus modules', () => {
 
   it('documents the short public module names', () => {
     assert.deepEqual(VENUS_MODULE_NAMES, [
-      'render',
+      'base',
       'camera',
       'hitTest',
       'interaction',
@@ -101,7 +115,7 @@ describe('Venus modules', () => {
     assert.deepEqual(
       VENUS_MODULE_CATALOG.map((entry) => `${entry.name}:${entry.category}:${entry.status}`),
       [
-        'render:runtime:core-module',
+        'base:runtime:core-module',
         'camera:runtime:core-module',
         'hitTest:interaction:core-module',
         'interaction:interaction:core-module',
@@ -137,7 +151,7 @@ describe('Venus modules', () => {
 
     const venus = new Venus({modules: [module]})
 
-    assert.deepEqual(venus.modules(), ['hitTest'])
+    assert.deepEqual(venus.modules(), ['base', 'hitTest'])
     assert.equal(capturedContext?.venus, venus)
     assert.equal(capturedContext?.services.has('document'), true)
     assert.equal(capturedContext?.services.has('viewport'), true)
@@ -222,9 +236,9 @@ describe('Venus modules', () => {
     const venus = new Venus({modules: [hitTestModule, debugModule]})
 
     assert.deepEqual(installed, ['hitTest', 'debug'])
-    assert.deepEqual(venus.modules(), ['hitTest', 'debug'])
+    assert.deepEqual(venus.modules(), ['base', 'hitTest', 'debug'])
     assert.deepEqual(venus.inspect().modules, {
-      installed: ['hitTest', 'debug'],
+      installed: ['base', 'hitTest', 'debug'],
       lastError: null,
     })
   })
@@ -254,7 +268,7 @@ describe('Venus modules', () => {
     const venus = new Venus({modules: [debugModule]})
 
     assert.deepEqual(venus.inspect().modules, {
-      installed: ['debug'],
+      installed: ['base', 'debug'],
       lastError: null,
     })
   })
@@ -279,7 +293,7 @@ describe('Venus modules', () => {
     const venus = createVenus()
 
     assert.ok(venus instanceof Venus)
-    assert.deepEqual(venus.modules(), [])
+    assert.deepEqual(venus.modules(), ['base'])
   })
 })
 
@@ -290,16 +304,18 @@ describe('Venus shape model specs', () => {
       'ellipse',
       'line',
       'text',
+      'frame',
       'group',
       'clip',
       'mask',
       'polygon',
+      'star',
       'path',
       'image',
     ])
     assert.deepEqual(
       VENUS_SHAPE_MODEL_SPECS.filter((spec) => spec.family === 'engine-shape').map((spec) => spec.type),
-      ['rect', 'ellipse', 'line', 'polygon', 'path'],
+      ['rect', 'ellipse', 'line', 'polygon', 'star', 'path'],
     )
     for (const spec of VENUS_SHAPE_MODEL_SPECS) {
       assert.ok(spec.files.length > 0, `${spec.type} must document owning files`)
@@ -596,13 +612,32 @@ describe('Venus node conversion', () => {
   it('converts text to engine text node with default typography', () => {
     const venus = new Venus()
 
-    venus.add({type: 'text', x: 40, y: 60, text: 'Hello', fontSize: 18, fontWeight: 600})
+    venus.add({
+      type: 'text',
+      x: 40,
+      y: 60,
+      text: 'Hello',
+      fontFamily: 'Geist',
+      fontSize: 18,
+      fontWeight: 600,
+      fontStyle: 'italic',
+      lineHeight: 1.4,
+      letterSpacing: 0.5,
+      align: 'center',
+      verticalAlign: 'middle',
+    })
 
     const [node] = venus.snapshot().nodes
     assert.equal(node.type, 'text')
     assert.equal(node.text, 'Hello')
+    assert.equal(node.style?.fontFamily, 'Geist')
     assert.equal(node.style?.fontSize, 18)
     assert.equal(node.style?.fontWeight, 600)
+    assert.equal(node.style?.fontStyle, 'italic')
+    assert.equal(node.style?.lineHeight, 1.4)
+    assert.equal(node.style?.letterSpacing, 0.5)
+    assert.equal(node.style?.align, 'center')
+    assert.equal(node.style?.verticalAlign, 'middle')
     assert.ok(node.style?.fill)
   })
 
@@ -624,6 +659,47 @@ describe('Venus node conversion', () => {
     assert.equal(node.children[0]?.shape, 'rect')
     assert.equal(node.children[1]?.type, 'shape')
     assert.equal(node.children[1]?.shape, 'ellipse')
+  })
+
+  it('converts frame to bounds-owned engine group with background and children', () => {
+    const venus = new Venus()
+
+    const frame = venus.add({
+      id: 'frame',
+      type: 'frame',
+      x: 10,
+      y: 20,
+      width: 240,
+      height: 160,
+      fill: '#f8fafc',
+      stroke: '#94a3b8',
+      strokeWidth: 0,
+      children: [
+        {id: 'child', type: 'rect', x: 24, y: 36, width: 40, height: 32},
+      ],
+    })
+
+    let [node] = venus.snapshot().nodes
+    assert.equal(node.type, 'group')
+    assert.equal(node.id, 'frame')
+    assert.equal(node.children.length, 2)
+    const background = node.children[0]
+    assert.equal(background?.type, 'shape')
+    assert.equal(background?.id, 'frame__frame_background')
+    assert.equal(background?.type === 'shape' ? background.shape : null, 'rect')
+    assert.equal(background?.hitTargetId, 'frame')
+    assert.equal(background?.type === 'shape' ? background.x : null, 10)
+    assert.equal(background?.type === 'shape' ? background.width : null, 240)
+    assert.equal(background?.type === 'shape' ? background.fillConfig?.color : null, '#f8fafc')
+    assert.equal(node.children[1]?.id, 'child')
+    assert.deepEqual(venus.bounds(), {x: 10, y: 20, width: 240, height: 160})
+    assert.deepEqual(venus.getLayerOrder('frame'), ['child'])
+
+    frame.width = 300
+    ;[node] = venus.snapshot().nodes
+    assert.equal(node.type, 'group')
+    assert.equal(node.children[0]?.type === 'shape' ? node.children[0].width : null, 300)
+    assert.deepEqual(venus.bounds(), {x: 10, y: 20, width: 300, height: 160})
   })
 
   it('converts clip to engine group with clip shape', () => {
@@ -661,6 +737,132 @@ describe('Venus node conversion', () => {
     assert.equal(node.clip?.clipShape.radius, 999)
   })
 
+  it('converts point-authored clipPath nodes to inline path clip shapes', () => {
+    const venus = new Venus()
+
+    venus.add({
+      type: 'clip',
+      id: 'clip-path-container',
+      clipPath: {
+        type: 'polygon',
+        id: 'clip-polygon',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 80,
+        points: [
+          {x: 0, y: 0},
+          {x: 100, y: 0},
+          {x: 50, y: 80},
+        ],
+      },
+      children: [{type: 'rect', id: 'clipped-content', x: 0, y: 0, width: 120, height: 100}],
+    })
+
+    const [node] = venus.snapshot().nodes
+    assert.equal(node.type, 'group')
+    assert.equal(node.clip?.clipShape.kind, 'path')
+    if (node.clip?.clipShape.kind !== 'path') {
+      throw new Error('Expected polygon clipPath to become an inline path clip')
+    }
+
+    assert.deepEqual(node.clip.clipShape.points, [
+      {x: 0, y: 0},
+      {x: 100, y: 0},
+      {x: 50, y: 80},
+    ])
+    assert.equal(node.clip.clipShape.closed, true)
+    assert.deepEqual(venus.validateClipGraph(), {
+      valid: true,
+      issues: [],
+      dependencies: [],
+    })
+  })
+
+  it('validates inline clip shapes on the current document snapshot', () => {
+    const venus = new Venus()
+
+    venus.add({
+      type: 'clip',
+      id: 'clip-container',
+      clipPath: {type: 'rect', x: 0, y: 0, width: 120, height: 90},
+      children: [{type: 'rect', id: 'content', width: 200, height: 150}],
+    })
+
+    assert.deepEqual(venus.validateClipGraph(), {
+      valid: true,
+      issues: [],
+      dependencies: [],
+    })
+  })
+
+  it('detects missing, invalid, and cyclic clip graph references', () => {
+    const venus = new Venus()
+    const snapshot: EngineSceneSnapshot = {
+      revision: 1,
+      width: 200,
+      height: 120,
+      nodes: [
+        {
+          id: 'a',
+          type: 'shape',
+          shape: 'rect',
+          x: 0,
+          y: 0,
+          width: 20,
+          height: 20,
+          clip: {clipNodeId: 'missing'},
+        },
+        {
+          id: 'b',
+          type: 'shape',
+          shape: 'rect',
+          x: 30,
+          y: 0,
+          width: 20,
+          height: 20,
+          clip: {clipNodeId: 'c', rule: 'bad' as 'nonzero'},
+        },
+        {
+          id: 'c',
+          type: 'shape',
+          shape: 'rect',
+          x: 60,
+          y: 0,
+          width: 20,
+          height: 20,
+          clip: {clipNodeId: 'b'},
+        },
+        {
+          id: 'd',
+          type: 'shape',
+          shape: 'rect',
+          x: 90,
+          y: 0,
+          width: 20,
+          height: 20,
+          clip: {clipNodeId: 'd', clipShape: {kind: 'rect', rect: {x: 0, y: 0, width: 0, height: 10}}},
+        },
+      ],
+    }
+
+    const result = venus.validateClipGraph(snapshot)
+    assert.equal(result.valid, false)
+    assert.deepEqual(
+      result.issues.map((issue) => issue.code).sort(),
+      [
+        'cyclic-clip-reference',
+        'cyclic-clip-reference',
+        'cyclic-clip-reference',
+        'invalid-clip-rule',
+        'invalid-inline-clip',
+        'missing-clip-node',
+        'self-clip-reference',
+      ].sort(),
+    )
+    assert.deepEqual(venus.resolveClipDependencies('b', snapshot), ['c', 'b', 'c'])
+  })
+
   it('converts polygon to engine shape node with points', () => {
     const venus = new Venus()
 
@@ -688,6 +890,39 @@ describe('Venus node conversion', () => {
     assert.equal(node.strokeWidth, 3)
     assert.equal(node.closed, true)
     assert.equal(node.points?.length, 3)
+  })
+
+  it('converts star to engine polygon node with points', () => {
+    const venus = new Venus()
+
+    const star = venus.add({
+      type: 'star',
+      id: 'star',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      points: [
+        {x: 50, y: 0},
+        {x: 62, y: 36},
+        {x: 100, y: 36},
+        {x: 70, y: 58},
+        {x: 82, y: 100},
+      ],
+      fill: '#fde047',
+    })
+
+    const [node] = venus.snapshot().nodes
+    assert.equal(node.type, 'shape')
+    assert.equal(node.shape, 'polygon')
+    assert.equal(node.fill, '#fde047')
+    assert.equal(node.closed, true)
+    assert.equal(node.points?.length, 5)
+
+    star.width = 200
+    const [resized] = venus.snapshot().nodes
+    assert.equal(resized.type, 'shape')
+    assert.equal(resized.points?.[2]?.x, 200)
   })
 
   it('converts path to engine shape node with bezier and arrowhead hints', () => {
@@ -727,6 +962,9 @@ describe('Venus node conversion', () => {
       width: 160,
       height: 120,
       assetId: 'hero-image',
+      assetUrl: 'https://cdn.example.test/hero.png',
+      sourceRect: {x: 4, y: 8, width: 80, height: 60},
+      naturalSize: {width: 320, height: 240},
       imageSmoothing: false,
     })
 
@@ -737,7 +975,86 @@ describe('Venus node conversion', () => {
     assert.equal(node.width, 160)
     assert.equal(node.height, 120)
     assert.equal(node.assetId, 'hero-image')
+    assert.equal(node.assetUrl, 'https://cdn.example.test/hero.png')
+    assert.deepEqual(node.sourceRect, {x: 4, y: 8, width: 80, height: 60})
+    assert.deepEqual(node.naturalSize, {width: 320, height: 240})
     assert.equal(node.imageSmoothing, false)
+  })
+
+  it('reports deterministic image resource diagnostics from the host loader', () => {
+    const loadedSource = {} as CanvasImageSource
+    const venus = new Venus({
+      resource: {
+        loader: {
+          resolveImage(assetId) {
+            return assetId === 'resolved-image' ? loadedSource : null
+          },
+        },
+      },
+    })
+
+    venus.add({
+      type: 'group',
+      id: 'gallery',
+      children: [
+        {
+          type: 'image',
+          id: 'resolved',
+          width: 100,
+          height: 80,
+          assetId: 'resolved-image',
+          assetUrl: 'https://cdn.example.test/resolved.png',
+          sourceRect: {x: 0, y: 0, width: 50, height: 40},
+          naturalSize: {width: 200, height: 160},
+          imageSmoothing: false,
+        },
+        {
+          type: 'image',
+          id: 'missing',
+          width: 100,
+          height: 80,
+          assetId: 'missing-image',
+        },
+      ],
+    })
+
+    const inspection = venus.inspectImageResources()
+
+    assert.equal(inspection.imageCount, 2)
+    assert.equal(inspection.resolvedCount, 1)
+    assert.equal(inspection.missingCount, 1)
+    assert.equal(inspection.allResolved, false)
+    assert.deepEqual(inspection.diagnostics.map((diagnostic) => ({
+      nodeId: diagnostic.nodeId,
+      assetId: diagnostic.assetId,
+      status: diagnostic.status,
+      resolved: diagnostic.resolved,
+    })), [
+      {nodeId: 'resolved', assetId: 'resolved-image', status: 'resolved', resolved: true},
+      {nodeId: 'missing', assetId: 'missing-image', status: 'missing-resource', resolved: false},
+    ])
+    assert.equal(inspection.diagnostics[0]?.assetUrl, 'https://cdn.example.test/resolved.png')
+    assert.deepEqual(inspection.diagnostics[0]?.sourceRect, {x: 0, y: 0, width: 50, height: 40})
+    assert.deepEqual(inspection.diagnostics[0]?.naturalSize, {width: 200, height: 160})
+    assert.equal(inspection.diagnostics[0]?.imageSmoothing, false)
+
+    const noLoader = new Venus()
+    noLoader.add({type: 'image', id: 'orphan', width: 24, height: 24, assetId: 'orphan-image'})
+    assert.deepEqual(noLoader.inspectImageResources().diagnostics.map((diagnostic) => diagnostic.status), ['missing-loader'])
+
+    const loaderError = new Venus({
+      resource: {
+        loader: {
+          resolveImage() {
+            throw new Error('decode failed')
+          },
+        },
+      },
+    })
+    loaderError.add({type: 'image', id: 'broken', width: 24, height: 24, assetId: 'broken-image'})
+    const [errorDiagnostic] = loaderError.inspectImageResources().diagnostics
+    assert.equal(errorDiagnostic?.status, 'loader-error')
+    assert.match(errorDiagnostic?.reason ?? '', /decode failed/)
   })
 })
 
@@ -809,7 +1126,19 @@ describe('Venus nested composition', () => {
     })
     const beforeBounds = venus.bounds()
 
-    const group = venus.group([rect.id, path.id], {name: 'Selection'})
+    const group = venus.group([rect.id, path.id], {
+      name: 'Selection',
+      opacity: 0.4,
+      blendMode: 'screen',
+      data: {source: 'selection-wrapper'},
+      appearance: {
+        opacity: 0.25,
+        blendMode: 'multiply',
+        effects: [{type: 'layerBlur', amount: 8}],
+      },
+      constraints: {horizontal: 'center', vertical: 'center'},
+      exportSettings: [{format: 'svg'}],
+    })
     const [root] = venus.children()
 
     assert.equal(group.type, 'group')
@@ -819,6 +1148,8 @@ describe('Venus nested composition', () => {
     assert.equal(root?.children.length, 2)
     assert.equal(root?.children[0]?.x, 10)
     assert.equal(root?.children[0]?.y, 20)
+    assert.equal(root?.name, 'Selection')
+    assert.equal(root?.opacity, 0.4)
     assert.deepEqual(venus.bounds(), beforeBounds)
     assert.equal(venus.getParentId(rect.id), group.id)
     assert.equal(venus.getParentId(path.id), group.id)
@@ -832,6 +1163,14 @@ describe('Venus nested composition', () => {
     assert.equal(venus.getParentId(path.id), null)
     assert.equal(venus._rawNode(rect.id)?.x, 10)
     assert.deepEqual(venus._rawNode(path.id)?.points?.[0], {x: 60, y: 30})
+    assert.equal(venus.getNodeById(group.id), null)
+    assert.equal(venus._rawNode(rect.id)?.name, undefined)
+    assert.equal(venus._rawNode(rect.id)?.opacity, undefined)
+    assert.equal(venus._rawNode(rect.id)?.blendMode, undefined)
+    assert.equal(venus._rawNode(rect.id)?.data, undefined)
+    assert.equal(venus._rawNode(rect.id)?.appearance, undefined)
+    assert.equal(venus._rawNode(rect.id)?.constraints, undefined)
+    assert.equal(venus._rawNode(rect.id)?.exportSettings, undefined)
   })
 
   it('groups direct children inside an existing group', () => {
@@ -861,20 +1200,69 @@ describe('Venus nested composition', () => {
     assert.equal(innerNode?.type === 'group' ? innerNode.children[0]?.y : undefined, 5)
   })
 
+  it('normalizes structure selections before grouping ancestors and descendants', () => {
+    const venus = new Venus()
+    venus.add({
+      type: 'group',
+      id: 'outer',
+      children: [
+        {type: 'rect', id: 'child', x: 10, y: 5, width: 20, height: 20},
+      ],
+    })
+
+    const wrapper = venus.group(['child', 'outer'], {id: 'wrapper'})
+    const root = venus.children()[0]
+
+    assert.equal(wrapper.id, 'wrapper')
+    assert.equal(root?.type, 'group')
+    assert.deepEqual(root?.type === 'group' ? root.children.map((child) => child.id) : [], ['outer'])
+    assert.equal(venus.getParentId('outer'), 'wrapper')
+    assert.equal(venus.getParentId('child'), 'outer')
+  })
+
   it('manages layer order within root and nested sibling lists', () => {
     const venus = new Venus()
+    const layerEvents: VenusLayerMutationResult[] = []
+    const structureEvents: VenusDocumentStructureChangedEvent[] = []
+    venus.on('layer:changed', (event) => {
+      layerEvents.push(event)
+    })
+    venus.on('document:structure-changed', (event) => {
+      structureEvents.push(event)
+    })
 
     venus.add({id: 'a', type: 'rect', width: 10, height: 10})
     venus.add({id: 'b', type: 'rect', width: 10, height: 10})
     venus.add({id: 'c', type: 'rect', width: 10, height: 10})
 
     assert.deepEqual(venus.children().map((node) => node.id), ['a', 'b', 'c'])
+    assert.deepEqual(venus.getLayerOrder(), ['a', 'b', 'c'])
     assert.equal(venus.sendToBack('c'), 0)
+    assert.deepEqual(layerEvents.at(-1), {
+      applied: true,
+      revision: 5,
+      parentId: null,
+      nodeId: 'c',
+      fromIndex: 2,
+      toIndex: 0,
+      order: ['c', 'a', 'b'],
+    })
+    assert.deepEqual(structureEvents.at(-1), {
+      revision: 5,
+      parentId: null,
+      affectedNodeIds: ['c'],
+      order: ['c', 'a', 'b'],
+      reason: 'layer',
+    })
     assert.deepEqual(venus.children().map((node) => node.id), ['c', 'a', 'b'])
     assert.equal(venus.bringForward('c'), 1)
     assert.deepEqual(venus.children().map((node) => node.id), ['a', 'c', 'b'])
-    assert.equal(venus.bringToFront('a'), 2)
-    assert.deepEqual(venus.children().map((node) => node.id), ['c', 'b', 'a'])
+    assert.equal(venus.moveBefore('b', 'c'), 1)
+    assert.deepEqual(venus.getLayerOrder(), ['a', 'b', 'c'])
+    assert.equal(venus.moveAfter('a', 'c'), 2)
+    assert.deepEqual(venus.getLayerOrder(), ['b', 'c', 'a'])
+    assert.equal(venus.bringToFront('b'), 2)
+    assert.deepEqual(venus.children().map((node) => node.id), ['c', 'a', 'b'])
 
     venus.add({id: 'g', type: 'group', children: [
       {id: 'ga', type: 'rect', width: 10, height: 10},
@@ -884,6 +1272,235 @@ describe('Venus nested composition', () => {
     const group = venus._rawNode('g')
     assert.equal(group?.type, 'group')
     assert.deepEqual(group?.type === 'group' ? group.children.map((child) => child.id) : [], ['gb', 'ga'])
+    assert.deepEqual(venus.getLayerOrder('g'), ['gb', 'ga'])
+    assert.equal(venus.moveAfter('gb', 'ga'), 1)
+    assert.deepEqual(layerEvents.at(-1), {
+      applied: true,
+      revision: 12,
+      parentId: 'g',
+      nodeId: 'gb',
+      fromIndex: 0,
+      toIndex: 1,
+      order: ['ga', 'gb'],
+    })
+    assert.deepEqual(structureEvents.at(-1), {
+      revision: 12,
+      parentId: 'g',
+      affectedNodeIds: ['gb'],
+      order: ['ga', 'gb'],
+      reason: 'layer',
+    })
+    assert.deepEqual(venus.getLayerOrder('g'), ['ga', 'gb'])
+    const eventCountBeforeRejectedMove = layerEvents.length
+    const structureEventCountBeforeRejectedMove = structureEvents.length
+    const revisionBeforeRejectedMove = venus.inspect().revision
+    assert.equal(venus.moveBefore('gb', 'a'), -1)
+    assert.equal(layerEvents.length, eventCountBeforeRejectedMove)
+    assert.equal(structureEvents.length, structureEventCountBeforeRejectedMove)
+    assert.equal(venus.inspect().revision, revisionBeforeRejectedMove)
+  })
+
+  it('returns layer mutation metadata from the base document service', () => {
+    let documentService: VenusDocumentService | null = null
+    const module = defineVenusModule({
+      name: 'debug',
+      requires: ['document'],
+      install: ({services}) => {
+        documentService = services.require('document')
+      },
+    })
+    const venus = new Venus({modules: [module]})
+
+    venus.add({id: 'a', type: 'rect', width: 10, height: 10})
+    venus.add({id: 'b', type: 'rect', width: 10, height: 10})
+    assert.ok(documentService)
+
+    const result = documentService.bringToFront('a')
+
+    assert.deepEqual(result, {
+      applied: true,
+      revision: 4,
+      parentId: null,
+      nodeId: 'a',
+      fromIndex: 0,
+      toIndex: 1,
+      order: ['b', 'a'],
+    })
+    assert.deepEqual(venus.getLayerOrder(), ['b', 'a'])
+  })
+
+  it('emits specific document events for add, update, and remove mutations', () => {
+    const venus = new Venus()
+    const addedEvents: VenusDocumentNodeAddedEvent[] = []
+    const updatedEvents: VenusDocumentNodeUpdatedEvent[] = []
+    const removedEvents: VenusDocumentNodeRemovedEvent[] = []
+    const changedReasons: string[] = []
+
+    venus.on('document:node-added', (event) => addedEvents.push(event))
+    venus.on('document:node-updated', (event) => updatedEvents.push(event))
+    venus.on('document:node-removed', (event) => removedEvents.push(event))
+    venus.on('document:changed', (event) => changedReasons.push(event.reason ?? 'unknown'))
+
+    venus.add({id: 'card', type: 'rect', width: 20, height: 10})
+    venus.update('card', {width: 30, fill: '#ef4444'})
+    venus.update('missing', {width: 40})
+    venus.update('card', {})
+    venus.remove('card')
+    venus.remove('missing')
+
+    assert.deepEqual(addedEvents, [{
+      revision: 2,
+      nodeIds: ['card'],
+      parentId: null,
+    }])
+    assert.deepEqual(updatedEvents, [{
+      revision: 3,
+      nodeId: 'card',
+      changedProperties: ['width', 'fill'],
+      invalidation: 'geometry',
+    }])
+    assert.deepEqual(removedEvents, [{
+      revision: 4,
+      nodeIds: ['card'],
+      parentId: null,
+    }])
+    assert.deepEqual(changedReasons, ['node-added', 'node-updated', 'node-removed'])
+  })
+
+  it('removes nested nodes from their parent-local child list', () => {
+    const venus = new Venus()
+    const removedEvents: VenusDocumentNodeRemovedEvent[] = []
+    const structureEvents: VenusDocumentStructureChangedEvent[] = []
+    venus.on('document:node-removed', (event) => removedEvents.push(event))
+    venus.on('document:structure-changed', (event) => structureEvents.push(event))
+    venus.add({
+      type: 'group',
+      id: 'parent',
+      children: [
+        {type: 'rect', id: 'a', width: 10, height: 10},
+        {type: 'rect', id: 'b', width: 10, height: 10},
+      ],
+    })
+
+    venus.remove('a')
+
+    assert.deepEqual(removedEvents, [{revision: 3, nodeIds: ['a'], parentId: 'parent'}])
+    assert.deepEqual(structureEvents, [{
+      revision: 3,
+      parentId: 'parent',
+      affectedParentIds: ['parent'],
+      affectedNodeIds: ['a'],
+      order: ['b'],
+      reason: 'removeChild',
+    }])
+    assert.deepEqual(venus.getLayerOrder('parent'), ['b'])
+    assert.equal(venus.getNodeById('a'), null)
+  })
+
+  it('emits structure events for group, child, and ungroup mutations', () => {
+    const venus = new Venus()
+    const structureEvents: VenusDocumentStructureChangedEvent[] = []
+    const addedEvents: VenusDocumentNodeAddedEvent[] = []
+    const removedEvents: VenusDocumentNodeRemovedEvent[] = []
+
+    venus.add({id: 'a', type: 'rect', width: 10, height: 10})
+    venus.add({id: 'b', type: 'rect', width: 10, height: 10})
+
+    venus.on('document:structure-changed', (event) => structureEvents.push(event))
+    venus.on('document:node-added', (event) => addedEvents.push(event))
+    venus.on('document:node-removed', (event) => removedEvents.push(event))
+
+    venus.group(['a', 'b'], {id: 'g'})
+    venus.addChild('g', {id: 'c', type: 'rect', width: 10, height: 10})
+    venus.removeChild('g', 'c')
+    venus.ungroup('g')
+
+    assert.deepEqual(addedEvents, [
+      {revision: 4, nodeIds: ['g'], parentId: null},
+      {revision: 5, nodeIds: ['c'], parentId: 'g'},
+    ])
+    assert.deepEqual(removedEvents, [
+      {revision: 6, nodeIds: ['c'], parentId: 'g'},
+      {revision: 7, nodeIds: ['g'], parentId: null},
+    ])
+    assert.deepEqual(structureEvents, [
+      {
+        revision: 4,
+        parentId: null,
+        affectedNodeIds: ['g', 'a', 'b'],
+        order: ['g'],
+        reason: 'group',
+      },
+      {
+        revision: 5,
+        parentId: 'g',
+        affectedNodeIds: ['c'],
+        order: ['a', 'b', 'c'],
+        reason: 'addChild',
+      },
+      {
+        revision: 6,
+        parentId: 'g',
+        affectedNodeIds: ['c'],
+        order: ['a', 'b'],
+        reason: 'removeChild',
+      },
+      {
+        revision: 7,
+        parentId: null,
+        affectedNodeIds: ['g', 'a', 'b'],
+        order: ['a', 'b'],
+        reason: 'ungroup',
+      },
+    ])
+  })
+
+  it('exposes structure and clip mechanics through the base document service', () => {
+    let documentService: VenusDocumentService | null = null
+    const module = defineVenusModule({
+      name: 'debug',
+      requires: ['document'],
+      install: ({services}) => {
+        documentService = services.require('document')
+      },
+    })
+    const venus = new Venus({modules: [module]})
+
+    venus.add({id: 'a', type: 'rect', width: 10, height: 10})
+    venus.add({id: 'b', type: 'rect', width: 10, height: 10})
+    assert.ok(documentService)
+
+    const group = documentService.group(['a', 'b'], {id: 'g'})
+    const child = documentService.addChild('g', {id: 'c', type: 'rect', width: 10, height: 10})
+
+    assert.equal(group.id, 'g')
+    assert.equal(child.id, 'c')
+    assert.deepEqual(documentService.getLayerOrder('g'), ['a', 'b', 'c'])
+
+    documentService.removeChild('g', 'c')
+    assert.deepEqual(documentService.getLayerOrder('g'), ['a', 'b'])
+    documentService.reparent('a', null, 0)
+    assert.deepEqual(documentService.getLayerOrder(), ['a', 'g'])
+    assert.deepEqual(documentService.getLayerOrder('g'), ['b'])
+
+    const clipSnapshot: EngineSceneSnapshot = {
+      revision: 1,
+      width: 200,
+      height: 120,
+      nodes: [{
+        id: 'clipped',
+        type: 'shape',
+        shape: 'rect',
+        x: 0,
+        y: 0,
+        width: 20,
+        height: 20,
+        clip: {clipNodeId: 'missing'},
+      }],
+    }
+
+    assert.deepEqual(documentService.resolveClipDependencies('clipped', clipSnapshot), ['missing'])
+    assert.deepEqual(documentService.validateClipGraph(clipSnapshot).issues.map((issue) => issue.code), ['missing-clip-node'])
   })
 
   it('records document history for undo and redo', () => {
@@ -904,6 +1521,64 @@ describe('Venus nested composition', () => {
     venus.clearHistory()
     assert.equal(venus.canUndo(), false)
     assert.equal(venus.canRedo(), false)
+  })
+
+  it('reparents nodes across containers with structure events and history', () => {
+    const venus = new Venus({modules: [createVenusHistoryModule()]})
+    const structureEvents: VenusDocumentStructureChangedEvent[] = []
+    const reparentResults: VenusReparentMutationResult[] = []
+    venus.on('document:structure-changed', (event) => structureEvents.push(event))
+    venus.add({
+      type: 'group',
+      id: 'left',
+      children: [
+        {type: 'rect', id: 'a', x: 10, y: 20, width: 30, height: 40},
+        {type: 'rect', id: 'b', x: 50, y: 20, width: 30, height: 40},
+      ],
+    })
+    venus.add({
+      type: 'group',
+      id: 'right',
+      children: [
+        {type: 'rect', id: 'c', x: 100, y: 20, width: 30, height: 40},
+      ],
+    })
+
+    reparentResults.push(venus.reparent('a', 'right', 0))
+
+    assert.deepEqual(reparentResults[0], {
+      applied: true,
+      revision: 4,
+      nodeId: 'a',
+      fromParentId: 'left',
+      toParentId: 'right',
+      fromIndex: 0,
+      toIndex: 0,
+      order: ['a', 'c'],
+    })
+    assert.deepEqual(venus.getLayerOrder('left'), ['b'])
+    assert.deepEqual(venus.getLayerOrder('right'), ['a', 'c'])
+    assert.equal(venus.getParentId('a'), 'right')
+    assert.equal(venus._rawNode('a')?.x, 10)
+    assert.deepEqual(structureEvents.at(-1), {
+      revision: 4,
+      parentId: 'right',
+      affectedParentIds: ['left', 'right'],
+      affectedNodeIds: ['a'],
+      order: ['a', 'c'],
+      reason: 'reparent',
+    })
+
+    const rejected = venus.reparent('right', 'a', 0)
+    assert.equal(rejected.applied, false)
+    assert.equal(venus.inspect().revision, 4)
+
+    assert.equal(venus.undo(), true)
+    assert.deepEqual(venus.getLayerOrder('left'), ['a', 'b'])
+    assert.deepEqual(venus.getLayerOrder('right'), ['c'])
+    assert.equal(venus.redo(), true)
+    assert.deepEqual(venus.getLayerOrder('left'), ['b'])
+    assert.deepEqual(venus.getLayerOrder('right'), ['a', 'c'])
   })
 
   it('moves group geometry by recursively translating children instead of storing group x/y', () => {
@@ -1320,10 +1995,12 @@ describe('Venus debug', () => {
   it('applies phase default tolerance and emits hit metadata', () => {
     const venus = new Venus({modules: [createVenusHitTestModule()]})
     const tolerances: number[] = []
+    const respectClipOptions: Array<boolean | undefined> = []
     const events: Array<{phase: string; tolerance: number}> = []
     const fakeEngine = {
-      hitTestAll(_point: {x: number; y: number}, tolerance?: number) {
+      hitTestAll(_point: {x: number; y: number}, tolerance?: number, options?: {respectClip?: boolean}) {
         tolerances.push(tolerance ?? -1)
+        respectClipOptions.push(options?.respectClip)
         return [{nodeId: 'card'}]
       },
       prepareHitPlan() {
@@ -1341,12 +2018,15 @@ describe('Venus debug', () => {
     venus.hitTest({x: 10, y: 10}, {phase: 'hover'})
     venus.hitTest({x: 10, y: 10}, {phase: 'click'})
     venus.hitTest({x: 10, y: 10}, {phase: 'click', tolerance: 4})
+    venus.hitTest({x: 10, y: 10}, {phase: 'click', respectClip: false})
 
-    assert.deepEqual(tolerances, [6, 0, 4])
+    assert.deepEqual(tolerances, [6, 0, 4, 0])
+    assert.deepEqual(respectClipOptions, [true, true, true, false])
     assert.deepEqual(events, [
       {phase: 'hover', tolerance: 6},
       {phase: 'click', tolerance: 0},
       {phase: 'click', tolerance: 4},
+      {phase: 'click', tolerance: 0},
     ])
   })
 

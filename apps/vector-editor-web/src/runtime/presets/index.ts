@@ -50,6 +50,16 @@ export {
 } from './easing.ts'
 export {
   buildDocumentImageAssetUrlMap,
+  createEngineScenePatchBatchFromRuntimeSnapshot,
   createEngineSceneFromRuntimeSnapshot,
+  type CreateEngineScenePatchBatchFromRuntimeSnapshotOptions,
+  type CreateEngineScenePatchBatchFromRuntimeSnapshotResult,
   type CreateEngineSceneFromRuntimeSnapshotOptions,
 } from './engineSceneAdapter/engineSceneAdapter.ts'
+export {
+  engineMatrixToVectorAffine,
+  multiplyEngineMatrices,
+  resolveParentLocalEngineTransform,
+  vectorAffineToEngineMatrix,
+  type EngineAdapterMatrix,
+} from './engineSceneAdapter/engineSceneAdapter.tree.ts'

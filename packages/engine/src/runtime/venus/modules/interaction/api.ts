@@ -1,13 +1,20 @@
 /**
  * Interaction module API — the typed surface returned by the interaction
  * module's install callback.  Covers selection state, selection commands,
- * and pointer-driven editing (snap, drag).
+ * pointer-driven editing (snap, drag), and root-level overlay geometry
+ * queries implemented by the Venus runtime.
  */
 export interface VenusInteractionApi {
   // ── Selection state ──────────────────────────────────────────────────
 
   /** Returns a read-only snapshot of the currently selected node ids. */
   readonly selection: ReadonlySet<string>
+
+  /** Returns a stable read-only snapshot of the currently selected node ids. */
+  getSelection(): ReadonlySet<string>
+
+  /** Replaces the current selection with the provided node ids. */
+  setSelection(ids: readonly string[]): void
 
   /** Selects one or more node ids. Adds to the existing selection. */
   select(ids: string | readonly string[]): void

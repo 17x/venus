@@ -8,7 +8,7 @@ import type { EngineInteractionPreviewConfig, EngineRenderQuality, EngineRenderS
 import { type EngineSceneStoreDiagnostics, type EngineSceneStoreTransaction } from '../../scene/store/store.ts';
 import { type EngineFramePlan } from '../../scene/framePlan.ts';
 import { type EngineHitPlan } from '../../scene/hitPlan.ts';
-import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts';
+import type { EngineHitExecutionOptions, EngineHitTestResult } from '../../scene/hitTest/hitTest.ts';
 import type { EngineNodeId, EngineRect, EngineRenderableNode, EngineSceneSnapshot } from '../../scene/types/types.ts';
 import type { EngineScenePatchApplyResult, EngineScenePatchBatch } from '../../scene/patch/patch.ts';
 import { type EngineClock } from '../../time/index.ts';
@@ -181,11 +181,11 @@ export interface Engine {
     hitTest(point: {
         x: number;
         y: number;
-    }, tolerance?: number): EngineHitTestResult | null;
+    }, tolerance?: number, options?: EngineHitExecutionOptions): EngineHitTestResult | null;
     hitTestAll(point: {
         x: number;
         y: number;
-    }, tolerance?: number): EngineHitTestResult[];
+    }, tolerance?: number, options?: EngineHitExecutionOptions): EngineHitTestResult[];
     getNode(nodeId: EngineNodeId): EngineRenderableNode | null;
     getSnapshot(): EngineSceneSnapshot;
     setViewport(next: EngineViewportOptions): EngineCanvasViewportState;

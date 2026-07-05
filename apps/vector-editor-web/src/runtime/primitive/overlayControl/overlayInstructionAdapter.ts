@@ -3,6 +3,10 @@ import type {
   OverlayControl,
   OverlayModel,
 } from '@venus/editor-primitive'
+import {
+  closePolylinePoints,
+  rectBoundsToPolyline,
+} from '@venus/engine'
 import type {
   RuntimeOverlayInstruction,
   RuntimeOverlayLayerId,
@@ -53,7 +57,7 @@ export function adaptOverlayModelToInstructions(
         layerId: HOVER_LAYER,
         primitive: 'polyline',
         coordinate: 'world',
-        points: closePolyline(hover.geometry.points),
+        points: closePolylinePoints(hover.geometry.points),
         style: {strokeColor: 'rgba(14, 165, 233, 0.9)', strokeWidth: 1, nonScalingStroke: true},
         hitRegion: RUNTIME_OVERLAY_HIT_REGION.hoverBounds,
         cursor: {type: 'move'},
@@ -64,7 +68,7 @@ export function adaptOverlayModelToInstructions(
         layerId: HOVER_LAYER,
         primitive: 'polyline',
         coordinate: 'world',
-        points: rectPolyline(hover.geometry),
+        points: rectBoundsToPolyline(hover.geometry),
         style: {strokeColor: 'rgba(14, 165, 233, 0.9)', strokeWidth: 1, nonScalingStroke: true},
         hitRegion: RUNTIME_OVERLAY_HIT_REGION.hoverBounds,
         cursor: {type: 'move'},
@@ -75,7 +79,7 @@ export function adaptOverlayModelToInstructions(
         layerId: HOVER_LAYER,
         primitive: 'polyline',
         coordinate: 'world',
-        points: closePolyline(hover.geometry.corners),
+        points: closePolylinePoints(hover.geometry.corners),
         style: {strokeColor: 'rgba(14, 165, 233, 0.9)', strokeWidth: 1, nonScalingStroke: true},
         hitRegion: RUNTIME_OVERLAY_HIT_REGION.hoverBounds,
         cursor: {type: 'move'},
@@ -90,7 +94,7 @@ export function adaptOverlayModelToInstructions(
       layerId: MARQUEE_LAYER,
       primitive: 'polyline',
       coordinate: 'world',
-      points: rectPolyline(model.selectionBox),
+      points: rectBoundsToPolyline(model.selectionBox),
       style: {
         strokeColor: 'rgba(37, 99, 235, 0.95)',
         strokeWidth: 1,
@@ -105,8 +109,8 @@ export function adaptOverlayModelToInstructions(
   if (model.selectedMarquee) {
     const geometry = model.selectedMarquee.geometry
     const points = geometry.kind === 'rotated'
-      ? closePolyline(geometry.corners)
-      : rectPolyline(geometry)
+      ? closePolylinePoints(geometry.corners)
+      : rectBoundsToPolyline(geometry)
     instructions.push({
       id: 'selection-bounds',
       layerId: SELECTED_LAYER,
@@ -228,7 +232,7 @@ function adaptControlToInstruction(
         layerId: DEFAULT_CONTROL_LAYER,
         primitive: 'polyline',
         coordinate: 'world',
-        points: closePolyline(hitArea.corners),
+        points: closePolylinePoints(hitArea.corners),
         // Rotated-rect controls (move-body) are interaction-only; no stroke unless overridden.
         style: customStyle ?? {strokeColor: 'transparent', strokeWidth: 0},
         cursor: control.cursor,
@@ -239,7 +243,7 @@ function adaptControlToInstruction(
         layerId: DEFAULT_CONTROL_LAYER,
         primitive: 'polyline',
         coordinate: 'world',
-        points: rectPolyline(hitArea),
+        points: rectBoundsToPolyline(hitArea),
         style: customStyle ?? {strokeColor: 'transparent', strokeWidth: 0},
         cursor: control.cursor,
       }
@@ -280,32 +284,8 @@ function adaptPolygonalControl(
     layerId: DEFAULT_CONTROL_LAYER,
     primitive: 'polyline',
     coordinate: 'world',
-    points: closed ? closePolyline(hitArea.points) : [...hitArea.points],
+    points: closed ? closePolylinePoints(hitArea.points) : [...hitArea.points],
     style: customStyle ?? {strokeColor: 'transparent', strokeWidth: 0},
     cursor: control.cursor,
   }
-}
-
-// Closes a polyline by appending the first point at the end if not already closed.
-function closePolyline(points: readonly {x: number; y: number}[]): {x: number; y: number}[] {
-  if (points.length === 0) {
-    return []
-  }
-  const first = points[0]
-  const last = points[points.length - 1]
-  if (first.x === last.x && first.y === last.y) {
-    return [...points]
-  }
-  return [...points, {x: first.x, y: first.y}]
-}
-
-// Builds a closed-polyline ring for a rect bounds object.
-function rectPolyline(rect: {minX: number; minY: number; maxX: number; maxY: number}): {x: number; y: number}[] {
-  return [
-    {x: rect.minX, y: rect.minY},
-    {x: rect.maxX, y: rect.minY},
-    {x: rect.maxX, y: rect.maxY},
-    {x: rect.minX, y: rect.maxY},
-    {x: rect.minX, y: rect.minY},
-  ]
 }
