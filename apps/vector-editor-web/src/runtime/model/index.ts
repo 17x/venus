@@ -7,21 +7,11 @@ export {
   createScaleAffineMatrix,
   createTranslationAffineMatrix,
   cubicBezier,
-  flipPointAroundPoint,
-  generateBoundingRectFromRect,
-  generateBoundingRectFromRotatedRect,
-  generateBoundingRectFromTwoPoints,
   getBoundingRectFromBezierPoints,
   getNormalizedBoundsFromBox,
   invertAffineMatrix,
   multiplyAffineMatrices,
   convertDrawPointsToBezierPoints,
-  isInsideRotatedRect,
-  isPointNear,
-  nearestPointOnCurve,
-  rectsOverlap,
-  rotatePointAroundPoint,
-  transformPoints,
 } from './geometry/geometry.ts'
 export {nid} from './nid.ts'
 export {parseRuntimeSceneToEditorDocument} from './parseRuntimeScene/parseRuntimeScene.ts'

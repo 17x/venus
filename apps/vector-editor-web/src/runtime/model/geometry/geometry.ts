@@ -10,7 +10,6 @@ import {
 } from '@venus/lib/math'
 import {getNormalizedBoundsFromBox as getNormalizedBoundsFromBoxFromLib} from '@venus/lib/geometry'
 import {getBoundingRectFromBezierPoints as getEngineBoundingRectFromBezierPoints} from '@venus/engine'
-export {nearestPointOnCurve} from './geometry.curves.ts'
 export {cubicBezier} from './geometry.curves.ts'
 
 export interface Point {
@@ -112,110 +111,6 @@ export function createAffineMatrixAroundPoint(
   return createAffineMatrixAroundPointFromLib(center, options)
 }
 
-export function rotatePointAroundPoint(
-  px: number,
-  py: number,
-  cx: number,
-  cy: number,
-  rotation: number,
-) {
-  const dx = px - cx
-  const dy = py - cy
-  const angle = rotation * (Math.PI / 180)
-  const cos = Math.cos(angle)
-  const sin = Math.sin(angle)
-
-  return {
-    x: cx + dx * cos - dy * sin,
-    y: cy + dx * sin + dy * cos,
-  }
-}
-
-export function flipPointAroundPoint(
-  point: Point,
-  center: Point,
-  flipX?: boolean,
-  flipY?: boolean,
-): Point {
-  return {
-    x: flipX ? center.x - (point.x - center.x) : point.x,
-    y: flipY ? center.y - (point.y - center.y) : point.y,
-  }
-}
-
-export function transformPoints(points: Point[], matrix: DOMMatrix): Point[] {
-  return points.map((point) => matrix.transformPoint(point))
-}
-
-export function isPointNear(p1: Point, p2: Point, tolerance: number = 3): boolean {
-  const dx = p1.x - p2.x
-  const dy = p1.y - p2.y
-  const distanceSquared = dx * dx + dy * dy
-
-  return distanceSquared <= tolerance * tolerance
-}
-
-
-export const generateBoundingRectFromRect = (rect: Rect): BoundingRect => {
-  const {x, y, width, height} = rect
-
-  return {
-    x,
-    y,
-    width,
-    height,
-    top: y,
-    bottom: y + height,
-    left: x,
-    right: x + width,
-    cx: x + width / 2,
-    cy: y + height / 2,
-  }
-}
-
-export const generateBoundingRectFromTwoPoints = (p1: Point, p2: Point): BoundingRect => {
-  const minX = Math.min(p1.x, p2.x)
-  const maxX = Math.max(p1.x, p2.x)
-  const minY = Math.min(p1.y, p2.y)
-  const maxY = Math.max(p1.y, p2.y)
-
-  return generateBoundingRectFromRect({
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  })
-}
-
-export const generateBoundingRectFromRotatedRect = (
-  {x, y, width, height}: Rect,
-  rotation: number,
-): BoundingRect => {
-  const centerX = x + width / 2
-  const centerY = y + height / 2
-  const rad = (rotation * Math.PI) / 180
-  const cos = Math.cos(rad)
-  const sin = Math.sin(rad)
-  const rotatedWidth = Math.abs(width * cos) + Math.abs(height * sin)
-  const rotatedHeight = Math.abs(width * sin) + Math.abs(height * cos)
-
-  return generateBoundingRectFromRect({
-    x: centerX - rotatedWidth / 2,
-    y: centerY - rotatedHeight / 2,
-    width: rotatedWidth,
-    height: rotatedHeight,
-  })
-}
-
-export function rectsOverlap(r1: BoundingRect, r2: BoundingRect): boolean {
-  return !(
-    r1.right < r2.left ||
-    r1.left > r2.right ||
-    r1.bottom < r2.top ||
-    r1.top > r2.bottom
-  )
-}
-
 export function getNormalizedBoundsFromBox(
   x: number,
   y: number,
@@ -224,43 +119,6 @@ export function getNormalizedBoundsFromBox(
 ): NormalizedBounds {
   // Delegate to @venus/lib so normalized bounds are produced by one package-owned implementation.
   return getNormalizedBoundsFromBoxFromLib(x, y, width, height)
-}
-
-export const isInsideRotatedRect = (
-  {x: mouseX, y: mouseY}: Point,
-  rect: Rect,
-  rotation: number,
-): boolean => {
-  const {x: centerX, y: centerY, width, height} = rect
-
-  if (width <= 0 || height <= 0) {
-    return false
-  }
-
-  if (rotation === 0) {
-    const halfWidth = width / 2
-    const halfHeight = height / 2
-
-    return (
-      mouseX >= centerX - halfWidth && mouseX <= centerX + halfWidth &&
-      mouseY >= centerY - halfHeight && mouseY <= centerY + halfHeight
-    )
-  }
-
-  const angle = rotation * (Math.PI / 180)
-  const cosAngle = Math.cos(angle)
-  const sinAngle = Math.sin(angle)
-  const dx = mouseX - centerX
-  const dy = mouseY - centerY
-  const unrotatedX = dx * cosAngle + dy * sinAngle
-  const unrotatedY = -dx * sinAngle + dy * cosAngle
-  const halfWidth = width / 2
-  const halfHeight = height / 2
-
-  return (
-    unrotatedX >= -halfWidth && unrotatedX <= halfWidth &&
-    unrotatedY >= -halfHeight && unrotatedY <= halfHeight
-  )
 }
 
 export function getBoundingRectFromBezierPoints(points: BezierPoint[]): BoundingRect {
