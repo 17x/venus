@@ -29,7 +29,7 @@ export function EngineRenderer({
   protectedNodeIds,
   overlayDiagnostics,
   interactionPhase = 'settled',
-  sceneStructureMode = 'flat',
+  sceneStructureMode = 'tree',
 }: EngineRendererProps) {
   const INTERACTION_SETTLE_MS = 120
   const OVERSCAN_PX = 0
@@ -155,6 +155,7 @@ export function EngineRenderer({
     document: EditorDocument
     shapes: SceneShapeSnapshot[]
     viewport: EngineViewportState
+    sceneStructureMode: 'flat' | 'tree'
   } | null>(null)
 
   const replayScenePayload = React.useMemo<CreateEngineSceneFromRuntimeSnapshotOptions>(

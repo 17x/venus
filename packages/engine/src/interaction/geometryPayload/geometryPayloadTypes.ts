@@ -63,6 +63,30 @@ export interface EngineGeometryNodePayload {
 }
 
 /**
+ * Declares style-free selection overlay geometry owned by engine queries.
+ */
+export interface EngineGeometrySelectionOverlay {
+  /** Stores selected node ids included by the aggregate geometry. */
+  selectedNodeIds: string[]
+  /** Stores aggregate world bounds for selected nodes. */
+  bounds: EngineGeometryBounds
+  /** Stores aggregate outline geometry for product styling adapters. */
+  outline: EngineGeometryOutline
+}
+
+/**
+ * Declares style-free hover overlay geometry owned by engine queries.
+ */
+export interface EngineGeometryHoverOverlay {
+  /** Stores hovered node id. */
+  nodeId: string
+  /** Stores hovered node world bounds. */
+  bounds: EngineGeometryBounds
+  /** Stores hovered node outline geometry for product styling adapters. */
+  outline: EngineGeometryOutline
+}
+
+/**
  * Declares marquee query bounds for coarse candidate filtering.
  */
 export interface EngineGeometryMarqueeBounds {
@@ -120,10 +144,14 @@ export interface ResolveEngineGeometryPayloadOptions {
 export interface EngineGeometryPayload {
   /** Stores hovered node geometry payload, if a valid hovered node exists. */
   hovered: EngineGeometryNodePayload | null
+  /** Stores style-free hover overlay geometry, if a valid hovered node exists. */
+  hoverOverlay: EngineGeometryHoverOverlay | null
   /** Stores pointer hit node ids sorted by visual priority (top -> bottom). */
   pointHitNodeIds: string[]
   /** Stores selected node geometry payload list preserving selected id order. */
   selected: EngineGeometryNodePayload[]
+  /** Stores style-free aggregate selection overlay geometry, if selected bounds exist. */
+  selectionOverlay: EngineGeometrySelectionOverlay | null
   /** Stores coarse marquee candidate ids from engine-side spatial index query. */
   marqueeCandidateNodeIds: string[]
   /** Stores marquee node ids after engine-side contain/intersect resolution. */

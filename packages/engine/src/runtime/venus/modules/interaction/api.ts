@@ -1,7 +1,8 @@
 /**
  * Interaction module API — the typed surface returned by the interaction
  * module's install callback.  Covers selection state, selection commands,
- * and pointer-driven editing (snap, drag).
+ * pointer-driven editing (snap, drag), and root-level overlay geometry
+ * queries implemented by the Venus runtime.
  */
 export interface VenusInteractionApi {
   // ── Selection state ──────────────────────────────────────────────────

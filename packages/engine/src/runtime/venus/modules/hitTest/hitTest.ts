@@ -13,6 +13,7 @@ export interface VenusResolvedHitTestOptions {
   phase: 'hover' | 'click'
   tolerance: number
   includeLocked: boolean
+  respectClip: boolean
 }
 
 export interface ResolveVenusDetailedHitsOptions {
@@ -42,6 +43,7 @@ export function resolveVenusHitTestOptions(options: VenusHitTestOptions = {}): V
     phase,
     tolerance: Math.max(0, options.tolerance ?? defaultTolerance),
     includeLocked: options.includeLocked ?? false,
+    respectClip: options.respectClip ?? true,
   }
 }
 

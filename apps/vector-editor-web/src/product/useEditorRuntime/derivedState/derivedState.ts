@@ -39,12 +39,12 @@ const ENGINE_SCENE_STRUCTURE_MODE_STORAGE_KEY = 'venus.vector.engine.sceneStruct
 
 function readEngineSceneStructureMode(): 'flat' | 'tree' {
   if (typeof window === 'undefined') {
-    return 'flat'
+    return 'tree'
   }
 
-  return window.localStorage.getItem(ENGINE_SCENE_STRUCTURE_MODE_STORAGE_KEY) === 'tree'
-    ? 'tree'
-    : 'flat'
+  return window.localStorage.getItem(ENGINE_SCENE_STRUCTURE_MODE_STORAGE_KEY) === 'flat'
+    ? 'flat'
+    : 'tree'
 }
 
 // Derives renderer/overlay interaction state from runtime snapshots for editor product hooks.

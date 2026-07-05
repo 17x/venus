@@ -382,6 +382,8 @@ export function createImageElement(
     width: input.width,
     height: input.height,
     asset: input.assetId,
+    naturalSize: {width: input.width, height: input.height},
+    imageSmoothing: true,
     opacity: 1,
   }
 }

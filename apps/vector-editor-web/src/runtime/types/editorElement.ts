@@ -185,6 +185,12 @@ export interface ElementProps {
   asset?: string
   // Stores resolved runtime asset URL for image-backed nodes.
   assetUrl?: string
+  // Stores source-image crop rectangle in natural image pixels.
+  sourceRect?: {x: number; y: number; width: number; height: number}
+  // Stores original image dimensions before document scaling.
+  naturalSize?: {width: number; height: number}
+  // Stores whether scaled image rendering should use smoothing.
+  imageSmoothing?: boolean
   // Stores optional clipping source shape id for masked image semantics.
   clipPathId?: string
   // Stores optional clip rule for runtime fill winding behavior.

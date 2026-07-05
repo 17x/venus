@@ -1,4 +1,8 @@
 import type {Point} from './geometry.ts'
+import {
+  cubicBezierPoint,
+  getCubicExtrema as getEngineCubicExtrema,
+} from '@venus/engine'
 
 /**
  * Computes one cubic bezier point for parameter t.
@@ -9,14 +13,7 @@ import type {Point} from './geometry.ts'
  * @param p3 Fourth control point.
  */
 export function cubicBezier(t: number, p0: Point, p1: Point, p2: Point, p3: Point): Point {
-  const mt = 1 - t
-  const mt2 = mt * mt
-  const t2 = t * t
-
-  return {
-    x: mt2 * mt * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t2 * t * p3.x,
-    y: mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y,
-  }
+  return cubicBezierPoint(t, p0, p1, p2, p3)
 }
 
 /**
@@ -27,11 +24,7 @@ export function cubicBezier(t: number, p0: Point, p1: Point, p2: Point, p3: Poin
  * @param p3 Cubic fourth point axis value.
  */
 export function getCubicExtrema(p0: number, p1: number, p2: number, p3: number): number[] {
-  const a = -p0 + 3 * p1 - 3 * p2 + p3
-  const b = 3 * p0 - 6 * p1 + 3 * p2
-  const c = -3 * p0 + 3 * p1
-
-  return solveQuadratic(3 * a, 2 * b, c)
+  return getEngineCubicExtrema(p0, p1, p2, p3)
 }
 
 /**
@@ -121,51 +114,4 @@ export function nearestPointOnCurve(
   }
 
   return closest
-}
-
-/**
- * Clamps values into open unit interval and returns null for out-of-range values.
- * @param value Candidate root.
- */
-function clampUnitInterval(value: number) {
-  if (value <= 0 || value >= 1) {
-    return null
-  }
-
-  return value
-}
-
-/**
- * Solves one quadratic and returns roots constrained to open unit interval.
- * @param a Quadratic coefficient.
- * @param b Linear coefficient.
- * @param c Constant coefficient.
- */
-function solveQuadratic(a: number, b: number, c: number): number[] {
-  const epsilon = 1e-9
-
-  if (Math.abs(a) <= epsilon) {
-    if (Math.abs(b) <= epsilon) {
-      return []
-    }
-
-    const root = clampUnitInterval(-c / b)
-    return root === null ? [] : [root]
-  }
-
-  const discriminant = b * b - 4 * a * c
-  if (discriminant < -epsilon) {
-    return []
-  }
-
-  if (Math.abs(discriminant) <= epsilon) {
-    const root = clampUnitInterval(-b / (2 * a))
-    return root === null ? [] : [root]
-  }
-
-  const sqrtDiscriminant = Math.sqrt(discriminant)
-  const first = clampUnitInterval((-b + sqrtDiscriminant) / (2 * a))
-  const second = clampUnitInterval((-b - sqrtDiscriminant) / (2 * a))
-
-  return [first, second].filter((value): value is number => value !== null)
 }

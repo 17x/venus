@@ -60,6 +60,8 @@ export interface RuntimeTextRun {
   color: unknown
   letterSpacing: number
   lineHeight: number
+  textAlign?: 'left' | 'center' | 'right'
+  verticalAlign?: 'top' | 'middle' | 'bottom'
   shadowColor?: unknown
   shadowOffsetX?: number
   shadowOffsetY?: number
@@ -90,6 +92,9 @@ export interface RuntimeImageFeature {
   kind: 'IMAGE'
   imageId: string
   scaleMode: 'FILL' | 'FIT' | 'CROP' | 'TILE'
+  sourceRect?: {x: number; y: number; width: number; height: number}
+  naturalSize?: {width: number; height: number}
+  imageSmoothing?: boolean
 }
 
 export interface RuntimeShadowEffect {

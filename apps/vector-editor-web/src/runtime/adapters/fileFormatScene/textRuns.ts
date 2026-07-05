@@ -56,6 +56,8 @@ function normalizeTextRun(value: unknown, textLength: number) {
     fontStyle: resolveFontStyle(style?.fontStyle),
     letterSpacing: typeof style?.letterSpacing === 'number' ? style.letterSpacing : 0,
     lineHeight: typeof style?.lineHeight === 'number' ? style.lineHeight : 20,
+    textAlign: resolveTextAlign(style?.textAlign),
+    verticalAlign: resolveVerticalAlign(style?.verticalAlign),
     shadowColor: typeof shadow?.color === 'string' ? shadow.color : undefined,
     shadowOffsetX: typeof shadow?.offsetX === 'number' ? shadow.offsetX : undefined,
     shadowOffsetY: typeof shadow?.offsetY === 'number' ? shadow.offsetY : undefined,
@@ -66,6 +68,22 @@ function normalizeTextRun(value: unknown, textLength: number) {
 // Validates font style literals before exporting runtime TEXT features.
 function resolveFontStyle(value: unknown): 'normal' | 'italic' | 'oblique' | undefined {
   if (value === 'normal' || value === 'italic' || value === 'oblique') {
+    return value
+  }
+  return undefined
+}
+
+// Validates horizontal text alignment literals before exporting TEXT features.
+function resolveTextAlign(value: unknown): 'left' | 'center' | 'right' | undefined {
+  if (value === 'left' || value === 'center' || value === 'right') {
+    return value
+  }
+  return undefined
+}
+
+// Validates vertical text alignment literals before exporting TEXT features.
+function resolveVerticalAlign(value: unknown): 'top' | 'middle' | 'bottom' | undefined {
+  if (value === 'top' || value === 'middle' || value === 'bottom') {
     return value
   }
   return undefined

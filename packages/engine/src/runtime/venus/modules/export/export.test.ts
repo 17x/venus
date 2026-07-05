@@ -196,6 +196,30 @@ describe('export module', () => {
     assert.equal(alias, direct)
   })
 
+  it('serializes text run style overrides into SVG tspans', async () => {
+    const venus = new Venus({ modules: [createVenusExportModule()] })
+    venus.add({
+      type: 'text',
+      id: 'rich-label',
+      x: 10,
+      y: 20,
+      text: 'Hello Bold',
+      fontFamily: 'Inter',
+      fontSize: 16,
+      fill: '#111827',
+      runs: [
+        {text: 'Hello '},
+        {text: 'Bold', style: {fontWeight: 700, fontSize: 18, fontStyle: 'italic', letterSpacing: 0.5, fill: '#ef4444'}},
+      ],
+    })
+
+    const svg = await venus.exportSVG()
+
+    assert.match(svg, /<text[^>]+id="rich-label"[^>]+font-family="Inter"/)
+    assert.match(svg, /<tspan[^>]*>Hello <\/tspan>/)
+    assert.match(svg, /<tspan[^>]+font-size="18"[^>]+font-weight="700"[^>]+font-style="italic"[^>]+letter-spacing="0.5"[^>]+fill="#ef4444"[^>]*>Bold<\/tspan>/)
+  })
+
   it('exports a single node as a cropped SVG', async () => {
     const venus = new Venus({ modules: [createVenusExportModule()] })
     venus.add({ type: 'rect', id: 'card', x: 12, y: 16, width: 120, height: 80, fill: '#22c55e' })

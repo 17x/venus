@@ -225,6 +225,11 @@ export function buildSelectedProps(shape: DocumentNode | null): ElementProps | n
     name: shape.text ?? shape.name,
     asset: shape.assetId,
     assetUrl: shape.assetUrl,
+    sourceRect: shape.sourceRect ? {...shape.sourceRect} : undefined,
+    naturalSize: shape.naturalSize ? {...shape.naturalSize} : undefined,
+    imageSmoothing: shape.imageSmoothing,
+    text: shape.text,
+    textRuns: shape.textRuns ? cloneTextRuns(shape.textRuns) : undefined,
     clipPathId: shape.clipPathId,
     clipRule: shape.clipRule,
     schemaMeta: resolveSelectedSchemaMeta(shape),
@@ -292,7 +297,22 @@ export function cloneElementProps(element: ElementProps): ElementProps {
     stroke: cloneStyleLike(element.stroke),
     shadow: cloneStyleLike(element.shadow),
     cornerRadii: cloneStyleLike(element.cornerRadii),
+    textRuns: element.textRuns ? cloneTextRuns(element.textRuns) : undefined,
   }
+}
+
+function cloneTextRuns(
+  runs: NonNullable<ElementProps['textRuns']>,
+): NonNullable<ElementProps['textRuns']> {
+  return runs.map((run) => ({
+    ...run,
+    style: run.style
+      ? {
+          ...run.style,
+          shadow: run.style.shadow ? {...run.style.shadow} : undefined,
+        }
+      : undefined,
+  }))
 }
 
 export function offsetElementPosition(

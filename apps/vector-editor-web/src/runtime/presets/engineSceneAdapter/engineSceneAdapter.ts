@@ -1,11 +1,14 @@
 import {
   applyAffineMatrixToPoint,
-  getBoundingRectFromBezierPoints,
   type EditorDocument,
 } from '../../model/index.ts'
 import {
+  getBoundingRectFromBezierPoints,
+  isGeometryPathClosed,
   resolveNodeTransform,
+  type EngineBezierPoint,
   type EngineRenderableNode,
+  type EngineShapeNode,
   type EngineScenePatch,
   type EngineScenePatchBatch,
   type EngineSceneSnapshot,
@@ -358,6 +361,9 @@ function createEngineNodeFromRuntimeShape(input: {
       shadow: resolveNodeShadow(sourceShape),
       assetId: sourceShape?.assetId ?? sourceShape?.id ?? snapshotShape.id,
       assetUrl: sourceShape?.assetUrl,
+      sourceRect: sourceShape?.sourceRect ? {...sourceShape.sourceRect} : undefined,
+      naturalSize: sourceShape?.naturalSize ? {...sourceShape.naturalSize} : undefined,
+      imageSmoothing: sourceShape?.imageSmoothing,
       clip,
     }
   }
@@ -548,7 +554,7 @@ function resolveShapePointBounds(
   }[],
 ) {
   if (bezierPoints && bezierPoints.length > 0) {
-    const bounds = getBoundingRectFromBezierPoints(bezierPoints.map((point) => ({
+    const bounds = getBoundingRectFromBezierPoints(bezierPoints.map((point): EngineBezierPoint => ({
       anchor: point.anchor,
       cp1: point.cp1 ?? null,
       cp2: point.cp2 ?? null,
@@ -739,18 +745,13 @@ function resolveShapeClosed(
     return true
   }
 
-  const compare = (a: {x: number; y: number}, b: {x: number; y: number}) => {
-    return Math.hypot(a.x - b.x, a.y - b.y) <= 1e-3
-  }
-
-  if (bezierPoints && bezierPoints.length >= 3) {
-    return compare(bezierPoints[0].anchor, bezierPoints[bezierPoints.length - 1].anchor)
-  }
-  if (points && points.length >= 3) {
-    return compare(points[0], points[points.length - 1])
-  }
-
-  return false
+  return isGeometryPathClosed({
+    id: sourceShape?.id ?? '__shape__',
+    type: 'shape',
+    shape: resolveEngineShapeKind(sourceShape?.type ?? 'rectangle'),
+    points,
+    bezierPoints,
+  } as EngineShapeNode)
 }
 
 function resolveNodeShadow(

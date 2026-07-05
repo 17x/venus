@@ -341,6 +341,8 @@ export function resolveDroppedImageElement(input: {
     name: input.asset?.name ?? 'Image',
     asset: input.asset?.id,
     assetUrl: input.asset?.objectUrl,
+    naturalSize: {width: naturalWidth, height: naturalHeight},
+    imageSmoothing: true,
     x: input.position.x - width / 2,
     y: input.position.y - height / 2,
     width,

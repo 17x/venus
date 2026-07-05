@@ -182,6 +182,12 @@ export interface DocumentNode {
   assetId?: string
   /** Stores resolved browser URL for image-backed nodes. */
   assetUrl?: string
+  /** Stores source-image crop rectangle in natural image pixels. */
+  sourceRect?: {x: number; y: number; width: number; height: number}
+  /** Stores original image dimensions before document scaling. */
+  naturalSize?: {width: number; height: number}
+  /** Stores whether image sampling should smooth scaled pixels. */
+  imageSmoothing?: boolean
   /** Stores clip host/source reference id for masked images. */
   clipPathId?: string
   /** Stores clip fill rule for masked images. */

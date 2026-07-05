@@ -22,6 +22,7 @@ describe('module combinations', () => {
 
     assert.deepEqual(venus.modules(), ['base'])
     assert.throws(() => venus.select('missing'), /module "interaction" is not installed/)
+    assert.throws(() => venus.getSelectionOverlay(), /module "interaction" is not installed/)
   })
 
   it('uses the default base module for root-level layer APIs', () => {
@@ -84,6 +85,34 @@ describe('module combinations', () => {
 
     venus.setSelection(['e1'])
     assert.deepEqual([...venus.getSelection()], ['e1'])
+  })
+
+  it('emits typed root selection changed events with duplicate suppression', () => {
+    const venus = new Venus({ modules: [createVenusInteractionModule()] })
+    venus.add({ type: 'rect', id: 'r1', width: 100, height: 80 })
+    venus.add({ type: 'ellipse', id: 'e1', width: 80, height: 60 })
+
+    const events: Array<{
+      selection: readonly string[]
+      previousSelection: readonly string[]
+      added: readonly string[]
+      removed: readonly string[]
+    }> = []
+    venus.on('selection:changed', (event) => events.push(event))
+
+    venus.setSelection(['r1'])
+    venus.setSelection(['r1'])
+    venus.select('e1')
+    venus.deselect('r1')
+    venus.clearSelection()
+    venus.clearSelection()
+
+    assert.deepEqual(events, [
+      {selection: ['r1'], previousSelection: [], added: ['r1'], removed: []},
+      {selection: ['r1', 'e1'], previousSelection: ['r1'], added: ['e1'], removed: []},
+      {selection: ['e1'], previousSelection: ['r1', 'e1'], added: [], removed: ['r1']},
+      {selection: [], previousSelection: ['e1'], added: [], removed: ['e1']},
+    ])
   })
 
   it('queries and applies marquee selection using document-space rectangles', () => {
@@ -185,6 +214,41 @@ describe('module combinations', () => {
     venus.select('r1')
     // Listener was unsubscribed — no new event.
     assert.equal(events.length, 2)
+  })
+
+  it('returns style-free selection and hover overlay geometry from interaction APIs', () => {
+    const venus = new Venus({ modules: [createVenusInteractionModule()] })
+    venus.add({ type: 'rect', id: 'left', x: 10, y: 20, width: 30, height: 40 })
+    venus.add({ type: 'rect', id: 'right', x: 80, y: 50, width: 20, height: 10 })
+
+    venus.setSelection(['left', 'right'])
+
+    const selectionOverlay = venus.getSelectionOverlay()
+    assert.deepEqual(selectionOverlay?.selectedIds, ['left', 'right'])
+    assert.deepEqual(selectionOverlay?.bounds, {
+      minX: 10,
+      minY: 20,
+      maxX: 100,
+      maxY: 60,
+    })
+    assert.deepEqual(selectionOverlay?.outline, {
+      kind: 'rect',
+      bounds: {
+        minX: 10,
+        minY: 20,
+        maxX: 100,
+        maxY: 60,
+      },
+    })
+
+    const hoverOverlay = venus.getHoverOverlay({nodeId: 'left'})
+    assert.deepEqual(hoverOverlay?.bounds, {
+      minX: 10,
+      minY: 20,
+      maxX: 40,
+      maxY: 60,
+    })
+    assert.equal(hoverOverlay?.outline.kind, 'rect')
   })
 
   it('applyDropShadow and clearEffects via effects module', () => {

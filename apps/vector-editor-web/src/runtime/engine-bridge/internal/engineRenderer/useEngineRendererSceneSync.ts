@@ -46,6 +46,7 @@ export function useEngineRendererSceneSync(params: {
     document: EditorDocument
     shapes: SceneShapeSnapshot[]
     viewport: EngineViewportState
+    sceneStructureMode: 'flat' | 'tree'
   } | null>
   hasLoadedSceneInEngineRef: React.MutableRefObject<boolean>
   previewSceneRevisionRef: React.MutableRefObject<number>
@@ -150,13 +151,16 @@ export function useEngineRendererSceneSync(params: {
       params.interactionActiveNodeSignatureRef.current = baselineInteractionActiveNodeSignature
     }
 
+    const sceneStructureMode = params.sceneStructureMode ?? 'tree'
     const previous = params.previousRenderPrepRef.current
-    const shouldBootstrapScene = !params.hasLoadedSceneInEngineRef.current
+    const sceneStructureModeChanged = Boolean(previous && previous.sceneStructureMode !== sceneStructureMode)
+    const shouldBootstrapScene = !params.hasLoadedSceneInEngineRef.current || sceneStructureModeChanged
     const sceneRevisionStable = Boolean(
       previous &&
       previous.revision === params.statsVersion &&
       previous.document === params.document &&
-      previous.shapes === params.shapes,
+      previous.shapes === params.shapes &&
+      previous.sceneStructureMode === sceneStructureMode,
     )
     const shouldAllowViewportOnlySceneSkip =
       !params.transformPreviewActive &&
@@ -183,6 +187,7 @@ export function useEngineRendererSceneSync(params: {
         document: params.document,
         shapes: params.shapes,
         viewport: params.viewport,
+        sceneStructureMode,
       }
       return
     }
@@ -270,11 +275,11 @@ export function useEngineRendererSceneSync(params: {
         params.sceneApplyDebugRef.current.lastScenePatchUpsertCount = 0
         params.sceneApplyDebugRef.current.sceneLoadCount += 1
       } else {
-        const changedIds = params.sceneStructureMode === 'tree'
+        const changedIds = sceneStructureMode === 'tree'
           ? preparedFrame.dirtyState.sceneInstanceIds
           : resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
         incrementalChangedNodeIds = changedIds
-        const treePatchResult = params.sceneStructureMode === 'tree'
+        const treePatchResult = sceneStructureMode === 'tree'
           ? createEngineScenePatchBatchFromRuntimeSnapshot({
               ...params.replayScenePayload,
               revision: params.statsVersion,
@@ -418,6 +423,7 @@ export function useEngineRendererSceneSync(params: {
       document: params.document,
       shapes: params.shapes,
       viewport: params.viewport,
+      sceneStructureMode,
     }
     // Record scene-stage timing after effect work so onStats can publish it.
     params.runtimeStageTimingMsRef.current.scenePrepareMs = scenePrepareMs
@@ -429,6 +435,7 @@ export function useEngineRendererSceneSync(params: {
     params.replayScenePayload,
     params.requestEngineRender,
     params.interactionPhase,
+    params.sceneStructureMode,
     params.shapes,
     params.statsVersion,
     params.viewport,

@@ -22,10 +22,12 @@ import type {
 export type {
   EngineGeometryBounds,
   EngineGeometryHint,
+  EngineGeometryHoverOverlay,
   EngineGeometryMarqueeBounds,
   EngineGeometryNodePayload,
   EngineGeometryOutline,
   EngineGeometryPayload,
+  EngineGeometrySelectionOverlay,
   ResolveEngineGeometryPayloadOptions,
 } from './geometryPayloadTypes.ts'
 
@@ -126,6 +128,14 @@ export function resolveEngineGeometryPayload(
       outlineLevel,
     }))
   }
+  const selectionOverlay = buildSelectionOverlay(selected)
+  const hoverOverlay = hovered
+    ? {
+      nodeId: hovered.nodeId,
+      bounds: hovered.bounds,
+      outline: hovered.outline,
+    }
+    : null
 
   const marqueeSearchResults = options.marqueeBounds
     ? spatialIndex.search(options.marqueeBounds)
@@ -142,8 +152,10 @@ export function resolveEngineGeometryPayload(
 
   return {
     hovered,
+    hoverOverlay,
     pointHitNodeIds,
     selected,
+    selectionOverlay,
     marqueeCandidateNodeIds,
     marqueeResolvedNodeIds,
   }
@@ -177,5 +189,32 @@ function buildNodeGeometryPayload(options: {
     outline,
     detailOutlines,
     hints,
+  }
+}
+
+/**
+ * Builds aggregate, style-free overlay geometry for selected nodes.
+ * @param selected Selected node payloads in caller-defined order.
+ */
+function buildSelectionOverlay(selected: EngineGeometryNodePayload[]): EngineGeometryPayload['selectionOverlay'] {
+  if (selected.length === 0) {
+    return null
+  }
+
+  const bounds = selected.reduce((aggregate, payload) => ({
+    minX: Math.min(aggregate.minX, payload.bounds.minX),
+    minY: Math.min(aggregate.minY, payload.bounds.minY),
+    maxX: Math.max(aggregate.maxX, payload.bounds.maxX),
+    maxY: Math.max(aggregate.maxY, payload.bounds.maxY),
+  }), selected[0].bounds)
+
+  return {
+    selectedNodeIds: selected.map((payload) => payload.nodeId),
+    bounds,
+    outline: {
+      kind: 'bounds',
+      bounds,
+      closed: true,
+    },
   }
 }

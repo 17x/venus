@@ -32,6 +32,13 @@ Core flow:
 Runtime orchestration. This domain wires scene, renderer, and interaction
 mechanisms into an engine instance.
 
+- `venus/Venus.ts` and base module services
+  - Own document-tree structure APIs such as group, ungroup, child add/remove,
+    parent-local layer order, clip/mask container indexing, and structure
+    events.
+  - Follow `tree-structure-operations.md` for selection normalization,
+    tree-transaction, history, render invalidation, and Vector-validation
+    boundaries.
 - `createEngine.ts`
   - Public engine factory.
   - Combines render strategy, frame budget, prediction, shortlist, and layered

@@ -1,12 +1,15 @@
-import {resolveNodeTransform} from '@venus/engine'
+import {
+  invertAffineMatrix,
+  multiplyAffineMatrices,
+  resolveNodeTransform,
+  type AffineMatrix,
+} from '@venus/engine'
 
-type AffineMatrix = [number, number, number, number, number, number]
 type TransformSource = Parameters<typeof resolveNodeTransform>[0]
 
 export type EngineAdapterMatrix = readonly [number, number, number, number, number, number]
 
 const IDENTITY_AFFINE: AffineMatrix = [1, 0, 0, 1, 0, 0]
-const INVERT_EPSILON = 1e-9
 
 /**
  * Converts a Canvas/SVG affine tuple [a,b,c,d,e,f] into the engine row-major
@@ -54,42 +57,4 @@ export function multiplyEngineMatrices(
       engineMatrixToVectorAffine(right),
     ),
   )
-}
-
-function multiplyAffineMatrices(left: AffineMatrix, right: AffineMatrix): AffineMatrix {
-  const [la, lb, lc, ld, le, lf] = left
-  const [ra, rb, rc, rd, re, rf] = right
-
-  return [
-    la * ra + lc * rb,
-    lb * ra + ld * rb,
-    la * rc + lc * rd,
-    lb * rc + ld * rd,
-    la * re + lc * rf + le,
-    lb * re + ld * rf + lf,
-  ]
-}
-
-function invertAffineMatrix(matrix: AffineMatrix): AffineMatrix {
-  const [a, b, c, d, e, f] = matrix
-  const determinant = a * d - b * c
-
-  if (Math.abs(determinant) <= INVERT_EPSILON) {
-    return IDENTITY_AFFINE
-  }
-
-  const inverseDeterminant = 1 / determinant
-  const nextA = d * inverseDeterminant
-  const nextB = -b * inverseDeterminant
-  const nextC = -c * inverseDeterminant
-  const nextD = a * inverseDeterminant
-
-  return [
-    nextA,
-    nextB,
-    nextC,
-    nextD,
-    -(nextA * e + nextC * f),
-    -(nextB * e + nextD * f),
-  ]
 }

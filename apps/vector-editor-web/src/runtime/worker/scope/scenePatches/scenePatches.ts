@@ -17,6 +17,7 @@ import {
   clonePoints,
   cloneShadow,
   cloneStroke,
+  cloneTextRuns,
 } from '../model.ts'
 import {applyMaskSchemaPatch} from '../maskGroupSemantics.ts'
 import {
@@ -297,8 +298,12 @@ export function applyPatches(
         parentId: patch.shape.parentId,
         childIds: patch.shape.childIds?.slice(),
         text: patch.shape.text,
+        textRuns: cloneTextRuns(patch.shape.textRuns),
         assetId: patch.shape.assetId,
         assetUrl: patch.shape.assetUrl,
+        sourceRect: patch.shape.sourceRect ? {...patch.shape.sourceRect} : undefined,
+        naturalSize: patch.shape.naturalSize ? {...patch.shape.naturalSize} : undefined,
+        imageSmoothing: patch.shape.imageSmoothing,
         clipPathId: patch.shape.clipPathId,
         clipRule: patch.shape.clipRule,
         rotation: patch.shape.rotation,

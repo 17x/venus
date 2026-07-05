@@ -11,6 +11,45 @@ import {createVectorPathsFromElement} from './vectorPaths.ts'
 import {resolveTextContent, resolveTextRuns} from './textRuns.ts'
 import {resolveElementGeometry} from './elementGeometry.ts'
 
+function resolveImageSourceRect(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (
+    typeof record.x !== 'number' ||
+    typeof record.y !== 'number' ||
+    typeof record.width !== 'number' ||
+    typeof record.height !== 'number'
+  ) {
+    return undefined
+  }
+
+  return {
+    x: record.x,
+    y: record.y,
+    width: record.width,
+    height: record.height,
+  }
+}
+
+function resolveImageNaturalSize(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (typeof record.width !== 'number' || typeof record.height !== 'number') {
+    return undefined
+  }
+
+  return {
+    width: record.width,
+    height: record.height,
+  }
+}
+
 // Converts one editor element payload into one runtime-scene node.
 export function createRuntimeNodeFromElement(element: ElementProps): RuntimeSceneLatest['nodes'][number] {
   const geometry = resolveElementGeometry(element)
@@ -150,6 +189,9 @@ export function createRuntimeNodeFromElement(element: ElementProps): RuntimeScen
         kind: 'IMAGE',
         imageId: element.asset,
         scaleMode: 'FIT',
+        sourceRect: resolveImageSourceRect(element.sourceRect),
+        naturalSize: resolveImageNaturalSize(element.naturalSize),
+        imageSmoothing: typeof element.imageSmoothing === 'boolean' ? element.imageSmoothing : undefined,
       },
     })
   }

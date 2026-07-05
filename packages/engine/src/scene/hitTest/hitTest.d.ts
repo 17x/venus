@@ -17,6 +17,7 @@ export interface EngineHitExecutionSummary {
 }
 export interface EngineHitExecutionOptions {
     maxExactCandidateCount?: number;
+    respectClip?: boolean;
 }
 export declare function hitTestEngineSceneState(state: MutableEngineSceneState, point: EnginePoint, tolerance?: number, options?: EngineHitExecutionOptions): EngineHitTestResult | null;
 export declare function hitTestEngineSceneStateAll(state: MutableEngineSceneState, point: EnginePoint, tolerance?: number, options?: EngineHitExecutionOptions): EngineHitTestResult[];

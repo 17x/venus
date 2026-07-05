@@ -118,6 +118,16 @@ export function ThemeProvider(props: {children: ReactNode}) {
 
   const resolvedMode: ResolvedThemeMode = mode === 'system' ? systemMode : mode
 
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    const root = document.documentElement
+    root.classList.toggle('dark', resolvedMode === 'dark')
+    root.style.colorScheme = resolvedMode
+  }, [resolvedMode])
+
   const value = useMemo<ThemeContextValue>(() => ({
     mode,
     resolvedMode,

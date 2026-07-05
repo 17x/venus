@@ -216,9 +216,28 @@ describe('engine scene adapter model parity', () => {
         id: 'text',
         type: 'text',
         text: 'Hello',
-        textRuns: [{start: 0, end: 5, style: {fontFamily: 'Inter', fontSize: 18, fontStyle: 'italic', color: '#111827'}}],
+        textRuns: [{
+          start: 0,
+          end: 5,
+          style: {
+            fontFamily: 'Inter',
+            fontSize: 18,
+            fontStyle: 'italic',
+            textAlign: 'center',
+            verticalAlign: 'middle',
+            color: '#111827',
+          },
+        }],
       }),
-      baseNode({id: 'image', type: 'image', assetId: 'asset-1', assetUrl: 'https://example.test/image.png'}),
+      baseNode({
+        id: 'image',
+        type: 'image',
+        assetId: 'asset-1',
+        assetUrl: 'https://example.test/image.png',
+        sourceRect: {x: 4, y: 8, width: 80, height: 60},
+        naturalSize: {width: 320, height: 240},
+        imageSmoothing: false,
+      }),
     ]
 
     const scene = createScene(nodes)
@@ -266,13 +285,20 @@ describe('engine scene adapter model parity', () => {
     assert.equal(text.type === 'text' ? text.text : null, 'Hello')
     assert.equal(text.type === 'text' ? text.runs?.[0]?.style?.fontSize : null, 18)
     assert.equal(text.type === 'text' ? text.runs?.[0]?.style?.fontStyle : null, 'italic')
+    assert.equal(text.type === 'text' ? text.runs?.[0]?.style?.align : null, 'center')
+    assert.equal(text.type === 'text' ? text.runs?.[0]?.style?.verticalAlign : null, 'middle')
     assert.equal(text.type === 'text' ? text.style.fontStyle : null, 'italic')
+    assert.equal(text.type === 'text' ? text.style.align : null, 'center')
+    assert.equal(text.type === 'text' ? text.style.verticalAlign : null, 'middle')
     assert.equal(text.type === 'text' ? text.style.fillConfig?.color : null, '#111827')
 
     const image = nodeById(scene.nodes, 'image')
     assert.equal(image.type, 'image')
     assert.equal(image.type === 'image' ? image.assetId : null, 'asset-1')
     assert.equal(image.type === 'image' ? image.assetUrl : null, 'https://example.test/image.png')
+    assert.deepEqual(image.type === 'image' ? image.sourceRect : null, {x: 4, y: 8, width: 80, height: 60})
+    assert.deepEqual(image.type === 'image' ? image.naturalSize : null, {width: 320, height: 240})
+    assert.equal(image.type === 'image' ? image.imageSmoothing : null, false)
   })
 
   it('resolves parent-local transforms that preserve child world transforms', () => {
@@ -300,6 +326,45 @@ describe('engine scene adapter model parity', () => {
     const childLocal = resolveParentLocalEngineTransform(child, parent).matrix
 
     assertMatrixAlmostEqual(multiplyEngineMatrices(parentWorld, childLocal), childWorld)
+  })
+
+  it('projects valid clip links and drops invalid clip references', () => {
+    const clipSource = baseNode({
+      id: 'clip-source',
+      type: 'polygon',
+      points: [{x: 10, y: 10}, {x: 80, y: 10}, {x: 40, y: 60}],
+    })
+    const clippedImage = baseNode({
+      id: 'clipped-image',
+      type: 'image',
+      assetId: 'asset-1',
+      clipPathId: 'clip-source',
+      clipRule: 'evenodd',
+    })
+    const missingClip = baseNode({
+      id: 'missing-clip',
+      type: 'image',
+      assetId: 'asset-2',
+      clipPathId: 'missing-source',
+    })
+    const selfClip = baseNode({
+      id: 'self-clip',
+      type: 'image',
+      assetId: 'asset-3',
+      clipPathId: 'self-clip',
+    })
+
+    const scene = createScene([clipSource, clippedImage, missingClip, selfClip])
+
+    const clipped = nodeById(scene.nodes, 'clipped-image')
+    assert.equal(clipped.type === 'image' ? clipped.clip?.clipNodeId : null, 'clip-source')
+    assert.equal(clipped.type === 'image' ? clipped.clip?.rule : null, 'evenodd')
+
+    const missing = nodeById(scene.nodes, 'missing-clip')
+    assert.equal(missing.type === 'image' ? missing.clip : null, undefined)
+
+    const self = nodeById(scene.nodes, 'self-clip')
+    assert.equal(self.type === 'image' ? self.clip : null, undefined)
   })
 
   it('can emit an opt-in nested tree scene with frame background hit remap', () => {

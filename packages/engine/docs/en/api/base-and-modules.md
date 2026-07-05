@@ -4,6 +4,9 @@
 contract used by optional capabilities. Use it when the application wants a
 clear boundary between static rendering and opt-in interaction, camera,
 animation, debug, scale, effects, history, or export capability.
+The interaction module also exposes style-free overlay geometry APIs such as
+`venus.getSelectionOverlay()` and `venus.getHoverOverlay(...)`; host apps own
+overlay color, visibility, handles, and product styling.
 
 ## Start from Base
 
@@ -129,6 +132,52 @@ Returns the module names installed on the current instance.
 ```ts
 const installed = venus.modules()
 ```
+
+### Tree Structure Operations
+
+The base module owns parent/child order and treats the ordered document tree as
+the source of truth. `venus.remove(id)` removes a root or nested subtree from
+its current parent-local child list. `venus.group(ids, options)` first drops
+selected descendants when their ancestor is also selected, then groups only
+same-parent siblings in document order. `venus.ungroup(id)` lifts children into
+the former group's parent and discards the removed group wrapper's own
+properties.
+
+Use `venus.reparent(id, parentId, index?)` for explicit single-node moves
+between root, frame, group, clip, and mask child lists. It rejects moving a node
+into itself or its descendant, clamps insertion indexes, preserves the current
+authored geometry model, records history when the history module is installed,
+and emits `document:structure-changed` with `reason: 'reparent'`.
+
+### Hit-Test Clip Policy
+
+`venus.hitTest(point, options?)` and `venus.hitTestAll(point, options?)`
+respect inline clip geometry by default. This includes clip containers that
+normalize to engine groups with `clip.clipShape`; children outside the clip are
+removed from hit results.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `phase` | `hover \| click` | `click` | Selects default tolerance. |
+| `tolerance` | `number` | `0` for click, `6` for hover | Screen-pixel hit tolerance. |
+| `includeLocked` | `boolean` | `false` | Includes locked nodes when enabled. |
+| `respectClip` | `boolean` | `true` | Keeps clipped-out children from being hit; set to `false` only for debug or parity checks. |
+
+### Image Resource Diagnostics
+
+`venus.inspectImageResources()` traverses current image nodes and asks the host
+resource loader whether each `assetId` resolves. The engine preserves
+`assetUrl` for import/export mapping, but rendering still depends on
+`resource.loader.resolveImage(assetId)`.
+
+Returned statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `resolved` | Loader returned a renderable image source. |
+| `missing-loader` | No host resource loader is configured. |
+| `missing-resource` | Loader returned no source for the image asset id. |
+| `loader-error` | Loader threw while resolving the asset id. |
 
 ## Internal Services
 

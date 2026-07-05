@@ -9,7 +9,7 @@ import {
   multiplyAffineMatrices as multiplyAffineMatricesFromLib,
 } from '@venus/lib/math'
 import {getNormalizedBoundsFromBox as getNormalizedBoundsFromBoxFromLib} from '@venus/lib/geometry'
-import {cubicBezier, getCubicExtrema} from './geometry.curves.ts'
+import {getBoundingRectFromBezierPoints as getEngineBoundingRectFromBezierPoints} from '@venus/engine'
 export {nearestPointOnCurve} from './geometry.curves.ts'
 export {cubicBezier} from './geometry.curves.ts'
 
@@ -264,59 +264,20 @@ export const isInsideRotatedRect = (
 }
 
 export function getBoundingRectFromBezierPoints(points: BezierPoint[]): BoundingRect {
-  if (points.length === 0) {
-    return generateBoundingRectFromRect({x: 0, y: 0, width: 0, height: 0})
-  }
-
-  const curvePoints: Point[] = []
-
-  for (let i = 1; i < points.length; i += 1) {
-    const prev = points[i - 1]
-    const current = points[i]
-    const p0 = prev.anchor
-    const p1 = prev.cp2 ?? prev.anchor
-    const p2 = current.cp1 ?? current.anchor
-    const p3 = current.anchor
-
-    // Exact cubic bounds must include derivative extrema; endpoint sampling
-    // alone can miss the true MBR on strongly curved segments.
-    const ts = new Set<number>([0, 1])
-
-    for (const t of getCubicExtrema(p0.x, p1.x, p2.x, p3.x)) {
-      ts.add(t)
-    }
-
-    for (const t of getCubicExtrema(p0.y, p1.y, p2.y, p3.y)) {
-      ts.add(t)
-    }
-
-    for (const t of ts) {
-      curvePoints.push(cubicBezier(t, p0, p1, p2, p3))
-    }
-  }
-
-  if (points.length === 1) {
-    curvePoints.push(points[0].anchor)
-  }
-
-  const xs = curvePoints.map((point) => point.x)
-  const ys = curvePoints.map((point) => point.y)
-  const left = xs.reduce((min, x) => Math.min(min, x), Infinity)
-  const right = xs.reduce((max, x) => Math.max(max, x), -Infinity)
-  const top = ys.reduce((min, y) => Math.min(min, y), Infinity)
-  const bottom = ys.reduce((max, y) => Math.max(max, y), -Infinity)
+  const bounds = getEngineBoundingRectFromBezierPoints(points)
+  const left = bounds.x
+  const right = bounds.x + bounds.width
+  const top = bounds.y
+  const bottom = bounds.y + bounds.height
 
   return {
-    x: left,
-    y: top,
-    width: right - left,
-    height: bottom - top,
+    ...bounds,
     left,
     right,
     top,
     bottom,
-    cx: left + (right - left) / 2,
-    cy: top + (bottom - top) / 2,
+    cx: left + bounds.width / 2,
+    cy: top + bounds.height / 2,
   }
 }
 

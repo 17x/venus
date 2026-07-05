@@ -329,8 +329,8 @@ export function resolveSelectedProps(
       assetId: selectedNode.assetId,
       assetName: asset?.name,
       mimeType: asset?.mimeType,
-      naturalWidth: imageRef?.naturalWidth,
-      naturalHeight: imageRef?.naturalHeight,
+      naturalWidth: imageRef?.naturalWidth ?? selectedNode.naturalSize?.width,
+      naturalHeight: imageRef?.naturalHeight ?? selectedNode.naturalSize?.height,
     },
   }
 }

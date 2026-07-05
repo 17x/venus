@@ -7,6 +7,7 @@ import type {
   EngineRenderableNode,
   EngineSceneSnapshot,
   EngineShapeNode,
+  EngineImageNode,
   EngineTextRun,
   EngineTextStyle,
   EngineTransform2D,
@@ -103,6 +104,13 @@ export interface VenusDocumentService {
    * @param childId Child document node id to remove.
    */
   removeChild(parentId: string, childId: string): void
+  /**
+   * Moves one node into a new parent container or the root layer.
+   * @param id Node id to move.
+   * @param parentId New parent id, or null for the root layer.
+   * @param index Optional insertion index in the target parent-local child list.
+   */
+  reparent(id: string, parentId: string | null, index?: number): VenusReparentMutationResult
   getLayerIndex(id: string): number
   getLayerOrder(parentId?: string | null): string[]
   /**
@@ -291,6 +299,7 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'getNodeById',
   'getParentId',
   'snapshot',
+  'inspectImageResources',
   'fitBounds',
   'zoomTo',
   'panBy',
@@ -333,6 +342,7 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'ungroup',
   'addChild',
   'removeChild',
+  'reparent',
   'getSelection',
   'setSelection',
   'select',
@@ -343,6 +353,8 @@ export const VENUS_PUBLIC_METHOD_NAMES = [
   'onSelectionChange',
   'querySelectionInRect',
   'selectInRect',
+  'getSelectionOverlay',
+  'getHoverOverlay',
   'applyDropShadow',
   'removeDropShadow',
   'applyInnerShadow',
@@ -481,6 +493,8 @@ export interface VenusHitTestOptions {
   tolerance?: number
   /** When false, a locked topmost hit is ignored. */
   includeLocked?: boolean
+  /** When false, hit testing ignores inline clip geometry. Defaults to true. */
+  respectClip?: boolean
 }
 
 /** Rectangle used by selection and bounds queries. */
@@ -511,6 +525,69 @@ export interface VenusSelectInRectOptions extends VenusSelectionRectQueryOptions
   selectionMode?: 'replace' | 'add' | 'subtract' | 'toggle'
 }
 
+/** Point used by engine-owned overlay geometry. */
+export interface VenusOverlayPoint {
+  x: number
+  y: number
+}
+
+/** Min/max bounds used by engine-owned overlay geometry. */
+export interface VenusOverlayRectBounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/** Style-free overlay geometry returned by interaction APIs. */
+export type VenusOverlayGeometry =
+  | {kind: 'rect'; bounds: VenusOverlayRectBounds}
+  | {kind: 'polyline'; points: readonly VenusOverlayPoint[]; closed?: boolean}
+  | {kind: 'segment'; from: VenusOverlayPoint; to: VenusOverlayPoint}
+  | {kind: 'point'; point: VenusOverlayPoint}
+
+/** Options for resolving the current selection overlay geometry. */
+export interface VenusSelectionOverlayOptions {
+  /** Optional ids to inspect instead of the current interaction selection. */
+  ids?: readonly string[]
+}
+
+/** Selection overlay geometry owned by the interaction module. */
+export interface VenusSelectionOverlay {
+  /** Selected ids covered by this overlay. */
+  selectedIds: readonly string[]
+  /** Aggregate selection bounds in document/world coordinates. */
+  bounds: VenusOverlayRectBounds
+  /** Style-free outline geometry for renderer or product adapter styling. */
+  outline: VenusOverlayGeometry
+  /** Current document revision associated with this geometry. */
+  revision: number
+}
+
+/** Options for resolving hover overlay geometry from a known node or hit point. */
+export interface VenusHoverOverlayOptions {
+  /** Node id whose hover outline should be resolved. */
+  nodeId?: string
+  /** Optional screen-space point; requires the hitTest module and uses topmost hit. */
+  point?: {x: number; y: number}
+  /** Hit-test options used when `point` is supplied. */
+  hitOptions?: VenusHitTestOptions
+}
+
+/** Hover overlay geometry owned by the interaction module. */
+export interface VenusHoverOverlay {
+  /** Hovered public document node id. */
+  nodeId: string
+  /** Hover bounds in document/world coordinates. */
+  bounds: VenusOverlayRectBounds
+  /** Style-free outline geometry for renderer or product adapter styling. */
+  outline: VenusOverlayGeometry
+  /** Hit-test result when this overlay was resolved from a point. */
+  hit?: VenusDetailedHitTestResult
+  /** Current document revision associated with this geometry. */
+  revision: number
+}
+
 /** Result emitted by base layer-order mutations and returned by document services. */
 export interface VenusLayerMutationResult {
   /** Whether the sibling order changed. */
@@ -526,6 +603,26 @@ export interface VenusLayerMutationResult {
   /** Sibling index after the mutation, or -1 when the node was not found. */
   toIndex: number
   /** Sibling order after the mutation or failed/no-op attempt. */
+  order: readonly string[]
+}
+
+/** Result returned by explicit document reparent transactions. */
+export interface VenusReparentMutationResult {
+  /** Whether the node moved to a different parent or target index. */
+  applied: boolean
+  /** Document revision after the mutation, or the current revision for no-op/failure results. */
+  revision: number
+  /** Node requested for reparenting. */
+  nodeId: string
+  /** Parent that owned the node before the mutation; null represents the root layer. */
+  fromParentId: string | null
+  /** Parent that owns the node after the mutation; null represents the root layer. */
+  toParentId: string | null
+  /** Sibling index before the mutation, or -1 when the node was not found. */
+  fromIndex: number
+  /** Sibling index after the mutation in the target parent, or -1 when rejected. */
+  toIndex: number
+  /** Target parent-local order after the mutation or failed/no-op attempt. */
   order: readonly string[]
 }
 
@@ -589,6 +686,7 @@ export type VenusDocumentStructureChangeReason =
   | 'ungroup'
   | 'addChild'
   | 'removeChild'
+  | 'reparent'
   | 'layer'
 
 /** Payload emitted after a parent-local child list changes. */
@@ -597,12 +695,26 @@ export interface VenusDocumentStructureChangedEvent {
   revision: number
   /** Parent whose child order changed; null represents the root layer. */
   parentId: string | null
+  /** Parents whose child lists changed; includes parentId when omitted by older callers. */
+  affectedParentIds?: readonly (string | null)[]
   /** Public document ids affected by the structure mutation. */
   affectedNodeIds: readonly string[]
   /** Parent-local order after the mutation. */
   order: readonly string[]
   /** Specific structure mutation kind. */
   reason: VenusDocumentStructureChangeReason
+}
+
+/** Payload emitted when the interaction selection set changes. */
+export interface VenusSelectionChangedEvent {
+  /** Selected ids after the change, in interaction insertion order. */
+  selection: readonly string[]
+  /** Selected ids before the change, in interaction insertion order. */
+  previousSelection: readonly string[]
+  /** Ids present in selection but absent from previousSelection. */
+  added: readonly string[]
+  /** Ids present in previousSelection but absent from selection. */
+  removed: readonly string[]
 }
 
 /** Clip graph validation issue categories returned by `venus.validateClipGraph`. */
@@ -642,6 +754,49 @@ export interface VenusClipGraphValidation {
   issues: VenusClipGraphIssue[]
   /** Direct and transitive clip dependencies for clipped nodes. */
   dependencies: VenusClipDependency[]
+}
+
+/** Image resource resolution state for one engine image node. */
+export type VenusImageResourceStatus =
+  | 'resolved'
+  | 'missing-loader'
+  | 'missing-resource'
+  | 'loader-error'
+
+/** One image resource diagnostic returned by `venus.inspectImageResources`. */
+export interface VenusImageResourceDiagnostic {
+  /** Engine image node id. */
+  nodeId: string
+  /** Asset id passed to the host resource loader. */
+  assetId: string
+  /** Optional external URL preserved for import/export mapping. */
+  assetUrl?: string
+  /** Whether the current loader returned a renderable source. */
+  resolved: boolean
+  /** Machine-readable resolution status. */
+  status: VenusImageResourceStatus
+  /** Human-readable deterministic diagnostic reason. */
+  reason: string
+  /** Optional source crop rectangle stored on the image node. */
+  sourceRect?: EngineImageNode['sourceRect']
+  /** Optional natural image dimensions stored on the image node. */
+  naturalSize?: EngineImageNode['naturalSize']
+  /** Optional image smoothing hint stored on the image node. */
+  imageSmoothing?: boolean
+}
+
+/** Aggregate image resource diagnostics for the current scene snapshot. */
+export interface VenusImageResourceInspection {
+  /** Number of image nodes in the current engine snapshot. */
+  imageCount: number
+  /** Number of image nodes resolved by the current host loader. */
+  resolvedCount: number
+  /** Number of image nodes that are not currently render-resolved. */
+  missingCount: number
+  /** True when every image node is resolved. */
+  allResolved: boolean
+  /** Per-image diagnostic entries in render traversal order. */
+  diagnostics: VenusImageResourceDiagnostic[]
 }
 
 export type VenusHitTargetKind =
@@ -710,6 +865,7 @@ export interface VenusEventMap {
   'render:after': {revision: number}
   'backend:fallback': VenusBackendFallback
   hit: {point: {x: number; y: number}; phase: 'hover' | 'click'; tolerance: number; result: VenusDetailedHitTestResult | null}
+  'selection:changed': VenusSelectionChangedEvent
   destroyed: {}
 }
 
@@ -1594,6 +1750,13 @@ const normalizeSelectionRect = (rect: VenusSelectionRect): EngineRect => {
   }
 }
 
+const engineRectToOverlayBounds = (rect: EngineRect): VenusOverlayRectBounds => ({
+  minX: rect.x,
+  minY: rect.y,
+  maxX: rect.x + rect.width,
+  maxY: rect.y + rect.height,
+})
+
 /**
  * Returns whether two axis-aligned rectangles overlap.
  * @param left First rectangle to compare.
@@ -1764,6 +1927,37 @@ const createVenusLayerMutationResult = (
   revision,
   parentId,
   nodeId,
+  fromIndex,
+  toIndex,
+  order: [...order],
+})
+
+/**
+ * Creates a stable reparent mutation result for structure transactions.
+ * @param nodeId Node requested for reparenting.
+ * @param fromParentId Parent that owned the node before mutation.
+ * @param toParentId Target parent requested by the caller.
+ * @param fromIndex Sibling index before mutation.
+ * @param toIndex Sibling index after mutation in the target parent.
+ * @param applied Whether the node moved or changed sibling index.
+ * @param revision Current document revision for the result.
+ * @param order Target parent order associated with the result.
+ */
+const createVenusReparentMutationResult = (
+  nodeId: string,
+  fromParentId: string | null,
+  toParentId: string | null,
+  fromIndex: number,
+  toIndex: number,
+  applied: boolean,
+  revision: number,
+  order: readonly string[],
+): VenusReparentMutationResult => ({
+  applied,
+  revision,
+  nodeId,
+  fromParentId,
+  toParentId,
   fromIndex,
   toIndex,
   order: [...order],
@@ -2284,7 +2478,7 @@ export class Venus {
 
   /**
    * @name Venus.remove
-   * @description Removes one root-level document node by id and emits a document change.
+   * @description Removes one document node or subtree by id from its parent-local child list.
    * @example Usage
    * venus.add({id: 'temp', type: 'rect', width: 80, height: 40})
    * venus.remove('temp')
@@ -2292,18 +2486,36 @@ export class Venus {
    * @returns Nothing.
    */
   remove(id: string): void {
-    const index = this.documentNodes.findIndex((n) => n.id === id)
-    if (index === -1) {
+    const node = this.nodeById.get(id)
+    if (!node) {
+      return
+    }
+
+    const parentId = this.parentById.get(id) ?? null
+    const siblings = this.resolveSiblingNodes(parentId)
+    const index = siblings?.indexOf(node) ?? -1
+    if (!siblings || index < 0) {
       return
     }
 
     this.recordHistory()
-    const removedNode = this.documentNodes[index]
-    const removedNodeIds = collectVenusDocumentNodeIds(removedNode)
-    this.documentNodes.splice(index, 1)
+    const removedNodeIds = collectVenusDocumentNodeIds(node)
+    const nextSiblings = [
+      ...siblings.slice(0, index),
+      ...siblings.slice(index + 1),
+    ]
+    this.replaceSiblingNodes(parentId, nextSiblings)
     this.rebuildRenderNodes()
     this.revision += 1
-    this.emit('document:node-removed', {revision: this.revision, nodeIds: removedNodeIds, parentId: null})
+    this.emit('document:node-removed', {revision: this.revision, nodeIds: removedNodeIds, parentId})
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId,
+      affectedParentIds: [parentId],
+      affectedNodeIds: removedNodeIds,
+      order: this.getDocumentLayerOrder(parentId),
+      reason: 'removeChild',
+    })
     this.emit('document:changed', {
       revision: this.revision,
       affectedNodeIds: removedNodeIds,
@@ -2364,7 +2576,7 @@ export class Venus {
    * @returns Typed group proxy.
    */
   group(ids: readonly string[], options: VenusGroupOptions = {}): VenusNodeProxy {
-    const uniqueIds = Array.from(new Set(ids))
+    const uniqueIds = this.normalizeDocumentStructureSelection(ids)
     if (uniqueIds.length === 0) {
       throw new Error('group() requires at least one node id')
     }
@@ -2481,13 +2693,13 @@ export class Venus {
     return children.map((child) => createVenusNodeProxy(this, child.id ?? '', child.type))
   }
 
-  /**
+   /**
    * @name Venus.addChild
-   * @description Adds a child node to a group, clip, or mask container.
+   * @description Adds a child node to a frame, group, clip, or mask container.
    * @example Usage
    * const child = venus.addChild('group-id', {type: 'rect', width: 60, height: 40})
    * child.x = 20
-   * @param parentId Parent group, clip, or mask id.
+   * @param parentId Parent frame, group, clip, or mask id.
    * @param child Child document node to append.
    * @returns Typed proxy for the newly added child.
    */
@@ -2523,11 +2735,11 @@ export class Venus {
 
   /**
    * @name Venus.removeChild
-   * @description Removes a child node from a group, clip, or mask container by child id.
+   * @description Removes a child node from a frame, group, clip, or mask container by child id.
    * @example Usage
    * venus.removeChild('group-id', 'child-id')
    * await venus.render()
-   * @param parentId Parent group, clip, or mask id.
+   * @param parentId Parent frame, group, clip, or mask id.
    * @param childId Child node id to remove.
    * @returns Nothing.
    */
@@ -2561,6 +2773,20 @@ export class Venus {
       reason: 'structure-changed',
     })
     this.scheduleRender()
+  }
+
+  /**
+   * @name Venus.reparent
+   * @description Moves one node into a new frame/group/clip/mask parent or back to the root layer.
+   * @example Usage
+   * const result = venus.reparent('rect-1', 'group-1', 0)
+   * @param id Node id to move.
+   * @param parentId Target parent id, or null for the root layer.
+   * @param index Optional insertion index in the target parent-local child list.
+   * @returns Reparent mutation metadata.
+   */
+  reparent(id: string, parentId: string | null, index?: number): VenusReparentMutationResult {
+    return this.reparentDocumentNode(id, parentId, index)
   }
 
   /**
@@ -2897,6 +3123,97 @@ export class Venus {
     return this.createSnapshot()
   }
 
+  /**
+   * @name Venus.inspectImageResources
+   * @description Reports whether image nodes can be resolved by the current host resource loader.
+   * @example Usage
+   * const resources = venus.inspectImageResources()
+   * console.log(resources.missingCount)
+   * @returns Per-image resource diagnostics for the current engine snapshot.
+   */
+  inspectImageResources(): VenusImageResourceInspection {
+    const diagnostics: VenusImageResourceDiagnostic[] = []
+    const loader = this.parameters.resource?.loader
+    this.collectImageResourceDiagnostics(this.nodes, diagnostics, loader)
+
+    const resolvedCount = diagnostics.filter((diagnostic) => diagnostic.resolved).length
+    return {
+      imageCount: diagnostics.length,
+      resolvedCount,
+      missingCount: diagnostics.length - resolvedCount,
+      allResolved: resolvedCount === diagnostics.length,
+      diagnostics,
+    }
+  }
+
+  private collectImageResourceDiagnostics(
+    nodes: readonly EngineRenderableNode[],
+    diagnostics: VenusImageResourceDiagnostic[],
+    loader: EngineResourceLoader | undefined,
+  ): void {
+    for (const node of nodes) {
+      if (node.type === 'image') {
+        diagnostics.push(this.inspectImageNodeResource(node, loader))
+        continue
+      }
+
+      if (node.type === 'group') {
+        this.collectImageResourceDiagnostics(node.children, diagnostics, loader)
+      }
+    }
+  }
+
+  private inspectImageNodeResource(
+    node: EngineImageNode,
+    loader: EngineResourceLoader | undefined,
+  ): VenusImageResourceDiagnostic {
+    const base = {
+      nodeId: node.id,
+      assetId: node.assetId,
+      assetUrl: node.assetUrl,
+      sourceRect: node.sourceRect,
+      naturalSize: node.naturalSize,
+      imageSmoothing: node.imageSmoothing,
+    }
+
+    if (!loader) {
+      return {
+        ...base,
+        resolved: false,
+        status: 'missing-loader',
+        reason: `No resource loader is configured for image asset "${node.assetId}"`,
+      }
+    }
+
+    try {
+      const source = loader.resolveImage(node.assetId)
+      if (source) {
+        return {
+          ...base,
+          resolved: true,
+          status: 'resolved',
+          reason: `Image asset "${node.assetId}" resolved by resource loader`,
+        }
+      }
+
+      return {
+        ...base,
+        resolved: false,
+        status: 'missing-resource',
+        reason: `Resource loader returned no image for asset "${node.assetId}"`,
+      }
+    } catch (error) {
+      return {
+        ...base,
+        resolved: false,
+        status: 'loader-error',
+        reason: error instanceof Error
+          ? `Resource loader failed for asset "${node.assetId}": ${error.message}`
+          : `Resource loader failed for asset "${node.assetId}": ${String(error)}`,
+      }
+    }
+  }
+
   // -- Camera (flat) --
 
   /**
@@ -3096,6 +3413,7 @@ export class Venus {
       ungroup: (id: string) => this.ungroup(id),
       addChild: (parentId: string, child: VenusNode) => this.addChild(parentId, child),
       removeChild: (parentId: string, childId: string) => this.removeChild(parentId, childId),
+      reparent: (id: string, parentId: string | null, index?: number) => this.reparent(id, parentId, index),
       getLayerIndex: (id: string) => this.getDocumentLayerIndex(id),
       getLayerOrder: (parentId: string | null = null) => this.getDocumentLayerOrder(parentId),
       moveLayer: (id: string, index: number) => this.moveDocumentLayer(id, index),
@@ -3329,6 +3647,86 @@ export class Venus {
   }
 
   /**
+   * Moves a node between parent-local child lists without changing authored geometry.
+   * @param id Node id to move.
+   * @param toParentId Target parent id, or null for the root layer.
+   * @param index Optional target child index. Defaults to appending in the target parent.
+   */
+  private reparentDocumentNode(id: string, toParentId: string | null, index?: number): VenusReparentMutationResult {
+    const node = this.nodeById.get(id)
+    const fromParentId = this.parentById.get(id) ?? null
+    const sourceSiblings = this.resolveSiblingNodes(fromParentId)
+    const fromIndex = node && sourceSiblings ? sourceSiblings.indexOf(node) : -1
+    const targetSiblings = this.resolveSiblingNodes(toParentId)
+    const rejectedOrder = this.getDocumentLayerOrder(toParentId)
+
+    if (!node || !sourceSiblings || fromIndex < 0 || !targetSiblings) {
+      return createVenusReparentMutationResult(id, fromParentId, toParentId, fromIndex, -1, false, this.revision, rejectedOrder)
+    }
+
+    if (toParentId === id || this.isDocumentAncestor(id, toParentId)) {
+      return createVenusReparentMutationResult(id, fromParentId, toParentId, fromIndex, -1, false, this.revision, rejectedOrder)
+    }
+
+    if (fromParentId === toParentId) {
+      if (index === undefined) {
+        return createVenusReparentMutationResult(id, fromParentId, toParentId, fromIndex, fromIndex, false, this.revision, this.getDocumentLayerOrder(fromParentId))
+      }
+
+      const layerResult = this.moveDocumentLayer(id, index)
+      return createVenusReparentMutationResult(
+        id,
+        fromParentId,
+        toParentId,
+        layerResult.fromIndex,
+        layerResult.toIndex,
+        layerResult.applied,
+        layerResult.revision,
+        layerResult.order,
+      )
+    }
+
+    const targetIndex = Number.isFinite(index)
+      ? Math.max(0, Math.min(targetSiblings.length, Math.trunc(index as number)))
+      : targetSiblings.length
+
+    this.recordHistory()
+    const nextSourceSiblings = [
+      ...sourceSiblings.slice(0, fromIndex),
+      ...sourceSiblings.slice(fromIndex + 1),
+    ]
+    const nextTargetSiblings = [
+      ...targetSiblings.slice(0, targetIndex),
+      node,
+      ...targetSiblings.slice(targetIndex),
+    ]
+    this.replaceSiblingNodes(fromParentId, nextSourceSiblings)
+    this.replaceSiblingNodes(toParentId, nextTargetSiblings)
+    this.rebuildRenderNodes()
+    this.revision += 1
+    const affectedParentIds = Array.from(new Set([fromParentId, toParentId]))
+    const affectedNodeIds = collectVenusDocumentNodeIds(node)
+    const order = this.getDocumentLayerOrder(toParentId)
+
+    this.emit('document:structure-changed', {
+      revision: this.revision,
+      parentId: toParentId,
+      affectedParentIds,
+      affectedNodeIds,
+      order,
+      reason: 'reparent',
+    })
+    this.emit('document:changed', {
+      revision: this.revision,
+      affectedNodeIds,
+      reason: 'structure-changed',
+    })
+    this.scheduleRender()
+
+    return createVenusReparentMutationResult(id, fromParentId, toParentId, fromIndex, order.indexOf(id), true, this.revision, order)
+  }
+
+  /**
    * Moves a node inside its parent-local layer list and returns mutation metadata.
    * @param id Node id to move.
    * @param index Requested sibling index; clamped to the current sibling range.
@@ -3428,6 +3826,74 @@ export class Venus {
       ? (currentIndex < targetIndex ? targetIndex - 1 : targetIndex)
       : (currentIndex < targetIndex ? targetIndex : targetIndex + 1)
     return this.moveDocumentLayer(id, nextIndex)
+  }
+
+  /**
+   * Returns true when `ancestorId` owns `nodeId` somewhere in its subtree.
+   * @param ancestorId Possible ancestor node id.
+   * @param nodeId Possible descendant node id.
+   */
+  private isDocumentAncestor(ancestorId: string, nodeId: string | null): boolean {
+    let currentId = nodeId
+    while (currentId) {
+      if (currentId === ancestorId) {
+        return true
+      }
+      currentId = this.parentById.get(currentId) ?? null
+    }
+    return false
+  }
+
+  /**
+   * Normalizes structural selections by removing descendants of selected ancestors.
+   * @param ids Candidate public document ids from a product selection.
+   */
+  private normalizeDocumentStructureSelection(ids: readonly string[]): string[] {
+    const uniqueIds = Array.from(new Set(ids))
+    const selectedSet = new Set(uniqueIds)
+    const order = this.resolveDocumentOrderIndex()
+
+    uniqueIds.forEach((id) => {
+      if (!this.nodeById.has(id)) {
+        throw new Error(`Node "${id}" not found`)
+      }
+    })
+
+    return uniqueIds
+      .filter((id) => !this.hasSelectedDocumentAncestor(id, selectedSet))
+      .sort((a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER))
+  }
+
+  private hasSelectedDocumentAncestor(id: string, selectedSet: ReadonlySet<string>): boolean {
+    let parentId = this.parentById.get(id) ?? null
+    while (parentId) {
+      if (selectedSet.has(parentId)) {
+        return true
+      }
+      parentId = this.parentById.get(parentId) ?? null
+    }
+    return false
+  }
+
+  private resolveDocumentOrderIndex(): Map<string, number> {
+    const order = new Map<string, number>()
+    let index = 0
+    const visit = (node: VenusNode) => {
+      if (node.id) {
+        order.set(node.id, index)
+        index += 1
+      }
+      if (node.type === 'frame' || node.type === 'group') {
+        node.children.forEach(visit)
+        return
+      }
+      if (node.type === 'clip' || node.type === 'mask') {
+        visit(node.clipPath)
+        node.children.forEach(visit)
+      }
+    }
+    this.documentNodes.forEach(visit)
+    return order
   }
 
   private collectEngineNodes(nodes: readonly EngineRenderableNode[]): EngineRenderableNode[] {
@@ -3953,6 +4419,7 @@ export class Venus {
    * @param options.phase Sets hover or click defaults.
    * @param options.tolerance Screen-pixel tolerance override.
    * @param options.includeLocked Returns locked hits only when enabled.
+   * @param options.respectClip Keeps clipped-out content from being hit. Defaults to true.
    * @returns Topmost hit result, or null.
    */
   hitTest(point: {x: number, y: number}, options: VenusHitTestOptions = {}): VenusDetailedHitTestResult | null {
@@ -3981,6 +4448,7 @@ export class Venus {
    * @param options.phase Sets hover or click defaults.
    * @param options.tolerance Screen-pixel tolerance override.
    * @param options.includeLocked Returns locked hits only when enabled.
+   * @param options.respectClip Keeps clipped-out content from being hit. Defaults to true.
    * @returns Ordered hit results with target, region, anchor, center, and bounds metadata.
    */
   hitTestAll(point: {x: number, y: number}, options: VenusHitTestOptions = {}): VenusDetailedHitTestResult[] {
@@ -3995,6 +4463,11 @@ export class Venus {
    * const ids = venus.querySelectionInRect({x: 0, y: 0, width: 240, height: 180})
    * @param rect Query rectangle in document or screen coordinates.
    * @param options Query policy.
+   * @param options.coordinateSpace Coordinate space of rect. Document space is the default.
+   * @param options.mode Selection geometry policy. Intersect is the default; contain requires full containment.
+   * @param options.includeLocked Includes locked nodes in query results.
+   * @param options.includeHidden Includes nodes with visible false.
+   * @param options.includeContainers Includes structure/container nodes such as group, clip, and mask.
    * @returns Matching node ids in render traversal order.
    */
   querySelectionInRect(
@@ -4012,6 +4485,7 @@ export class Venus {
    * const ids = venus.selectInRect({x: 0, y: 0, width: 240, height: 180})
    * @param rect Query rectangle in document or screen coordinates.
    * @param options Selection and query policy.
+   * @param options.selectionMode How query results update the current selection.
    * @returns The selection ids after applying the query.
    */
   selectInRect(
@@ -4049,6 +4523,76 @@ export class Venus {
     return [...this.getSelection()]
   }
 
+  /**
+   * @name Venus.getSelectionOverlay
+   * @description Returns style-free selection overlay geometry for the current selection.
+   * @example Usage
+   * const overlay = venus.getSelectionOverlay()
+   * @param options Optional ids override; defaults to the interaction selection snapshot.
+   * @param options.ids Optional ids to inspect instead of the current interaction selection.
+   * @returns Selection bounds and outline geometry, or null when no selected bounds exist.
+   */
+  getSelectionOverlay(options: VenusSelectionOverlayOptions = {}): VenusSelectionOverlay | null {
+    this.requireModuleInstalled('interaction')
+    const selectedIds = [...(options.ids ?? this.getSelection())]
+    const bounds = this.resolveNodeIdsAggregateBounds(selectedIds)
+    if (!bounds) {
+      return null
+    }
+
+    const overlayBounds = engineRectToOverlayBounds(bounds)
+    return {
+      selectedIds,
+      bounds: overlayBounds,
+      outline: {
+        kind: 'rect',
+        bounds: overlayBounds,
+      },
+      revision: this.revision,
+    }
+  }
+
+  /**
+   * @name Venus.getHoverOverlay
+   * @description Returns style-free hover overlay geometry for a node id or topmost hit point.
+   * @example Usage
+   * const overlay = venus.getHoverOverlay({nodeId: 'rect-1'})
+   * @param options Hover source options.
+   * @param options.nodeId Node id to outline.
+   * @param options.point Screen-space point used to resolve a hit when no node id is supplied.
+   * @param options.hitOptions Hit-test options used when point is supplied.
+   * @returns Hover bounds and outline geometry, or null when no node can be resolved.
+   */
+  getHoverOverlay(options: VenusHoverOverlayOptions): VenusHoverOverlay | null {
+    this.requireModuleInstalled('interaction')
+    const hit = options.nodeId
+      ? undefined
+      : options.point
+        ? this.hitTest(options.point, options.hitOptions)
+        : null
+    const nodeId = options.nodeId ?? hit?.nodeId
+    if (!nodeId) {
+      return null
+    }
+
+    const bounds = this.resolveNodeIdsAggregateBounds([nodeId])
+    if (!bounds) {
+      return null
+    }
+
+    const overlayBounds = engineRectToOverlayBounds(bounds)
+    return {
+      nodeId,
+      bounds: overlayBounds,
+      outline: {
+        kind: 'rect',
+        bounds: overlayBounds,
+      },
+      hit: hit ?? undefined,
+      revision: this.revision,
+    }
+  }
+
   private resolveDetailedHits(
     point: {x: number; y: number},
     options: ReturnType<typeof resolveVenusHitTestOptions>,
@@ -4056,7 +4600,7 @@ export class Venus {
     return resolveVenusDetailedHits({
       point,
       options,
-      hits: this.engine?.hitTestAll(point, options.tolerance) ?? [],
+      hits: this.engine?.hitTestAll(point, options.tolerance, {respectClip: options.respectClip}) ?? [],
       resolveNode: (id) => this._rawNode(id),
       resolveBounds: getNodeBounds,
     })
@@ -4095,6 +4639,24 @@ export class Venus {
     })
 
     return ids
+  }
+
+  private resolveNodeIdsAggregateBounds(ids: readonly string[]): EngineRect | null {
+    if (ids.length === 0) {
+      return null
+    }
+
+    const selectedIds = new Set(ids)
+    let aggregate: EngineRect | null = null
+
+    this.visitSelectionCandidates(this.nodes, IDENTITY_TRANSFORM, {hidden: false, locked: false}, (node, bounds) => {
+      if (!selectedIds.has(node.id)) {
+        return
+      }
+      aggregate = aggregate ? unionEngineBounds(aggregate, bounds) : bounds
+    })
+
+    return aggregate
   }
 
   private resolveSelectionQueryRect(
@@ -4175,8 +4737,13 @@ export class Venus {
    * @param ids Document node ids to select.
    */
   setSelection(ids: readonly string[]): void {
-    const interaction = this._requireModuleApi<{ setSelection(ids: readonly string[]): void }>('interaction')
+    const interaction = this._requireModuleApi<{
+      getSelection(): ReadonlySet<string>
+      setSelection(ids: readonly string[]): void
+    }>('interaction')
+    const previousSelection = interaction.getSelection()
     interaction.setSelection(ids)
+    this.emitSelectionChanged(previousSelection, interaction.getSelection())
   }
 
   /**
@@ -4188,8 +4755,13 @@ export class Venus {
    * @param ids A single node id or an array of node ids to select.
    */
   select(ids: string | readonly string[]): void {
-    const interaction = this._requireModuleApi<{ select(ids: string | readonly string[]): void }>('interaction')
+    const interaction = this._requireModuleApi<{
+      getSelection(): ReadonlySet<string>
+      select(ids: string | readonly string[]): void
+    }>('interaction')
+    const previousSelection = interaction.getSelection()
     interaction.select(ids)
+    this.emitSelectionChanged(previousSelection, interaction.getSelection())
   }
 
   /**
@@ -4200,8 +4772,13 @@ export class Venus {
    * @param ids A single node id or an array of node ids to deselect.
    */
   deselect(ids: string | readonly string[]): void {
-    const interaction = this._requireModuleApi<{ deselect(ids: string | readonly string[]): void }>('interaction')
+    const interaction = this._requireModuleApi<{
+      getSelection(): ReadonlySet<string>
+      deselect(ids: string | readonly string[]): void
+    }>('interaction')
+    const previousSelection = interaction.getSelection()
     interaction.deselect(ids)
+    this.emitSelectionChanged(previousSelection, interaction.getSelection())
   }
 
   /**
@@ -4211,8 +4788,13 @@ export class Venus {
    * venus.selectAll()
    */
   selectAll(): void {
-    const interaction = this._requireModuleApi<{ selectAll(): void }>('interaction')
+    const interaction = this._requireModuleApi<{
+      getSelection(): ReadonlySet<string>
+      selectAll(): void
+    }>('interaction')
+    const previousSelection = interaction.getSelection()
     interaction.selectAll()
+    this.emitSelectionChanged(previousSelection, interaction.getSelection())
   }
 
   /**
@@ -4222,8 +4804,13 @@ export class Venus {
    * venus.clearSelection()
    */
   clearSelection(): void {
-    const interaction = this._requireModuleApi<{ clearSelection(): void }>('interaction')
+    const interaction = this._requireModuleApi<{
+      getSelection(): ReadonlySet<string>
+      clearSelection(): void
+    }>('interaction')
+    const previousSelection = interaction.getSelection()
     interaction.clearSelection()
+    this.emitSelectionChanged(previousSelection, interaction.getSelection())
   }
 
   /**
@@ -4250,6 +4837,25 @@ export class Venus {
   onSelectionChange(handler: (selection: ReadonlySet<string>) => void): () => void {
     const interaction = this._requireModuleApi<{ onSelectionChange(h: (s: ReadonlySet<string>) => void): () => void }>('interaction')
     return interaction.onSelectionChange(handler)
+  }
+
+  private emitSelectionChanged(
+    previousSelection: ReadonlySet<string>,
+    nextSelection: ReadonlySet<string>,
+  ): void {
+    if (
+      previousSelection.size === nextSelection.size &&
+      [...previousSelection].every((id) => nextSelection.has(id))
+    ) {
+      return
+    }
+
+    this.emit('selection:changed', {
+      selection: [...nextSelection],
+      previousSelection: [...previousSelection],
+      added: [...nextSelection].filter((id) => !previousSelection.has(id)),
+      removed: [...previousSelection].filter((id) => !nextSelection.has(id)),
+    })
   }
 
   // ── Effects (delegates to effects module) ────────────────────────────────

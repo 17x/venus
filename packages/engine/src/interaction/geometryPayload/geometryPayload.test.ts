@@ -146,6 +146,14 @@ test('resolveEngineGeometryPayload preserves selected node order', () => {
   assert.deepEqual(payload.selected.map((item) => item.nodeId), ['shape-b', 'shape-a'])
   assert.equal(payload.selected[0]?.outline.kind, 'polyline')
   assert.equal(payload.selected[1]?.outline.kind, 'polyline')
+  assert.deepEqual(payload.selectionOverlay?.selectedNodeIds, ['shape-b', 'shape-a'])
+  assert.deepEqual(payload.selectionOverlay?.bounds, {
+    minX: 10,
+    minY: 10,
+    maxX: 120,
+    maxY: 90,
+  })
+  assert.equal(payload.selectionOverlay?.outline.kind, 'bounds')
 })
 
 /**
@@ -173,6 +181,8 @@ test('resolveEngineGeometryPayload emits transformed rectangle outline', () => {
   assert.equal(payload.hovered?.outline.kind, 'polyline')
   assert.equal(payload.hovered?.outline.closed, true)
   assert.equal(payload.hovered?.outline.points?.length, 4)
+  assert.equal(payload.hoverOverlay?.nodeId, 'rect-rotated')
+  assert.equal(payload.hoverOverlay?.outline, payload.hovered?.outline)
   assert.notDeepEqual(
     payload.hovered?.outline.points?.[0],
     {x: payload.hovered?.bounds.minX, y: payload.hovered?.bounds.minY},

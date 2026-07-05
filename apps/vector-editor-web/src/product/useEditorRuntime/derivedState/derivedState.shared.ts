@@ -36,20 +36,6 @@ export const DEFAULT_PRESENTATION_CONFIG = {
 } as const
 
 /**
- * Converts axis-aligned bounds into a closed world polyline.
- * @param bounds Rectangle bounds to convert.
- */
-export function toRectPolylineFromBounds(bounds: {minX: number; minY: number; maxX: number; maxY: number}) {
-  return [
-    {x: bounds.minX, y: bounds.minY},
-    {x: bounds.maxX, y: bounds.minY},
-    {x: bounds.maxX, y: bounds.maxY},
-    {x: bounds.minX, y: bounds.maxY},
-    {x: bounds.minX, y: bounds.minY},
-  ]
-}
-
-/**
  * Resolves world-space control sizing from viewport scale.
  * @param scale Current viewport scale.
  */

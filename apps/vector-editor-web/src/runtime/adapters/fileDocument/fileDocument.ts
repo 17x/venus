@@ -181,6 +181,45 @@ function resolveCornerRadii(value: unknown): DocumentNode['cornerRadii'] {
   }
 }
 
+function resolveImageSourceRect(value: unknown): DocumentNode['sourceRect'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (
+    typeof record.x !== 'number' ||
+    typeof record.y !== 'number' ||
+    typeof record.width !== 'number' ||
+    typeof record.height !== 'number'
+  ) {
+    return undefined
+  }
+
+  return {
+    x: record.x,
+    y: record.y,
+    width: record.width,
+    height: record.height,
+  }
+}
+
+function resolveImageNaturalSize(value: unknown): DocumentNode['naturalSize'] {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  if (typeof record.width !== 'number' || typeof record.height !== 'number') {
+    return undefined
+  }
+
+  return {
+    width: record.width,
+    height: record.height,
+  }
+}
+
 function resolveFeatureKinds(element: ElementProps, shapeType: ShapeType) {
   const featureKinds = ['METADATA']
 
@@ -280,6 +319,9 @@ function toDocumentShape(
       typeof element.assetUrl === 'string'
         ? element.assetUrl
         : assetUrlResolver?.(typeof element.asset === 'string' ? element.asset : undefined),
+    sourceRect: resolveImageSourceRect(element.sourceRect),
+    naturalSize: resolveImageNaturalSize(element.naturalSize),
+    imageSmoothing: typeof element.imageSmoothing === 'boolean' ? element.imageSmoothing : undefined,
     points,
     bezierPoints,
     strokeStartArrowhead: resolveArrowhead(element.strokeStartArrowhead),
@@ -340,6 +382,9 @@ export function createFileElementsFromDocument(document: EditorDocument): Elemen
       width: shape.width,
       height: shape.height,
       asset: shape.assetId,
+      sourceRect: shape.sourceRect ? {...shape.sourceRect} : undefined,
+      naturalSize: shape.naturalSize ? {...shape.naturalSize} : undefined,
+      imageSmoothing: shape.imageSmoothing,
       clipPathId: shape.clipPathId,
       clipRule: shape.clipRule,
       maskGroupId: shape.schema?.maskGroupId,

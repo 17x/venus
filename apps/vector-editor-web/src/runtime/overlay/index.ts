@@ -3,6 +3,7 @@ import type {
   OverlayCoordinateSpace,
   OverlayPrimitiveType,
 } from '@venus/editor-primitive'
+import {rectBoundsToPolyline} from '@venus/engine'
 import type { RuntimePoint } from '../types/index.ts'
 
 export type RuntimeOverlayLayerId =
@@ -133,21 +134,6 @@ export interface RuntimePathEditBuildInput {
   } | null
 }
 
-function toRectPolyline(bounds: {
-  minX: number
-  minY: number
-  maxX: number
-  maxY: number
-}): RuntimePoint[] {
-  return [
-    {x: bounds.minX, y: bounds.minY},
-    {x: bounds.maxX, y: bounds.minY},
-    {x: bounds.maxX, y: bounds.maxY},
-    {x: bounds.minX, y: bounds.maxY},
-    {x: bounds.minX, y: bounds.minY},
-  ]
-}
-
 /**
  * Build runtime-owned overlay drawing instructions from interaction state.
  * This is a migration-safe contract so engine-side overlay rendering can
@@ -162,7 +148,7 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
       layerId: 'overlay.selection',
       primitive: 'polyline',
       coordinate: 'world',
-      points: toRectPolyline(input.selectedBounds),
+      points: rectBoundsToPolyline(input.selectedBounds),
       style: {
         strokeColor: '#2563eb',
         strokeWidth: 1,
@@ -177,7 +163,7 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
       layerId: 'overlay.marquee',
       primitive: 'polyline',
       coordinate: 'world',
-      points: toRectPolyline(input.marqueeBounds),
+      points: rectBoundsToPolyline(input.marqueeBounds),
       style: {
         strokeColor: 'rgba(37, 99, 235, 0.95)',
         strokeWidth: 1,
@@ -209,7 +195,7 @@ export function buildRuntimeOverlayInstructions(input: RuntimeOverlayBuildInput)
       layerId: 'overlay.hover',
       primitive: 'polyline',
       coordinate: 'world',
-      points: toRectPolyline(input.hoveredShapeBounds),
+      points: rectBoundsToPolyline(input.hoveredShapeBounds),
       style: {
         strokeColor: 'rgba(14, 165, 233, 0.9)',
         strokeWidth: 1,

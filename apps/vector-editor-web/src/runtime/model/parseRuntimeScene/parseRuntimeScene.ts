@@ -102,6 +102,8 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
         fontStyle: run.fontStyle,
         letterSpacing: run.letterSpacing,
         lineHeight: run.lineHeight,
+        textAlign: run.textAlign,
+        verticalAlign: run.verticalAlign,
         shadow:
           typeof run.shadowColor === 'string' ||
           typeof run.shadowOffsetX === 'number' ||
@@ -117,6 +119,9 @@ function parseRuntimeNode(node: RuntimeSceneLatest['nodes'][number]): DocumentNo
       },
     })),
     assetId: imageFeature ? resolveImageAssetId(imageFeature) : undefined,
+    sourceRect: imageFeature ? resolveImageSourceRect(imageFeature) : undefined,
+    naturalSize: imageFeature ? resolveImageNaturalSize(imageFeature) : undefined,
+    imageSmoothing: imageFeature ? resolveImageSmoothing(imageFeature) : undefined,
     clipPathId: clipFeature?.sourceNodeId,
     clipRule: clipFeature
       ? clipFeature.clipRule === 'EVENODD'
@@ -254,6 +259,52 @@ function resolveImageAssetId(imageFeature: ReturnType<typeof getImageFeature>) {
 
   const feature = imageFeature as {imageId?: string; assetId?: string}
   return feature.imageId ?? feature.assetId
+}
+
+function resolveImageSourceRect(imageFeature: ReturnType<typeof getImageFeature>) {
+  const value = (imageFeature as {sourceRect?: unknown} | null)?.sourceRect
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const rect = value as Record<string, unknown>
+  if (
+    typeof rect.x !== 'number' ||
+    typeof rect.y !== 'number' ||
+    typeof rect.width !== 'number' ||
+    typeof rect.height !== 'number'
+  ) {
+    return undefined
+  }
+
+  return {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
+function resolveImageNaturalSize(imageFeature: ReturnType<typeof getImageFeature>) {
+  const value = (imageFeature as {naturalSize?: unknown} | null)?.naturalSize
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const size = value as Record<string, unknown>
+  if (typeof size.width !== 'number' || typeof size.height !== 'number') {
+    return undefined
+  }
+
+  return {
+    width: size.width,
+    height: size.height,
+  }
+}
+
+function resolveImageSmoothing(imageFeature: ReturnType<typeof getImageFeature>) {
+  const value = (imageFeature as {imageSmoothing?: unknown} | null)?.imageSmoothing
+  return typeof value === 'boolean' ? value : undefined
 }
 
 function extractPathGeometry(paths: RuntimePathV4[]) {

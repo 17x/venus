@@ -23,9 +23,13 @@ import type {SelectorOverlayItem} from '@venus/editor-primitive'
 import {resolveShapeStyleControls, type ShapeStyleHandleDrag} from '../../runtime/shapeStyleHandles.ts'
 import {useEditorRuntimeDerivedPathOverlay} from './derivedState.pathOverlay.ts'
 import {
+  closePolylinePoints,
+  rectBoundsToPolyline,
+  type EngineGeometryPayload,
+} from '@venus/engine'
+import {
   resolveMarqueeControlStyle,
   resolveOverlayControlSizing,
-  toRectPolylineFromBounds,
 } from './derivedState.shared.ts'
 
 /**
@@ -42,11 +46,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
   interactionDocument: EditorDocument
   previewShapeById: Map<string, EditorDocument['shapes'][number]>
   shapeStyleHandleDrag: ShapeStyleHandleDrag | null
-  engineGeometryPayload: {
-    hovered: any
-    selected: any[]
-    marqueeCandidateNodeIds: string[]
-  }
+  engineGeometryPayload: EngineGeometryPayload
   selectorOverlayItems: SelectorOverlayItem[]
   effectiveSnapGuides: SnapGuide[]
   activeTransformHandle: string | null
@@ -80,11 +80,12 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
 
   const hoverOverlayInstructions = useMemo<RuntimeOverlayInstruction[]>(() => {
     const hoveredPayload = input.engineGeometryPayload.hovered
-    if (!hoveredPayload) {
+    const hoverOverlay = input.engineGeometryPayload.hoverOverlay
+    if (!hoveredPayload || !hoverOverlay) {
       return []
     }
 
-    const hoveredShape = input.interactionDocument.shapes.find((shape) => shape.id === hoveredPayload.nodeId) ?? null
+    const hoveredShape = input.interactionDocument.shapes.find((shape) => shape.id === hoverOverlay.nodeId) ?? null
     const suppressMaskInnerOutlines = Boolean(
       hoveredShape && (
         hoveredShape.schema?.maskRole === 'source' ||
@@ -93,13 +94,13 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       )
     )
 
-    const hoveredIsSelected = input.selectedShapeIds.includes(hoveredPayload.nodeId)
+    const hoveredIsSelected = input.selectedShapeIds.includes(hoverOverlay.nodeId)
     if (hoveredIsSelected && hoveredShape?.type === 'group') {
       return []
     }
 
     const hoverOutlines = [
-      hoveredPayload.outline,
+      hoverOverlay.outline,
       ...(suppressMaskInnerOutlines ? [] : hoveredPayload.detailOutlines ?? []),
     ]
     const instructions: RuntimeOverlayInstruction[] = []
@@ -108,18 +109,13 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       hoverOutlines.forEach((outline, index) => {
         const hoverWorldPoints = outline.kind === 'polyline'
           ? (outline.points ?? [])
-          : toRectPolylineFromBounds(outline.bounds ?? hoveredPayload.bounds)
+          : rectBoundsToPolyline(outline.bounds ?? hoverOverlay.bounds)
         if (hoverWorldPoints.length < 2) {
           return
         }
 
-        const hoverPoints = (
-          outline.closed &&
-          hoverWorldPoints.length >= 2 &&
-          (hoverWorldPoints[0]?.x !== hoverWorldPoints[hoverWorldPoints.length - 1]?.x ||
-            hoverWorldPoints[0]?.y !== hoverWorldPoints[hoverWorldPoints.length - 1]?.y)
-        )
-          ? [...hoverWorldPoints, hoverWorldPoints[0]]
+        const hoverPoints = outline.closed
+          ? closePolylinePoints(hoverWorldPoints)
           : hoverWorldPoints
 
         instructions.push({
@@ -153,6 +149,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
 
     return instructions
   }, [
+    input.engineGeometryPayload.hoverOverlay,
     input.engineGeometryPayload.hovered,
     input.interactionDocument.shapes,
     input.selectedShapeIds,
@@ -173,7 +170,8 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       },
     })
 
-    if (shouldSuppressSelectionBoundsOverlay || !input.selectionState.selectedBounds) {
+    const selectedBounds = input.engineGeometryPayload.selectionOverlay?.bounds ?? input.selectionState.selectedBounds
+    if (shouldSuppressSelectionBoundsOverlay || !selectedBounds) {
       return base
     }
 
@@ -189,7 +187,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       ? (input.selectedNode?.rotation ?? 0)
       : 0
     const overlayModel = buildVectorOverlayModel({
-      selectedBounds: input.selectionState.selectedBounds,
+      selectedBounds,
       selectionRotationDegrees: singleSelectionRotation,
       selectedShapeIds: input.selectedShapeIds,
       marqueeBounds: null,
@@ -219,6 +217,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
     input.previewShapeById,
     input.selectedNode?.rotation,
     input.selectedShapeIds,
+    input.engineGeometryPayload.selectionOverlay?.bounds,
     input.selectionState.selectedBounds,
     input.shapeStyleHandleDrag,
     shouldSuppressSelectionBoundsOverlay,
@@ -231,7 +230,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
 
     const instructions: RuntimeOverlayInstruction[] = []
 
-    input.engineGeometryPayload.selected.forEach((payload, selectionIndex) => {
+    input.engineGeometryPayload.selected.forEach((payload: EngineGeometryPayload['selected'][number], selectionIndex: number) => {
       if (payload.nodeType === 'group') {
         return
       }
@@ -240,18 +239,13 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       selectedOutlines.forEach((outline, outlineIndex) => {
         const worldPoints = outline.kind === 'polyline'
           ? (outline.points ?? [])
-          : toRectPolylineFromBounds(outline.bounds ?? payload.bounds)
+          : rectBoundsToPolyline(outline.bounds ?? payload.bounds)
         if (worldPoints.length < 2) {
           return
         }
 
-        const points = (
-          outline.closed &&
-          worldPoints.length >= 2 &&
-          (worldPoints[0]?.x !== worldPoints[worldPoints.length - 1]?.x ||
-            worldPoints[0]?.y !== worldPoints[worldPoints.length - 1]?.y)
-        )
-          ? [...worldPoints, worldPoints[0]]
+        const points = outline.closed
+          ? closePolylinePoints(worldPoints)
           : worldPoints
 
         instructions.push({
@@ -278,7 +272,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
 
     const instructions: RuntimeOverlayInstruction[] = []
 
-    input.engineGeometryPayload.selected.forEach((payload) => {
+    input.engineGeometryPayload.selected.forEach((payload: EngineGeometryPayload['selected'][number]) => {
       if (payload.nodeType !== 'text' || payload.detailOutlines.length === 0) {
         return
       }
@@ -286,7 +280,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       payload.detailOutlines.forEach((outline: {kind: 'polyline' | 'bounds'; points?: Array<{x: number; y: number}>; bounds?: {minX: number; minY: number; maxX: number; maxY: number}}, index: number) => {
         const points = outline.kind === 'polyline'
           ? (outline.points ?? [])
-          : toRectPolylineFromBounds(outline.bounds ?? payload.bounds)
+          : rectBoundsToPolyline(outline.bounds ?? payload.bounds)
         if (points.length < 2) {
           return
         }

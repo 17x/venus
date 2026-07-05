@@ -208,6 +208,8 @@ It should own:
 - form controls
 - buttons, inputs, menus, modals, cards, separators, tooltips
 - Vector-compatible theme tokens
+- Vector theme mode provider behavior, including document root dark class and
+  browser `color-scheme` synchronization
 - Vector editor UI components that are reusable outside Vector
 - tests for component behavior, style entry, and theme exports
 
@@ -343,12 +345,13 @@ as package entrypoints.
 | base | `off(eventName, handler)` | required | Removes a handler registered with the same function reference. | Document no-op behavior when handler is absent. |
 | base | `add(node)` | required | Adds a document node or subtree and returns a typed proxy. | Document source node ownership, id assignment, revision increment, and `document:node-added`/`document:changed` emission. |
 | base | `update(id, patch)` | required | Applies a shallow document patch. | Document no-op when id is missing, mutation classification, revision behavior, and node update events. |
-| base | `remove(id)` | required | Removes a node or subtree. | Document parent-local removal, no-op when id is missing, revision behavior, and remove events. |
+| base | `remove(id)` | required | Removes a node or subtree from its current parent-local child list. | Document root/nested behavior, no-op when id is missing, revision behavior, subtree id cleanup, and remove/structure events. |
 | base | `children()` | required | Returns root document nodes without flattening containers. | Document readonly/snapshot expectations; callers must not depend on internal mutation. |
 | base | `getNodeById(id)` | required | Returns a proxy for one document node or null. | Document null behavior and proxy mutation path. |
 | base | `getParentId(id)` | required | Returns parent id or null for root nodes. | Document that frame/group/clip children are indexed. |
 | base | `bounds()` | required | Returns aggregate world/document bounds. | Document empty bounds behavior and derived group bounds. |
 | base | `snapshot()` | required | Returns render-facing engine scene snapshot. | Document that snapshot is render-facing, not product file format. |
+| base | `inspectImageResources()` | required | Reports image resource resolution diagnostics. | Document that `assetUrl` is import/export metadata and render resolution still goes through `resource.loader.resolveImage(assetId)`. |
 | base | `mount(canvas)` | required | Mounts render backend to a canvas. | Document backend creation, `mounted`, and fallback behavior. |
 | base | `resize(size)` | required | Updates viewport/output dimensions. | Document no-op before mount and `resized` emission after mounted resize. |
 | base | `render()` | required | Renders current snapshot to mounted backend. | Document no-op before mount and `render:before`/`render:after` events. |
@@ -368,6 +371,7 @@ as package entrypoints.
 | base | `ungroup(id)` | required | Lifts a structure-only group's children into its parent. | Document frame/clip/mask restrictions and order preservation. |
 | base | `addChild(parentId, child)` | required | Adds a child to frame/group/clip/mask. | Document parent validation and structure event behavior. |
 | base | `removeChild(parentId, childId)` | required | Removes a child from frame/group/clip/mask. | Document no-op behavior and subtree indexing cleanup. |
+| base | `reparent(id, parentId, index?)` | required | Moves one node into another parent-local child list or root. | Document self/descendant rejection, index clamping, current authored geometry preservation, history recording, and `document:structure-changed` payload. |
 | base | `validateClipGraph(snapshot?)` | required | Validates clip references, cycles, rules, and inline geometry. | Document result issue codes and default current snapshot. |
 | base | `resolveClipDependencies(nodeId, snapshot?)` | required | Returns direct/transitive clip node ids. | Document cycle handling and missing node behavior. |
 | camera | `fitBounds(bounds, padding?)` | required | Computes and applies viewport that fits document bounds. | Document camera module gating and return viewport fields. |
@@ -375,8 +379,8 @@ as package entrypoints.
 | camera | `panBy(delta)` | required | Applies screen-space pan delta. | Document viewport return and no document mutation. |
 | camera | `project(point)` | required | Converts document point to screen point. | Document camera module gating. |
 | camera | `unproject(point)` | required | Converts screen point to document point. | Document camera module gating. |
-| hitTest | `hitTest(point, options?)` | required | Returns topmost detailed hit. | Document coordinate space, tolerance, locked policy, and `hit` event. |
-| hitTest | `hitTestAll(point, options?)` | required | Returns all detailed hits in paint order. | Document topmost-first sorting and target metadata. |
+| hitTest | `hitTest(point, options?)` | required | Returns topmost detailed hit. | Document coordinate space, tolerance, locked policy, `respectClip`, and `hit` event. |
+| hitTest | `hitTestAll(point, options?)` | required | Returns all detailed hits in paint order. | Document topmost-first sorting, target metadata, and clip filtering policy. |
 | interaction | `getSelection()` | required | Returns readonly selected id snapshot. | Document snapshot immutability. |
 | interaction | `setSelection(ids, options?)` | required | Replaces selection. | Document filtering policy, event behavior, and no-op duplicate suppression. |
 | interaction | `select(ids, options?)` | required | Adds ids to selection. | Document single and array forms. |
@@ -387,8 +391,8 @@ as package entrypoints.
 | interaction | `onSelectionChange(handler)` | compatibility | Existing convenience subscription. | Prefer `on('selection:changed', ...)`; keep only with removal criteria. |
 | interaction | `querySelectionInRect(rect, options?)` | required | Returns ids matching marquee rectangle. | Document coordinate space, contain/intersect policy, and locked/hidden/container options. |
 | interaction | `selectInRect(rect, options?)` | required | Applies marquee selection results. | Document replace/add/subtract/toggle behavior and event emission. |
-| interaction | `getSelectionOverlay(options?)` | planned | Returns generic selection overlay geometry. | Document that Vector owns styling, engine owns geometry. |
-| interaction | `getHoverOverlay(options?)` | planned | Returns generic hover overlay geometry. | Document dependency on hit state. |
+| interaction | `getSelectionOverlay(options?)` | required | Returns generic style-free selection overlay geometry. | Document that Vector owns styling, engine owns geometry; `ids` may override current selection. |
+| interaction | `getHoverOverlay(options)` | required | Returns generic style-free hover overlay geometry from `nodeId` or hit-test `point`. | Document dependency on hitTest module only when resolving from `point`; Vector owns visibility/styling policy. |
 | interaction | `getTransformHandles(nodeIds, options?)` | planned | Returns transform handle positions. | Document camera/viewport coordinate policy. |
 | interaction | `getAnchorHandles(nodeId, options?)` | planned | Returns path/line anchor handle geometry. | Document path/line support scope. |
 | animate | `animate(id, keyframes, options?)` | required | Runs numeric property interpolation. | Document controller lifecycle, cancellation, and invalidation class. |
@@ -432,7 +436,7 @@ through `venus.off(eventName, handler)` or the unsubscribe returned by `on`.
 | base | `document:node-added` | required | Emit after `add` or `addChild` stores new public node ids. | `{revision, nodeIds, parentId}` | Document subtree id inclusion policy. |
 | base | `document:node-updated` | required | Emit after `update` changes stored node data. | `{revision, nodeId, changedProperties, invalidation}` | Document no event for missing id or no-op patch. |
 | base | `document:node-removed` | required | Emit after `remove` or `removeChild` deletes public node ids. | `{revision, nodeIds, parentId}` | Document subtree id inclusion policy. |
-| base | `document:structure-changed` | required | Emit after group/ungroup/addChild/removeChild/reparent-like changes. | `{revision, parentId, affectedNodeIds, order}` | Document parent-local order and affected subtree. |
+| base | `document:structure-changed` | required | Emit after group/ungroup/addChild/removeChild/reparent/layer changes. | `{revision, parentId, affectedParentIds?, affectedNodeIds, order, reason}` | Document parent-local order, changed parent lists, affected subtree, and no-op/rejection suppression. |
 | base | `layer:changed` | required | Emit after a successful layer order mutation. | `VenusLayerMutationResult` | Document no event for failed/no-op moves. |
 | render | `backend:fallback` | required | Emit when auto backend falls back from WebGL to Canvas2D. | `{from, to, reason}` | Document explicit WebGL failures still throw. |
 | hitTest | `hit` | required | Emit after `hitTest`, not after `hitTestAll` unless explicitly requested later. | `{point, phase, tolerance, result}` | Document coordinate space and locked filtering. |
@@ -859,6 +863,9 @@ Behavior:
   source data.
 - Vector text style fields must map through engine without information loss for
   fields engine claims to support.
+- SVG export must preserve supported run-level overrides as `<tspan>`
+  attributes. Current supported run export fields are `fontFamily`, `fontSize`,
+  `fontWeight`, `fontStyle`, `letterSpacing`, fill, and stroke.
 
 Tests:
 
@@ -867,7 +874,8 @@ Tests:
 - text fill from `appearance.fills` beats flat `fill`.
 - text bounds update invalidates text/cache.
 - text hit-test returns bounds/fill target detail.
-- SVG export preserves text content and supported style fields.
+- SVG export preserves text content, parent text style fields, and supported
+  run-level style fields.
 
 ### 5.5 Image
 
@@ -891,6 +899,11 @@ Behavior:
 - engine owns image quad geometry.
 - host app owns file loading policy and resource persistence.
 - engine resource loader resolves `assetId` and optional URL maps.
+- `assetUrl` is preserved as import/export metadata; it does not by itself
+  satisfy render resource resolution unless the host loader maps it.
+- `venus.inspectImageResources()` reports `resolved`, `missing-loader`,
+  `missing-resource`, and `loader-error` states without exposing loaded
+  `CanvasImageSource` objects.
 - image hit-test uses image bounds by default.
 - image export resolves the same resource path used by render.
 
@@ -899,7 +912,8 @@ Tests:
 - image converts to `EngineImageNode`.
 - image proxy exposes asset id and smoothing.
 - image source rect survives snapshot.
-- missing resource reports deterministic diagnostic, not silent failure.
+- missing resource reports deterministic diagnostics through
+  `inspectImageResources()`, not silent failure.
 - image hit-test and export use the same bounds.
 
 ### 5.6 Clip
@@ -921,6 +935,9 @@ Behavior:
 - validate rule.
 - validate inline clip geometry.
 - render, hit-test, and export must agree when `respectClip` is true.
+- `hitTest` and `hitTestAll` must expose `respectClip?: boolean`, defaulting
+  to true. `respectClip: false` is a debug/parity escape hatch and must be
+  documented wherever hit-test options are listed.
 
 Tests:
 
@@ -934,9 +951,22 @@ Tests:
 - hit-test outside clip returns no hit with `respectClip`.
 - SVG export emits equivalent clip path.
 
+Current status:
+
+- clip-container and inline `clipShape` hit pruning are implemented and tested.
+- SVG export serializes inline clip paths for clip containers.
+- graph validation covers missing references, self references, cycles, invalid
+  rules, and invalid inline geometry.
+- node-level `clip.clipNodeId` render/hit/export parity is still pending and
+  must not be treated as complete until a shared resolution path is tested.
+
 ## 6. Base Module P0 Requirements
 
 The first implementation priority is base module completion.
+Tree structure behavior is engine-owned and is fixed in
+`packages/engine/docs/en/architecture/tree-structure-operations.md`. Vector is
+the 100% capability validation surface and must not own alternate group,
+ungroup, layer, clip, or mask tree rules.
 
 ### 6.1 Required Base APIs
 
@@ -964,6 +994,7 @@ venus.group(ids, options)
 venus.ungroup(id)
 venus.addChild(parentId, child)
 venus.removeChild(parentId, childId)
+venus.reparent(id, parentId, index?)
 ```
 
 P0 upgrade:
@@ -1015,6 +1046,15 @@ Required tests:
 - layer order root and nested parent.
 - move before/after rejects cross-parent moves.
 - group/ungroup keeps order.
+- ungroup discards the group wrapper's own properties instead of baking them
+  into children.
+- single-node `reparent` handles cross-container moves through an explicit
+  engine tree transaction, preserves current authored geometry, records history,
+  emits `document:structure-changed` with `reason: 'reparent'`, and rejects
+  moving a node into itself or its descendant.
+- cross-parent group and multi-parent layer behavior is rejected until an
+  explicit engine tree transaction exists; Vector must not emulate an alternate
+  policy.
 - revision increments once per mutation.
 - events fire once with correct payload.
 - no-op update does not emit mutation event.
@@ -1054,6 +1094,19 @@ venus.getAnchorHandles(nodeId, options)
 ```
 
 These may live behind the interaction module but must be root-level calls.
+
+Vector's existing geometry payload bridge must expose the same ownership split
+while the app still uses `resolveEngineGeometryPayload` directly:
+
+```ts
+payload.selectionOverlay
+payload.hoverOverlay
+```
+
+`selectionOverlay` is the engine-owned aggregate selected-node bounds and
+outline; `hoverOverlay` is the engine-owned primary hovered-node bounds and
+outline. Vector may still render extra text/path detail outlines and hint
+markers, but product styling and visibility policy remain outside engine.
 
 ### 7.2 Active Layer
 
@@ -1096,8 +1149,28 @@ document model mechanics:
 - path anchor conversion
 - bezier bounds helpers
 - clip shape bounds
+- closed polyline helpers
+- rect bounds to polyline helpers
 
 Keep app-only layout math in Vector.
+
+Engine geometry package entrypoints are public package APIs, not root `Venus`
+instance APIs. They may be imported from `@venus/engine` by Vector adapters and
+runtime bridges when the behavior is generic graphics math.
+
+| API | Status | Requirement | Comment/JSDoc Contract | Required Tests |
+| --- | --- | --- | --- | --- |
+| `applyAffineMatrixToPoint(matrix, point)` | required | Applies Canvas/SVG-order affine matrix to a point. | Document matrix order, point units, and pure return semantics. | matrix point projection |
+| `createAffineMatrixAroundPoint(center, options?)` | required | Composes rotation/scale around a center point. | Document degrees, scale defaults, and composition order. | transform session parity |
+| `multiplyAffineMatrices(left, right)` | required | Multiplies affine matrices with engine order semantics. | Document argument order and immutability. | parent-local transform parity |
+| `invertAffineMatrix(matrix)` | required | Inverts affine matrix with engine fallback behavior. | Document singular fallback behavior. | inverse projection test |
+| `resolveNodeTransform(source)` | required | Resolves bounds, center, matrix, and inverse from authored box transform fields. | Document `x/y/width/height/rotation/flipX/flipY` mapping and group restrictions. | shape transform tests |
+| `cubicBezierPoint(t, p0, p1, p2, p3)` | required | Samples one cubic bezier point. | Document `t` interval and control point order. | bezier sample test |
+| `getCubicExtrema(p0, p1, p2, p3)` | required | Returns cubic derivative extrema in open unit interval. | Document open interval filtering and axis-only inputs. | extrema root test |
+| `getBoundingRectFromBezierPoints(points)` | required | Computes bezier path axis-aligned bounds from anchor/control points. | Document empty path behavior and returned rect shape. | bezier bounds and Vector wrapper parity |
+| `isGeometryPathClosed(node)` | required | Detects closed path/polygon geometry. | Document point and bezier closure policy. | closed/open path test |
+| `closePolylinePoints(points)` | required | Returns a closed copy of a polyline. | Document empty input, copy semantics, and no duplicate closure point when already closed. | polyline helper test |
+| `rectBoundsToPolyline(bounds)` | required | Converts min/max bounds to a closed clockwise polyline. | Document min/max field contract and point order. | rect polyline helper test |
 
 ## 8. Vector Migration Requirements
 
@@ -1354,6 +1427,11 @@ Acceptance:
 - group has no authored geometry after add/update.
 - move translates children.
 - group/ungroup preserves order and parent ids.
+- ungroup discards group-owned properties (`name`, `data`, `appearance`,
+  opacity, blend/effects, constraints, export settings) and never transfers them
+  to children.
+- tree structure operation rules stay documented in
+  `packages/engine/docs/en/architecture/tree-structure-operations.md`.
 
 ### P0.4 Text Foundation
 

@@ -33,7 +33,7 @@ import {
   prepareEngineHitPlan,
   type EngineHitPlan,
 } from '../../scene/hitPlan.ts'
-import type { EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
+import type { EngineHitExecutionOptions, EngineHitTestResult } from '../../scene/hitTest/hitTest.ts'
 import type {
   EngineNodeId,
   EngineRect,
@@ -314,8 +314,8 @@ export interface Engine {
   prepareFramePlan(padding?: number): EngineFramePlan
   prepareHitPlan(point: {x: number; y: number}, tolerance?: number): EngineHitPlan
   query(bounds: EngineRect): EngineNodeId[]
-  hitTest(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult | null
-  hitTestAll(point: {x: number; y: number}, tolerance?: number): EngineHitTestResult[]
+  hitTest(point: {x: number; y: number}, tolerance?: number, options?: EngineHitExecutionOptions): EngineHitTestResult | null
+  hitTestAll(point: {x: number; y: number}, tolerance?: number, options?: EngineHitExecutionOptions): EngineHitTestResult[]
   getNode(nodeId: EngineNodeId): EngineRenderableNode | null
   getSnapshot(): EngineSceneSnapshot
   setViewport(next: EngineViewportOptions): EngineCanvasViewportState
@@ -942,15 +942,15 @@ query(bounds) {
      * @param point point parameter.
      * @param tolerance tolerance parameter.
      */
-hitTest(point, tolerance) {
-      return this.hitTestAll(point, tolerance)[0] ?? null
+hitTest(point, tolerance, options) {
+      return this.hitTestAll(point, tolerance, options)[0] ?? null
     },
         /**
      * Handles hitTestAll.
      * @param point point parameter.
      * @param tolerance tolerance parameter.
      */
-hitTestAll(point, tolerance) {
+hitTestAll(point, tolerance, options) {
       const resolvedTolerance = tolerance ?? 0
       const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
         budgetPressure: latestBudgetPressure,
@@ -959,6 +959,7 @@ hitTestAll(point, tolerance) {
       // Reuse one exact-hit pass for both the public result and diagnostics so
       // hit planning does not duplicate the execution cost it is measuring.
       const hitSummary = store.hitTestAllWithSummary(point, resolvedTolerance, {
+        ...options,
         maxExactCandidateCount: adaptiveExactBudget,
       })
       const hits = hitSummary.hits
