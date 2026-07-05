@@ -22,7 +22,7 @@ export const MOCK_FILE: EditorFileDocument = {
     },
   },
   elements: [
-    // ---- Complex Multi-Level Group (4 levels deep) ----
+    // ----- Complex Multi-Level Group (4 levels deep) ----
     {
       id: 'group-artboard',
       type: 'group',
