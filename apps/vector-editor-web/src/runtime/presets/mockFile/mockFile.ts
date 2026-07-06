@@ -379,7 +379,7 @@ export const MOCK_FILE: EditorFileDocument = {
     // Full Text Pipeline Demo — 7-line rich text showcasing all
     // features: multi-script, bold/italic/weight, shadow,
     // letter-spacing, multi-font fallback, line-height,
-    // AND width-based word wrapping (width=380 triggers wrap on L1,L3)
+    // AND width-based word wrapping (width=300 guarantees wrap on L1,L3)
     // ═══════════════════════════════════════════════════════════════
     {
       id: 'text-pipeline-demo',
@@ -387,8 +387,8 @@ export const MOCK_FILE: EditorFileDocument = {
       name: 'Text Pipeline Full Demo',
       text: 'Venus 文本引擎 · Full Pipeline Demo\nBold · Italic · Weight · Shadow · Spacing\nCJK 中文 · 日本語 · 한국어 · Mixed Script\nShadow Effect · 文字阴影效果\nLetter Spacing 2px · 字间距加宽\nMulti-Font: Inter + Noto Sans SC\nLine Height 1.8x · 行高倍率演示',
       textRuns: [
-        { start: 0, end: 5, style: { color: '#0f172a', fontFamily: 'Inter, sans-serif', fontSize: 22, fontWeight: 800, lineHeight: 30 } },
-        { start: 5, end: 31, style: { color: '#0369a1', fontFamily: 'Inter, sans-serif', fontSize: 22, fontWeight: 700, lineHeight: 30, shadow: { color: 'rgba(2,132,199,0.15)', offsetX: 0, offsetY: 2, blur: 4 } } },
+        { start: 0, end: 5, style: { color: '#0f172a', fontFamily: 'Inter, sans-serif', fontSize: 24, fontWeight: 800, lineHeight: 32 } },
+        { start: 5, end: 31, style: { color: '#0369a1', fontFamily: 'Inter, sans-serif', fontSize: 24, fontWeight: 700, lineHeight: 32, shadow: { color: 'rgba(2,132,199,0.15)', offsetX: 0, offsetY: 2, blur: 4 } } },
         { start: 32, end: 36, style: { color: '#0f172a', fontFamily: 'Inter, sans-serif', fontSize: 15, fontWeight: 700, lineHeight: 22 } },
         { start: 36, end: 45, style: { color: '#0369a1', fontFamily: 'Inter, sans-serif', fontSize: 15, fontWeight: 400, fontStyle: 'italic', lineHeight: 22 } },
         { start: 45, end: 54, style: { color: '#0f766e', fontFamily: 'Inter, sans-serif', fontSize: 15, fontWeight: 600, lineHeight: 22 } },
@@ -403,8 +403,8 @@ export const MOCK_FILE: EditorFileDocument = {
       ],
       x: 16,
       y: 228,
-      width: 380,
-      height: 320,
+      width: 300,
+      height: 340,
       parentId: null,
       fill: { enabled: true, color: '#0f172a' },
       stroke: { enabled: false, color: '#111827', weight: 0 },

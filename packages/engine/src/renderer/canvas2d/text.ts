@@ -365,9 +365,29 @@ function applyWidthBreaks(
           lineHeight: currentMaxLineHeight,
           segments: currentSegs,
         })
-        currentSegs = [{ text: m.text, style: m.style }]
-        currentWidth = m.width
-        currentMaxLineHeight = m.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize
+
+        // If the overflowing segment is itself wider than maxWidth, break it
+        // further so it doesn't sit on a line alone still overflowing.
+        if (m.width > maxWidth) {
+          const broken = breakLongSegment(m, node, context, maxWidth, wrapMode)
+          for (let bi = 0; bi < broken.length - 1; bi++) {
+            result.push({
+              lineHeight: currentMaxLineHeight,
+              segments: [broken[bi]],
+            })
+          }
+          const last = broken[broken.length - 1]
+          currentSegs = [last]
+          currentWidth = measureSegmentWidth(context, last.text, node, last.style)
+          currentMaxLineHeight = Math.max(
+            currentMaxLineHeight,
+            last.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize,
+          )
+        } else {
+          currentSegs = [{ text: m.text, style: m.style }]
+          currentWidth = m.width
+          currentMaxLineHeight = m.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize
+        }
       } else {
         currentSegs.push({ text: m.text, style: m.style })
         currentWidth = nextWidth
@@ -391,11 +411,11 @@ function applyWidthBreaks(
 }
 
 /**
- * Breaks a single segment that exceeds maxWidth into character-level pieces.
+ * Breaks a single segment that exceeds maxWidth into smaller pieces.
  *
- * Used when a single text segment (no spaces) is wider than the available
- * width — e.g., a long CJK string or an unbreakable word in 'char' mode.
- * In 'word' mode, the segment is kept intact (may overflow).
+ * In 'word' mode, breaks at space characters and CJK character boundaries
+ * (CJK text can break between any two characters). In 'char' mode, breaks
+ * between any two characters.
  *
  * @param m The measured segment to break.
  * @param node The text node.
@@ -411,26 +431,64 @@ function breakLongSegment(
   maxWidth: number,
   wrapMode: 'word' | 'char',
 ): EngineTextRun[] {
-  if (wrapMode === 'word') {
-    // Word mode: don't break mid-word; keep intact even if it overflows.
-    return [{ text: m.text, style: m.style }]
-  }
-
-  // Char mode: break character by character
   const pieces: EngineTextRun[] = []
+  // Track the last breakable position (space or CJK boundary) seen during
+  // accumulation, so word-mode can break there instead of mid-word.
   let pieceStart = 0
   let pieceWidth = 0
+  let lastBreakableEnd = 0   // exclusive end index of the last breakable position
+  let lastBreakableWidth = 0 // accumulated width at lastBreakableEnd
 
   for (let i = 0; i < m.text.length; i++) {
     const char = m.text[i]
     const charWidth = measureSegmentWidth(context, char, node, m.style)
+    const nextWidth = pieceWidth + charWidth
 
-    if (pieceWidth + charWidth > maxWidth && pieceWidth > 0) {
+    // Determine if this character position is a break opportunity
+    const cp = char.codePointAt(0) ?? 0
+    const isSpace = cp === 0x20  // ASCII space
+    const isCJK =
+      (cp >= 0x4e00 && cp <= 0x9fff) || // CJK Unified
+      (cp >= 0x3400 && cp <= 0x4dbf) || // CJK Ext A
+      (cp >= 0x3040 && cp <= 0x309f) || // Hiragana
+      (cp >= 0x30a0 && cp <= 0x30ff) || // Katakana
+      (cp >= 0xac00 && cp <= 0xd7af)    // Hangul
+
+    // Record this position as breakable: after a space, or after a CJK char
+    // (CJK can break before OR after — we record after for simplicity).
+    if (isSpace || (wrapMode === 'char') || (wrapMode === 'word' && isCJK)) {
+      lastBreakableEnd = i + 1       // break AFTER this character
+      lastBreakableWidth = nextWidth
+    }
+
+    if (nextWidth > maxWidth && pieceWidth > 0) {
+      // Need to break. Use the last breakable position if available and
+      // not at the very start; otherwise break right here (char-mode or
+      // forced overflow).
+      const breakAt = (wrapMode !== 'char' && lastBreakableEnd > pieceStart)
+        ? lastBreakableEnd
+        : i
+
+      if (breakAt > pieceStart) {
+        pieces.push({ text: m.text.slice(pieceStart, breakAt), style: m.style })
+        // Reset to continue from the break position
+        pieceStart = breakAt
+        pieceWidth = 0
+        lastBreakableEnd = 0
+        lastBreakableWidth = 0
+        // Re-measure from the new start
+        i = breakAt - 1 // will be incremented by the for loop
+        continue
+      }
+
+      // No breakable position found — force break here (char-mode fallback)
       pieces.push({ text: m.text.slice(pieceStart, i), style: m.style })
       pieceStart = i
       pieceWidth = charWidth
+      lastBreakableEnd = 0
+      lastBreakableWidth = 0
     } else {
-      pieceWidth += charWidth
+      pieceWidth = nextWidth
     }
   }
 
