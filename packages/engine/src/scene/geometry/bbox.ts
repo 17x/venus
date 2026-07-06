@@ -1,4 +1,5 @@
 import type { EngineRenderableNode } from '../types/types.ts'
+import { estimateTextWidth as estimateTextWidthShared } from '../../core/text/shaper.ts'
 
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
 const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6
@@ -103,17 +104,21 @@ export function unionBounds(
 }
 
 /**
- * Estimates plain-text width for fallback bounds resolution.
-  * @param node Target node.
+ * Estimates plain-text width using the shared engine text pipeline estimator.
+ * Delegates to the centralized {@link estimateTextWidth} from core/text.
+ * @param node Target text node.
 */
 function estimateTextWidth(node: Extract<EngineRenderableNode, { type: 'text' }>) {
   if (node.runs && node.runs.length > 0) {
     let width = 0
     for (const run of node.runs) {
-      width += run.text.length * (run.style?.fontSize ?? node.style.fontSize) * TEXT_WIDTH_ESTIMATE_MULTIPLIER
+      width += estimateTextWidthShared(
+        run.text,
+        run.style?.fontSize ?? node.style.fontSize,
+      )
     }
     return width
   }
 
-  return (node.text ?? '').length * node.style.fontSize * TEXT_WIDTH_ESTIMATE_MULTIPLIER
+  return estimateTextWidthShared(node.text ?? '', node.style.fontSize)
 }

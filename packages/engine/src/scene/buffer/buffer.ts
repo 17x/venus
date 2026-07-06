@@ -1,4 +1,5 @@
 import type {EngineNodeId, EngineRenderableNode, EngineSceneSnapshot} from '../types/types.ts'
+import { estimateTextWidth as estimateTextWidthShared } from '../../core/text/shaper.ts'
 
 const ENGINE_NODE_KIND_UNKNOWN = 0
 const ENGINE_NODE_KIND_TEXT = 1
@@ -274,17 +275,22 @@ function encodeNodeKind(node: EngineRenderableNode) {
 }
 
 /**
- * Handles estimateTextWidth.
- * @param node Target node.
+ * Estimates text width using the shared engine text pipeline estimator.
+ * Delegates to the centralized {@link estimateTextWidth} from core/text.
+ * @param node Target text node.
  */
 function estimateTextWidth(node: Extract<EngineRenderableNode, {type: 'text'}>) {
+  // Delegate to the shared estimate from core/text for consistency.
   if (node.runs && node.runs.length > 0) {
     let width = 0
-    node.runs.forEach((run) => {
-      width += run.text.length * (run.style?.fontSize ?? node.style.fontSize) * TEXT_WIDTH_ESTIMATE_MULTIPLIER
-    })
+    for (const run of node.runs) {
+      width += estimateTextWidthShared(
+        run.text,
+        run.style?.fontSize ?? node.style.fontSize,
+      )
+    }
     return width
   }
 
-  return (node.text ?? '').length * node.style.fontSize * TEXT_WIDTH_ESTIMATE_MULTIPLIER
+  return estimateTextWidthShared(node.text ?? '', node.style.fontSize)
 }

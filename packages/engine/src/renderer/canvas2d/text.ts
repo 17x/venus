@@ -12,6 +12,8 @@ interface TextLineLayout {
 const LINE_BREAK_CHAR_CODE = 10
 const TEXT_ALIGN_CENTER_DIVISOR = 2
 const DEFAULT_FONT_WEIGHT = 400
+/** When true, empty trailing lines from width-break processing are dropped. */
+const STRIP_TRAILING_EMPTY_LINES = true
 
 export interface Canvas2DTextCounters {
   singleLineTextFastPathCount: number
@@ -34,12 +36,24 @@ export function drawTextNode(
   context.textBaseline = 'top'
   const defaultLineHeight = node.style.lineHeight ?? node.style.fontSize
   const originX = resolveTextAnchorX(node, localRect)
-  const lineLayouts = resolveTextLineLayouts(node, counters)
+  const lineLayouts = resolveTextLineLayouts(node, counters, context)
   const totalHeight = lineLayouts.reduce((sum, line) => sum + line.lineHeight, 0)
   const originY = resolveTextAnchorY(node, localRect, totalHeight)
 
+  // Resolve the vertical clip boundary when node.height constrains the text box.
+  // Lines whose top edge falls beyond this boundary are not drawn.
+  const boxHeight = localRect?.height ?? node.height
+  const clipBottom = boxHeight != null && boxHeight > 0
+    ? originY + boxHeight
+    : Number.POSITIVE_INFINITY
+
   let cursorY = originY
   for (const line of lineLayouts) {
+    // Skip lines that start at or beyond the clip bottom (height overflow).
+    if (cursorY >= clipBottom) {
+      break
+    }
+
     let cursorX = originX
     const baselineY = cursorY
     for (const segment of line.segments) {
@@ -74,12 +88,24 @@ export function drawTextNode(
  * Handles resolveTextLineLayouts.
  * @param node Target node.
  * @param counters counters parameter.
+ * @param context Rendering context for width measurement.
  */
-function resolveTextLineLayouts(node: EngineTextNode, counters: Canvas2DTextCounters) {
+function resolveTextLineLayouts(
+  node: EngineTextNode,
+  counters: Canvas2DTextCounters,
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+) {
   const hasExplicitLineBreak = hasNodeExplicitLineBreak(node)
 
-  // Trust single-line fast path only when content really has no line breaks.
-  if (node.lineCount === 1 && !hasExplicitLineBreak) {
+  // Trust single-line fast path only when content really has no line breaks
+  // AND no width-constrained wrapping is active.
+  const effectiveWrap = resolveEffectiveWrap(node)
+  const canUseFastPath =
+    node.lineCount === 1 &&
+    !hasExplicitLineBreak &&
+    (effectiveWrap === 'none' || !node.width || node.width <= 0)
+
+  if (canUseFastPath) {
     counters.singleLineTextFastPathCount += 1
     if (node.runs && node.runs.length > 0) {
       const lineHeight = node.maxLineHeight ?? resolveMaxRunLineHeight(node)
@@ -97,20 +123,27 @@ function resolveTextLineLayouts(node: EngineTextNode, counters: Canvas2DTextCoun
     return [{lineHeight, segments: [{text: node.text ?? '', style: undefined}]}]
   }
 
+  // Build lines by \n splitting
+  let lines: TextLineLayout[]
   if (node.runs && node.runs.length > 0) {
-    return splitRunLines(node)
+    lines = splitRunLines(node)
+  } else {
+    const lineHeight = node.style.lineHeight ?? node.style.fontSize
+    const content = node.text ?? ''
+    lines = []
+
+    scanTextLines(content, (line) => {
+      lines.push({
+        lineHeight,
+        segments: [{text: line, style: undefined}],
+      })
+    })
   }
 
-  const lineHeight = node.style.lineHeight ?? node.style.fontSize
-  const content = node.text ?? ''
-  const lines: TextLineLayout[] = []
-
-  scanTextLines(content, (line) => {
-    lines.push({
-      lineHeight,
-      segments: [{text: line, style: undefined}],
-    })
-  })
+  // Apply width-constrained word/char wrapping when node.width is set
+  if (effectiveWrap !== 'none' && node.width && node.width > 0) {
+    lines = applyWidthBreaks(lines, node, context)
+  }
 
   return lines
 }
@@ -197,6 +230,274 @@ function scanTextLines(
   }
 
   visit(text.slice(start), false)
+}
+
+/**
+ * Resolves the effective wrap mode for a text node.
+ *
+ * When `node.wrap` is explicitly set, use it. When `node.width` is defined
+ * but `wrap` is unspecified, default to 'word' wrapping so text boxes with
+ * explicit width behave as expected. Text without an explicit width stays
+ * unwrapped (backward-compatible).
+ *
+ * @param node Target text node.
+ */
+function resolveEffectiveWrap(node: EngineTextNode): 'none' | 'word' | 'char' {
+  if (node.wrap) {
+    return node.wrap
+  }
+  // Default: wrap when width is explicitly set, otherwise no wrapping.
+  if (node.width != null && node.width > 0) {
+    return 'word'
+  }
+  return 'none'
+}
+
+/**
+ * Measures the total width of a text segment with the given style applied
+ * to the context. Restores the context font afterward.
+ *
+ * @param context Rendering context.
+ * @param text The text to measure.
+ * @param node The text node (for base style).
+ * @param segmentStyle Optional per-segment style override.
+ * @returns The measured width in pixels.
+ */
+function measureSegmentWidth(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  text: string,
+  node: EngineTextNode,
+  segmentStyle?: Partial<EngineTextStyle>,
+): number {
+  if (text.length === 0) return 0
+
+  const style: EngineTextStyle = { ...node.style, ...segmentStyle }
+  applyTextStyle(context, style)
+
+  let width = context.measureText(text).width
+
+  // Add letter spacing between chars (excludes the last char's trailing spacing)
+  const ls = segmentStyle?.letterSpacing ?? node.style.letterSpacing ?? 0
+  if (ls !== 0 && text.length > 1) {
+    width += ls * (text.length - 1)
+  }
+
+  return width
+}
+
+/**
+ * Applies width-constrained line breaking to lines already split by \\n.
+ *
+ * For each line, measures its segments and when the accumulated width
+ * exceeds `node.width`, breaks at the appropriate point:
+ * - 'word': breaks at the last space before overflow
+ * - 'char': breaks right before the overflowing character
+ *
+ * Style is applied per-segment so mixed-style runs are measured correctly.
+ *
+ * @param lines Lines from \\n splitting.
+ * @param node The text node (provides width, wrap, base style).
+ * @param context Rendering context for measurement.
+ * @returns New line array with width breaks applied.
+ */
+function applyWidthBreaks(
+  lines: TextLineLayout[],
+  node: EngineTextNode,
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+): TextLineLayout[] {
+  const maxWidth = node.width ?? 0
+  if (maxWidth <= 0) return lines
+
+  const wrapMode = resolveEffectiveWrap(node)
+  const result: TextLineLayout[] = []
+
+  for (const line of lines) {
+    // Build a flat list of measured segments for this line
+    const measured: Array<{
+      text: string
+      style: Partial<EngineTextStyle> | undefined
+      width: number
+    }> = []
+
+    for (const seg of line.segments) {
+      const w = measureSegmentWidth(context, seg.text, node, seg.style)
+      measured.push({ text: seg.text, style: seg.style, width: w })
+    }
+
+    if (measured.length === 0) {
+      result.push(line)
+      continue
+    }
+
+    // Greedy width-fitting: accumulate segments until overflow, then break
+    let currentSegs: EngineTextRun[] = []
+    let currentWidth = 0
+    let currentMaxLineHeight = line.lineHeight
+
+    for (const m of measured) {
+      // If this single segment already exceeds maxWidth (e.g., a very long word
+      // or CJK string), we need to break it character-by-character.
+      if (currentWidth === 0 && m.width > maxWidth && wrapMode !== 'none') {
+        const broken = breakLongSegment(m, node, context, maxWidth, wrapMode)
+        // Push all broken pieces as individual lines except the last one,
+        // which becomes the start of the current accumulating line.
+        for (let bi = 0; bi < broken.length - 1; bi++) {
+          result.push({
+            lineHeight: currentMaxLineHeight,
+            segments: [broken[bi]],
+          })
+        }
+        const last = broken[broken.length - 1]
+        currentSegs = [last]
+        currentWidth = measureSegmentWidth(context, last.text, node, last.style)
+        currentMaxLineHeight = Math.max(
+          currentMaxLineHeight,
+          last.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize,
+        )
+        continue
+      }
+
+      const nextWidth = currentWidth + m.width
+
+      if (nextWidth > maxWidth && currentWidth > 0) {
+        // Emit current line and start a new one with this segment
+        result.push({
+          lineHeight: currentMaxLineHeight,
+          segments: currentSegs,
+        })
+
+        // If the overflowing segment is itself wider than maxWidth, break it
+        // further so it doesn't sit on a line alone still overflowing.
+        if (m.width > maxWidth) {
+          const broken = breakLongSegment(m, node, context, maxWidth, wrapMode)
+          for (let bi = 0; bi < broken.length - 1; bi++) {
+            result.push({
+              lineHeight: currentMaxLineHeight,
+              segments: [broken[bi]],
+            })
+          }
+          const last = broken[broken.length - 1]
+          currentSegs = [last]
+          currentWidth = measureSegmentWidth(context, last.text, node, last.style)
+          currentMaxLineHeight = Math.max(
+            currentMaxLineHeight,
+            last.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize,
+          )
+        } else {
+          currentSegs = [{ text: m.text, style: m.style }]
+          currentWidth = m.width
+          currentMaxLineHeight = m.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize
+        }
+      } else {
+        currentSegs.push({ text: m.text, style: m.style })
+        currentWidth = nextWidth
+        currentMaxLineHeight = Math.max(
+          currentMaxLineHeight,
+          m.style?.lineHeight ?? node.style.lineHeight ?? node.style.fontSize,
+        )
+      }
+    }
+
+    // Emit remaining segments
+    if (currentSegs.length > 0) {
+      result.push({
+        lineHeight: currentMaxLineHeight,
+        segments: currentSegs,
+      })
+    }
+  }
+
+  return result
+}
+
+/**
+ * Breaks a single segment that exceeds maxWidth into smaller pieces.
+ *
+ * In 'word' mode, breaks at space characters and CJK character boundaries
+ * (CJK text can break between any two characters). In 'char' mode, breaks
+ * between any two characters.
+ *
+ * @param m The measured segment to break.
+ * @param node The text node.
+ * @param context Rendering context.
+ * @param maxWidth Available width.
+ * @param wrapMode The wrapping strategy.
+ * @returns Array of broken segments.
+ */
+function breakLongSegment(
+  m: { text: string; style: Partial<EngineTextStyle> | undefined; width: number },
+  node: EngineTextNode,
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  maxWidth: number,
+  wrapMode: 'word' | 'char',
+): EngineTextRun[] {
+  const pieces: EngineTextRun[] = []
+  // Track the last breakable position (space or CJK boundary) seen during
+  // accumulation, so word-mode can break there instead of mid-word.
+  let pieceStart = 0
+  let pieceWidth = 0
+  let lastBreakableEnd = 0   // exclusive end index of the last breakable position
+  let lastBreakableWidth = 0 // accumulated width at lastBreakableEnd
+
+  for (let i = 0; i < m.text.length; i++) {
+    const char = m.text[i]
+    const charWidth = measureSegmentWidth(context, char, node, m.style)
+    const nextWidth = pieceWidth + charWidth
+
+    // Determine if this character position is a break opportunity
+    const cp = char.codePointAt(0) ?? 0
+    const isSpace = cp === 0x20  // ASCII space
+    const isCJK =
+      (cp >= 0x4e00 && cp <= 0x9fff) || // CJK Unified
+      (cp >= 0x3400 && cp <= 0x4dbf) || // CJK Ext A
+      (cp >= 0x3040 && cp <= 0x309f) || // Hiragana
+      (cp >= 0x30a0 && cp <= 0x30ff) || // Katakana
+      (cp >= 0xac00 && cp <= 0xd7af)    // Hangul
+
+    // Record this position as breakable: after a space, or after a CJK char
+    // (CJK can break before OR after — we record after for simplicity).
+    if (isSpace || (wrapMode === 'char') || (wrapMode === 'word' && isCJK)) {
+      lastBreakableEnd = i + 1       // break AFTER this character
+      lastBreakableWidth = nextWidth
+    }
+
+    if (nextWidth > maxWidth && pieceWidth > 0) {
+      // Need to break. Use the last breakable position if available and
+      // not at the very start; otherwise break right here (char-mode or
+      // forced overflow).
+      const breakAt = (wrapMode !== 'char' && lastBreakableEnd > pieceStart)
+        ? lastBreakableEnd
+        : i
+
+      if (breakAt > pieceStart) {
+        pieces.push({ text: m.text.slice(pieceStart, breakAt), style: m.style })
+        // Reset to continue from the break position
+        pieceStart = breakAt
+        pieceWidth = 0
+        lastBreakableEnd = 0
+        lastBreakableWidth = 0
+        // Re-measure from the new start
+        i = breakAt - 1 // will be incremented by the for loop
+        continue
+      }
+
+      // No breakable position found — force break here (char-mode fallback)
+      pieces.push({ text: m.text.slice(pieceStart, i), style: m.style })
+      pieceStart = i
+      pieceWidth = charWidth
+      lastBreakableEnd = 0
+      lastBreakableWidth = 0
+    } else {
+      pieceWidth = nextWidth
+    }
+  }
+
+  // Emit the last piece
+  if (pieceStart < m.text.length) {
+    pieces.push({ text: m.text.slice(pieceStart), style: m.style })
+  }
+
+  return pieces.length > 0 ? pieces : [{ text: m.text, style: m.style }]
 }
 
 /**

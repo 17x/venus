@@ -384,6 +384,16 @@ function createEngineNodeFromRuntimeShape(input: {
       maxLineHeight: snapshotShape.textMaxLineHeight,
       text: sourceShape?.text ?? snapshotShape.name ?? 'Text',
       runs: sourceShape?.textRuns?.map((run) => {
+        const fullText = sourceShape.text ?? ''
+        // Include a trailing \n in the run's text when the run ends
+        // right before a line break. The engine renderer's splitRunLines
+        // detects \n within run texts; without this, line breaks that
+        // sit between runs (not inside any run) are silently dropped.
+        let runEnd = run.end
+        if (runEnd < fullText.length && fullText.charCodeAt(runEnd) === 10) {
+          runEnd = runEnd + 1
+        }
+
         const style = {
           fill: run.style?.color,
           fillConfig: run.style?.color ? {color: run.style.color} : undefined,
@@ -403,7 +413,7 @@ function createEngineNodeFromRuntimeShape(input: {
         }
 
         return {
-          text: (sourceShape.text ?? '').slice(run.start, run.end),
+          text: (sourceShape.text ?? '').slice(run.start, runEnd),
           style,
         }
       }),
