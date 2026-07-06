@@ -5,6 +5,7 @@ import type {
   EngineShapeNode,
 } from '../types/types.ts'
 import {getBoundingRectFromBezierPoints} from '../geometry/bezier.ts'
+import { estimateTextWidth as estimateTextWidthShared } from '../../core/text/shaper.ts'
 
 export type EngineBoundsMatrix = readonly [number, number, number, number, number, number]
 
@@ -167,19 +168,23 @@ function expandRect(rect: EngineRect, inset: number): EngineRect {
 }
 
 /**
- * Handles estimateTextWidth.
- * @param node Target node.
+ * Estimates text width for world-bounds using the shared engine text pipeline
+ * estimator. Delegates to {@link estimateTextWidth} from core/text.
+ * @param node Target text node.
  */
 function estimateTextWidth(node: Extract<EngineRenderableNode, {type: 'text'}>) {
   if (node.runs && node.runs.length > 0) {
-    let length = 0
-    node.runs.forEach((run) => {
-      length += run.text.length
-    })
-    return length * node.style.fontSize * TEXT_WIDTH_ESTIMATE_MULTIPLIER
+    let width = 0
+    for (const run of node.runs) {
+      width += estimateTextWidthShared(
+        run.text,
+        run.style?.fontSize ?? node.style.fontSize,
+      )
+    }
+    return width
   }
 
-  return (node.text ?? '').length * node.style.fontSize * TEXT_WIDTH_ESTIMATE_MULTIPLIER
+  return estimateTextWidthShared(node.text ?? '', node.style.fontSize)
 }
 
 /**
