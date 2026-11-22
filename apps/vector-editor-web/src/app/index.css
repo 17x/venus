@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+/* Compile utility classes used by the shared @venus/ui source workspace. */
+@source "../../../../packages/ui/src/vector";
 /*---break---*/
 @custom-variant dark (&:is(.dark *));
 

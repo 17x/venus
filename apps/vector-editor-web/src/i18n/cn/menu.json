@@ -38,6 +38,10 @@
     "label": "导出为PNG",
     "tooltip": "将文件导出为PNG图像"
   },
+  "exportFile_svg": {
+    "label": "导出为SVG",
+    "tooltip": "将文件导出为SVG文档"
+  },
   "exportFile_pdf": {
     "label": "导出为PDF",
     "tooltip": "将文件导出为PDF文档"

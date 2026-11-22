@@ -1,5 +1,5 @@
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, cn} from '../../ui/index.ts'
-import {useEffect, useRef} from 'react'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, cn} from '../../ui/index.ts'
+import {Fragment, useEffect, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuMenu} from 'react-icons/lu'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
@@ -12,6 +12,8 @@ interface LeftSidebarMenuProps {
   onExecuteMenuAction: (menuItem: MenuItemType) => void
   compact?: boolean
 }
+
+const MENU_SURFACE_CLASS = 'min-w-48 border border-border bg-popover text-popover-foreground shadow-lg'
 
 export function LeftSidebarMenu(props: LeftSidebarMenuProps) {
   const {t} = useTranslation()
@@ -39,7 +41,7 @@ export function LeftSidebarMenu(props: LeftSidebarMenuProps) {
       const icon = resolveMenuIcon(menuItem.icon ?? menuItem.id)
 
       return (
-        <>
+        <Fragment key={menuItem.id}>
           {menuItem.divide && <DropdownMenuSeparator/>}
           {hasChildren
             ? <DropdownMenuSub key={`sub-${menuItem.id}`}>
@@ -49,8 +51,10 @@ export function LeftSidebarMenu(props: LeftSidebarMenuProps) {
                     <span>{label}</span>
                   </span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className={'min-w-40'}>
-                  {renderTopMenuNodes(menuItem.children ?? [])}
+                <DropdownMenuSubContent className={MENU_SURFACE_CLASS}>
+                  <DropdownMenuGroup>
+                    {renderTopMenuNodes(menuItem.children ?? [])}
+                  </DropdownMenuGroup>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             : <DropdownMenuItem
@@ -67,7 +71,7 @@ export function LeftSidebarMenu(props: LeftSidebarMenuProps) {
                   <span>{label}</span>
                 </span>
               </DropdownMenuItem>}
-        </>
+        </Fragment>
       )
     })
   }
@@ -81,23 +85,27 @@ export function LeftSidebarMenu(props: LeftSidebarMenuProps) {
           aria-label={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
           title={t('ui.shell.variantB.nav.mainMenu', {defaultValue: 'Main menu'})}
           className={cn(
-            'inline-flex items-center justify-center rounded text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600 data-[state=open]:bg-slate-100 dark:data-[state=open]:bg-slate-800',
+            'inline-flex items-center justify-center rounded text-slate-700 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600 data-popup-open:bg-accent data-popup-open:text-accent-foreground',
             props.compact ? 'size-8' : 'size-8',
           )}
         >
           <LuMenu size={SIDEBAR_ICON_SIZE}/>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align={'start'} side={'right'} sideOffset={8} className={'min-w-40'}>
-          {props.topMenuActions.map((menu) => {
-            return <DropdownMenuSub key={menu.id}>
-              <DropdownMenuSubTrigger disabled={menu.disabled} className={EDITOR_TEXT_LABEL_CLASS}>
-                {t(menu.id + '.label')}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className={'min-w-40'}>
-                {renderTopMenuNodes(menu.children ?? [])}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          })}
+        <DropdownMenuContent align={'start'} side={'right'} sideOffset={8} className={MENU_SURFACE_CLASS}>
+          <DropdownMenuGroup>
+            {props.topMenuActions.map((menu) => {
+              return <DropdownMenuSub key={menu.id}>
+                <DropdownMenuSubTrigger disabled={menu.disabled} className={EDITOR_TEXT_LABEL_CLASS}>
+                  {t(menu.id + '.label')}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className={MENU_SURFACE_CLASS}>
+                  <DropdownMenuGroup>
+                    {renderTopMenuNodes(menu.children ?? [])}
+                  </DropdownMenuGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            })}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
