@@ -19,7 +19,6 @@ import type {
   GlyphInfo,
   GlyphRun,
   TextMeasurement,
-  FontMetrics,
 } from './types.ts'
 
 // ── Shaper Interface ─────────────────────────────────────────────────────────

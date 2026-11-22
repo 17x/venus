@@ -1,6 +1,8 @@
 {
   "files": [],
   "references": [
+    { "path": "./packages/document-core" },
+    { "path": "./packages/sync-core" },
     { "path": "./packages/lib" },
     { "path": "./packages/ui" },
     { "path": "./packages/engine" },

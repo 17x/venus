@@ -14,8 +14,8 @@
     "shortcut": "Ctrl+O"
   },
   "saveFile": {
-    "label": "ファイルを保存",
-    "tooltip": "現在のファイルを保存",
+    "label": "ローカルに保存",
+    "tooltip": "現在のファイルをこのデバイスに保存",
     "shortcut": "Ctrl+S"
   },
   "saveAs": {
@@ -29,6 +29,10 @@
   "exportFile": {
     "label": "エクスポート",
     "tooltip": "現在のファイルをエクスポート"
+  },
+  "exportFile_archive": {
+    "label": "Venusファイルを書き出す",
+    "tooltip": "持ち運び可能なVenusドキュメントをダウンロード"
   },
   "exportFile_png": {
     "label": "PNGとしてエクスポート",

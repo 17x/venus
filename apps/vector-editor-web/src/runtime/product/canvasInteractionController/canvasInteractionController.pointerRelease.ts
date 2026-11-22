@@ -13,6 +13,10 @@ import type {
   EditorRuntimeCanvasInteractionControllerOptions,
   EditorRuntimeCanvasInteractionControllerState,
 } from './canvasInteractionController.types.ts'
+import {
+  cancelPanDragCommit,
+  flushPanDragOffset,
+} from './canvasInteractionController.panDrag.ts'
 
 /**
  * Creates pointer-up handler for canvas runtime interactions.
@@ -27,6 +31,10 @@ export function createPointerUpHandler(
       type: 'input.pointer.up',
     })
     const wasPanDrag = controllerState.panDragOrigin !== null
+    if (wasPanDrag) {
+      cancelPanDragCommit(controllerState)
+      flushPanDragOffset(options, controllerState)
+    }
     controllerState.panDragOrigin = null
     controllerState.panDragOffset = {x: 0, y: 0}
     if (wasPanDrag) {
@@ -123,6 +131,7 @@ export function createPointerLeaveHandler(
     controllerState.pointerSelectorState = createPointerSelectorState()
     controllerState.pointerSelectorStartScreen = null
     controllerState.pointerSelectorModifiers = undefined
+    cancelPanDragCommit(controllerState)
     controllerState.panDragOrigin = null
     controllerState.panDragOffset = {x: 0, y: 0}
     options.setSelectorOverlayItems([])

@@ -17,7 +17,6 @@ import type {
 } from '../../renderer/types/types.ts'
 import type { EngineTextNode } from '../../scene/types/types.ts'
 import type { EnginePoint } from '../../scene/types/types.ts'
-import type { EngineRect } from '../../scene/types/types.ts'
 
 import type { TextParagraph, TextStyleSpan, TextPipelineConfig } from './types.ts'
 import { layoutTextLines } from './pipeline.ts'
@@ -72,75 +71,6 @@ export function engineTextNodeToParagraph(node: EngineTextNode): TextParagraph {
 }
 
 /**
- * Converts the pipeline's line-level layout result to the engine's
- * `EngineTextLayout` format consumed by renderers.
- *
- * @param result The pipeline layout result (from layoutTextLines).
- * @param node The source engine text node.
- * @returns An EngineTextLayout for the renderer.
- */
-function pipelineResultToEngineLayout(
-  result: {
-    lines: Array<{
-      width: number
-      runs: ReadonlyArray<{
-        sourceRun: { style: { fill?: string; stroke?: string; strokeWidth?: number } }
-        font: { fontFamily: string }
-      }>
-    }>
-    lineMetrics: ReadonlyArray<{
-      ascent: number
-      descent: number
-      height: number
-      baselineY: number
-    }>
-    bounds: { x: number; y: number; width: number; height: number }
-  },
-  node: EngineTextNode,
-): EngineTextLayout {
-  const lines = result.lines.map((line, idx) => {
-    const lm = result.lineMetrics[idx]
-    // Reconstruct the line text from the glyph runs
-    const lineText = line.runs
-      .map((r) => r.sourceRun.style.fill ?? '')
-      .join('')
-    const actualText = line.runs
-      .flatMap((r) => {
-        // Each run's glyphs have the character data
-        // For the engine layout interface we need the line text
-        return line.runs.map((run) => {
-          // Reconstruct text from glyph chars in each run
-          return '' // The glyph chars are in the glyph run, not easily accessible here
-        })
-      })
-      .join('')
-
-    // AI-TEMP: The text reconstruction from glyph runs is lossy without
-    // per-glyph char access in the lightweight layout. For now, delegate
-    // text content to the measureText fallback in the renderer.
-    // The width/ascent/descent/baselineY are correct from the pipeline.
-
-    return {
-      text: actualText || '',
-      width: line.width,
-      ascent: lm.ascent,
-      descent: lm.descent,
-      baselineY: lm.baselineY,
-    }
-  })
-
-  return {
-    lines,
-    bounds: {
-      x: node.x,
-      y: node.y,
-      width: result.bounds.width,
-      height: result.bounds.height,
-    },
-  }
-}
-
-/**
  * Creates a built-in EngineTextShaper that uses the core/text pipeline.
  *
  * This shaper:
@@ -161,7 +91,7 @@ export function createBuiltInTextShaper(
   return {
     layout(
       node: EngineTextNode,
-      context: EngineTextLayoutContext,
+      _context: EngineTextLayoutContext,
     ): EngineTextLayout {
       const paragraph = engineTextNodeToParagraph(node)
 

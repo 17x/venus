@@ -892,7 +892,7 @@ describe('Venus node conversion', () => {
     assert.equal(node.points?.length, 3)
   })
 
-  it('converts star to engine polygon node with points', () => {
+  it('converts star to engine star node with points', () => {
     const venus = new Venus()
 
     const star = venus.add({
@@ -914,7 +914,7 @@ describe('Venus node conversion', () => {
 
     const [node] = venus.snapshot().nodes
     assert.equal(node.type, 'shape')
-    assert.equal(node.shape, 'polygon')
+    assert.equal(node.shape, 'star')
     assert.equal(node.fill, '#fde047')
     assert.equal(node.closed, true)
     assert.equal(node.points?.length, 5)

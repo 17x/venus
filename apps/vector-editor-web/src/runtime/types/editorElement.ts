@@ -7,7 +7,7 @@
  * and adapters migrate to the structured VenusAppearance model.
  *
  * AI-TEMP: Remove flat Fill/Stroke/Shadow types when PropPanel uses VenusAppearance;
- * ref VECTOR_ENGINE_STRENGTHENING_REQUIREMENTS.md §8.1.
+ * ref AI/ENGINE.md.
  */
 
 // Re-export engine Venus document model types as the source of truth.

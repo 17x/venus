@@ -14,6 +14,20 @@ test('accumulateWheelPanOffset converts wheel deltas to viewport translation', (
   assert.deepEqual(offset, {x: 5, y: 22})
 })
 
+test('accumulateWheelPanOffset normalizes non-pixel wheel delta modes', () => {
+  const lineOffset = accumulateWheelPanOffset(
+    {x: 0, y: 0},
+    {deltaX: 1, deltaY: -2, deltaMode: 1},
+  )
+  const pageOffset = accumulateWheelPanOffset(
+    {x: 0, y: 0},
+    {deltaX: 1, deltaY: -1, deltaMode: 2, pageStepCssPx: 240},
+  )
+
+  assert.deepEqual(lineOffset, {x: -16, y: 32})
+  assert.deepEqual(pageOffset, {x: -240, y: 240})
+})
+
 test('accumulatePointerPanOffset ignores pointer updates from other pointer ids', () => {
   const origin = createViewportPanOrigin({x: 100, y: 100, pointerId: 1})
   const result = accumulatePointerPanOffset({x: 0, y: 0}, origin, {
@@ -27,4 +41,3 @@ test('accumulatePointerPanOffset ignores pointer updates from other pointer ids'
     origin,
   })
 })
-

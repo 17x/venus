@@ -41,7 +41,6 @@ export interface EngineHitExecutionOptions {
 type Matrix2D = readonly [number, number, number, number, number, number]
 const IDENTITY_MATRIX: Matrix2D = [1, 0, 0, 0, 1, 0]
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
-const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6
 const MATRIX_INVERSION_EPSILON = 1e-8
 const LINE_ENDPOINT_MIN_COUNT = 2
 
@@ -350,6 +349,8 @@ function toEditorShapeType(node: EngineShapeNode): EngineEditorHitTestNode['type
       return 'ellipse'
     case 'polygon':
       return 'polygon'
+    case 'star':
+      return 'star'
     case 'path':
       return 'path'
     case 'line':

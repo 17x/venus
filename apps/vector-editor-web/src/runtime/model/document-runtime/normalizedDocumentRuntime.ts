@@ -1,5 +1,5 @@
 import type {DocumentNode, EditorDocument} from '../index.ts'
-import {getNormalizedBoundsFromBox} from '@venus/lib/geometry'
+import {resolveEngineTransformedBoundsFromBox} from '@venus/engine'
 
 /**
  * Defines one normalized runtime node projection used by the pure TS document runtime.
@@ -203,14 +203,15 @@ interface NormalizedBounds {
  * Converts one legacy node box into normalized min/max bounds.
  */
 function getNodeBounds(shape: DocumentNode): NormalizedBounds {
-  const bounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
-
-  return {
-    minX: bounds.minX,
-    minY: bounds.minY,
-    maxX: bounds.maxX,
-    maxY: bounds.maxY,
-  }
+  return resolveEngineTransformedBoundsFromBox({
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
+    rotation: shape.rotation,
+    flipX: shape.flipX,
+    flipY: shape.flipY,
+  })
 }
 
 /**
@@ -496,4 +497,3 @@ function resolveCanonicalGroupChildIds(
 
   return nextChildIds
 }
-

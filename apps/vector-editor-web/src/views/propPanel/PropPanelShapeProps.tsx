@@ -16,7 +16,6 @@ import {
 import {
   ExportSection,
   ImageSection,
-  PreviewSection,
   SchemaSection,
 } from './PropPanelMetaSections.tsx'
 import {Separator} from '../../ui/index.ts'
@@ -73,14 +72,20 @@ export function PropPanelShapeProps({
       <EffectsSection {...sectionProps} />
       <ImageSection props={props} onExecuteAction={(action) => executeAction(action)} />
       <SchemaSection props={props} />
+      <Separator />
       <ExportSection
         exportScale={exportScale}
         exportFormat={exportFormat}
         onChangeExportScale={setExportScale}
         onChangeExportFormat={setExportFormat}
-        onPrint={() => executeAction('print')}
+        onExport={() => {
+          if (exportFormat === 'SVG') {
+            executeAction('exportFile_svg')
+          } else {
+            executeAction('exportFile_png')
+          }
+        }}
       />
-      <PreviewSection />
     </div>
   )
 }

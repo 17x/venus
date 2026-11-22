@@ -13,7 +13,7 @@ state.
 The engine publishes two explicit capability registries:
 
 - `ENGINE_RENDERABLE_NODE_TYPES`: `group`, `shape`, `text`, `image`.
-- `ENGINE_SHAPE_TYPES`: `rect`, `ellipse`, `line`, `polygon`, `path`.
+- `ENGINE_SHAPE_TYPES`: `rect`, `ellipse`, `line`, `polygon`, `star`, `path`.
 
 Use these registries when tests, docs, adapters, or diagnostics need to prove
 they cover the full current engine scene surface.

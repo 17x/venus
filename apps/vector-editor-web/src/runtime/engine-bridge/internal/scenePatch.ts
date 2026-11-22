@@ -1,4 +1,8 @@
 import {type EditorDocument} from '../../model/index.ts'
+import {
+  getBoundingRectFromBezierPoints,
+  resolveEngineTransformedBoundsFromBox,
+} from '@venus/engine'
 
 // Merge node bounds and document-shape bounds into one invalidation region.
 export function resolveMergedNodeBounds(input: {
@@ -31,6 +35,15 @@ export function resolveMergedNodeBounds(input: {
     maxX = Math.max(maxX, x + width)
     maxY = Math.max(maxY, y + height)
   }
+  const includeDocumentShapeBounds = (shape: EditorDocument['shapes'][number]) => {
+    const bounds = resolveDocumentShapeWorldBounds(shape)
+    includeBounds({
+      x: bounds.minX,
+      y: bounds.minY,
+      width: bounds.maxX - bounds.minX,
+      height: bounds.maxY - bounds.minY,
+    })
+  }
 
   for (const node of input.nodes) {
     const boundsNode = node as {
@@ -46,7 +59,7 @@ export function resolveMergedNodeBounds(input: {
   if (changedIdSet && input.currentDocument) {
     for (const shape of input.currentDocument.shapes) {
       if (changedIdSet.has(shape.id)) {
-        includeBounds(shape)
+        includeDocumentShapeBounds(shape)
       }
     }
   }
@@ -54,7 +67,7 @@ export function resolveMergedNodeBounds(input: {
   if (changedIdSet && input.previousDocument) {
     for (const shape of input.previousDocument.shapes) {
       if (changedIdSet.has(shape.id)) {
-        includeBounds(shape)
+        includeDocumentShapeBounds(shape)
       }
     }
   }
@@ -68,6 +81,55 @@ export function resolveMergedNodeBounds(input: {
     y: minY,
     width: Math.max(1, maxX - minX),
     height: Math.max(1, maxY - minY),
+  }
+}
+
+function resolveDocumentShapeWorldBounds(shape: EditorDocument['shapes'][number]) {
+  const sourceBounds = resolveDocumentShapeSourceBounds(shape)
+  const transformed = resolveEngineTransformedBoundsFromBox({
+    x: sourceBounds.x,
+    y: sourceBounds.y,
+    width: sourceBounds.width,
+    height: sourceBounds.height,
+    rotation: shape.rotation ?? 0,
+  })
+  return {
+    minX: transformed.minX,
+    minY: transformed.minY,
+    maxX: transformed.maxX,
+    maxY: transformed.maxY,
+  }
+}
+
+function resolveDocumentShapeSourceBounds(shape: EditorDocument['shapes'][number]) {
+  if (shape.type === 'path' && shape.bezierPoints && shape.bezierPoints.length > 0) {
+    return getBoundingRectFromBezierPoints(shape.bezierPoints)
+  }
+
+  if (
+    (shape.type === 'polygon' || shape.type === 'star' || shape.type === 'lineSegment' || shape.type === 'path') &&
+    shape.points &&
+    shape.points.length > 0
+  ) {
+    const xs = shape.points.map((point) => point.x)
+    const ys = shape.points.map((point) => point.y)
+    const minX = Math.min(...xs)
+    const minY = Math.min(...ys)
+    const maxX = Math.max(...xs)
+    const maxY = Math.max(...ys)
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(1, maxX - minX),
+      height: Math.max(1, maxY - minY),
+    }
+  }
+
+  return {
+    x: shape.x,
+    y: shape.y,
+    width: shape.width,
+    height: shape.height,
   }
 }
 
@@ -152,6 +214,11 @@ export function resolveExpandedChangedIds(
     if (changedIdSet.has(shape.id)) {
       expanded.add(shape.clipPathId)
     }
+  }
+
+  for (const shapeId of Array.from(expanded)) {
+    includeDescendants(shapeId)
+    includeAncestors(shapeId)
   }
 
   return Array.from(expanded)

@@ -5,6 +5,11 @@ import type {
   EngineRect,
   EngineRenderableNode,
 } from '../../scene/types/types.ts'
+import {
+  resolveEngineViewportWorldBounds,
+  type EngineViewportWorldBounds,
+  type ResolveEngineViewportWorldBoundsOptions,
+} from '../../core/camera/index.ts'
 import { resolveLeafNodeWorldBounds } from '../../scene/worldBounds/worldBounds.ts'
 import type {
   EngineWorldMatrix,
@@ -20,17 +25,13 @@ const SETTLED_TINY_OBJECT_SCALE_THRESHOLD = 0.35
 /**
  * Resolves viewport world bounds from current viewport transform state.
  * @param frame Current render frame.
+ * @param options Optional viewport coverage options.
  */
-export function resolveViewportWorldBounds(frame: EngineRenderFrame) {
-  // Viewport matrix is world->screen: sx = scale * wx + offsetX.
-  // Therefore visible world min is computed from screen origin (0, 0):
-  // wx = (0 - offsetX) / scale.
-  const safeScale = frame.viewport.scale === 0 ? 1 : frame.viewport.scale
-  const minX = -frame.viewport.offsetX / safeScale
-  const minY = -frame.viewport.offsetY / safeScale
-  const maxX = minX + frame.viewport.viewportWidth / safeScale
-  const maxY = minY + frame.viewport.viewportHeight / safeScale
-  return {minX, minY, maxX, maxY}
+export function resolveViewportWorldBounds(
+  frame: EngineRenderFrame,
+  options: ResolveEngineViewportWorldBoundsOptions = {},
+) {
+  return resolveEngineViewportWorldBounds(frame.viewport, options)
 }
 
 /**
@@ -46,7 +47,7 @@ export function resolveViewportWorldBounds(frame: EngineRenderFrame) {
 export function isPreparedNodeCulled(
   nodeId: string,
   worldBounds: EngineRect | null,
-  viewportBounds: {minX: number; minY: number; maxX: number; maxY: number},
+  viewportBounds: EngineViewportWorldBounds,
   framePlanCandidateIdSet: Set<string> | null,
   viewportScale: number,
   renderQuality: EngineRenderFrame['context']['quality'],
@@ -157,7 +158,7 @@ function resolveTinyObjectScreenEdgeThreshold(
  */
 function isWorldBoundsCulled(
   bounds: EngineRect | null,
-  viewportBounds: {minX: number; minY: number; maxX: number; maxY: number},
+  viewportBounds: EngineViewportWorldBounds,
 ) {
   if (!bounds) {
     return false

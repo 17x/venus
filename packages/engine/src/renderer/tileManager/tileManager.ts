@@ -7,6 +7,10 @@
 
 import type { EngineRect } from '../../scene/types/types.ts'
 import {
+  resolveEngineViewportWorldRect,
+  type EngineViewportOverscanInput,
+} from '../../core/camera/index.ts'
+import {
   createZoomBuckets,
   DEFAULT_ENGINE_ZOOM_PERFORMANCE_CONFIG,
   resolveActiveZoomBuckets,
@@ -20,7 +24,6 @@ const TILE_ZOOM_LEVEL_TWO = 2
 const TILE_ZOOM_LEVEL_THREE = 3
 const TILE_ZOOM_LEVEL_FOUR = 4
 const TILE_ZOOM_LEVEL_FIVE = 5
-const VIEWPORT_OVERSCAN_DOUBLE = 2
 const DEFAULT_VISIBLE_TILE_SIZE_CSS_PX = 512
 const ZOOM_BUCKET_EDGE_SCALE_L0 = 0.125
 const ZOOM_BUCKET_EDGE_SCALE_L1 = 0.25
@@ -251,16 +254,11 @@ export interface VisibleTileProjection {
   * @param camera Camera state snapshot.
  * @param overscanCssPx overscanCssPx parameter.
 */
-export function getViewportWorldBounds(camera: TileViewportCamera, overscanCssPx = 0): EngineRect {
-  const safeScale = Number.isFinite(camera.scale) && camera.scale > 0 ? camera.scale : 1
-  const overscanWorld = Math.max(0, overscanCssPx) / safeScale
-
-  return {
-    x: -camera.offsetX / safeScale - overscanWorld,
-    y: -camera.offsetY / safeScale - overscanWorld,
-    width: camera.viewportWidth / safeScale + overscanWorld * VIEWPORT_OVERSCAN_DOUBLE,
-    height: camera.viewportHeight / safeScale + overscanWorld * VIEWPORT_OVERSCAN_DOUBLE,
-  }
+export function getViewportWorldBounds(
+  camera: TileViewportCamera,
+  overscanCssPx: EngineViewportOverscanInput = 0,
+): EngineRect {
+  return resolveEngineViewportWorldRect(camera, {overscanCssPx})
 }
 
 /**
@@ -282,7 +280,7 @@ export function getVisibleTilesForCamera(input: {
   camera: TileViewportCamera
   zoomBucket: number
   tileSizeCssPx?: number
-  overscanCssPx?: number
+  overscanCssPx?: EngineViewportOverscanInput
 }): VisibleTileProjection[] {
   const tileSizeCssPx = input.tileSizeCssPx ?? DEFAULT_VISIBLE_TILE_SIZE_CSS_PX
   const worldTileSize = getWorldTileSize(tileSizeCssPx, input.zoomBucket)

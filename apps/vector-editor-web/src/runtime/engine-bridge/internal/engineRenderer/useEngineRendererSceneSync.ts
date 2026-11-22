@@ -225,9 +225,13 @@ export function useEngineRendererSceneSync(params: {
       const sceneApplyStart = performance.now()
       let dirtyBoundsMarkCount = 0
       let dirtyBoundsMarkArea = 0
+      const sceneApplyRevision = params.transformPreviewActive || shouldForcePreviewOnlySceneReload
+        ? `${params.statsVersion}:preview:${++params.previewSceneRevisionRef.current}`
+        : params.statsVersion
       const baselineShouldRenderSceneDirtyNow =
         shouldBootstrapScene ||
         shouldForcePreviewOnlySceneReload ||
+        params.transformPreviewActive ||
         preparedFrame.dirtyState.sceneStructureDirty ||
         preparedFrame.dirtyState.dirtyCandidateCount > 0 ||
         preparedFrame.dirtyState.previousFrameCandidateCount === 0
@@ -254,14 +258,11 @@ export function useEngineRendererSceneSync(params: {
         shouldForcePreviewOnlySceneReload,
       })) {
         const isPreviewLoad = shouldForcePreviewOnlySceneReload
-        const debugRevision = isPreviewLoad
-          ? `${params.statsVersion}:preview:${params.previewSceneRevisionRef.current + 1}`
-          : String(params.statsVersion)
         const nextEngineScene = createEngineSceneFromRuntimeSnapshot(
-          isPreviewLoad
+          isPreviewLoad || params.transformPreviewActive
             ? {
                 ...params.replayScenePayload,
-                revision: `${params.statsVersion}:preview:${++params.previewSceneRevisionRef.current}`,
+                revision: sceneApplyRevision,
               }
             : params.replayScenePayload,
         )
@@ -270,19 +271,17 @@ export function useEngineRendererSceneSync(params: {
         // Track scene load mode/count so visible=0 episodes can be tied back
         // to the last scene mutation path before render diagnostics dropped.
         params.sceneApplyDebugRef.current.lastSceneApplyMode = isPreviewLoad ? 'preview-load' : 'full-load'
-        params.sceneApplyDebugRef.current.lastSceneApplyRevision = debugRevision
+        params.sceneApplyDebugRef.current.lastSceneApplyRevision = String(sceneApplyRevision)
         params.sceneApplyDebugRef.current.lastSceneShapeCount = params.replayScenePayload.shapes.length
         params.sceneApplyDebugRef.current.lastScenePatchUpsertCount = 0
         params.sceneApplyDebugRef.current.sceneLoadCount += 1
       } else {
-        const changedIds = sceneStructureMode === 'tree'
-          ? preparedFrame.dirtyState.sceneInstanceIds
-          : resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
+        const changedIds = resolveExpandedChangedIds(preparedFrame.dirtyState.sceneInstanceIds, params.document)
         incrementalChangedNodeIds = changedIds
         const treePatchResult = sceneStructureMode === 'tree'
           ? createEngineScenePatchBatchFromRuntimeSnapshot({
               ...params.replayScenePayload,
-              revision: params.statsVersion,
+              revision: sceneApplyRevision,
               changedShapeIds: changedIds,
             })
           : null
@@ -301,11 +300,14 @@ export function useEngineRendererSceneSync(params: {
             : 0
 
         if (treePatchResult?.requiresFullLoad) {
-          const nextEngineScene = createEngineSceneFromRuntimeSnapshot(params.replayScenePayload)
+          const nextEngineScene = createEngineSceneFromRuntimeSnapshot({
+            ...params.replayScenePayload,
+            revision: sceneApplyRevision,
+          })
           engine.loadScene(nextEngineScene)
           params.hasLoadedSceneInEngineRef.current = true
           params.sceneApplyDebugRef.current.lastSceneApplyMode = 'full-load'
-          params.sceneApplyDebugRef.current.lastSceneApplyRevision = String(params.statsVersion)
+          params.sceneApplyDebugRef.current.lastSceneApplyRevision = String(sceneApplyRevision)
           params.sceneApplyDebugRef.current.lastSceneShapeCount = params.replayScenePayload.shapes.length
           params.sceneApplyDebugRef.current.lastScenePatchUpsertCount = 0
           params.sceneApplyDebugRef.current.sceneLoadCount += 1
@@ -313,7 +315,7 @@ export function useEngineRendererSceneSync(params: {
           engine.applyScenePatchBatch(
             treePatchResult?.batch ?? {
               patches: [{
-                revision: params.statsVersion,
+                revision: sceneApplyRevision,
                 upsertNodes,
               }],
             },
@@ -322,7 +324,7 @@ export function useEngineRendererSceneSync(params: {
           // Keep incremental patch telemetry so event-entry debugging can
           // confirm whether the scene was patched or fully replaced.
           params.sceneApplyDebugRef.current.lastSceneApplyMode = 'incremental-patch'
-          params.sceneApplyDebugRef.current.lastSceneApplyRevision = String(params.statsVersion)
+          params.sceneApplyDebugRef.current.lastSceneApplyRevision = String(sceneApplyRevision)
           params.sceneApplyDebugRef.current.lastSceneShapeCount = params.replayScenePayload.shapes.length
           params.sceneApplyDebugRef.current.lastScenePatchUpsertCount = upsertNodes.length
           params.sceneApplyDebugRef.current.scenePatchCount += 1

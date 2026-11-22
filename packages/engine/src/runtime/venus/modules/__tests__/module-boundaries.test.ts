@@ -1,7 +1,7 @@
 /**
  * Module boundary import tests.
  *
- * Verifies the dependency rules from ENGINE_MODULE_CONSTRAINTS.md:
+ * Verifies the dependency rules from AI/ENGINE.md:
  * - Layer 0 (_infra/) never imports from Layer 1+ modules.
  * - No circular dependencies at the module level.
  * - Internal services are self-contained.

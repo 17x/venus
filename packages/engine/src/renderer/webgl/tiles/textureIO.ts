@@ -38,6 +38,8 @@ export function resolveTileFramebufferRegion(options: {
   const sourceMinY = Math.max(0, Math.floor(tilePixelY))
   const sourceMaxX = Math.min(options.viewportWidthPx, Math.ceil(tilePixelX + tilePixelWidth))
   const sourceMaxY = Math.min(options.viewportHeightPx, Math.ceil(tilePixelY + tilePixelHeight))
+  const unclampedSourceWidth = sourceMaxX - sourceMinX
+  const unclampedSourceHeight = sourceMaxY - sourceMinY
   // If capture bounds are clamped by viewport edges, the extracted texture is only partial.
   const isClipped =
     sourceMinX > Math.floor(tilePixelX) ||
@@ -51,6 +53,7 @@ export function resolveTileFramebufferRegion(options: {
     sourceWidth: Math.max(1, sourceMaxX - sourceMinX),
     sourceHeight: Math.max(1, sourceMaxY - sourceMinY),
     framebufferHeight: options.viewportHeightPx,
+    hasVisibleSource: unclampedSourceWidth > 0 && unclampedSourceHeight > 0,
     isClipped,
   }
 }
@@ -197,7 +200,7 @@ export function buildTileTextureSourceFromModelSurface(options: {
   tileContext.clearRect(0, 0, tilePixelWidth, tilePixelHeight)
 
   if (sourceWidth <= 0 || sourceHeight <= 0) {
-    return tileSurface.canvas
+    return null
   }
 
   const destinationX = sourceMinX - tilePixelX

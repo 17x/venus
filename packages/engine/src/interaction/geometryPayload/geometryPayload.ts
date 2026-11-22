@@ -10,10 +10,16 @@ import {
 import {
   resolveDetailOutlinesForNode,
   resolveNodeBounds,
+  resolveNodeSourceBounds,
   resolveOutlineForNode,
   type GeometryMatrix2D,
 } from './geometryPayloadTransform.ts'
+import {
+  normalizeEngineGeometryBounds,
+  unionEngineGeometryBounds,
+} from './geometryPayloadBounds.ts'
 import type {
+  EngineGeometryBounds,
   EngineGeometryNodePayload,
   EngineGeometryPayload,
   ResolveEngineGeometryPayloadOptions,
@@ -50,8 +56,13 @@ export function resolveEngineGeometryPayload(
   const nodeById = new Map(options.nodes.map((node) => [node.id, node]))
   const nodeOrderById = new Map(options.nodes.map((node, index) => [node.id, index]))
   const worldMatrixCache = new Map<string, GeometryMatrix2D>()
+  const boundsCache = new Map<string, EngineGeometryBounds>()
+  const sourceBoundsCache = new Map<string, EngineGeometryBounds>()
   const tolerance = Math.max(MIN_GEOMETRY_TOLERANCE, options.tolerance ?? DEFAULT_GEOMETRY_TOLERANCE)
   const clipTolerance = Math.max(MIN_CLIP_TOLERANCE, options.clipTolerance ?? DEFAULT_CLIP_TOLERANCE)
+  const marqueeBounds = options.marqueeBounds
+    ? normalizeEngineGeometryBounds(options.marqueeBounds)
+    : null
   const outlineLevel = options.outlineLevel ?? 'medium'
   const maxExactCandidateCount = Math.max(
     MIN_EXACT_CANDIDATE_COUNT,
@@ -66,7 +77,7 @@ export function resolveEngineGeometryPayload(
   // Build one coarse spatial index so marquee candidate resolution stays O(log n).
   const spatialIndex = createEngineSpatialIndex<{nodeId: string}>()
   const spatialItems = options.nodes.map((node) => {
-    const bounds = resolveNodeBounds(node, nodeById, worldMatrixCache)
+    const bounds = resolveNodeBounds(node, nodeById, worldMatrixCache, boundsCache)
     return {
       id: node.id,
       minX: bounds.minX,
@@ -105,6 +116,8 @@ export function resolveEngineGeometryPayload(
       node: hoveredNode,
       nodeById,
       worldMatrixCache,
+      boundsCache,
+      sourceBoundsCache,
       pointer: options.pointer ?? null,
       tolerance,
       outlineLevel,
@@ -123,6 +136,8 @@ export function resolveEngineGeometryPayload(
       node,
       nodeById,
       worldMatrixCache,
+      boundsCache,
+      sourceBoundsCache,
       pointer: null,
       tolerance,
       outlineLevel,
@@ -137,17 +152,19 @@ export function resolveEngineGeometryPayload(
     }
     : null
 
-  const marqueeSearchResults = options.marqueeBounds
-    ? spatialIndex.search(options.marqueeBounds)
+  const marqueeSearchResults = marqueeBounds
+    ? spatialIndex.search(marqueeBounds)
     : []
   const marqueeCandidateNodeIds = marqueeSearchResults
     .map((item) => item.id)
     .sort((leftId, rightId) => (nodeOrderById.get(leftId) ?? 0) - (nodeOrderById.get(rightId) ?? 0))
   const marqueeResolvedNodeIds = resolveMarqueeNodeIds({
     candidateNodeIds: marqueeCandidateNodeIds,
-    marqueeBounds: options.marqueeBounds ?? null,
+    marqueeBounds,
     marqueeMode: options.marqueeMode ?? 'intersect',
     nodeById,
+    worldMatrixCache,
+    boundsCache,
   })
 
   return {
@@ -169,11 +186,14 @@ function buildNodeGeometryPayload(options: {
   node: EngineEditorHitTestNode
   nodeById: Map<string, EngineEditorHitTestNode>
   worldMatrixCache: Map<string, GeometryMatrix2D>
+  boundsCache: Map<string, EngineGeometryBounds>
+  sourceBoundsCache: Map<string, EngineGeometryBounds>
   pointer: EngineEditorPoint | null
   tolerance: number
   outlineLevel: 'low' | 'medium' | 'high'
 }): EngineGeometryNodePayload {
-  const bounds = resolveNodeBounds(options.node, options.nodeById, options.worldMatrixCache)
+  const bounds = resolveNodeBounds(options.node, options.nodeById, options.worldMatrixCache, options.boundsCache)
+  const sourceBounds = resolveNodeSourceBounds(options.node, options.nodeById, options.worldMatrixCache, options.sourceBoundsCache)
   const outline = resolveOutlineForNode(options.node, bounds, options.outlineLevel, options.nodeById, options.worldMatrixCache)
   const detailOutlines = resolveDetailOutlinesForNode(options.node, options.outlineLevel, options.nodeById, options.worldMatrixCache)
 
@@ -186,6 +206,8 @@ function buildNodeGeometryPayload(options: {
     nodeId: options.node.id,
     nodeType: options.node.type,
     bounds,
+    sourceBounds,
+    rotationDegrees: options.node.rotation ?? 0,
     outline,
     detailOutlines,
     hints,
@@ -201,16 +223,16 @@ function buildSelectionOverlay(selected: EngineGeometryNodePayload[]): EngineGeo
     return null
   }
 
-  const bounds = selected.reduce((aggregate, payload) => ({
-    minX: Math.min(aggregate.minX, payload.bounds.minX),
-    minY: Math.min(aggregate.minY, payload.bounds.minY),
-    maxX: Math.max(aggregate.maxX, payload.bounds.maxX),
-    maxY: Math.max(aggregate.maxY, payload.bounds.maxY),
-  }), selected[0].bounds)
+  const bounds = selected.reduce(
+    (aggregate, payload) => unionEngineGeometryBounds(aggregate, payload.bounds),
+    selected[0].bounds,
+  )
 
   return {
     selectedNodeIds: selected.map((payload) => payload.nodeId),
     bounds,
+    sourceBounds: selected.length === 1 ? selected[0]?.sourceBounds : undefined,
+    rotationDegrees: selected.length === 1 ? selected[0]?.rotationDegrees : undefined,
     outline: {
       kind: 'bounds',
       bounds,

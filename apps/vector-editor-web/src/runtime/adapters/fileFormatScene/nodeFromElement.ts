@@ -218,7 +218,7 @@ export function createRuntimeNodeFromElement(element: ElementProps): RuntimeScen
     featureEntries,
     nodeKind: type,
     isVisible: element.show !== false,
-    isLocked: false,
+    isLocked: element.locked === true,
   }
 }
 

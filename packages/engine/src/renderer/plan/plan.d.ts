@@ -7,6 +7,7 @@ export interface EnginePreparedNode {
     worldBounds: EngineRect | null;
     culled: boolean;
     bucketKey: string;
+    parentIndex: number;
 }
 export interface EngineRenderBatch {
     key: string;

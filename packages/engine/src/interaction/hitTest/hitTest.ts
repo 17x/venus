@@ -28,6 +28,8 @@ import {
 const CLIP_DEFAULT_TOLERANCE = 1.5
 const MIN_POLYGON_VERTEX_COUNT = 3
 const MIN_PATH_FILL_POINT_COUNT = 2
+const LINE_SEGMENT_POINT_MIN_COUNT = 2
+const LINE_SEGMENT_LAST_POINT_OFFSET = 1
 
 export type EngineEditorNodeType =
   | 'frame'
@@ -220,12 +222,7 @@ export function isPointInsideEngineShapeHitArea(
       return false
     }
 
-    return isPointNearLineSegment(testPointer, {
-      x1: shape.x,
-      y1: shape.y,
-      x2: shape.x + shape.width,
-      y2: shape.y + shape.height,
-    }, tolerance)
+    return isPointNearLineSegment(testPointer, resolveLineSegmentHitSegment(shape), tolerance)
   }
 
   if (shape.type === 'rectangle' || shape.type === 'frame') {
@@ -283,7 +280,7 @@ export function isPointInsideEngineShapeHitArea(
   }
 
   if (shape.type === 'path') {
-    const coarseBounds = getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+    const coarseBounds = resolvePathCoarseBounds(shape)
     // Skip expensive path segment/polygon checks when pointer is clearly outside expanded bounds.
     if (!isPointInsideExpandedBounds(testPointer, coarseBounds, tolerance)) {
       return false
@@ -299,6 +296,66 @@ export function isPointInsideEngineShapeHitArea(
   }
 
   return false
+}
+
+/**
+ * Resolves line hit-test endpoints using the same points-first policy as rendering.
+ * @param shape Line segment node.
+ */
+function resolveLineSegmentHitSegment(shape: EngineEditorHitTestNode) {
+  if (shape.points && shape.points.length >= LINE_SEGMENT_POINT_MIN_COUNT) {
+    const start = shape.points[0]
+    const end = shape.points[shape.points.length - LINE_SEGMENT_LAST_POINT_OFFSET]
+    return {
+      x1: start.x,
+      y1: start.y,
+      x2: end.x,
+      y2: end.y,
+    }
+  }
+
+  return {
+    x1: shape.x,
+    y1: shape.y,
+    x2: shape.x + shape.width,
+    y2: shape.y + shape.height,
+  }
+}
+
+/**
+ * Resolves path coarse bounds from authored points/handles before legacy box fields.
+ * @param shape Path node.
+ */
+function resolvePathCoarseBounds(shape: EngineEditorHitTestNode) {
+  const points: EngineEditorPoint[] = []
+  if (shape.bezierPoints && shape.bezierPoints.length > 0) {
+    shape.bezierPoints.forEach((point) => {
+      points.push(point.anchor)
+      if (point.cp1) {
+        points.push(point.cp1)
+      }
+      if (point.cp2) {
+        points.push(point.cp2)
+      }
+    })
+  } else if (shape.points && shape.points.length > 0) {
+    points.push(...shape.points)
+  }
+
+  if (points.length === 0) {
+    return getNormalizedBoundsFromBox(shape.x, shape.y, shape.width, shape.height)
+  }
+
+  const xs = points.map((point) => point.x)
+  const ys = points.map((point) => point.y)
+  return {
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
+    maxX: Math.max(...xs),
+    maxY: Math.max(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  }
 }
 
 // Resolve pointer-vs-bounds coarse check with tolerance expansion.

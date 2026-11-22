@@ -14,8 +14,8 @@
     "shortcut": "Ctrl+O"
   },
   "saveFile": {
-    "label": "保存文件",
-    "tooltip": "保存当前文件",
+    "label": "保存到本地",
+    "tooltip": "将当前文件保存到此设备",
     "shortcut": "Ctrl+S"
   },
   "saveAs": {
@@ -29,6 +29,10 @@
   "exportFile": {
     "label": "导出",
     "tooltip": "导出当前文件"
+  },
+  "exportFile_archive": {
+    "label": "导出 Venus 文件",
+    "tooltip": "下载可移植的 Venus 文档压缩包"
   },
   "exportFile_png": {
     "label": "导出为PNG",

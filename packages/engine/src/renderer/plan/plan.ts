@@ -1,12 +1,12 @@
 import type {
   EngineRenderFrame,
 } from '../types/index.ts'
+import type { EngineViewportWorldBounds } from '../../core/camera/index.ts'
 import type {
   EngineRect,
   EngineRenderableNode,
 } from '../../scene/types/types.ts'
 import type { EngineSceneBufferLayout } from '../../scene/buffer/buffer.ts'
-import { toWorldAxisAlignedBounds } from '../../scene/worldBounds/worldBounds.ts'
 import {
   attachGroupAggregateBounds,
   buildGroupAggregateWorldBounds,
@@ -26,15 +26,13 @@ import {
   resolveScenePlanVersion,
   resolveViewportSignature,
 } from './planFrameContext.ts'
-import {
-  flattenEngineNodes,
-  readBufferMatrix,
-  readBufferRect,
-} from './planBufferLayoutRead.ts'
-
 export type EngineWorldMatrix = readonly [number, number, number, number, number, number]
 
 const IDENTITY_MATRIX: EngineWorldMatrix = [1, 0, 0, 0, 1, 0]
+const PREDICTIVE_CULLING_MIN_CONFIDENCE = 0.2
+const PREDICTIVE_CULLING_MAX_OVERSCAN_CSS_PX = 768
+const PREDICTIVE_CULLING_LOOKAHEAD_SECONDS = 0.08
+const INTERACTIVE_CULLING_OVERSCAN_CSS_PX = 96
 
 export interface EnginePreparedNode {
   node: EngineRenderableNode
@@ -42,6 +40,7 @@ export interface EnginePreparedNode {
   worldBounds: EngineRect | null
   culled: boolean
   bucketKey: string
+  parentIndex: number
 }
 
 export interface EngineRenderBatch {
@@ -78,6 +77,11 @@ interface CachedRenderPlanEntry {
   viewportSignature: string
   framePlanSignature: string
   plan: EngineRenderPlan
+}
+
+interface EngineFlattenedNodeEntry {
+  node: EngineRenderableNode
+  parentIndex: number
 }
 
 const renderPlanCache = new WeakMap<EngineRenderFrame['scene'], CachedRenderPlanEntry>()
@@ -124,7 +128,9 @@ export function prepareEngineRenderPlan(frame: EngineRenderFrame): EngineRenderP
     return cached.plan
   }
 
-  const viewportBounds = resolveViewportWorldBounds(frame)
+  const viewportBounds = resolveViewportWorldBounds(frame, {
+    overscanCssPx: resolveRenderPlanOverscanCssPx(frame),
+  })
   const bufferLayout = resolveSceneBufferLayout(frame.scene)
   const plan = bufferLayout
     ? prepareEngineRenderPlanFromBuffer(frame, viewportBounds, bufferLayout)
@@ -158,6 +164,58 @@ function resolveBatchKey(node: EngineRenderableNode) {
 }
 
 /**
+ * Flattens render nodes with parent slots so buffer traversal can validate
+ * structure while still resolving geometry from the current scene objects.
+ * @param nodes Scene root nodes.
+ * @param parentIndex Parent prepared index.
+ * @param out Output entry list.
+ */
+function flattenEngineNodeEntries(
+  nodes: readonly EngineRenderableNode[],
+  parentIndex = -1,
+  out: EngineFlattenedNodeEntry[] = [],
+): EngineFlattenedNodeEntry[] {
+  nodes.forEach((node) => {
+    const nodeIndex = out.push({node, parentIndex}) - 1
+    if (node.type === 'group') {
+      flattenEngineNodeEntries(node.children, nodeIndex, out)
+    }
+  })
+
+  return out
+}
+
+/**
+ * Validates that the typed scene buffer still describes the current node tree.
+ * Geometry and transforms are intentionally not trusted here; render planning
+ * resolves them from scene nodes so interaction, hit-test, overlay, and render
+ * all share the same canonical source after edits.
+ * @param bufferLayout Scene buffer layout metadata.
+ * @param entries Current flattened scene entries.
+ */
+function isBufferLayoutAlignedWithEntries(
+  bufferLayout: EngineSceneBufferLayout,
+  entries: readonly EngineFlattenedNodeEntry[],
+) {
+  if (entries.length !== bufferLayout.count) {
+    return false
+  }
+
+  for (let slot = 0; slot < entries.length; slot += 1) {
+    const entry = entries[slot]
+    if (
+      bufferLayout.nodeIds[slot] !== entry.node.id ||
+      bufferLayout.parentIndices[slot] !== entry.parentIndex ||
+      bufferLayout.order[slot] !== slot
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
  * Handles prepareEngineRenderPlanFromBuffer.
  * @param frame Current render frame.
  * @param viewportBounds viewportBounds parameter.
@@ -165,11 +223,11 @@ function resolveBatchKey(node: EngineRenderableNode) {
  */
 function prepareEngineRenderPlanFromBuffer(
   frame: EngineRenderFrame,
-  viewportBounds: {minX: number; minY: number; maxX: number; maxY: number},
+  viewportBounds: EngineViewportWorldBounds,
   bufferLayout: EngineSceneBufferLayout,
 ): EngineRenderPlan {
-  const flattenedNodes = flattenEngineNodes(frame.scene.nodes)
-  if (flattenedNodes.length !== bufferLayout.count) {
+  const flattenedEntries = flattenEngineNodeEntries(frame.scene.nodes)
+  if (!isBufferLayoutAlignedWithEntries(bufferLayout, flattenedEntries)) {
     // Buffer/layout mismatch means store and scene snapshot drifted. Fallback
     // to object traversal to preserve correctness.
     return prepareEngineRenderPlanFromNodes(frame, viewportBounds)
@@ -182,9 +240,10 @@ function prepareEngineRenderPlanFromBuffer(
   const framePlanCandidateIdSet = resolveFramePlanCandidateIdSet(frame)
 
   for (let slot = 0; slot < bufferLayout.count; slot += 1) {
-    const node = flattenedNodes[slot]
-    const localMatrix = readBufferMatrix(bufferLayout, slot)
-    const parentIndex = bufferLayout.parentIndices[slot]
+    const entry = flattenedEntries[slot]
+    const node = entry.node
+    const localMatrix = node.transform?.matrix ?? IDENTITY_MATRIX
+    const parentIndex = entry.parentIndex
     const parentWorld = parentIndex >= 0
       ? (worldMatrices[parentIndex] ?? IDENTITY_MATRIX)
       : IDENTITY_MATRIX
@@ -193,10 +252,9 @@ function prepareEngineRenderPlanFromBuffer(
       : localMatrix
     worldMatrices[slot] = worldMatrix
 
-    const localBounds = readBufferRect(bufferLayout, slot)
     const worldBounds = node.type === 'group'
       ? null
-      : toWorldAxisAlignedBounds(localBounds, worldMatrix)
+      : resolveNodeWorldBounds(node, worldMatrix)
     const culled = node.type === 'group'
       ? false
       : isPreparedNodeCulled(
@@ -215,6 +273,7 @@ function prepareEngineRenderPlanFromBuffer(
       worldBounds,
       culled,
       bucketKey: resolveBatchKey(node),
+      parentIndex,
     }
 
   }
@@ -329,7 +388,7 @@ function prepareEngineRenderPlanFromBuffer(
  */
 function prepareEngineRenderPlanFromNodes(
   frame: EngineRenderFrame,
-  viewportBounds: {minX: number; minY: number; maxX: number; maxY: number},
+  viewportBounds: EngineViewportWorldBounds,
 ): EngineRenderPlan {
   const preparedNodes: EnginePreparedNode[] = []
   const drawList: number[] = []
@@ -367,6 +426,7 @@ function prepareEngineRenderPlanFromNodes(
         worldBounds,
         culled,
         bucketKey: resolveBatchKey(node),
+        parentIndex: parentPreparedIndex,
       }) - 1
       parentIndices[preparedIndex] = parentPreparedIndex
 
@@ -478,6 +538,26 @@ function prepareEngineRenderPlanFromNodes(
 }
 
 /**
+ * Resolves extra culling coverage for pan/drag frames without lowering render fidelity.
+ * @param frame Current render frame.
+ */
+export function resolveRenderPlanOverscanCssPx(frame: EngineRenderFrame): number {
+  const predictor = frame.context.interactionPredictor
+  const interactiveFloor = frame.context.quality === 'interactive'
+    ? INTERACTIVE_CULLING_OVERSCAN_CSS_PX
+    : 0
+  if (!predictor || predictor.confidence < PREDICTIVE_CULLING_MIN_CONFIDENCE) {
+    return interactiveFloor
+  }
+
+  const predictedTravel = predictor.speedPxPerSec * PREDICTIVE_CULLING_LOOKAHEAD_SECONDS
+  return Math.min(
+    PREDICTIVE_CULLING_MAX_OVERSCAN_CSS_PX,
+    Math.max(interactiveFloor, Math.round(predictedTravel * predictor.confidence)),
+  )
+}
+
+/**
  * Handles multiplyMatrix.
  * @param left left parameter.
  * @param right right parameter.
@@ -497,5 +577,3 @@ export function multiplyMatrix(
     l10 * r02 + l11 * r12 + l12,
   ]
 }
-
-

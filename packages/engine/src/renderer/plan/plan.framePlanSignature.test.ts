@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { prepareEngineRenderPlan } from '../plan/index.ts'
+import { createEngineSceneBufferLayout } from '../../scene/buffer/buffer.ts'
 import type { EngineRenderFrame } from '../types/index.ts'
 
 /**
@@ -87,3 +88,63 @@ test('prepareEngineRenderPlan uses layered candidates when shortlist ids are abs
   // Migration fallback should keep planner shortlist aligned with layered base+active candidate ids.
   assert.deepEqual(visibleNodeIds, ['shape-b'])
 })
+
+test('prepareEngineRenderPlan uses canonical shape bounds in buffer traversal', () => {
+  const frame = createRenderFrame(undefined)
+  frame.scene = {
+    revision: 'plan-buffer-arc',
+    width: 1000,
+    height: 1000,
+    nodes: [
+      {
+        id: 'arc-buffer',
+        type: 'shape',
+        shape: 'ellipse',
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 80,
+        ellipseStartAngle: 0,
+        ellipseEndAngle: 90,
+        fill: '#111111',
+      },
+    ],
+    metadata: {
+      bufferLayout: createEngineSceneBufferLayout({
+        nodes: [
+          {
+            id: 'arc-buffer',
+            type: 'shape',
+            shape: 'ellipse',
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 80,
+            ellipseStartAngle: 0,
+            ellipseEndAngle: 90,
+            fill: '#111111',
+          },
+        ],
+      }),
+    },
+  }
+
+  const plan = prepareEngineRenderPlan(frame)
+  assertRectClose(plan.preparedNodes[0]?.worldBounds, {
+    x: 60,
+    y: 0,
+    width: 60,
+    height: 40,
+  })
+})
+
+function assertRectClose(
+  actual: {x: number; y: number; width: number; height: number} | null | undefined,
+  expected: {x: number; y: number; width: number; height: number},
+) {
+  assert.ok(actual)
+  assert.ok(Math.abs(actual.x - expected.x) <= 1e-6)
+  assert.ok(Math.abs(actual.y - expected.y) <= 1e-6)
+  assert.ok(Math.abs(actual.width - expected.width) <= 1e-6)
+  assert.ok(Math.abs(actual.height - expected.height) <= 1e-6)
+}

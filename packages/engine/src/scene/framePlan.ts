@@ -1,7 +1,7 @@
 import type { EngineNodeId, EngineRect, EngineSceneSnapshot } from './types/types.ts'
+import { resolveEngineViewportWorldRect } from '../core/camera/index.ts'
 
 const sceneNodeCountCache = new WeakMap<EngineSceneSnapshot, number>()
-const VIEWPORT_PADDING_DOUBLE = 2
 
 export interface EngineFramePlan {
   revision: string | number
@@ -47,7 +47,9 @@ export function prepareEngineFramePlan(
   options: PrepareEngineFramePlanOptions,
 ): EngineFramePlan {
   const queryPadding = Math.max(0, options.padding ?? 0)
-  const viewportBounds = resolveViewportWorldBounds(options.viewport, queryPadding)
+  const viewportBounds = resolveEngineViewportWorldRect(options.viewport, {
+    overscanCssPx: queryPadding,
+  })
   const candidateNodeIds = options.queryCandidates(viewportBounds)
 
   return {
@@ -74,25 +76,6 @@ function resolveSceneNodeCount(scene: EngineSceneSnapshot) {
   const count = countSceneNodes(scene.nodes)
   sceneNodeCountCache.set(scene, count)
   return count
-}
-
-// Keep the current frame plan intentionally coarse so future render and
-// hit-test planners can share the same viewport query contract.
-/**
- * Handles resolveViewportWorldBounds.
- * @param viewport Viewport state.
- * @param padding padding parameter.
- */
-function resolveViewportWorldBounds(
-  viewport: EngineFramePlanViewport,
-  padding: number,
-): EngineRect {
-  return {
-    x: -viewport.offsetX / viewport.scale - padding,
-    y: -viewport.offsetY / viewport.scale - padding,
-    width: viewport.viewportWidth / viewport.scale + padding * VIEWPORT_PADDING_DOUBLE,
-    height: viewport.viewportHeight / viewport.scale + padding * VIEWPORT_PADDING_DOUBLE,
-  }
 }
 
 // Count flattened scene nodes so diagnostics can compare candidate pressure

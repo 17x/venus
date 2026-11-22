@@ -16,6 +16,7 @@ import type {
   EditorEventData,
   EditorEventType,
 } from '../types/index.ts'
+import type {AutosaveSnapshot} from '../persistence/index.ts'
 import type {PointRef} from '../../views/statusBar/StatusBar.tsx'
 import type {createEditorDocumentFromFile} from '../adapters/fileDocument/fileDocument.ts'
 import type {SceneShapeSnapshot} from '../shared-memory/index.ts'
@@ -48,6 +49,7 @@ export interface EditorDocumentState {
   document: ReturnType<typeof createEditorDocumentFromFile>
   file: EditorFileDocument | null
   hasFile: boolean
+  localSave: AutosaveSnapshot
 }
 
 export interface EditorRuntimeState {

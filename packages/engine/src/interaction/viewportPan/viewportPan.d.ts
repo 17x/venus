@@ -24,6 +24,9 @@ export declare function createEngineViewportPanOrigin(input: {
 export declare function accumulateEngineWheelPanOffset(offset: EngineViewportPanOffset, input: {
     deltaX: number;
     deltaY: number;
+    deltaMode?: number;
+    lineStepCssPx?: number;
+    pageStepCssPx?: number;
 }): EngineViewportPanOffset;
 /**
  * Update pointer-pan session and return the viewport delta to commit.

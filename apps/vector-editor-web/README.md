@@ -1,100 +1,39 @@
-# `@venus/vector-editor-web`
+# Vector Editor Web
 
-`vector-editor-web` is the product-facing editor app in the Venus monorepo.
+The main Venus product app. It owns editor UX, command policy, file workflows,
+and browser persistence while consuming reusable engine and UI packages.
 
-## Local Docs
-
-- Product architecture and app-only integration notes live in
-  `./docs/architecture.md`.
-- Keep vector-specific documentation in this app directory instead of under
-  global `docs/`.
-
-## Run
-
-From repo root:
+## Commands
 
 ```sh
 pnpm --filter @venus/vector-editor-web dev
-```
-
-Build:
-
-```sh
 pnpm --filter @venus/vector-editor-web build
-```
-
-Type-check:
-
-```sh
 pnpm --filter @venus/vector-editor-web exec tsc --noEmit -p tsconfig.app.json
 ```
 
-## Architecture in This App
+## Architecture
 
-Current runtime path:
-
-`useEditorRuntime`
--> app-local runtime bridge (`@vector/runtime*` aliases)
--> `@venus/editor-primitive` interaction primitives
--> `@venus/engine`
-
-Key points:
-
-- The app is a UI shell (toolbar, header, panels, menu).
-- Product-specific semantics stay in app-local `src/editor/**`.
-- Shared interaction contracts are consumed through `src/runtime/interaction/index.ts`.
-- `CanvasViewport` is a React adapter; gesture/zoom policy can be shared through `@venus/editor-primitive`.
-- Product-specific documentation and adoption notes live with this app.
-
-## Important Files
-
-- App entry:
-  - [src/App.tsx](./src/App.tsx)
-- Runtime orchestration:
-  - [src/editor/hooks/useEditorRuntime.ts](./src/editor/hooks/useEditorRuntime.ts)
-  - [src/editor/hooks/useCanvasRuntimeBridge.ts](./src/editor/hooks/useCanvasRuntimeBridge.ts)
-- Main frame:
-  - [src/components/editorFrame/EditorFrame.tsx](./src/components/editorFrame/EditorFrame.tsx)
-- File/document adapter:
-  - [src/editor/adapters/fileDocument.ts](./src/editor/adapters/fileDocument.ts)
-
-## Startup Troubleshooting
-
-If the app does not start, run this sequence from repo root:
-
-```sh
-pnpm install
-pnpm --filter @venus/vector-editor-web exec tsc --noEmit -p tsconfig.app.json
-pnpm --filter @venus/vector-editor-web dev -- --host 127.0.0.1 --port 5173 --strictPort
+```text
+app/views -> runtime product bridge
+           -> @venus/editor-primitive
+           -> @venus/engine
+browser persistence -> @venus/document-core + @venus/sync-core
 ```
 
-Quick checks:
+- `src/views`: product UI.
+- `src/runtime`: app orchestration and adapters.
+- `src/runtime/model`: app document/runtime model.
+- `src/runtime/persistence`: IndexedDB, autosave, and sync composition.
+- Generic graphics mechanisms belong in `@venus/engine`; product behavior stays
+  here.
 
-- Verify Node and pnpm versions (`node -v`, `pnpm -v`).
-- Verify package links (`pnpm --filter @venus/vector-editor-web list @venus/lib @venus/editor-primitive @venus/engine`).
-- If port 5173 is occupied, pass another port via `-- --port <port> --strictPort`.
+Important entrypoints:
 
-Known note:
+- [src/app/App.tsx](./src/app/App.tsx)
+- [src/runtime/useEditorRuntime/useEditorRuntime.ts](./src/runtime/useEditorRuntime/useEditorRuntime.ts)
+- [src/runtime/useCanvasRuntimeBridge.ts](./src/runtime/useCanvasRuntimeBridge.ts)
+- [src/views/editorFrame/EditorFrame.tsx](./src/views/editorFrame/EditorFrame.tsx)
+- [src/runtime/adapters/fileDocument/fileDocument.ts](./src/runtime/adapters/fileDocument/fileDocument.ts)
 
-- `pnpm --filter @venus/vector-editor-web lint` may fail `ui-style-guard` on existing style-boundary issues, but this does not block `dev` startup.
-
-## Performance Debugging
-
-For large-scene debugging, use `apps/playground` first:
-
-```sh
-pnpm --dir apps/playground dev
-```
-
-Renderer diagnostics currently expose:
-
-- draw count
-- visible shape count
-- draw duration
-- render diagnostics from `Canvas2DRenderer`
-
-## Notes
-
-- This app currently prioritizes runtime migration stability over final product polish.
-- Default mock document lives at `src/contexts/appContext/mockFile.ts` and now includes a denser mixed-shape baseline:
-  grouped rectangles, rounded-corner variants, arc ellipse angles, multiple bezier paths, arrowhead line segments, and two clipped image assets. Use it for quick manual checks of selection, transform, layer order, clip-path, and style persistence flows.
+The production build is offline-capable and saves locally before any optional
+future synchronization. Default fixtures live under `src/runtime/presets/`.

@@ -23,6 +23,7 @@ function createControllerState(): EditorRuntimeCanvasInteractionControllerState 
     pointerSelectorModifiers: undefined,
     panDragOrigin: null,
     panDragOffset: {x: 0, y: 0},
+    panDragCommitFrame: null,
   }
 }
 
@@ -92,4 +93,32 @@ test('panning tool ignores movement from a different pointer id', () => {
   pointerMove({x: 1, y: 1}, {screen: {x: 118, y: 74}, pointerId: 8})
 
   assert.deepEqual(panDeltas, [])
+})
+
+test('panning tool flushes screen deltas immediately even when raf exists', () => {
+  const originalRequestAnimationFrame = globalThis.requestAnimationFrame
+  const state = createControllerState()
+  const {options, panDeltas} = createPanningOptions()
+  const pointerDown = createPointerDownHandler(options, state)
+  const pointerMove = createPointerMoveHandler(options, state)
+  let scheduledFrameCount = 0
+
+  globalThis.requestAnimationFrame = (() => {
+    scheduledFrameCount += 1
+    return scheduledFrameCount
+  }) as typeof globalThis.requestAnimationFrame
+
+  try {
+    pointerDown({x: 0, y: 0}, undefined, {screen: {x: 100, y: 80}, pointerId: 7})
+    pointerMove({x: 1, y: 1}, {screen: {x: 118, y: 74}, pointerId: 7})
+    pointerMove({x: 2, y: 2}, {screen: {x: 123, y: 79}, pointerId: 7})
+
+    assert.equal(scheduledFrameCount, 0)
+    assert.deepEqual(panDeltas, [
+      {x: 18, y: -6},
+      {x: 5, y: 5},
+    ])
+  } finally {
+    globalThis.requestAnimationFrame = originalRequestAnimationFrame
+  }
 })

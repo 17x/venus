@@ -142,7 +142,7 @@ export const VENUS_SHAPE_MODEL_SPECS: readonly VenusShapeModelSpec[] = [
     minimalCreate: ['type', 'width', 'height', 'points'],
     bounds: 'x/y/width/height are the editor bounds for transforms and proxy resizing. points hold the star vertex geometry and are rescaled when bounds are patched.',
     geometry: ['points', 'closed'],
-    pathExpansion: 'Currently normalized to the engine polygon render shape. A future native star model may store inner radius, outer radius, and point count.',
+    pathExpansion: 'Uses the native engine star shape kind with point-authored geometry. A future parametric star model may store inner radius, outer radius, and point count.',
     commonRender: ['fill', 'stroke', 'multi fill paints', 'multi stroke paints', 'stroke alignment', 'dash/cap/join', 'opacity', 'blend/effects'],
   },
   {

@@ -20,6 +20,11 @@ export interface ViewportPanOrigin {
   pointerId: number
 }
 
+const DOM_DELTA_LINE = 1
+const DOM_DELTA_PAGE = 2
+const DEFAULT_WHEEL_LINE_STEP_CSS_PX = 16
+const DEFAULT_WHEEL_PAGE_STEP_CSS_PX = 800
+
 /**
  * Seeds a pointer-pan session from the pointerdown location.
  */
@@ -48,12 +53,25 @@ export function accumulateWheelPanOffset(
     deltaX: number
     /** Stores wheel delta on y-axis. */
     deltaY: number
+    /** Stores WheelEvent.deltaMode; defaults to CSS pixels. */
+    deltaMode?: number
+    /** Overrides line-mode wheel unit size in CSS pixels. */
+    lineStepCssPx?: number
+    /** Overrides page-mode wheel unit size in CSS pixels. */
+    pageStepCssPx?: number
   },
 ): ViewportPanOffset {
+  const deltaMode = input.deltaMode ?? 0
+  const unitScale = deltaMode === DOM_DELTA_LINE
+    ? (input.lineStepCssPx ?? DEFAULT_WHEEL_LINE_STEP_CSS_PX)
+    : deltaMode === DOM_DELTA_PAGE
+      ? (input.pageStepCssPx ?? DEFAULT_WHEEL_PAGE_STEP_CSS_PX)
+      : 1
+
   return {
     // Invert wheel direction so scrolling intent maps to viewport translation intent.
-    x: offset.x - input.deltaX,
-    y: offset.y - input.deltaY,
+    x: offset.x - input.deltaX * unitScale,
+    y: offset.y - input.deltaY * unitScale,
   }
 }
 
@@ -92,4 +110,3 @@ export function accumulatePointerPanOffset(
     },
   }
 }
-

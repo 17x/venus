@@ -1,5 +1,6 @@
 import type {EngineNodeId, EngineRenderableNode, EngineSceneSnapshot} from '../types/types.ts'
 import { estimateTextWidth as estimateTextWidthShared } from '../../core/text/shaper.ts'
+import {resolveEngineShapeStrokeBounds} from '../geometry/canonicalGeometry.ts'
 
 const ENGINE_NODE_KIND_UNKNOWN = 0
 const ENGINE_NODE_KIND_TEXT = 1
@@ -17,7 +18,6 @@ const TRANSFORM_M4_OFFSET = 4
 const TRANSFORM_M5_OFFSET = 5
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
 const CAPACITY_GROWTH_FACTOR = 2
-const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6
 
 export interface EngineSceneBufferLayout {
   capacity: number
@@ -182,22 +182,25 @@ function writeLayoutSlot(
       layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = 0
       break
     case 'shape':
-      layout.bounds[boundsOffset] = node.x ?? 0
-      layout.bounds[boundsOffset + 1] = node.y ?? 0
-      layout.bounds[boundsOffset + BOUNDS_WIDTH_OFFSET] = node.width ?? 0
-      layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = node.height ?? 0
+      {
+        const bounds = resolveEngineShapeStrokeBounds(node)
+        layout.bounds[boundsOffset] = bounds.x
+        layout.bounds[boundsOffset + 1] = bounds.y
+        layout.bounds[boundsOffset + BOUNDS_WIDTH_OFFSET] = bounds.width
+        layout.bounds[boundsOffset + BOUNDS_HEIGHT_OFFSET] = bounds.height
+      }
       break
   }
 
-      const transformOffset = slot * TRANSFORM_STRIDE
+  const transformOffset = slot * TRANSFORM_STRIDE
   const matrix = node.transform?.matrix ?? [1, 0, 0, 0, 1, 0]
-      const [m0, m1, m2, m3, m4, m5] = matrix
-      layout.transform[transformOffset] = m0
-      layout.transform[transformOffset + 1] = m1
-      layout.transform[transformOffset + TRANSFORM_M2_OFFSET] = m2
-      layout.transform[transformOffset + TRANSFORM_M3_OFFSET] = m3
-      layout.transform[transformOffset + TRANSFORM_M4_OFFSET] = m4
-      layout.transform[transformOffset + TRANSFORM_M5_OFFSET] = m5
+  const [m0, m1, m2, m3, m4, m5] = matrix
+  layout.transform[transformOffset] = m0
+  layout.transform[transformOffset + 1] = m1
+  layout.transform[transformOffset + TRANSFORM_M2_OFFSET] = m2
+  layout.transform[transformOffset + TRANSFORM_M3_OFFSET] = m3
+  layout.transform[transformOffset + TRANSFORM_M4_OFFSET] = m4
+  layout.transform[transformOffset + TRANSFORM_M5_OFFSET] = m5
 }
 
 /**

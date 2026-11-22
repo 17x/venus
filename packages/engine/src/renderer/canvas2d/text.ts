@@ -12,8 +12,6 @@ interface TextLineLayout {
 const LINE_BREAK_CHAR_CODE = 10
 const TEXT_ALIGN_CENTER_DIVISOR = 2
 const DEFAULT_FONT_WEIGHT = 400
-/** When true, empty trailing lines from width-break processing are dropped. */
-const STRIP_TRAILING_EMPTY_LINES = true
 
 export interface Canvas2DTextCounters {
   singleLineTextFastPathCount: number
@@ -308,7 +306,9 @@ function applyWidthBreaks(
   const maxWidth = node.width ?? 0
   if (maxWidth <= 0) return lines
 
-  const wrapMode = resolveEffectiveWrap(node)
+  const effectiveWrapMode = resolveEffectiveWrap(node)
+  if (effectiveWrapMode === 'none') return lines
+  const wrapMode: 'word' | 'char' = effectiveWrapMode
   const result: TextLineLayout[] = []
 
   for (const line of lines) {
@@ -337,7 +337,7 @@ function applyWidthBreaks(
     for (const m of measured) {
       // If this single segment already exceeds maxWidth (e.g., a very long word
       // or CJK string), we need to break it character-by-character.
-      if (currentWidth === 0 && m.width > maxWidth && wrapMode !== 'none') {
+      if (currentWidth === 0 && m.width > maxWidth) {
         const broken = breakLongSegment(m, node, context, maxWidth, wrapMode)
         // Push all broken pieces as individual lines except the last one,
         // which becomes the start of the current accumulating line.
@@ -437,7 +437,6 @@ function breakLongSegment(
   let pieceStart = 0
   let pieceWidth = 0
   let lastBreakableEnd = 0   // exclusive end index of the last breakable position
-  let lastBreakableWidth = 0 // accumulated width at lastBreakableEnd
 
   for (let i = 0; i < m.text.length; i++) {
     const char = m.text[i]
@@ -458,7 +457,6 @@ function breakLongSegment(
     // (CJK can break before OR after — we record after for simplicity).
     if (isSpace || (wrapMode === 'char') || (wrapMode === 'word' && isCJK)) {
       lastBreakableEnd = i + 1       // break AFTER this character
-      lastBreakableWidth = nextWidth
     }
 
     if (nextWidth > maxWidth && pieceWidth > 0) {
@@ -475,7 +473,6 @@ function breakLongSegment(
         pieceStart = breakAt
         pieceWidth = 0
         lastBreakableEnd = 0
-        lastBreakableWidth = 0
         // Re-measure from the new start
         i = breakAt - 1 // will be incremented by the for loop
         continue
@@ -486,7 +483,6 @@ function breakLongSegment(
       pieceStart = i
       pieceWidth = charWidth
       lastBreakableEnd = 0
-      lastBreakableWidth = 0
     } else {
       pieceWidth = nextWidth
     }

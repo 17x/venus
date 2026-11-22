@@ -312,7 +312,7 @@ function resolveFamilyStack(family: string): readonly string[] {
  * or a server-side font analysis service.
  *
  * @param fonts The registered font faces.
- * @param text The text that needs coverage.
+ * @param _text The text that needs coverage.
  * @param excludeFamilies Font families already tried (to exclude).
  * @param weight Requested weight.
  * @param style Requested style.
@@ -320,7 +320,7 @@ function resolveFamilyStack(family: string): readonly string[] {
  */
 function findFallbackFont(
   fonts: readonly FontFaceEntry[],
-  text: string,
+  _text: string,
   excludeFamilies: readonly string[],
   weight: number | string,
   style: 'normal' | 'italic' | 'oblique',

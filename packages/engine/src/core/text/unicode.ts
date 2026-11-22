@@ -29,9 +29,6 @@ const VARIATION_SELECTOR_END = 0xfe0f
 const VARIATION_SELECTOR_SUPP_START = 0xe0100
 const VARIATION_SELECTOR_SUPP_END = 0xe01ef
 
-/** Number of combining mark ranges checked per code point. */
-const COMBINING_RANGE_COUNT = 6
-
 /**
  * Checks whether a code point is a combining mark that extends the
  * preceding base character's grapheme cluster.

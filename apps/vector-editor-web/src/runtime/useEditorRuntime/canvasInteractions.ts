@@ -22,6 +22,7 @@ function createInitialControllerState(): EditorRuntimeCanvasInteractionControlle
     pointerSelectorModifiers: undefined,
     panDragOrigin: null,
     panDragOffset: {x: 0, y: 0},
+    panDragCommitFrame: null,
   }
 }
 

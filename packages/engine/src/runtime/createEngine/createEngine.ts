@@ -5,6 +5,7 @@ import {
   type EngineCanvasViewportState,
 } from '../../interaction/viewport/viewport.ts'
 import type {EngineOverlayDrawNode} from '../../interaction/overlayCanvas.ts'
+import { resolveEngineViewportWorldRect } from '../../core/camera/index.ts'
 import { createCanvas2DEngineRenderer } from '../../renderer/canvas2d/canvas2d.ts'
 import { createWebGLEngineRenderer } from '../../renderer/webgl/index.ts'
 import type { EngineRenderFallbackReason } from '../../renderer/fallbackTaxonomy/index.ts'
@@ -358,9 +359,12 @@ export function createEngine(options: CreateEngineOptions): Engine {
   const FRAME_PLAN_SHORTLIST_MAX_HYSTERESIS_RATIO = 0.3
   const FRAME_PLAN_SHORTLIST_DEFAULT_HYSTERESIS_RATIO = 0.06
   const FRAME_PLAN_SHORTLIST_DEFAULT_STABLE_FRAME_COUNT = 2
+  const FRAME_PLAN_PREDICTIVE_MIN_CONFIDENCE = 0.2
+  const FRAME_PLAN_PREDICTIVE_MAX_PADDING_CSS_PX = 768
+  const FRAME_PLAN_PREDICTIVE_LOOKAHEAD_SECONDS = 0.08
+  const FRAME_PLAN_INTERACTIVE_PADDING_CSS_PX = 96
   const DEFAULT_MAX_PIXEL_RATIO = 2
   const DEFAULT_CAMERA_ANIMATION_DURATION_MS = 110
-  const VIEWPORT_PADDING_MULTIPLIER = 2
 
   const ENABLE_FRAME_PLAN_SHORTLIST = options.render?.shortlist?.enabled ?? true
   const FRAME_PLAN_SHORTLIST_MIN_SCENE_NODES = Math.max(
@@ -592,6 +596,28 @@ export function createEngine(options: CreateEngineOptions): Engine {
     )
   }
 
+  /**
+   * Resolves frame-plan query padding from interaction predictor state.
+   * @param input Current strategy and predictor snapshot.
+   */
+  const resolveFramePlanQueryPaddingCssPx = (input: {
+    predictor: EngineInteractionPredictorState
+    quality: EngineRenderQuality
+  }) => {
+    const interactiveFloor = input.quality === 'interactive'
+      ? FRAME_PLAN_INTERACTIVE_PADDING_CSS_PX
+      : 0
+    if (input.predictor.confidence < FRAME_PLAN_PREDICTIVE_MIN_CONFIDENCE) {
+      return interactiveFloor
+    }
+
+    const predictedTravel = input.predictor.speedPxPerSec * FRAME_PLAN_PREDICTIVE_LOOKAHEAD_SECONDS
+    return Math.min(
+      FRAME_PLAN_PREDICTIVE_MAX_PADDING_CSS_PX,
+      Math.max(interactiveFloor, Math.round(predictedTravel * input.predictor.confidence)),
+    )
+  }
+
   const stopCameraAnimationInternal = (commitTarget = true) => {
     cameraAnimationController.stop(CAMERA_ANIMATION_ID)
     if (commitTarget && cameraAnimationTarget) {
@@ -752,9 +778,18 @@ export function createEngine(options: CreateEngineOptions): Engine {
       }
 
       if (ENABLE_FRAME_PLAN_SHORTLIST) {
-          const framePlanSignature = resolveEngineFramePlanSignature(scene, viewport)
+        const framePlanPadding = resolveFramePlanQueryPaddingCssPx({
+          predictor: latestInteractionPredictor,
+          quality: strategyDecision.quality,
+        })
+        const framePlanSignature = resolveEngineFramePlanSignature(scene, viewport, framePlanPadding)
         if (!latestFramePlan || latestFramePlanSignature !== framePlanSignature) {
-          latestFramePlan = buildEngineFramePlan(scene, viewport, (bounds) => store.queryCandidates(bounds))
+          latestFramePlan = buildEngineFramePlan(
+            scene,
+            viewport,
+            (bounds) => store.queryCandidates(bounds),
+            framePlanPadding,
+          )
           latestFramePlanSignature = framePlanSignature
         }
         const candidateRatio = latestFramePlan.sceneNodeCount > 0
@@ -890,12 +925,9 @@ transaction(run, transactionOptions) {
      * @param padding padding parameter.
      */
 queryViewportCandidates(padding = 0) {
-      return store.queryCandidates({
-        x: -viewport.offsetX - padding,
-        y: -viewport.offsetY - padding,
-        width: viewport.viewportWidth / viewport.scale + padding * VIEWPORT_PADDING_MULTIPLIER,
-        height: viewport.viewportHeight / viewport.scale + padding * VIEWPORT_PADDING_MULTIPLIER,
-      })
+      return store.queryCandidates(resolveEngineViewportWorldRect(viewport, {
+        overscanCssPx: Math.max(0, padding),
+      }))
     },
         /**
      * Handles queryPointCandidates.
@@ -938,19 +970,21 @@ query(bounds) {
       return store.queryCandidates(bounds)
     },
         /**
-     * Handles hitTest.
-     * @param point point parameter.
-     * @param tolerance tolerance parameter.
-     */
-hitTest(point, tolerance, options) {
+	     * Handles hitTest.
+	     * @param point point parameter.
+	     * @param tolerance tolerance parameter.
+	     * @param options Hit execution options.
+	     */
+	hitTest(point, tolerance, options) {
       return this.hitTestAll(point, tolerance, options)[0] ?? null
     },
         /**
-     * Handles hitTestAll.
-     * @param point point parameter.
-     * @param tolerance tolerance parameter.
-     */
-hitTestAll(point, tolerance, options) {
+	     * Handles hitTestAll.
+	     * @param point point parameter.
+	     * @param tolerance tolerance parameter.
+	     * @param options Hit execution options.
+	     */
+	hitTestAll(point, tolerance, options) {
       const resolvedTolerance = tolerance ?? 0
       const adaptiveExactBudget = resolveAdaptiveHitTestExactBudget({
         budgetPressure: latestBudgetPressure,

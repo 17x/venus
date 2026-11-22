@@ -26,6 +26,10 @@ import {
 import {ASSET_LIBRARY_CARDS} from '../shell/LeftSidebarShared.tsx'
 import {EditorFrameSidePanels} from './EditorFrameSidePanels.tsx'
 import {useEditorFrameShell} from './useEditorFrameShell.ts'
+import {
+  createOfflineEditorServices,
+  type LocalSaveStatus,
+} from '../../runtime/persistence/index.ts'
 
 const FIXED_LEFT_PANEL_WIDTH = 296
 const FIXED_RIGHT_PANEL_WIDTH = 240
@@ -136,6 +140,7 @@ const StageCanvasLayer = memo(function StageCanvasLayer(props: StageCanvasLayerP
 })
 
 function EditorFrameRuntime() {
+  const editorServices = useMemo(() => createOfflineEditorServices(), [])
   const initialLayoutState = useMemo(() => deserializeShellLayoutState(
     typeof window === 'undefined' ? null : serializeShellLayoutState(readStoredShellLayoutState(window.localStorage)),
   ), [])
@@ -162,7 +167,7 @@ function EditorFrameRuntime() {
     () => new Worker(new URL('../../app/editor.worker.ts', import.meta.url), {type: 'module'}),
     [],
   )
-  const runtime = useEditorRuntime({createWorker})
+  const runtime = useEditorRuntime({createWorker, services: editorServices})
 
   const {
     documentState,
@@ -171,7 +176,7 @@ function EditorFrameRuntime() {
     commands,
     refs,
   } = runtime
-  const {file} = documentState
+  const {file, localSave} = documentState
   const {canvas, currentTool, focused} = runtimeState
   const isolationTrail = useMemo(() => {
     if (!canvas.isolationGroupId) {
@@ -349,6 +354,13 @@ function EditorFrameRuntime() {
             rightSidebarProps={shell.rightSidebarProps}
           />
 
+          <div
+            aria-live={'polite'}
+            className={'pointer-events-none absolute bottom-2 right-2 z-30 rounded-full border border-slate-200/80 bg-white/90 px-2.5 py-1 text-[11px] text-slate-500 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/90 dark:text-slate-400'}
+          >
+            {resolveLocalSaveLabel(localSave.status)}
+          </div>
+
         </div>
       </>}
     </div>
@@ -371,6 +383,14 @@ function EditorFrameRuntime() {
       />}
 
   </>
+}
+
+function resolveLocalSaveLabel(status: LocalSaveStatus): string {
+  if (status === 'restoring') return 'Restoring local document…'
+  if (status === 'saving') return 'Saving locally…'
+  if (status === 'saved') return 'Saved locally'
+  if (status === 'error') return 'Local save failed'
+  return 'Local autosave ready'
 }
 
 const EditorFrame = () => {

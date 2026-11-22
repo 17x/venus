@@ -33,6 +33,7 @@ import type {
   EditorRuntimeCanvasInteractionControllerState,
   PointerScreenMetadata,
 } from './canvasInteractionController.types.ts'
+import {flushPanDragOffset} from './canvasInteractionController.panDrag.ts'
 
 const HOVER_HIT_MIN_INTERVAL_MS = 24
 const HOVER_HIT_MIN_DISTANCE_PX = 2
@@ -179,13 +180,13 @@ export function createPointerMoveHandler(
         },
       )
       controllerState.panDragOrigin = nextPan.origin
-      controllerState.panDragOffset = {x: 0, y: 0}
+      controllerState.panDragOffset = nextPan.offset
       clearSelectorOverlays()
       clearHoveredTransformHandle()
       clearHoveredShape()
       clearSnapGuides()
       if (nextPan.offset.x !== 0 || nextPan.offset.y !== 0) {
-        options.defaultCanvasInteractions.onViewportPan(nextPan.offset.x, nextPan.offset.y)
+        flushPanDragOffset(options, controllerState)
       }
       return
     }

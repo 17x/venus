@@ -9,7 +9,12 @@ import {
   EngineTileCache,
   getVisibleTilesForCamera,
   getZoomLevelForScale,
+  type TileCoord,
+  type TileRenderRequest,
+  type TileViewportCamera,
+  type TileZoomLevel,
 } from '../../tileManager/index.ts'
+import type { EngineViewportOverscanCssPx } from '../../../core/camera/index.ts'
 import {
   TileScheduler,
   type TileSchedulerCancelOptions,
@@ -21,6 +26,7 @@ const PAN_OVERSCAN_BACKWARD_TILES = 1
 const PAN_OVERSCAN_FORWARD_TILES = 2
 const PAN_PREDICTION_LOW_LOD_OFFSET = 1
 const PAN_PREDICTION_FRAME_INTERVAL_MS = 16
+const TILE_KEY_THEME_VERSION = 0
 
 /**
  * Stores capability construction options for tile scheduling state.
@@ -163,8 +169,9 @@ function schedulePanPredictiveTileRequests(options: {
 }) {
   const zoomLevel = getZoomLevelForScale(options.frame.viewport.scale)
   // Prediction region can use one coarser bucket so future area appears quickly, then sharpens later.
-  const predictionZoomLevel = Math.max(0, zoomLevel - PAN_PREDICTION_LOW_LOD_OFFSET)
+  const predictionZoomLevel = Math.max(0, zoomLevel - PAN_PREDICTION_LOW_LOD_OFFSET) as TileZoomLevel
   const tileSizeCssPx = options.tileCache.getTileSizePx(zoomLevel)
+  const predictionTileSizeCssPx = options.tileCache.getTileSizePx(predictionZoomLevel)
   const dpr = options.frame.context.pixelRatio ?? 1
   const renderVersion = typeof options.frame.scene.revision === 'number'
     ? options.frame.scene.revision
@@ -177,146 +184,222 @@ function schedulePanPredictiveTileRequests(options: {
   const predictedOffsetY = options.frame.viewport.offsetY + ((deltaY / PAN_PREDICTION_FRAME_INTERVAL_MS) * PAN_PREDICTION_WINDOW_MS)
   const forwardOverscanCssPx = tileSizeCssPx * PAN_OVERSCAN_FORWARD_TILES
   const backwardOverscanCssPx = tileSizeCssPx * PAN_OVERSCAN_BACKWARD_TILES
+  const directionalOverscanCssPx = resolvePanDirectionalOverscanCssPx({
+    deltaX,
+    deltaY,
+    predictionOffsetDeltaX: predictedOffsetX - options.frame.viewport.offsetX,
+    predictionOffsetDeltaY: predictedOffsetY - options.frame.viewport.offsetY,
+    forwardOverscanCssPx,
+    backwardOverscanCssPx,
+  })
+  const currentCamera = resolveTileViewportCamera(options.frame)
+  const predictedCamera = {
+    ...currentCamera,
+    offsetX: predictedOffsetX,
+    offsetY: predictedOffsetY,
+  }
 
   const viewportTiles = getVisibleTilesForCamera({
-    camera: {
-      viewportWidth: options.frame.viewport.viewportWidth,
-      viewportHeight: options.frame.viewport.viewportHeight,
-      offsetX: options.frame.viewport.offsetX,
-      offsetY: options.frame.viewport.offsetY,
-      scale: options.frame.viewport.scale,
-    },
+    camera: currentCamera,
     zoomBucket: zoomLevel,
     tileSizeCssPx,
     overscanCssPx: 0,
   })
   const overscanTiles = getVisibleTilesForCamera({
-    camera: {
-      viewportWidth: options.frame.viewport.viewportWidth,
-      viewportHeight: options.frame.viewport.viewportHeight,
-      offsetX: options.frame.viewport.offsetX,
-      offsetY: options.frame.viewport.offsetY,
-      scale: options.frame.viewport.scale,
-    },
+    camera: currentCamera,
     zoomBucket: zoomLevel,
     tileSizeCssPx,
-    overscanCssPx: Math.max(forwardOverscanCssPx, backwardOverscanCssPx),
+    overscanCssPx: directionalOverscanCssPx,
   })
-  const predictionTiles = getVisibleTilesForCamera({
-    camera: {
-      viewportWidth: options.frame.viewport.viewportWidth,
-      viewportHeight: options.frame.viewport.viewportHeight,
-      offsetX: predictedOffsetX,
-      offsetY: predictedOffsetY,
-      scale: options.frame.viewport.scale,
-    },
-    zoomBucket: predictionZoomLevel,
+  const sharpPredictionTiles = getVisibleTilesForCamera({
+    camera: predictedCamera,
+    zoomBucket: zoomLevel,
     tileSizeCssPx,
+    overscanCssPx: backwardOverscanCssPx,
+  })
+  const lowLodPredictionTiles = getVisibleTilesForCamera({
+    camera: predictedCamera,
+    zoomBucket: predictionZoomLevel,
+    tileSizeCssPx: predictionTileSizeCssPx,
     overscanCssPx: forwardOverscanCssPx,
   })
 
   const visibleKeys = new Set<string>()
   const overscanKeys = new Set<string>()
-  const requests: Array<{
-    key: string
-    coord: {x: number; y: number; zoomBucket: number}
-    worldBounds: {x: number; y: number; width: number; height: number}
-    priority: 'visible' | 'nearby' | 'background'
-    reason: 'missing' | 'preload'
-  }> = []
+  const predictionKeys = new Set<string>()
+  const requests: TileRenderRequest[] = []
 
   for (const tile of viewportTiles) {
-    const viewportKey = `${tile.coord.x}:${tile.coord.y}`
+    const viewportKey = createTileCoordIdentity(tile.coord)
     visibleKeys.add(viewportKey)
-    requests.push({
-      key: createTileKey({
-        tileX: tile.coord.x,
-        tileY: tile.coord.y,
-        zoomBucket: zoomLevel,
-        dpr,
-        themeVersion: 0,
-        renderVersion,
-      }),
-      coord: {
-        x: tile.coord.x,
-        y: tile.coord.y,
-        zoomBucket: zoomLevel,
-      },
-      worldBounds: tile.worldBounds,
+    requests.push(createTileRenderRequest({
+      tile,
+      zoomBucket: zoomLevel,
+      dpr,
+      renderVersion,
       priority: 'visible',
       reason: 'missing',
-    })
+    }))
   }
 
-  for (const tile of overscanTiles) {
-    const viewportKey = `${tile.coord.x}:${tile.coord.y}`
+  for (const tile of sharpPredictionTiles) {
+    const viewportKey = createTileCoordIdentity(tile.coord)
     if (visibleKeys.has(viewportKey)) {
       continue
     }
 
-    overscanKeys.add(viewportKey)
-    requests.push({
-      key: createTileKey({
-        tileX: tile.coord.x,
-        tileY: tile.coord.y,
-        zoomBucket: zoomLevel,
-        dpr,
-        themeVersion: 0,
-        renderVersion,
-      }),
-      coord: {
-        x: tile.coord.x,
-        y: tile.coord.y,
-        zoomBucket: zoomLevel,
-      },
-      worldBounds: tile.worldBounds,
+    predictionKeys.add(viewportKey)
+    requests.push(createTileRenderRequest({
+      tile,
+      zoomBucket: zoomLevel,
+      dpr,
+      renderVersion,
       priority: 'nearby',
       reason: 'preload',
-    })
+    }))
   }
 
-  for (const tile of predictionTiles) {
-    const viewportKey = `${tile.coord.x}:${tile.coord.y}`
+  for (const tile of overscanTiles) {
+    const viewportKey = createTileCoordIdentity(tile.coord)
+    if (visibleKeys.has(viewportKey) || predictionKeys.has(viewportKey)) {
+      continue
+    }
+
+    overscanKeys.add(viewportKey)
+    requests.push(createTileRenderRequest({
+      tile,
+      zoomBucket: zoomLevel,
+      dpr,
+      renderVersion,
+      priority: 'nearby',
+      reason: 'preload',
+    }))
+  }
+
+  for (const tile of lowLodPredictionTiles) {
+    const viewportKey = createTileCoordIdentity(tile.coord)
     if (visibleKeys.has(viewportKey) || overscanKeys.has(viewportKey)) {
       continue
     }
 
-    requests.push({
-      key: createTileKey({
-        tileX: tile.coord.x,
-        tileY: tile.coord.y,
-        zoomBucket: predictionZoomLevel,
-        dpr,
-        themeVersion: 0,
-        renderVersion,
-      }),
-      coord: {
-        x: tile.coord.x,
-        y: tile.coord.y,
-        zoomBucket: predictionZoomLevel,
-      },
-      worldBounds: tile.worldBounds,
+    requests.push(createTileRenderRequest({
+      tile,
+      zoomBucket: predictionZoomLevel,
+      dpr,
+      renderVersion,
       priority: 'background',
       reason: 'preload',
-    })
+    }))
   }
 
   options.scheduler.requestMany(requests)
   // Keep only the current pan neighborhood queued; processing happens later.
+  const predictionDistanceCssPx = Math.max(
+    Math.abs(predictedOffsetX - options.frame.viewport.offsetX),
+    Math.abs(predictedOffsetY - options.frame.viewport.offsetY),
+  )
   options.scheduler.cancelOutdatedRequests({
-    camera: {
-      viewportWidth: options.frame.viewport.viewportWidth,
-      viewportHeight: options.frame.viewport.viewportHeight,
-      offsetX: options.frame.viewport.offsetX,
-      offsetY: options.frame.viewport.offsetY,
-      scale: options.frame.viewport.scale,
-    },
+    camera: currentCamera,
     zoomBuckets: [zoomLevel, predictionZoomLevel],
-    activeBucketRadius: 0,
+    activeBucketRadius: PAN_PREDICTION_LOW_LOD_OFFSET,
     tileSizeCssPx,
-    overscanCssPx: forwardOverscanCssPx,
-    nearbyRing: PAN_OVERSCAN_FORWARD_TILES,
+    overscanCssPx: resolvePanDirectionalOverscanCssPx({
+      deltaX,
+      deltaY,
+      predictionOffsetDeltaX: predictedOffsetX - options.frame.viewport.offsetX,
+      predictionOffsetDeltaY: predictedOffsetY - options.frame.viewport.offsetY,
+      forwardOverscanCssPx: forwardOverscanCssPx + predictionDistanceCssPx,
+      backwardOverscanCssPx,
+    }),
+    nearbyRing: PAN_OVERSCAN_FORWARD_TILES + Math.ceil(predictionDistanceCssPx / Math.max(1, tileSizeCssPx)),
   })
 
   return requests.length
+}
+
+/**
+ * Builds the tile-manager camera payload from a render frame.
+ * @param frame Current render frame.
+ */
+function resolveTileViewportCamera(frame: EngineRenderFrame): TileViewportCamera {
+  return {
+    viewportWidth: frame.viewport.viewportWidth,
+    viewportHeight: frame.viewport.viewportHeight,
+    offsetX: frame.viewport.offsetX,
+    offsetY: frame.viewport.offsetY,
+    scale: frame.viewport.scale,
+  }
+}
+
+/**
+ * Builds direction-aware overscan so pan prediction retains the side being revealed.
+ * @param input Pan motion and overscan settings.
+ */
+function resolvePanDirectionalOverscanCssPx(input: {
+  deltaX: number
+  deltaY: number
+  predictionOffsetDeltaX: number
+  predictionOffsetDeltaY: number
+  forwardOverscanCssPx: number
+  backwardOverscanCssPx: number
+}): EngineViewportOverscanCssPx {
+  const predictionX = Math.abs(input.predictionOffsetDeltaX)
+  const predictionY = Math.abs(input.predictionOffsetDeltaY)
+  return {
+    left: input.deltaX > 0
+      ? input.forwardOverscanCssPx + predictionX
+      : input.backwardOverscanCssPx,
+    right: input.deltaX < 0
+      ? input.forwardOverscanCssPx + predictionX
+      : input.backwardOverscanCssPx,
+    top: input.deltaY > 0
+      ? input.forwardOverscanCssPx + predictionY
+      : input.backwardOverscanCssPx,
+    bottom: input.deltaY < 0
+      ? input.forwardOverscanCssPx + predictionY
+      : input.backwardOverscanCssPx,
+  }
+}
+
+/**
+ * Builds one stable identity for tile set de-duplication.
+ * @param coord Tile coordinate.
+ */
+function createTileCoordIdentity(coord: TileCoord) {
+  return `${coord.zoomBucket}:${coord.x}:${coord.y}`
+}
+
+/**
+ * Converts a visible tile projection into a scheduler request.
+ * @param input Request construction input.
+ */
+function createTileRenderRequest(input: {
+  tile: {
+    coord: TileCoord
+    worldBounds: TileRenderRequest['worldBounds']
+  }
+  zoomBucket: number
+  dpr: number
+  renderVersion: number
+  priority: TileRenderRequest['priority']
+  reason: TileRenderRequest['reason']
+}): TileRenderRequest {
+  return {
+    key: createTileKey({
+      tileX: input.tile.coord.x,
+      tileY: input.tile.coord.y,
+      zoomBucket: input.zoomBucket,
+      dpr: input.dpr,
+      themeVersion: TILE_KEY_THEME_VERSION,
+      renderVersion: input.renderVersion,
+    }),
+    coord: {
+      x: input.tile.coord.x,
+      y: input.tile.coord.y,
+      zoomBucket: input.zoomBucket,
+    },
+    worldBounds: input.tile.worldBounds,
+    priority: input.priority,
+    reason: input.reason,
+  }
 }

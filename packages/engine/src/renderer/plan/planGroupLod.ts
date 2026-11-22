@@ -8,7 +8,8 @@ import type {
   EnginePreparedNode,
 } from './plan.ts'
 
-const GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2 = 4096
+const GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2 = 36
+const GROUP_LOD_THUMBNAIL_MAX_SCREEN_EDGE_PX = 6
 
 /**
  * Builds aggregate world bounds for each group from descendant geometry bounds.
@@ -185,15 +186,17 @@ function shouldCollapseGroupSubtree(
   const absScale = Math.max(0, Math.abs(viewportScale))
   const screenWidth = Math.abs(groupBounds.width) * absScale
   const screenHeight = Math.abs(groupBounds.height) * absScale
+  const screenMaxEdge = Math.max(screenWidth, screenHeight)
   const screenArea = screenWidth * screenHeight
 
-  if (renderQuality === 'interactive') {
-    // Keep interaction collapse aggressive to preserve panning/zooming frame budget.
-    return screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
+  if (renderQuality !== 'interactive') {
+    return false
   }
 
-  // Settled frames still collapse low-screen-area groups into thumbnail mode.
-  return screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
+  return (
+    screenMaxEdge <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_EDGE_PX &&
+    screenArea <= GROUP_LOD_THUMBNAIL_MAX_SCREEN_AREA_PX2
+  )
 }
 
 /**

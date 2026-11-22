@@ -19,7 +19,7 @@ import {
 } from './types.ts'
 
 const EXPECTED_RENDERABLE_NODE_TYPES = ['group', 'shape', 'text', 'image'] as const
-const EXPECTED_SHAPE_TYPES = ['rect', 'ellipse', 'line', 'polygon', 'path'] as const
+const EXPECTED_SHAPE_TYPES = ['rect', 'ellipse', 'line', 'polygon', 'star', 'path'] as const
 
 /**
  * Builds one engine scene fixture that exercises every current renderable node
@@ -103,6 +103,29 @@ function createEngineObjectModelScene(): EngineSceneSnapshot {
           cp1: {x: 72, y: 50},
         },
       ],
+    },
+    {
+      id: 'shape-star',
+      type: 'shape',
+      shape: 'star',
+      x: 104,
+      y: 100,
+      width: 42,
+      height: 38,
+      fill: '#fee2e2',
+      points: [
+        {x: 125, y: 100},
+        {x: 132, y: 116},
+        {x: 146, y: 116},
+        {x: 135, y: 126},
+        {x: 140, y: 138},
+        {x: 125, y: 130},
+        {x: 110, y: 138},
+        {x: 115, y: 126},
+        {x: 104, y: 116},
+        {x: 118, y: 116},
+      ],
+      closed: true,
     },
   ]
 
@@ -473,6 +496,7 @@ test('engine scene object model hit-tests every clickable renderable object kind
     {nodeId: 'shape-line', point: {x: 145, y: 84}, tolerance: 3},
     {nodeId: 'shape-polygon', point: {x: 112, y: 110}, tolerance: 1},
     {nodeId: 'shape-path', point: {x: 152, y: 132}, tolerance: 3},
+    {nodeId: 'shape-star', point: {x: 225, y: 168}, tolerance: 1},
     {nodeId: 'text-rich', point: {x: 230, y: 60}, tolerance: 1},
     {nodeId: 'image-clipped', point: {x: 230, y: 110}, tolerance: 1},
   ] as const
@@ -568,6 +592,31 @@ test('engine scene hit-test resolves exact geometry beyond AABB candidates', () 
           closed: true,
         },
         {
+          id: 'star-hit',
+          type: 'shape',
+          shape: 'star',
+          x: 300,
+          y: 120,
+          width: 80,
+          height: 80,
+          points: [
+            {x: 340, y: 120},
+            {x: 350, y: 150},
+            {x: 380, y: 150},
+            {x: 356, y: 168},
+            {x: 366, y: 200},
+            {x: 340, y: 180},
+            {x: 314, y: 200},
+            {x: 324, y: 168},
+            {x: 300, y: 150},
+            {x: 330, y: 150},
+          ],
+          fill: '#fee2e2',
+          stroke: '#dc2626',
+          strokeWidth: 2,
+          closed: true,
+        },
+        {
           id: 'open-path',
           type: 'shape',
           shape: 'path',
@@ -617,6 +666,27 @@ test('engine scene hit-test resolves exact geometry beyond AABB candidates', () 
             },
           },
         },
+        {
+          id: 'path-clipped-rect',
+          type: 'shape',
+          shape: 'rect',
+          x: 300,
+          y: 240,
+          width: 80,
+          height: 80,
+          fill: '#e0f2fe',
+          clip: {
+            clipShape: {
+              kind: 'path',
+              points: [
+                {x: 320, y: 260},
+                {x: 360, y: 260},
+                {x: 340, y: 300},
+              ],
+              closed: true,
+            },
+          },
+        },
       ],
     },
   })
@@ -630,11 +700,15 @@ test('engine scene hit-test resolves exact geometry beyond AABB candidates', () 
   assert.equal(store.hitTest({x: 210, y: 94}, 1)?.nodeId, 'wide-stroke-line', 'stroke width should contribute to click hit area')
   assert.equal(store.hitTest({x: 185, y: 125}, 0), null, 'triangle AABB corner should miss exact polygon')
   assert.equal(store.hitTest({x: 225, y: 172}, 0)?.nodeId, 'polygon-triangle')
+  assert.equal(store.hitTest({x: 340, y: 166}, 0)?.nodeId, 'star-hit')
   assert.equal(store.hitTest({x: 80, y: 282}, 0), null, 'open path should not fill its interior')
   assert.equal(store.hitTest({x: 80, y: 232}, 6)?.nodeId, 'open-path')
   assert.equal(store.hitTest({x: 225, y: 282}, 0)?.nodeId, 'closed-path')
   assert.equal(store.hitTest({x: 306, y: 26}, 0), null, 'inline clip should reject image AABB outside clip')
   assert.equal(store.hitTest({x: 340, y: 60}, 0)?.nodeId, 'clipped-image')
+  assert.equal(store.hitTest({x: 306, y: 246}, 0), null, 'path clip should reject rect AABB outside clip')
+  assert.equal(store.hitTest({x: 340, y: 276}, 0)?.nodeId, 'path-clipped-rect')
+  assert.equal(store.hitTest({x: 306, y: 246}, 0, {respectClip: false})?.nodeId, 'path-clipped-rect')
 })
 
 test('engine scene hit-test treats zero stroke width as no stroke area', () => {

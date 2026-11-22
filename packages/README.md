@@ -10,6 +10,8 @@ Packages under `packages/*` are reusable implementation layers shared by apps.
 
 ## Current Packages
 
+- `@venus/document-core`: platform-neutral document persistence envelopes and revisions.
+- `@venus/sync-core`: optional synchronization provider contracts.
 - `@venus/lib`: shared low-level primitives and common utility contracts.
 - `@venus/editor-primitive`: package-agnostic interaction runtime primitives.
 - `@venus/engine`: render, hit-test, geometry, and spatial mechanics.
