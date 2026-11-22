@@ -38,6 +38,10 @@
     "label": "PNGとしてエクスポート",
     "tooltip": "ファイルをPNG画像としてエクスポート"
   },
+  "exportFile_svg": {
+    "label": "SVGとしてエクスポート",
+    "tooltip": "ファイルをSVGドキュメントとしてエクスポート"
+  },
   "exportFile_pdf": {
     "label": "PDFとしてエクスポート",
     "tooltip": "ファイルをPDFドキュメントとしてエクスポート"
