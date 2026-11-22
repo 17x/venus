@@ -14,11 +14,44 @@ export type {
 export {
   applyMatrixToPoint,
 } from '../math/matrix/matrix.ts'
+export type {
+  EngineViewportBoundsState,
+  EngineViewportOverscanCssPx,
+  EngineViewportOverscanInput,
+  EngineViewportWorldBounds,
+  ResolveEngineViewportWorldBoundsOptions,
+} from '../core/camera/index.ts'
+export {
+  resolveEngineViewportWorldBounds,
+  resolveEngineViewportWorldRect,
+} from '../core/camera/index.ts'
 
 export type {
   EngineRenderableNode,
   EngineSceneSnapshot,
 } from '../scene/types/types.ts'
+export type {
+  EngineCanonicalGeometryOutline,
+  EngineCanonicalGeometryPayload,
+  EngineGeometryBounds as EngineRenderableGeometryBounds,
+} from '../scene/geometry/index.ts'
+export {
+  resolveEngineClipGeometry,
+  resolveEngineShapeGeometry,
+  resolveEngineShapeGeometryBounds,
+  resolveEngineShapeStrokeBounds,
+  resolveEngineShapeStrokeWidth,
+} from '../scene/geometry/index.ts'
+export type {
+  EngineBoundsMatrix,
+} from '../scene/worldBounds/worldBounds.ts'
+export {
+  resolveLeafNodeWorldBounds,
+  resolveRenderableNodeWorldBounds,
+  resolveRenderableNodesWorldBounds,
+  resolveShapeBounds,
+  toWorldAxisAlignedBounds,
+} from '../scene/worldBounds/worldBounds.ts'
 export type {
   EngineHitTestResult,
 } from '../scene/hitTest/hitTest.ts'
@@ -98,6 +131,8 @@ export {
 export type {
   AffineMatrix,
   BoxTransformSource,
+  EngineGeometryRotationResult,
+  EngineGeometryRotationSource,
   MatrixFirstNodeTransform,
   NormalizedBounds,
   ShapeTransformBatchCommand,
@@ -107,14 +142,18 @@ export type {
 export {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
+  createEngineRotateAroundPointMatrix,
   createMatrixFirstNodeTransform,
   createShapeTransformRecord,
   doNormalizedBoundsOverlap,
   getNormalizedBoundsFromBox,
   intersectNormalizedBounds,
   isPointInsideRotatedBounds,
+  resolveEngineGeometryRotationAroundPoint,
+  resolveEngineTransformedBoundsFromBox,
   resolveNodeTransform,
   resolveShapeTransformRecord,
+  rotateEnginePointAroundPoint,
   toLegacyShapeTransformRecord,
   toResolvedNodeSvgTransform,
 } from '../interaction/shapeTransform/shapeTransform.ts'

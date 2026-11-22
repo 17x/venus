@@ -57,7 +57,7 @@ Use these APIs to describe renderable scene content.
 | Category | APIs | Pages |
 | --- | --- | --- |
 | Structure | `EngineSceneSnapshot`, `EngineGroupNode` | [`scene-snapshot`](./scene-objects/scene-snapshot.md), [`group`](./scene-objects/group.md) |
-| Shapes | `rect`, `ellipse`, `line`, `polygon`, `path` | [`rect`](./scene-objects/rect.md), [`ellipse`](./scene-objects/ellipse.md), [`line`](./scene-objects/line.md), [`polygon`](./scene-objects/polygon.md), [`path`](./scene-objects/path.md) |
+| Shapes | `rect`, `ellipse`, `line`, `polygon`, `star`, `path` | [`rect`](./scene-objects/rect.md), [`ellipse`](./scene-objects/ellipse.md), [`line`](./scene-objects/line.md), [`polygon`](./scene-objects/polygon.md), [`path`](./scene-objects/path.md) |
 | Content | `EngineTextNode`, `EngineImageNode` | [`text`](./scene-objects/text.md), [`image`](./scene-objects/image.md) |
 | Constraints | `EngineClipShape` | [`clip`](./scene-objects/clip.md) |
 
@@ -122,12 +122,13 @@ Use these APIs when integrating viewport math or backend-neutral caches.
 
 | Category | APIs | Pages |
 | --- | --- | --- |
-| Camera | `projectWorldPoint`, `unprojectScreenPoint`, `createRenderCameraProjector` | [`camera`](./scene-objects/camera.md) |
+| Camera | `projectWorldPoint`, `unprojectScreenPoint`, `createRenderCameraProjector`, `resolveEngineViewportWorldBounds`, `resolveEngineViewportWorldRect` | [`camera`](./scene-objects/camera.md) |
 | Cache | `GeometryCache`, `LayeredTileCache`, `toLayeredTileCacheSignature` | [`cache`](./scene-objects/cache.md) |
 
 ```ts
 const worldPoint = unprojectScreenPoint({x: 200, y: 120}, camera)
 const screenPoint = projectWorldPoint(worldPoint, camera)
+const viewportBounds = resolveEngineViewportWorldRect(camera, {overscanCssPx: 96})
 
 const cache = new GeometryCache<Path2D>()
 cache.set({key: 'node-1:v1', value: path})

@@ -16,6 +16,7 @@ const INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX = 3.2
 const INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX = 2.2
 const INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX = 1.2
 const INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 = 6
+const INTERACTION_PACKET_VISIBLE_MAX_EDGE_PX = 8
 const INTERACTION_PACKET_SKIP_BOOST = 0.1
 const INTERACTION_PACKET_SKIP_TEXT_SEMANTIC_BOOST = 0.08
 const INTERACTION_PACKET_SKIP_IMAGE_SEMANTIC_BOOST = 0.04
@@ -94,7 +95,12 @@ export function shouldSkipInteractiveTinyPacket(
   const screenWidth = Math.abs(worldBounds.width) * scale
   const screenHeight = Math.abs(worldBounds.height) * scale
   const minEdge = Math.min(screenWidth, screenHeight)
+  const maxEdge = Math.max(screenWidth, screenHeight)
   const screenArea = screenWidth * screenHeight
+  if (maxEdge > INTERACTION_PACKET_VISIBLE_MAX_EDGE_PX) {
+    return false
+  }
+
   // Visibility score is computed from current screen contribution plus semantic weight.
   const visibility = resolveEngineVisibilityProfile({
     screenAreaPx2: screenArea,
@@ -109,23 +115,23 @@ export function shouldSkipInteractiveTinyPacket(
   })
 
   // Keep a tiny-shape hard floor so ultra-dense shape packets cannot starve interaction frames.
-  if (packetKind === 'shape' && visibility.tier !== 'tier-a' && screenArea <= INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2) {
+  if (packetKind === 'shape' && visibility.tier !== 'tier-a' && screenArea <= INTERACTION_PACKET_SKIP_SHAPE_MIN_AREA_PX2 && maxEdge <= INTERACTION_PACKET_VISIBLE_MAX_EDGE_PX) {
     return true
   }
 
   // Tier B keeps conservative culling and applies a packet budget cap.
   if (visibility.tier === 'tier-b') {
-    return minEdge <= INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX
+    return maxEdge <= INTERACTION_PACKET_SKIP_TIER_B_MIN_EDGE_PX
   }
 
   // Tier C keeps medium objects but drops tiny packets that are visually imperceptible.
   if (visibility.tier === 'tier-c') {
-    return minEdge <= INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX
+    return maxEdge <= INTERACTION_PACKET_SKIP_TIER_C_MIN_EDGE_PX
   }
 
   // Tier D receives the strongest culling because visibility contribution is negligible.
   if (visibility.tier === 'tier-d') {
-    return minEdge <= INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX
+    return maxEdge <= INTERACTION_PACKET_SKIP_TIER_D_MIN_EDGE_PX
   }
 
   // Tier A stays full-fidelity to preserve perceived foreground quality.

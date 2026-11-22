@@ -55,6 +55,13 @@ test('tileManager helpers resolve stable keys, zoom buckets, and world bounds', 
     getViewportWorldBounds({viewportWidth: 400, viewportHeight: 200, offsetX: 40, offsetY: 20, scale: 2}, 20),
     {x: -30, y: -20, width: 220, height: 120},
   )
+  assert.deepEqual(
+    getViewportWorldBounds(
+      {viewportWidth: 400, viewportHeight: 200, offsetX: 40, offsetY: 20, scale: 2},
+      {left: 40, right: 10, top: 20, bottom: 0},
+    ),
+    {x: -40, y: -20, width: 225, height: 110},
+  )
 })
 
 test('tileManager helper geometry resolves visible tiles and unions invalidation bounds', () => {

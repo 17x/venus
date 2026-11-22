@@ -33,6 +33,9 @@ export interface TransformPreviewRuntimeSnapshot {
   y: number
   width: number
   height: number
+  rotation?: number
+  flipX?: boolean
+  flipY?: boolean
 }
 
 export interface BuildTransformPreviewMapOptions {
@@ -247,17 +250,21 @@ export function resolveTransformPreviewRuntimeState<
   return {
     previewById,
     previewDocument,
-    previewShapes: runtimeShapes.map((shape) => (
-      previewById.has(shape.id)
+    previewShapes: runtimeShapes.map((shape) => {
+      const preview = previewById.get(shape.id)
+      return preview
         ? {
             ...shape,
-            x: previewById.get(shape.id)?.x ?? shape.x,
-            y: previewById.get(shape.id)?.y ?? shape.y,
-            width: previewById.get(shape.id)?.width ?? shape.width,
-            height: previewById.get(shape.id)?.height ?? shape.height,
+            x: preview.x,
+            y: preview.y,
+            width: preview.width,
+            height: preview.height,
+            rotation: typeof preview.rotation === 'number' ? preview.rotation : shape.rotation,
+            flipX: typeof preview.flipX === 'boolean' ? preview.flipX : shape.flipX,
+            flipY: typeof preview.flipY === 'boolean' ? preview.flipY : shape.flipY,
           }
         : shape
-    )),
+    }),
   }
 }
 

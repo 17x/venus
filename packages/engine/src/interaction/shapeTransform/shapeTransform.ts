@@ -68,6 +68,26 @@ export interface NormalizedBoundsLike {
   maxY: number
 }
 
+export interface EngineGeometryRotationSource {
+  /** Bounds used when points are absent and for the returned aggregate bounds. */
+  bounds: NormalizedBoundsLike
+  /** Optional geometry points to rotate; use bounds corners for box-like geometry. */
+  points?: readonly Point[]
+  /** Rotation pivot in the same coordinate space as bounds/points. */
+  center: Point
+  /** Rotation angle in degrees. */
+  rotationDegrees: number
+}
+
+export interface EngineGeometryRotationResult {
+  /** Matrix that applies the requested rotate-around-point transform. */
+  matrix: AffineMatrix
+  /** Rotated geometry points, or rotated bounds corners when source points are absent. */
+  points: Point[]
+  /** Axis-aligned bounds around the rotated points. */
+  bounds: NormalizedBounds
+}
+
 export interface ResolvedNodeTransform {
   bounds: NormalizedBounds
   center: Point
@@ -183,6 +203,57 @@ export function createAffineMatrixAroundPoint(
 }
 
 /**
+ * Creates an affine matrix for rotating around an arbitrary point.
+ * @param center Pivot point.
+ * @param rotationDegrees Rotation angle in degrees.
+ */
+export function createEngineRotateAroundPointMatrix(
+  center: Point,
+  rotationDegrees: number,
+): AffineMatrix {
+  return createAffineMatrixAroundPoint(center, {rotationDegrees})
+}
+
+/**
+ * Rotates one point around an arbitrary pivot point.
+ * @param point Source point.
+ * @param center Pivot point.
+ * @param rotationDegrees Rotation angle in degrees.
+ */
+export function rotateEnginePointAroundPoint(
+  point: Point,
+  center: Point,
+  rotationDegrees: number,
+): Point {
+  return applyAffineMatrixToPoint(
+    createEngineRotateAroundPointMatrix(center, rotationDegrees),
+    point,
+  )
+}
+
+/**
+ * Rotates generic geometry around a pivot and returns transformed points and bounds.
+ * Works for rect/ellipse bounds, line endpoints, polygon/star vertices, and path samples.
+ * @param source Generic geometry rotation input.
+ */
+export function resolveEngineGeometryRotationAroundPoint(
+  source: EngineGeometryRotationSource,
+): EngineGeometryRotationResult {
+  const matrix = createEngineRotateAroundPointMatrix(source.center, source.rotationDegrees)
+  const sourcePoints = source.points && source.points.length > 0
+    ? source.points
+    : boundsToCornerPoints(source.bounds)
+  const points = sourcePoints.map((point) => applyAffineMatrixToPoint(matrix, point))
+  const bounds = getNormalizedBoundsFromPoints(points)
+
+  return {
+    matrix,
+    points,
+    bounds,
+  }
+}
+
+/**
  * Normalizes possibly negative-size boxes while preserving existing engine call signatures.
   * @param x x parameter.
  * @param y y parameter.
@@ -196,6 +267,89 @@ export function getNormalizedBoundsFromBox(
   height: number,
 ): NormalizedBounds {
   return getNormalizedBoundsFromBoxFromLib(x, y, width, height)
+}
+
+/**
+ * Converts normalized bounds into corner points for generic box transforms.
+ * @param bounds Bounds to convert.
+ */
+function boundsToCornerPoints(bounds: NormalizedBoundsLike): Point[] {
+  return [
+    {x: bounds.minX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.maxY},
+    {x: bounds.minX, y: bounds.maxY},
+  ]
+}
+
+/**
+ * Resolves normalized bounds from a transformed point list.
+ * @param points Points to bound.
+ */
+function getNormalizedBoundsFromPoints(points: readonly Point[]): NormalizedBounds {
+  const xs = points.map((point) => point.x)
+  const ys = points.map((point) => point.y)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
+  const maxX = Math.max(...xs)
+  const maxY = Math.max(...ys)
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
+}
+
+/**
+ * Resolves the world-aligned bounds occupied by one transformed box.
+  * @param source Box transform source.
+*/
+export function resolveEngineTransformedBoundsFromBox(source: BoxTransformSource): NormalizedBounds {
+  const bounds = getNormalizedBoundsFromBox(source.x, source.y, source.width, source.height)
+  const rotation = source.rotation ?? 0
+  const scaleX = source.flipX ? -1 : 1
+  const scaleY = source.flipY ? -1 : 1
+
+  if (
+    Math.abs(rotation) <= RESOLVED_TRANSFORM_EFFECT_EPSILON &&
+    scaleX === 1 &&
+    scaleY === 1
+  ) {
+    return bounds
+  }
+
+  const center = {
+    x: (bounds.minX + bounds.maxX) / BOUNDS_CENTER_DIVISOR,
+    y: (bounds.minY + bounds.maxY) / BOUNDS_CENTER_DIVISOR,
+  }
+  const matrix = createAffineMatrixAroundPoint(center, {
+    rotationDegrees: rotation,
+    scaleX,
+    scaleY,
+  })
+  const corners = [
+    {x: bounds.minX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.minY},
+    {x: bounds.maxX, y: bounds.maxY},
+    {x: bounds.minX, y: bounds.maxY},
+  ].map((point) => applyAffineMatrixToPoint(matrix, point))
+  const minX = Math.min(...corners.map((point) => point.x))
+  const minY = Math.min(...corners.map((point) => point.y))
+  const maxX = Math.max(...corners.map((point) => point.x))
+  const maxY = Math.max(...corners.map((point) => point.y))
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }
 }
 
 /**

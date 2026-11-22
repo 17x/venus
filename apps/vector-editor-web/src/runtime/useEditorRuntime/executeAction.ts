@@ -20,6 +20,7 @@ interface UseEditorRuntimeExecuteActionOptions {
   pasteSerial: number
   reorderSelectedShape: (direction: 'up' | 'down' | 'top' | 'bottom') => void
   saveFile: (document: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
+  exportFileArchive: (document: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
   selectedNode: import('../../runtime/model/index.ts').DocumentNode | null
   selectedShapeIds: string[]
   setClipboard: React.Dispatch<React.SetStateAction<ElementProps[]>>

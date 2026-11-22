@@ -61,24 +61,78 @@ export function SchemaSection(props: {props: SelectedElementProps}) {
   )
 }
 
-// ---- Export Section ----
+// ---- Export Section (enhanced with format/scale/preview/export) ----
 
 export function ExportSection(props: {
   exportScale: string
   exportFormat: string
   onChangeExportScale: (nextScale: string) => void
   onChangeExportFormat: (nextFormat: string) => void
-  onPrint: VoidFunction
+  onExport: () => void
 }) {
   const {t} = useTranslation()
+  const scale = Number(props.exportScale.replace('x', '')) || 1
+
   return (
-    <section className={'space-y-1.5 px-2'}>
-      <div className={SECTION_TITLE}>Export</div>
-      <div className={'flex gap-1'}>
-        <select className={SELECT_CLASS + ' w-14'} value={props.exportScale} onChange={(e) => props.onChangeExportScale(e.target.value)}><option value="1x">1x</option><option value="2x">2x</option><option value="3x">3x</option></select>
-        <select className={SELECT_CLASS + ' w-14'} value={props.exportFormat} onChange={(e) => props.onChangeExportFormat(e.target.value)}><option value="PNG">PNG</option><option value="JPG">JPG</option><option value="SVG">SVG</option></select>
-        <button type="button" className={BTN_OUTLINE} onClick={props.onPrint}>{t('inspector.properties.export.action', 'Export')}</button>
+    <section className={'space-y-2 px-2 pb-2'}>
+      <div className={SECTION_TITLE}>{t('inspector.properties.export.title', 'Export')}</div>
+
+      {/* Format + Scale row */}
+      <div className={'flex items-center gap-1'}>
+        <span className={FIELD_LABEL}>{t('inspector.properties.export.format', 'Format')}</span>
+        <select
+          className={SELECT_CLASS + ' flex-1'}
+          value={props.exportFormat}
+          onChange={(e) => props.onChangeExportFormat(e.target.value)}
+        >
+          <option value="PNG">PNG</option>
+          <option value="SVG">SVG</option>
+          <option value="JPG">JPG</option>
+        </select>
       </div>
+      <div className={'flex items-center gap-1'}>
+        <span className={FIELD_LABEL}>{t('inspector.properties.export.scale', 'Scale')}</span>
+        <select
+          className={SELECT_CLASS + ' flex-1'}
+          value={props.exportScale}
+          onChange={(e) => props.onChangeExportScale(e.target.value)}
+        >
+          <option value="1x">@1x</option>
+          <option value="2x">@2x</option>
+          <option value="3x">@3x</option>
+        </select>
+      </div>
+
+      {/* Live preview area */}
+      <div className={'rounded border border-border bg-white dark:bg-slate-900 overflow-hidden'}>
+        <div className={'flex items-center justify-between px-1.5 py-0.5 bg-muted/30'}>
+          <span className={'text-[10px] text-muted-foreground'}>
+            {t('inspector.properties.export.preview', 'Preview')}
+          </span>
+          <span className={'text-[10px] text-muted-foreground'}>
+            {props.exportFormat} @{scale}x
+          </span>
+        </div>
+        <div
+          className={'flex items-center justify-center p-2 min-h-[60px]'}
+          style={{ background: 'repeating-conic-gradient(#f1f5f9 0% 25%, transparent 0% 50%) 50% / 12px 12px' }}
+        >
+          <span className={'text-[10px] text-muted-foreground text-center'}>
+            {props.exportFormat === 'SVG'
+              ? t('inspector.properties.export.previewSvgHint', 'Vector output — resolution independent')
+              : t('inspector.properties.export.previewRasterHint', `Raster output at ${props.exportScale} resolution`)}
+          </span>
+        </div>
+      </div>
+
+      {/* Export button */}
+      <button
+        type="button"
+        className={'h-7 w-full rounded bg-primary text-[11px] font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer'}
+        onClick={props.onExport}
+      >
+        {t('inspector.properties.export.action', `Export as ${props.exportFormat}`)}
+      </button>
     </section>
   )
 }
@@ -86,10 +140,5 @@ export function ExportSection(props: {
 // ---- Preview Section (placeholder) ----
 
 export function PreviewSection() {
-  return (
-    <section className={'space-y-1.5 px-2'}>
-      <div className={SECTION_TITLE}>Preview</div>
-      <div className={'text-[11px] text-muted-foreground'}>Coming soon</div>
-    </section>
-  )
+  return null
 }

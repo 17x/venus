@@ -17,6 +17,17 @@ export {
   isGeometryPathClosed,
 } from './path.ts'
 export type {
+  EngineCanonicalGeometryOutline,
+  EngineCanonicalGeometryPayload,
+} from './canonicalGeometry.ts'
+export {
+  resolveEngineClipGeometry,
+  resolveEngineShapeGeometry,
+  resolveEngineShapeGeometryBounds,
+  resolveEngineShapeStrokeBounds,
+  resolveEngineShapeStrokeWidth,
+} from './canonicalGeometry.ts'
+export type {
   EngineRectBounds,
 } from './polyline.ts'
 export {

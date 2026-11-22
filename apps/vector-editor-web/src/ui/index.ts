@@ -5,7 +5,7 @@
  * Engine-docs shared CSS tokens are imported via @venus/ui for visual alignment.
  *
  * AI-TEMP: When @venus/ui shared components cover all vector needs, switch to direct
- * @venus/ui exports; ref VECTOR_ENGINE_STRENGTHENING_REQUIREMENTS.md §9.
+ * @venus/ui exports; ref AI/ENGINE.md.
  */
 export * from '@venus/ui/vector'
 

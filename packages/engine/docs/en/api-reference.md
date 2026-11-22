@@ -30,7 +30,7 @@ Renderable node families accepted by `EngineSceneSnapshot`:
 Shape geometry kinds accepted by `EngineShapeNode`:
 
 ```ts
-['rect', 'ellipse', 'line', 'polygon', 'path']
+['rect', 'ellipse', 'line', 'polygon', 'star', 'path']
 ```
 
 ## `EngineSceneSnapshot`

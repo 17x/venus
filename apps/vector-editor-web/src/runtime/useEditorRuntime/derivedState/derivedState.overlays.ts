@@ -39,10 +39,11 @@ export function resolveSelectionChromeBounds(input: {
   transformPreviewActive: boolean
   previewBounds: {minX: number; minY: number; maxX: number; maxY: number} | null
   engineBounds?: {minX: number; minY: number; maxX: number; maxY: number} | null
+  engineSourceBounds?: {minX: number; minY: number; maxX: number; maxY: number} | null
 }) {
   return input.transformPreviewActive
     ? input.previewBounds
-    : input.engineBounds ?? input.previewBounds
+    : input.engineSourceBounds ?? input.engineBounds ?? input.previewBounds
 }
 
 /**
@@ -187,6 +188,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
       transformPreviewActive: input.transformPreviewActive,
       previewBounds: input.selectionState.selectedBounds,
       engineBounds: input.engineGeometryPayload.selectionOverlay?.bounds,
+      engineSourceBounds: input.engineGeometryPayload.selectionOverlay?.sourceBounds,
     })
     if (shouldSuppressSelectionBoundsOverlay || !selectedBounds) {
       return base
@@ -203,7 +205,7 @@ export function useEditorRuntimeDerivedStateOverlays(input: {
     const activeSelectedNode = input.selectedShapeIds.length === 1
       ? input.previewShapeById.get(input.selectedShapeIds[0]) ?? input.selectedNode
       : null
-    const singleSelectionRotation = activeSelectedNode?.rotation ?? 0
+    const singleSelectionRotation = input.engineGeometryPayload.selectionOverlay?.rotationDegrees ?? activeSelectedNode?.rotation ?? 0
     const overlayModel = buildVectorOverlayModel({
       selectedBounds,
       selectionRotationDegrees: singleSelectionRotation,

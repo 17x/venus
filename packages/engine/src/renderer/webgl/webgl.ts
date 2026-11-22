@@ -449,7 +449,7 @@ export function createWebGLEngineRenderer(
       // Process dirty regions for incremental tile updates
       const dirtyRegionCount = effectiveFrame.context.dirtyRegions?.length ?? 0
       let dirtyTileCount = 0
-      if (tileCache && effectiveFrame.context.dirtyRegions && effectiveFrame.context.dirtyRegions.length > 0) {
+      if (tileCache) {
         dirtyTileCount = tileCacheCapability.update({
           kind: 'mark-dirty-regions',
           frame: effectiveFrame,
@@ -1453,4 +1453,3 @@ export function createWebGLEngineRenderer(
     },
   }
 }
-

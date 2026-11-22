@@ -8,10 +8,16 @@ import {
   withResolvedPathHints,
 } from './geometryPayloadPath.ts'
 import {
+  doEngineGeometryBoundsContain,
+  doEngineGeometryBoundsIntersect,
+  normalizeEngineGeometryBounds,
+} from './geometryPayloadBounds.ts'
+import {
   resolveNodeBounds,
   type GeometryMatrix2D,
 } from './geometryPayloadTransform.ts'
 import type {
+  EngineGeometryBounds,
   EngineGeometryMarqueeBounds,
 } from './geometryPayloadTypes.ts'
 
@@ -24,13 +30,17 @@ export function resolveMarqueeNodeIds(options: {
   marqueeBounds: EngineGeometryMarqueeBounds | null
   marqueeMode: 'contain' | 'intersect'
   nodeById: Map<string, EngineEditorHitTestNode>
+  worldMatrixCache?: Map<string, GeometryMatrix2D>
+  boundsCache?: Map<string, EngineGeometryBounds>
 }): string[] {
   if (!options.marqueeBounds || options.candidateNodeIds.length === 0) {
     return []
   }
 
   const resolvedNodeIds: string[] = []
-  const worldMatrixCache = new Map<string, GeometryMatrix2D>()
+  const worldMatrixCache = options.worldMatrixCache ?? new Map<string, GeometryMatrix2D>()
+  const boundsCache = options.boundsCache ?? new Map<string, EngineGeometryBounds>()
+  const marqueeBounds = normalizeEngineGeometryBounds(options.marqueeBounds)
 
   for (const nodeId of options.candidateNodeIds) {
     const node = options.nodeById.get(nodeId)
@@ -38,28 +48,16 @@ export function resolveMarqueeNodeIds(options: {
       continue
     }
 
-    const nodeBounds = resolveNodeBounds(node, options.nodeById, worldMatrixCache)
+    const nodeBounds = resolveNodeBounds(node, options.nodeById, worldMatrixCache, boundsCache)
     // Keep mode semantics owned by engine so vector remains policy-only caller.
     if (options.marqueeMode === 'contain') {
-      const isContained = (
-        nodeBounds.minX >= options.marqueeBounds.minX &&
-        nodeBounds.maxX <= options.marqueeBounds.maxX &&
-        nodeBounds.minY >= options.marqueeBounds.minY &&
-        nodeBounds.maxY <= options.marqueeBounds.maxY
-      )
-      if (isContained) {
+      if (doEngineGeometryBoundsContain(marqueeBounds, nodeBounds)) {
         resolvedNodeIds.push(nodeId)
       }
       continue
     }
 
-    const isOverlapped = !(
-      nodeBounds.maxX < options.marqueeBounds.minX ||
-      nodeBounds.minX > options.marqueeBounds.maxX ||
-      nodeBounds.maxY < options.marqueeBounds.minY ||
-      nodeBounds.minY > options.marqueeBounds.maxY
-    )
-    if (isOverlapped) {
+    if (doEngineGeometryBoundsIntersect(marqueeBounds, nodeBounds)) {
       resolvedNodeIds.push(nodeId)
     }
   }

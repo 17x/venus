@@ -1,6 +1,6 @@
-# Venus Documentation Index
+# Documentation
 
-Canonical AI governance entrypoint:
-
-- [AI Highest-Level Standard](../AI/AI_HIGHEST_STANDARD.md)
-- [Monorepo Responsibility Standard](./MONOREPO_RESPONSIBILITY_STANDARD.md)
+- [Repository ownership](./ownership.md)
+- [Local-first architecture](./architecture/local-first.md)
+- [AI rules](../AI/RULES.md)
+- [Engine direction](../AI/ENGINE.md)

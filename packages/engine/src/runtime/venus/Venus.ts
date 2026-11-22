@@ -14,7 +14,7 @@ import type {
   EngineClipShape,
 } from '../../scene/types/types.ts'
 import type {EngineResourceLoader} from '../../renderer/types/index.ts'
-import {resolveLeafNodeWorldBounds} from '../../scene/worldBounds/worldBounds.ts'
+import {resolveRenderableNodeWorldBounds} from '../../scene/worldBounds/worldBounds.ts'
 import {
   resolveEngineViewportState,
   type EngineCanvasViewportState,
@@ -1794,9 +1794,7 @@ const resolveEngineNodesBounds = (
 
   for (const node of nodes) {
     const nodeMatrix = multiplyTransformMatrices(parentMatrix, node.transform?.matrix ?? IDENTITY_TRANSFORM)
-    const nodeBounds = node.type === 'group'
-      ? resolveEngineNodesBounds(node.children, nodeMatrix)
-      : resolveLeafNodeWorldBounds(node, nodeMatrix)
+    const nodeBounds = resolveRenderableNodeWorldBounds(node, nodeMatrix)
 
     if (!nodeBounds) {
       continue
@@ -2257,7 +2255,7 @@ const toEngineNode = (
     return {
       id,
       type: 'shape',
-      shape: 'polygon',
+      shape: node.type,
       x: node.x ?? 0,
       y: node.y ?? 0,
       width: node.width,
@@ -4702,7 +4700,7 @@ export class Venus {
       }
       const bounds = node.type === 'group'
         ? this.visitSelectionCandidates(node.children, nodeMatrix, state, visitor)
-        : resolveLeafNodeWorldBounds(node, nodeMatrix)
+        : resolveRenderableNodeWorldBounds(node, nodeMatrix)
 
       if (!bounds) {
         continue

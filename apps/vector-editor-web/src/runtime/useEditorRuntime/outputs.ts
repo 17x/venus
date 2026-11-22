@@ -10,6 +10,7 @@ import type {
   EditorRuntimeState,
   SelectedElementProps,
 } from './types.ts'
+import type {AutosaveSnapshot} from '../persistence/index.ts'
 
 /**
  * Builds stable runtime/document/command/ref payload slices returned by useEditorRuntime.
@@ -19,6 +20,7 @@ export function buildUseEditorRuntimeOutputs(input: {
   canvasRuntime: any
   file: any
   hasFile: boolean
+  localSaveSnapshot: AutosaveSnapshot
   RuntimeRenderer: any
   OverlayRenderer: any
   interactionDocument: any
@@ -69,6 +71,7 @@ export function buildUseEditorRuntimeOutputs(input: {
     document: input.canvasRuntime.document,
     file: input.file,
     hasFile: input.hasFile,
+    localSave: input.localSaveSnapshot,
   }
 
   const runtimeState: EditorRuntimeState = {

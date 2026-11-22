@@ -1,18 +1,18 @@
 import type {
-  EnginePoint,
   EngineRect,
   EngineRenderableNode,
   EngineShapeNode,
 } from '../types/types.ts'
-import {getBoundingRectFromBezierPoints} from '../geometry/bezier.ts'
+import {
+  resolveEngineShapeGeometry,
+  resolveEngineShapeGeometryBounds,
+} from '../geometry/canonicalGeometry.ts'
 import { estimateTextWidth as estimateTextWidthShared } from '../../core/text/shaper.ts'
 
 export type EngineBoundsMatrix = readonly [number, number, number, number, number, number]
 
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
-const STROKE_INSET_DIVISOR = 2
-const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6
-const EXPAND_RECT_DOUBLE = 2
+const IDENTITY_BOUNDS_MATRIX: EngineBoundsMatrix = [1, 0, 0, 0, 1, 0]
 
 /**
  * Handles resolveLeafNodeWorldBounds.
@@ -50,6 +50,52 @@ export function resolveLeafNodeWorldBounds(
 }
 
 /**
+ * Resolves authoritative world bounds for one renderable node, including groups.
+ * Group bounds are derived from descendants and never from group-owned geometry.
+ * @param node Target renderable node.
+ * @param worldMatrix Node world transform matrix.
+ */
+export function resolveRenderableNodeWorldBounds(
+  node: EngineRenderableNode,
+  worldMatrix: EngineBoundsMatrix,
+): EngineRect | null {
+  if (node.type === 'group') {
+    return resolveRenderableNodesWorldBounds(node.children, worldMatrix)
+  }
+
+  return resolveLeafNodeWorldBounds(node, worldMatrix)
+}
+
+/**
+ * Resolves aggregate world bounds for a renderable subtree list.
+ * @param nodes Nodes to inspect.
+ * @param parentMatrix Parent world matrix applied before each node transform.
+ */
+export function resolveRenderableNodesWorldBounds(
+  nodes: readonly EngineRenderableNode[],
+  parentMatrix: EngineBoundsMatrix = IDENTITY_BOUNDS_MATRIX,
+): EngineRect | null {
+  let aggregate: EngineRect | null = null
+
+  for (const node of nodes) {
+    const nodeMatrix = multiplyBoundsMatrix(
+      parentMatrix,
+      node.transform?.matrix ?? IDENTITY_BOUNDS_MATRIX,
+    )
+    const bounds = resolveRenderableNodeWorldBounds(node, nodeMatrix)
+    if (!bounds) {
+      continue
+    }
+
+    aggregate = aggregate
+      ? unionRectBounds(aggregate, bounds)
+      : bounds
+  }
+
+  return aggregate
+}
+
+/**
  * Handles toWorldAxisAlignedBounds.
  * @param rect rect parameter.
  * @param worldMatrix worldMatrix parameter.
@@ -78,24 +124,14 @@ export function toWorldAxisAlignedBounds(
 
 /**
  * Resolves the authoritative local bounding rect for any shape node.
- * For points-primary shapes (line/polygon/path), geometry is computed from
+ * For points-primary shapes (line/polygon/star/path), geometry is computed from
  * points/bezierPoints. For ellipse, prefers {@link EngineEllipseGeometry}.
  * Falls back to the node's x/y/width/height with zero defaults.
  * @param node Target shape node.
  * @returns The resolved local bounding rect (never null).
  */
 export function resolveShapeBounds(node: EngineShapeNode): EngineRect {
-  const geometryBounds = resolveShapeGeometryLocalBounds(node)
-  if (geometryBounds) {
-    return geometryBounds
-  }
-
-  return {
-    x: node.x ?? 0,
-    y: node.y ?? 0,
-    width: node.width ?? 0,
-    height: node.height ?? 0,
-  }
+  return resolveEngineShapeGeometryBounds(node)
 }
 
 /**
@@ -103,47 +139,19 @@ export function resolveShapeBounds(node: EngineShapeNode): EngineRect {
  * @param node Target node.
  */
 function resolveShapeLocalBounds(node: EngineShapeNode): EngineRect {
-  const geometryBounds = resolveShapeGeometryLocalBounds(node) ?? resolveShapeBounds(node)
-  const strokeInset = Math.max(0, node.strokeWidth ?? 0) / STROKE_INSET_DIVISOR
-
-  return strokeInset > 0
-    ? expandRect(geometryBounds, strokeInset)
-    : geometryBounds
+  return resolveEngineShapeGeometry(node).strokeBounds
 }
 
 /**
- * Handles resolveShapeGeometryLocalBounds.
- * @param node Target node.
+ * Unions two axis-aligned world bounds.
+ * @param left Existing bounds.
+ * @param right Bounds to include.
  */
-function resolveShapeGeometryLocalBounds(node: EngineShapeNode): EngineRect | null {
-  // Ellipse: prefer center+radii form when available.
-  if (node.shape === 'ellipse' && node.ellipseGeometry) {
-    const { cx, cy, rx, ry } = node.ellipseGeometry
-    return { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 }
-  }
-
-  if (node.bezierPoints && node.bezierPoints.length > 0) {
-    return getBoundingRectFromBezierPoints(node.bezierPoints)
-  }
-
-  if (node.points && node.points.length > 0) {
-    return getBoundingRectFromPoints(node.points)
-  }
-
-  return null
-}
-
-/**
- * Handles getBoundingRectFromPoints.
- * @param points points parameter.
- */
-function getBoundingRectFromPoints(points: readonly EnginePoint[]): EngineRect {
-  const xs = points.map((point) => point.x)
-  const ys = points.map((point) => point.y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
+function unionRectBounds(left: EngineRect, right: EngineRect): EngineRect {
+  const minX = Math.min(left.x, right.x)
+  const minY = Math.min(left.y, right.y)
+  const maxX = Math.max(left.x + left.width, right.x + right.width)
+  const maxY = Math.max(left.y + left.height, right.y + right.height)
 
   return {
     x: minX,
@@ -154,17 +162,24 @@ function getBoundingRectFromPoints(points: readonly EnginePoint[]): EngineRect {
 }
 
 /**
- * Handles expandRect.
- * @param rect rect parameter.
- * @param inset inset parameter.
+ * Multiplies affine bounds matrices in engine 6-element layout.
+ * @param left Matrix applied before the right matrix.
+ * @param right Matrix applied after the left matrix.
  */
-function expandRect(rect: EngineRect, inset: number): EngineRect {
-  return {
-    x: rect.x - inset,
-    y: rect.y - inset,
-    width: rect.width + inset * EXPAND_RECT_DOUBLE,
-    height: rect.height + inset * EXPAND_RECT_DOUBLE,
-  }
+function multiplyBoundsMatrix(
+  left: EngineBoundsMatrix,
+  right: EngineBoundsMatrix,
+): EngineBoundsMatrix {
+  const [l00, l01, l02, l10, l11, l12] = left
+  const [r00, r01, r02, r10, r11, r12] = right
+  return [
+    l00 * r00 + l01 * r10,
+    l00 * r01 + l01 * r11,
+    l00 * r02 + l01 * r12 + l02,
+    l10 * r00 + l11 * r10,
+    l10 * r01 + l11 * r11,
+    l10 * r02 + l11 * r12 + l12,
+  ]
 }
 
 /**

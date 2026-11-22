@@ -16,6 +16,7 @@ export const ENGINE_SHAPE_TYPES = [
   'ellipse',
   'line',
   'polygon',
+  'star',
   'path',
 ] as const
 
@@ -404,7 +405,7 @@ export interface EngineShapeNode extends EngineNodeBase {
    * Local left coordinate.
    * - rect: top-left corner of the rectangle.
    * - ellipse: prefer {@link ellipseGeometry} instead; falls back to top-left of bounding rect.
-   * - line / polygon / path: derived from points/bezierPoints bounds; not an authored truth.
+   * - line / polygon / star / path: derived from points/bezierPoints bounds; not an authored truth.
    */
   x?: number
   /**
@@ -415,7 +416,7 @@ export interface EngineShapeNode extends EngineNodeBase {
    * Bounding box width.
    * - rect: intrinsic (the rectangle width).
    * - ellipse: prefer {@link ellipseGeometry} instead; falls back to bounding rect width.
-   * - line / polygon / path: derived from geometry; saved for editor convenience, not an authored truth.
+   * - line / polygon / star / path: derived from geometry; saved for editor convenience, not an authored truth.
    */
   width?: number
   /**

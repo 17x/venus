@@ -40,9 +40,6 @@ const PARAGRAPH_SEPARATOR = 0x2029
 /** Soft hyphen (SHY) — invisible hyphenation opportunity. */
 const SOFT_HYPHEN = 0x00ad
 
-/** Hyphen-minus character. */
-const HYPHEN_MINUS = 0x002d
-
 /** Non-breaking space. */
 const NO_BREAK_SPACE = 0x00a0
 
@@ -375,4 +372,3 @@ function buildLine(
     width: totalWidth,
   }
 }
-

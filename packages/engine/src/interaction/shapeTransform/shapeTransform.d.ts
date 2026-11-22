@@ -42,6 +42,17 @@ export interface NormalizedBoundsLike {
     maxX: number;
     maxY: number;
 }
+export interface EngineGeometryRotationSource {
+    bounds: NormalizedBoundsLike;
+    points?: readonly Point[];
+    center: Point;
+    rotationDegrees: number;
+}
+export interface EngineGeometryRotationResult {
+    matrix: AffineMatrix;
+    points: Point[];
+    bounds: NormalizedBounds;
+}
 export interface ResolvedNodeTransform {
     bounds: NormalizedBounds;
     center: Point;
@@ -88,7 +99,11 @@ export declare function createAffineMatrixAroundPoint(center: Point, options?: {
     scaleX?: number;
     scaleY?: number;
 }): AffineMatrix;
+export declare function createEngineRotateAroundPointMatrix(center: Point, rotationDegrees: number): AffineMatrix;
+export declare function rotateEnginePointAroundPoint(point: Point, center: Point, rotationDegrees: number): Point;
+export declare function resolveEngineGeometryRotationAroundPoint(source: EngineGeometryRotationSource): EngineGeometryRotationResult;
 export declare function getNormalizedBoundsFromBox(x: number, y: number, width: number, height: number): NormalizedBounds;
+export declare function resolveEngineTransformedBoundsFromBox(source: BoxTransformSource): NormalizedBounds;
 export declare function doNormalizedBoundsOverlap(left: NormalizedBoundsLike, right: NormalizedBoundsLike): boolean;
 export declare function intersectNormalizedBounds(left: NormalizedBoundsLike, right: NormalizedBoundsLike): NormalizedBoundsLike | null;
 export declare function createShapeTransformRecord(source: BoxTransformSource): ShapeTransformRecord;

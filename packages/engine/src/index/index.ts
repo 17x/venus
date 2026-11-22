@@ -17,6 +17,8 @@ export {
   applyMatrixToPoint,
 } from '../math/matrix/matrix.ts'
 export type {
+  EngineCanonicalGeometryOutline,
+  EngineCanonicalGeometryPayload,
   EngineGeometryBounds as EngineRenderableGeometryBounds,
 } from '../scene/geometry/index.ts'
 export {
@@ -25,6 +27,11 @@ export {
   cubicBezierPoint,
   getBoundingRectFromBezierPoints,
   getCubicExtrema,
+  resolveEngineClipGeometry,
+  resolveEngineShapeGeometry,
+  resolveEngineShapeGeometryBounds,
+  resolveEngineShapeStrokeBounds,
+  resolveEngineShapeStrokeWidth,
   resolveGroupBounds,
   resolveRenderableNodeBounds,
   sampleBezierCurve,
@@ -45,6 +52,16 @@ export {
   ENGINE_RENDERABLE_NODE_TYPES,
   ENGINE_SHAPE_TYPES,
 } from '../scene/types/types.ts'
+export type {
+  EngineBoundsMatrix,
+} from '../scene/worldBounds/worldBounds.ts'
+export {
+  resolveLeafNodeWorldBounds,
+  resolveRenderableNodeWorldBounds,
+  resolveRenderableNodesWorldBounds,
+  resolveShapeBounds,
+  toWorldAxisAlignedBounds,
+} from '../scene/worldBounds/worldBounds.ts'
 export type {
   EngineHitTestResult,
 } from '../scene/hitTest/hitTest.ts'
@@ -212,7 +229,16 @@ export {
 export {
   createRenderCameraProjector,
   projectWorldPoint,
+  resolveEngineViewportWorldBounds,
+  resolveEngineViewportWorldRect,
   unprojectScreenPoint,
+} from '../core/camera/index.ts'
+export type {
+  EngineViewportBoundsState,
+  EngineViewportOverscanCssPx,
+  EngineViewportOverscanInput,
+  EngineViewportWorldBounds,
+  ResolveEngineViewportWorldBoundsOptions,
 } from '../core/camera/index.ts'
 
 export {
@@ -313,6 +339,8 @@ export type {
   BoxTransformSource,
   MatrixFirstNodeTransform,
   NormalizedBounds,
+  EngineGeometryRotationResult,
+  EngineGeometryRotationSource,
   ShapeTransformBatchCommand,
   ShapeTransformBatchItem,
   ShapeTransformRecord,
@@ -320,6 +348,7 @@ export type {
 export {
   applyAffineMatrixToPoint,
   createAffineMatrixAroundPoint,
+  createEngineRotateAroundPointMatrix,
   createIdentityAffineMatrix,
   createMatrixFirstNodeTransform,
   createRotationAffineMatrix,
@@ -332,8 +361,11 @@ export {
   invertAffineMatrix,
   isPointInsideRotatedBounds,
   multiplyAffineMatrices,
+  resolveEngineTransformedBoundsFromBox,
+  resolveEngineGeometryRotationAroundPoint,
   resolveNodeTransform,
   resolveShapeTransformRecord,
+  rotateEnginePointAroundPoint,
   toLegacyShapeTransformRecord,
   toResolvedNodeSvgTransform,
 } from '../interaction/shapeTransform/shapeTransform.ts'

@@ -6,6 +6,8 @@
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "paths": {
+      "@venus/document-core": ["packages/document-core/src/index.ts"],
+      "@venus/sync-core": ["packages/sync-core/src/index.ts"],
       "@venus/lib": ["packages/lib/src/index.ts"],
       "@venus/ui": ["packages/ui/src/index.ts"],
       "@venus/ui/*": ["packages/ui/src/*"],
@@ -15,6 +17,8 @@
     }
   },
   "references": [
+    { "path": "../../packages/document-core/tsconfig.json" },
+    { "path": "../../packages/sync-core/tsconfig.json" },
     { "path": "../../packages/lib/tsconfig.json" },
     { "path": "../../packages/ui/tsconfig.json" },
     { "path": "../../packages/editor-primitive/tsconfig.json" },

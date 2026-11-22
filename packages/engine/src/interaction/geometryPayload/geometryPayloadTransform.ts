@@ -1,7 +1,10 @@
 import {
   applyAffineMatrixToPoint,
+  multiplyAffineMatrices,
   resolveNodeTransform,
+  type AffineMatrix,
 } from '../shapeTransform/shapeTransform.ts'
+import {getBoundingRectFromBezierPoints} from '../../scene/geometry/bezier.ts'
 import {
   resolveRoundedRectCornerRadii,
 } from '../hitTest/geometry.ts'
@@ -15,13 +18,18 @@ import {
 import {
   resolveEllipseOutlineShape,
 } from './geometryPayloadEllipse.ts'
+import {
+  engineGeometryBoundsToCornerPoints,
+  resolveEngineGeometryBoundsFromPoints,
+  transformEngineGeometryBounds,
+  unionEngineGeometryBounds,
+} from './geometryPayloadBounds.ts'
 import type { EngineEditorHitTestNode, EngineEditorPoint } from '../hitTest/hitTest.ts'
 import type {
   EngineGeometryBounds,
   EngineGeometryOutline,
 } from './geometryPayloadTypes.ts'
 
-const IDENTITY_GEOMETRY_MATRIX: GeometryMatrix2D = [1, 0, 0, 0, 1, 0]
 const MIN_POLYGON_OUTLINE_POINTS = 3
 const MIN_PATH_OUTLINE_POINTS = 2
 const LINE_SEGMENT_POINT_MIN_COUNT = 2
@@ -30,39 +38,96 @@ const ROUND_RECT_CORNER_STEPS_HIGH = 24
 const ROUND_RECT_CORNER_STEPS_MEDIUM = 16
 const QUADRATIC_BLEND_COEFFICIENT = 2
 const POINT_EQUALITY_EPSILON = 1e-6
+const FULL_ROTATION_DEGREES = 360
+const ARC_EPSILON_DEGREES = 1e-3
+const HALF_DIVISOR = 2
+const RIGHT_ANGLE_DEGREES = 90
+const STRAIGHT_ANGLE_DEGREES = 180
+const THREE_QUARTER_ROTATION_DEGREES = 270
+const ELLIPSE_EXTREMA_ANGLES_DEGREES = [
+  0,
+  RIGHT_ANGLE_DEGREES,
+  STRAIGHT_ANGLE_DEGREES,
+  THREE_QUARTER_ROTATION_DEGREES,
+  FULL_ROTATION_DEGREES,
+]
+const DEGREES_TO_RADIANS = Math.PI / STRAIGHT_ANGLE_DEGREES
 /**
  * Stores affine 2D matrix used by geometry payload transforms.
  */
-export type GeometryMatrix2D = [number, number, number, number, number, number]
+export type GeometryMatrix2D = AffineMatrix
 
 /**
  * Resolves transform-aware world bounds for one node.
  * @param node Node whose transformed bounds are requested.
  * @param nodeById Node lookup map for ancestor transform composition.
  * @param worldMatrixCache Cache for memoized node world matrices.
+ * @param boundsCache Cache for memoized world bounds.
+ * @param resolvingNodeIds Guard set for malformed parent cycles.
  */
 export function resolveNodeBounds(
   node: EngineEditorHitTestNode,
   nodeById: Map<string, EngineEditorHitTestNode>,
   worldMatrixCache: Map<string, GeometryMatrix2D>,
+  boundsCache = new Map<string, EngineGeometryBounds>(),
+  resolvingNodeIds = new Set<string>(),
 ): EngineGeometryBounds {
-  const resolvedTransform = resolveNodeTransform(node)
-  const worldMatrix = resolveNodeWorldMatrix(node, nodeById, worldMatrixCache)
-  const corners = [
-    {x: resolvedTransform.bounds.minX, y: resolvedTransform.bounds.minY},
-    {x: resolvedTransform.bounds.maxX, y: resolvedTransform.bounds.minY},
-    {x: resolvedTransform.bounds.maxX, y: resolvedTransform.bounds.maxY},
-    {x: resolvedTransform.bounds.minX, y: resolvedTransform.bounds.maxY},
-  ].map((point) => applyAffineMatrixToPoint(worldMatrix, point))
-
-  const xs = corners.map((point) => point.x)
-  const ys = corners.map((point) => point.y)
-  return {
-    minX: Math.min(...xs),
-    minY: Math.min(...ys),
-    maxX: Math.max(...xs),
-    maxY: Math.max(...ys),
+  const cached = boundsCache.get(node.id)
+  if (cached) {
+    return cached
   }
+
+  if (node.type === 'group' && !resolvingNodeIds.has(node.id)) {
+    resolvingNodeIds.add(node.id)
+    let aggregate: EngineGeometryBounds | null = null
+    for (const candidate of nodeById.values()) {
+      if (candidate.parentId !== node.id) {
+        continue
+      }
+      const childBounds = resolveNodeBounds(candidate, nodeById, worldMatrixCache, boundsCache, resolvingNodeIds)
+      aggregate = aggregate ? unionEngineGeometryBounds(aggregate, childBounds) : childBounds
+    }
+    resolvingNodeIds.delete(node.id)
+    if (aggregate) {
+      boundsCache.set(node.id, aggregate)
+      return aggregate
+    }
+  }
+
+  const worldMatrix = resolveNodeWorldMatrix(node, nodeById, worldMatrixCache)
+  const bounds = transformEngineGeometryBounds(resolveNodeLocalBounds(node), worldMatrix)
+  boundsCache.set(node.id, bounds)
+  return bounds
+}
+
+/**
+ * Resolves world-space source bounds before this node's own rotation is applied.
+ * @param node Node whose source bounds are requested.
+ * @param nodeById Node lookup map for ancestor transform composition.
+ * @param worldMatrixCache Cache for memoized node world matrices.
+ * @param boundsCache Cache for memoized source bounds.
+ */
+export function resolveNodeSourceBounds(
+  node: EngineEditorHitTestNode,
+  nodeById: Map<string, EngineEditorHitTestNode>,
+  worldMatrixCache: Map<string, GeometryMatrix2D>,
+  boundsCache = new Map<string, EngineGeometryBounds>(),
+): EngineGeometryBounds {
+  const cached = boundsCache.get(node.id)
+  if (cached) {
+    return cached
+  }
+
+  if (node.type === 'group') {
+    const groupBounds = resolveNodeBounds(node, nodeById, worldMatrixCache)
+    boundsCache.set(node.id, groupBounds)
+    return groupBounds
+  }
+
+  const parentMatrix = resolveNodeParentWorldMatrix(node, nodeById, worldMatrixCache)
+  const bounds = transformEngineGeometryBounds(resolveNodeLocalBounds(node), parentMatrix)
+  boundsCache.set(node.id, bounds)
+  return bounds
 }
 /**
  * Resolves node outline geometry with level-aware fallback policy.
@@ -90,6 +155,14 @@ export function resolveOutlineForNode(
     }
   }
 
+  if (node.type === 'group') {
+    return {
+      kind: 'bounds',
+      bounds,
+      closed: true,
+    }
+  }
+
   if (node.type === 'lineSegment') {
     const linePoints = resolveLineSegmentPoints(node, worldMatrix)
     return {
@@ -103,8 +176,7 @@ export function resolveOutlineForNode(
     node.type === 'rectangle' ||
     node.type === 'frame' ||
     node.type === 'image' ||
-    node.type === 'text' ||
-    node.type === 'group'
+    node.type === 'text'
   ) {
     const isRoundedRectLike = (
       (node.type === 'rectangle' || node.type === 'frame') &&
@@ -131,7 +203,7 @@ export function resolveOutlineForNode(
   if ((node.type === 'polygon' || node.type === 'star') && node.points && node.points.length >= MIN_POLYGON_OUTLINE_POINTS) {
     return {
       kind: 'polyline',
-      points: node.points.map((point) => ({x: point.x, y: point.y})),
+      points: resolveTransformedPoints(node.points, worldMatrix),
       closed: true,
     }
   }
@@ -141,7 +213,7 @@ export function resolveOutlineForNode(
     if (sampledPathPoints && sampledPathPoints.length >= MIN_PATH_OUTLINE_POINTS) {
       return {
         kind: 'polyline',
-        points: sampledPathPoints,
+        points: resolveTransformedPoints(sampledPathPoints, worldMatrix),
         closed: isPathClosed(node),
       }
     }
@@ -209,12 +281,7 @@ function resolveRectOutlinePoints(
   bounds: EngineGeometryBounds,
   matrix: GeometryMatrix2D,
 ): EngineEditorPoint[] {
-  return resolveTransformedPoints([
-    {x: bounds.minX, y: bounds.minY},
-    {x: bounds.maxX, y: bounds.minY},
-    {x: bounds.maxX, y: bounds.maxY},
-    {x: bounds.minX, y: bounds.maxY},
-  ], matrix)
+  return resolveTransformedPoints(engineGeometryBoundsToCornerPoints(bounds), matrix)
 }
 
 /**
@@ -322,9 +389,28 @@ function resolveNodeWorldMatrix(
     return localMatrix
   }
 
-  const world = multiplyGeometryMatrices(resolveNodeWorldMatrix(parent, nodeById, cache), localMatrix)
+  const world = multiplyAffineMatrices(resolveNodeWorldMatrix(parent, nodeById, cache), localMatrix)
   cache.set(node.id, world)
   return world
+}
+
+/**
+ * Resolves an ancestor-only world matrix, excluding the node's own rotation.
+ * @param node Node whose parent matrix is requested.
+ * @param nodeById Node lookup map for ancestor traversal.
+ * @param cache Cache for memoized node world matrices.
+ */
+function resolveNodeParentWorldMatrix(
+  node: EngineEditorHitTestNode,
+  nodeById: Map<string, EngineEditorHitTestNode>,
+  cache: Map<string, GeometryMatrix2D>,
+): GeometryMatrix2D {
+  if (!node.parentId) {
+    return [1, 0, 0, 1, 0, 0]
+  }
+
+  const parent = nodeById.get(node.parentId)
+  return parent ? resolveNodeWorldMatrix(parent, nodeById, cache) : [1, 0, 0, 1, 0, 0]
 }
 
 /**
@@ -332,39 +418,153 @@ function resolveNodeWorldMatrix(
  * @param node Node whose local transform matrix is requested.
  */
 function resolveNodeLocalMatrix(node: EngineEditorHitTestNode): GeometryMatrix2D {
-  const resolved = resolveNodeTransform(node)
-  const [m00, m01, m02, m10, m11, m12] = resolved.matrix
-  return [
-    m00,
-    m01,
-    m02,
-    m10,
-    m11,
-    m12,
-  ]
+  return resolveNodeTransform(node).matrix
 }
 
 /**
- * Multiplies affine matrices so child geometry composes with ancestor transforms.
- * @param left Parent world matrix.
- * @param right Child local matrix.
+ * Resolves local geometry bounds from authored shape data before world projection.
+ * @param node Node whose local geometry bounds are requested.
  */
-function multiplyGeometryMatrices(left: GeometryMatrix2D, right: GeometryMatrix2D): GeometryMatrix2D {
-  if (left === IDENTITY_GEOMETRY_MATRIX) {
-    return right
+function resolveNodeLocalBounds(node: EngineEditorHitTestNode): EngineGeometryBounds {
+  if (node.type === 'ellipse') {
+    return resolveEllipseLocalVisibleBounds(node)
   }
-  if (right === IDENTITY_GEOMETRY_MATRIX) {
-    return left
+
+  if (node.type === 'lineSegment') {
+    const linePoints = resolveLineSegmentLocalPoints(node)
+    const lineBounds = resolveEngineGeometryBoundsFromPoints(linePoints)
+    if (lineBounds) {
+      return lineBounds
+    }
   }
-  const [l00, l01, l02, l10, l11, l12] = left
-  const [r00, r01, r02, r10, r11, r12] = right
+
+  if (node.type === 'polygon' || node.type === 'star') {
+    const pointBounds = node.points ? resolveEngineGeometryBoundsFromPoints(node.points) : null
+    if (pointBounds) {
+      return pointBounds
+    }
+  }
+
+  if (node.type === 'path') {
+    if (node.bezierPoints && node.bezierPoints.length > 0) {
+      const bezierBounds = getBoundingRectFromBezierPoints(node.bezierPoints)
+      return {
+        minX: bezierBounds.x,
+        minY: bezierBounds.y,
+        maxX: bezierBounds.x + bezierBounds.width,
+        maxY: bezierBounds.y + bezierBounds.height,
+      }
+    }
+
+    const pointBounds = node.points ? resolveEngineGeometryBoundsFromPoints(node.points) : null
+    if (pointBounds) {
+      return pointBounds
+    }
+  }
+
+  return resolveNodeTransform(node).bounds
+}
+
+/**
+ * Resolves ellipse visible bounds, using arc sector AABB for partial arcs.
+ * @param node Ellipse node candidate.
+ */
+function resolveEllipseLocalVisibleBounds(node: EngineEditorHitTestNode): EngineGeometryBounds {
+  const bounds = resolveNodeTransform(node).bounds
+  if (!hasEllipseArcRange(node)) {
+    return bounds
+  }
+
+  const center = {
+    x: (bounds.minX + bounds.maxX) / HALF_DIVISOR,
+    y: (bounds.minY + bounds.maxY) / HALF_DIVISOR,
+  }
+  const radiusX = Math.abs(bounds.maxX - bounds.minX) / HALF_DIVISOR
+  const radiusY = Math.abs(bounds.maxY - bounds.minY) / HALF_DIVISOR
+  const startDegrees = normalizeAngleDegrees(node.ellipseStartAngle ?? 0)
+  const sweepDegrees = resolveArcSweepDegrees(startDegrees, normalizeAngleDegrees(node.ellipseEndAngle ?? FULL_ROTATION_DEGREES))
+  const candidateAngles = [
+    startDegrees,
+    startDegrees + sweepDegrees,
+    ...ELLIPSE_EXTREMA_ANGLES_DEGREES.filter((angle) => isAngleInsideArcSweep(angle, startDegrees, sweepDegrees)),
+  ]
+  const points = candidateAngles.map((angleDegrees) => {
+    const radians = angleDegrees * DEGREES_TO_RADIANS
+    return {
+      x: center.x + Math.cos(radians) * radiusX,
+      y: center.y - Math.sin(radians) * radiusY,
+    }
+  })
+  if (node.ellipseDrawWedgeLine) {
+    points.push(center)
+  }
+
+  return resolveEngineGeometryBoundsFromPoints(points) ?? bounds
+}
+
+/**
+ * Resolves whether an ellipse node uses partial arc geometry.
+ * @param node Ellipse node candidate.
+ */
+function hasEllipseArcRange(node: EngineEditorHitTestNode): boolean {
+  if (typeof node.ellipseStartAngle !== 'number' || typeof node.ellipseEndAngle !== 'number') {
+    return false
+  }
+
+  const sweep = Math.abs(node.ellipseEndAngle - node.ellipseStartAngle) % FULL_ROTATION_DEGREES
+  return sweep > ARC_EPSILON_DEGREES && sweep < FULL_ROTATION_DEGREES - ARC_EPSILON_DEGREES
+}
+
+/**
+ * Resolves whether one semantic angle lies inside a positive arc sweep.
+ * @param angleDegrees Candidate semantic angle.
+ * @param startDegrees Arc start angle.
+ * @param sweepDegrees Positive arc sweep.
+ */
+function isAngleInsideArcSweep(
+  angleDegrees: number,
+  startDegrees: number,
+  sweepDegrees: number,
+): boolean {
+  const offset = ((angleDegrees - startDegrees) % FULL_ROTATION_DEGREES + FULL_ROTATION_DEGREES) % FULL_ROTATION_DEGREES
+  return offset > 0 && offset < sweepDegrees
+}
+
+/**
+ * Resolves positive sweep degrees from normalized semantic start/end angles.
+ * @param startDegrees Normalized start angle.
+ * @param endDegrees Normalized end angle.
+ */
+function resolveArcSweepDegrees(startDegrees: number, endDegrees: number): number {
+  const rawSweep = endDegrees - startDegrees
+  const normalizedSweep = ((rawSweep % FULL_ROTATION_DEGREES) + FULL_ROTATION_DEGREES) % FULL_ROTATION_DEGREES
+  return normalizedSweep === 0 ? FULL_ROTATION_DEGREES : normalizedSweep
+}
+
+/**
+ * Normalizes semantic angle degrees into [0, 360).
+ * @param value Raw angle value.
+ */
+function normalizeAngleDegrees(value: number): number {
+  const normalized = value % FULL_ROTATION_DEGREES
+  return normalized < 0 ? normalized + FULL_ROTATION_DEGREES : normalized
+}
+
+/**
+ * Resolves line endpoints using renderer-compatible point priority.
+ * @param node Line segment candidate.
+ */
+function resolveLineSegmentLocalPoints(node: EngineEditorHitTestNode): EngineEditorPoint[] {
+  if (Array.isArray(node.points) && node.points.length >= LINE_SEGMENT_POINT_MIN_COUNT) {
+    return [
+      {x: node.points[0].x, y: node.points[0].y},
+      {x: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].x, y: node.points[node.points.length - LINE_SEGMENT_LAST_POINT_OFFSET].y},
+    ]
+  }
+
   return [
-    l00 * r00 + l01 * r10,
-    l00 * r01 + l01 * r11,
-    l00 * r02 + l01 * r12 + l02,
-    l10 * r00 + l11 * r10,
-    l10 * r01 + l11 * r11,
-    l10 * r02 + l11 * r12 + l12,
+    {x: node.x, y: node.y},
+    {x: node.x + node.width, y: node.y + node.height},
   ]
 }
 

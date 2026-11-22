@@ -54,6 +54,10 @@ export interface EngineGeometryNodePayload {
   nodeType: EngineEditorHitTestNode['type']
   /** Stores transform-resolved world bounds. */
   bounds: EngineGeometryBounds
+  /** Stores world-space bounds before the node's own rotation is applied. */
+  sourceBounds: EngineGeometryBounds
+  /** Stores the node's own rotation in degrees, excluding ancestor transforms. */
+  rotationDegrees: number
   /** Stores requested outline geometry. */
   outline: EngineGeometryOutline
   /** Stores optional additional outlines (for text lines and other detailed edges). */
@@ -70,6 +74,10 @@ export interface EngineGeometrySelectionOverlay {
   selectedNodeIds: string[]
   /** Stores aggregate world bounds for selected nodes. */
   bounds: EngineGeometryBounds
+  /** Stores single-selection unrotated source bounds for rotated marquee construction. */
+  sourceBounds?: EngineGeometryBounds
+  /** Stores single-selection rotation in degrees when sourceBounds is present. */
+  rotationDegrees?: number
   /** Stores aggregate outline geometry for product styling adapters. */
   outline: EngineGeometryOutline
 }

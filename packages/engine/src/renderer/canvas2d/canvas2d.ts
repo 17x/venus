@@ -67,6 +67,7 @@ interface PreparedNodeEntry {
   node: EngineRenderableNode
   worldBounds: EngineRect | null
   worldMatrix: EngineWorldMatrix
+  parentIndex: number
 }
 
 const PATH_SIMPLIFICATION_BUCKET_MEDIUM = 1
@@ -96,6 +97,11 @@ const HALF_DIVISOR = 2
 const ELLIPSE_END_ANGLE_DEGREES = 360
 const CLIP_NODE_PATH_SIMPLIFICATION_BUCKET = 0
 const CLIP_NODE_VIEWPORT_SCALE = 1
+const STROKE_ALIGN_WIDTH_MULTIPLIER = 2
+const INNER_SHADOW_BLUR_PAD_MULTIPLIER = 2
+const INNER_SHADOW_MIN_PAD_PX = 20
+const INNER_SHADOW_INSET_PX = 1
+const INNER_SHADOW_INSET_DOUBLE_PX = 2
 
 const NULL_RENDER_COUNTERS: RenderCounters = {
   drawCount: 0,
@@ -273,16 +279,18 @@ export function createCanvas2DEngineRenderer(
 
       for (const index of plan.drawList) {
         const prepared = plan.preparedNodes[index]
-        const localRect = bufferLayout
+        const localRect = bufferLayout && prepared.node.type !== 'shape'
           ? readLocalRectFromBufferLayout(bufferLayout, index)
           : null
         drawPreparedNode(
           context,
           prepared.node,
+          index,
           prepared.worldMatrix,
           frame,
           worldBoundsById,
           preparedNodeById,
+          plan.preparedNodes,
           counters,
           localRect,
         )
@@ -424,20 +432,24 @@ function applyViewportMatrix(
  * Handles drawPreparedNode.
  * @param context Rendering context.
  * @param node Target node.
+ * @param preparedNodeIndex Prepared node index in the render plan.
  * @param worldMatrix worldMatrix parameter.
  * @param frame Current render frame.
  * @param worldBoundsById worldBoundsById parameter.
  * @param preparedNodeById preparedNodeById parameter.
+ * @param preparedNodes Full prepared node list, used for ancestor clip chains.
  * @param counters counters parameter.
  * @param localRect localRect parameter.
  */
 function drawPreparedNode(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   node: EngineRenderableNode,
+  preparedNodeIndex: number,
   worldMatrix: EngineWorldMatrix,
   frame: EngineRenderFrame,
   worldBoundsById: Map<string, EngineRect>,
   preparedNodeById: Map<string, PreparedNodeEntry>,
+  preparedNodes: readonly PreparedNodeEntry[],
   counters: RenderCounters,
   localRect: {x: number; y: number; width: number; height: number} | null,
 ) {
@@ -454,6 +466,7 @@ function drawPreparedNode(
   applyNodeOpacity(context, node)
   applyLayerBlur(context, node)
   applyNodeShadow(context, node)
+  applyAncestorInlineClipShapes(context, preparedNodeIndex, preparedNodes)
   applyClipByNodeReference(context, node, preparedNodeById, worldBoundsById)
   applyWorldTransform(context, worldMatrix)
   applyInlineClipShape(context, node)
@@ -516,8 +529,13 @@ function shouldCullCanvas2DNodeByVisibility(
   const screenWidth = Math.abs(worldBounds.width) * scale
   const screenHeight = Math.abs(worldBounds.height) * scale
   const minEdge = Math.min(screenWidth, screenHeight)
+  const maxEdge = Math.max(screenWidth, screenHeight)
   const screenArea = screenWidth * screenHeight
-  if (minEdge > CANVAS2D_VISIBILITY_CULL_MAX_EDGE_PX || screenArea > CANVAS2D_VISIBILITY_CULL_MAX_AREA_PX2) {
+  if (
+    minEdge > CANVAS2D_VISIBILITY_CULL_MAX_EDGE_PX ||
+    maxEdge > CANVAS2D_VISIBILITY_CULL_MAX_EDGE_PX ||
+    screenArea > CANVAS2D_VISIBILITY_CULL_MAX_AREA_PX2
+  ) {
     return false
   }
 
@@ -674,7 +692,7 @@ function applyStrokeDash(
 function resolveAlignedStrokeWidth(node: EngineShapeNode): number {
   const base = node.strokeWidth ?? 0
   if ((node.strokeAlign === 'inside' || node.strokeAlign === 'outside') && base > 0) {
-    return base * 2
+    return base * STROKE_ALIGN_WIDTH_MULTIPLIER
   }
   return base
 }
@@ -1004,11 +1022,11 @@ function applyInnerShadow(
     return
   }
 
-  const pad = Math.max(is.blur * 2, 20)
+  const pad = Math.max(is.blur * INNER_SHADOW_BLUR_PAD_MULTIPLIER, INNER_SHADOW_MIN_PAD_PX)
   const outerX = rect.x - pad
   const outerY = rect.y - pad
-  const outerW = rect.width + pad * 2
-  const outerH = rect.height + pad * 2
+  const outerW = rect.width + pad * INNER_SHADOW_BLUR_PAD_MULTIPLIER
+  const outerH = rect.height + pad * INNER_SHADOW_BLUR_PAD_MULTIPLIER
 
   context.save()
   // 1. Fill entire area with shadow colour (shadowBlur renders the soft edge).
@@ -1023,7 +1041,12 @@ function applyInnerShadow(
   context.shadowColor = 'transparent'
   context.shadowBlur = 0
   context.fillStyle = 'black'
-  context.fillRect(rect.x + 1, rect.y + 1, Math.max(0, rect.width - 2), Math.max(0, rect.height - 2))
+  context.fillRect(
+    rect.x + INNER_SHADOW_INSET_PX,
+    rect.y + INNER_SHADOW_INSET_PX,
+    Math.max(0, rect.width - INNER_SHADOW_INSET_DOUBLE_PX),
+    Math.max(0, rect.height - INNER_SHADOW_INSET_DOUBLE_PX),
+  )
   context.restore()
 }
 
@@ -1103,6 +1126,56 @@ function applyClipByNodeReference(
 }
 
 /**
+ * Applies inline clip shapes owned by ancestor groups before drawing a leaf.
+ * @param context Rendering context.
+ * @param preparedNodeIndex Prepared node index for the leaf being drawn.
+ * @param preparedNodes Full prepared node list with parent links.
+ */
+function applyAncestorInlineClipShapes(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  preparedNodeIndex: number,
+  preparedNodes: readonly PreparedNodeEntry[],
+) {
+  const ancestors: PreparedNodeEntry[] = []
+  let parentIndex = preparedNodes[preparedNodeIndex]?.parentIndex ?? -1
+  while (parentIndex >= 0) {
+    const ancestor = preparedNodes[parentIndex]
+    if (!ancestor) {
+      break
+    }
+    ancestors.push(ancestor)
+    parentIndex = ancestor.parentIndex
+  }
+
+  for (let index = ancestors.length - 1; index >= 0; index -= 1) {
+    applyPreparedInlineClipShape(context, ancestors[index])
+  }
+}
+
+/**
+ * Applies one prepared node's inline clip shape in its world matrix.
+ * @param context Rendering context.
+ * @param prepared Prepared ancestor node.
+ */
+function applyPreparedInlineClipShape(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  prepared: PreparedNodeEntry,
+) {
+  if (!prepared.node.clip?.clipShape) {
+    return
+  }
+
+  context.beginPath()
+  context.save()
+  applyWorldTransform(context, prepared.worldMatrix)
+  const appended = appendInlineClipShapePath(context, prepared.node)
+  context.restore()
+  if (appended) {
+    context.clip(prepared.node.clip?.rule ?? 'nonzero')
+  }
+}
+
+/**
  * Handles applyInlineClipShape.
  * @param context Rendering context.
  * @param node Target node.
@@ -1117,6 +1190,24 @@ function applyInlineClipShape(
   }
 
   context.beginPath()
+  if (appendInlineClipShapePath(context, node)) {
+    context.clip(node.clip?.rule ?? 'nonzero')
+  }
+}
+
+/**
+ * Appends one node's inline clip shape to the current path.
+ * @param context Rendering context.
+ * @param node Node that owns the inline clip shape.
+ */
+function appendInlineClipShapePath(
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  node: EngineNodeBase,
+): boolean {
+  const clip = node.clip?.clipShape
+  if (!clip) {
+    return false
+  }
 
   if (clip.kind === 'rect') {
     if (clip.radius && clip.radius > 0) {
@@ -1127,7 +1218,7 @@ function applyInlineClipShape(
   } else {
     const [head, ...rest] = clip.points
     if (!head) {
-      return
+      return false
     }
     context.moveTo(head.x, head.y)
     for (const point of rest) {
@@ -1138,7 +1229,7 @@ function applyInlineClipShape(
     }
   }
 
-  context.clip(node.clip?.rule ?? 'nonzero')
+  return true
 }
 
 /**

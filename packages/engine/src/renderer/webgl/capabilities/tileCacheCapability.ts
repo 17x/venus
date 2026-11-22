@@ -81,6 +81,8 @@ export interface WebGLTileCacheCapabilitySnapshot {
   previousZoomLevel: TileZoomLevel | null
   /** Stores previous pixel ratio memory for DPR invalidation checks. */
   previousPixelRatio: number | null
+  /** Stores previous scene revision observed by dirty-region sync. */
+  previousSceneRevision: string | number | null
   /** Stores latest cache stats, if cache exists. */
   stats: ReturnType<EngineTileCache['getStats']> | null
 }
@@ -115,6 +117,7 @@ export function createWebGLTileCacheCapability(
   const tileCache = options.tileConfig?.enabled ? new EngineTileCache(options.tileConfig) : null
   let previousZoomLevel: TileZoomLevel | null = null
   let previousPixelRatio: number | null = null
+  let previousSceneRevision: string | number | null = null
 
   /**
    * Creates capability state and returns enablement for orchestration checks.
@@ -183,7 +186,18 @@ export function createWebGLTileCacheCapability(
       input.frame.viewport.scale,
       previousZoomLevel,
     )
-    for (const dirtyRegion of input.frame.context.dirtyRegions ?? []) {
+    const dirtyRegions = input.frame.context.dirtyRegions ?? []
+    if (
+      previousSceneRevision !== null &&
+      previousSceneRevision !== input.frame.scene.revision &&
+      dirtyRegions.length === 0
+    ) {
+      const dirtyTilesBefore = tileCache.getDirtyTiles().length
+      tileCache.markAllTilesDirty()
+      dirtyTileCount += Math.max(0, tileCache.getDirtyTiles().length - dirtyTilesBefore)
+    }
+    previousSceneRevision = input.frame.scene.revision
+    for (const dirtyRegion of dirtyRegions) {
       const dirtyTilesBefore = tileCache.getDirtyTiles().length
       // Keep invalidation aligned with the bucket that this frame will render.
       if (dirtyRegion.previousBounds) {
@@ -207,6 +221,7 @@ export function createWebGLTileCacheCapability(
   const deleteCache = () => {
     previousZoomLevel = null
     previousPixelRatio = null
+    previousSceneRevision = null
   }
 
   /**
@@ -216,6 +231,7 @@ export function createWebGLTileCacheCapability(
     enabled: Boolean(tileCache),
     previousZoomLevel,
     previousPixelRatio,
+    previousSceneRevision,
     stats: tileCache?.getStats() ?? null,
   })
 

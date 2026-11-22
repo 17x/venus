@@ -4,7 +4,7 @@ import type {VenusNode} from '../../Venus.ts'
 import {resolveVenusDetailedHits, resolveVenusHitTestOptions} from './hitTest.ts'
 
 describe('Venus hit-test metadata', () => {
-  it('treats star nodes as polygon-backed anchor and fill targets', () => {
+  it('treats point-authored star nodes as anchor and fill targets', () => {
     const star: VenusNode = {
       id: 'star',
       type: 'star',

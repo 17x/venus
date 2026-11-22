@@ -4,6 +4,7 @@
  * Does not own global renderer lifecycle or capability state persistence.
  */
 import type { EngineCanvasSurfaceFactory, EngineRenderFrame } from '../../types/index.ts'
+import { resolveEngineViewportWorldRect } from '../../../core/camera/index.ts'
 import { createViewportMatrixForRender, drawWebGLPacket, type WebGLQuadPipeline } from '../core/index.ts'
 import { EngineTileCache, createTileKey, getZoomLevelForScale, type TileZoomLevel } from '../../tileManager/index.ts'
 import { TileScheduler } from '../../tileScheduler/index.ts'
@@ -26,6 +27,7 @@ import {
 // so the primary backend can focus on frame orchestration.
 interface TileCompositorDrawEntry {
   bounds: {x: number; y: number; width: number; height: number}
+  releaseAfterDraw?: boolean
   texture: WebGLTexture
 }
 
@@ -67,7 +69,7 @@ export function drawModelSurfaceAsTiles(options: {
   // Resolve the cache bucket from the current scale with hysteresis so zoom
   // transitions reuse adjacent layers without pinning all tiles to 100%.
   const zoomLevel = resolveTileCacheZoomLevel(options.frame.viewport.scale, options.previousZoomLevel)
-  const viewportBounds = resolveViewportWorldBounds(options.frame)
+  const viewportBounds = resolveEngineViewportWorldRect(options.frame.viewport)
   const visibleTiles = options.tileCache.getVisibleTiles(viewportBounds, zoomLevel)
   const preloadRingWindow = resolvePredictiveTileRingWindow(
     Math.max(0, options.preloadRing ?? 0),
@@ -99,12 +101,33 @@ export function drawModelSurfaceAsTiles(options: {
   const maxPreloadUploads = Math.max(0, options.maxPreloadUploads ?? Number.POSITIVE_INFINITY)
   const preloadBudgetMs = Math.max(0, options.preloadBudgetMs ?? 0)
 
-  const upsertTileTexture = (tile: { zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} }) => {
+  const upsertTileTexture = (
+    tile: { zoomLevel: TileZoomLevel; gridX: number; gridY: number; bounds: {x: number; y: number; width: number; height: number} },
+    mode: 'visible' | 'preload',
+  ) => {
     const cachedEntry = options.tileCache.getEntry(tile.zoomLevel, tile.gridX, tile.gridY)
     const cachedTexture = cachedEntry ? options.tileTextures.get(cachedEntry.textureId) : null
-    const existingTexture = cachedTexture ?? null
 
-    // Seed default framebuffer once from modelSurface so missing tiles can use GPU copy path.
+    const tileRegion = resolveTileFramebufferRegion({
+      frame: options.frame,
+      tileBounds: tile.bounds,
+      viewportWidthPx,
+      viewportHeightPx,
+    })
+    if (!tileRegion.hasVisibleSource) {
+      return {
+        releaseAfterDraw: false,
+        texture: null,
+      }
+    }
+    if (mode === 'preload' && tileRegion.isClipped) {
+      return {
+        releaseAfterDraw: false,
+        texture: null,
+      }
+    }
+
+    // Seed default framebuffer once from modelSurface so visible tiles can use GPU copy path.
     if (!seededFramebufferForTiles) {
       sourceTexture = uploadSurfaceTexture(options.context, options.modelSurface)
       if (!sourceTexture) {
@@ -139,16 +162,9 @@ export function drawModelSurfaceAsTiles(options: {
       }
     }
 
-    const tileRegion = resolveTileFramebufferRegion({
-      frame: options.frame,
-      tileBounds: tile.bounds,
-      viewportWidthPx,
-      viewportHeightPx,
-    })
-
     // Edge tiles are often only partially visible inside the current viewport.
-    // Keep them on the canvas-crop upload path instead of aborting the entire
-    // tile pass, otherwise ordinary settled views never build any tile cache.
+    // Keep them transient so transparent offscreen pixels are never cached as
+    // clean tile content and later revealed as blank during pan/zoom settle.
     if (tileRegion.isClipped) {
       fallbackReason = ENGINE_RENDER_FALLBACK_REASON.L2_TILE_PARTIAL_REGION_CANVAS_CROP
     }
@@ -176,7 +192,7 @@ export function drawModelSurfaceAsTiles(options: {
         }
         return uploadTileTexture(
           options.context,
-          existingTexture,
+          tileRegion.isClipped ? null : cachedTexture ?? null,
           tileTextureSource,
         )
       })()
@@ -193,6 +209,13 @@ export function drawModelSurfaceAsTiles(options: {
         : fallbackReason
     }
 
+    if (tileRegion.isClipped) {
+      return {
+        releaseAfterDraw: true,
+        texture: uploadedWithFallback.texture,
+      }
+    }
+
     const textureId = cachedEntry?.textureId ?? options.nextTileTextureId()
     options.tileTextures.set(textureId, uploadedWithFallback.texture)
     options.tileCache.upsertEntry({
@@ -204,6 +227,7 @@ export function drawModelSurfaceAsTiles(options: {
     })
 
     return {
+      releaseAfterDraw: false,
       texture: uploadedWithFallback.texture,
     }
   }
@@ -222,7 +246,7 @@ export function drawModelSurfaceAsTiles(options: {
 
     tileMissCount += 1
     // Keep visible tile upload synchronous so this frame's tile positions stay deterministic.
-    const uploadedEntry = upsertTileTexture(tile)
+    const uploadedEntry = upsertTileTexture(tile, 'visible')
     if (!uploadedEntry.texture) {
       fallbackReason = seededFramebufferForTiles
         ? ENGINE_RENDER_FALLBACK_REASON.L2_TILE_FRAMEBUFFER_COPY_FAILED
@@ -230,11 +254,13 @@ export function drawModelSurfaceAsTiles(options: {
       if (sourceTexture) {
         options.context.deleteTexture(sourceTexture)
       }
+      releaseTransientTileDrawEntries(options.context, drawEntries)
       return null
     }
     tileUploadCount += 1
     drawEntries.push({
       bounds: tile.bounds,
+      releaseAfterDraw: uploadedEntry.releaseAfterDraw,
       texture: uploadedEntry.texture,
     })
   }
@@ -304,7 +330,7 @@ export function drawModelSurfaceAsTiles(options: {
           return
         }
 
-        const uploadedEntry = upsertTileTexture(tile)
+        const uploadedEntry = upsertTileTexture(tile, 'preload')
         if (uploadedEntry.texture) {
           tileUploadCount += 1
           preloadedTileCount += 1
@@ -338,6 +364,7 @@ export function drawModelSurfaceAsTiles(options: {
     frame: options.frame,
     entries: drawEntries,
   })
+  releaseTransientTileDrawEntries(options.context, drawEntries)
 
   return {
     zoomLevel,
@@ -352,6 +379,22 @@ export function drawModelSurfaceAsTiles(options: {
     predictivePreloadProcessedCount,
     predictivePreloadPrunedCount,
     fallbackReason,
+  }
+}
+
+/**
+ * Releases transient edge tile textures after their one-frame draw.
+ * @param context Active WebGL context.
+ * @param entries Tile draw entries from this frame.
+ */
+function releaseTransientTileDrawEntries(
+  context: WebGLRenderingContext | WebGL2RenderingContext,
+  entries: readonly TileCompositorDrawEntry[],
+) {
+  for (const entry of entries) {
+    if (entry.releaseAfterDraw) {
+      context.deleteTexture(entry.texture)
+    }
   }
 }
 
@@ -380,23 +423,6 @@ function drawTileCompositorPass(options: {
   }
 
   return drawCount
-}
-
-/**
- * Handles resolveViewportWorldBounds.
- * @param frame Current render frame.
- */
-function resolveViewportWorldBounds(frame: EngineRenderFrame) {
-  // Clamp to a valid scale so transient invalid viewport states cannot break tile coverage.
-  const safeScale = Number.isFinite(frame.viewport.scale) && Math.abs(frame.viewport.scale) > Number.EPSILON
-    ? frame.viewport.scale
-    : 1
-  return {
-    x: -frame.viewport.offsetX / safeScale,
-    y: -frame.viewport.offsetY / safeScale,
-    width: frame.viewport.viewportWidth / safeScale,
-    height: frame.viewport.viewportHeight / safeScale,
-  }
 }
 
 /**

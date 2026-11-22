@@ -12,6 +12,7 @@ based on the render-facing scene contract, not the app/product document model.
 | `shape: ellipse` | Yes. | Yes, bounds-based. | Yes. | `ellipseStartAngle`, `ellipseEndAngle`, style fields. | Supported; exact ellipse hit is not yet separate from bounds hit. |
 | `shape: line` | Yes. | Yes, tolerance/bounds-based. | Yes. | `points`, `strokeStartArrowhead`, `strokeEndArrowhead`, `strokeWidth`. | Supported. |
 | `shape: polygon` | Yes. | Yes, bounds-based. | Yes. | `points`, `closed`, style fields. | Supported; exact polygon hit is a future refinement. |
+| `shape: star` | Yes. | Yes, point-geometry based. | Yes. | `points`, `closed`, style fields. | Supported through canonical point-authored geometry. |
 | `shape: path` | Yes. | Yes, bounds-based. | Yes. | `bezierPoints`, `points`, `closed`, arrowheads, style fields. | Supported; exact path stroke/fill hit is a future refinement. |
 | `text` | Yes. | Yes, text-bounds based. | Yes. | `text`, `runs`, `style`, `wrap`, `cacheKey`, text metrics hints. | Supported. |
 | `image` | Yes. | Yes, image-bounds based. | Yes. | `assetId`, `sourceRect`, `naturalSize`, `imageSmoothing`, `clip`. | Supported. |
@@ -45,7 +46,7 @@ geometry kind.
 - Rectangles support uniform and per-corner radii.
 - Ellipses support arc start/end angles.
 - Lines and open paths support arrowhead metadata.
-- Polygons and paths support point-based geometry.
+- Polygons, stars, and paths support point-based geometry.
 - Paths support bezier anchors and handles.
 
 ### Text Extensions

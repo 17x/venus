@@ -158,11 +158,11 @@ function asMatrixFirstTransform(value: Record<string, unknown>): MatrixFirstNode
     return null
   }
 
-  const matrix = Array.isArray(value.matrix) && value.matrix.length === 9
+  const matrix = Array.isArray(value.matrix) && (value.matrix.length === 6 || value.matrix.length === 9)
     ? value.matrix.map((entry) => asNumber(entry)).filter((entry): entry is number => entry !== null)
     : null
 
-  if (!matrix || matrix.length !== 9) {
+  if (!matrix || (matrix.length !== 6 && matrix.length !== 9)) {
     return null
   }
 

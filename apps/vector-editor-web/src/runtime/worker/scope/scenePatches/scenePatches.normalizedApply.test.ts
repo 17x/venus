@@ -9,7 +9,7 @@ import {
   readSceneStats,
   writeDocumentToScene,
 } from '../../../shared-memory/index.ts'
-import {applyPatches} from './scenePatches.ts'
+import {applyPatches, rebuildSpatialIndex} from './scenePatches.ts'
 import {syncDerivedGroupBounds} from '../sceneGroupBounds.ts'
 import type {WorkerSpatialIndex} from '../types.ts'
 
@@ -143,4 +143,32 @@ test('syncDerivedGroupBounds returns changed group ids and writes derived geomet
   assert.equal(groupSceneShape?.width, 20)
   assert.equal(groupSceneShape?.height, 10)
   assert.equal(readSceneStats(scene).version, initialVersion + 1)
+})
+
+test('rebuildSpatialIndex uses transform-aware bounds for rotated shapes', () => {
+  const document = createPatchFixture()
+  const rect = document.shapes.find((shape) => shape.id === 'rect-1')
+  assert.ok(rect)
+  rect.x = 0
+  rect.y = 0
+  rect.width = 100
+  rect.height = 20
+  rect.rotation = 90
+
+  let loadedItems: Array<{id: string; minX: number; minY: number; maxX: number; maxY: number}> = []
+  const spatialIndex = {
+    ...createSpatialIndexMock(),
+    load: (items: Array<{id: string; minX: number; minY: number; maxX: number; maxY: number}>) => {
+      loadedItems = items
+    },
+  } as WorkerSpatialIndex
+
+  rebuildSpatialIndex(spatialIndex, document)
+  const rectItem = loadedItems.find((item) => item.id === 'rect-1')
+
+  assert.ok(rectItem)
+  assert.equal(Math.round(rectItem.minX), 40)
+  assert.equal(Math.round(rectItem.minY), -40)
+  assert.equal(Math.round(rectItem.maxX), 60)
+  assert.equal(Math.round(rectItem.maxY), 60)
 })

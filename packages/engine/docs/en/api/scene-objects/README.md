@@ -8,7 +8,7 @@ are the API source of truth for future implementation work.
 | Category | API Pages |
 | --- | --- |
 | Structure | `scene-snapshot.md`, `group.md` |
-| Shapes | `rect.md`, `ellipse.md`, `line.md`, `polygon.md`, `path.md` |
+| Shapes | `rect.md`, `ellipse.md`, `line.md`, `polygon.md`, `path.md`; `star` uses the point-authored polygon/path payload contract. |
 | Content | `text.md`, `image.md` |
 | Constraints | `clip.md` |
 | Mechanisms | `camera.md`, `cache.md` |

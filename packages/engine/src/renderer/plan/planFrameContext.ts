@@ -5,6 +5,7 @@ import type { EngineSceneBufferLayout } from '../../scene/buffer/buffer.ts'
 
 const PLAN_HASH_MULTIPLIER = 31
 const PLAN_HASH_DELIMITER = 124
+const PREDICTOR_CONFIDENCE_SIGNATURE_SCALE = 1000
 
 /**
  * Resolves frame-level plan signature used by render-plan cache keying.
@@ -12,7 +13,15 @@ const PLAN_HASH_DELIMITER = 124
  */
 export function resolveFramePlanSignature(frame: EngineRenderFrame) {
   const candidateIds = frame.context.framePlanCandidateIds
-  return `${frame.context.framePlanVersion ?? 'none'}:${candidateIds?.length ?? 0}:${resolveFramePlanCandidateHash(candidateIds)}`
+  const predictor = frame.context.interactionPredictor
+  return [
+    frame.context.framePlanVersion ?? 'none',
+    candidateIds?.length ?? 0,
+    resolveFramePlanCandidateHash(candidateIds),
+    frame.context.quality,
+    predictor ? Math.round(predictor.speedPxPerSec) : 0,
+    predictor ? Math.round(predictor.confidence * PREDICTOR_CONFIDENCE_SIGNATURE_SCALE) : 0,
+  ].join(':')
 }
 
 /**

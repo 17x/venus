@@ -170,14 +170,14 @@ function computeAlignmentOffset(
  * need per-line vertical alignment.
  *
  * @param lineHeight The line's total height.
- * @param lineMetrics The line's ascent/descent metrics.
+ * @param _lineMetrics The line's ascent/descent metrics.
  * @param availableHeight The available vertical space.
  * @param verticalAlign Vertical alignment mode.
  * @returns Y offset from the top of available space.
  */
 export function computeLineVerticalOffset(
   lineHeight: number,
-  lineMetrics: { ascent: number; descent: number },
+  _lineMetrics: { ascent: number; descent: number },
   availableHeight: number,
   verticalAlign: 'top' | 'middle' | 'bottom',
 ): number {

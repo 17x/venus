@@ -26,6 +26,11 @@ import type {
   EditorExecutor,
 } from '../useEditorRuntime/types.ts'
 import type {EditorFileAsset} from '../../runtime/types/index.ts'
+import {
+  exportToPng,
+  exportToSvg,
+  downloadDataUrl,
+} from '../exportUtils.ts'
 
 const IMAGE_INSERT_VIEWPORT_RATIO = 0.82
 
@@ -57,6 +62,8 @@ export interface EditorRuntimeActionExecutorOptions {
   reorderSelectedShape: (direction: 'up' | 'down' | 'top' | 'bottom') => void
   /** Persists current runtime document to file storage. */
   saveFile: (document: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
+  /** Downloads the current document as a portable Venus archive. */
+  exportFileArchive: (document: ReturnType<typeof import('../useCanvasRuntimeBridge.ts').useCanvasRuntimeBridge>['runtime']['document']) => void
   /** Stores current selected node for action branches that inspect selection detail. */
   selectedNode: import('../../runtime/model/index.ts').DocumentNode | null
   /** Stores selected shape id list used by group/align/move actions. */
@@ -110,6 +117,20 @@ export function createEditorRuntimeActionExecutor(
 
     if (type === 'saveFile') {
       options.saveFile(options.canvasRuntime.document)
+      return
+    }
+
+    // ── Export Actions ────────────────────────────────────────────────
+    if (type === 'exportFile_archive') {
+      options.exportFileArchive(options.canvasRuntime.document)
+      return
+    }
+    if (type === 'exportFile_png') {
+      handleExportPng(options)
+      return
+    }
+    if (type === 'exportFile_svg') {
+      handleExportSvg(options)
       return
     }
 
@@ -333,4 +354,80 @@ export function createEditorRuntimeActionExecutor(
       })
     }
   }
+}
+
+// ── Export Handlers ──────────────────────────────────────────────────────────
+
+/**
+ * Handles PNG export by capturing the engine canvas raster.
+ *
+ * Finds the engine's mounted <canvas> element in the DOM and reads its
+ * pixel data as a PNG data URL, then triggers a browser download.
+ *
+ * @param options Executor options for notifications.
+ */
+async function handleExportPng(
+  options: EditorRuntimeActionExecutorOptions,
+): Promise<void> {
+  try {
+    const canvas = findEngineCanvas()
+    if (!canvas) {
+      options.add('Cannot export PNG: render surface not found.', 'error')
+      return
+    }
+    const dataUrl = canvas.toDataURL('image/png')
+    downloadDataUrl(dataUrl, 'export.png')
+    options.add('Exported as PNG', 'success')
+  } catch (err) {
+    options.add('PNG export failed', 'error')
+  }
+}
+
+/**
+ * Handles SVG export by serializing the document model.
+ *
+ * Generates SVG markup from the current editor document and triggers
+ * a browser download of the .svg file.
+ *
+ * @param options Executor options providing document access.
+ */
+function handleExportSvg(
+  options: EditorRuntimeActionExecutorOptions,
+): void {
+  try {
+    const svg = exportToSvg(options.canvasRuntime.document)
+    const blob = new Blob([svg], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    downloadDataUrl(url, 'export.svg')
+    URL.revokeObjectURL(url)
+    options.add('Exported as SVG', 'success')
+  } catch (err) {
+    options.add('SVG export failed', 'error')
+  }
+}
+
+/**
+ * Finds the engine's mounted <canvas> element in the DOM.
+ *
+ * The engine renders into a canvas passed during construction.
+ * This helper locates it by querying for canvas elements and
+ * selecting the largest one (the main render surface).
+ *
+ * @returns The HTMLCanvasElement or null.
+ */
+function findEngineCanvas(): HTMLCanvasElement | null {
+  const canvases = document.querySelectorAll('canvas')
+  if (canvases.length === 0) return null
+
+  // Return the largest canvas (the main render surface)
+  let largest: HTMLCanvasElement | null = null
+  let largestArea = 0
+  for (const c of canvases) {
+    const area = c.width * c.height
+    if (area > largestArea) {
+      largestArea = area
+      largest = c
+    }
+  }
+  return largest
 }

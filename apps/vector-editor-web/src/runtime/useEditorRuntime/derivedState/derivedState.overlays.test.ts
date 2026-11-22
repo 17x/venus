@@ -27,3 +27,17 @@ test('resolveSelectionChromeBounds uses engine bounds outside active transform',
     engineBounds,
   )
 })
+
+test('resolveSelectionChromeBounds uses engine source bounds for static rotated marquee', () => {
+  const sourceBounds = {minX: 10, minY: 20, maxX: 70, maxY: 50}
+
+  assert.deepEqual(
+    resolveSelectionChromeBounds({
+      transformPreviewActive: false,
+      previewBounds,
+      engineBounds,
+      engineSourceBounds: sourceBounds,
+    }),
+    sourceBounds,
+  )
+})

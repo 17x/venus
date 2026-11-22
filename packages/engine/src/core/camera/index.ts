@@ -12,3 +12,17 @@ export {
 export {
   unprojectScreenPoint,
 } from './unproject.ts'
+
+export type {
+  EngineViewportBoundsState,
+  EngineViewportOverscanCssPx,
+  EngineViewportOverscanInput,
+  EngineViewportWorldBounds,
+  ResolveEngineViewportWorldBoundsOptions,
+} from './viewportBounds.ts'
+
+export {
+  normalizeEngineViewportOverscan,
+  resolveEngineViewportWorldBounds,
+  resolveEngineViewportWorldRect,
+} from './viewportBounds.ts'

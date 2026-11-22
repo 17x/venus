@@ -1,7 +1,7 @@
 import type {DocumentNode, EditorDocument} from '../../model/index.ts'
 import {
-  getNormalizedBoundsFromBox,
   intersectNormalizedBounds,
+  resolveEngineTransformedBoundsFromBox,
   type EngineSpatialItem,
 } from '@venus/engine'
 import {
@@ -20,19 +20,22 @@ export function rebuildSpatialIndex(
   document: EditorDocument,
 ) {
   spatialIndex.load(
-    document.shapes.map((shape, order) => createSpatialItem(shape, order)),
+    document.shapes.map((shape, order) => createSpatialItem(shape, order, document)),
   )
 }
 
 function createSpatialItem(
   shape: DocumentNode,
   order: number,
+  document?: EditorDocument,
 ): EngineSpatialItem<{
   shapeId: string
   type: DocumentNode['type']
   order: number
 }> {
-  const bounds = getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+  const bounds = document
+    ? resolveRuntimeShapeBounds(shape, document)
+    : resolveShapeBounds(shape)
   return {
     id: shape.id,
     minX: bounds.minX,
@@ -57,7 +60,7 @@ export function updateSpatialShape(
     return
   }
 
-  spatialIndex.update(createSpatialItem(document.shapes[index], index))
+  spatialIndex.update(createSpatialItem(document.shapes[index], index, document))
 }
 
 export function syncSpatialRange(
@@ -74,7 +77,7 @@ export function syncSpatialRange(
   }
 
   for (let index = boundedStart; index <= boundedEnd; index += 1) {
-    spatialIndex.update(createSpatialItem(document.shapes[index], index))
+    spatialIndex.update(createSpatialItem(document.shapes[index], index, document))
   }
 }
 
@@ -83,9 +86,20 @@ function getNormalizedBounds(
   y: number,
   width: number,
   height: number,
+  rotation?: number,
+  flipX?: boolean,
+  flipY?: boolean,
   expand = 0,
 ) {
-  const bounds = getNormalizedBoundsFromBox(x, y, width, height)
+  const bounds = resolveEngineTransformedBoundsFromBox({
+    x,
+    y,
+    width,
+    height,
+    rotation,
+    flipX,
+    flipY,
+  })
 
   return {
     minX: bounds.minX - expand,
@@ -300,6 +314,9 @@ function resolveShapeBounds(shape: DocumentNode) {
       bezierBounds.y,
       bezierBounds.width,
       bezierBounds.height,
+      shape.rotation,
+      shape.flipX,
+      shape.flipY,
     )
   }
 
@@ -310,8 +327,19 @@ function resolveShapeBounds(shape: DocumentNode) {
       pointBounds.y,
       pointBounds.width,
       pointBounds.height,
+      shape.rotation,
+      shape.flipX,
+      shape.flipY,
     )
   }
 
-  return getNormalizedBounds(shape.x, shape.y, shape.width, shape.height)
+  return getNormalizedBounds(
+    shape.x,
+    shape.y,
+    shape.width,
+    shape.height,
+    shape.rotation,
+    shape.flipX,
+    shape.flipY,
+  )
 }

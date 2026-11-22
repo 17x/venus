@@ -1,4 +1,7 @@
 import type {
+  EngineViewportOverscanInput,
+} from '../../core/camera/index.ts'
+import type {
   TilePriority,
   TileRenderRequest,
   TileViewportCamera,
@@ -48,7 +51,7 @@ export interface TileSchedulerCancelOptions {
   // Tile CSS size used for viewport->tile projection.
   tileSizeCssPx?: number
   // Overscan size used when estimating visible + nearby tiles.
-  overscanCssPx?: number
+  overscanCssPx?: EngineViewportOverscanInput
   // Nearby ring count retained around visible tiles.
   nearbyRing?: number
 }

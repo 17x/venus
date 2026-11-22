@@ -301,6 +301,62 @@ describe('engine scene adapter model parity', () => {
     assert.equal(image.type === 'image' ? image.imageSmoothing : null, false)
   })
 
+  it('projects rotated point-authored shapes into transform plus local geometry', () => {
+    const nodes = [
+      baseNode({
+        id: 'polygon-rotated',
+        type: 'polygon',
+        x: 10,
+        y: 20,
+        width: 80,
+        height: 60,
+        rotation: 30,
+        points: [{x: 10, y: 20}, {x: 90, y: 20}, {x: 50, y: 80}],
+      }),
+      baseNode({
+        id: 'star-rotated',
+        type: 'star',
+        x: 120,
+        y: 20,
+        width: 80,
+        height: 80,
+        rotation: -25,
+        points: [{x: 160, y: 20}, {x: 175, y: 60}, {x: 210, y: 60}, {x: 180, y: 80}],
+      }),
+      baseNode({
+        id: 'path-rotated',
+        type: 'path',
+        x: 240,
+        y: 20,
+        width: 100,
+        height: 80,
+        rotation: 45,
+        bezierPoints: [
+          {anchor: {x: 240, y: 60}, cp2: {x: 270, y: 20}},
+          {anchor: {x: 340, y: 60}, cp1: {x: 310, y: 100}},
+        ],
+      }),
+    ]
+
+    const scene = createScene(nodes)
+
+    for (const source of nodes) {
+      const engineNode = nodeById(scene.nodes, source.id)
+      assert.equal(engineNode.type, 'shape')
+      assertMatrixAlmostEqual(
+        engineNode.type === 'shape' ? engineNode.transform?.matrix ?? [] : [],
+        vectorAffineToEngineMatrix(resolveNodeTransform(source).matrix),
+      )
+
+      if (source.points) {
+        assert.notDeepEqual(engineNode.type === 'shape' ? engineNode.points : null, source.points)
+      }
+      if (source.bezierPoints) {
+        assert.notDeepEqual(engineNode.type === 'shape' ? engineNode.bezierPoints : null, source.bezierPoints)
+      }
+    }
+  })
+
   it('resolves parent-local transforms that preserve child world transforms', () => {
     const parent = baseNode({
       id: 'frame',

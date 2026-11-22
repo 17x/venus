@@ -113,6 +113,48 @@ test('deriveGroupBoundsFromNormalizedRuntime updates nested groups from descenda
   assert.equal(groupA?.height, 120)
 })
 
+test('deriveGroupBoundsFromNormalizedRuntime includes rotated child bounds', () => {
+  const document: EditorDocument = {
+    id: 'doc-rotated',
+    name: 'rotated fixture',
+    width: 1000,
+    height: 1000,
+    shapes: [
+      {
+        id: 'group-a',
+        type: 'group',
+        name: 'Group A',
+        parentId: null,
+        childIds: ['rect-1'],
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+      },
+      {
+        id: 'rect-1',
+        type: 'rectangle',
+        name: 'Rect 1',
+        parentId: 'group-a',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 20,
+        rotation: 90,
+      },
+    ],
+  }
+
+  const changedIds = deriveGroupBoundsFromNormalizedRuntime(createNormalizedRuntimeDocument(document))
+  const group = document.shapes.find((shape) => shape.id === 'group-a')
+
+  assert.deepEqual(changedIds, ['group-a'])
+  assert.equal(Math.round(group?.x ?? 0), 40)
+  assert.equal(Math.round(group?.y ?? 0), -40)
+  assert.equal(Math.round(group?.width ?? 0), 20)
+  assert.equal(Math.round(group?.height ?? 0), 100)
+})
+
 test('applyNormalizedShapeParentChange moves node across groups and syncs child lists', () => {
   const document = createDocumentFixture()
 

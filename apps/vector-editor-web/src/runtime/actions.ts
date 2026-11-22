@@ -25,9 +25,9 @@ export const FILE = {
       id: 'exportFile',
       disabled: false,
       children: [
-        {id: 'exportFile_png', disabled: false},
-        {id: 'exportFile_pdf', disabled: false},
-        {id: 'exportFile_csv', disabled: false},
+        {id: 'exportFile_archive', disabled: false, editorAction: 'exportFile_archive'},
+        {id: 'exportFile_png', disabled: false, editorAction: 'exportFile_png'},
+        {id: 'exportFile_svg', disabled: false, editorAction: 'exportFile_svg'},
       ],
     },
     {id: 'print', disabled: false},

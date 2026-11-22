@@ -29,7 +29,13 @@ export function resolveDirectExecuteActionCommand(input: {
     return {
       type: 'selection.set',
       shapeIds: input.shapes
-        .filter((shape) => shape.type !== 'frame')
+        .filter((shape) =>
+          shape.type !== 'frame' &&
+          // Exclude locked elements — they should not be selectable.
+          (shape as { locked?: boolean }).locked !== true &&
+          // Exclude hidden elements — invisible elements cannot be selected.
+          (shape as { show?: boolean }).show !== false,
+        )
         .map((shape) => shape.id),
       mode: 'replace',
     }

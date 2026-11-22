@@ -147,7 +147,7 @@ export const ContextMenu: FC<ContextMenuProps> = ({
     <ContextMenuContent
       align={'start'}
       sideOffset={4}
-      className={'min-w-44 border border-slate-200/80 shadow-xl dark:border-slate-700/80'}
+      className={'min-w-44'}
       aria-label={t('shell.variantB.nav.mainMenu', {defaultValue: 'Context menu'})}
       onClick={(event) => {
         event.stopPropagation()

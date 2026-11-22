@@ -25,28 +25,19 @@ import type {
   TextParagraph,
   TextPipelineConfig,
   TextLayoutResult,
-  TextRun,
   GlyphRun,
-  ShapedLine,
   FontRegistry,
-  FontMatch,
-  ResolvedTextStyle,
 } from './types.ts'
 import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
   DEFAULT_LINE_HEIGHT,
   DEFAULT_DIRECTION,
-  TEXT_WIDTH_ESTIMATE_MULTIPLIER,
 } from './types.ts'
 
 import { parseGraphemeClusters } from './unicode.ts'
 import { segmentTextRuns } from './textRun.ts'
-import {
-  createFontRegistry,
-  resolveFontForRun,
-  getApproximateMetrics,
-} from './fontResolver.ts'
+import { resolveFontForRun } from './fontResolver.ts'
 import {
   shapeRunWithKerning,
   createGlyphRun,

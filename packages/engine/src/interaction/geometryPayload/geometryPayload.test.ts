@@ -281,6 +281,77 @@ test('resolveEngineGeometryPayload composes parent rotation for ellipse outline'
 })
 
 /**
+ * Verifies point-authored geometry outlines use the same world matrix as bounds.
+ */
+test('resolveEngineGeometryPayload composes parent rotation for polygon star and path outlines', () => {
+  const nodes: EngineEditorHitTestNode[] = [
+    {
+      id: 'group-rotated',
+      type: 'group',
+      x: 0,
+      y: 0,
+      width: 120,
+      height: 120,
+      rotation: 90,
+    },
+    {
+      id: 'polygon-child',
+      type: 'polygon',
+      parentId: 'group-rotated',
+      x: 10,
+      y: 10,
+      width: 40,
+      height: 40,
+      points: [{x: 10, y: 10}, {x: 50, y: 10}, {x: 30, y: 50}],
+    },
+    {
+      id: 'star-child',
+      type: 'star',
+      parentId: 'group-rotated',
+      x: 20,
+      y: 20,
+      width: 40,
+      height: 40,
+      points: [{x: 40, y: 20}, {x: 48, y: 42}, {x: 70, y: 42}, {x: 52, y: 55}, {x: 58, y: 78}],
+    },
+    {
+      id: 'path-child',
+      type: 'path',
+      parentId: 'group-rotated',
+      x: 0,
+      y: 80,
+      width: 80,
+      height: 40,
+      points: [{x: 0, y: 80}, {x: 40, y: 120}, {x: 80, y: 80}],
+      closed: false,
+    },
+  ]
+
+  const polygonPayload = resolveEngineGeometryPayload({
+    nodes,
+    hoveredNodeId: 'polygon-child',
+    outlineLevel: 'medium',
+  })
+  const starPayload = resolveEngineGeometryPayload({
+    nodes,
+    hoveredNodeId: 'star-child',
+    outlineLevel: 'medium',
+  })
+  const pathPayload = resolveEngineGeometryPayload({
+    nodes,
+    hoveredNodeId: 'path-child',
+    outlineLevel: 'medium',
+  })
+
+  assert.equal(polygonPayload.hovered?.outline.kind, 'polyline')
+  assert.notDeepEqual(polygonPayload.hovered?.outline.points?.[0], {x: 10, y: 10})
+  assert.equal(starPayload.hovered?.outline.kind, 'polyline')
+  assert.notDeepEqual(starPayload.hovered?.outline.points?.[0], {x: 40, y: 20})
+  assert.equal(pathPayload.hovered?.outline.kind, 'polyline')
+  assert.notDeepEqual(pathPayload.hovered?.outline.points?.[0], {x: 0, y: 80})
+})
+
+/**
  * Verifies ellipse arc settings shape the outline with radial boundaries.
  */
 test('resolveEngineGeometryPayload emits ellipse arc contour with start/end angles', () => {
@@ -313,6 +384,12 @@ test('resolveEngineGeometryPayload emits ellipse arc contour with start/end angl
   assert.ok(Math.abs((points[1]?.y ?? 0) - 40) <= 1e-6)
   assert.ok(Math.abs((points[points.length - 2]?.x ?? 0) - 60) <= 1e-6)
   assert.ok(Math.abs((points[points.length - 2]?.y ?? 0) - 0) <= 1e-6)
+  assertBoundsClose(payload.hovered?.bounds, {
+    minX: 60,
+    minY: 0,
+    maxX: 120,
+    maxY: 40,
+  })
 })
 
 /**
@@ -476,3 +553,151 @@ test('resolveEngineGeometryPayload respects maxExactCandidateCount for point hit
   assert.deepEqual(expandedPayload.pointHitNodeIds, ['hit-mid'])
   assert.equal(expandedPayload.hovered?.nodeId, 'hit-mid')
 })
+
+/**
+ * Verifies rotated group child bounds stay identical across hover, selection, marquee, and hit-test.
+ */
+test('resolveEngineGeometryPayload aligns rotated group bounds across overlay marquee and hit-test', () => {
+  const nodes: EngineEditorHitTestNode[] = [
+    {
+      id: 'group-rotated',
+      type: 'group',
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+      rotation: 90,
+    },
+    {
+      id: 'rect-child',
+      type: 'rectangle',
+      parentId: 'group-rotated',
+      x: 120,
+      y: 80,
+      width: 40,
+      height: 20,
+      fill: {enabled: true},
+    },
+  ]
+  const expectedBounds = {
+    minX: 100,
+    minY: 120,
+    maxX: 120,
+    maxY: 160,
+  }
+
+  const payload = resolveEngineGeometryPayload({
+    nodes,
+    hoveredNodeId: 'rect-child',
+    selectedNodeIds: ['group-rotated'],
+    pointer: {x: 110, y: 140},
+    tolerance: 4,
+    preferGroupSelection: true,
+    marqueeBounds: {
+      minX: 99,
+      minY: 119,
+      maxX: 121,
+      maxY: 161,
+    },
+    marqueeMode: 'contain',
+    outlineLevel: 'medium',
+  })
+
+  assertBoundsClose(payload.hoverOverlay?.bounds, expectedBounds)
+  assertBoundsClose(payload.selected[0]?.bounds, expectedBounds)
+  assertBoundsClose(payload.selectionOverlay?.bounds, expectedBounds)
+  assert.deepEqual(payload.pointHitNodeIds, ['group-rotated'])
+  assert.deepEqual(payload.marqueeCandidateNodeIds, ['group-rotated', 'rect-child'])
+  assert.deepEqual(payload.marqueeResolvedNodeIds, ['group-rotated', 'rect-child'])
+  assert.equal(payload.selected[0]?.outline.kind, 'bounds')
+})
+
+/**
+ * Verifies point-authored line hit-test follows rendered endpoints when legacy box fields are stale.
+ */
+test('resolveEngineGeometryPayload hits point-authored line when legacy box fields are stale', () => {
+  const nodes: EngineEditorHitTestNode[] = [
+    {
+      id: 'line-points',
+      type: 'lineSegment',
+      x: 1000,
+      y: 1000,
+      width: 1,
+      height: 1,
+      points: [{x: 0, y: 0}, {x: 100, y: 0}],
+      stroke: {enabled: true},
+    },
+  ]
+
+  const payload = resolveEngineGeometryPayload({
+    nodes,
+    pointer: {x: 50, y: 0},
+    tolerance: 3,
+    resolveHoveredFromPointer: true,
+    outlineLevel: 'medium',
+  })
+
+  assert.deepEqual(payload.pointHitNodeIds, ['line-points'])
+  assert.equal(payload.hovered?.nodeId, 'line-points')
+  assertBoundsClose(payload.hovered?.bounds, {
+    minX: 0,
+    minY: 0,
+    maxX: 100,
+    maxY: 0,
+  })
+})
+
+/**
+ * Verifies path marquee and exact hit use authored point bounds when legacy box fields are stale.
+ */
+test('resolveEngineGeometryPayload resolves point-authored path bounds when legacy box fields are stale', () => {
+  const nodes: EngineEditorHitTestNode[] = [
+    {
+      id: 'path-points',
+      type: 'path',
+      x: 1000,
+      y: 1000,
+      width: 1,
+      height: 1,
+      points: [{x: 0, y: 0}, {x: 80, y: 0}, {x: 40, y: 60}],
+      closed: true,
+      fill: {enabled: true},
+    },
+  ]
+
+  const payload = resolveEngineGeometryPayload({
+    nodes,
+    pointer: {x: 40, y: 20},
+    tolerance: 2,
+    marqueeBounds: {
+      minX: 0,
+      minY: 0,
+      maxX: 80,
+      maxY: 60,
+    },
+    marqueeMode: 'contain',
+    resolveHoveredFromPointer: true,
+    outlineLevel: 'medium',
+  })
+
+  assert.deepEqual(payload.pointHitNodeIds, ['path-points'])
+  assert.deepEqual(payload.marqueeCandidateNodeIds, ['path-points'])
+  assert.deepEqual(payload.marqueeResolvedNodeIds, ['path-points'])
+  assertBoundsClose(payload.hovered?.bounds, {
+    minX: 0,
+    minY: 0,
+    maxX: 80,
+    maxY: 60,
+  })
+})
+
+function assertBoundsClose(
+  actual: {minX: number; minY: number; maxX: number; maxY: number} | null | undefined,
+  expected: {minX: number; minY: number; maxX: number; maxY: number},
+) {
+  assert.ok(actual)
+  assert.ok(Math.abs(actual.minX - expected.minX) <= 1e-6)
+  assert.ok(Math.abs(actual.minY - expected.minY) <= 1e-6)
+  assert.ok(Math.abs(actual.maxX - expected.maxX) <= 1e-6)
+  assert.ok(Math.abs(actual.maxY - expected.maxY) <= 1e-6)
+}

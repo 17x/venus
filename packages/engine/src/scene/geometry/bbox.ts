@@ -2,7 +2,6 @@ import type { EngineRenderableNode } from '../types/types.ts'
 import { estimateTextWidth as estimateTextWidthShared } from '../../core/text/shaper.ts'
 
 const TEXT_LINE_HEIGHT_MULTIPLIER = 1.2
-const TEXT_WIDTH_ESTIMATE_MULTIPLIER = 0.6
 
 /**
  * Declares shared axis-aligned bounds shape used by geometry helpers.

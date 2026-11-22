@@ -216,6 +216,25 @@ test('appendShapePath emits render commands for every engine shape kind', () => 
     },
     {
       node: {
+        id: 'star',
+        type: 'shape',
+        shape: 'star',
+        x: 0,
+        y: 0,
+        width: 30,
+        height: 30,
+        points: [
+          {x: 15, y: 0},
+          {x: 20, y: 10},
+          {x: 30, y: 10},
+          {x: 22, y: 18},
+          {x: 25, y: 30},
+        ],
+      },
+      expectedCalls: ['moveTo', 'lineTo', 'closePath'],
+    },
+    {
+      node: {
         id: 'path',
         type: 'shape',
         shape: 'path',

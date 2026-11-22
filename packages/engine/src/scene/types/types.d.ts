@@ -231,7 +231,7 @@ export interface EngineGroupNode extends EngineNodeBase {
 
 export interface EngineShapeNode extends EngineNodeBase {
     type: 'shape';
-    shape: 'rect' | 'ellipse' | 'line' | 'polygon' | 'path';
+    shape: 'rect' | 'ellipse' | 'line' | 'polygon' | 'star' | 'path';
     x?: number;
     y?: number;
     width?: number;

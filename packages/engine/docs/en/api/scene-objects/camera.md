@@ -3,7 +3,9 @@
 ## Purpose
 
 Engine camera helpers provide backend-neutral project/unproject mechanics for
-world-space and screen-space conversion.
+world-space and screen-space conversion. They also provide the canonical
+viewport world-bounds projection used by frame plans, render culling, tile
+coverage, and spatial queries.
 
 ## Type Shape
 
@@ -43,6 +45,8 @@ be updated first.
 projectWorldPoint(point, camera)
 unprojectScreenPoint(point, camera)
 createRenderCameraProjector(camera)
+resolveEngineViewportWorldBounds(viewport, {overscanCssPx?})
+resolveEngineViewportWorldRect(viewport, {overscanCssPx?})
 ```
 
 ## Render Behavior
@@ -53,7 +57,9 @@ camera, but camera math lives under `core/camera`.
 ## Indexing Behavior
 
 Camera changes do not change scene indexes; they affect viewport-dependent query
-windows and render planning.
+windows and render planning. Query windows must use
+`resolveEngineViewportWorldRect` so pan/zoom, negative scale normalization, and
+CSS-pixel overscan stay consistent across frame-plan, hit-test, and tile paths.
 
 ## Hit-Test Behavior
 
@@ -68,7 +74,8 @@ render scheduling state.
 ## Cache Behavior
 
 Camera changes may invalidate viewport-dependent cache entries but should not
-invalidate scene content by themselves.
+invalidate scene content by themselves. Tile prefetch and cancellation may use
+directional `overscanCssPx` to retain the side revealed by panning.
 
 ## Demo
 
@@ -77,8 +84,11 @@ const diagnostics = engine.getDiagnostics()
 const screenPoint = {x: 240, y: 160}
 const worldPoint = unprojectScreenPoint(screenPoint, diagnostics.viewport)
 const projectedBack = projectWorldPoint(worldPoint, diagnostics.viewport)
+const viewportWorldRect = resolveEngineViewportWorldRect(diagnostics.viewport, {
+  overscanCssPx: {left: 128, right: 32, top: 32, bottom: 32},
+})
 
-console.log({worldPoint, projectedBack})
+console.log({worldPoint, projectedBack, viewportWorldRect})
 ```
 
 ## Non-Goals

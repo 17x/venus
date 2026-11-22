@@ -68,7 +68,10 @@ Each object API page must answer:
 
 - `scene-snapshot`, `group`, `shape`, `text`, and `image` exist in
   `src/scene/types/types.ts`.
-- Shape kinds currently include `rect`, `ellipse`, `line`, `polygon`, and `path`.
+- Shape kinds currently include `rect`, `ellipse`, `line`, `polygon`, `star`, and `path`.
+- `star` is point-authored geometry. The engine renders and hit-tests it through
+  the same canonical polygon/path payload layer while preserving its authored
+  kind for product editing and round trip.
 - Render command emission for every shape kind is covered by
   `src/renderer/canvas2d/shapes.objectModelRender.test.ts`.
 - Hover/click hit-test coverage for shape, text, and image is covered by
@@ -97,5 +100,5 @@ chooses mode by passing different tolerances and by storing separate UI state:
 
 The scene hit-test kernel must account for AABB pruning first, then exact
 geometry rules for rounded rectangles, ellipse arc sectors, open lines,
-polygons, open/closed paths, stroke-only areas, fill areas, transforms, text
+polygons, stars, open/closed paths, stroke-only areas, fill areas, transforms, text
 bounds, image bounds, and inline clips.

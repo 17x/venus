@@ -1,0 +1,13 @@
+{
+  "name": "@venus/sync-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b ./tsconfig.json",
+    "test": "node --experimental-strip-types --test src/**/*.test.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

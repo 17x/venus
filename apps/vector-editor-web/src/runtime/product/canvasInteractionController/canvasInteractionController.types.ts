@@ -45,6 +45,8 @@ export interface EditorRuntimeCanvasInteractionControllerState {
   panDragOrigin: PointerPanOrigin | null
   /** Stores pending engine-compatible pan offset while the panning tool owns left-button drag. */
   panDragOffset: PointerPanOffset
+  /** Stores scheduled panning-tool commit frame for RAF-coalesced viewport updates. */
+  panDragCommitFrame: number | null
 }
 
 /**

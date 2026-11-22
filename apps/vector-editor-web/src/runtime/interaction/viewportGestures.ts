@@ -85,7 +85,6 @@ export function bindViewportGestures({
   let pointerFrame: number | null = null
   let zoomSettleTimeout: number | null = null
   let zoomCommitFrame: number | null = null
-  let panCommitFrame: number | null = null
   let pendingZoomViewport: EngineCanvasViewportState | null = null
   let pendingZoomDiagnostic: Omit<ViewportZoomDiagnostic, 'phase'> | null = null
   let interactionPointerId: number | null = null
@@ -102,14 +101,7 @@ export function bindViewportGestures({
   }
 
   const schedulePanCommit = () => {
-    if (panCommitFrame !== null) {
-      return
-    }
-
-    panCommitFrame = requestAnimationFrame(() => {
-      panCommitFrame = null
-      flushPanCommit()
-    })
+    flushPanCommit()
   }
 
   const preventGesture = (event: Event) => {
@@ -268,6 +260,7 @@ export function bindViewportGestures({
     panOffset = accumulateEngineWheelPanOffset(panOffset, {
       deltaX: event.deltaX,
       deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
     })
     schedulePanCommit()
   }
@@ -368,10 +361,6 @@ export function bindViewportGestures({
 
     if (panOrigin && panOrigin.pointerId === event.pointerId) {
       panOrigin = null
-      if (panCommitFrame !== null) {
-        cancelAnimationFrame(panCommitFrame)
-        panCommitFrame = null
-      }
       flushPanCommit()
     }
 
@@ -409,10 +398,6 @@ export function bindViewportGestures({
   return () => {
     if (pointerFrame !== null) {
       cancelAnimationFrame(pointerFrame)
-    }
-    if (panCommitFrame !== null) {
-      cancelAnimationFrame(panCommitFrame)
-      panCommitFrame = null
     }
     if (zoomSettleTimeout !== null) {
       window.clearTimeout(zoomSettleTimeout)

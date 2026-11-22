@@ -18,7 +18,8 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@venus/document-core": ["apps/vector-editor-web/src/model/index.ts"],
+      "@venus/document-core": ["packages/document-core/src/index.ts"],
+      "@venus/sync-core": ["packages/sync-core/src/index.ts"],
       "@venus/lib": ["packages/lib/src/index.ts"],
       "@venus/lib/*": ["packages/lib/src/*"],
       "@venus/ui": ["packages/ui/src/index.ts"],

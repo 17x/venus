@@ -11,7 +11,6 @@
 
 import type {
   TextParagraph,
-  TextStyleSpan,
   TextRun,
   ResolvedTextStyle,
   TextScript,
@@ -19,7 +18,7 @@ import type {
   UnicodeCluster,
   FontMatch,
 } from './types.ts'
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT, DEFAULT_DIRECTION } from './types.ts'
+import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT } from './types.ts'
 
 /**
  * Resolves the full style for a character position by merging paragraph
@@ -294,7 +293,6 @@ export function segmentTextRuns(
 ): TextRun[] {
   if (clusters.length === 0) return []
 
-  const paragraphDirection = paragraph.direction ?? DEFAULT_DIRECTION
   const runs: TextRun[] = []
 
   // Resolve the first cluster's properties to seed the first run

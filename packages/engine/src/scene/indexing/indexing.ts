@@ -1,6 +1,6 @@
 import {createEngineSpatialIndex, type EngineSpatialIndex, type EngineSpatialItem} from '../spatial/index.ts'
-import type {EngineNodeId, EngineRect, EngineRenderableNode} from '../types/types.ts'
-import {resolveLeafNodeWorldBounds} from '../worldBounds/worldBounds.ts'
+import type {EngineNodeId, EngineRenderableNode} from '../types/types.ts'
+import {resolveRenderableNodeWorldBounds} from '../worldBounds/worldBounds.ts'
 
 type Matrix2D = readonly [number, number, number, number, number, number]
 
@@ -110,7 +110,7 @@ function collectEngineSpatialItems(
 ) {
   nodes.forEach((node) => {
     const worldMatrix = multiplyMatrix(parentMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
-    const bounds = resolveNodeWorldBounds(node, worldMatrix)
+    const bounds = resolveRenderableNodeWorldBounds(node, worldMatrix)
     if (bounds) {
       items.push({
         id: node.id,
@@ -150,72 +150,6 @@ function walkEngineNodeSubtree(
 }
 
 /**
- * Handles resolveNodeWorldBounds.
- * @param node Target node.
- * @param worldMatrix worldMatrix parameter.
- */
-function resolveNodeWorldBounds(
-  node: EngineRenderableNode,
-  worldMatrix: Matrix2D,
-): EngineRect | null {
-  switch (node.type) {
-    case 'image':
-    case 'text':
-    case 'shape':
-      return resolveLeafNodeWorldBounds(node, worldMatrix)
-    case 'group':
-      return resolveGroupWorldBounds(node.children, worldMatrix)
-    default:
-      return null
-  }
-}
-
-/**
- * Handles resolveGroupWorldBounds.
- * @param nodes nodes parameter.
- * @param parentMatrix parentMatrix parameter.
- */
-function resolveGroupWorldBounds(
-  nodes: readonly EngineRenderableNode[],
-  parentMatrix: Matrix2D,
-): EngineRect | null {
-  let union: EngineRect | null = null
-
-  nodes.forEach((node) => {
-    const worldMatrix = multiplyMatrix(parentMatrix, node.transform?.matrix ?? IDENTITY_MATRIX)
-    const bounds = resolveNodeWorldBounds(node, worldMatrix)
-    if (!bounds) {
-      return
-    }
-
-    union = union
-      ? unionRect(union, bounds)
-      : bounds
-  })
-
-  return union
-}
-
-/**
- * Handles unionRect.
- * @param left left parameter.
- * @param right right parameter.
- */
-function unionRect(left: EngineRect, right: EngineRect): EngineRect {
-  const minX = Math.min(left.x, right.x)
-  const minY = Math.min(left.y, right.y)
-  const maxX = Math.max(left.x + left.width, right.x + right.width)
-  const maxY = Math.max(left.y + left.height, right.y + right.height)
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  }
-}
-
-/**
  * Handles multiplyMatrix.
  * @param left left parameter.
  * @param right right parameter.
@@ -233,4 +167,3 @@ function multiplyMatrix(left: Matrix2D, right: Matrix2D): Matrix2D {
     leftD * rightC + leftE * rightF + leftF,
   ]
 }
-

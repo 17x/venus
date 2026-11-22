@@ -28,6 +28,15 @@ export function createHeaderMenuData(options: {
       children: [
         {id: 'newFile', action: 'newFile', disabled: false},
         {id: 'saveFile', action: 'saveFile', disabled: !options.needSave},
+        {
+          id: 'exportFile',
+          disabled: false,
+          children: [
+            {id: 'exportFile_archive', action: 'exportFile_archive', disabled: false},
+            {id: 'exportFile_png', action: 'exportFile_png', disabled: false},
+            {id: 'exportFile_svg', action: 'exportFile_svg', disabled: false},
+          ],
+        },
         {id: 'print', action: 'print', disabled: false},
         {id: 'closeFile', action: 'closeFile', disabled: false},
       ],

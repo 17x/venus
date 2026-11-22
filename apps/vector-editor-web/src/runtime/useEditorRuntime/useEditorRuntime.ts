@@ -26,9 +26,8 @@ import {createEditorRuntimeCommandController} from '../product/createEditorRunti
 import {buildUseEditorRuntimeOutputs, buildUseEditorRuntimeUiState} from './outputs.ts'
 import {useEditorRuntimeCommandActions, useEditorRuntimePointerHandlers} from './interactions.ts'
 import {useEditorRuntimeCursorState, useEditorRuntimeUiStateAndSync} from './presentation.ts'
-
+import {useLocalDocumentAutosave, type EditorServices} from '../persistence/index.ts'
 const SNAP_AUTO_DISABLE_SHAPE_COUNT = 25_000
-
 export type {
   EditorDocumentState,
   EditorFileAsset,
@@ -41,11 +40,10 @@ export type {
   EditorUIState,
   HistoryNodeLike,
 } from './types.ts'
-
 // Owns vector editor runtime orchestration and composes runtime/interaction adapters for UI consumers.
 const useEditorRuntime = (options: {
   onContextMenu?: (position: {x: number; y: number}) => void
-  createWorker: () => Worker
+  createWorker: () => Worker; services: EditorServices
 }) => {
   const onContextMenu = options.onContextMenu
   const {
@@ -57,7 +55,9 @@ const useEditorRuntime = (options: {
     createFile,
     addAsset,
     saveFile,
-  } = useEditorDocument()
+    exportFileArchive,
+    scheduleLocalSave, localSaveSnapshot, persistenceReady,
+  } = useEditorDocument(options.services)
   const [showPrint, setShowPrint] = useState(false)
   const [focused, setFocused] = useState(false)
   const [currentTool, setCurrentToolState] = useState<ToolName>('selector')
@@ -110,7 +110,6 @@ const useEditorRuntime = (options: {
     () => options.createWorker(),
     [options],
   )
-
   const {
     canvasRuntime,
     defaultCanvasInteractions,
@@ -155,7 +154,10 @@ const useEditorRuntime = (options: {
     selectorOverlayItems,
     createWorker,
   })
-
+  useLocalDocumentAutosave({
+    document: canvasRuntime.document, ready: canvasRuntime.ready,
+    persistenceReady, schedule: scheduleLocalSave,
+  })
   useEffect(() => {
     registerDefaultRuntimeToolHandlers(
       runtimeToolRegistryRef.current,
@@ -325,6 +327,7 @@ const useEditorRuntime = (options: {
     pasteSerial,
     reorderSelectedShape,
     saveFile,
+    exportFileArchive,
     selectedNode,
     selectedShapeIds,
     setClipboard,
@@ -423,6 +426,7 @@ const useEditorRuntime = (options: {
     canvasRuntime,
     file,
     hasFile,
+    localSaveSnapshot,
     RuntimeRenderer,
     OverlayRenderer,
     interactionDocument,
@@ -492,5 +496,4 @@ const useEditorRuntime = (options: {
     canvas: runtimeState.canvas,
   }
 }
-
 export default useEditorRuntime

@@ -94,7 +94,7 @@ export function appendShapePath(
     return true
   }
 
-  if (node.shape === 'polygon') {
+  if (node.shape === 'polygon' || node.shape === 'star') {
     const points = node.points ?? []
     const [head, ...rest] = points
     if (!head) {
