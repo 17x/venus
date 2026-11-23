@@ -1,2 +1,4 @@
+@import "tailwindcss";
+@import "shadcn/tailwind.css";
 @import "./foundation/tokens.css";
 @import "./foundation/semantic.css";

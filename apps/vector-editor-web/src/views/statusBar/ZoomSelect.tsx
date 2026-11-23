@@ -1,6 +1,6 @@
 import React, {useEffect, useId, useRef, useState} from 'react'
 import {RUNTIME_ZOOM_PRESETS} from '../../runtime/index.ts'
-import {cn, Tooltip} from '../../ui/index.ts'
+import {cn, Tooltip} from '@venus/ui/vector'
 import {EDITOR_TEXT_CONTROL_CLASS, EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 import {LuChevronDown} from 'react-icons/lu'
 

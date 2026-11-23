@@ -18,7 +18,7 @@ import {
   ImageSection,
   SchemaSection,
 } from './PropPanelMetaSections.tsx'
-import {Separator} from '../../ui/index.ts'
+import {Separator} from '@venus/ui/vector'
 
 interface PropPanelShapePropsProps {
   props: SelectedElementProps

@@ -1,4 +1,4 @@
-import {Card, CardContent, Separator} from '../../ui/index.ts'
+import {Card, CardContent, Separator} from '@venus/ui/vector'
 import {useSyncExternalStore} from 'react'
 import {useTranslation} from 'react-i18next'
 import {

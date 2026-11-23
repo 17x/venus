@@ -103,12 +103,12 @@ function RadioItem({ value, label, className, disabled, id, ...props }: RadioIte
     <label
       htmlFor={itemId}
       className={cn(
-        "inline-flex cursor-[var(--cursor-action)] items-center gap-2 rounded-md py-0.5 text-sm outline-none transition-colors",
+        "inline-flex min-h-6 cursor-[var(--cursor-action)] items-center gap-1 rounded-md text-sm outline-none transition-colors",
         isDisabled ? "cursor-not-allowed opacity-50" : "hover:text-foreground",
         className,
       )}
     >
-      <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+      <span className="relative inline-flex size-6 shrink-0 items-center justify-center">
         <input
           ref={ref}
           id={itemId}
@@ -116,7 +116,7 @@ function RadioItem({ value, label, className, disabled, id, ...props }: RadioIte
           value={value}
           checked={isSelected}
           disabled={isDisabled}
-          className="sr-only"
+          className="peer sr-only"
           data-slot="radio"
           onChange={() => {
             if (!isDisabled) {
@@ -129,7 +129,7 @@ function RadioItem({ value, label, className, disabled, id, ...props }: RadioIte
           aria-hidden="true"
           data-state={isSelected ? "checked" : "unchecked"}
           className={cn(
-            "flex size-4 shrink-0 items-center justify-center rounded-full border border-input transition-[background-color,border-color,color,box-shadow]",
+            "flex size-4 shrink-0 items-center justify-center rounded-full border border-input transition-[background-color,border-color,color,box-shadow] peer-focus-visible:ring-2 peer-focus-visible:ring-[hsl(var(--state-focus))] peer-focus-visible:ring-offset-2",
             isSelected && "border-primary",
           )}
         >

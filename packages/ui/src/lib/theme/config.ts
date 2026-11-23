@@ -1,6 +1,6 @@
 export const themeStorageKey = "erp-theme";
 
-export const themeNames = ["classic-light", "classic-dark", "cartoon"] as const;
+export const themeNames = ["classic-light", "classic-dark", "cartoon", "cartoon-dark"] as const;
 
 export type ThemeName = (typeof themeNames)[number];
 
@@ -10,4 +10,8 @@ export function isThemeName(value: unknown): value is ThemeName {
 
 export function resolveThemeName(value: unknown): ThemeName {
   return isThemeName(value) ? value : "classic-light";
+}
+
+export function isDarkTheme(theme: ThemeName): boolean {
+  return theme.endsWith("-dark");
 }

@@ -1,5 +1,5 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {Button, Con, Tooltip} from '../../ui/index.ts'
+import {Button, Con, Tooltip} from '@venus/ui/vector'
 import type {EditorExecutor, LayerItem} from '../../runtime/useEditorRuntime/types.ts'
 import {LayerDown, LayerToBottom, LayerToTop, LayerUp} from '../header/shortcutBar/Icons/LayerIcons.tsx'
 import {useTranslation} from 'react-i18next'

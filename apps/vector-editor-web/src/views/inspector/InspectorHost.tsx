@@ -1,4 +1,4 @@
-import {Tooltip, cn} from '../../ui/index.ts'
+import {Tooltip, cn} from '@venus/ui/vector'
 import {LuLayers, LuSettings} from 'react-icons/lu'
 import type {EditorExecutor, LayerItem, SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
 import {LayerPanel} from '../layerPanel/LayerPanel.tsx'

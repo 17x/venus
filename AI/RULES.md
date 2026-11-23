@@ -65,6 +65,8 @@ product policy inside engine/shared foundations.
 ## Code and contracts
 
 - TypeScript stays strict; do not add `any`.
+- Let layout explain content; do not add labels that merely repeat structure.
+  Keep labels only for control names, accessibility, or disambiguation.
 - Define domain/public contracts before behavior.
 - Exported APIs use explicit parameter and return types.
 - New/changed exported types and non-obvious behavior need semantic comments.

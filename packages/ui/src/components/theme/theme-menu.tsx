@@ -1,15 +1,17 @@
 "use client";
 
+import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { CheckIcon, MoonIcon, PaletteIcon, SparklesIcon, SunIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
+import { isDarkTheme, resolveThemeName, themeNames, themeStorageKey, type ThemeName } from "../../lib/theme/config";
 import { Button } from "../ui/button";
-import { resolveThemeName, themeNames, themeStorageKey, type ThemeName } from "../../lib/theme/config";
 
 export type ThemeLabels = {
   classicLight: string;
   classicDark: string;
   cartoon: string;
+  cartoonDark: string;
 };
 
 type ThemeMenuProps = {
@@ -20,14 +22,12 @@ type ThemeMenuProps = {
 const themeIcons = {
   "classic-light": SunIcon,
   "classic-dark": MoonIcon,
-  cartoon: SparklesIcon
+  cartoon: SparklesIcon,
+  "cartoon-dark": MoonIcon
 } satisfies Record<ThemeName, typeof SunIcon>;
 
 export function ThemeMenu({ labels, title }: ThemeMenuProps) {
-  const menuId = useId();
   const [theme, setThemeState] = useState<ThemeName>("classic-light");
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const nextTheme = resolveThemeName(localStorage.getItem(themeStorageKey));
@@ -35,95 +35,71 @@ export function ThemeMenu({ labels, title }: ThemeMenuProps) {
     setThemeState(nextTheme);
   }, []);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
+  const setTheme = (nextTheme: unknown) => {
+    const resolvedTheme = resolveThemeName(nextTheme);
+    applyTheme(resolvedTheme);
+    setThemeState(resolvedTheme);
+  };
 
   return (
-    <div className="relative" ref={rootRef}>
-      <Button
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-label={title}
-        aria-haspopup="menu"
-        size="icon"
-        type="button"
-        variant="outline"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <PaletteIcon data-icon="inline-start" />
-      </Button>
-      <div className={open ? "absolute right-0 top-full z-20 pt-1 opacity-100" : "invisible absolute right-0 top-full z-20 pt-1 opacity-0"}>
-        <div
-          className="min-w-44 rounded-md border bg-card p-1 text-card-foreground shadow-[var(--shadow-popover)]"
-          id={menuId}
-          role="menu"
-        >
-          {themeNames.map((item) => {
-            const Icon = themeIcons[item];
+    <MenuPrimitive.Root>
+      <MenuPrimitive.Trigger
+        render={
+          <Button aria-label={title} size="icon" type="button" variant="outline">
+            <PaletteIcon aria-hidden="true" data-icon="inline-start" />
+          </Button>
+        }
+      />
+      <MenuPrimitive.Portal>
+        <MenuPrimitive.Positioner align="end" className="isolate outline-none" side="bottom" sideOffset={4}>
+          <MenuPrimitive.Popup className="min-w-44 rounded-md border bg-card p-1 text-card-foreground shadow-[var(--shadow-popover)] outline-none">
+            <MenuPrimitive.RadioGroup value={theme} onValueChange={setTheme}>
+              {themeNames.map((item) => {
+                const Icon = themeIcons[item];
 
-            return (
-              <button
-                className="flex w-full cursor-[var(--cursor-action)] items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-xs outline-none transition-[background-color,color,box-shadow,transform] hover:-translate-y-px hover:bg-[hsl(var(--state-hover))] hover:text-accent-foreground active:translate-y-0 active:bg-[hsl(var(--state-active))] focus-visible:bg-[hsl(var(--state-hover))] focus-visible:text-accent-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1 aria-checked:bg-[hsl(var(--state-active))] aria-checked:text-foreground"
-                key={item}
-                role="menuitemradio"
-                aria-checked={theme === item}
-                type="button"
-                onClick={() => {
-                  applyTheme(item);
-                  setThemeState(item);
-                  setOpen(false);
-                }}
-              >
-                <span className="flex items-center gap-2">
-                  <Icon data-icon="inline-start" />
-                  {getThemeLabel(labels, item)}
-                </span>
-                {theme === item ? <CheckIcon data-icon="inline-start" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+                return (
+                  <MenuPrimitive.RadioItem
+                    className="relative flex cursor-[var(--cursor-action)] items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-xs outline-none transition-[background-color,color,transform] hover:bg-[hsl(var(--state-hover))] hover:text-foreground active:translate-y-px active:bg-[hsl(var(--state-active))] focus:bg-[hsl(var(--state-hover))] focus:text-foreground data-disabled:cursor-[var(--cursor-disabled)] data-disabled:opacity-[var(--state-disabled-opacity)]"
+                    closeOnClick
+                    key={item}
+                    value={item}
+                  >
+                    <Icon aria-hidden="true" data-icon="inline-start" />
+                    {getThemeLabel(labels, item)}
+                    <span className="pointer-events-none absolute right-2 flex items-center justify-center">
+                      <MenuPrimitive.RadioItemIndicator>
+                        <CheckIcon aria-hidden="true" data-icon="inline-start" />
+                      </MenuPrimitive.RadioItemIndicator>
+                    </span>
+                  </MenuPrimitive.RadioItem>
+                );
+              })}
+            </MenuPrimitive.RadioGroup>
+          </MenuPrimitive.Popup>
+        </MenuPrimitive.Positioner>
+      </MenuPrimitive.Portal>
+    </MenuPrimitive.Root>
   );
 }
-ThemeMenu.displayName = 'ThemeMenu';
+ThemeMenu.displayName = "ThemeMenu";
 
-function applyTheme(theme: ThemeName) {
+function applyTheme(theme: ThemeName): void {
   document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = isDarkTheme(theme) ? "dark" : "light";
   localStorage.setItem(themeStorageKey, theme);
 }
 
-function getThemeLabel(labels: ThemeLabels, theme: ThemeName) {
+function getThemeLabel(labels: ThemeLabels, theme: ThemeName): string {
   if (theme === "classic-dark") {
     return labels.classicDark;
   }
 
   if (theme === "cartoon") {
     return labels.cartoon;
+  }
+
+  if (theme === "cartoon-dark") {
+    return labels.cartoonDark;
   }
 
   return labels.classicLight;

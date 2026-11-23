@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {useNotification} from '../../ui/index.ts'
+import {useNotification} from '@venus/ui/vector'
 import {type ToolName} from '../model/index.ts'
 import {
   createRuntimeEditingModeController,

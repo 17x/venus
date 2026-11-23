@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction} from 'react'
-import {Badge, Button, Checkbox, CollapsibleNav, Input, type CollapsibleNavItem} from '@venus/ui'
+import {Badge, Button, Checkbox, CollapsibleNav, Input, type CollapsibleNavItem, type ThemeName} from '@venus/ui'
 import {
   ArrowLeft,
   ArrowRight,
@@ -49,6 +49,11 @@ import {
 } from '../../../packages/engine/src/index.ts'
 
 type ThemeMode = 'light' | 'dark' | 'cartoon'
+const resolveUiTheme = (theme: ThemeMode): ThemeName => theme === 'light'
+  ? 'classic-light'
+  : theme === 'dark'
+    ? 'classic-dark'
+    : 'cartoon'
 type VenusHitTestResult = ReturnType<Venus['hitTest']>
 type VenusInspection = ReturnType<Venus['inspect']>
 
@@ -3040,7 +3045,7 @@ export function App() {
   const navigationItems = useMemo(() => filterNavigationItems(baseNavigationItems, searchQuery), [baseNavigationItems, searchQuery])
   const apiCount = useMemo(() => engineApiCategories.reduce((sum, category) => sum + category.apis.length, 0), [])
 
-  return <div data-theme={theme} className={'engine-docs-shell bg-background text-foreground'}>
+  return <div data-theme={resolveUiTheme(theme)} className={'engine-docs-shell bg-background text-foreground'}>
     <header className={'engine-docs-topbar sticky top-0 z-10'}>
       <div className={'mx-auto flex h-14 max-w-[1680px] items-center justify-between gap-4 px-4 sm:px-6'}>
         <a href={'#top'} className={'flex min-w-0 items-center gap-2.5 text-sm font-semibold tracking-tight'}>

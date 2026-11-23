@@ -1,5 +1,5 @@
 import {type ReactNode} from 'react'
-import {Button} from '../../ui/index.ts'
+import {Button} from '@venus/ui/vector'
 import {ProtectedInput} from './protectedInput.tsx'
 import {
   EDITOR_TEXT_PANEL_HEADING_CLASS,

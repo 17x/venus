@@ -14,7 +14,7 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-} from '../../ui/index.ts'
+} from '@venus/ui/vector'
 import {EDITOR_TEXT_MENU_CLASS} from '../editorChrome/editorTypography.ts'
 
 export interface ContextMenuProps {

@@ -8,6 +8,7 @@ Venus is a local-first vector editor and reusable 2D graphics engine monorepo.
 | --- | --- |
 | `apps/vector-editor-web` | Main editor product |
 | `apps/engine-docs` | Runnable engine documentation site |
+| `apps/ui-docs` | Runnable shared UI catalog and API reference |
 | `packages/engine` | Rendering, geometry, spatial, hit-test, and export mechanisms |
 | `packages/editor-primitive` | Reusable editor interaction semantics |
 | `packages/ui` | Shared UI primitives and themes |
@@ -35,6 +36,7 @@ Apps own product policy. Packages own reusable implementations. `contracts/`
 defines cross-language boundaries; it does not contain runtime code.
 
 See [repository ownership](./docs/ownership.md),
+[repository layout](./docs/architecture/repository-layout.md),
 [local-first architecture](./docs/architecture/local-first.md), and
 [agent scope rules](./AGENTS.md).
 
@@ -61,6 +63,7 @@ Run a specific app:
 ```sh
 pnpm --filter @venus/vector-editor-web dev
 pnpm --filter @venus/engine-docs dev
+pnpm --filter @venus/ui-docs dev
 ```
 
 Documentation: [enginedoc.pages.dev](https://enginedoc.pages.dev/)

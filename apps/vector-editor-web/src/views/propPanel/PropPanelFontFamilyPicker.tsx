@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {Button} from '../../ui/index.ts'
+import {Button} from '@venus/ui/vector'
 import {useTranslation} from 'react-i18next'
 import {
   LuChevronDown,

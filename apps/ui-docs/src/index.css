@@ -1,0 +1,21 @@
+@import "@venus/ui/styles.css";
+
+/* Tailwind must see utilities authored by the shared source workspace. */
+@source "../../../packages/ui/src";
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+code,
+pre {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}

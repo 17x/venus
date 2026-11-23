@@ -1,7 +1,7 @@
 import {FC, useEffect, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
 import {I18nHistoryDataItem} from '../../i18n/type'
-import {Button, Con, MenuItem} from '../../ui/index.ts'
+import {Button, Con, MenuItem} from '@venus/ui/vector'
 import {EDITOR_TEXT_PANEL_BODY_CLASS} from '../editorChrome/editorTypography.ts'
 import type {ShellCommandMeta} from '../../runtime/shell/commands/shellCommandRegistry.ts'
 import {TEST_IDS} from '../../testing/testIds.ts'

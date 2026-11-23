@@ -1,4 +1,4 @@
-import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, cn} from '../../ui/index.ts'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, cn} from '@venus/ui/vector'
 import {Fragment, useEffect, useRef} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuMenu} from 'react-icons/lu'

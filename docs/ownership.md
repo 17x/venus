@@ -61,3 +61,24 @@ to a mechanism owner. Migration must replace the old path in the same change.
 - Use platform suffixes only when meaningful (`-web`, `-node`, `-java`).
 - Service implementations should describe deployment responsibility, for
   example `sync-api-node` or `render-worker-native`.
+
+## UI source policy
+
+`packages/ui` is the only reusable UI implementation owner. It exposes:
+
+- `@venus/ui` for app-neutral components and themes;
+- `@venus/ui/vector` for dense vector-editor controls and compatibility APIs.
+
+Here `@venus` is the package-manager scope used across the repository, not a
+directory inside the UI package. An unscoped name such as `venus-ui` would lose
+that consistent namespace without improving ownership, so `@venus/ui` remains
+the clearest short public name.
+
+`apps/ui-docs` documents and exercises both public entries. Product apps may
+own page layout and product-specific composition, but they must import reusable
+primitives directly from these package entries. App-local shadcn registries,
+copied `components/ui` trees, and UI re-export barrels are not allowed.
+
+SSR does not change this boundary: server-rendered components may consume an
+SSR-safe UI entry, while browser-only behavior must stay behind client entry
+points. Shared UI modules must not import app servers or backend services.
