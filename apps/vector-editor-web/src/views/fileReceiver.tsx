@@ -1,4 +1,4 @@
-import {Con, Drop, useNotification} from '../ui/index.ts'
+import {Con, Drop, useNotification} from '@venus/ui/vector'
 import readImageHelper from '../runtime/readImage.ts'
 import {FC, ReactNode, useState} from 'react'
 import {useTranslation} from 'react-i18next'

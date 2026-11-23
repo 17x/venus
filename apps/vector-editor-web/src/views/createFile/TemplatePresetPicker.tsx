@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState, type FC} from 'react'
-import {Button, Modal, cn} from '../../ui/index.ts'
+import {Button, Modal, cn} from '@venus/ui/vector'
 import {TEMPLATE_PRESETS} from '../../runtime/templatePresets/presets.ts'
 import type {TemplatePresetDefinition} from '../../runtime/templatePresets/types.ts'
 import {useTranslation} from 'react-i18next'

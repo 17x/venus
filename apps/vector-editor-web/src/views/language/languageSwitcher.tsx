@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {Button, cn} from '../../ui/index.ts'
+import {Button, cn} from '@venus/ui/vector'
 import {type VectorLanguageCode, useVectorUiI18n} from '../../i18n/ui.ts'
 import {EDITOR_TEXT_MENU_CLASS, EDITOR_TEXT_META_CLASS} from '../editorChrome/editorTypography.ts'
 

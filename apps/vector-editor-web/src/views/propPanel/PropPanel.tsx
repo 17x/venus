@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {Button, Con} from '../../ui/index.ts'
+import {Button, Con} from '@venus/ui/vector'
 import type {EditorExecutor} from '../../runtime/useEditorRuntime/types.ts'
 import type {SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
 import {EDITOR_TEXT_PANEL_BODY_CLASS} from '../editorChrome/editorTypography.ts'

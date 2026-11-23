@@ -7,7 +7,7 @@ import { Check, Minus } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const checkboxVariants = cva(
-  "peer inline-flex size-4 shrink-0 cursor-[var(--cursor-action)] items-center justify-center rounded border border-input text-primary-foreground shadow-sm outline-none transition-[background-color,border-color,color,box-shadow] hover:border-ring/40 focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary",
+  "pointer-events-none inline-flex size-4 shrink-0 items-center justify-center rounded border border-input text-primary-foreground shadow-sm outline-none transition-[background-color,border-color,color,box-shadow] peer-hover:border-ring/40 peer-focus-visible:ring-2 peer-focus-visible:ring-[hsl(var(--state-focus))] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary",
   {
     variants: {
       size: {
@@ -40,12 +40,12 @@ function Checkbox({ className, size, indeterminate, checked, ...props }: Checkbo
   }, [indeterminate, resolvedRef]);
 
   return (
-    <span className={cn("relative inline-flex items-center", className)}>
+    <span className={cn("relative inline-flex size-6 shrink-0 items-center justify-center", className)}>
       <input
         ref={resolvedRef}
         type="checkbox"
         checked={checked}
-        className="sr-only"
+        className="peer absolute inset-0 z-10 size-full cursor-[var(--cursor-action)] opacity-0 disabled:cursor-[var(--cursor-disabled)]"
         data-slot="checkbox"
         {...props}
       />

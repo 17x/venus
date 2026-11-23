@@ -1,5 +1,5 @@
 import {type ClipboardEvent, FC, InputHTMLAttributes, type KeyboardEvent} from 'react'
-import {Input, cn} from '../../ui/index.ts'
+import {Input, cn} from '@venus/ui/vector'
 
 export const ProtectedInput: FC<InputHTMLAttributes<HTMLInputElement>> = (props) => {
   const {className, onKeyDown, onKeyUp, onPaste, type, ...restProps} = props

@@ -1,4 +1,4 @@
-import {Button, Tabs, TabsList, TabsTrigger, Tooltip, useTheme, cn} from '../../ui/index.ts'
+import {Button, Tabs, TabsList, TabsTrigger, Tooltip, useTheme, cn} from '@venus/ui/vector'
 import {memo, useCallback, useMemo, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuPanelLeftClose, LuPanelLeftOpen} from 'react-icons/lu'
@@ -209,7 +209,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
   return (
     <div className={'border border-slate-200 pointer-events-auto h-full overflow-hidden rounded-lg'} style={{width: props.panelWidth}}>
       <aside className={'flex h-full shrink-0 overflow-hidden dark:bg-slate-950'} style={{width: props.panelWidth}} aria-label={t('shell.variantB.leftSidebar', 'Left sidebar')} data-testid={TEST_IDS.sidebarLeft.workspace}>
-        <nav className={'bg-white border-r border-slate-100 flex w-14 shrink-0 flex-col items-center gap-1.5py-2.5 dark:bg-slate-950 dark:border-slate-800'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
+        <nav className={'flex w-14 shrink-0 flex-col items-center gap-1.5 border-r border-slate-100 bg-white py-2.5 dark:border-slate-800 dark:bg-slate-950'} aria-label={t('shell.variantB.nav.title', 'Sidebar tabs')} data-testid={TEST_IDS.sidebarLeft.tabRail}>
           <div className={'m-2 '}>
             <LeftSidebarMenu topMenuActions={topMenuActions} onExecuteMenuAction={executeTopMenuAction}/>
           </div>
@@ -219,7 +219,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
             onValueChange={(nextValue) => {
               props.onSetActiveTab(nextValue as LeftSidebarTab)
             }}
-            className={'w-8'}
+            className={'w-8 flex-none'}
           >
             <TabsList variant={'line'} className={'h-auto w-full flex-col items-center gap-1.5 rounded-none bg-transparent p-0'}>
               {tabItems.map((tabItem) => {
@@ -233,7 +233,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
                     title={tabItem.label}
                     data-testid={TEST_IDS.sidebarLeft.tabTrigger(tabItem.id)}
                     className={cn(
-                      'inline-flex flex-col flex-none',
+                      'box-border size-8 flex-none p-0',
                       // 'items-center justify-center rounded bg-transparent text-slate-600 outline-none transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50 dark:focus-visible:ring-slate-600',
                       // 'data-active:bg-transparent',
                       // active && 'font-semibold',
@@ -250,7 +250,7 @@ function LeftSidebarComponent(props: LeftSidebarProps) {
                     {/* Keep the trigger itself as the only button so the tab rail does not render nested button elements. */}
                     <span
                       className={cn(
-                        'inline-flex h-8 items-center justify-center rounded-md px-2',
+                        'inline-flex size-8 items-center justify-center rounded-md p-0',
                         // Keep active/inactive visual treatment local to shell instead of consuming src/ui semantic CSS tokens.
                         active
                           ? 'bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600'

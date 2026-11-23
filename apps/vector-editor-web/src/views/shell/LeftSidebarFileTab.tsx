@@ -1,4 +1,4 @@
-import {Button, Input, Tooltip, cn} from '../../ui/index.ts'
+import {Button, Input, Tooltip, cn} from '@venus/ui/vector'
 import {memo, useCallback, useMemo} from 'react'
 import {useTranslation} from 'react-i18next'
 import {LuBox, LuChevronDown, LuChevronRight, LuCircle, LuComponent, LuEye, LuEyeOff, LuFrame, LuGroup, LuImage, LuLock, LuLockOpen, LuPentagon, LuRectangleHorizontal, LuSearch, LuSpline, LuStar, LuType} from 'react-icons/lu'

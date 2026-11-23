@@ -1,4 +1,4 @@
-import {Button, cn} from '../../ui/index.ts'
+import {Button, cn} from '@venus/ui/vector'
 import {useTranslation} from 'react-i18next'
 import {LuShapes} from 'react-icons/lu'
 import {ASSET_LIBRARY_CARDS, SIDEBAR_GLYPH_SIZE} from './LeftSidebarShared.tsx'

@@ -7,6 +7,8 @@
     { "path": "./packages/ui" },
     { "path": "./packages/engine" },
     { "path": "./packages/editor-primitive" },
+    { "path": "./apps/engine-docs/tsconfig.app.json" },
+    { "path": "./apps/ui-docs/tsconfig.app.json" },
     { "path": "./apps/vector-editor-web/tsconfig.app.json" },
     { "path": "./apps/vector-editor-web/tsconfig.node.json" }
   ]

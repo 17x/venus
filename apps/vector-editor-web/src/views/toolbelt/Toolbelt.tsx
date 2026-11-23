@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Tooltip,
-} from '../../ui/index.ts'
+} from '@venus/ui/vector'
 import {
   LuChevronUp,
   LuCircle,

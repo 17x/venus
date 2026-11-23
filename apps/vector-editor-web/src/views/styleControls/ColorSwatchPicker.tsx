@@ -1,5 +1,5 @@
 import {type ReactNode, useRef} from 'react'
-import {cn, IconButton} from '../../ui/index.ts'
+import {cn, IconButton} from '@venus/ui/vector'
 
 interface ColorSwatchPickerProps {
   icon: ReactNode

@@ -4,11 +4,6 @@ import process from "node:process";
 
 const appRoot = process.cwd();
 const srcRoot = path.join(appRoot, "src");
-const allowedFoundationImporter = path
-  .join("src", "ui", "index.ts")
-  .split(path.sep)
-  .join("/");
-const allowedVarDir = path.join("src", "ui").split(path.sep).join("/");
 const semanticClassTokenPattern =
   /vector-(?:shell|editor|prop|ui)-[A-Za-z0-9-]+/g;
 const targetExtensions = new Set([".ts", ".tsx", ".css"]);
@@ -101,40 +96,31 @@ function main() {
       /(?:import|@import)\s+["'][^"']*ui\/foundation\/(?:tokens|semantic)\.css["']/g,
     );
 
-    if (
-      foundationImportViolations.length > 0 &&
-      relativePath !== allowedFoundationImporter
-    ) {
+    if (foundationImportViolations.length > 0) {
       violations.push({
         file: relativePath,
         lines: foundationImportViolations,
         reason:
-          "Do not import foundation token/semantic styles outside src/ui/index.ts.",
+          "Do not import @venus/ui foundation styles from product source files.",
       });
     }
 
     const varUsageViolations = collectLineNumbers(source, /var\(--/g);
-    if (
-      varUsageViolations.length > 0 &&
-      !relativePath.startsWith(`${allowedVarDir}/`)
-    ) {
+    if (varUsageViolations.length > 0) {
       violations.push({
         file: relativePath,
         lines: varUsageViolations,
-        reason: "Use of `var(...)` is only allowed under src/ui.",
+        reason: "Consume theme values through @venus/ui components or semantic classes.",
       });
     }
 
     const semanticClassViolations = collectSemanticClassViolations(source);
-    if (
-      semanticClassViolations.length > 0 &&
-      !relativePath.startsWith(`${allowedVarDir}/`)
-    ) {
+    if (semanticClassViolations.length > 0) {
       violations.push({
         file: relativePath,
         lines: semanticClassViolations,
         reason:
-          "Do not consume src/ui semantic CSS classes outside src/ui. Use inline Tailwind or UI component APIs instead.",
+          "Do not consume private @venus/ui semantic CSS classes. Use public component APIs instead.",
       });
     }
   }

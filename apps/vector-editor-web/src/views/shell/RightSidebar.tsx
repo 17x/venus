@@ -1,5 +1,5 @@
 import {memo} from 'react'
-import {Button, Tabs, TabsList, TabsTrigger, Tooltip} from '../../ui/index.ts'
+import {Button, Tabs, TabsList, TabsTrigger, Tooltip} from '@venus/ui/vector'
 import type {EditorExecutor, SelectedElementProps} from '../../runtime/useEditorRuntime/types.ts'
 import type {InspectorContext} from '../../runtime/shell/state/inspectorState.ts'
 import type {ShellCommandMeta} from '../../runtime/shell/commands/shellCommandRegistry.ts'

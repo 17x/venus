@@ -11,7 +11,7 @@ const buttonVariants = cva(
         default: "border-primary bg-primary text-primary-foreground shadow-[0_1px_1px_hsl(var(--foreground)/0.08)] hover:bg-primary/90 hover:shadow-[0_6px_16px_hsl(var(--primary)/0.18)] active:bg-primary/80 active:shadow-[0_1px_1px_hsl(var(--foreground)/0.08)]",
         secondary: "border-input bg-secondary text-secondary-foreground shadow-[0_1px_1px_hsl(var(--foreground)/0.04)] hover:border-ring/30 hover:bg-[hsl(var(--state-hover))] hover:shadow-[0_4px_12px_hsl(var(--foreground)/0.06)]",
         ghost: "text-muted-foreground hover:bg-[hsl(var(--state-hover))] hover:text-foreground active:text-foreground",
-        outline: "border-input bg-background text-foreground shadow-[0_1px_1px_hsl(var(--foreground)/0.04)] hover:border-ring/35 hover:bg-[hsl(var(--state-hover))] hover:text-accent-foreground hover:shadow-[0_4px_12px_hsl(var(--foreground)/0.06)]",
+        outline: "border-input bg-background text-foreground shadow-[0_1px_1px_hsl(var(--foreground)/0.04)] hover:border-ring/35 hover:bg-[hsl(var(--state-hover))] hover:text-foreground hover:shadow-[0_4px_12px_hsl(var(--foreground)/0.06)]",
         destructive: "border-destructive bg-destructive text-destructive-foreground shadow-[0_1px_1px_hsl(var(--foreground)/0.08)] hover:bg-destructive/90 hover:shadow-[0_6px_16px_hsl(var(--destructive)/0.18)] active:bg-destructive/80 active:shadow-[0_1px_1px_hsl(var(--foreground)/0.08)]",
         link: "h-auto rounded-none border-0 px-0 text-primary underline-offset-4 hover:translate-y-0 hover:underline active:text-primary/80"
       },
@@ -19,11 +19,11 @@ const buttonVariants = cva(
         default: "h-8 px-3 py-1.5",
         xs: "h-6 gap-1 rounded-md px-2 text-[11px] [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 rounded-md px-2.5",
-        lg: "h-9 rounded-md px-4",
+        lg: "h-10 rounded-md px-4",
         icon: "size-8",
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-7 rounded-md [&_svg:not([class*='size-'])]:size-3.5",
-        "icon-lg": "size-9 rounded-md"
+        "icon-lg": "size-10 rounded-md"
       }
     },
     defaultVariants: {

@@ -1,5 +1,5 @@
 import React from 'react'
-import {cn, Tooltip} from '../../ui/index.ts'
+import {cn, Tooltip} from '@venus/ui/vector'
 import {ToolName} from '../../runtime/model/index.ts'
 import {
   LuCircle,

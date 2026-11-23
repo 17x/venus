@@ -1,5 +1,5 @@
 import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
-import {cn} from '../../ui/index.ts'
+import {cn} from '@venus/ui/vector'
 
 interface IconInputFieldProps {
   value: number

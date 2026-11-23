@@ -1,6 +1,6 @@
 import '../i18n/config.ts'
 import EditorFrame from '../views/editorFrame/EditorFrame.tsx'
-import {ThemeProvider} from '../ui/index.ts'
+import {ThemeProvider} from '@venus/ui/vector'
 
 function App() {
   return <ThemeProvider>

@@ -3,7 +3,7 @@ import {Fragment, ReactNode} from 'react'
 import {I18nHistoryDataItem} from '../../../i18n/type'
 // Keep shortcut bar contracts type-only to avoid UI -> hook implementation coupling.
 import type {EditorExecutor} from '../../../runtime/useEditorRuntime/types.ts'
-import {Button, cn, IconButton, Select, SelectItem} from '../../../ui/index.ts'
+import {Button, cn, IconButton, Select, SelectItem} from '@venus/ui/vector'
 import {useTranslation} from 'react-i18next'
 import type {SelectedElementProps} from '../../../runtime/useEditorRuntime/types.ts'
 import {

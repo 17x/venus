@@ -27,6 +27,8 @@ describe("commercial component surface", () => {
     assert.match(badgeSource, /info:/);
     assert.match(cardSource, /interactive:/);
     assert.match(cardSource, /density:/);
+    assert.doesNotMatch(cardSource, /focus-within/);
+    assert.doesNotMatch(globalsSource, /\[data-slot="card"\]:focus-within/);
     assert.match(indexSource, /type CardProps/);
   });
 
@@ -38,9 +40,9 @@ describe("commercial component surface", () => {
   });
 
   it("upgrades theme switching for click, keyboard, and touch workflows", () => {
-    assert.match(themeMenuSource, /aria-expanded=\{open\}/);
-    assert.match(themeMenuSource, /event\.key === "Escape"/);
-    assert.match(themeMenuSource, /pointerdown/);
+    assert.match(themeMenuSource, /MenuPrimitive\.Trigger/);
+    assert.match(themeMenuSource, /MenuPrimitive\.RadioGroup/);
+    assert.match(themeMenuSource, /MenuPrimitive\.RadioItem/);
     assert.match(themeMenuSource, /shadow-\[var\(--shadow-popover\)\]/);
   });
 
