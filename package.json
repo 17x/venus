@@ -18,10 +18,10 @@
     "typecheck": "tsc -b tsconfig.json",
     "perf:gate": "pnpm --filter @venus/vector-editor-web perf:gate",
     "test": "pnpm -r --if-present test",
-    "tttt1": "sh -c 'echo hello \"$1\"' --",
     "gitAC": "sh -c 'git add -A && git commit -m \"$@\"' _",
     "gh:pr": "gh pr create --fill",
-    "cpr": "sh -c 'msg=\"$1\"; if [ -z \"$msg\" ] || [ \"$msg\" = \"--\" ]; then echo \"Usage: pnpm gh:cpr -- \\\"commit message\\\"\"; exit 1; fi; git add -A && git commit -m \"$msg\" && git push && gh pr create --fill' --"
+    "cpr": "sh -c 'npm run gitAC \"$@\" && npm run gh:pr' _",
+    "cpr1": "sh -c 'msg=\"$1\"; if [ -z \"$msg\" ] || [ \"$msg\" = \"--\" ]; then echo \"Usage: pnpm gh:cpr -- \\\"commit message\\\"\"; exit 1; fi; git add -A && git commit -m \"$msg\" && git push && gh pr create --fill' --"
   },
   "keywords": [],
   "author": "",
