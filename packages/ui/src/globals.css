@@ -28,23 +28,23 @@
   --page-padding-y: clamp(0.75rem, 1.5vw, 1.25rem);
   --section-gap: 1rem;
   --sidebar-width: 12.5rem;
-  --control-height: 2rem;
-  --control-height-sm: 1.75rem;
-  --control-height-md: 2rem;
+  --control-height: 2.25rem;
+  --control-height-sm: 2rem;
+  --control-height-md: 2.25rem;
   --control-height-lg: 2.5rem;
-  --target-min-size: 1.5rem;
+  --target-min-size: 2rem;
   --icon-size: 1.125rem;
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --shadow-card: none;
-  --shadow-control: inset 0 1px 0 hsl(222 47% 11% / 0.025), 0 1px 2px hsl(222 47% 11% / 0.035);
+  --shadow-control: inset 0 1px 0 hsl(0 0% 100% / 0.72), 0 1px 2px hsl(222 47% 11% / 0.055);
   --shadow-popover: 0 12px 32px hsl(222 47% 11% / 0.12);
   --shadow-elevated: 0 8px 24px hsl(222 47% 11% / 0.08);
   --state-hover: 220 14% 94%;
   --state-active: 220 14% 90%;
-  --state-focus: 215 20% 55%;
-  --state-disabled-opacity: 0.45;
+  --state-focus: 166 70% 32%;
+  --state-disabled-opacity: 0.58;
   --state-invalid-bg: 0 84% 97%;
   --state-success: 151 55% 34%;
   --state-success-bg: 150 81% 96%;
@@ -54,8 +54,8 @@
   --state-info-bg: 204 94% 94%;
   --cursor-action: pointer;
   --cursor-disabled: not-allowed;
-  --control-bg: 220 20% 98%;
-  --control-bg-hover: 220 18% 96%;
+  --control-bg: 0 0% 100%;
+  --control-bg-hover: 220 20% 98%;
   --background: 0 0% 100%;
   --foreground: 222 47% 11%;
   --card: 0 0% 100%;
@@ -69,8 +69,8 @@
   --accent: 220 14% 94%;
   --accent-foreground: 222 47% 11%;
   --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 215 20% 55%;
+  --input: 214 20% 82%;
+  --ring: 166 70% 32%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 }
@@ -90,15 +90,15 @@
   --accent: 217 33% 22%;
   --accent-foreground: 222 47% 7%;
   --border: 217 33% 17%;
-  --input: 217 33% 17%;
+  --input: 217 24% 27%;
   --control-bg: 217 33% 13%;
   --control-bg-hover: 217 33% 16%;
-  --ring: 215 20% 65%;
+  --ring: 168 65% 55%;
   --destructive: 0 63% 57%;
   --destructive-foreground: 222 47% 7%;
   --state-hover: 217 33% 17%;
   --state-active: 217 33% 22%;
-  --state-focus: 215 20% 65%;
+  --state-focus: 168 65% 55%;
   --state-invalid-bg: 0 63% 12%;
   --state-success: 151 65% 54%;
   --state-success-bg: 151 44% 12%;
@@ -512,7 +512,12 @@ a {
 }
 
 [data-slot="input"],
-[data-slot="select"] {
+[data-slot="native-select"],
+[data-slot="select-trigger"],
+[data-slot="textarea"],
+[data-slot="combobox-input-group"],
+[data-slot="input-group"],
+[data-slot="number-input-group"] {
   outline: none;
   transition:
     background-color 140ms ease,
@@ -524,43 +529,63 @@ a {
   cursor: text;
 }
 
-[data-slot="select"] {
+[data-slot="native-select"],
+[data-slot="select-trigger"] {
   cursor: var(--cursor-action);
 }
 
 [data-slot="input"]:hover,
-[data-slot="select"]:hover {
-  border-color: hsl(var(--ring) / 0.3);
+[data-slot="native-select"]:hover,
+[data-slot="select-trigger"]:hover,
+[data-slot="textarea"]:hover,
+[data-slot="combobox-input-group"]:hover,
+[data-slot="input-group"]:hover,
+[data-slot="number-input-group"]:hover {
+  border-color: hsl(var(--ring) / 0.45);
   background: hsl(var(--control-bg-hover));
 }
 
 [data-slot="input"]:focus-visible,
-[data-slot="select"]:focus-visible {
-  border-color: hsl(var(--ring) / 0.45);
-  background: hsl(var(--background));
-  box-shadow:
-    0 0 0 2px hsl(var(--background)),
-    0 0 0 4px hsl(var(--state-focus) / 0.42);
+[data-slot="native-select"]:focus-visible,
+[data-slot="select-trigger"]:focus-visible {
+  border-color: hsl(var(--ring));
+  background: hsl(var(--control-bg));
+  box-shadow: var(--shadow-control), 0 0 0 3px hsl(var(--state-focus) / 0.16);
+}
+
+[data-slot="textarea"]:focus-visible,
+[data-slot="combobox-input-group"]:focus-within,
+[data-slot="input-group"]:focus-within,
+[data-slot="number-input-group"]:focus-within {
+  border-color: hsl(var(--ring));
+  background: hsl(var(--control-bg));
+  box-shadow: var(--shadow-control), 0 0 0 3px hsl(var(--state-focus) / 0.16);
 }
 
 [data-slot="input"]:disabled,
-[data-slot="select"]:disabled {
+[data-slot="native-select"]:disabled,
+[data-slot="select-trigger"]:disabled,
+[data-slot="textarea"]:disabled {
   cursor: var(--cursor-disabled);
   opacity: var(--state-disabled-opacity);
-  background: hsl(var(--muted));
+  background: hsl(var(--muted) / 0.7);
 }
 
 :where(
   [data-slot="input"],
-  [data-slot="select"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
   [data-slot="textarea"],
+  [data-slot="combobox-input-group"],
   [data-slot="input-group"],
   [data-slot="number-input-group"]
 )[data-validation="success"],
 [data-slot="field"][data-validation="success"] :where(
   [data-slot="input"],
-  [data-slot="select"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
   [data-slot="textarea"],
+  [data-slot="combobox-input-group"],
   [data-slot="input-group"],
   [data-slot="number-input-group"]
 ) {
@@ -570,15 +595,19 @@ a {
 
 :where(
   [data-slot="input"],
-  [data-slot="select"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
   [data-slot="textarea"],
+  [data-slot="combobox-input-group"],
   [data-slot="input-group"],
   [data-slot="number-input-group"]
 )[data-validation="warning"],
 [data-slot="field"][data-validation="warning"] :where(
   [data-slot="input"],
-  [data-slot="select"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
   [data-slot="textarea"],
+  [data-slot="combobox-input-group"],
   [data-slot="input-group"],
   [data-slot="number-input-group"]
 ) {
@@ -588,15 +617,19 @@ a {
 
 :where(
   [data-slot="input"],
-  [data-slot="select"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
   [data-slot="textarea"],
+  [data-slot="combobox-input-group"],
   [data-slot="input-group"],
   [data-slot="number-input-group"]
 )[data-validation="error"],
 [data-slot="field"][data-validation="error"] :where(
   [data-slot="input"],
-  [data-slot="select"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
   [data-slot="textarea"],
+  [data-slot="combobox-input-group"],
   [data-slot="input-group"],
   [data-slot="number-input-group"]
 ) {
@@ -646,8 +679,38 @@ textarea:disabled,
   outline-offset: 2px;
 }
 
+/* Form controls and composites render one semantic focus halo instead of the global outline. */
+:where(
+  [data-slot="input"],
+  [data-slot="native-select"],
+  [data-slot="select-trigger"],
+  [data-slot="textarea"],
+  [data-slot="combobox-input"],
+  [data-slot="input-group-control"],
+  [data-slot="number-input-control"],
+  [data-slot="compact-input-control"],
+  [data-slot="compact-select-control"]
+):focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
 :where(button, select, summary, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="tab"], [role="switch"]) {
   min-block-size: var(--target-min-size);
+}
+
+/* Internal steppers divide one control height; they are not standalone targets. */
+[data-slot="number-input-increment"],
+[data-slot="number-input-decrement"] {
+  min-block-size: 0;
+}
+
+/* Attached actions share the input group's outer border and full inner height. */
+[data-slot="input-group-addon"] > [data-slot="button"] {
+  block-size: 100%;
+  min-block-size: 0;
+  border-block: 0;
+  border-radius: 0;
 }
 
 @media (hover: none) {
@@ -663,9 +726,12 @@ textarea:disabled,
   :where(
     [data-slot="button"],
     [data-slot="input"],
-    [data-slot="select"],
+    [data-slot="native-select"],
+    [data-slot="select-trigger"],
+    [data-slot="combobox-input-group"],
     [data-slot="input-group"],
     [data-slot="number-input-group"],
+    [data-slot="slider-control"],
     [role="button"],
     [role="tab"],
     [role="switch"]
@@ -707,8 +773,10 @@ textarea:disabled,
   :where(
     [data-slot="button"],
     [data-slot="input"],
-    [data-slot="select"],
+    [data-slot="native-select"],
+    [data-slot="select-trigger"],
     [data-slot="textarea"],
+    [data-slot="combobox-input-group"],
     [data-slot="input-group"],
     [data-slot="number-input-group"],
     [data-slot="switch"],

@@ -35,7 +35,7 @@ describe("UI foundation contracts", () => {
   it("defines input, focus, motion, contrast, and forced-color fallbacks", () => {
     assert.match(checkboxSource, /inline-flex size-6/);
     assert.match(checkboxSource, /peer-focus-visible:ring-2/);
-    assert.match(globalsSource, /--target-min-size: 1\.5rem/);
+    assert.match(globalsSource, /--target-min-size: 2rem/);
     assert.match(globalsSource, /:focus-visible/);
     assert.match(globalsSource, /@media \(hover: none\)/);
     assert.match(globalsSource, /@media \(prefers-reduced-motion: reduce\)/);

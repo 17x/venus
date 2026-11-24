@@ -1,122 +1,107 @@
 "use client";
 
+import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { useFieldState } from "./field-state";
 
-export interface SliderProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "size" | "value" | "defaultValue"> {
+export interface SliderProps
+  extends Omit<SliderPrimitive.Root.Props<number>, "defaultValue" | "onValueChange" | "value"> {
   /** Controlled value. */
   value?: number;
   /** Default uncontrolled value. */
   defaultValue?: number;
-  /** Minimum value. */
-  min?: number;
-  /** Maximum value. */
-  max?: number;
-  /** Step increment. */
-  step?: number;
-  /** Called on value change. */
+  /** Called continuously while pointer or keyboard interaction changes the value. */
   onValueChange?: (value: number) => void;
-  /** Optional label displayed above the slider. */
+  /** Accessible and optionally visible control label. */
   label?: string;
-  /** Shows the current numeric value next to the slider. */
+  /** Shows the current numeric value next to the label. */
   showValue?: boolean;
-  /** Size variant. */
+  /** Visual density; interaction targets still expand for coarse pointers. */
   size?: "default" | "sm";
 }
 
-function Slider({
-  value: controlledValue,
-  defaultValue = 0,
-  min = 0,
-  max = 100,
-  step = 1,
-  onValueChange,
-  label,
-  showValue,
-  size = "default",
-  className,
-  disabled,
-  ...props
-}: SliderProps, ref: React.ForwardedRef<HTMLInputElement>) {
-  const isControlled = controlledValue !== undefined;
-  const [internalValue, setInternalValue] = React.useState(defaultValue);
-  const resolvedValue = isControlled ? controlledValue : internalValue;
+const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
+  (
+    {
+      "aria-label": ariaLabel,
+      className,
+      defaultValue = 0,
+      disabled,
+      label,
+      max = 100,
+      min = 0,
+      onValueChange,
+      showValue,
+      size = "default",
+      step = 1,
+      value,
+      ...props
+    },
+    ref
+  ) => {
+    const fieldState = useFieldState();
+    const resolvedDisabled = disabled ?? fieldState.disabled;
+    const accessibleLabel = label ?? ariaLabel ?? "Value";
 
-  const trackPercent = max > min
-    ? ((resolvedValue - min) / (max - min)) * 100
-    : 0;
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const next = Number(event.target.value);
-    if (!isControlled) {
-      setInternalValue(next);
-    }
-    onValueChange?.(next);
-  };
-
-  const generatedId = React.useId();
-
-  return (
-    <div className={cn("flex flex-col gap-1", className)}>
-      {(label || showValue) ? (
-        <div className="flex items-center justify-between">
-          {label ? (
-            <label htmlFor={generatedId} className="text-xs font-medium text-muted-foreground">
-              {label}
-            </label>
-          ) : <span />}
-          {showValue ? (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {resolvedValue}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-      <div
+    return (
+      <SliderPrimitive.Root
+        ref={ref}
+        aria-label={ariaLabel}
+        className={cn("flex w-full flex-col gap-1.5", className)}
+        data-disabled={resolvedDisabled || undefined}
+        data-size={size}
         data-slot="slider"
-        data-disabled={disabled ? "" : undefined}
-        className={cn(
-          "relative flex w-full touch-none select-none items-center",
-          size === "sm" ? "h-4" : "h-5",
-        )}
+        defaultValue={defaultValue}
+        disabled={resolvedDisabled}
+        max={max}
+        min={min}
+        onValueChange={onValueChange}
+        step={step}
+        value={value}
+        {...props}
       >
-        <div className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-secondary">
-          <div
-            className="absolute h-full rounded-full bg-primary transition-[width]"
-            style={{ width: `${trackPercent}%` }}
+        {label || showValue ? (
+          <div className="flex items-center justify-between gap-3">
+            {label ? (
+              <SliderPrimitive.Label className="text-xs font-medium text-muted-foreground">
+                {label}
+              </SliderPrimitive.Label>
+            ) : <span />}
+            {showValue ? (
+              <SliderPrimitive.Value className="font-mono text-xs tabular-nums text-muted-foreground">
+                {(formattedValues) => formattedValues[0]}
+              </SliderPrimitive.Value>
+            ) : null}
+          </div>
+        ) : null}
+        <SliderPrimitive.Control
+          data-slot="slider-control"
+          className={cn(
+            "group/slider relative flex w-full touch-none select-none items-center py-1.5 data-disabled:cursor-[var(--cursor-disabled)] data-dragging:cursor-grabbing",
+            size === "sm" ? "min-h-4" : "min-h-5"
+          )}
+        >
+          <SliderPrimitive.Track
+            data-slot="slider-track"
+            className="h-1.5 w-full overflow-hidden rounded-full bg-secondary transition-[background-color,box-shadow] group-hover/slider:bg-[hsl(var(--state-hover))] group-hover/slider:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)] group-data-disabled/slider:opacity-[var(--state-disabled-opacity)]"
+          >
+            <SliderPrimitive.Indicator data-slot="slider-indicator" className="rounded-full bg-primary" />
+          </SliderPrimitive.Track>
+          <SliderPrimitive.Thumb
+            data-slot="slider-thumb"
+            getAriaLabel={() => accessibleLabel}
+            className={cn(
+              "rounded-full border-2 border-primary bg-background shadow-sm outline-none transition-[box-shadow,transform] group-hover/slider:scale-110 focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-2 data-dragging:scale-110 data-disabled:cursor-[var(--cursor-disabled)] data-disabled:opacity-[var(--state-disabled-opacity)]",
+              size === "sm" ? "size-3" : "size-4"
+            )}
           />
-        </div>
-        <input
-          ref={ref}
-          id={generatedId}
-          type="range"
-          value={resolvedValue}
-          min={min}
-          max={max}
-          step={step}
-          disabled={disabled}
-          onChange={handleChange}
-          className={cn(
-            "absolute inset-0 w-full cursor-[var(--cursor-action)] opacity-0",
-            disabled && "cursor-not-allowed",
-          )}
-          {...props}
-        />
-        <div
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-sm transition-[left]",
-            size === "sm" ? "size-3" : "size-4",
-          )}
-          style={{ left: `calc(${trackPercent}% - ${size === "sm" ? "6px" : "8px"})` }}
-        />
-      </div>
-    </div>
-  );
-}
+        </SliderPrimitive.Control>
+      </SliderPrimitive.Root>
+    );
+  }
+);
 Slider.displayName = "Slider";
 
-const ForwardedSlider = React.forwardRef(Slider);
-
-export { ForwardedSlider as Slider };
+export { Slider };

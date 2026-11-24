@@ -11,12 +11,12 @@ import { Input, type InputProps } from "./input";
 import { Textarea, type TextareaProps } from "./textarea";
 
 const inputGroupVariants = cva(
-  "group/input-group relative flex w-full min-w-0 items-center rounded-md border border-input bg-[hsl(var(--control-bg))] shadow-[var(--shadow-control)] outline-none transition-[background-color,border-color,box-shadow] hover:border-ring/30 hover:bg-[hsl(var(--control-bg-hover))] focus-within:border-ring/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-[hsl(var(--state-focus))] focus-within:ring-offset-1 has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:bg-[hsl(var(--state-invalid-bg))] has-[[aria-invalid=true]]:ring-2 has-[[aria-invalid=true]]:ring-destructive/20 has-[[data-align=block-start]]:h-auto has-[[data-align=block-end]]:h-auto has-[[data-align=block-start]]:flex-col has-[[data-align=block-end]]:flex-col has-[textarea]:h-auto data-disabled:cursor-[var(--cursor-disabled)] data-disabled:bg-muted data-disabled:opacity-[var(--state-disabled-opacity)]",
+  "group/input-group relative flex w-full min-w-0 items-center overflow-hidden rounded-[var(--radius-md)] border border-input bg-[hsl(var(--control-bg))] shadow-[var(--shadow-control)] outline-none transition-[background-color,border-color,box-shadow] hover:border-ring/45 hover:bg-[hsl(var(--control-bg-hover))] focus-within:border-ring focus-within:bg-[hsl(var(--control-bg))] focus-within:ring-2 focus-within:ring-[hsl(var(--state-focus)/0.16)] focus-within:ring-offset-0 has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:bg-[hsl(var(--state-invalid-bg))] has-[[aria-invalid=true]]:ring-2 has-[[aria-invalid=true]]:ring-destructive/15 has-[[data-align=block-start]]:h-auto has-[[data-align=block-end]]:h-auto has-[[data-align=block-start]]:flex-col has-[[data-align=block-end]]:flex-col has-[textarea]:h-auto data-disabled:cursor-[var(--cursor-disabled)] data-disabled:bg-muted/70 data-disabled:opacity-[var(--state-disabled-opacity)]",
   {
     variants: {
       controlSize: {
-        sm: "h-7",
-        md: "h-8",
+        sm: "h-8",
+        md: "h-9",
         lg: "h-10"
       }
     },
@@ -65,8 +65,8 @@ const inputGroupAddonVariants = cva(
   {
     variants: {
       align: {
-        "inline-start": "order-first pl-2",
-        "inline-end": "order-last pr-2",
+        "inline-start": "order-first self-stretch pl-2 has-[[data-slot=button]]:p-0 [&>[data-slot=button]]:h-full [&>[data-slot=button]]:rounded-none [&>[data-slot=button]]:border-y-0 [&>[data-slot=button]]:border-l-0 [&>[data-slot=button]]:border-r [&>[data-slot=button]]:border-input [&>[data-slot=button]]:px-3",
+        "inline-end": "order-last self-stretch pr-2 has-[[data-slot=button]]:p-0 [&>[data-slot=button]]:h-full [&>[data-slot=button]]:rounded-none [&>[data-slot=button]]:border-y-0 [&>[data-slot=button]]:border-r-0 [&>[data-slot=button]]:border-l [&>[data-slot=button]]:border-input [&>[data-slot=button]]:px-3",
         "block-start": "order-first w-full justify-start px-2.5 pt-2",
         "block-end": "order-last w-full justify-start px-2.5 pb-2"
       }
@@ -109,7 +109,7 @@ function InputGroupButton({ className, disabled, size = "icon-sm", type = "butto
       type={type}
       size={buttonSize}
       variant={variant}
-      className={cn("shrink-0 shadow-none", className)}
+      className={cn("shrink-0 shadow-none focus-visible:ring-inset focus-visible:ring-offset-0", className)}
       disabled={disabled ?? groupState.disabled}
       {...props}
     />

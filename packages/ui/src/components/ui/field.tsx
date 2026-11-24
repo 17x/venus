@@ -30,8 +30,8 @@ const fieldVariants = cva("group/field min-w-0 gap-1.5", {
   variants: {
     orientation: {
       vertical: "flex flex-col",
-      horizontal: "grid grid-cols-[minmax(7rem,0.35fr)_minmax(0,1fr)] items-start gap-x-3 [&>[data-slot=field-label]]:pt-2",
-      responsive: "flex flex-col sm:grid sm:grid-cols-[minmax(7rem,0.35fr)_minmax(0,1fr)] sm:items-start sm:gap-x-3 sm:[&>[data-slot=field-label]]:pt-2"
+      horizontal: "grid grid-cols-[minmax(7rem,0.35fr)_minmax(0,1fr)] items-start gap-x-3 [&>[data-slot=field-label]]:pt-2.5",
+      responsive: "flex flex-col sm:grid sm:grid-cols-[minmax(7rem,0.35fr)_minmax(0,1fr)] sm:items-start sm:gap-x-3 sm:[&>[data-slot=field-label]]:pt-2.5"
     }
   },
   defaultVariants: { orientation: "vertical" }
@@ -80,7 +80,7 @@ Field.displayName = "Field";
 
 const FieldLabel = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttributes<HTMLLabelElement>>(
   ({ className, ...props }, ref) => (
-    <label ref={ref} data-slot="field-label" className={cn("cursor-default text-xs font-medium leading-4 group-data-[disabled=true]/field:opacity-[var(--state-disabled-opacity)] group-data-[validation=error]/field:text-destructive group-data-[validation=warning]/field:text-[hsl(var(--state-warning))] group-data-[validation=success]/field:text-[hsl(var(--state-success))]", className)} {...props} />
+    <label ref={ref} data-slot="field-label" className={cn("cursor-default text-[13px] font-medium leading-4 group-data-[disabled=true]/field:opacity-[var(--state-disabled-opacity)] group-data-[validation=error]/field:text-destructive group-data-[validation=warning]/field:text-[hsl(var(--state-warning))] group-data-[validation=success]/field:text-[hsl(var(--state-success))]", className)} {...props} />
   )
 );
 FieldLabel.displayName = "FieldLabel";

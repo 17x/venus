@@ -7,7 +7,7 @@ import { Check, Minus } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const checkboxVariants = cva(
-  "pointer-events-none inline-flex size-4 shrink-0 items-center justify-center rounded border border-input text-primary-foreground shadow-sm outline-none transition-[background-color,border-color,color,box-shadow] peer-hover:border-ring/40 peer-focus-visible:ring-2 peer-focus-visible:ring-[hsl(var(--state-focus))] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary",
+  "pointer-events-none inline-flex size-4 shrink-0 items-center justify-center rounded border border-input bg-[hsl(var(--control-bg))] text-primary-foreground shadow-sm outline-none transition-[background-color,border-color,color,box-shadow,transform] peer-hover:scale-105 peer-hover:border-primary/55 peer-hover:bg-[hsl(var(--state-hover))] peer-hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.10)] peer-hover:data-[state=checked]:bg-primary/90 peer-hover:data-[state=indeterminate]:bg-primary/90 peer-focus-visible:ring-2 peer-focus-visible:ring-[hsl(var(--state-focus))] peer-focus-visible:ring-offset-2 peer-disabled:opacity-[var(--state-disabled-opacity)] data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary",
   {
     variants: {
       size: {
