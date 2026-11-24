@@ -1,6 +1,6 @@
 import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
-import {TooltipProvider} from '@venus/ui'
+import {Toaster, TooltipProvider} from '@venus/ui'
 import {App} from './App.tsx'
 import './index.css'
 
@@ -13,6 +13,7 @@ createRoot(root).render(
   <StrictMode>
     <TooltipProvider>
       <App/>
+      <Toaster position={'bottom-right'}/>
     </TooltipProvider>
   </StrictMode>,
 )

@@ -25,10 +25,10 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         data-validation={resolvedValidation}
         disabled={resolvedDisabled}
         className={cn(
-          "field-sizing-content flex w-full resize-y cursor-text rounded-md border border-input bg-[hsl(var(--control-bg))] leading-4 shadow-[var(--shadow-control)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted-foreground hover:border-ring/30 hover:bg-[hsl(var(--control-bg-hover))] focus-visible:border-ring/45 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus))] focus-visible:ring-offset-1 aria-invalid:border-destructive aria-invalid:bg-[hsl(var(--state-invalid-bg))] aria-invalid:ring-2 aria-invalid:ring-destructive/20 disabled:cursor-[var(--cursor-disabled)] disabled:bg-muted disabled:opacity-[var(--state-disabled-opacity)]",
-          controlSize === "sm" && "min-h-16 px-2 py-1.5 text-xs",
-          controlSize === "md" && "min-h-20 px-2.5 py-2 text-xs",
-          controlSize === "lg" && "min-h-24 px-3 py-2.5 text-sm",
+          "field-sizing-content flex w-full resize-y cursor-text rounded-[var(--radius-md)] border border-input bg-[hsl(var(--control-bg))] leading-5 text-foreground caret-primary shadow-[var(--shadow-control)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted-foreground/80 hover:border-ring/45 hover:bg-[hsl(var(--control-bg-hover))] focus-visible:border-ring focus-visible:bg-[hsl(var(--control-bg))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--state-focus)/0.16)] focus-visible:ring-offset-0 aria-invalid:border-destructive aria-invalid:bg-[hsl(var(--state-invalid-bg))] aria-invalid:ring-2 aria-invalid:ring-destructive/15 disabled:cursor-[var(--cursor-disabled)] disabled:bg-muted/70 disabled:text-muted-foreground disabled:opacity-[var(--state-disabled-opacity)]",
+          controlSize === "sm" && "min-h-16 px-2.5 py-2 text-xs",
+          controlSize === "md" && "min-h-20 px-3 py-2.5 text-sm",
+          controlSize === "lg" && "min-h-24 px-3.5 py-3 text-sm",
           className
         )}
         {...props}

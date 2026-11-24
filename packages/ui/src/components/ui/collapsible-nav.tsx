@@ -9,11 +9,11 @@ export interface CollapsibleNavItem {
   label: string;
   href?: string;
   defaultOpen?: boolean;
-  items?: CollapsibleNavItem[];
+  items?: readonly CollapsibleNavItem[];
 }
 
 export interface CollapsibleNavProps extends React.HTMLAttributes<HTMLElement> {
-  items: CollapsibleNavItem[];
+  items: readonly CollapsibleNavItem[];
   ariaLabel?: string;
 }
 

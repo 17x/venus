@@ -14,6 +14,21 @@ export {
 } from "./components/ui/card";
 export { Checkbox, checkboxVariants, type CheckboxProps } from "./components/ui/checkbox";
 export { CollapsibleNav, type CollapsibleNavItem, type CollapsibleNavProps } from "./components/ui/collapsible-nav";
+export {
+  Combobox,
+  ComboboxClear,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxGroupLabel,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  type ComboboxContentProps,
+  type ComboboxProps
+} from "./components/ui/combobox";
 export { CompactInputField, CompactSelectField } from "./components/ui/compact-field";
 export { type ControlSize } from "./components/ui/control-size";
 export {
@@ -29,6 +44,24 @@ export {
   DialogTrigger,
   type DialogContentProps
 } from "./components/ui/dialog";
+export {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  type DropdownMenuContentProps
+} from "./components/ui/dropdown-menu";
 export { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty";
 export {
   Field,
@@ -46,6 +79,11 @@ export {
   type FieldProps
 } from "./components/ui/field";
 export { type ValidationTone } from "./components/ui/field-state";
+export {
+  FormErrorSummary,
+  type FormErrorSummaryItem,
+  type FormErrorSummaryProps
+} from "./components/ui/form-error-summary";
 export { Input, type InputProps } from "./components/ui/input";
 export {
   InputGroup,
@@ -63,13 +101,39 @@ export {
   type InputGroupTextareaProps
 } from "./components/ui/input-group";
 export { NumberInput, type NumberInputProps } from "./components/ui/number-input";
+export { NativeSelect, type NativeSelectProps } from "./components/ui/native-select";
+export {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverPortal,
+  PopoverTitle,
+  PopoverTrigger,
+  type PopoverContentProps
+} from "./components/ui/popover";
 export { Progress, type ProgressProps } from "./components/ui/progress";
 export { RadioGroup, RadioItem, type RadioGroupProps, type RadioItemProps } from "./components/ui/radio";
-export { Select, type SelectProps } from "./components/ui/select";
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+  type SelectContentProps,
+  type SelectProps
+} from "./components/ui/select";
 export { Separator, type SeparatorProps } from "./components/ui/separator";
 export { Skeleton, skeletonVariants, type SkeletonProps } from "./components/ui/skeleton";
 export { Slider, type SliderProps } from "./components/ui/slider";
 export { Spinner, type SpinnerProps } from "./components/ui/spinner";
+export { Toaster, toast, type ToasterProps } from "./components/ui/sonner";
 export { Switch, type SwitchProps } from "./components/ui/switch";
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "./components/ui/table";
 export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants } from "./components/ui/tabs";

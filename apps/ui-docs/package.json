@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "pnpm vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test src/docs/component-doc.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "4.2.2",
