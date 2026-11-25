@@ -143,6 +143,8 @@ Published sites:
 
 - [Engine documentation](https://enginedoc.pages.dev/)
 - [Vector editor demo](https://venus-db9.pages.dev/)
+- [Vector engine docs](https://enginedoc.pages.dev/)
+- [Vector ui docs](https://venus-ui-doc.pages.dev/)
 
 ## License
 
